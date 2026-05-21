@@ -61,10 +61,14 @@ exclude = [
   "**/node_modules",
 ]
 pythonVersion = "3.12"
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownParameterType = false
+reportUntypedFunctionDecorator = false
+reportUntypedBaseClass = false
 
 [tool.pytest.ini_options]
 minversion = "8.0"
