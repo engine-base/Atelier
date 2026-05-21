@@ -13,8 +13,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from .src import __version__
-from .src.health import router as health_router
+from src import __version__
+from src.health import router as health_router
 
 
 @asynccontextmanager

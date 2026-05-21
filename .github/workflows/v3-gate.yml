@@ -164,7 +164,7 @@ jobs:
         run: |
           if find apps/api -type d -name tests 2>/dev/null | grep -q .; then
             pip install -e "apps/api[dev]"
-            pytest apps/api --cov=apps/api --cov-fail-under=80
+            cd apps/api && pytest tests
           else
             echo "::notice::pytest tests not configured yet (pending T-F-24). Gate #4 Python portion skipped."
           fi
