@@ -1,36 +1,146 @@
 name: auto-merge
 
+# CLAUDE.md「1 つでも fail なら最大 3 回 retry → S-E01 escalation」を実装。
+# retry 戦略: 10s / 30s / 60s backoff（JIT spec 7. 失敗時のフロー より）
+
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
-  check_suite:
+  workflow_run:
+    workflows: ["v3-gate"]
     types: [completed]
+  pull_request:
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   contents: write
   pull-requests: write
+  issues: write
+  actions: write
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # v3-gate が PASS した PR を squash merge
+  # ─────────────────────────────────────────────────────────────────────────
   auto-merge:
-    name: Auto-merge when v3-gate passes
+    name: Auto-merge on aggregate PASS
     runs-on: ubuntu-latest
     if: |
-      github.event.pull_request.draft == false &&
-      !contains(github.event.pull_request.labels.*.name, 'do-not-merge') &&
-      !contains(github.event.pull_request.labels.*.name, 'wip')
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
-      - name: Wait for v3-gate aggregate
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          check-name: "v3-gate / all 10 gates"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 20
-          allowed-conclusions: success
-      - name: Enable auto-merge (squash)
+      - name: Find PR for workflow_run
+        id: find_pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge --squash --auto "${{ github.event.pull_request.number }}" \
-            || echo "::warning::auto-merge could not be enabled (likely insufficient permissions or branch protection not configured yet)"
+          pr_number=$(gh api "repos/${{ github.repository }}/commits/${{ github.event.workflow_run.head_sha }}/pulls" --jq '.[0].number // empty')
+          if [ -z "$pr_number" ]; then
+            echo "::notice::No PR found for SHA ${{ github.event.workflow_run.head_sha }}"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check PR labels (do-not-merge / wip)
+        if: steps.find_pr.outputs.skip != 'true'
+        id: check_labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          labels=$(gh pr view ${{ steps.find_pr.outputs.pr_number }} --json labels --jq '[.labels[].name] | join(",")')
+          if echo "$labels" | grep -qE '(do-not-merge|wip|hold)'; then
+            echo "::notice::PR has do-not-merge/wip/hold label. Skipping auto-merge."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Enable auto-merge (squash)
+        if: steps.find_pr.outputs.skip != 'true' && steps.check_labels.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr=${{ steps.find_pr.outputs.pr_number }}
+          gh pr merge "$pr" --squash --auto \
+            || gh pr merge "$pr" --squash \
+            || { echo "::warning::auto-merge could not enable. May require branch protection rules."; exit 0; }
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # v3-gate fail → retry × 3 with backoff (10s / 30s / 60s)
+  # ─────────────────────────────────────────────────────────────────────────
+  retry-on-fail:
+    name: Retry v3-gate on failure
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Compute retry count
+        id: counter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          head_sha="${{ github.event.workflow_run.head_sha }}"
+          attempts=$(gh api "repos/${{ github.repository }}/actions/runs?head_sha=${head_sha}&per_page=100" \
+            --jq '[.workflow_runs[] | select(.name == "v3-gate")] | length')
+          echo "attempts=$attempts" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "  attempts so far: $attempts"
+
+      - name: Backoff
+        if: steps.counter.outputs.attempts != '' && fromJSON(steps.counter.outputs.attempts) < 4
+        run: |
+          n=${{ steps.counter.outputs.attempts }}
+          case "$n" in
+            1) sleep 10 ;;
+            2) sleep 30 ;;
+            3) sleep 60 ;;
+            *) sleep 1 ;;
+          esac
+
+      - name: Rerun v3-gate (≤ 3 retries)
+        if: steps.counter.outputs.attempts != '' && fromJSON(steps.counter.outputs.attempts) < 4
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/rerun-failed-jobs" \
+            && echo "::notice::v3-gate retry attempt $((${{ steps.counter.outputs.attempts }} + 1)) triggered."
+
+      - name: Escalate to S-E01 after 3 fails
+        if: steps.counter.outputs.attempts != '' && fromJSON(steps.counter.outputs.attempts) >= 4
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr_number=$(gh api "repos/${{ github.repository }}/commits/${{ steps.counter.outputs.head_sha }}/pulls" --jq '.[0].number // empty')
+          run_url="${{ github.event.workflow_run.html_url }}"
+          title="[S-E01] v3-gate 3-retry exhausted — PR #${pr_number}"
+          body=$(cat <<EOF
+          # S-E01 Human Escalation
+
+          v3-gate が 3 回連続で失敗しました。経営者承認・人手介入が必要です。
+
+          - **PR**: #${pr_number}
+          - **HEAD SHA**: \`${{ steps.counter.outputs.head_sha }}\`
+          - **Last run**: ${run_url}
+          - **Workflow**: v3-gate
+
+          ## CLAUDE.md ルール
+          > CI gate 失敗 → auto retry 最大 3 回（10s / 30s / 60s）
+          > 3 連続失敗 → S-E01 チャットに human-escalation 通知
+          > blocking task の場合：経営者承認待ち（0.5h）
+
+          ## 次のアクション
+          1. 失敗ログを確認 → 構造的問題か一時的問題か判断
+          2. 構造的問題: tickets.json を更新する別 PR を起票
+          3. 一時的問題: PR を rerun
+          4. blocking task の場合: 経営者承認後に手動 merge
+          EOF
+          )
+          existing=$(gh issue list --search "[S-E01] v3-gate 3-retry exhausted — PR #${pr_number} in:title" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --body "$body" --label "escalation,blocking,human-required" || \
+              gh issue create --title "$title" --body "$body"
+          else
+            echo "::notice::Existing S-E01 issue #$existing for PR #$pr_number"
+          fi
+
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body "🚨 **S-E01 escalation**: v3-gate failed 3 times in a row. Created tracking issue. Human approval required to proceed."
+          fi
