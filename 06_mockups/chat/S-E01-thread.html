@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>チャット — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  body { overflow: hidden; }
+  .layout { height: 100vh; overflow: hidden; }
+  .main { display: flex; flex-direction: column; height: 100vh; }
+  .chat-shell { display: grid; grid-template-columns: 260px 1fr 340px; flex: 1; min-height: 0; }
+
+  /* === Left: Thread list === */
+  .thread-pane { background: #FFFFFF; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; }
+  .thread-pane-head { padding: 14px; border-bottom: 1px solid var(--color-border); }
+  .thread-search { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 10px; }
+  .thread-search input { border: none; background: transparent; outline: none; flex: 1; font-size: 12.5px; font-family: inherit; }
+  .thread-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .thread-section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-on-surface-variant); padding: 8px 10px 4px; }
+  .thread-card { padding: 10px 12px; border-radius: var(--rounded-md); margin-bottom: 2px; cursor: pointer; transition: all 0.12s; }
+  .thread-card:hover { background: var(--color-surface-variant); }
+  .thread-card.active { background: var(--color-primary-container); }
+  .thread-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .thread-employee-name { font-size: 12px; font-weight: 700; }
+  .thread-time { margin-left: auto; font-size: 10.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .thread-title { font-size: 12px; color: var(--color-on-surface); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .thread-unread { width: 6px; height: 6px; border-radius: 50%; background: var(--color-primary); flex-shrink: 0; }
+
+  /* === Center: chat === */
+  .chat-pane { display: grid; grid-template-rows: auto 1fr auto; min-width: 0; min-height: 0; background: var(--color-surface); }
+  .chat-header { padding: 12px 24px; background: rgba(254,252,248,0.95); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; backdrop-filter: blur(8px); flex-shrink: 0; }
+  .chat-header-info { flex: 1; min-width: 0; }
+  .chat-employee-row { display: flex; align-items: center; gap: 8px; }
+  .chat-status-line { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .chat-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-tertiary); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
+
+  .thread-viewport { overflow-y: auto; padding: 20px 32px 16px; min-height: 0; }
+  .msg { display: flex; gap: 12px; margin-bottom: 18px; max-width: 760px; }
+  .msg-content { flex: 1; min-width: 0; }
+  .msg-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .msg-name { font-size: 12.5px; font-weight: 700; }
+  .msg-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+
+  .msg.user { flex-direction: column; align-items: flex-end; max-width: 760px; margin-left: auto; }
+  .msg.user .msg-content { flex: none; max-width: 580px; }
+  .msg.user .msg-meta { justify-content: flex-end; margin-bottom: 4px; padding-right: 4px; color: var(--color-on-surface-variant); }
+  .msg.user .msg-bubble { background: var(--color-primary); color: var(--color-on-primary); border-radius: var(--rounded-lg) var(--rounded-lg) var(--rounded-sm) var(--rounded-lg); padding: 12px 16px; }
+
+  .msg.assistant .msg-body { font-size: 14px; line-height: 1.75; color: var(--color-on-surface); }
+  .msg.assistant .msg-body p { margin-bottom: 8px; }
+  .msg.assistant .msg-body h3 { font-size: 14.5px; font-weight: 700; margin: 12px 0 6px; }
+  .msg.assistant .msg-body ul { padding-left: 20px; margin: 6px 0 8px; }
+  .msg.assistant .msg-body code { background: var(--color-surface-variant); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 12.5px; }
+
+  .ai-status { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); border-radius: var(--rounded-full); font-size: 11.5px; font-weight: 600; margin-bottom: 8px; }
+  .ai-status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-tertiary); animation: pulse 1.2s infinite; }
+
+  /* tool-ui cards */
+  .tool-card { border: 1px solid var(--color-border); border-radius: var(--rounded-md); margin: 8px 0; overflow: hidden; background: #FFFFFF; }
+  .tool-card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--color-surface-variant); border-bottom: 1px solid var(--color-border); font-size: 11.5px; font-weight: 600; }
+  .tool-card-icon { width: 22px; height: 22px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .tool-card-name { font-family: monospace; font-size: 11.5px; color: var(--color-primary); }
+  .tool-card-status { margin-left: auto; font-size: 10.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .tool-card-body { padding: 12px 14px; font-size: 12.5px; }
+
+  /* Knowledge citation rows */
+  .kc-row { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--color-border); }
+  .kc-row:last-child { border-bottom: none; }
+  .kc-num { width: 20px; height: 20px; background: var(--color-tertiary); color: var(--color-on-tertiary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+  /* Diff block */
+  .diff-block { font-family: monospace; font-size: 11.5px; line-height: 1.65; background: #0F172A; color: #E2E8F0; border-radius: var(--rounded-sm); padding: 12px 14px; overflow-x: auto; }
+  .diff-add { color: #6EE7B7; }
+  .diff-del { color: #FCA5A5; }
+  .diff-ctx { color: #94A3B8; }
+
+  /* Mock preview */
+  .mock-preview { aspect-ratio: 16/9; background: linear-gradient(180deg, var(--color-surface-variant) 0%, #FFFFFF 100%); border-radius: var(--rounded-sm); display: flex; align-items: center; justify-content: center; color: var(--color-on-surface-variant); font-size: 11px; border: 1px solid var(--color-border); }
+
+  /* AC checklist mini */
+  .ac-list-mini { display: flex; flex-direction: column; gap: 2px; }
+  .ac-mini-item { display: flex; gap: 8px; padding: 5px 0; font-size: 12px; line-height: 1.45; }
+  .ac-check-mini { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--color-border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .ac-mini-item.passed .ac-check-mini { background: var(--color-tertiary); border-color: var(--color-tertiary); color: var(--color-on-tertiary); }
+
+  /* Approval card */
+  .approval-card { background: var(--color-secondary-container); color: var(--color-on-secondary-container); border: 1px solid var(--color-secondary); border-radius: var(--rounded-md); padding: 14px 16px; margin: 8px 0; }
+
+  /* Decision card (主力決定) */
+  .decision-card { background: linear-gradient(135deg, var(--color-primary-container), var(--color-tertiary-container)); border: 1px solid var(--color-primary); border-radius: var(--rounded-md); padding: 14px 16px; margin: 8px 0; }
+  .decision-head { display: flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-on-primary-container); margin-bottom: 8px; }
+  .decision-pin-btn { margin-left: auto; padding: 3px 9px; background: rgba(255,255,255,0.5); border-radius: var(--rounded-sm); font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  /* Composer */
+  .composer-wrap { padding: 12px 24px 16px; background: var(--color-surface); border-top: 1px solid var(--color-border); }
+  .composer { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 12px 14px; transition: all 0.12s; }
+  .composer:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-container); }
+  .composer-textarea { width: 100%; border: none; background: transparent; outline: none; resize: none; font-family: inherit; font-size: 14px; line-height: 1.6; min-height: 44px; max-height: 200px; }
+  .composer-toolbar { display: flex; align-items: center; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }
+  .composer-tool-btn { padding: 5px 9px; border-radius: var(--rounded-sm); color: var(--color-on-surface-variant); font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-family: inherit; }
+  .composer-tool-btn:hover { background: var(--color-surface-variant); color: var(--color-on-surface); }
+  .composer-send-btn { margin-left: auto; padding: 7px 16px; background: var(--color-primary); color: var(--color-on-primary); border-radius: var(--rounded-md); font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; cursor: pointer; }
+
+  .composer-mention { background: var(--color-primary-container); color: var(--color-on-primary-container); padding: 0 4px; border-radius: 3px; font-weight: 600; }
+
+  /* === Right: context === */
+  .context-pane { background: #FFFFFF; border-left: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; }
+  .ctx-tabs { display: flex; gap: 2px; padding: 10px 12px; border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
+  .ctx-tab { padding: 6px 10px; font-size: 11.5px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: var(--rounded-sm); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; flex: 1; justify-content: center; }
+  .ctx-tab.active { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .ctx-tab .count { background: rgba(0,0,0,0.08); padding: 1px 5px; border-radius: var(--rounded-full); font-size: 9.5px; }
+  .ctx-tab.active .count { background: rgba(255,255,255,0.5); }
+  .ctx-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+  .ctx-section { margin-bottom: 22px; }
+  .ctx-section-title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .ctx-section-title .count-pill { background: var(--color-surface-variant); padding: 1px 7px; border-radius: var(--rounded-full); font-size: 10px; color: var(--color-on-surface-variant); margin-left: auto; }
+
+  .pinned { background: linear-gradient(135deg, var(--color-secondary-container) 0%, #FFFFFF 100%); border: 1px solid var(--color-secondary); border-radius: var(--rounded-md); padding: 10px 12px; margin-bottom: 6px; font-size: 12px; line-height: 1.5; }
+  .pinned-label { font-size: 9.5px; font-weight: 700; color: var(--color-secondary); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+  .pinned-body { font-size: 12.5px; color: var(--color-on-surface); font-weight: 600; }
+  .pinned-meta { font-size: 10.5px; color: var(--color-on-surface-variant); margin-top: 4px; font-variant-numeric: tabular-nums; line-height: 1.4; }
+
+  .layer-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11.5px; border-bottom: 1px solid var(--color-border); }
+  .layer-row:last-child { border-bottom: none; }
+  .layer-num { width: 18px; height: 18px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .layer-name { flex: 1; }
+  .layer-count { font-size: 10.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+
+  .ref-source { padding: 8px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-sm); margin-bottom: 4px; font-size: 11.5px; cursor: pointer; }
+  .ref-source:hover { background: var(--color-primary-container); }
+  .ref-source-title { font-weight: 600; color: var(--color-primary); display: flex; align-items: center; gap: 4px; }
+  .ref-source-snip { color: var(--color-on-surface-variant); margin-top: 3px; font-size: 11px; line-height: 1.5; }
+
+  .msg-action-row { display: flex; gap: 4px; margin-top: 8px; align-items: center; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="message-square"></i>チャット</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-E01" data-bf-screen-name="chat_thread" data-bf-category="chat" data-bf-status="active" data-bf-version="2">
+<header class="topbar" style="flex-shrink: 0;">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>チャット</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<div class="chat-shell">
+
+  <!-- LEFT: スレッドリスト -->
+  <aside class="thread-pane">
+    <div class="thread-pane-head">
+      <div class="thread-search">
+        <i data-icon="search" data-size="13"></i>
+        <input placeholder="スレッドを検索">
+      </div>
+      <button class="btn btn-primary btn-sm w-full" style="justify-content: center;"><i data-icon="plus"></i>新規スレッド</button>
+    </div>
+    <div class="thread-list">
+      <div class="thread-section-label" style="color: var(--color-primary); display: flex; align-items: center; gap: 6px;">
+        <span style="width: 6px; height: 6px; background: var(--color-primary); border-radius: 50%;"></span>
+        機能分解工程（現在）
+      </div>
+
+      <div class="thread-card active">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-steve">S</div>
+          <span class="thread-employee-name">スティーブ</span>
+          <span class="thread-time">2 分前</span>
+        </div>
+        <div class="thread-title">S-A02 / S-C03 廃止の影響範囲を整理</div>
+      </div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-peter">P</div>
+          <span class="thread-employee-name">ピーター</span>
+          <span class="thread-time">25 分前</span>
+        </div>
+        <div class="thread-title">タスクカードの必須フィールド最終確認</div>
+      </div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-wanda">W</div>
+          <span class="thread-employee-name">ワンダ</span>
+          <span class="thread-time">1 時間前</span>
+        </div>
+        <div class="thread-title">能力表示の文言と表記揺れの整理</div>
+      </div>
+
+      <div class="thread-section-label" style="color: var(--color-tertiary); display: flex; align-items: center; gap: 6px;">
+        <i data-icon="check" data-size="10"></i>
+        デザイン工程（完了）
+      </div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-wanda">W</div>
+          <span class="thread-employee-name">ワンダ</span>
+          <span class="thread-time">本日</span>
+        </div>
+        <div class="thread-title">S-E01 モックの右ペイン幅調整について</div>
+      </div>
+
+      <div class="thread-section-label" style="color: var(--color-tertiary); display: flex; align-items: center; gap: 6px;">
+        <i data-icon="check" data-size="10"></i>
+        アーキ設計工程（完了）
+      </div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-strange">D</div>
+          <span class="thread-employee-name">ストレンジ</span>
+          <span class="thread-time">2 日前</span>
+        </div>
+        <div class="thread-title">RLS policy の per-entity 構成を決定</div>
+      </div>
+
+      <div class="thread-section-label">工程横断</div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-jarvis">J</div>
+          <span class="thread-employee-name">ジャービス</span>
+          <span class="thread-time">本日</span>
+        </div>
+        <div class="thread-title">今日のプロジェクト状況サマリー</div>
+      </div>
+
+      <div class="thread-card">
+        <div class="thread-row1">
+          <div class="avatar avatar-sm avatar-thor">T</div>
+          <span class="thread-employee-name">ソー</span>
+          <span class="thread-time">18 分前</span>
+          <div class="thread-unread"></div>
+        </div>
+        <div class="thread-title">T-014 ログイン画面の実装ストラテジ（第 2 段階タスク）</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- CENTER: チャット本体（assistant-ui Thread） -->
+  <section class="chat-pane">
+    <div class="chat-header" style="flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 24px 12px;">
+      <!-- 工程文脈バー -->
+      <a href="../workflow/S-F01-flow.html" style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-md); font-size: 11.5px; text-decoration: none; transition: all 0.12s;">
+        <i data-icon="workflow" data-size="12"></i>
+        <strong>現在の工程：機能分解</strong>
+        <span style="opacity: 0.75;">· Stage 5 / 9 · 進行中 87%</span>
+        <span style="margin-left: auto; display: flex; align-items: center; gap: 4px; font-weight: 600;">工程画面で全体を見る <i data-icon="arrow-right" data-size="11"></i></span>
+      </a>
+
+      <!-- AI社員 + ステータス -->
+      <div class="flex items-center gap-3">
+        <div class="avatar avatar-steve">S</div>
+        <div class="chat-header-info">
+          <div class="chat-employee-row">
+            <strong style="font-size: 14.5px;">スティーブ</strong>
+            <span class="badge badge-primary">プロダクト企画部 部長</span>
+          </div>
+          <div class="chat-status-line">
+            <span class="chat-status-dot"></span>
+            関連ナレッジを検索中... · F-CTX01 で 7 件の関連メッセージを参照中
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="search"></i></button>
+        <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+      </div>
+    </div>
+
+    <div class="thread-viewport">
+
+      <!-- User message -->
+      <div class="msg user">
+        <div class="msg-meta"><span class="msg-name">あなた</span><span class="msg-time">16:42</span></div>
+        <div class="msg-content">
+          <div class="msg-bubble">機能分解 v3 を確認した。<span class="composer-mention">@スティーブ</span> S-A02 と S-C03 を廃止する件、影響範囲を整理してほしい。</div>
+        </div>
+      </div>
+
+      <!-- Assistant message: 主力＝決定事項 + ツール群 -->
+      <div class="msg assistant">
+        <div class="avatar avatar-steve">S</div>
+        <div class="msg-content">
+          <div class="msg-meta"><span class="msg-name">スティーブ</span><span class="msg-time">16:42</span></div>
+
+          <div class="ai-status"><span class="dot"></span>Thinking... 影響範囲を解析中</div>
+
+          <!-- tool: knowledge.search -->
+          <div class="tool-card">
+            <div class="tool-card-head">
+              <div class="tool-card-icon"><i data-icon="brain" data-size="12"></i></div>
+              <span class="tool-card-name">knowledge.search</span>
+              <span class="tool-card-status">3 件 · 0.8s</span>
+            </div>
+            <div class="tool-card-body">
+              <div class="kc-row">
+                <div class="kc-num">1</div>
+                <div>
+                  <div style="font-weight:600;">画面減少時の依存タスク更新パターン</div>
+                  <div class="text-muted text-sm">スティーブ専用ナレッジ · 類似度 0.91</div>
+                </div>
+              </div>
+              <div class="kc-row">
+                <div class="kc-num">2</div>
+                <div>
+                  <div style="font-weight:600;">仕様変更の検知ルール</div>
+                  <div class="text-muted text-sm">共通ナレッジ · 類似度 0.87</div>
+                </div>
+              </div>
+              <div class="kc-row">
+                <div class="kc-num">3</div>
+                <div>
+                  <div style="font-weight:600;">WS 切替 UI のベストプラクティス</div>
+                  <div class="text-muted text-sm">業界傾向 · 類似度 0.82</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="msg-body">
+            <p>確認しました。S-A02 と S-C03 廃止の影響範囲は以下です。</p>
+            <h3>影響を受ける機能</h3>
+            <ul>
+              <li><code>F-006 AI社員管理</code> — 雇用フロー削除 → ユーザー側 API 縮小（PATCH のみ残す）</li>
+              <li><code>F-007 スキル装着</code> — <strong>管理者専用</strong>に降格、ユーザー画面から完全撤廃</li>
+              <li><code>F-002 ワークスペース管理</code> — 一覧 UI 廃止、トップバー WS ピッカーに縮約</li>
+            </ul>
+            <h3>影響タスク（F-IMP01 解析結果）</h3>
+            <p>依存グラフをたどって解析した結果、<strong>7 タスク</strong>が影響を受けます。うち実装中の <code>T-014</code> は仕様変更の影響範囲に含まれるため一時停止しています。</p>
+          </div>
+
+          <!-- tool: mock.preview -->
+          <div class="tool-card">
+            <div class="tool-card-head">
+              <div class="tool-card-icon" style="background:var(--color-secondary-container);color:var(--color-on-secondary-container);"><i data-icon="palette" data-size="12"></i></div>
+              <span class="tool-card-name">mock.preview</span>
+              <span class="tool-card-status">S-B01 v2 · 1024×576</span>
+            </div>
+            <div class="tool-card-body" style="padding: 8px;">
+              <div class="mock-preview">S-B01 プロジェクト一覧（WS ピッカー追加版）</div>
+            </div>
+          </div>
+
+          <!-- tool: acceptance_criteria -->
+          <div class="tool-card">
+            <div class="tool-card-head">
+              <div class="tool-card-icon" style="background:var(--color-tertiary-container);color:var(--color-on-tertiary-container);"><i data-icon="list-checks" data-size="12"></i></div>
+              <span class="tool-card-name">acceptance_criteria.read</span>
+              <span class="tool-card-status">T-014 · 10 / 12 達成</span>
+            </div>
+            <div class="tool-card-body">
+              <div class="ac-list-mini">
+                <div class="ac-mini-item passed"><div class="ac-check-mini"><i data-icon="check" data-size="9"></i></div>data-bf-screen-id="S-A01" が設定されている</div>
+                <div class="ac-mini-item passed"><div class="ac-check-mini"><i data-icon="check" data-size="9"></i></div>Magic Link が Resend 経由で配信される</div>
+                <div class="ac-mini-item"><div class="ac-check-mini"></div>5 回連続誤入力で 15 分アカウントロック</div>
+                <div class="ac-mini-item"><div class="ac-check-mini"></div>越境同意の改訂版 UI が表示される</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 主力＝この会話で確定したこと（Generative UI） -->
+          <div class="decision-card">
+            <div class="decision-head">
+              <i data-icon="zap" data-size="11"></i>
+              この会話で確定したこと
+              <span class="decision-pin-btn"><i data-icon="check" data-size="10"></i> ピン留め済み</span>
+            </div>
+            <div style="font-size: 13px; line-height: 1.6;">
+              <strong>S-A02 と S-C03 を廃止し、合計 35 → 33 画面に確定。</strong>
+              影響タスク 7 件のうち、未着手 4 件は自動上書き、実装中 1 件は 3 択判断、完了済 2 件はリファクタタスクを自動起票。
+            </div>
+            <div class="text-sm mt-2" style="opacity: 0.85;">
+              紐づく機能：F-002 / F-006 / F-007 · 紐づくタスク：T-014, T-031, T-032 ほか
+            </div>
+          </div>
+
+          <!-- tool: approval -->
+          <div class="approval-card">
+            <div class="flex items-center gap-2 mb-1">
+              <i data-icon="zap" data-size="14"></i>
+              <strong style="font-size: 12.5px;">承認が必要：影響範囲の処理を進めてよいですか？</strong>
+            </div>
+            <p class="text-sm">承認すると <code>F-CUC02</code> が起動し、未着手 4 件の自動上書き / 実装中 1 件の停止確認 / 完了 2 件のリファクタ起票を実行します。</p>
+            <div class="flex gap-2 mt-3">
+              <button class="btn btn-primary btn-sm"><i data-icon="check"></i>承認して実行</button>
+              <button class="btn btn-outlined btn-sm">差戻</button>
+              <button class="btn btn-ghost btn-sm">Inbox で確認</button>
+            </div>
+          </div>
+
+          <div class="msg-action-row">
+            <button class="composer-tool-btn"><i data-icon="check" data-size="11"></i>役立った</button>
+            <button class="composer-tool-btn"><i data-icon="copy" data-size="11"></i>コピー</button>
+            <button class="composer-tool-btn"><i data-icon="git-branch" data-size="11"></i>分岐</button>
+            <button class="composer-tool-btn"><i data-icon="edit" data-size="11"></i>編集</button>
+            <span class="text-muted text-sm" style="margin-left:auto;">Claude Sonnet 4.7 · 8 秒で応答</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- User -->
+      <div class="msg user">
+        <div class="msg-meta"><span class="msg-name">あなた</span><span class="msg-time">16:44</span></div>
+        <div class="msg-content">
+          <div class="msg-bubble">承認します。完了 2 件のリファクタは <code style="background:rgba(255,255,255,0.2);color:inherit;">T-014</code> 完了後にしてほしい。</div>
+        </div>
+      </div>
+
+      <!-- Assistant: Tool call result -->
+      <div class="msg assistant">
+        <div class="avatar avatar-steve">S</div>
+        <div class="msg-content">
+          <div class="msg-meta"><span class="msg-name">スティーブ</span><span class="msg-time">16:44</span></div>
+          <div class="ai-status"><span class="dot"></span>実行中：仕様変更を対象タスクに反映</div>
+
+          <div class="tool-card">
+            <div class="tool-card-head">
+              <div class="tool-card-icon"><i data-icon="git-branch" data-size="12"></i></div>
+              <span class="tool-card-name">仕様変更を対象タスクに反映</span>
+              <span class="tool-card-status">実行中...</span>
+            </div>
+            <div class="tool-card-body" style="padding:8px;">
+              <div class="diff-block"><span class="diff-ctx">- updating 4 pending tasks (auto-overwrite)</span>
+<span class="diff-add">+ T-031 spec updated → AC HTML regenerated</span>
+<span class="diff-add">+ T-032 spec updated → AC HTML regenerated</span>
+<span class="diff-add">+ T-033 spec updated → AC HTML regenerated</span>
+<span class="diff-add">+ T-035 spec updated → AC HTML regenerated</span>
+<span class="diff-ctx">- pausing 1 in-progress task</span>
+<span class="diff-del">! T-014 paused (awaiting your 3-choice decision)</span>
+<span class="diff-ctx">- scheduling 2 refactor tasks (parent_task=T-014)</span></div>
+            </div>
+          </div>
+
+          <div class="msg-body">
+            <p>了解しました。リファクタタスクは <code>T-014</code> 完了後の起票として予約しました。<strong>S-J01 Inbox</strong> に詳細通知を送信しました。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Composer -->
+    <div class="composer-wrap">
+      <div class="composer">
+        <textarea class="composer-textarea" placeholder="スティーブにメッセージ... · @ で他のAI社員をメンション · / でコマンド呼出"></textarea>
+        <div class="composer-toolbar">
+          <button class="composer-tool-btn"><i data-icon="upload" data-size="12"></i>添付</button>
+          <button class="composer-tool-btn"><i data-icon="users" data-size="12"></i>@メンション</button>
+          <button class="composer-tool-btn"><i data-icon="brain" data-size="12"></i>ナレッジ参照</button>
+          <button class="composer-tool-btn"><i data-icon="zap" data-size="12"></i>/コマンド</button>
+          <button class="composer-send-btn">送信 <i data-icon="arrow-right" data-size="12"></i></button>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 mt-2" style="padding: 0 4px;">
+        <span class="text-muted text-sm flex items-center gap-1"><i data-icon="shield-check" data-size="11"></i>Claude Sonnet 4.7 · 学習に使われません</span>
+        <span class="text-muted text-sm" style="margin-left:auto;">Enter で送信 · Shift+Enter で改行</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- RIGHT: 主力決定 + コンテキスト -->
+  <aside class="context-pane">
+    <div class="ctx-tabs">
+      <div class="ctx-tab active"><i data-icon="zap" data-size="11"></i>主力決定<span class="count">3</span></div>
+      <div class="ctx-tab"><i data-icon="brain" data-size="11"></i>コンテキスト</div>
+      <div class="ctx-tab"><i data-icon="link" data-size="11"></i>参照</div>
+    </div>
+
+    <div class="ctx-body">
+
+      <!-- 主力＝この会話で確定したこと -->
+      <div class="ctx-section">
+        <div class="ctx-section-title">この会話で確定したこと<span class="count-pill">3</span></div>
+
+        <div class="pinned">
+          <div class="pinned-label"><i data-icon="check" data-size="10"></i>確定 · 16:42</div>
+          <div class="pinned-body">画面数を 35 → 33 に確定。S-A02 / S-C03 を廃止</div>
+          <div class="pinned-meta">→ screens.json · functional-breakdown.html に反映済み</div>
+        </div>
+
+        <div class="pinned">
+          <div class="pinned-label"><i data-icon="check" data-size="10"></i>確定 · 16:43</div>
+          <div class="pinned-body">スキル概念はユーザーに非表示。「できること（能力）」として表示</div>
+          <div class="pinned-meta">→ F-007 を管理者専用に降格 · S-C02 を能力ベース UI に書き換え</div>
+        </div>
+
+        <div class="pinned">
+          <div class="pinned-label"><i data-icon="check" data-size="10"></i>確定 · 16:44</div>
+          <div class="pinned-body">完了 2 タスクのリファクタは T-014 完了後に起票</div>
+          <div class="pinned-meta">→ S-J01 Inbox に通知済み</div>
+        </div>
+      </div>
+
+      <!-- Current Topic -->
+      <div class="ctx-section">
+        <div class="ctx-section-title">現在のトピック</div>
+        <div class="pinned" style="background: var(--color-primary-container); border-color: var(--color-primary);">
+          <div class="pinned-label" style="color: var(--color-on-primary-container);"><i data-icon="layout-dashboard" data-size="10"></i>機能分解 工程</div>
+          <div class="pinned-body">S-A02 / S-C03 廃止の影響範囲確定</div>
+          <div class="pinned-meta">工程 5 / 9 · 87% 完了</div>
+        </div>
+      </div>
+
+      <!-- F-CTX01 -->
+      <div class="ctx-section">
+        <div class="ctx-section-title">F-CTX01 コンテキスト構築</div>
+        <div class="layer-row"><div class="layer-num">1</div><div class="layer-name">ペルソナ（system prompt）</div><div class="layer-count">820 t</div></div>
+        <div class="layer-row"><div class="layer-num">2</div><div class="layer-name">直近メッセージ</div><div class="layer-count">5 件</div></div>
+        <div class="layer-row"><div class="layer-num">3</div><div class="layer-name">プロジェクト状態（DB）</div><div class="layer-count">最新</div></div>
+        <div class="layer-row"><div class="layer-num">4</div><div class="layer-name">セマンティック関連メッセージ</div><div class="layer-count">7 件</div></div>
+        <div class="layer-row"><div class="layer-num">5</div><div class="layer-name">RAG ナレッジ</div><div class="layer-count">3 件</div></div>
+        <div class="layer-row"><div class="layer-num">6</div><div class="layer-name">mem0 長期記憶</div><div class="layer-count">2 件</div></div>
+        <div class="layer-row"><div class="layer-num">7</div><div class="layer-name">言及エンティティ</div><div class="layer-count">4 件</div></div>
+      </div>
+
+      <!-- 参照ソース -->
+      <div class="ctx-section">
+        <div class="ctx-section-title">参照ソース<span class="count-pill">5</span></div>
+        <div class="ref-source">
+          <div class="ref-source-title"><i data-icon="file-text" data-size="11"></i> screens.json</div>
+          <div class="ref-source-snip">S-A02 と S-C03 を削除、S-C02 v2 で fields/actions 更新</div>
+        </div>
+        <div class="ref-source">
+          <div class="ref-source-title"><i data-icon="file-text" data-size="11"></i> features.json</div>
+          <div class="ref-source-snip">F-006 と F-007 の権限再定義</div>
+        </div>
+        <div class="ref-source">
+          <div class="ref-source-title"><i data-icon="brain" data-size="11"></i> ナレッジ：画面減少時の依存タスク更新</div>
+          <div class="ref-source-snip">同類パターンの過去案件 3 件で検証済み</div>
+        </div>
+        <div class="ref-source">
+          <div class="ref-source-title"><i data-icon="brain" data-size="11"></i> ナレッジ：F-CUC01 発火条件</div>
+          <div class="ref-source-snip">workflow_outputs 更新時 / チャット意図 / 議事録</div>
+        </div>
+        <div class="ref-source">
+          <div class="ref-source-title"><i data-icon="git-branch" data-size="11"></i> 依存グラフ</div>
+          <div class="ref-source-snip">7 タスクへの影響 · NetworkX descendants() 解析</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+{
+  "version": "v3",
+  "project": "Atelier",
+  "created_at": "2026-05-18",
+  "foundation_phase_required_adrs": [
+    {
+      "id": "ADR-001",
+      "title": "認証戦略 (Supabase Auth + Postgres RLS + JWT)",
+      "category": "authentication",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "Supabase 一元化で RLS と完全統合、JWT は HTTP-only Cookie で配信。クライアント招待は別 JWT claim で完全分離して致命級リスク R-T08 対策",
+      "alternatives_considered": ["Auth.js + 自前 DB", "Clerk + 自前 RLS", "Firebase Auth"]
+    },
+    {
+      "id": "ADR-002",
+      "title": "テーブル命名規約 (snake_case_plural + UUID v7 + ソフトデリート + TIMESTAMPTZ)",
+      "category": "naming",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "Postgres 慣習に合わせ snake_case、UUID v7 で時系列ソート可、ソフトデリートで個情法・誤削除対応、TIMESTAMPTZ でTZ混在防止",
+      "alternatives_considered": ["camelCase + 連番ID", "UUID v4", "ハードデリート"]
+    },
+    {
+      "id": "ADR-003",
+      "title": "RLS 設計方針 (per-entity policy + クライアント招待別 JWT 経路)",
+      "category": "authorization",
+      "task_id": "T-V3-INFRA-04",
+      "rationale": "致命級リスク R-T08（クライアント漏洩）への対策として、通常 JWT とクライアント招待 JWT を完全分離。全テーブルに per-entity policy 定義、Gate #4 で網羅性検証",
+      "alternatives_considered": ["アプリ層認可のみ", "スキーマ分離", "single tenant per workspace"]
+    },
+    {
+      "id": "ADR-004",
+      "title": "LLMClient 抽象化レイヤー設計 (自前 30-100 行ラッパー)",
+      "category": "architecture",
+      "task_id": "T-V3-INFRA-05",
+      "rationale": "Vercel AI SDK / LangChain / LiteLLM 等の重い抽象化に依存せず、各社公式 SDK 直叩きで Claude フル機能を活用。v2 で GPT/Gemini 追加時にも呼出側コード無変更",
+      "alternatives_considered": ["Vercel AI SDK", "LangChain", "LiteLLM"]
+    },
+    {
+      "id": "ADR-005",
+      "title": "Foundation gate 定義 (8 merge gate)",
+      "category": "ci_cd",
+      "task_id": "T-V3-INFRA-02",
+      "rationale": "lint / AC / audit / RLS / test / type×2 / mock-impl-diff の 8 段 gate で品質と安全性を担保。並列開発5-10 を支える",
+      "alternatives_considered": ["最小 3 gate (lint+test+type)", "Husky pre-commit のみ"]
+    },
+    {
+      "id": "ADR-006",
+      "title": "Trunk-based + Worktree 並列開発戦略",
+      "category": "development_workflow",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "1人＋AI 社員5-10 並列で安全に開発するため、branch <agent>/<task_id> ＋ worktree ＋ squash auto-merge を採用",
+      "alternatives_considered": ["GitFlow", "GitHub Flow only", "Stack PR"]
+    },
+    {
+      "id": "ADR-007",
+      "title": "Root 画面方針 (ログイン → WS 選択 → プロジェクト一覧)",
+      "category": "ui",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "個人/受託会社両対応のため WS 選択を間に挟む。1 WS のみ所属時は自動遷移",
+      "alternatives_considered": ["ログイン後直接プロジェクト一覧", "WS をURL prefix で固定"]
+    },
+    {
+      "id": "ADR-008",
+      "title": "仕様徹底ループのスコア計算式と段階制御",
+      "category": "quality",
+      "task_id": "T-V3-INFRA-06",
+      "rationale": "AC×0.6 + Test×0.3 + 検証AI×0.1、95%以上自動 / 80-94%承認 / 80%未満強制介入、最大3回再試行。無限ループ防止しつつ自動化を最大化",
+      "alternatives_considered": ["AC×1.0", "等配分", "全自動 or 全承認の二値制御"]
+    },
+    {
+      "id": "ADR-009",
+      "title": "Claude Code ブリッジ認証方式 (初回 CLI ログイン → 以降自動起動)",
+      "category": "integration",
+      "task_id": "T-V3-INFRA-03",
+      "rationale": "OAuth 対応は Phase 5 以降に技術検証。現実的に初回ターミナル CLI ログイン → 以降は WebSocket/SSE で自動起動",
+      "alternatives_considered": ["OAuth 必須", "サーバー側 Agent SDK 実行"]
+    },
+    {
+      "id": "ADR-010",
+      "title": "データ越境・AI 学習可否のデフォルト方針 (越境同意必須・AI学習デフォルトOFF)",
+      "category": "privacy",
+      "task_id": "T-V3-INFRA-04",
+      "rationale": "Supabase Tokyo region 推奨だが Anthropic / Voyage / Whisper は US 経由のためサインアップ時に越境同意取得。AI 学習可否はプロジェクト/アカウント単位設定、デフォルト OFF",
+      "alternatives_considered": ["AI 学習デフォルト ON", "国内サーバ完結 (機能制限あり)"]
+    },
+    {
+      "id": "ADR-011",
+      "title": "ORM 選定 (Drizzle ORM)",
+      "category": "data_layer",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "Edge Runtime 対応、Supabase 公式推奨、RLS 親和性、TS ネイティブ、Prisma Accelerate (有料) 不要",
+      "alternatives_considered": ["Prisma", "Kysely"]
+    },
+    {
+      "id": "ADR-012",
+      "title": "AI UI ライブラリ採用 (assistant-ui + tool-ui)",
+      "category": "ui",
+      "task_id": "T-V3-INFRA-01",
+      "rationale": "Thread / Composer / Status (Thinking/Analyzing) / Context / Generative UI / Tool Call カード等を網羅、Claudeレベルのチャット体験",
+      "alternatives_considered": ["自前実装", "Vercel AI SDK UI"]
+    },
+    {
+      "id": "ADR-013",
+      "title": "絵文字禁止・Lucide React アイコン統一",
+      "category": "ui",
+      "task_id": "T-V3-INFRA-02",
+      "rationale": "エディトリアル品質維持、Notion/Obsidian 風一貫性。ESLint emoji-regex で CI 強制",
+      "alternatives_considered": ["絵文字併用", "Heroicons", "Tabler Icons"]
+    },
+    {
+      "id": "ADR-014",
+      "title": "ナレッジ2層構造 (共通 + AI 社員別)",
+      "category": "data_layer",
+      "task_id": "T-V3-INFRA-04",
+      "rationale": "プロジェクト跨ぎ再利用と社員別専門性を両立。各社員は自分のナレッジ優先 + 共通ナレッジも参照可",
+      "alternatives_considered": ["共通のみ", "社員別のみ", "プロジェクト単位"]
+    },
+    {
+      "id": "ADR-015",
+      "title": "コスト方針 (初期 Free tier 最大活用、月 $0-10 目標)",
+      "category": "operations",
+      "task_id": "T-V3-INFRA-02",
+      "rationale": "ベータ期間と初期リリースは Vercel Hobby / Supabase Free / Fly.io Free / Sentry Free / Resend Free / Inngest Free を徹底活用。BYOK でユーザー負担に寄せる",
+      "alternatives_considered": ["最初から Pro / Paid プラン", "ハイブリッド"]
+    },
+    {
+      "id": "ADR-016",
+      "title": "Atelier Bridge デスクトップクライアントは Vibeyard (MIT) を fork",
+      "category": "execution_bridge",
+      "task_id": "T-V3-BRIDGE-01",
+      "rationale": "Electron + node-pty + xterm.js による Claude Code / Codex / Gemini CLI のマルチセッション管理が完成済み。pty-manager・claude-cli 接続・セッション再開・カンバン UI・swarm モードを即時獲得、3-6ヶ月の自作工数を回避。1,035 stars、MIT、活発開発中。P2P・埋め込みブラウザを削除、Atelier クラウド SSE 接続・9 工程連動・AI 社員 Skill 注入を追加。MIT 帰属表記必須",
+      "alternatives_considered": ["完全自作 Electron", "Tauri 自作", "Vibeyard 参照のみ再実装"]
+    },
+    {
+      "id": "ADR-017",
+      "title": "工程7(実装)のタスクディスパッチャは Hermes Agent (MIT) の kanban パターンを FastAPI に port",
+      "category": "execution_bridge",
+      "task_id": "T-V3-DISP-01",
+      "rationale": "HERMES_KANBAN_TASK env による worker spawn、git worktree 自動作成、サーキットブレーカ (max-retries+PID ポーリング)、構造化ハンドオフ (summary+metadata)、kanban_show/complete/block/unblock 等7ツールが完成済み。157k stars 実績、Python なので FastAPI に直接 port 可能。MIT 帰属表記必須",
+      "alternatives_considered": ["完全自作ディスパッチャ", "Celery+Redis 自前", "Temporal"]
+    },
+    {
+      "id": "ADR-018",
+      "title": "タスクライフサイクルは Hermes 流 6 列モデル採用",
+      "category": "execution_bridge",
+      "task_id": "T-V3-DISP-02",
+      "rationale": "Hermes 実運用検証済みの 6 ステータス (Triage→Ready→In Progress→Blocked→Awaiting→Done) を採用。依存解消後 Ready 昇格・人間判断は Blocked/Awaiting で分離。UI 上は日本語ラベル (準備中/着手可/実装中/要対応/承認待ち/完了)",
+      "alternatives_considered": ["独自5列", "Trello風3列"]
+    }
+  ],
+  "decision_record_skill_handoff": "decision-record スキルへ各 ADR の起票を委譲する。フォルダ: docs/adr/<id>-<slug>.md"
+}

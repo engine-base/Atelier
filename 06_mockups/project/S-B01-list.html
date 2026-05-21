@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>プロジェクト — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .pj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .pj-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 20px; cursor: pointer; transition: all 0.15s; }
+  .pj-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
+  .pj-progress-track { height: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; margin: 12px 0; }
+  .pj-progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--rounded-full); }
+  .pj-phases { display: flex; gap: 2px; margin-top: 12px; }
+  .pj-phase { flex: 1; height: 4px; background: var(--color-surface-variant); border-radius: 2px; }
+  .pj-phase.done { background: var(--color-tertiary); }
+  .pj-phase.current { background: var(--color-primary); }
+  .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; padding: 10px 12px 10px 16px; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); }
+  .search-wrap { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 0 14px; height: 36px; transition: all 0.12s; }
+  .search-wrap:focus-within { background: #FFFFFF; box-shadow: 0 0 0 2px var(--color-primary-container); }
+  .search-wrap .icon-svg { color: var(--color-on-surface-variant); flex-shrink: 0; }
+  .search-input { flex: 1; min-width: 0; border: none; background: transparent; outline: none; font-family: inherit; font-size: 13px; height: 100%; }
+  .filter-divider { width: 1px; height: 22px; background: var(--color-border); flex-shrink: 0; }
+  .seg-toggle { display: flex; gap: 2px; padding: 3px; background: var(--color-surface-variant); border-radius: var(--rounded-md); flex-shrink: 0; }
+  .seg-toggle button { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; line-height: 1; transition: all 0.12s; }
+  .seg-toggle button.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .filter-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: var(--rounded-md); font-size: 12.5px; font-weight: 600; color: var(--color-on-surface-variant); flex-shrink: 0; }
+  .filter-btn:hover { background: var(--color-surface-variant); color: var(--color-on-surface); }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item active" href="#"><i data-icon="folder"></i>プロジェクト<span style="margin-left:auto;font-size:11px;color:var(--color-on-surface-variant);">8</span></a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item" href="#"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">3</span></a>
+    <a class="nav-item" href="../workspace/S-A03-settings.html"><i data-icon="settings"></i>設定</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-B01" data-bf-screen-name="project_list" data-bf-category="project" data-bf-status="active" data-bf-version="1">
+<style>
+  .ws-picker { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); cursor: pointer; transition: all 0.12s; }
+  .ws-picker:hover { background: var(--color-primary-container); }
+  .ws-picker-icon { width: 22px; height: 22px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-sm); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .ws-picker-name { font-size: 13px; font-weight: 700; }
+  .invite-row-inline { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); border: 1px dashed var(--color-border); margin-top: 14px; max-width: 480px; }
+  .invite-row-inline .input { background: #FFFFFF; padding: 8px 12px; font-size: 12.5px; }
+</style>
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="ws-picker">
+      <div class="ws-picker-icon">E</div>
+      <span class="ws-picker-name">ENGINE BASE</span>
+      <i data-icon="chevron-down" data-size="12"></i>
+    </div>
+    <span class="breadcrumb-sep">/</span>
+    <strong class="text-sm">プロジェクト</strong>
+  </div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+<div class="content">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="page-title" style="margin-bottom:4px;">プロジェクト</h1>
+      <p class="page-subtitle">8 件のアクティブプロジェクト</p>
+    </div>
+    <button class="btn btn-primary"><i data-icon="plus"></i>新規プロジェクト</button>
+  </div>
+
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <i data-icon="search" data-size="14"></i>
+      <input class="search-input" placeholder="プロジェクトを検索（名前 / クライアント / フェーズ）">
+    </div>
+    <div class="filter-divider"></div>
+    <div class="seg-toggle">
+      <button class="active">すべて</button>
+      <button>進行中</button>
+      <button>アーカイブ</button>
+    </div>
+    <button class="filter-btn"><i data-icon="filter" data-size="13"></i>フィルタ</button>
+  </div>
+
+  <div class="pj-grid">
+    <div class="pj-card">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge badge-primary">クライアント案件</span>
+        <span class="pill pill-in-progress"><span class="pill-dot"></span>実装中</span>
+      </div>
+      <h3 class="text-lg font-bold mb-1">Atelier 自社開発</h3>
+      <p class="text-muted text-sm mb-3">ENGINE BASE 内製</p>
+      <div class="pj-phases">
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase done"></div><div class="pj-phase current"></div><div class="pj-phase"></div>
+        <div class="pj-phase"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+      </div>
+      <div class="flex items-center justify-between mt-3 text-sm text-muted">
+        <span class="flex items-center gap-1 tabular"><i data-icon="list-checks" data-size="12"></i>42 / 87 タスク</span>
+        <span class="tabular">2 分前更新</span>
+      </div>
+    </div>
+
+    <div class="pj-card">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge badge-primary">クライアント案件</span>
+        <span class="pill pill-verifying"><span class="pill-dot"></span>検証中</span>
+      </div>
+      <h3 class="text-lg font-bold mb-1">小松様 EC モール統合</h3>
+      <p class="text-muted text-sm mb-3">株式会社マツリデハッピー</p>
+      <div class="pj-phases">
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase done"></div><div class="pj-phase current"></div><div class="pj-phase"></div>
+      </div>
+      <div class="flex items-center justify-between mt-3 text-sm text-muted">
+        <span class="flex items-center gap-1 tabular"><i data-icon="list-checks" data-size="12"></i>112 / 124 タスク</span>
+        <span class="tabular">1 時間前更新</span>
+      </div>
+    </div>
+
+    <div class="pj-card">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge badge-secondary">自社プロダクト</span>
+        <span class="pill pill-completed"><span class="pill-dot"></span>納品済み</span>
+      </div>
+      <h3 class="text-lg font-bold mb-1">CatsMe! リファクタ</h3>
+      <p class="text-muted text-sm mb-3">自社プロダクト</p>
+      <div class="pj-phases">
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+      </div>
+      <div class="flex items-center justify-between mt-3 text-sm text-muted">
+        <span class="flex items-center gap-1 tabular"><i data-icon="check" data-size="12"></i>156 / 156 タスク</span>
+        <span class="tabular">3 日前更新</span>
+      </div>
+    </div>
+
+    <div class="pj-card">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge badge-primary">クライアント案件</span>
+        <span class="pill pill-pending"><span class="pill-dot"></span>ヒアリング中</span>
+      </div>
+      <h3 class="text-lg font-bold mb-1">MoonJapan 評価モデル v2</h3>
+      <p class="text-muted text-sm mb-3">株式会社MoonJapan</p>
+      <div class="pj-phases">
+        <div class="pj-phase current"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+        <div class="pj-phase"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+        <div class="pj-phase"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+      </div>
+      <div class="flex items-center justify-between mt-3 text-sm text-muted">
+        <span class="flex items-center gap-1 tabular"><i data-icon="message-square" data-size="12"></i>4 件チャット</span>
+        <span class="tabular">本日</span>
+      </div>
+    </div>
+
+    <div class="pj-card">
+      <div class="flex items-center justify-between mb-2">
+        <span class="badge badge-tertiary">個人開発</span>
+        <span class="pill pill-awaiting"><span class="pill-dot"></span>承認待ち</span>
+      </div>
+      <h3 class="text-lg font-bold mb-1">個人ブログ刷新</h3>
+      <p class="text-muted text-sm mb-3">高本まさと</p>
+      <div class="pj-phases">
+        <div class="pj-phase done"></div><div class="pj-phase done"></div><div class="pj-phase done"></div>
+        <div class="pj-phase current"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+        <div class="pj-phase"></div><div class="pj-phase"></div><div class="pj-phase"></div>
+      </div>
+      <div class="flex items-center justify-between mt-3 text-sm text-muted">
+        <span class="flex items-center gap-1 tabular"><i data-icon="list-checks" data-size="12"></i>8 / 32 タスク</span>
+        <span class="tabular">昨日</span>
+      </div>
+    </div>
+
+    <div class="pj-card" style="border-style:dashed;background:transparent;display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--color-on-surface-variant);">
+      <div style="text-align:center;">
+        <i data-icon="plus" data-size="24"></i>
+        <div class="mt-2 font-semibold">新規プロジェクトを作成</div>
+        <div class="text-sm">クライアント案件・自社プロダクト・個人開発</div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Atelier ER図 v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:"Noto Sans JP",sans-serif;background:#fafaf9;color:#1a1a1a;line-height:1.75;font-feature-settings:"palt"}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;flex-shrink:0;background:#1a1a1a;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;color:#e5e5e5}
+.sidebar-logo{padding:24px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.sidebar-logo .doc-badge{font-size:9px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.45);display:block;margin-bottom:6px}
+.sidebar-logo .doc-title{font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.02em}
+.sidebar-logo .doc-version{font-size:10px;color:rgba(255,255,255,0.4);margin-top:8px;font-family:'JetBrains Mono',monospace}
+.toc{padding:12px 0 40px}
+.toc-group-label{font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.35);padding:14px 20px 4px}
+.toc a{display:flex;align-items:center;gap:8px;padding:7px 20px;text-decoration:none;color:rgba(255,255,255,0.65);font-size:11.5px;border-left:2px solid transparent}
+.toc a:hover{color:#fff;background:rgba(255,255,255,0.05);border-left-color:rgba(255,255,255,0.3)}
+.main{margin-left:240px;padding:40px 48px 100px;max-width:1200px}
+.doc-cover{background:#fff;border-radius:12px;padding:40px 44px;margin-bottom:24px;border:1px solid #e7e5e4}
+.cover-label{font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#a8a29e;margin-bottom:12px}
+.cover-title{font-size:28px;font-weight:700;color:#1a1a1a;line-height:1.2;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #e7e5e4;letter-spacing:-0.02em}
+.cover-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.meta-item{display:flex;flex-direction:column;gap:3px}
+.meta-label{font-size:9.5px;font-weight:700;color:#a8a29e;letter-spacing:0.08em;text-transform:uppercase}
+.meta-value{font-size:13px;color:#1a1a1a;font-weight:500;font-family:'JetBrains Mono',monospace}
+.section-card{background:#fff;border-radius:12px;padding:32px 36px;margin-bottom:18px;border:1px solid #e7e5e4}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid #e7e5e4}
+.section-num{width:32px;height:32px;background:#1a1a1a;color:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.section-title{font-size:19px;font-weight:700;color:#1a1a1a;letter-spacing:-0.01em}
+.mermaid{background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:24px;overflow-x:auto}
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e7e5e4;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#fafaf9;color:#1a1a1a;font-weight:700;padding:10px 12px;text-align:left;font-size:11px;letter-spacing:0.02em;border-bottom:1px solid #e7e5e4}
+tbody td{padding:8px 12px;border-top:1px solid #f5f5f4;vertical-align:top;color:#404040;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+tbody tr:hover td{background:#fafaf9}
+.table-title{font-size:14px;font-weight:700;color:#1a1a1a;margin:24px 0 10px;padding-left:10px;border-left:3px solid #1a1a1a}
+.badge{display:inline-block;font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:3px;font-family:'JetBrains Mono',monospace;margin-right:3px}
+.badge-pk{background:#1a1a1a;color:#fff}
+.badge-fk{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.badge-uk{background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff}
+.badge-nn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.badge-idx{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+.badge-null{background:#f5f5f4;color:#737373;border:1px solid #d6d3d1}
+.badge-enum{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+.badge-vector{background:#fce7f3;color:#9d174d;border:1px solid #fbcfe8}
+.notes-list{padding-left:22px;margin:10px 0}
+.notes-list li{margin-bottom:6px;font-size:12.5px;color:#404040}
+code{background:#f5f5f4;padding:2px 7px;border-radius:4px;font-size:11.5px;font-family:'JetBrains Mono',monospace;color:#1a1a1a}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="doc-badge">ER Diagram</span>
+    <div class="doc-title">Atelier</div>
+    <div class="doc-version">v1.0 / 2026-05-18</div>
+  </div>
+  <nav class="toc">
+    <div class="toc-group-label">Overview</div>
+    <a href="#diagram"><span>ER 図</span></a>
+    <a href="#summary"><span>サマリー</span></a>
+    <div class="toc-group-label">Core Tables</div>
+    <a href="#users"><span>users / workspaces</span></a>
+    <a href="#projects"><span>projects / phases</span></a>
+    <a href="#employees"><span>ai_employees / skills</span></a>
+    <a href="#chat"><span>chat_threads / messages</span></a>
+    <a href="#tasks"><span>tasks / executions</span></a>
+    <a href="#knowledge"><span>knowledge_nodes</span></a>
+    <a href="#meta"><span>監査 / 招待 / 同意</span></a>
+    <div class="toc-group-label">Detail</div>
+    <a href="#indexes"><span>インデックス</span></a>
+    <a href="#notes"><span>設計メモ</span></a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<div class="doc-cover">
+  <div class="cover-label">Entity Relationship Diagram</div>
+  <h1 class="cover-title">Atelier ER 図</h1>
+  <div class="cover-meta">
+    <div class="meta-item"><span class="meta-label">DB</span><span class="meta-value">PostgreSQL 16</span></div>
+    <div class="meta-item"><span class="meta-label">ORM (TS)</span><span class="meta-value">Drizzle ORM</span></div>
+    <div class="meta-item"><span class="meta-label">ORM (Py)</span><span class="meta-value">asyncpg + SQLA</span></div>
+    <div class="meta-item"><span class="meta-label">Tables</span><span class="meta-value">25</span></div>
+    <div class="meta-item"><span class="meta-label">Relations</span><span class="meta-value">38</span></div>
+    <div class="meta-item"><span class="meta-label">Indexes</span><span class="meta-value">52</span></div>
+    <div class="meta-item"><span class="meta-label">Region</span><span class="meta-value">Tokyo</span></div>
+    <div class="meta-item"><span class="meta-label">Access Control</span><span class="meta-value">Postgres RLS</span></div>
+  </div>
+</div>
+
+<section class="section-card" id="diagram">
+  <div class="section-header"><div class="section-num">01</div><div class="section-title">ER 図（Mermaid）</div></div>
+  <div class="mermaid">
+erDiagram
+    users ||--o{ workspace_memberships : has
+    users ||--o{ byok_api_keys : owns
+    users ||--o{ consents : records
+    users ||--o{ approval_inbox : receives
+
+    workspaces ||--o{ workspace_memberships : contains
+    workspaces ||--o{ projects : has
+    workspaces ||--o{ ai_employees : has
+    workspaces ||--o{ mcp_tokens : issues
+    workspaces ||--o{ audit_logs : tracks
+
+    projects ||--o{ phases : has
+    projects ||--o{ workflow_outputs : produces
+    projects ||--o{ chat_threads : has
+    projects ||--o{ tasks : has
+    projects ||--o{ mocks : has
+    projects ||--o{ acceptance_criteria : has
+    projects ||--o{ comments : has
+    projects ||--o{ client_invitations : issues
+    projects ||--o{ external_uploads : has
+    projects ||--o{ cron_schedules : has
+
+    phases ||--o{ workflow_outputs : contains
+    phases ||--o{ tasks : groups
+
+    ai_employee_templates ||--o{ ai_employees : "template of"
+    skills }o--o{ ai_employees : "attached to"
+
+    ai_employees ||--o{ chat_threads : "operates in"
+    ai_employees ||--o{ tasks : "assigned to"
+    ai_employees ||--o{ knowledge_nodes : "owns specific"
+
+    chat_threads ||--o{ chat_messages : contains
+
+    tasks ||--o{ task_executions : runs
+    tasks ||--|| acceptance_criteria : "has 1"
+    tasks }o--o| mocks : "references"
+
+    knowledge_nodes }o--|| workspaces : "scoped to (ws)"
+    knowledge_nodes }o--|| users : "scoped to (user)"
+
+    users {
+        uuid id PK
+        text email UK
+        text display_name
+        text avatar_url
+        timestamptz created_at
+        timestamptz deleted_at
+    }
+    workspaces {
+        uuid id PK
+        uuid owner_user_id FK
+        text name
+        text icon
+        text plan
+        jsonb settings
+        timestamptz created_at
+        timestamptz deleted_at
+    }
+    projects {
+        uuid id PK
+        uuid workspace_id FK
+        text name
+        text client_name
+        enum project_type
+        enum status
+        bool ai_training_optout
+        jsonb settings
+        timestamptz created_at
+        timestamptz deleted_at
+    }
+    ai_employees {
+        uuid id PK
+        uuid workspace_id FK
+        uuid template_id FK
+        text name
+        text icon
+        enum role
+        enum department
+        enum tone_preset
+        text custom_tone_text
+        uuid_array attached_skills
+        text_array attached_knowledge_cats
+        bool is_default
+    }
+    tasks {
+        uuid id PK
+        uuid project_id FK
+        uuid phase_id FK
+        text category
+        text title
+        enum type
+        int estimated_hours
+        uuid_array dependencies
+        uuid acceptance_criteria_id FK
+        uuid mock_id FK
+        uuid assigned_employee_id FK
+        enum status
+        enum priority
+        bool auto_advance_allowed
+    }
+    knowledge_nodes {
+        uuid id PK
+        uuid account_id
+        enum account_type
+        enum scope
+        uuid owner_employee_id FK
+        text category
+        text_array tags
+        text content_md
+        vector embedding
+        numeric confidence_score
+        bool is_anonymized
+    }
+  </div>
+</section>
+
+<section class="section-card" id="summary">
+  <div class="section-header"><div class="section-num">02</div><div class="section-title">サマリー</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>カテゴリ</th><th>テーブル</th><th>件数</th></tr></thead>
+    <tbody>
+      <tr><td>アカウント</td><td>users, workspaces, workspace_memberships, byok_api_keys, consents</td><td>5</td></tr>
+      <tr><td>プロジェクト</td><td>projects, phases, workflow_outputs, external_uploads, cron_schedules</td><td>5</td></tr>
+      <tr><td>AI組織</td><td>ai_employees, ai_employee_templates, skills</td><td>3</td></tr>
+      <tr><td>チャット</td><td>chat_threads, chat_messages</td><td>2</td></tr>
+      <tr><td>タスク実行</td><td>tasks, task_executions, acceptance_criteria, mocks</td><td>4</td></tr>
+      <tr><td>コラボ</td><td>comments, client_invitations, approval_inbox</td><td>3</td></tr>
+      <tr><td>ナレッジ</td><td>knowledge_nodes</td><td>1</td></tr>
+      <tr><td>運営</td><td>audit_logs, mcp_tokens</td><td>2</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="users">
+  <div class="section-header"><div class="section-num">03</div><div class="section-title">アカウント系</div></div>
+
+  <div class="table-title">users（Supabase Auth + public.users 同期）</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td>UUID v7</td></tr>
+      <tr><td>email</td><td>text</td><td><span class="badge badge-uk">UK</span> <span class="badge badge-nn">NN</span></td><td>Supabase Auth 同期</td></tr>
+      <tr><td>display_name</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>avatar_url</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>created_at</td><td>timestamptz</td><td><span class="badge badge-nn">NN</span></td><td>default now()</td></tr>
+      <tr><td>deleted_at</td><td>timestamptz</td><td><span class="badge badge-null">NULL</span></td><td>ソフトデリート</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-title">workspaces</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td></td></tr>
+      <tr><td>owner_user_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span> users.id</td><td></td></tr>
+      <tr><td>name</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td>2-50 字 CHECK</td></tr>
+      <tr><td>icon</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td>Lucide icon name or URL</td></tr>
+      <tr><td>plan</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td>default 'free'</td></tr>
+      <tr><td>settings</td><td>jsonb</td><td><span class="badge badge-nn">NN</span></td><td>default '{}'</td></tr>
+      <tr><td>created_at / updated_at / deleted_at</td><td>timestamptz</td><td>—</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-title">workspace_memberships</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>workspace_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>user_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>role</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>owner / member / viewer</td></tr>
+      <tr><td>joined_at</td><td>timestamptz</td><td><span class="badge badge-nn">NN</span></td><td></td></tr>
+      <tr><td>—</td><td>—</td><td><span class="badge badge-uk">UK</span></td><td>uq(workspace_id, user_id)</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="projects">
+  <div class="section-header"><div class="section-num">04</div><div class="section-title">プロジェクト系</div></div>
+
+  <div class="table-title">projects</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td></td></tr>
+      <tr><td>workspace_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>name</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td></td></tr>
+      <tr><td>client_name</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>project_type</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>client_work / internal_product / personal</td></tr>
+      <tr><td>status</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>draft / active / paused / archived</td></tr>
+      <tr><td>ai_training_optout</td><td>bool</td><td><span class="badge badge-nn">NN</span></td><td>default true（F-LEGAL-011）</td></tr>
+      <tr><td>settings</td><td>jsonb</td><td><span class="badge badge-nn">NN</span></td><td></td></tr>
+      <tr><td>created_at / updated_at / deleted_at</td><td>timestamptz</td><td>—</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-title">phases / workflow_outputs / external_uploads / cron_schedules（要約）</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>主要列</th></tr></thead>
+    <tbody>
+      <tr><td>phases</td><td>id, project_id FK, order int, name, status enum, started_at, completed_at</td></tr>
+      <tr><td>workflow_outputs</td><td>id, project_id FK, phase_id FK, stage enum (proposal/estimate/hearing/requirements/architecture/design/breakdown/tasks/implementation/verification/delivery), html_path, json_path, md_path, summary text</td></tr>
+      <tr><td>external_uploads</td><td>id, project_id FK, type enum, storage_path, parsed_at, parse_result_path, file_size_bytes</td></tr>
+      <tr><td>cron_schedules</td><td>id, project_id FK, cron_expression, target_action, target_payload jsonb, enabled bool, next_run_at</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="employees">
+  <div class="section-header"><div class="section-num">05</div><div class="section-title">AI 組織系</div></div>
+
+  <div class="table-title">ai_employees</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td></td></tr>
+      <tr><td>workspace_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>template_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td>ai_employee_templates</td></tr>
+      <tr><td>name / display_name / icon</td><td>text</td><td>—</td><td>ユーザー編集可</td></tr>
+      <tr><td>role</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>coo / lead / member</td></tr>
+      <tr><td>department</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>executive / sales / product / architecture / design / dev_qa / cross_functional</td></tr>
+      <tr><td>tone_preset</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>polite / friendly / casual / concise / coaching</td></tr>
+      <tr><td>custom_tone_text</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>attached_skills</td><td>uuid[]</td><td>—</td><td>装着スキルID配列</td></tr>
+      <tr><td>attached_knowledge_cats</td><td>text[]</td><td>—</td><td>参照ナレッジカテゴリ</td></tr>
+      <tr><td>system_prompt_override</td><td>text</td><td><span class="badge badge-null">NULL</span></td><td>admin only</td></tr>
+      <tr><td>is_default / archived</td><td>bool</td><td>—</td><td></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-title">ai_employee_templates / skills（要約）</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>主要列</th></tr></thead>
+    <tbody>
+      <tr><td>ai_employee_templates</td><td>id, default_name, icon, department, role, default_skills uuid[], default_knowledge_cats text[], system_prompt, specialty, version, is_active</td></tr>
+      <tr><td>skills</td><td>id, name UK, version, content_md, assets_storage_path, allowed_employee_roles text[], allowed_employee_ids uuid[], is_active</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="chat">
+  <div class="section-header"><div class="section-num">06</div><div class="section-title">チャット系</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>主要列</th></tr></thead>
+    <tbody>
+      <tr><td>chat_threads</td><td>id, project_id FK, ai_employee_id FK, title, archived bool, created_at</td></tr>
+      <tr><td>chat_messages</td><td>id, thread_id FK, role enum (user/assistant/system/tool), content text, tool_calls jsonb, attachments jsonb, parent_message_id uuid, created_at</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="tasks">
+  <div class="section-header"><div class="section-num">07</div><div class="section-title">タスク・実行系</div></div>
+
+  <div class="table-title">tasks</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td></td></tr>
+      <tr><td>project_id / phase_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>category</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td>機能/画面カテゴリ（かんばん用）</td></tr>
+      <tr><td>title / description</td><td>text</td><td>—</td><td></td></tr>
+      <tr><td>type</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>foundation / screen / feature / verification / infrastructure</td></tr>
+      <tr><td>estimated_hours</td><td>int</td><td><span class="badge badge-nn">NN</span></td><td>CHECK between 1 and 24（理想 8-16）</td></tr>
+      <tr><td>dependencies / prerequisites / blocks</td><td>uuid[]</td><td>—</td><td>依存関係必須</td></tr>
+      <tr><td>acceptance_criteria_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td>1:1</td></tr>
+      <tr><td>mock_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span> <span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>spec_html_path</td><td>text</td><td>—</td><td>Storage パス</td></tr>
+      <tr><td>assigned_employee_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td></td></tr>
+      <tr><td>status</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>pending / in_progress / in_verification / awaiting_approval / completed / blocked</td></tr>
+      <tr><td>priority</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>low / medium / high / critical</td></tr>
+      <tr><td>auto_advance_allowed</td><td>bool</td><td><span class="badge badge-nn">NN</span></td><td>承認なしで進めるか</td></tr>
+      <tr><td>files_changed</td><td>text[]</td><td>—</td><td>衝突回避用</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="table-title">task_executions / acceptance_criteria / mocks（要約）</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>主要列</th></tr></thead>
+    <tbody>
+      <tr><td>task_executions</td><td>id, task_id FK, started_at, completed_at, score numeric, ac_pass_rate, test_pass_rate, verification_score, retry_count int, claude_code_session_id, status enum, logs_storage_path</td></tr>
+      <tr><td>acceptance_criteria</td><td>id, task_id FK, html_path, items jsonb (id, text, passed, evidence), version</td></tr>
+      <tr><td>mocks</td><td>id, project_id FK, screen_name, html_storage_path, version, parent_mock_id</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="knowledge">
+  <div class="section-header"><div class="section-num">08</div><div class="section-title">ナレッジ系（2層構造）</div></div>
+  <div class="table-title">knowledge_nodes</div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>列</th><th>型</th><th>制約</th><th>説明</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>uuid</td><td><span class="badge badge-pk">PK</span></td><td></td></tr>
+      <tr><td>account_id</td><td>uuid</td><td><span class="badge badge-nn">NN</span></td><td>workspace_id or user_id</td></tr>
+      <tr><td>account_type</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>workspace / user</td></tr>
+      <tr><td>scope</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>common / employee_specific</td></tr>
+      <tr><td>owner_employee_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span> <span class="badge badge-null">NULL</span></td><td>scope=employee_specific の時のみ</td></tr>
+      <tr><td>category</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td>例：参考デザイン / 提案テンプレ</td></tr>
+      <tr><td>tags</td><td>text[]</td><td>—</td><td></td></tr>
+      <tr><td>content_md</td><td>text</td><td><span class="badge badge-nn">NN</span></td><td></td></tr>
+      <tr><td>embedding</td><td>vector(1024)</td><td><span class="badge badge-vector">VECTOR</span></td><td>Voyage AI</td></tr>
+      <tr><td>source_type</td><td>enum</td><td><span class="badge badge-enum">ENUM</span></td><td>manual / ai_extracted / import</td></tr>
+      <tr><td>source_project_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span> <span class="badge badge-null">NULL</span></td><td></td></tr>
+      <tr><td>confidence_score</td><td>numeric</td><td><span class="badge badge-nn">NN</span></td><td>default 0.5</td></tr>
+      <tr><td>is_anonymized</td><td>bool</td><td><span class="badge badge-nn">NN</span></td><td>退会後匿名化（F-LEGAL-015）</td></tr>
+      <tr><td>approved_by_user_id</td><td>uuid</td><td><span class="badge badge-fk">FK</span></td><td>承認したユーザー</td></tr>
+      <tr><td>approved_at / created_at / updated_at</td><td>timestamptz</td><td>—</td><td></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="meta">
+  <div class="section-header"><div class="section-num">09</div><div class="section-title">監査 / 招待 / 同意</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>主要列</th></tr></thead>
+    <tbody>
+      <tr><td>comments</td><td>id, target_type enum (workflow_output/mock/task/acceptance_criteria), target_id uuid, target_element_id text, author_user_id FK NULL, author_invitation_id FK NULL, content text, status enum, created_at</td></tr>
+      <tr><td>client_invitations</td><td>id, project_id FK, email, token_hash UK, scopes jsonb, expires_at timestamptz, used_at timestamptz NULL, revoked_at NULL</td></tr>
+      <tr><td>approval_inbox</td><td>id, user_id FK, type enum (task_approval/phase_approval/knowledge_write/comment_response/scope_change), target_type/target_id, payload jsonb, status enum, created_at, resolved_at</td></tr>
+      <tr><td>audit_logs</td><td>id, workspace_id NULL, actor_type enum (ai/user/system), actor_id, action text, target_type, target_id, before jsonb, after jsonb, ip_address inet, created_at</td></tr>
+      <tr><td>mcp_tokens</td><td>id, workspace_id FK, token_hash UK, name, scopes text[], expires_at NULL, revoked_at NULL, last_used_at</td></tr>
+      <tr><td>byok_api_keys</td><td>id, user_id FK, provider enum (claude/gpt/gemini), encrypted_key (Vault), created_at</td></tr>
+      <tr><td>consents</td><td>id, user_id FK, type enum (terms_of_service/privacy_policy/data_residency/ai_training_optin), version text, accepted_at, ip_address inet, user_agent text</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="indexes">
+  <div class="section-header"><div class="section-num">10</div><div class="section-title">インデックス設計</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>テーブル</th><th>インデックス</th><th>種別</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td>workspaces</td><td>idx_workspaces_owner_user_id</td><td><span class="badge badge-idx">BTREE</span></td><td>所有者検索</td></tr>
+      <tr><td>workspace_memberships</td><td>uq_workspace_memberships_ws_user</td><td><span class="badge badge-uk">UK</span></td><td>重複防止</td></tr>
+      <tr><td>workspace_memberships</td><td>idx_workspace_memberships_user_id</td><td><span class="badge badge-idx">BTREE</span></td><td>ユーザーのWS列挙</td></tr>
+      <tr><td>projects</td><td>idx_projects_workspace_id_status</td><td><span class="badge badge-idx">複合</span></td><td>WS内アクティブ案件</td></tr>
+      <tr><td>projects</td><td>idx_projects_active</td><td><span class="badge badge-idx">部分</span></td><td>WHERE deleted_at IS NULL</td></tr>
+      <tr><td>tasks</td><td>idx_tasks_project_id_status</td><td><span class="badge badge-idx">複合</span></td><td>かんばん表示</td></tr>
+      <tr><td>tasks</td><td>idx_tasks_assigned_employee_id</td><td><span class="badge badge-idx">BTREE</span></td><td>担当別</td></tr>
+      <tr><td>tasks</td><td>idx_tasks_active</td><td><span class="badge badge-idx">部分</span></td><td>WHERE status != 'completed'</td></tr>
+      <tr><td>task_executions</td><td>idx_task_executions_task_id_started_at</td><td><span class="badge badge-idx">複合</span></td><td>実行履歴</td></tr>
+      <tr><td>chat_messages</td><td>idx_chat_messages_thread_id_created_at</td><td><span class="badge badge-idx">複合</span></td><td>スレッド時系列</td></tr>
+      <tr><td>chat_messages</td><td>idx_chat_messages_content_fts</td><td><span class="badge badge-idx">GIN tsvector</span></td><td>全文検索</td></tr>
+      <tr><td>knowledge_nodes</td><td>idx_knowledge_account_scope_owner</td><td><span class="badge badge-idx">複合</span></td><td>アカウント別検索</td></tr>
+      <tr><td>knowledge_nodes</td><td>idx_knowledge_embedding_hnsw</td><td><span class="badge badge-idx">HNSW</span></td><td>ベクトル類似検索（cosine）</td></tr>
+      <tr><td>knowledge_nodes</td><td>idx_knowledge_tags_gin</td><td><span class="badge badge-idx">GIN array</span></td><td>タグ検索</td></tr>
+      <tr><td>comments</td><td>idx_comments_target</td><td><span class="badge badge-idx">複合</span></td><td>(target_type, target_id)</td></tr>
+      <tr><td>client_invitations</td><td>uq_client_invitations_token_hash</td><td><span class="badge badge-uk">UK</span></td><td>招待リンク照合</td></tr>
+      <tr><td>approval_inbox</td><td>idx_approval_inbox_user_id_status</td><td><span class="badge badge-idx">複合</span></td><td>未処理Inbox</td></tr>
+      <tr><td>audit_logs</td><td>idx_audit_logs_workspace_created_at</td><td><span class="badge badge-idx">複合</span></td><td>WS別監査</td></tr>
+      <tr><td>mcp_tokens</td><td>uq_mcp_tokens_token_hash</td><td><span class="badge badge-uk">UK</span></td><td>トークン照合</td></tr>
+      <tr><td>skills</td><td>uq_skills_name_version</td><td><span class="badge badge-uk">UK</span></td><td>版管理</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="notes">
+  <div class="section-header"><div class="section-num">11</div><div class="section-title">設計メモ</div></div>
+  <ul class="notes-list">
+    <li><strong>UUID v7</strong>: 時系列ソート可、insert 順保証、URL 露出安全。<code>uuid_generate_v7()</code> 関数を migration で作成</li>
+    <li><strong>ソフトデリート</strong>: 全テーブル <code>deleted_at TIMESTAMPTZ</code>、30日後に <code>cron_schedules</code> → Inngest で hard delete</li>
+    <li><strong>RLS</strong>: 全テーブル <code>ENABLE ROW LEVEL SECURITY</code>、Gate #4 で網羅性検証。クライアント招待は <code>invitation_token_hash</code> claim 経由で完全分離</li>
+    <li><strong>ベクトル次元</strong>: Voyage AI <code>voyage-3-large</code> は 1024 次元。将来モデル変更時は別カラム追加 + 移行</li>
+    <li><strong>tsvector 自動更新</strong>: trigger で <code>content_tsv</code> 列を自動メンテ</li>
+    <li><strong>JSONB 列</strong>: <code>settings</code> / <code>tool_calls</code> / <code>items</code> 等。必要時に GIN <code>jsonb_path_ops</code> 追加</li>
+    <li><strong>暗号化</strong>: <code>byok_api_keys.encrypted_key</code> は Supabase Vault で AES-256、復号は service_role のみ</li>
+    <li><strong>マイグレーション</strong>: <code>supabase/migrations/YYYYMMDDHHMMSS_&lt;name&gt;.sql</code>、down SQL を併記</li>
+    <li><strong>Generated types</strong>: <code>supabase gen types typescript</code> → <code>packages/shared/db-types/</code>、Drizzle schema と並行管理</li>
+  </ul>
+</section>
+
+</main>
+</div>
+
+<script>
+mermaid.initialize({startOnLoad:true,theme:'neutral',themeVariables:{primaryColor:'#fafaf9',primaryBorderColor:'#1a1a1a',primaryTextColor:'#1a1a1a',lineColor:'#737373',fontFamily:'JetBrains Mono, monospace',fontSize:'12px'}});
+</script>
+</body>
+</html>

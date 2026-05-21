@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>自動スケジュール — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── 役割カード ───────── */
+  .role-card {
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--color-primary-container) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 18px; align-items: start;
+  }
+  .role-icon { width: 56px; height: 56px; background: var(--color-primary); color: #FFFFFF; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; }
+  .role-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .role-lead { font-size: 13px; color: var(--color-on-surface-variant); margin-bottom: 14px; line-height: 1.7; }
+  .role-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .role-point { background: rgba(255,255,255,0.7); border-radius: var(--rounded-md); padding: 10px 12px; }
+  .role-point-num { width: 22px; height: 22px; border-radius: 50%; background: var(--color-primary); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .role-point-label { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .role-point-desc { font-size: 11.5px; color: var(--color-on-surface-variant); line-height: 1.55; }
+
+  /* ───────── 次の実行予定（時系列） ───────── */
+  .upcoming-card {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .upcoming-head {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex; align-items: center;
+    background: var(--color-surface-variant);
+  }
+  .upcoming-title { font-size: 14px; font-weight: 700; }
+  .upcoming-sub { font-size: 11.5px; color: var(--color-on-surface-variant); margin-top: 2px; }
+  .upcoming-head .btn { margin-left: auto; }
+  .upcoming-list { padding: 4px 0; }
+  .upcoming-row {
+    display: grid;
+    grid-template-columns: 150px 1px 36px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .upcoming-row:hover { background: var(--color-surface); }
+  .upcoming-row:last-child { border-bottom: none; }
+  .upcoming-time-main {
+    font-size: 13px; font-weight: 700;
+    color: var(--color-primary);
+    font-variant-numeric: tabular-nums;
+  }
+  .upcoming-time-sub {
+    font-size: 11px;
+    color: var(--color-on-surface-variant);
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .upcoming-divider {
+    width: 1px; height: 36px;
+    background: var(--color-border);
+  }
+  .upcoming-icon {
+    width: 36px; height: 36px;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upcoming-icon.task { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .upcoming-icon.know { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .upcoming-icon.check { background: #E2E8F0; color: #1E293B; }
+  .upcoming-icon.report { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .upcoming-name { font-size: 13.5px; font-weight: 700; }
+  .upcoming-meta { font-size: 11.5px; color: var(--color-on-surface-variant); margin-top: 2px; }
+
+  /* ───────── カテゴリ別グループ ───────── */
+  .group { margin-bottom: 22px; }
+  .group-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 4px 10px;
+  }
+  .group-icon { width: 30px; height: 30px; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; }
+  .group-icon.required { background: #FEE2E2; color: #991B1B; }
+  .group-icon.impl { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .group-icon.maintain { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .group-icon.notify { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .group-name { font-size: 14px; font-weight: 700; }
+  .group-desc { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .group-required-tag {
+    font-size: 10.5px; font-weight: 700;
+    padding: 2px 9px; border-radius: var(--rounded-full);
+    background: var(--color-error); color: #FFFFFF;
+  }
+
+  /* ───────── スケジュール行（読みやすく） ───────── */
+  .schedule-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 180px 44px 44px;
+    gap: 16px;
+    align-items: center;
+    padding: 16px 18px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    margin-bottom: 8px;
+    transition: all 0.12s;
+  }
+  .schedule-row:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); }
+  .schedule-row.disabled { opacity: 0.55; }
+  .schedule-icon-lg {
+    width: 44px; height: 44px;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .schedule-icon-lg.task { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .schedule-icon-lg.know { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .schedule-icon-lg.check { background: #1E293B; color: #FFFFFF; }
+  .schedule-icon-lg.report { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .schedule-icon-lg.legal { background: #FEE2E2; color: #991B1B; }
+
+  .schedule-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .schedule-desc { font-size: 12px; color: var(--color-on-surface-variant); line-height: 1.55; }
+  .schedule-tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .stag {
+    font-size: 10.5px; font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--rounded-full);
+    background: var(--color-surface-variant);
+    color: var(--color-on-surface-variant);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .stag.cost-free { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .stag.cost-plan { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .stag.cost-api { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .stag.required { background: #FEE2E2; color: #991B1B; }
+
+  .schedule-when {
+    text-align: right;
+  }
+  .schedule-when-main {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .schedule-when-cron {
+    font-family: monospace;
+    font-size: 10.5px;
+    color: var(--color-on-surface-variant);
+    cursor: help;
+  }
+  .schedule-when-next {
+    font-size: 11px;
+    color: var(--color-on-surface-variant);
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toggle {
+    position: relative; width: 36px; height: 20px;
+    background: var(--color-surface-variant);
+    border-radius: 10px; cursor: pointer; flex-shrink: 0;
+    transition: all 0.15s;
+    justify-self: end;
+  }
+  .toggle::after {
+    content: ''; position: absolute;
+    left: 2px; top: 2px;
+    width: 16px; height: 16px;
+    background: #FFFFFF; border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    transition: all 0.15s;
+  }
+  .toggle.on { background: var(--color-tertiary); }
+  .toggle.on::after { left: 18px; }
+  .toggle.locked { background: var(--color-error); cursor: not-allowed; }
+  .toggle.locked::after { left: 18px; }
+
+  /* ───────── 履歴 ───────── */
+  .history-card {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    margin-top: 22px;
+    overflow: hidden;
+  }
+  .history-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex; align-items: center;
+  }
+  .history-head h2 { font-size: 14px; font-weight: 700; }
+
+  /* ───────── 新規スケジュール builder ───────── */
+  .layout-grid { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+  .builder-card {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 22px 24px;
+    position: sticky; top: 80px;
+  }
+  .builder-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .builder-lead { font-size: 12px; color: var(--color-on-surface-variant); margin-bottom: 18px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 700; color: var(--color-on-surface); margin-bottom: 6px; }
+  .form-label .form-hint { font-weight: 500; color: var(--color-on-surface-variant); margin-left: 6px; }
+
+  .action-picker { display: grid; gap: 6px; }
+  .action-opt {
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    cursor: pointer;
+    transition: all 0.12s;
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center;
+  }
+  .action-opt:hover { border-color: var(--color-primary); background: var(--color-surface); }
+  .action-opt.selected { border-color: var(--color-primary); background: var(--color-primary-container); }
+  .action-opt-icon { width: 28px; height: 28px; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; background: var(--color-surface-variant); }
+  .action-opt.selected .action-opt-icon { background: var(--color-primary); color: #FFFFFF; }
+  .action-opt-name { font-size: 12.5px; font-weight: 700; }
+  .action-opt-skill { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 1px; }
+
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .preset-btn {
+    padding: 9px 10px;
+    background: var(--color-surface-variant);
+    border-radius: var(--rounded-md);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .preset-btn:hover { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .preset-btn.active { background: var(--color-primary); color: #FFFFFF; }
+
+  .advanced-toggle {
+    font-size: 11.5px; color: var(--color-primary);
+    cursor: pointer; margin-top: 8px;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .advanced-section { display: none; margin-top: 12px; padding: 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .advanced-section.open { display: block; }
+  .cron-input-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 6px; }
+  .cron-cell { padding: 6px 6px; background: #FFFFFF; border-radius: var(--rounded-sm); text-align: center; }
+  .cron-cell-label { font-size: 9.5px; color: var(--color-on-surface-variant); margin-bottom: 3px; letter-spacing: 0.04em; text-transform: uppercase; font-weight: 700; }
+  .cron-cell input { width: 100%; border: none; background: transparent; outline: none; text-align: center; font-family: monospace; font-weight: 700; font-size: 13px; }
+  .cron-helper { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 4px; font-style: italic; }
+
+  .btn-create { width: 100%; padding: 12px 16px; background: var(--color-primary); color: #FFFFFF; border-radius: var(--rounded-md); font-weight: 700; font-size: 13.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn-create:hover { filter: brightness(1.1); }
+
+  @media (max-width: 1100px) {
+    .role-points { grid-template-columns: 1fr; }
+    .layout-grid { grid-template-columns: 1fr; }
+    .builder-card { position: static; }
+    .schedule-row { grid-template-columns: 40px 1fr; gap: 12px; }
+    .schedule-when { grid-column: 2; text-align: left; }
+    .schedule-row .toggle { grid-column: 2; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="../task/S-I03-monitor.html"><i data-icon="cpu"></i>実行モニター</a>
+    <a class="nav-item active" href="#"><i data-icon="clock"></i>自動スケジュール</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-O01" data-bf-screen-name="schedule" data-bf-category="execution" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>自動スケジュール</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<div class="content" style="max-width: 1300px;">
+
+  <!-- ━━━━━━ 1. 役割カード ━━━━━━ -->
+  <section class="role-card">
+    <div class="role-icon"><i data-icon="clock" data-size="28"></i></div>
+    <div>
+      <div class="role-title">自動スケジュール — 決まった時間に AI 社員や裏方処理を自動起動する場所</div>
+      <div class="role-lead">あなたが寝ている間や離席中も、ナレッジ整理・整合性チェック・進捗レポート配信などを自動で動かせます。法令対応の自動処理（退会データ削除など）はオフにできません。</div>
+      <div class="role-points">
+        <div class="role-point">
+          <div class="role-point-num">1</div>
+          <div class="role-point-label">法令・運用は自動で動く</div>
+          <div class="role-point-desc">退会データ削除や整合性チェックは常時稼働（コストゼロ）</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">2</div>
+          <div class="role-point-label">実装の夜間進行は ON/OFF 可</div>
+          <div class="role-point-desc">着手可タスクを夜のうちに消化（Claude プラン枠を使用）</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">3</div>
+          <div class="role-point-label">ナレッジ・通知は任意</div>
+          <div class="role-point-desc">ティチャラのナレッジ整理や月次レポート配信を必要なだけ</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 2. 次の実行予定（時系列リスト） ━━━━━━ -->
+  <section class="upcoming-card">
+    <div class="upcoming-head">
+      <div>
+        <div class="upcoming-title">次に動くスケジュール</div>
+        <div class="upcoming-sub">タイムゾーン：Asia/Tokyo · 直近 24 時間で 5 件が稼働予定</div>
+      </div>
+      <button class="btn btn-ghost btn-sm"><i data-icon="refresh-cw" data-size="13"></i>更新</button>
+    </div>
+    <div class="upcoming-list">
+      <div class="upcoming-row">
+        <div class="upcoming-time">
+          <div class="upcoming-time-main">あと 4 時間 37 分</div>
+          <div class="upcoming-time-sub">5/20 02:00 (火)</div>
+        </div>
+        <div class="upcoming-divider"></div>
+        <div class="upcoming-icon task"><i data-icon="play-circle" data-size="14"></i></div>
+        <div class="upcoming-info">
+          <div class="upcoming-name">着手可タスクの自動再生</div>
+          <div class="upcoming-meta">ソーが実装 · Claude プラン枠を使用</div>
+        </div>
+      </div>
+      <div class="upcoming-row">
+        <div class="upcoming-time">
+          <div class="upcoming-time-main">あと 6 時間 07 分</div>
+          <div class="upcoming-time-sub">5/20 03:30 (火)</div>
+        </div>
+        <div class="upcoming-divider"></div>
+        <div class="upcoming-icon know"><i data-icon="brain" data-size="14"></i></div>
+        <div class="upcoming-info">
+          <div class="upcoming-name">ナレッジ自動整理</div>
+          <div class="upcoming-meta">ティチャラが実行 · BYOK API 使用</div>
+        </div>
+      </div>
+      <div class="upcoming-row">
+        <div class="upcoming-time">
+          <div class="upcoming-time-main">あと 7 時間 37 分</div>
+          <div class="upcoming-time-sub">5/20 05:00 (火)</div>
+        </div>
+        <div class="upcoming-divider"></div>
+        <div class="upcoming-icon check"><i data-icon="shield-check" data-size="14"></i></div>
+        <div class="upcoming-info">
+          <div class="upcoming-name">データ整合性チェック</div>
+          <div class="upcoming-meta">バックエンドのみ · コスト無料</div>
+        </div>
+      </div>
+      <div class="upcoming-row">
+        <div class="upcoming-time">
+          <div class="upcoming-time-main">あと 6 日 6 時間</div>
+          <div class="upcoming-time-sub">5/26 04:00 (月)</div>
+        </div>
+        <div class="upcoming-divider"></div>
+        <div class="upcoming-icon know"><i data-icon="sparkles" data-size="14"></i></div>
+        <div class="upcoming-info">
+          <div class="upcoming-name">横断パターン抽出（週次）</div>
+          <div class="upcoming-meta">ティチャラが実行 · BYOK API 使用</div>
+        </div>
+      </div>
+      <div class="upcoming-row">
+        <div class="upcoming-time">
+          <div class="upcoming-time-main">あと 12 日 11 時間</div>
+          <div class="upcoming-time-sub">6/1 09:00 (日)</div>
+        </div>
+        <div class="upcoming-divider"></div>
+        <div class="upcoming-icon report"><i data-icon="mail" data-size="14"></i></div>
+        <div class="upcoming-info">
+          <div class="upcoming-name">月次進捗レポート配信</div>
+          <div class="upcoming-meta">スティーブが実行 · BYOK API 使用 · 招待クライアントへ送付</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="layout-grid">
+    <div>
+      <!-- ━━━━━━ 3a. 法令・運用（必須） ━━━━━━ -->
+      <div class="group">
+        <div class="group-head">
+          <div class="group-icon required"><i data-icon="shield-check" data-size="16"></i></div>
+          <div>
+            <div class="group-name" style="display:flex;align-items:center;gap:8px;">法令・運用バックエンド <span class="group-required-tag">必須</span></div>
+            <div class="group-desc">法令対応とデータ整合性。Atelier 内部処理のみ・コスト無料</div>
+          </div>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg legal"><i data-icon="trash-2" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">退会データを 30 日後に完全削除</div>
+            <div class="schedule-desc">個人情報保護法に基づく削除義務。退会から 30 日経過したアカウントのデータを物理削除します。</div>
+            <div class="schedule-tags">
+              <span class="stag required"><i data-icon="lock" data-size="10"></i>無効化不可</span>
+              <span class="stag cost-free"><i data-icon="check" data-size="10"></i>コスト無料</span>
+              <span class="stag"><i data-icon="database" data-size="10"></i>SQL のみ</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎日 深夜 0:00</div>
+            <div class="schedule-when-cron" title="cron 式">0 0 * * *</div>
+            <div class="schedule-when-next">次回 翌 0:00</div>
+          </div>
+          <div class="toggle locked" title="法令対応のため無効化不可"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg check"><i data-icon="shield-check" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">データ整合性チェック</div>
+            <div class="schedule-desc">タスク依存関係・受入条件バージョン・モック ID・変更ファイル一覧の矛盾を検出。検知時は承認待ちに通知。</div>
+            <div class="schedule-tags">
+              <span class="stag cost-free"><i data-icon="check" data-size="10"></i>コスト無料</span>
+              <span class="stag"><i data-icon="database" data-size="10"></i>SQL のみ</span>
+              <span class="stag"><i data-icon="users" data-size="10"></i>AI 社員は使わない</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎日 朝 5:00</div>
+            <div class="schedule-when-cron">0 5 * * *</div>
+            <div class="schedule-when-next">次回 翌 5:00</div>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+      </div>
+
+      <!-- ━━━━━━ 3b. 実装の夜間自動進行 ━━━━━━ -->
+      <div class="group">
+        <div class="group-head">
+          <div class="group-icon impl"><i data-icon="play-circle" data-size="16"></i></div>
+          <div>
+            <div class="group-name">実装の夜間自動進行</div>
+            <div class="group-desc">あなたが寝てる間に着手可タスクを自動消化（あなたの Claude プラン枠を使用）</div>
+          </div>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg task"><i data-icon="play-circle" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">着手可のタスクを順次再生</div>
+            <div class="schedule-desc">タスクボードの「着手可」レーンにあるタスクを、同時実行枠の範囲で自動的に再生します。明示的にプロジェクト単位で ON にする必要があります。</div>
+            <div class="schedule-tags">
+              <span class="stag cost-plan"><i data-icon="zap" data-size="10"></i>Claude プラン枠を使用</span>
+              <span class="stag"><i data-icon="user" data-size="10"></i>ソー（実装）</span>
+              <span class="stag"><i data-icon="info" data-size="10"></i>明示同意で ON</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎日 深夜 2:00</div>
+            <div class="schedule-when-cron">0 2 * * *</div>
+            <div class="schedule-when-next">次回 翌 2:00</div>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+      </div>
+
+      <!-- ━━━━━━ 3c. ナレッジ整理（AI 社員） ━━━━━━ -->
+      <div class="group">
+        <div class="group-head">
+          <div class="group-icon maintain"><i data-icon="brain" data-size="16"></i></div>
+          <div>
+            <div class="group-name">ナレッジ整理（ティチャラ）</div>
+            <div class="group-desc">蓄積されたナレッジの整理・統合・横断パターン抽出。BYOK API キーを使用</div>
+          </div>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg know"><i data-icon="brain" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">ナレッジを自動で整理する</div>
+            <div class="schedule-desc">ティチャラが新規追加されたナレッジに対してカテゴリ分け・タグ付け・重複統合を実行します。</div>
+            <div class="schedule-tags">
+              <span class="stag cost-api"><i data-icon="key" data-size="10"></i>BYOK API 使用</span>
+              <span class="stag"><i data-icon="user" data-size="10"></i>ティチャラ</span>
+              <span class="stag">使う能力：ナレッジ整理</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎日 深夜 3:30</div>
+            <div class="schedule-when-cron">30 3 * * *</div>
+            <div class="schedule-when-next">次回 翌 3:30</div>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg know"><i data-icon="sparkles" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">複数プロジェクトから横断パターンを抽出</div>
+            <div class="schedule-desc">3 案件以上で類似度 0.85 以上のパターンを検出して、共通ナレッジへの昇格を承認待ちに提案します。</div>
+            <div class="schedule-tags">
+              <span class="stag cost-api"><i data-icon="key" data-size="10"></i>BYOK API 使用</span>
+              <span class="stag"><i data-icon="user" data-size="10"></i>ティチャラ</span>
+              <span class="stag">使う能力：横断抽出</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎週 月曜 4:00</div>
+            <div class="schedule-when-cron">0 4 * * 1</div>
+            <div class="schedule-when-next">次回 月曜 4:00</div>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+      </div>
+
+      <!-- ━━━━━━ 3d. 通知系 ━━━━━━ -->
+      <div class="group">
+        <div class="group-head">
+          <div class="group-icon notify"><i data-icon="mail" data-size="16"></i></div>
+          <div>
+            <div class="group-name">通知・レポート配信</div>
+            <div class="group-desc">クライアントや関係者への定期通知</div>
+          </div>
+        </div>
+
+        <div class="schedule-row">
+          <div class="schedule-icon-lg report"><i data-icon="mail" data-size="18"></i></div>
+          <div>
+            <div class="schedule-name">月次進捗レポートをクライアントへ配信</div>
+            <div class="schedule-desc">招待中のクライアント向けに、前月の進捗をまとめた PDF を生成してメール配信します。</div>
+            <div class="schedule-tags">
+              <span class="stag cost-api"><i data-icon="key" data-size="10"></i>BYOK API 使用</span>
+              <span class="stag"><i data-icon="user" data-size="10"></i>スティーブ</span>
+              <span class="stag">使う能力：レポート生成</span>
+            </div>
+          </div>
+          <div class="schedule-when">
+            <div class="schedule-when-main">毎月 1 日 朝 9:00</div>
+            <div class="schedule-when-cron">0 9 1 * *</div>
+            <div class="schedule-when-next">次回 6/1 9:00</div>
+          </div>
+          <div class="toggle on"></div>
+          <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        </div>
+      </div>
+
+      <!-- ━━━━━━ 4. 実行履歴 ━━━━━━ -->
+      <div class="history-card">
+        <div class="history-head">
+          <h2>実行履歴（直近 6 件）</h2>
+        </div>
+        <div class="table-wrap" style="border:none;border-radius:0;">
+          <table>
+            <thead>
+              <tr>
+                <th>スケジュール名</th>
+                <th>実行日時</th>
+                <th>所要時間</th>
+                <th>結果</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>着手可タスクの自動再生</td>
+                <td class="tabular">5/19 02:00</td>
+                <td class="tabular">14 分 22 秒</td>
+                <td><span class="pill pill-completed"><span class="pill-dot"></span>成功 5 件</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+              <tr>
+                <td>ナレッジ自動整理</td>
+                <td class="tabular">5/19 03:30</td>
+                <td class="tabular">3 分 18 秒</td>
+                <td><span class="pill pill-completed"><span class="pill-dot"></span>統合 12・削除 3</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+              <tr>
+                <td>データ整合性チェック</td>
+                <td class="tabular">5/19 05:00</td>
+                <td class="tabular">1 分 04 秒</td>
+                <td><span class="pill pill-awaiting"><span class="pill-dot"></span>不整合 2 件検知</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+              <tr>
+                <td>着手可タスクの自動再生</td>
+                <td class="tabular">5/18 02:00</td>
+                <td class="tabular">18 分 52 秒</td>
+                <td><span class="pill pill-completed"><span class="pill-dot"></span>成功 8 件</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+              <tr>
+                <td>横断パターン抽出</td>
+                <td class="tabular">5/13 04:00</td>
+                <td class="tabular">2 分 41 秒</td>
+                <td><span class="pill pill-completed"><span class="pill-dot"></span>昇格候補 5 件</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+              <tr>
+                <td>月次進捗レポート配信</td>
+                <td class="tabular">5/1 09:00</td>
+                <td class="tabular">42 秒</td>
+                <td><span class="pill pill-completed"><span class="pill-dot"></span>配信 1 件</span></td>
+                <td><button class="btn btn-ghost btn-sm"><i data-icon="external-link" data-size="12"></i></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ━━━━━━ 5. 新規作成 ━━━━━━ -->
+    <aside>
+      <div class="builder-card">
+        <div class="builder-title">新規スケジュールを作成</div>
+        <div class="builder-lead">何をいつ動かすか、3 ステップで決めるだけです。</div>
+
+        <div class="form-group">
+          <label class="form-label">1. 名前</label>
+          <input class="input" placeholder="例：週次の進捗サマリー配信">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">2. 何をする？ <span class="form-hint">（AI 社員が必要な場合は能力名も表示）</span></label>
+          <div class="action-picker">
+            <div class="action-opt">
+              <div class="action-opt-icon"><i data-icon="play-circle" data-size="14"></i></div>
+              <div>
+                <div class="action-opt-name">着手可のタスクを再生する</div>
+                <div class="action-opt-skill">ソーの実装能力を起動</div>
+              </div>
+              <span class="stag cost-plan">プラン枠</span>
+            </div>
+            <div class="action-opt selected">
+              <div class="action-opt-icon"><i data-icon="brain" data-size="14"></i></div>
+              <div>
+                <div class="action-opt-name">ナレッジを整理する</div>
+                <div class="action-opt-skill">ティチャラのナレッジ整理能力を起動</div>
+              </div>
+              <span class="stag cost-api">API</span>
+            </div>
+            <div class="action-opt">
+              <div class="action-opt-icon"><i data-icon="sparkles" data-size="14"></i></div>
+              <div>
+                <div class="action-opt-name">横断パターンを抽出する</div>
+                <div class="action-opt-skill">ティチャラの横断抽出能力を起動</div>
+              </div>
+              <span class="stag cost-api">API</span>
+            </div>
+            <div class="action-opt">
+              <div class="action-opt-icon"><i data-icon="shield-check" data-size="14"></i></div>
+              <div>
+                <div class="action-opt-name">整合性チェックを実行する</div>
+                <div class="action-opt-skill">バックエンドのみ（AI 社員なし）</div>
+              </div>
+              <span class="stag cost-free">無料</span>
+            </div>
+            <div class="action-opt">
+              <div class="action-opt-icon"><i data-icon="mail" data-size="14"></i></div>
+              <div>
+                <div class="action-opt-name">進捗レポートを配信する</div>
+                <div class="action-opt-skill">スティーブのレポート生成能力を起動</div>
+              </div>
+              <span class="stag cost-api">API</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">3. いつ動かす？</label>
+          <div class="preset-grid">
+            <div class="preset-btn">毎日 深夜 2:00</div>
+            <div class="preset-btn active">毎日 深夜 3:00</div>
+            <div class="preset-btn">毎週月曜 4:00</div>
+            <div class="preset-btn">毎月 1 日 9:00</div>
+            <div class="preset-btn">毎時 0 分</div>
+            <div class="preset-btn">カスタム</div>
+          </div>
+          <span class="advanced-toggle" onclick="document.getElementById('adv').classList.toggle('open');">
+            <i data-icon="settings" data-size="11"></i>詳細設定（cron 式で指定したい）
+          </span>
+          <div class="advanced-section" id="adv">
+            <div class="cron-input-row">
+              <div class="cron-cell">
+                <div class="cron-cell-label">分</div>
+                <input value="0">
+              </div>
+              <div class="cron-cell">
+                <div class="cron-cell-label">時</div>
+                <input value="3">
+              </div>
+              <div class="cron-cell">
+                <div class="cron-cell-label">日</div>
+                <input value="*">
+              </div>
+              <div class="cron-cell">
+                <div class="cron-cell-label">月</div>
+                <input value="*">
+              </div>
+              <div class="cron-cell">
+                <div class="cron-cell-label">曜</div>
+                <input value="*">
+              </div>
+            </div>
+            <div class="cron-helper">読み方：毎日 朝 3:00 に実行されます</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">タイムゾーン</label>
+          <select class="select">
+            <option>Asia/Tokyo（推奨）</option>
+            <option>UTC</option>
+          </select>
+        </div>
+
+        <button class="btn-create"><i data-icon="plus" data-size="14"></i>このスケジュールを作成</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

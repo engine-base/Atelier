@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>プロジェクト進捗 — クライアントポータル</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .client-header { background: #FFFFFF; border-bottom: 1px solid var(--color-border); padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .client-banner { background: var(--color-secondary-container); color: var(--color-on-secondary-container); padding: 10px 32px; font-size: 12.5px; display: flex; align-items: center; gap: 10px; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px; }
+  .pj-header-card { background: linear-gradient(135deg, var(--color-primary-container) 0%, var(--color-tertiary-container) 100%); border-radius: var(--rounded-lg); padding: 32px 36px; margin-bottom: 24px; }
+  .phase-progress { display: flex; gap: 4px; margin-top: 16px; }
+  .phase-step { flex: 1; height: 6px; background: rgba(255,255,255,0.4); border-radius: 3px; }
+  .phase-step.done { background: var(--color-tertiary); }
+  .phase-step.current { background: var(--color-primary); }
+  .grid-main { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  .output-row { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--color-border); align-items: center; cursor: pointer; transition: all 0.12s; }
+  .output-row:hover { background: var(--color-surface-variant); }
+  .output-row:last-child { border-bottom: none; }
+  .output-icon { width: 32px; height: 32px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ed-locked { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); padding: 12px 16px; border-radius: var(--rounded-md); font-size: 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .comment-mini { padding: 12px 14px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 8px; font-size: 13px; }
+  .comment-mini-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; font-size: 11.5px; }
+</style>
+</head>
+<body>
+<main data-bf-screen-id="S-L03" data-bf-screen-name="client_project_view" data-bf-category="client_portal" data-bf-status="active" data-bf-version="1">
+<header class="client-header">
+  <div class="flex items-center gap-3">
+    <div class="brand-mark">A</div>
+    <div>
+      <div class="brand-name">Atelier</div>
+      <div class="text-muted text-sm">Client Portal · 小松様 EC モール統合</div>
+    </div>
+  </div>
+  <div class="flex items-center gap-3">
+    <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+    <div>
+      <div class="text-sm font-semibold">小松 太郎 様</div>
+      <div class="text-muted text-sm">閲覧 + コメント可</div>
+    </div>
+    <button class="btn btn-ghost btn-sm"><i data-icon="log-out"></i></button>
+  </div>
+</header>
+
+<div class="client-banner">
+  <i data-icon="shield-check" data-size="14"></i>
+  <span><strong>限定アクセスモード：</strong>このプロジェクトの閲覧・コメントのみ可能です。編集はできません。リンク有効期限：残り 4 日</span>
+</div>
+
+<div class="wrap">
+  <div class="pj-header-card">
+    <div class="eyebrow mb-2" style="color: var(--color-on-primary-container); opacity: 0.7;">PROJECT</div>
+    <h1 style="font-size: 28px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-on-primary-container); margin-bottom: 8px;">小松様 EC モール統合</h1>
+    <p style="font-size: 14px; color: var(--color-on-primary-container); opacity: 0.9;">運営：ENGINE BASE 株式会社 · 高本まさと</p>
+    <div class="phase-progress">
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step done"></div>
+      <div class="phase-step current"></div>
+      <div class="phase-step"></div>
+    </div>
+    <div class="flex items-center justify-between mt-3" style="color: var(--color-on-primary-container); font-size: 12px;">
+      <span>ヒアリング → 要件 → アーキ → デザイン → 機能分解 → タスク → 実装 → <strong>検証中</strong> → 納品</span>
+      <span class="tabular font-bold">90%</span>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div>
+      <section class="section">
+        <div class="section-header"><h2 class="section-title">成果物</h2></div>
+        <div class="card" style="padding: 0;">
+          <div class="output-row">
+            <div class="output-icon"><i data-icon="file-text" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-semibold">ヒアリングサマリー</div>
+              <div class="text-muted text-sm">2026-04-15 · v1.0 · HTML / JSON / MD</div>
+            </div>
+            <span class="pill pill-completed"><span class="pill-dot"></span>確定</span>
+            <i data-icon="chevron-right" data-size="14"></i>
+          </div>
+          <div class="output-row">
+            <div class="output-icon"><i data-icon="file-text" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-semibold">要件定義書</div>
+              <div class="text-muted text-sm">2026-04-22 · v1.2 · 改訂版</div>
+            </div>
+            <span class="pill pill-completed"><span class="pill-dot"></span>確定</span>
+            <i data-icon="chevron-right" data-size="14"></i>
+          </div>
+          <div class="output-row">
+            <div class="output-icon" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container);"><i data-icon="palette" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-semibold">デザインモック（12 画面）</div>
+              <div class="text-muted text-sm">2026-05-08 · v3</div>
+            </div>
+            <span class="pill pill-completed"><span class="pill-dot"></span>確定</span>
+            <i data-icon="chevron-right" data-size="14"></i>
+          </div>
+          <div class="output-row">
+            <div class="output-icon" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);"><i data-icon="file-text" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-semibold">機能分解 + アーキ設計</div>
+              <div class="text-muted text-sm">2026-05-12 · v1.0</div>
+            </div>
+            <span class="pill pill-completed"><span class="pill-dot"></span>確定</span>
+            <i data-icon="chevron-right" data-size="14"></i>
+          </div>
+          <div class="output-row">
+            <div class="output-icon"><i data-icon="file-text" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-semibold">実装進捗レポート</div>
+              <div class="text-muted text-sm">2026-05-18 · 自動更新</div>
+            </div>
+            <span class="pill pill-in-progress"><span class="pill-dot"></span>更新中</span>
+            <i data-icon="chevron-right" data-size="14"></i>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header"><h2 class="section-title">モック</h2></div>
+        <div class="grid grid-3 gap-4">
+          <div class="card" style="padding: 12px;">
+            <div style="aspect-ratio: 16/10; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: var(--color-on-surface-variant); font-size: 11px;">トップページ</div>
+            <div class="font-semibold text-sm">商品一覧</div>
+            <div class="text-muted text-sm">v3 · 5/15 更新</div>
+          </div>
+          <div class="card" style="padding: 12px;">
+            <div style="aspect-ratio: 16/10; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: var(--color-on-surface-variant); font-size: 11px;">商品詳細</div>
+            <div class="font-semibold text-sm">商品詳細</div>
+            <div class="text-muted text-sm">v2 · 5/14 更新</div>
+          </div>
+          <div class="card" style="padding: 12px;">
+            <div style="aspect-ratio: 16/10; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 8px; display: flex; align-items: center; justify-content: center; color: var(--color-on-surface-variant); font-size: 11px;">カート</div>
+            <div class="font-semibold text-sm">カート</div>
+            <div class="text-muted text-sm">v1 · 5/12 更新</div>
+          </div>
+        </div>
+        <a class="btn btn-ghost btn-sm mt-4" href="#">全 12 画面を見る →</a>
+      </section>
+    </div>
+
+    <aside>
+      <div class="ed-locked">
+        <i data-icon="eye-off"></i>
+        <span><strong>編集不可：</strong>あなたのアカウントは閲覧 + コメント権限のみです</span>
+      </div>
+
+      <div class="card mb-4">
+        <h3 class="section-title mb-3" style="font-size: 14px;">あなたのコメント（3）</h3>
+        <div class="comment-mini">
+          <div class="comment-mini-meta">
+            <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+            <strong>小松様</strong>
+            <span class="text-muted" style="margin-left: auto;">2 時間前</span>
+          </div>
+          <div>要件 §2 の 100 社の内訳について</div>
+        </div>
+        <div class="comment-mini">
+          <div class="comment-mini-meta">
+            <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+            <strong>小松様</strong>
+            <span class="text-muted" style="margin-left: auto;">昨日</span>
+          </div>
+          <div>モック S-E01 のサイドパネルを調整希望</div>
+        </div>
+        <a class="btn btn-ghost btn-sm w-full mt-2" style="justify-content: center;" href="#">全コメント →</a>
+      </div>
+
+      <div class="card" style="background: var(--color-primary-container); color: var(--color-on-primary-container); border: none;">
+        <h3 class="section-title mb-2" style="font-size: 14px;">運営とのやり取り</h3>
+        <p class="text-sm mb-3" style="opacity: 0.85;">コメントを投稿すると、自動で運営側に通知が届きます。</p>
+        <div class="flex items-center gap-2 text-sm">
+          <div class="avatar avatar-sm">M</div>
+          <div>
+            <div class="font-semibold">高本まさと</div>
+            <div style="opacity: 0.85;">通常 1 営業日以内に返信</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</main>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

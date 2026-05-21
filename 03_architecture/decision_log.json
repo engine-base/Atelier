@@ -1,0 +1,454 @@
+{
+  "meta": {
+    "project": "Atelier",
+    "created_at": "2026-05-18",
+    "skill": "architecture-design",
+    "skill_version": "v3"
+  },
+  "context": {
+    "project_type": "B2B/B2C SaaS (AI生成型プロジェクト管理ツール)",
+    "team_size": "1 + Claude Code 並列5-10",
+    "scale": "1年目100社/3年目1000社想定",
+    "priority": "speed (3ヶ月リリース) + quality (仕様徹底ループ) + cost (初期$0)"
+  },
+  "decision_log": [
+    {
+      "decision": "アーキテクチャ：モジュラーモノリス × 2-tier (Next.js + Python FastAPI)",
+      "reason": "1人運用、3ヶ月期限、AI処理のPython優位性、AI処理層を独立させることで売却時の評価ポイントにもなる",
+      "alternatives": [
+        "完全モノリス Next.js のみ",
+        "完全モノリス FastAPI のみ + 静的フロント",
+        "マイクロサービス 5-10サービス",
+        "3-tier (Front / API / AI)"
+      ],
+      "tradeoffs": "TS+Python 2 言語運用のコンテキストスイッチを許容、AI 機能品質を優先"
+    },
+    {
+      "decision": "デプロイ：Vercel (Next.js) + Fly.io Tokyo region (FastAPI)",
+      "reason": "Tokyo region 必須、Docker 単純、Free tier 活用で初期 $0",
+      "alternatives": [
+        "Vercel + Railway",
+        "Vercel + Cloud Run",
+        "Vercel + Render",
+        "全 Vercel Functions"
+      ],
+      "tradeoffs": "2 ホスティング運用コスト vs Tokyo region と LangGraph 長時間実行"
+    },
+    {
+      "decision": "monorepo: pnpm workspaces + Turborepo",
+      "reason": "軽量・ビルドキャッシュ・TS 統一、Python は uv 別管理",
+      "alternatives": [
+        "Nx",
+        "Bun workspaces",
+        "2 リポ分離"
+      ],
+      "tradeoffs": "Python の monorepo 統合は弱いが許容"
+    },
+    {
+      "decision": "Python ツール: uv + ruff + pyright strict",
+      "reason": "Astral 製で高速、format+lint+pkg 管理を統合",
+      "alternatives": [
+        "Poetry + Black + isort + Pylint + mypy"
+      ],
+      "tradeoffs": "比較的新しいツールだが Astral の勢いと品質で問題なし"
+    },
+    {
+      "decision": "ORM (TS): Drizzle",
+      "reason": "Edge Runtime 対応、Supabase 公式推奨、RLS 親和性、Prisma Accelerate (有料) 不要",
+      "alternatives": [
+        "Prisma",
+        "Kysely"
+      ],
+      "tradeoffs": "Prisma の成熟したエコシステム < Drizzle のパフォーマンスと Supabase 親和性"
+    },
+    {
+      "decision": "ORM (Python): asyncpg + SQLAlchemy 2.0 Core",
+      "reason": "asyncpg 高速、SQLAlchemy で型安全 SQL ビルダー、薄い ORM 層",
+      "alternatives": [
+        "SQLModel",
+        "Tortoise",
+        "Raw SQL only"
+      ],
+      "tradeoffs": "学習コスト軽い"
+    },
+    {
+      "decision": "AI UI: assistant-ui + tool-ui を最大限活用",
+      "reason": "Thread / Composer / Status (Thinking/Analyzing) / Context / Generative UI / Tool Call カード等を網羅、Claude レベルのチャット体験",
+      "alternatives": [
+        "自前実装",
+        "Vercel AI SDK UI"
+      ],
+      "tradeoffs": "外部ライブラリ依存だが、自前実装コストが圧倒的に高い"
+    },
+    {
+      "decision": "アイコン: Lucide React (絵文字禁止)",
+      "reason": "エディトリアル品質、Notion/Obsidian 風一貫性、ESLint emoji-regex で CI 強制",
+      "alternatives": [
+        "Heroicons",
+        "Tabler",
+        "絵文字併用"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "認証: Supabase Auth + Postgres RLS + JWT (HTTP-only Cookie)",
+      "reason": "一元化、RLS 完全統合、致命級リスク R-T08 対策",
+      "alternatives": [
+        "Auth.js + 自前 DB",
+        "Clerk",
+        "Firebase Auth"
+      ],
+      "tradeoffs": "Supabase ロックインを許容（RLS 価値が圧倒的）"
+    },
+    {
+      "decision": "RLS: per-entity policy + クライアント招待別 JWT 経路で完全分離",
+      "reason": "致命級リスク R-T08（クライアント漏洩）への対策、Gate #4 で網羅性検証",
+      "alternatives": [
+        "アプリ層認可のみ",
+        "スキーマ分離"
+      ],
+      "tradeoffs": "policy 数増（25 テーブル × 4 operation 程度）だが Gate で検証"
+    },
+    {
+      "decision": "テーブル命名: snake_case_plural + UUID v7 + ソフトデリート + TIMESTAMPTZ",
+      "reason": "Postgres 慣習、時系列ソート可、個情法対応、TZ 混在防止",
+      "alternatives": [
+        "camelCase + 連番 ID",
+        "UUID v4"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "Foundation gate: 8 merge gate (lint / AC / audit / RLS / test / type×2 / mock-impl-diff)",
+      "reason": "並列 5-10 開発で品質担保、main 破壊防止",
+      "alternatives": [
+        "最小 3 gate",
+        "Husky pre-commit のみ"
+      ],
+      "tradeoffs": "CI 時間 vs 安全性"
+    },
+    {
+      "decision": "git: trunk-based + worktree + branch <agent>/<task_id> + squash auto-merge",
+      "reason": "1 人 + AI 並列に最適、衝突回避は files_changed で事前",
+      "alternatives": [
+        "GitFlow",
+        "Stack PR"
+      ],
+      "tradeoffs": "trunk-based は規律が必要だが Gate で担保"
+    },
+    {
+      "decision": "Web 検索: Claude 公式 web_search 標準ツール",
+      "reason": "Agent SDK 完全統合、$10/1k で最安、引用付き",
+      "alternatives": [
+        "Exa",
+        "Tavily",
+        "Brave",
+        "Firecrawl"
+      ],
+      "tradeoffs": "BYOK でユーザー負担"
+    },
+    {
+      "decision": "LLMClient 抽象化: 自前ラッパー (Phase 0 必須)",
+      "reason": "v2 マルチ LLM 対応、Vercel AI SDK / LangChain 等の重い抽象化を回避",
+      "alternatives": [
+        "Vercel AI SDK",
+        "LangChain",
+        "LiteLLM"
+      ],
+      "tradeoffs": "自前実装コスト < 公式 SDK フル機能の維持"
+    },
+    {
+      "decision": "オーケストレーション: LangGraph + Inngest",
+      "reason": "LangGraph=人間承認/スコアループ、Inngest=cron/サーバレス",
+      "alternatives": [
+        "Temporal",
+        "Trigger.dev",
+        "自前"
+      ],
+      "tradeoffs": "学習コスト vs 機能性"
+    },
+    {
+      "decision": "RAG: LlamaIndex + Cognee + Voyage AI + pgvector",
+      "reason": "Anthropic 推奨埋め込み、ナレッジグラフで Obsidian 的体験",
+      "alternatives": [
+        "LangChain",
+        "Qdrant",
+        "Pinecone"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "ブラウザ自動化（AI 用）: Chrome MCP + Claude Computer Use (Phase 5+)",
+      "reason": "AI 社員（ヴィジョン/ワンダ）が実ブラウザで検証可能、E2E テスト本体は Playwright",
+      "alternatives": [
+        "Playwright + AI 解析のみ"
+      ],
+      "tradeoffs": "Claude 専用機能、v2 マルチ LLM 時は Playwright フォールバック"
+    },
+    {
+      "decision": "E2E: Playwright",
+      "reason": "業界標準、並列実行、CI 親和性、決定論的",
+      "alternatives": [
+        "Cypress"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "シークレット: Vercel env + Fly.io secrets (一元 UI なし)",
+      "reason": "コスト 0、ホスティングネイティブ",
+      "alternatives": [
+        "Doppler",
+        "1Password",
+        "AWS Secrets Manager"
+      ],
+      "tradeoffs": "Doppler の一元 UI を放棄して $0 を優先"
+    },
+    {
+      "decision": "コスト方針: 初期 Free tier 最大活用で月 $0-10 目標",
+      "reason": "BYOK でユーザー負担に寄せる、ベータは免責",
+      "alternatives": [
+        "最初から有料プラン"
+      ],
+      "tradeoffs": "Free tier 制限を運用で吸収"
+    },
+    {
+      "decision": "エラー監視: Sentry Free / LLM 観測: Langfuse / 死活: Better Stack Free",
+      "reason": "全て Free tier で開始、必要時に有料化",
+      "alternatives": [
+        "Datadog 統合",
+        "New Relic"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "メール: Resend",
+      "reason": "DX◎、Free 3,000 通/月、React Email テンプレ",
+      "alternatives": [
+        "SendGrid",
+        "Postmark"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "プロジェクト名: Atelier (英語一語)",
+      "reason": "AI 社員が集う『工房』のメタファ、和洋折衷・上質・SaaS 親和、商標衝突回避",
+      "alternatives": [
+        "Build Factory (仮称)",
+        "Loom",
+        "Maestro",
+        "Helm"
+      ],
+      "tradeoffs": "ドメイン取得状況の確認が必要"
+    },
+    {
+      "decision": "デザインシステム文書: design.md (Google Labs 仕様)",
+      "reason": "ワンダ（デザイン部長）の主力スキル design-md と直結、YAML + MD で標準化",
+      "alternatives": [
+        "Figma Tokens",
+        "Style Dictionary"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "Hybrid Context Construction Layer (F-CTX01) を新規機能化",
+      "reason": "ユーザー指摘：直近N件 slicing では不十分。DB-as-truth + セマンティック関連性ベースの取得が本ツールの肝。AI社員ごとに関連メッセージ・関連ナレッジ・関連エンティティを毎回構築",
+      "alternatives": [
+        "直近N件slicing",
+        "全履歴を毎回送信",
+        "Anthropic Memory tool のみ"
+      ],
+      "tradeoffs": "コンテキスト構築コスト増（複数SELECT + 埋め込み類似検索）vs 応答品質の劇的向上"
+    },
+    {
+      "decision": "人間直編集の即時反映は DB-as-truth スナップショット参照モデル",
+      "reason": "変更イベント注入ではなく、DBの最新を毎回再SELECTする方が状態分岐せず堅牢。人間が直接モック編集してもAIが次に読む時に自動整合",
+      "alternatives": [
+        "イベント注入モデル",
+        "Anthropic Files API でファイル添付し直し"
+      ],
+      "tradeoffs": "DB クエリ回数増 vs 状態の単純化"
+    },
+    {
+      "decision": "Impact Analyzer (F-IMP01) を新規機能化",
+      "reason": "ユーザー指摘：フェーズ間移動・新フェーズ追加時の依存変更を他タスクへ自動伝播。手動で全タスクを見直すのは非現実的",
+      "alternatives": [
+        "手動チェック",
+        "AI に都度依頼"
+      ],
+      "tradeoffs": "LangGraph node + 日次cron でグラフ走査、複雑さ増 vs 依存漏れリスク回避"
+    },
+    {
+      "decision": "F-CTX01 / F-IMP01 は自前実装を最小化し OSS を最大活用",
+      "reason": "ユーザー指摘：既存 OSS で賄える部分が大いにある。F-CTX01 は LlamaIndex CondensePlusContextChatEngine + mem0 + Cognee + Voyage + LLMLingua の組合せ、F-IMP01 は NetworkX + LangGraph で実装。自前は100行未満のグルーコードのみ",
+      "alternatives": [
+        "全て自前実装"
+      ],
+      "tradeoffs": "OSS 依存増 vs 開発速度＋業界標準準拠で売却時評価も高い"
+    },
+    {
+      "decision": "mem0 を AI 社員別の長期記憶層として追加採用",
+      "reason": "F-CTX01 のレイヤー6として、会話から自動で「事実」を抽出して AI 社員別に蓄積。ナレッジに書くほどじゃないが社員が覚えておくべき小さな事実を扱う",
+      "alternatives": [
+        "Letta (MemGPT)",
+        "Zep",
+        "自前"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "NetworkX を F-IMP01 のグラフ走査基盤として採用",
+      "reason": "Python データサイエンス界の標準、descendants/ancestors/topological_sort が1関数で完結",
+      "alternatives": [
+        "Python graphlib stdlib",
+        "igraph"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "継続的更新サイクル（CUC）を F-CUC01〜04 として独立機能化",
+      "reason": "ユーザー指摘：初期一気通貫後の追加要望・仕様変更への対応が抜けていた。タスク状態別の更新ポリシー（pending=上書き / in_progress=3択 / completed=リファクタ起票）と日次整合性チェックを明示",
+      "alternatives": [
+        "F-IMP01 に統合",
+        "都度AI判断"
+      ],
+      "tradeoffs": "機能数増 vs 後付け仕様変更の堅牢性"
+    },
+    {
+      "decision": "tasks に parent_task_id + origin_type カラムを追加（リファクタ系譜トラッキング）",
+      "reason": "F-CUC02 の completed タスクへのリファクタタスク自動起票で系譜を保持。origin_type で 'initial_decomposition / refactor / scope_change_auto / manual_added' を区別",
+      "alternatives": [
+        "別テーブルで系譜管理"
+      ],
+      "tradeoffs": "tasks にカラム追加で十分、別テーブル不要"
+    },
+    {
+      "decision": "AI社員10名は運営側で完全固定（ユーザーは追加/削除/雇用不可）",
+      "reason": "ユーザー指摘：管理側で全て整えられた状態で配属。ユーザーが社員の構成を変えられるとプロダクト体験が分散する",
+      "alternatives": [
+        "ユーザーが雇用可能",
+        "AI社員数可変"
+      ],
+      "tradeoffs": "ユーザーの自由度を制限する代わりに、運営側で品質統制と能力定義を一元化"
+    },
+    {
+      "decision": "「スキル」概念をユーザーに非表示、「できること（能力）」として変換表示",
+      "reason": "ユーザー指摘：スキルは内部実装の概念で、利用者には伏せたい。技術用語ではなく業務領域として表現する",
+      "alternatives": [
+        "スキル名を表示",
+        "スキルカテゴリのみ表示"
+      ],
+      "tradeoffs": "Backend で skill → ability 変換マッピングが必要。UI 上の語彙からスキルを排除"
+    },
+    {
+      "decision": "Atelier Bridge デスクトップクライアントは Vibeyard (MIT, elirantutia/vibeyard) を fork",
+      "reason": "Electron + node-pty + xterm.js による Claude Code / Codex / Gemini CLI のマルチセッション管理が完成済み。pty-manager・claude-cli 接続・セッション再開・カンバン UI・swarm モードを即時獲得、3-6ヶ月の自作工数を回避。1,035 stars、MIT、活発開発",
+      "alternatives": [
+        "完全自作 Electron",
+        "Tauri 自作",
+        "Vibeyard 参照のみ再実装"
+      ],
+      "tradeoffs": "Vibeyard 上流変更追従コスト vs 巨大な開発短縮。MIT 帰属表記必須"
+    },
+    {
+      "decision": "工程7(実装)のタスクディスパッチャは Hermes Agent (MIT, NousResearch/hermes-agent) の kanban パターンを FastAPI に port",
+      "reason": "HERMES_KANBAN_TASK env による worker spawn、git worktree 自動作成、サーキットブレーカ、構造化ハンドオフ (summary+metadata)、kanban_show/complete/block/unblock 等7ツールが完成済み。157k stars 実績、Python なので直接 port 可能",
+      "alternatives": [
+        "完全自作",
+        "Celery+Redis 自前",
+        "Temporal"
+      ],
+      "tradeoffs": "Hermes 互換 API を維持する制約 vs 既存実装の完成度。MIT 帰属表記必須"
+    },
+    {
+      "decision": "タスクライフサイクルは Hermes 流 6 列モデル採用 (Triage→Ready→In Progress→Blocked→Awaiting→Done)",
+      "reason": "Hermes 実運用検証済み、依存解消後 Ready 昇格・人間判断は Blocked/Awaiting で分離、UI 上は日本語ラベル (準備中/着手可/実装中/要対応/承認待ち/完了)",
+      "alternatives": [
+        "独自5列",
+        "Trello風3列"
+      ],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "tasks エンティティに Hermes 互換フィールドを追加 (summary, metadata, blocked_reason, retry_count, worktree_path, dispatch_status)",
+      "reason": "Hermes 7 ツール (kanban_show/complete/block 等) との互換性を保ち、構造化ハンドオフを実現",
+      "alternatives": [
+        "別テーブル task_dispatch を新設"
+      ],
+      "tradeoffs": "tasks 拡張が単純、JOIN 不要"
+    },
+    {
+      "decision": "S-A02 ワークスペース一覧を独立画面から廃止、サイドバー内 WS Picker に統合",
+      "reason": "ユーザー指摘：S-A02 と S-B01 が役割重複。WS切替はメインタスクではないので、サイドバー上部のドロップダウンで対応",
+      "alternatives": [
+        "独立画面維持",
+        "モーダル化"
+      ],
+      "tradeoffs": "ログイン後は S-B01 が主導線に。35→33画面に縮小"
+    },
+    {
+      "decision": "S-C03 AI社員雇用画面を廃止",
+      "reason": "AI社員完全固定方針に伴い不要",
+      "alternatives": [],
+      "tradeoffs": "—"
+    }
+  ],
+  "architecture_patterns": [
+    "Modular Monolith",
+    "2-tier (Frontend+BFF / AI Processing)",
+    "Backend for Frontend (BFF) via Next.js Route Handlers",
+    "Row Level Security (RLS) Multi-tenancy",
+    "Provider Abstraction Layer (LLMClient)",
+    "Vertical Slice Architecture (1 PR = 1 機能)",
+    "Trunk-Based Development + Worktree",
+    "Foundation Phase Gate (N merge gate)",
+    "Score-based Auto/Manual Approval Loop"
+  ],
+  "research": {
+    "sources": [
+      {
+        "url": "https://www.assistant-ui.com",
+        "title": "assistant-ui: React components for AI chat",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://www.tool-ui.com/docs/gallery",
+        "title": "tool-ui: Tool call UI gallery",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://supabase.com/docs/guides/database/drizzle",
+        "title": "Supabase + Drizzle ORM 公式ガイド",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://fly.io/docs/reference/regions/",
+        "title": "Fly.io Tokyo (nrt) region",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://lucide.dev",
+        "title": "Lucide Icons",
+        "accessed_at": "2026-05-18"
+      }
+    ],
+    "findings": [
+      "assistant-ui は Claude レベルのチャット UX を最小コードで実現、shadcn/ui と完全互換",
+      "Drizzle は Edge Runtime 対応で Vercel + Supabase 構成に最適、Prisma Accelerate 不要",
+      "Fly.io Tokyo (nrt) region で個人情報を国内留置可能",
+      "Claude Computer Use / Chrome MCP は AI 社員のブラウザ操作機能として有望、E2E テストとは別レイヤー",
+      "Foundation phase gate 8 段構成は parallel 5-10 規模で実証されたパターン"
+    ],
+    "research_date": "2026-05-18"
+  },
+  "schedule_reference": {
+    "schedule_path": "08_schedule/schedule.json",
+    "mvp_release_human_date": "2026-11-15",
+    "mvp_release_ai_date": "2026-06-10",
+    "beta_human_date": "2026-12-01",
+    "beta_ai_date": "2026-06-15",
+    "ga_target_human_date": "2027-08-31",
+    "ga_target_ai_date": "2026-12-31",
+    "applied_at": "2026-05-20",
+    "two_axis_policy_version": "v3.1-dual"
+  }
+}

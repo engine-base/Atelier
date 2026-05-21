@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><title>Atelier Sprint 計画 — v3.1-dual</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f6f7fb;--panel:#fff;--panel2:#eef1f7;--line:#dee3ec;--text:#1c2230;--muted:#6b7385;--accent:#2563eb;--crit:#d92d20;--ok:#10b981;
+        --s0:#6d56ff;--s1:#0ea5e9;--s2:#e94e7c;--s3:#7c4dff;--s4:#10b981;--s5:#d97706}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+  header{padding:14px 22px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+  h1{margin:0 0 6px;font-size:18px}.sub{color:var(--muted);font-size:12px}
+  .toggle{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px;margin:10px 0 0;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .toggle button{border:none;background:transparent;padding:7px 16px;font:600 12px/1 inherit;color:var(--muted);border-radius:999px;cursor:pointer;letter-spacing:.04em}
+  .toggle button.on{background:var(--accent);color:#fff}
+  main{padding:18px 22px 60px;max-width:1500px;margin:0 auto}
+  h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:700;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}.card .v{font-size:22px;font-weight:700}.card .v small{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+  .sprints{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+  .sprint{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(20,30,60,.05);position:relative;overflow:hidden}
+  .sprint::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px}
+  .sprint.s0::before{background:var(--s0)}.sprint.s1::before{background:var(--s1)}.sprint.s2::before{background:var(--s2)}.sprint.s3::before{background:var(--s3)}.sprint.s4::before{background:var(--s4)}.sprint.s5::before{background:var(--s5)}
+  .sprint h3{margin:0 0 4px;font-size:14px}.sprint .meta{font-size:11px;color:var(--muted);margin-bottom:8px}
+  .sprint .bigh{font-size:20px;font-weight:700}.sprint .bigh small{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+  .sprint table{margin-top:8px}.sprint th,.sprint td{font-size:11px;padding:4px 6px}
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;font-size:11px}
+  .kpi div{background:#f1f4fa;padding:4px 8px;border-radius:6px}.kpi b{display:block;font-size:13px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
+  .badge.s0{background:var(--s0)}.badge.s1{background:var(--s1)}.badge.s2{background:var(--s2)}.badge.s3{background:var(--s3)}.badge.s4{background:var(--s4)}.badge.s5{background:var(--s5)}
+  .badge.par{background:var(--ok)}.badge.seq{background:var(--crit)}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  th,td{padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}
+  thead th{background:var(--panel2);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .burndown{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;box-shadow:0 1px 2px rgba(20,30,60,.04);overflow:auto}
+  .chart{position:relative;height:360px;margin-top:16px}
+  svg{width:100%;height:100%}
+  .grid line{stroke:#eef1f7;stroke-width:1}
+  .axis text{font-size:10px;fill:var(--muted)}
+  .ideal{stroke:#cbd5e1;stroke-width:2;stroke-dasharray:5,4;fill:none}
+  .actual{stroke:var(--accent);stroke-width:3;fill:none}
+  .area{fill:rgba(37,99,235,0.10)}
+  .pt{fill:var(--accent);stroke:#fff;stroke-width:2}
+  .label{font-size:10px;fill:var(--text);font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+  .box{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .box h3{margin:0 0 8px;font-size:13px;color:var(--accent)}.box ul{margin:0 0 0 18px;padding:0;font-size:12px;color:#3a4258}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+</style></head><body>
+<header>
+  <h1>🏃 Atelier — Sprint 計画（v3.1-dual / 6 Sprint）</h1>
+  <div class="sub">信頼源 <a href="./sprints.json">sprints.json</a> ・ MD <a href="./SPRINTS.md">SPRINTS.md</a> ・ Schedule <a href="../08_schedule/SCHEDULE.html">SCHEDULE.html</a> ・ Packages <a href="../09_dispatch/PACKAGES.html">PACKAGES.html</a> ・ Release <a href="../10_release/RELEASE-PLAN.html">RELEASE-PLAN.html</a></div>
+  <div class="toggle"><button id="btnAI" class="on">⚡ AI 並列モード</button><button id="btnHuman">👤 Human 逐次モード</button></div>
+</header>
+<main>
+
+<div id="summary" class="summary"></div>
+
+<h2>6 Sprint カード</h2>
+<div class="sprints" id="sprints"></div>
+
+<h2>バーンダウンチャート</h2>
+<div class="burndown">
+  <div id="burnHead" style="font-size:13px;color:var(--muted)"></div>
+  <div class="chart"><svg id="burnSvg" viewBox="0 0 1000 360" preserveAspectRatio="none"></svg></div>
+</div>
+
+<h2>営業日別累計（バーンダウン明細）</h2>
+<table>
+  <thead><tr><th>Day</th><th>日付</th><th>Sprint</th><th>完了</th><th>残り</th><th id="hAi">AI h 消化</th><th id="hRem">AI h 残</th></tr></thead>
+  <tbody id="burnRows"></tbody>
+</table>
+
+<h2>セレモニー</h2>
+<div class="grid2">
+  <div class="box"><h3>🚀 Sprint Kick (15 分)</h3><ul id="kickList"></ul></div>
+  <div class="box"><h3>🏁 Sprint Close (10 分)</h3><ul id="closeList"></ul></div>
+</div>
+<div class="box" style="margin-top:14px"><h3>💬 Sprint 中（無人運用）</h3>
+  <ul><li>vision が S-E01 チャットに進捗サマリを <b>4h ごと</b>自動投稿</li>
+      <li>失敗 3 連続 → human-escalation → 経営者介入</li>
+      <li>それ以外は完全自走</li></ul>
+</div>
+
+<h2>失敗ハンドリング</h2>
+<table>
+  <thead><tr><th>トリガー</th><th>アクション</th></tr></thead>
+  <tbody id="failRows"></tbody>
+</table>
+
+</main>
+<script id="data" type="application/json">{"version":"v3.1-dual","project":"Atelier","skill":"sprint-planning","created_at":"2026-05-20","policy":{"sprint_unit":"1 Sprint = 1 Wave (2-4 days)","velocity_metric":"wall_clock_h_ai","daily_standup":"removed (vision auto-posts to S-E01 every 4h)","planning_duration_min":15,"retro_duration_min":10,"burndown":"auto-updated via dispatcher PR merge"},"summary":{"total_sprints":6,"total_tasks":190,"total_estimate_hours_ai_compute":123.7,"total_estimate_hours_human":1328.0,"total_wall_clock_h_ai_parallel":27.9,"calendar_days_ai":15,"ai_acceleration_factor_overall":10.7},"sprints":[{"id":"S0","wave":0,"name":"Foundation","start_date":"2026-05-20","end_date":"2026-05-21","duration_days":2,"parallel_capacity":5,"execution":"parallel","task_count":28,"estimate_hours_ai_compute":18.6,"estimate_hours_human":213,"wall_clock_h_ai":6.72,"human_review_h":3.0,"blocking_count":4,"cumulative_tasks":28,"cumulative_remaining":162,"cumulative_ai_h":18.6,"cumulative_human_h":213,"members":{"tony":{"count":19,"ai_h":13.73,"human_h":150,"tasks":["T-F-01","T-F-02","T-F-03","T-F-04","T-F-06","T-F-07","T-F-08","T-F-10","T-F-11","T-F-12","T-F-13","T-F-15","T-F-17","T-F-20","T-F-21","T-F-22","T-F-25","T-F-27","T-F-28"]},"strange":{"count":2,"ai_h":0.67,"human_h":10,"tasks":["T-F-05","T-F-19"]},"wanda":{"count":2,"ai_h":1.2,"human_h":18,"tasks":["T-F-09","T-F-16"]},"tchalla":{"count":1,"ai_h":0.67,"human_h":10,"tasks":["T-F-14"]},"vision":{"count":4,"ai_h":2.3,"human_h":25,"tasks":["T-F-18","T-F-23","T-F-24","T-F-26"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":95,"max_retry_avg":1.5,"max_escalations":2}},{"id":"S1","wave":1,"name":"Data Layer","start_date":"2026-05-22","end_date":"2026-05-25","duration_days":2,"parallel_capacity":8,"execution":"parallel","task_count":35,"estimate_hours_ai_compute":17.8,"estimate_hours_human":188,"wall_clock_h_ai":5.53,"human_review_h":3.3,"blocking_count":1,"cumulative_tasks":63,"cumulative_remaining":127,"cumulative_ai_h":36.4,"cumulative_human_h":401,"members":{"strange":{"count":30,"ai_h":15.01,"human_h":160,"tasks":["T-D-01","T-D-02","T-D-03","T-D-04","T-D-05","T-D-06","T-D-07","T-D-08","T-D-09","T-D-10","T-D-11","T-D-12","T-D-13","T-D-14","T-D-15","T-D-16","T-D-17","T-D-18","T-D-19","T-D-20","T-D-21","T-D-22","T-D-23","T-D-24","T-D-25","T-D-26","T-D-27","T-D-28","T-D-29","T-D-30"]},"vision":{"count":5,"ai_h":2.8,"human_h":28,"tasks":["T-D-31","T-D-32","T-D-33","T-D-34","T-D-35"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":95,"max_retry_avg":1.2,"max_escalations":1}},{"id":"S2","wave":2,"name":"API Layer 🔒","start_date":"2026-05-26","end_date":"2026-05-27","duration_days":2,"parallel_capacity":10,"execution":"parallel","task_count":45,"estimate_hours_ai_compute":26.6,"estimate_hours_human":310,"wall_clock_h_ai":4.66,"human_review_h":2.0,"blocking_count":1,"cumulative_tasks":108,"cumulative_remaining":82,"cumulative_ai_h":63.0,"cumulative_human_h":711,"members":{"thor":{"count":35,"ai_h":19.2,"human_h":230,"tasks":["T-A-01","T-A-02","T-A-03","T-A-04","T-A-05","T-A-06","T-A-07","T-A-08","T-A-09","T-A-10","T-A-11","T-A-12","T-A-14","T-A-15","T-A-16","T-A-17","T-A-18","T-A-19","T-A-20","T-A-21","T-A-22","T-A-24","T-A-25","T-A-26","T-A-27","T-A-30","T-A-31","T-A-32","T-A-33","T-A-34","T-A-35","T-A-41","T-A-42","T-A-43","T-A-44"]},"strange":{"count":2,"ai_h":1.25,"human_h":15,"tasks":["T-A-13","T-A-23"]},"tony":{"count":4,"ai_h":3.54,"human_h":34,"tasks":["T-A-28","T-A-29","T-A-40","T-A-45"]},"tchalla":{"count":2,"ai_h":1.41,"human_h":17,"tasks":["T-A-36","T-A-37"]},"steve":{"count":2,"ai_h":1.17,"human_h":14,"tasks":["T-A-38","T-A-39"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":90,"max_retry_avg":2.0,"max_escalations":3}},{"id":"S3","wave":3,"name":"UI Foundation","start_date":"2026-05-28","end_date":"2026-05-29","duration_days":2,"parallel_capacity":5,"execution":"parallel","task_count":18,"estimate_hours_ai_compute":9.6,"estimate_hours_human":96,"wall_clock_h_ai":2.42,"human_review_h":0.5,"blocking_count":1,"cumulative_tasks":126,"cumulative_remaining":64,"cumulative_ai_h":72.6,"cumulative_human_h":807,"members":{"wanda":{"count":16,"ai_h":8.4,"human_h":84,"tasks":["T-US-01","T-US-02","T-US-05","T-US-06","T-US-07","T-US-08","T-US-09","T-US-10","T-US-11","T-US-12","T-US-13","T-US-14","T-US-15","T-US-16","T-US-17","T-US-18"]},"thor":{"count":1,"ai_h":0.6,"human_h":6,"tasks":["T-US-03"]},"tony":{"count":1,"ai_h":0.6,"human_h":6,"tasks":["T-US-04"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":95,"max_retry_avg":1.0,"max_escalations":1}},{"id":"S4","wave":4,"name":"UI Parallel","start_date":"2026-06-01","end_date":"2026-06-03","duration_days":3,"parallel_capacity":10,"execution":"parallel","task_count":40,"estimate_hours_ai_compute":36.8,"estimate_hours_human":368,"wall_clock_h_ai":3.68,"human_review_h":0.0,"blocking_count":0,"cumulative_tasks":166,"cumulative_remaining":24,"cumulative_ai_h":109.4,"cumulative_human_h":1175,"members":{"thor":{"count":32,"ai_h":31.5,"human_h":315,"tasks":["T-UC-01","T-UC-02","T-UC-03","T-UC-04","T-UC-05","T-UC-08","T-UC-10","T-UC-11","T-UC-12","T-UC-13","T-UC-14","T-UC-15","T-UC-16","T-UC-17","T-UC-18","T-UC-19","T-UC-20","T-UC-21","T-UC-22","T-UC-23","T-UC-24","T-UC-25","T-UC-26","T-UC-27","T-UC-28","T-UC-29","T-UC-30","T-UC-31","T-UC-32","T-UC-33","T-UC-34","T-UC-37"]},"wanda":{"count":8,"ai_h":5.3,"human_h":53,"tasks":["T-UC-06","T-UC-07","T-UC-09","T-UC-35","T-UC-36","T-UC-38","T-UC-39","T-UC-40"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":85,"max_retry_avg":2.5,"max_escalations":5}},{"id":"S5","wave":5,"name":"Integration 🚀","start_date":"2026-06-04","end_date":"2026-06-09","duration_days":4,"parallel_capacity":5,"execution":"sequential","task_count":24,"estimate_hours_ai_compute":14.4,"estimate_hours_human":153,"wall_clock_h_ai":4.88,"human_review_h":2.0,"blocking_count":0,"cumulative_tasks":190,"cumulative_remaining":0,"cumulative_ai_h":123.8,"cumulative_human_h":1328,"members":{"vision":{"count":17,"ai_h":11.5,"human_h":111,"tasks":["T-I-01","T-I-02","T-I-03","T-I-04","T-I-05","T-I-06","T-I-07","T-I-08","T-I-09","T-I-10","T-I-13","T-I-14","T-I-15","T-I-16","T-I-17","T-I-18","T-I-24"]},"tony":{"count":6,"ai_h":2.37,"human_h":34,"tasks":["T-I-11","T-I-12","T-I-19","T-I-21","T-I-22","T-I-23"]},"wanda":{"count":1,"ai_h":0.53,"human_h":8,"tasks":["T-I-20"]}},"kpi_targets":{"completion_pct":100,"ci_gate_pass_rate":95,"max_retry_avg":1.5,"max_escalations":3}}],"burndown":[{"day":1,"date":"2026-05-20","weekday":"水","sprint":"S0","tasks_done":0,"tasks_remaining":190,"ai_h_done":0,"ai_h_remaining":123.7,"human_h_done":0,"human_h_remaining":1328},{"day":2,"date":"2026-05-21","weekday":"木","sprint":"S0","tasks_done":28,"tasks_remaining":162,"ai_h_done":18.6,"ai_h_remaining":105.1,"human_h_done":195,"human_h_remaining":1132},{"day":3,"date":"2026-05-22","weekday":"金","sprint":"S1","tasks_done":28,"tasks_remaining":162,"ai_h_done":18.6,"ai_h_remaining":105.1,"human_h_done":195,"human_h_remaining":1132},{"day":4,"date":"2026-05-25","weekday":"月","sprint":"S1","tasks_done":63,"tasks_remaining":127,"ai_h_done":36.4,"ai_h_remaining":87.3,"human_h_done":440,"human_h_remaining":887},{"day":5,"date":"2026-05-26","weekday":"火","sprint":"S2","tasks_done":63,"tasks_remaining":127,"ai_h_done":36.4,"ai_h_remaining":87.3,"human_h_done":440,"human_h_remaining":887},{"day":6,"date":"2026-05-27","weekday":"水","sprint":"S2","tasks_done":108,"tasks_remaining":82,"ai_h_done":63.0,"ai_h_remaining":60.7,"human_h_done":754,"human_h_remaining":573},{"day":7,"date":"2026-05-28","weekday":"木","sprint":"S3","tasks_done":108,"tasks_remaining":82,"ai_h_done":63.0,"ai_h_remaining":60.7,"human_h_done":754,"human_h_remaining":573},{"day":8,"date":"2026-05-29","weekday":"金","sprint":"S3","tasks_done":126,"tasks_remaining":64,"ai_h_done":72.6,"ai_h_remaining":51.1,"human_h_done":880,"human_h_remaining":447},{"day":9,"date":"2026-06-01","weekday":"月","sprint":"S4","tasks_done":126,"tasks_remaining":64,"ai_h_done":72.6,"ai_h_remaining":51.1,"human_h_done":880,"human_h_remaining":447},{"day":10,"date":"2026-06-02","weekday":"火","sprint":"S4","tasks_done":145,"tasks_remaining":45,"ai_h_done":92.4,"ai_h_remaining":31.3,"human_h_done":1013,"human_h_remaining":314},{"day":11,"date":"2026-06-03","weekday":"水","sprint":"S4","tasks_done":166,"tasks_remaining":24,"ai_h_done":104.8,"ai_h_remaining":18.9,"human_h_done":1160,"human_h_remaining":167},{"day":12,"date":"2026-06-04","weekday":"木","sprint":"S5","tasks_done":166,"tasks_remaining":24,"ai_h_done":109.4,"ai_h_remaining":14.3,"human_h_done":1160,"human_h_remaining":167},{"day":13,"date":"2026-06-05","weekday":"金","sprint":"S5","tasks_done":173,"tasks_remaining":17,"ai_h_done":113.9,"ai_h_remaining":9.8,"human_h_done":1209,"human_h_remaining":118},{"day":14,"date":"2026-06-08","weekday":"月","sprint":"S5","tasks_done":178,"tasks_remaining":12,"ai_h_done":117.4,"ai_h_remaining":6.3,"human_h_done":1244,"human_h_remaining":83},{"day":15,"date":"2026-06-09","weekday":"火","sprint":"S5","tasks_done":184,"tasks_remaining":6,"ai_h_done":121.5,"ai_h_remaining":2.2,"human_h_done":1286,"human_h_remaining":41},{"day":16,"date":"2026-06-10","weekday":"水","sprint":"🚀","tasks_done":190,"tasks_remaining":0,"ai_h_done":123.7,"ai_h_remaining":0.0,"human_h_done":1328,"human_h_remaining":0}],"ceremonies":{"sprint_kick":{"duration_min":15,"checklist":["Bridge dispatcher 起動確認 (tony 自動)","ブランチ規則確認 + audit MD template 一括生成","file-mutex 衝突予測の表示","致命級タスクある場合 経営者承認","dispatcher.json 配下のパッケージを Wave スコープに並列投入"]},"sprint_close":{"duration_min":10,"checklist":["Wave 完了率 (merged PR / total) 自動算出","CI gate 失敗履歴のレトロ (vision 自動レポート)","次 Wave 解禁条件チェック (Phase Gate 機械判定)","経営者 1 クリック確認 or vision 自動進行"]},"in_sprint":{"auto_summary_interval_h":4,"channel":"S-E01-chat","escalation_trigger":"CI gate 3 連続失敗"}},"failure_handling":[{"trigger":"CI gate 3 連続失敗","action":"S-E01 + needs-human-review label"},{"trigger":"Wave 内 3 task 以上失敗","action":"Wave 一時停止 + 緊急レトロ"},{"trigger":"blocking task 失敗","action":"経営者通知 + Wave 全停止"},{"trigger":"critical gate 失敗 (R-T08 / 契約凍結)","action":"経営者承認待ち"}],"schedule_ref":"08_schedule/schedule.json","tickets_ref":"07_tasks/tickets.json","dispatcher_ref":"09_dispatch/dispatcher.json","release_ref":"10_release/release-plan.json"}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+let MODE='ai';
+function el(t,a,h){a=a||{};const e=document.createElement(t);for(const k in a){if(k==='cls')e.className=a[k];else e.setAttribute(k,a[k]);}if(h!==undefined)e.innerHTML=h;return e;}
+
+function renderSummary(){
+  const s=D.summary, sumEl=document.getElementById('summary'); sumEl.innerHTML='';
+  const cards = MODE==='ai' ? [
+    ['Sprint数',s.total_sprints,''],['タスク',s.total_tasks,''],['AI compute',s.total_estimate_hours_ai_compute,'h'],
+    ['Wall-clock',s.total_wall_clock_h_ai_parallel,'h'],['営業日',s.calendar_days_ai,'日'],['短縮率',s.ai_acceleration_factor_overall,'×']
+  ] : [
+    ['Sprint数',s.total_sprints,''],['タスク',s.total_tasks,''],['Human 工数',s.total_estimate_hours_human,'h'],
+    ['営業日','240','日'],['並列度','1','人'],['短縮率','baseline','']
+  ];
+  for(const [l,v,u] of cards) sumEl.append(el('div',{cls:'card'},`<div class="lbl">${l}</div><div class="v">${v}<small>${u}</small></div>`));
+}
+
+function renderSprints(){
+  const wrap=document.getElementById('sprints'); wrap.innerHTML='';
+  D.sprints.forEach(sp=>{
+    const id=sp.id.toLowerCase();
+    const membersHtml = Object.entries(sp.members).sort((a,b)=>b[1].count-a[1].count).map(([e,m])=>`<tr><td><b>${e}</b></td><td class="num">${m.count}</td><td class="num">${MODE==='ai'?m.ai_h:m.human_h}</td></tr>`).join('');
+    const blocking = sp.blocking_count>0 ? `<span class="badge" style="background:var(--crit)">★ ${sp.blocking_count} blocking</span>` : '';
+    const exec = sp.execution==='parallel'?'<span class="badge par">parallel</span>':'<span class="badge seq">sequential</span>';
+    wrap.append(el('div',{cls:`sprint ${id}`}, `
+      <h3>${sp.id} <span class="badge ${id}">W${sp.wave}</span> ${sp.name}</h3>
+      <div class="meta">${sp.start_date} → ${sp.end_date} (${sp.duration_days} 営業日) ・ 並列 ${sp.parallel_capacity} ・ ${exec} ${blocking}</div>
+      <div class="bigh">${MODE==='ai'?sp.estimate_hours_ai_compute:sp.estimate_hours_human}<small>${MODE==='ai'?'AI h compute':'Human h'}</small> <small>/ ${sp.task_count} task</small></div>
+      <table><thead><tr><th>担当</th><th class="num">件数</th><th class="num">${MODE==='ai'?'AI h':'Human h'}</th></tr></thead><tbody>${membersHtml}</tbody></table>
+      <div class="kpi">
+        <div>完了率 <b>${sp.kpi_targets.completion_pct}%</b></div>
+        <div>gate PASS <b>${sp.kpi_targets.ci_gate_pass_rate}%</b></div>
+        <div>retry < <b>${sp.kpi_targets.max_retry_avg}</b></div>
+        <div>esc ≤ <b>${sp.kpi_targets.max_escalations}</b></div>
+      </div>
+    `));
+  });
+}
+
+function renderBurndown(){
+  document.getElementById('burnHead').innerHTML = MODE==='ai' ? '残りタスク数（AI 並列モード）' : '残り工数 h（Human モード）';
+  const svg = document.getElementById('burnSvg'); svg.innerHTML='';
+  const w=1000, h=360, pad=40;
+  const xs = D.burndown.map((b,i)=>pad + (i/(D.burndown.length-1))*(w-2*pad));
+  const total = MODE==='ai' ? D.burndown[0].tasks_remaining : D.summary.total_estimate_hours_human;
+  const ys = D.burndown.map(b=>{
+    const v = MODE==='ai' ? b.tasks_remaining : b.human_h_remaining;
+    return pad + (v/total)*(h-2*pad);
+  });
+  // grid
+  for(let i=0;i<=5;i++){
+    const y = pad + (i/5)*(h-2*pad);
+    svg.insertAdjacentHTML('beforeend',`<line x1="${pad}" x2="${w-pad}" y1="${y}" y2="${y}" stroke="#eef1f7"/>`);
+    const lab = Math.round(total*(5-i)/5);
+    svg.insertAdjacentHTML('beforeend',`<text x="${pad-8}" y="${y+4}" text-anchor="end" font-size="10" fill="#6b7385">${lab}</text>`);
+  }
+  // x axis
+  D.burndown.forEach((b,i)=>{
+    if(i%2===0) svg.insertAdjacentHTML('beforeend',`<text x="${xs[i]}" y="${h-8}" text-anchor="middle" font-size="9" fill="#6b7385">D${b.day}</text>`);
+  });
+  // ideal line
+  svg.insertAdjacentHTML('beforeend',`<line x1="${pad}" y1="${pad}" x2="${w-pad}" y2="${h-pad}" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="5,4"/>`);
+  // actual area + line
+  const inv = ys.map(y => h - y + pad); // invert because chart shows remaining DECREASING (top=full)
+  // Actually y represents fill height from top; we want top=large remaining, bottom=0. So:
+  const remY = D.burndown.map(b=>{const v=MODE==='ai'?b.tasks_remaining:b.human_h_remaining; return pad + (1 - v/total)*(h-2*pad);});
+  let path='M'+xs.map((x,i)=>`${x},${remY[i]}`).join(' L');
+  let area=path + ` L${xs[xs.length-1]},${h-pad} L${xs[0]},${h-pad} Z`;
+  svg.insertAdjacentHTML('beforeend',`<path d="${area}" fill="rgba(37,99,235,0.10)"/>`);
+  svg.insertAdjacentHTML('beforeend',`<path d="${path}" stroke="#2563eb" stroke-width="3" fill="none"/>`);
+  D.burndown.forEach((b,i)=>{
+    const sprintColor = {S0:'#6d56ff',S1:'#0ea5e9',S2:'#e94e7c',S3:'#7c4dff',S4:'#10b981',S5:'#d97706','🚀':'#059669'}[b.sprint]||'#2563eb';
+    svg.insertAdjacentHTML('beforeend',`<circle cx="${xs[i]}" cy="${remY[i]}" r="4" fill="${sprintColor}" stroke="#fff" stroke-width="2"/>`);
+  });
+}
+
+function renderBurnRows(){
+  const tb=document.getElementById('burnRows'); tb.innerHTML='';
+  document.getElementById('hAi').textContent = MODE==='ai' ? 'AI h 消化' : 'Human h 消化';
+  document.getElementById('hRem').textContent = MODE==='ai' ? 'AI h 残' : 'Human h 残';
+  D.burndown.forEach(b=>{
+    const sprintBadge = {S0:'s0',S1:'s1',S2:'s2',S3:'s3',S4:'s4',S5:'s5'}[b.sprint] || '';
+    tb.append(el('tr',{},`
+      <td>D${b.day}</td><td>${b.date} ${b.weekday}</td>
+      <td>${sprintBadge?`<span class="badge ${sprintBadge}">${b.sprint}</span>`:'<span class="badge" style="background:#059669">🚀</span>'}</td>
+      <td class="num">${b.tasks_done}</td><td class="num">${b.tasks_remaining}</td>
+      <td class="num">${MODE==='ai'?b.ai_h_done:b.human_h_done}</td>
+      <td class="num">${MODE==='ai'?b.ai_h_remaining:b.human_h_remaining}</td>
+    `));
+  });
+}
+
+function renderCer(){
+  document.getElementById('kickList').innerHTML = D.ceremonies.sprint_kick.checklist.map(c=>`<li>${c}</li>`).join('');
+  document.getElementById('closeList').innerHTML = D.ceremonies.sprint_close.checklist.map(c=>`<li>${c}</li>`).join('');
+}
+function renderFail(){
+  const tb=document.getElementById('failRows'); tb.innerHTML='';
+  D.failure_handling.forEach(f=>tb.append(el('tr',{},`<td>${f.trigger}</td><td>${f.action}</td>`)));
+}
+
+function rerender(){renderSummary();renderSprints();renderBurndown();renderBurnRows();renderCer();renderFail();}
+document.getElementById('btnAI').addEventListener('click',()=>{MODE='ai';document.getElementById('btnAI').classList.add('on');document.getElementById('btnHuman').classList.remove('on');rerender();});
+document.getElementById('btnHuman').addEventListener('click',()=>{MODE='human';document.getElementById('btnHuman').classList.add('on');document.getElementById('btnAI').classList.remove('on');rerender();});
+rerender();
+</script></body></html>

@@ -1,0 +1,765 @@
+{
+  "version": "v3.1-dual",
+  "project": "Atelier",
+  "skill": "sprint-planning",
+  "created_at": "2026-05-20",
+  "policy": {
+    "sprint_unit": "1 Sprint = 1 Wave (2-4 days)",
+    "velocity_metric": "wall_clock_h_ai",
+    "daily_standup": "removed (vision auto-posts to S-E01 every 4h)",
+    "planning_duration_min": 15,
+    "retro_duration_min": 10,
+    "burndown": "auto-updated via dispatcher PR merge"
+  },
+  "summary": {
+    "total_sprints": 6,
+    "total_tasks": 190,
+    "total_estimate_hours_ai_compute": 123.7,
+    "total_estimate_hours_human": 1328.0,
+    "total_wall_clock_h_ai_parallel": 27.9,
+    "calendar_days_ai": 15,
+    "ai_acceleration_factor_overall": 10.7
+  },
+  "sprints": [
+    {
+      "id": "S0",
+      "wave": 0,
+      "name": "Foundation",
+      "start_date": "2026-05-20",
+      "end_date": "2026-05-21",
+      "duration_days": 2,
+      "parallel_capacity": 5,
+      "execution": "parallel",
+      "task_count": 28,
+      "estimate_hours_ai_compute": 18.6,
+      "estimate_hours_human": 213,
+      "wall_clock_h_ai": 6.72,
+      "human_review_h": 3.0,
+      "blocking_count": 4,
+      "cumulative_tasks": 28,
+      "cumulative_remaining": 162,
+      "cumulative_ai_h": 18.6,
+      "cumulative_human_h": 213,
+      "members": {
+        "tony": {
+          "count": 19,
+          "ai_h": 13.73,
+          "human_h": 150,
+          "tasks": [
+            "T-F-01",
+            "T-F-02",
+            "T-F-03",
+            "T-F-04",
+            "T-F-06",
+            "T-F-07",
+            "T-F-08",
+            "T-F-10",
+            "T-F-11",
+            "T-F-12",
+            "T-F-13",
+            "T-F-15",
+            "T-F-17",
+            "T-F-20",
+            "T-F-21",
+            "T-F-22",
+            "T-F-25",
+            "T-F-27",
+            "T-F-28"
+          ]
+        },
+        "strange": {
+          "count": 2,
+          "ai_h": 0.67,
+          "human_h": 10,
+          "tasks": [
+            "T-F-05",
+            "T-F-19"
+          ]
+        },
+        "wanda": {
+          "count": 2,
+          "ai_h": 1.2,
+          "human_h": 18,
+          "tasks": [
+            "T-F-09",
+            "T-F-16"
+          ]
+        },
+        "tchalla": {
+          "count": 1,
+          "ai_h": 0.67,
+          "human_h": 10,
+          "tasks": [
+            "T-F-14"
+          ]
+        },
+        "vision": {
+          "count": 4,
+          "ai_h": 2.3,
+          "human_h": 25,
+          "tasks": [
+            "T-F-18",
+            "T-F-23",
+            "T-F-24",
+            "T-F-26"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 95,
+        "max_retry_avg": 1.5,
+        "max_escalations": 2
+      }
+    },
+    {
+      "id": "S1",
+      "wave": 1,
+      "name": "Data Layer",
+      "start_date": "2026-05-22",
+      "end_date": "2026-05-25",
+      "duration_days": 2,
+      "parallel_capacity": 8,
+      "execution": "parallel",
+      "task_count": 35,
+      "estimate_hours_ai_compute": 17.8,
+      "estimate_hours_human": 188,
+      "wall_clock_h_ai": 5.53,
+      "human_review_h": 3.3,
+      "blocking_count": 1,
+      "cumulative_tasks": 63,
+      "cumulative_remaining": 127,
+      "cumulative_ai_h": 36.4,
+      "cumulative_human_h": 401,
+      "members": {
+        "strange": {
+          "count": 30,
+          "ai_h": 15.01,
+          "human_h": 160,
+          "tasks": [
+            "T-D-01",
+            "T-D-02",
+            "T-D-03",
+            "T-D-04",
+            "T-D-05",
+            "T-D-06",
+            "T-D-07",
+            "T-D-08",
+            "T-D-09",
+            "T-D-10",
+            "T-D-11",
+            "T-D-12",
+            "T-D-13",
+            "T-D-14",
+            "T-D-15",
+            "T-D-16",
+            "T-D-17",
+            "T-D-18",
+            "T-D-19",
+            "T-D-20",
+            "T-D-21",
+            "T-D-22",
+            "T-D-23",
+            "T-D-24",
+            "T-D-25",
+            "T-D-26",
+            "T-D-27",
+            "T-D-28",
+            "T-D-29",
+            "T-D-30"
+          ]
+        },
+        "vision": {
+          "count": 5,
+          "ai_h": 2.8,
+          "human_h": 28,
+          "tasks": [
+            "T-D-31",
+            "T-D-32",
+            "T-D-33",
+            "T-D-34",
+            "T-D-35"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 95,
+        "max_retry_avg": 1.2,
+        "max_escalations": 1
+      }
+    },
+    {
+      "id": "S2",
+      "wave": 2,
+      "name": "API Layer 🔒",
+      "start_date": "2026-05-26",
+      "end_date": "2026-05-27",
+      "duration_days": 2,
+      "parallel_capacity": 10,
+      "execution": "parallel",
+      "task_count": 45,
+      "estimate_hours_ai_compute": 26.6,
+      "estimate_hours_human": 310,
+      "wall_clock_h_ai": 4.66,
+      "human_review_h": 2.0,
+      "blocking_count": 1,
+      "cumulative_tasks": 108,
+      "cumulative_remaining": 82,
+      "cumulative_ai_h": 63.0,
+      "cumulative_human_h": 711,
+      "members": {
+        "thor": {
+          "count": 35,
+          "ai_h": 19.2,
+          "human_h": 230,
+          "tasks": [
+            "T-A-01",
+            "T-A-02",
+            "T-A-03",
+            "T-A-04",
+            "T-A-05",
+            "T-A-06",
+            "T-A-07",
+            "T-A-08",
+            "T-A-09",
+            "T-A-10",
+            "T-A-11",
+            "T-A-12",
+            "T-A-14",
+            "T-A-15",
+            "T-A-16",
+            "T-A-17",
+            "T-A-18",
+            "T-A-19",
+            "T-A-20",
+            "T-A-21",
+            "T-A-22",
+            "T-A-24",
+            "T-A-25",
+            "T-A-26",
+            "T-A-27",
+            "T-A-30",
+            "T-A-31",
+            "T-A-32",
+            "T-A-33",
+            "T-A-34",
+            "T-A-35",
+            "T-A-41",
+            "T-A-42",
+            "T-A-43",
+            "T-A-44"
+          ]
+        },
+        "strange": {
+          "count": 2,
+          "ai_h": 1.25,
+          "human_h": 15,
+          "tasks": [
+            "T-A-13",
+            "T-A-23"
+          ]
+        },
+        "tony": {
+          "count": 4,
+          "ai_h": 3.54,
+          "human_h": 34,
+          "tasks": [
+            "T-A-28",
+            "T-A-29",
+            "T-A-40",
+            "T-A-45"
+          ]
+        },
+        "tchalla": {
+          "count": 2,
+          "ai_h": 1.41,
+          "human_h": 17,
+          "tasks": [
+            "T-A-36",
+            "T-A-37"
+          ]
+        },
+        "steve": {
+          "count": 2,
+          "ai_h": 1.17,
+          "human_h": 14,
+          "tasks": [
+            "T-A-38",
+            "T-A-39"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 90,
+        "max_retry_avg": 2.0,
+        "max_escalations": 3
+      }
+    },
+    {
+      "id": "S3",
+      "wave": 3,
+      "name": "UI Foundation",
+      "start_date": "2026-05-28",
+      "end_date": "2026-05-29",
+      "duration_days": 2,
+      "parallel_capacity": 5,
+      "execution": "parallel",
+      "task_count": 18,
+      "estimate_hours_ai_compute": 9.6,
+      "estimate_hours_human": 96,
+      "wall_clock_h_ai": 2.42,
+      "human_review_h": 0.5,
+      "blocking_count": 1,
+      "cumulative_tasks": 126,
+      "cumulative_remaining": 64,
+      "cumulative_ai_h": 72.6,
+      "cumulative_human_h": 807,
+      "members": {
+        "wanda": {
+          "count": 16,
+          "ai_h": 8.4,
+          "human_h": 84,
+          "tasks": [
+            "T-US-01",
+            "T-US-02",
+            "T-US-05",
+            "T-US-06",
+            "T-US-07",
+            "T-US-08",
+            "T-US-09",
+            "T-US-10",
+            "T-US-11",
+            "T-US-12",
+            "T-US-13",
+            "T-US-14",
+            "T-US-15",
+            "T-US-16",
+            "T-US-17",
+            "T-US-18"
+          ]
+        },
+        "thor": {
+          "count": 1,
+          "ai_h": 0.6,
+          "human_h": 6,
+          "tasks": [
+            "T-US-03"
+          ]
+        },
+        "tony": {
+          "count": 1,
+          "ai_h": 0.6,
+          "human_h": 6,
+          "tasks": [
+            "T-US-04"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 95,
+        "max_retry_avg": 1.0,
+        "max_escalations": 1
+      }
+    },
+    {
+      "id": "S4",
+      "wave": 4,
+      "name": "UI Parallel",
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-03",
+      "duration_days": 3,
+      "parallel_capacity": 10,
+      "execution": "parallel",
+      "task_count": 40,
+      "estimate_hours_ai_compute": 36.8,
+      "estimate_hours_human": 368,
+      "wall_clock_h_ai": 3.68,
+      "human_review_h": 0.0,
+      "blocking_count": 0,
+      "cumulative_tasks": 166,
+      "cumulative_remaining": 24,
+      "cumulative_ai_h": 109.4,
+      "cumulative_human_h": 1175,
+      "members": {
+        "thor": {
+          "count": 32,
+          "ai_h": 31.5,
+          "human_h": 315,
+          "tasks": [
+            "T-UC-01",
+            "T-UC-02",
+            "T-UC-03",
+            "T-UC-04",
+            "T-UC-05",
+            "T-UC-08",
+            "T-UC-10",
+            "T-UC-11",
+            "T-UC-12",
+            "T-UC-13",
+            "T-UC-14",
+            "T-UC-15",
+            "T-UC-16",
+            "T-UC-17",
+            "T-UC-18",
+            "T-UC-19",
+            "T-UC-20",
+            "T-UC-21",
+            "T-UC-22",
+            "T-UC-23",
+            "T-UC-24",
+            "T-UC-25",
+            "T-UC-26",
+            "T-UC-27",
+            "T-UC-28",
+            "T-UC-29",
+            "T-UC-30",
+            "T-UC-31",
+            "T-UC-32",
+            "T-UC-33",
+            "T-UC-34",
+            "T-UC-37"
+          ]
+        },
+        "wanda": {
+          "count": 8,
+          "ai_h": 5.3,
+          "human_h": 53,
+          "tasks": [
+            "T-UC-06",
+            "T-UC-07",
+            "T-UC-09",
+            "T-UC-35",
+            "T-UC-36",
+            "T-UC-38",
+            "T-UC-39",
+            "T-UC-40"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 85,
+        "max_retry_avg": 2.5,
+        "max_escalations": 5
+      }
+    },
+    {
+      "id": "S5",
+      "wave": 5,
+      "name": "Integration 🚀",
+      "start_date": "2026-06-04",
+      "end_date": "2026-06-09",
+      "duration_days": 4,
+      "parallel_capacity": 5,
+      "execution": "sequential",
+      "task_count": 24,
+      "estimate_hours_ai_compute": 14.4,
+      "estimate_hours_human": 153,
+      "wall_clock_h_ai": 4.88,
+      "human_review_h": 2.0,
+      "blocking_count": 0,
+      "cumulative_tasks": 190,
+      "cumulative_remaining": 0,
+      "cumulative_ai_h": 123.8,
+      "cumulative_human_h": 1328,
+      "members": {
+        "vision": {
+          "count": 17,
+          "ai_h": 11.5,
+          "human_h": 111,
+          "tasks": [
+            "T-I-01",
+            "T-I-02",
+            "T-I-03",
+            "T-I-04",
+            "T-I-05",
+            "T-I-06",
+            "T-I-07",
+            "T-I-08",
+            "T-I-09",
+            "T-I-10",
+            "T-I-13",
+            "T-I-14",
+            "T-I-15",
+            "T-I-16",
+            "T-I-17",
+            "T-I-18",
+            "T-I-24"
+          ]
+        },
+        "tony": {
+          "count": 6,
+          "ai_h": 2.37,
+          "human_h": 34,
+          "tasks": [
+            "T-I-11",
+            "T-I-12",
+            "T-I-19",
+            "T-I-21",
+            "T-I-22",
+            "T-I-23"
+          ]
+        },
+        "wanda": {
+          "count": 1,
+          "ai_h": 0.53,
+          "human_h": 8,
+          "tasks": [
+            "T-I-20"
+          ]
+        }
+      },
+      "kpi_targets": {
+        "completion_pct": 100,
+        "ci_gate_pass_rate": 95,
+        "max_retry_avg": 1.5,
+        "max_escalations": 3
+      }
+    }
+  ],
+  "burndown": [
+    {
+      "day": 1,
+      "date": "2026-05-20",
+      "weekday": "水",
+      "sprint": "S0",
+      "tasks_done": 0,
+      "tasks_remaining": 190,
+      "ai_h_done": 0,
+      "ai_h_remaining": 123.7,
+      "human_h_done": 0,
+      "human_h_remaining": 1328
+    },
+    {
+      "day": 2,
+      "date": "2026-05-21",
+      "weekday": "木",
+      "sprint": "S0",
+      "tasks_done": 28,
+      "tasks_remaining": 162,
+      "ai_h_done": 18.6,
+      "ai_h_remaining": 105.1,
+      "human_h_done": 195,
+      "human_h_remaining": 1132
+    },
+    {
+      "day": 3,
+      "date": "2026-05-22",
+      "weekday": "金",
+      "sprint": "S1",
+      "tasks_done": 28,
+      "tasks_remaining": 162,
+      "ai_h_done": 18.6,
+      "ai_h_remaining": 105.1,
+      "human_h_done": 195,
+      "human_h_remaining": 1132
+    },
+    {
+      "day": 4,
+      "date": "2026-05-25",
+      "weekday": "月",
+      "sprint": "S1",
+      "tasks_done": 63,
+      "tasks_remaining": 127,
+      "ai_h_done": 36.4,
+      "ai_h_remaining": 87.3,
+      "human_h_done": 440,
+      "human_h_remaining": 887
+    },
+    {
+      "day": 5,
+      "date": "2026-05-26",
+      "weekday": "火",
+      "sprint": "S2",
+      "tasks_done": 63,
+      "tasks_remaining": 127,
+      "ai_h_done": 36.4,
+      "ai_h_remaining": 87.3,
+      "human_h_done": 440,
+      "human_h_remaining": 887
+    },
+    {
+      "day": 6,
+      "date": "2026-05-27",
+      "weekday": "水",
+      "sprint": "S2",
+      "tasks_done": 108,
+      "tasks_remaining": 82,
+      "ai_h_done": 63.0,
+      "ai_h_remaining": 60.7,
+      "human_h_done": 754,
+      "human_h_remaining": 573
+    },
+    {
+      "day": 7,
+      "date": "2026-05-28",
+      "weekday": "木",
+      "sprint": "S3",
+      "tasks_done": 108,
+      "tasks_remaining": 82,
+      "ai_h_done": 63.0,
+      "ai_h_remaining": 60.7,
+      "human_h_done": 754,
+      "human_h_remaining": 573
+    },
+    {
+      "day": 8,
+      "date": "2026-05-29",
+      "weekday": "金",
+      "sprint": "S3",
+      "tasks_done": 126,
+      "tasks_remaining": 64,
+      "ai_h_done": 72.6,
+      "ai_h_remaining": 51.1,
+      "human_h_done": 880,
+      "human_h_remaining": 447
+    },
+    {
+      "day": 9,
+      "date": "2026-06-01",
+      "weekday": "月",
+      "sprint": "S4",
+      "tasks_done": 126,
+      "tasks_remaining": 64,
+      "ai_h_done": 72.6,
+      "ai_h_remaining": 51.1,
+      "human_h_done": 880,
+      "human_h_remaining": 447
+    },
+    {
+      "day": 10,
+      "date": "2026-06-02",
+      "weekday": "火",
+      "sprint": "S4",
+      "tasks_done": 145,
+      "tasks_remaining": 45,
+      "ai_h_done": 92.4,
+      "ai_h_remaining": 31.3,
+      "human_h_done": 1013,
+      "human_h_remaining": 314
+    },
+    {
+      "day": 11,
+      "date": "2026-06-03",
+      "weekday": "水",
+      "sprint": "S4",
+      "tasks_done": 166,
+      "tasks_remaining": 24,
+      "ai_h_done": 104.8,
+      "ai_h_remaining": 18.9,
+      "human_h_done": 1160,
+      "human_h_remaining": 167
+    },
+    {
+      "day": 12,
+      "date": "2026-06-04",
+      "weekday": "木",
+      "sprint": "S5",
+      "tasks_done": 166,
+      "tasks_remaining": 24,
+      "ai_h_done": 109.4,
+      "ai_h_remaining": 14.3,
+      "human_h_done": 1160,
+      "human_h_remaining": 167
+    },
+    {
+      "day": 13,
+      "date": "2026-06-05",
+      "weekday": "金",
+      "sprint": "S5",
+      "tasks_done": 173,
+      "tasks_remaining": 17,
+      "ai_h_done": 113.9,
+      "ai_h_remaining": 9.8,
+      "human_h_done": 1209,
+      "human_h_remaining": 118
+    },
+    {
+      "day": 14,
+      "date": "2026-06-08",
+      "weekday": "月",
+      "sprint": "S5",
+      "tasks_done": 178,
+      "tasks_remaining": 12,
+      "ai_h_done": 117.4,
+      "ai_h_remaining": 6.3,
+      "human_h_done": 1244,
+      "human_h_remaining": 83
+    },
+    {
+      "day": 15,
+      "date": "2026-06-09",
+      "weekday": "火",
+      "sprint": "S5",
+      "tasks_done": 184,
+      "tasks_remaining": 6,
+      "ai_h_done": 121.5,
+      "ai_h_remaining": 2.2,
+      "human_h_done": 1286,
+      "human_h_remaining": 41
+    },
+    {
+      "day": 16,
+      "date": "2026-06-10",
+      "weekday": "水",
+      "sprint": "🚀",
+      "tasks_done": 190,
+      "tasks_remaining": 0,
+      "ai_h_done": 123.7,
+      "ai_h_remaining": 0.0,
+      "human_h_done": 1328,
+      "human_h_remaining": 0
+    }
+  ],
+  "ceremonies": {
+    "sprint_kick": {
+      "duration_min": 15,
+      "checklist": [
+        "Bridge dispatcher 起動確認 (tony 自動)",
+        "ブランチ規則確認 + audit MD template 一括生成",
+        "file-mutex 衝突予測の表示",
+        "致命級タスクある場合 経営者承認",
+        "dispatcher.json 配下のパッケージを Wave スコープに並列投入"
+      ]
+    },
+    "sprint_close": {
+      "duration_min": 10,
+      "checklist": [
+        "Wave 完了率 (merged PR / total) 自動算出",
+        "CI gate 失敗履歴のレトロ (vision 自動レポート)",
+        "次 Wave 解禁条件チェック (Phase Gate 機械判定)",
+        "経営者 1 クリック確認 or vision 自動進行"
+      ]
+    },
+    "in_sprint": {
+      "auto_summary_interval_h": 4,
+      "channel": "S-E01-chat",
+      "escalation_trigger": "CI gate 3 連続失敗"
+    }
+  },
+  "failure_handling": [
+    {
+      "trigger": "CI gate 3 連続失敗",
+      "action": "S-E01 + needs-human-review label"
+    },
+    {
+      "trigger": "Wave 内 3 task 以上失敗",
+      "action": "Wave 一時停止 + 緊急レトロ"
+    },
+    {
+      "trigger": "blocking task 失敗",
+      "action": "経営者通知 + Wave 全停止"
+    },
+    {
+      "trigger": "critical gate 失敗 (R-T08 / 契約凍結)",
+      "action": "経営者承認待ち"
+    }
+  ],
+  "schedule_ref": "08_schedule/schedule.json",
+  "tickets_ref": "07_tasks/tickets.json",
+  "dispatcher_ref": "09_dispatch/dispatcher.json",
+  "release_ref": "10_release/release-plan.json"
+}

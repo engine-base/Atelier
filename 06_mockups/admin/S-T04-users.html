@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ユーザー管理 — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .admin-badge { background: var(--color-error); color: #FFFFFF; padding: 2px 8px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .user-row { display: grid; grid-template-columns: 40px 1.5fr 1fr 80px 1fr 100px 80px 40px; gap: 14px; padding: 14px 18px; align-items: center; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+  .user-row:hover { background: var(--color-surface-variant); }
+  .user-row.deleted { opacity: 0.55; }
+  .filter-bar { display: flex; gap: 10px; align-items: center; padding: 12px 16px; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); margin-bottom: 14px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" style="background:#0F172A;border-right:1px solid #1E293B;">
+  <div class="sidebar-brand" style="border-bottom-color:#1E293B;">
+    <div class="brand-mark" style="background:var(--color-error);">A</div>
+    <div><div class="brand-name" style="color:#FFFFFF;">Atelier Admin</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label" style="color:#475569;">PLATFORM</div>
+    <a class="nav-item" href="S-T01-dashboard.html" style="color:#94A3B8;"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="S-T02-skills.html" style="color:#94A3B8;"><i data-icon="zap"></i>スキル管理</a>
+    <a class="nav-item" href="S-T03-templates.html" style="color:#94A3B8;"><i data-icon="bot"></i>AI社員テンプレ</a>
+    <a class="nav-item active" href="#" style="color:#93C5FD;background:rgba(37,99,235,0.15);border-left-color:var(--color-primary);"><i data-icon="users"></i>ユーザー管理</a>
+    <a class="nav-item" href="S-T05-audit.html" style="color:#94A3B8;"><i data-icon="file-text"></i>監査ログ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-T04" data-bf-screen-name="admin_users" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="flex items-center gap-3"><span class="admin-badge">ADMIN</span><div class="breadcrumb"><strong>ユーザー管理</strong></div></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1400px;">
+  <div class="page-header">
+    <div class="page-eyebrow">User Management</div>
+    <h1 class="page-title">ユーザー管理</h1>
+    <p class="page-subtitle">アカウント一覧 · ロール変更 · サポート対応 · 退会データ管理</p>
+  </div>
+
+  <div class="grid grid-4 gap-4 mb-6">
+    <div class="card"><div class="page-eyebrow">総ユーザー</div><div class="text-3xl font-bold tabular mt-1">42</div></div>
+    <div class="card"><div class="page-eyebrow">アクティブ</div><div class="text-3xl font-bold tabular mt-1 text-tertiary">36</div></div>
+    <div class="card"><div class="page-eyebrow">退会予約（30日内）</div><div class="text-3xl font-bold tabular mt-1 text-secondary">3</div></div>
+    <div class="card"><div class="page-eyebrow">削除済み（匿名化）</div><div class="text-3xl font-bold tabular mt-1 text-muted">3</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <i data-icon="search"></i>
+    <input class="input" style="border:none; background: transparent; flex: 1;" placeholder="メール / 名前 / WS で検索">
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>全ステータス</option>
+      <option>アクティブ</option>
+      <option>退会予約</option>
+      <option>削除済み</option>
+    </select>
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>全ロール</option>
+      <option>WorkspaceOwner</option>
+      <option>WorkspaceMember</option>
+      <option>WorkspaceViewer</option>
+      <option>PlatformAdmin</option>
+    </select>
+    <button class="btn btn-outlined btn-sm"><i data-icon="download"></i>CSV エクスポート</button>
+  </div>
+
+  <div class="card" style="padding: 0;">
+    <div class="user-row" style="background: var(--color-surface-variant); font-weight: 700; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant);">
+      <div></div>
+      <div>ユーザー</div>
+      <div>WS / ロール</div>
+      <div>プラン</div>
+      <div>最終ログイン</div>
+      <div>サポート</div>
+      <div>状態</div>
+      <div></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar">M</div>
+      <div>
+        <div class="font-bold">高本まさと <span class="admin-badge" style="margin-left: 4px;">ADMIN</span></div>
+        <div class="text-muted text-sm">masato@engine-base.com</div>
+      </div>
+      <div>
+        <div class="text-sm">ENGINE BASE</div>
+        <div class="text-muted text-sm">+1 WS · Owner</div>
+      </div>
+      <div><span class="badge badge-tertiary">Pro</span></div>
+      <div class="tabular text-sm">2 分前</div>
+      <div class="text-muted text-sm">—</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#7C3AED;">T</div>
+      <div>
+        <div class="font-bold">高本聖斗</div>
+        <div class="text-muted text-sm">takamoto@engine-base.com</div>
+      </div>
+      <div>
+        <div class="text-sm">ENGINE BASE</div>
+        <div class="text-muted text-sm">Member</div>
+      </div>
+      <div><span class="badge badge-neutral">Free</span></div>
+      <div class="tabular text-sm">12 分前</div>
+      <div class="text-muted text-sm">—</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#0891B2;">K</div>
+      <div>
+        <div class="font-bold">小松 太郎</div>
+        <div class="text-muted text-sm">komatsu@matsuride.com</div>
+      </div>
+      <div>
+        <div class="text-sm">マツリデハッピー</div>
+        <div class="text-muted text-sm">Owner · 1 招待</div>
+      </div>
+      <div><span class="badge badge-neutral">Free</span></div>
+      <div class="tabular text-sm">3 時間前</div>
+      <div class="text-muted text-sm">—</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#16A34A;">N</div>
+      <div>
+        <div class="font-bold">中島 健</div>
+        <div class="text-muted text-sm">nakajima@example.com</div>
+      </div>
+      <div>
+        <div class="text-sm">個人開発</div>
+        <div class="text-muted text-sm">Owner</div>
+      </div>
+      <div><span class="badge badge-neutral">Free</span></div>
+      <div class="tabular text-sm">昨日</div>
+      <div class="text-muted text-sm">FB 2 件</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#DC2626;">S</div>
+      <div>
+        <div class="font-bold">佐々木 隆</div>
+        <div class="text-muted text-sm">sasaki@example.co.jp</div>
+      </div>
+      <div>
+        <div class="text-sm">サクセスデザイン株式会社</div>
+        <div class="text-muted text-sm">Owner · 3 メンバー</div>
+      </div>
+      <div><span class="badge badge-secondary">Pro 予約</span></div>
+      <div class="tabular text-sm">2 日前</div>
+      <div class="text-muted text-sm">問合せ 1 件</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#BE185D;">F</div>
+      <div>
+        <div class="font-bold">福井 美咲</div>
+        <div class="text-muted text-sm">fukui@example.com</div>
+      </div>
+      <div>
+        <div class="text-sm">個人</div>
+        <div class="text-muted text-sm">Owner</div>
+      </div>
+      <div><span class="badge badge-neutral">Free</span></div>
+      <div class="tabular text-sm">4 日前</div>
+      <div class="text-muted text-sm">—</div>
+      <div><span class="pill pill-awaiting" style="padding:2px 8px;"><span class="pill-dot"></span>退会予約</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row">
+      <div class="avatar" style="background:#1E40AF;">Y</div>
+      <div>
+        <div class="font-bold">山田 翔</div>
+        <div class="text-muted text-sm">yamada@example.com</div>
+      </div>
+      <div>
+        <div class="text-sm">山田工房</div>
+        <div class="text-muted text-sm">Owner</div>
+      </div>
+      <div><span class="badge badge-neutral">Free</span></div>
+      <div class="tabular text-sm">1 週間前</div>
+      <div class="text-muted text-sm">FB 1 件</div>
+      <div><span class="pill pill-pending" style="padding:2px 8px;"><span class="pill-dot"></span>非アクティブ</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="user-row deleted">
+      <div class="avatar" style="background:var(--color-neutral);">A</div>
+      <div>
+        <div class="font-bold">[匿名化済み]</div>
+        <div class="text-muted text-sm tabular">user_2026***@deleted</div>
+      </div>
+      <div>
+        <div class="text-sm">—</div>
+        <div class="text-muted text-sm">—</div>
+      </div>
+      <div><span class="badge badge-neutral">—</span></div>
+      <div class="tabular text-sm">削除 2026-04-15</div>
+      <div class="text-muted text-sm">—</div>
+      <div><span class="pill pill-blocked" style="padding:2px 8px;"><span class="pill-dot"></span>deleted</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div style="padding: 12px 18px; text-align: center; color: var(--color-on-surface-variant); font-size: 13px; border-top: 1px solid var(--color-border);">
+      <span class="tabular">42 名中 8 名表示 · </span>
+      <a href="#" class="text-primary font-semibold">次の 8 名 →</a>
+    </div>
+  </div>
+
+  <div class="grid grid-2 gap-4 mt-6">
+    <div class="card">
+      <h3 class="section-title mb-3" style="font-size: 14px;">退会予約（30日内キャンセル可）</h3>
+      <div class="flex items-center justify-between py-2 border-b" style="border-color: var(--color-border);">
+        <div>
+          <div class="font-semibold">福井 美咲</div>
+          <div class="text-muted text-sm tabular">2026-06-04 に削除予定（残り 17 日）</div>
+        </div>
+        <button class="btn btn-outlined btn-sm">サポート連絡</button>
+      </div>
+      <div class="flex items-center justify-between py-2 border-b" style="border-color: var(--color-border);">
+        <div>
+          <div class="font-semibold">テスト・テスト</div>
+          <div class="text-muted text-sm tabular">2026-06-12 に削除予定（残り 25 日）</div>
+        </div>
+        <button class="btn btn-outlined btn-sm">サポート連絡</button>
+      </div>
+      <div class="flex items-center justify-between py-2">
+        <div>
+          <div class="font-semibold">中村 大輔</div>
+          <div class="text-muted text-sm tabular">2026-06-13 に削除予定（残り 26 日）</div>
+        </div>
+        <button class="btn btn-outlined btn-sm">サポート連絡</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 class="section-title mb-3" style="font-size: 14px;">最近のサポート対応</h3>
+      <div class="flex items-center gap-3 py-2 border-b" style="border-color: var(--color-border);">
+        <div class="avatar avatar-sm" style="background:#DC2626;">S</div>
+        <div style="flex: 1;">
+          <div class="font-semibold">佐々木 隆</div>
+          <div class="text-muted text-sm">Pro プラン課金タイミングについて</div>
+        </div>
+        <span class="text-muted text-sm tabular">2h</span>
+      </div>
+      <div class="flex items-center gap-3 py-2 border-b" style="border-color: var(--color-border);">
+        <div class="avatar avatar-sm" style="background:#16A34A;">N</div>
+        <div style="flex: 1;">
+          <div class="font-semibold">中島 健</div>
+          <div class="text-muted text-sm">Claude Code 認証エラー</div>
+        </div>
+        <span class="text-muted text-sm tabular">昨日</span>
+      </div>
+      <div class="flex items-center gap-3 py-2">
+        <div class="avatar avatar-sm" style="background:#1E40AF;">Y</div>
+        <div style="flex: 1;">
+          <div class="font-semibold">山田 翔</div>
+          <div class="text-muted text-sm">並列実行時のセッション切替（FB）</div>
+        </div>
+        <span class="text-muted text-sm tabular">2 日前</span>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

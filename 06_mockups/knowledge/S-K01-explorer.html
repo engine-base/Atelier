@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ナレッジ — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .knowledge-layout { display: grid; grid-template-columns: 280px 1fr 320px; height: calc(100vh - 56px); }
+  .tree-pane { background: #FFFFFF; border-right: 1px solid var(--color-border); overflow-y: auto; padding: 14px 12px; }
+  .tree-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 12px; }
+  .tree-search input { border: none; background: transparent; outline: none; flex: 1; font-size: 13px; }
+  .tree-group { margin-bottom: 12px; }
+  .tree-group-label { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .tree-item { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .tree-item:hover { background: var(--color-surface-variant); }
+  .tree-item.active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; }
+  .tree-item.child { padding-left: 22px; font-size: 12.5px; }
+  .tree-item .count { margin-left: auto; font-size: 10.5px; color: var(--color-on-surface-variant); }
+  .tree-employee-row { padding-left: 16px; }
+
+  .main-pane { display: flex; flex-direction: column; background: var(--color-surface); overflow: hidden; }
+  .main-toolbar { padding: 12px 24px; background: rgba(254,252,248,0.95); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; backdrop-filter: blur(8px); }
+  .view-toggle { display: flex; gap: 4px; padding: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .view-toggle button { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; }
+  .view-toggle button.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+  .knowledge-content { flex: 1; overflow-y: auto; padding: 32px 48px; }
+  .note-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 8px; }
+  .note-h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 12px; }
+  .note-meta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; font-size: 12.5px; color: var(--color-on-surface-variant); padding-bottom: 16px; border-bottom: 1px solid var(--color-border); }
+  .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ktag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); font-size: 11px; font-weight: 600; }
+  .note-h2 { font-size: 18px; font-weight: 700; margin: 24px 0 10px; }
+  .note-p { font-size: 14px; line-height: 1.85; margin-bottom: 12px; }
+  .note-quote { border-left: 3px solid var(--color-primary); padding: 6px 0 6px 16px; margin: 12px 0; color: var(--color-on-surface-variant); font-style: italic; background: var(--color-primary-container); border-radius: 0 var(--rounded-md) var(--rounded-md) 0; padding: 12px 16px; }
+  .note-list { padding-left: 22px; line-height: 1.85; margin-bottom: 12px; }
+  .wiki-link { color: var(--color-primary); background: var(--color-primary-container); padding: 1px 6px; border-radius: var(--rounded-sm); font-weight: 600; }
+
+  .meta-pane { background: #FFFFFF; border-left: 1px solid var(--color-border); padding: 18px; overflow-y: auto; }
+  .meta-section { margin-bottom: 20px; }
+  .meta-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 8px; }
+  .confidence-bar { height: 6px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; margin-top: 6px; }
+  .confidence-fill { height: 100%; background: var(--color-tertiary); border-radius: var(--rounded-full); }
+  .backlink-row { padding: 8px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 4px; font-size: 12px; }
+  .backlink-context { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item active" href="#"><i data-icon="brain"></i>ナレッジ<span style="margin-left:auto;font-size:11px;">142</span></a>
+    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-K01" data-bf-screen-name="knowledge_explorer" data-bf-category="knowledge" data-bf-status="active" data-bf-version="1" style="margin-left: 240px;">
+<header class="topbar">
+  <div class="breadcrumb"><span>ENGINE BASE</span><span class="breadcrumb-sep">/</span><strong>ナレッジ</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<div class="knowledge-layout">
+  <!-- Tree -->
+  <aside class="tree-pane">
+    <div class="tree-search">
+      <i data-icon="search" data-size="14"></i>
+      <input placeholder="ナレッジを検索（RAG）...">
+    </div>
+
+    <div class="tree-group">
+      <div class="tree-group-label"><i data-icon="globe" data-size="11"></i>共通ナレッジ <span class="count" style="margin-left:auto;">42</span></div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>ユーザー方向性<span class="count">8</span></div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>業界傾向<span class="count">15</span></div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>横断テンプレ<span class="count">12</span></div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>用語・略語<span class="count">7</span></div>
+    </div>
+
+    <div class="tree-group">
+      <div class="tree-group-label"><i data-icon="users" data-size="11"></i>AI社員別 <span class="count" style="margin-left:auto;">100</span></div>
+
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-jarvis">J</div>ジャービス<span class="count">8</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-tony">T</div>トニー<span class="count">18</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>過去提案テンプレ<span class="count">7</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>成約パターン<span class="count">6</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>価格戦略<span class="count">5</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-natasha">N</div>ナターシャ<span class="count">9</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-steve">S</div>スティーブ<span class="count">11</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-peter">P</div>ピーター<span class="count">6</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-strange">D</div>ストレンジ<span class="count">14</span></div>
+      <div class="tree-item child active"><i data-icon="file-text" data-size="12"></i>Supabase RLS パターン</div>
+      <div class="tree-item child"><i data-icon="file-text" data-size="12"></i>LangGraph 人間承認</div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>失敗パターン<span class="count">5</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-wanda">W</div>ワンダ<span class="count">22</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>参考デザイン<span class="count">12</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>カラー傾向<span class="count">6</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-thor">T</div>ソー<span class="count">7</span></div>
+      <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン<span class="count">5</span></div>
+    </div>
+  </aside>
+
+  <!-- Main note -->
+  <div class="main-pane">
+    <div class="main-toolbar">
+      <div class="view-toggle">
+        <button class="active"><i data-icon="file-text" data-size="12"></i> ノート</button>
+        <button><i data-icon="layout-dashboard" data-size="12"></i> リスト</button>
+        <button><i data-icon="git-branch" data-size="12"></i> グラフ</button>
+      </div>
+      <div style="margin-left:auto;" class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-sm"><i data-icon="copy"></i>複製</button>
+        <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i>Obsidian で開く</button>
+        <button class="btn btn-outlined btn-sm"><i data-icon="edit"></i>編集</button>
+      </div>
+    </div>
+
+    <div class="knowledge-content">
+      <div class="note-eyebrow">ストレンジ専用ナレッジ · 採用アーキテクチャ</div>
+      <h1 class="note-h1">Supabase RLS パターン</h1>
+      <div class="note-meta">
+        <span class="flex items-center gap-1"><i data-icon="clock" data-size="12"></i>2026-05-12 作成 · 2026-05-18 更新</span>
+        <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-tchalla">T</div>ティチャラが整理</span>
+        <span>参照 <strong class="tabular">12</strong> 回</span>
+        <div class="tag-row">
+          <span class="ktag">supabase</span>
+          <span class="ktag">rls</span>
+          <span class="ktag">multi-tenant</span>
+          <span class="ktag">security</span>
+        </div>
+      </div>
+
+      <p class="note-p">Atelier では、<span class="wiki-link">workspace_id</span> + RLS でマルチテナント分離を実現する。<span class="wiki-link">クライアント招待</span> は別 JWT 経路（<code>role=client_portal</code>）で完全分離する。</p>
+
+      <h2 class="note-h2">基本構造</h2>
+      <ul class="note-list">
+        <li>通常ユーザーは <code>auth.uid()</code> + <code>workspace_memberships</code> で判定</li>
+        <li>クライアントは JWT claim の <code>invitation_token_hash</code> + <code>project_id</code> で判定</li>
+        <li>service_role は FastAPI 内のシステム書込専用</li>
+      </ul>
+
+      <div class="note-quote">
+        <strong>重要：</strong>クライアント JWT は <code>workspace_memberships</code> テーブルを<strong>一切参照しない</strong>。これで R-T08 致命級リスク（クライアント漏洩）に対策できる。
+      </div>
+
+      <h2 class="note-h2">predicate ライブラリ</h2>
+      <ul class="note-list">
+        <li><code>fn_is_workspace_member(ws_id)</code></li>
+        <li><code>fn_is_workspace_owner(ws_id)</code></li>
+        <li><code>fn_is_client_invitation_valid(invitation_id)</code></li>
+        <li><code>fn_is_admin()</code></li>
+      </ul>
+
+      <h2 class="note-h2">過去案件での適用</h2>
+      <p class="note-p">小松様 EC モール統合プロジェクトで同じパターンを採用済み。クライアント招待での閲覧専用 UI と組み合わせて、漏洩ゼロで運用中。</p>
+
+      <p class="note-p">関連：<span class="wiki-link">LangGraph 人間承認ループ</span> · <span class="wiki-link">監査ログ設計</span></p>
+    </div>
+  </div>
+
+  <!-- Meta panel -->
+  <aside class="meta-pane">
+    <div class="meta-section">
+      <div class="meta-title">メタ情報</div>
+      <div class="flex flex-col gap-2 text-sm">
+        <div class="flex justify-between"><span class="text-muted">スコープ</span><span class="badge badge-primary">employee_specific</span></div>
+        <div class="flex justify-between"><span class="text-muted">オーナー</span><span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-strange">D</div>ストレンジ</span></div>
+        <div class="flex justify-between"><span class="text-muted">カテゴリ</span><span>採用アーキ</span></div>
+        <div class="flex justify-between"><span class="text-muted">参照回数</span><span class="tabular font-bold">12</span></div>
+      </div>
+    </div>
+
+    <div class="meta-section">
+      <div class="meta-title">信頼度（confidence）</div>
+      <div class="flex items-center gap-2">
+        <strong class="text-tertiary tabular" style="font-size: 18px;">0.92</strong>
+        <span class="text-muted text-sm">高 · 業界傾向に昇格候補</span>
+      </div>
+      <div class="confidence-bar"><div class="confidence-fill" style="width: 92%;"></div></div>
+    </div>
+
+    <div class="meta-section">
+      <div class="meta-title">バックリンク（4）</div>
+      <div class="backlink-row">
+        <strong>T-001 Supabase RLS 設計</strong>
+        <div class="backlink-context">タスク実装時に参照</div>
+      </div>
+      <div class="backlink-row">
+        <strong>ADR-003 RLS 設計方針</strong>
+        <div class="backlink-context">アーキ決定で引用</div>
+      </div>
+      <div class="backlink-row">
+        <strong>R-T08 リスク対策</strong>
+        <div class="backlink-context">致命級リスク文書</div>
+      </div>
+      <div class="backlink-row">
+        <strong>F-014 クライアント招待</strong>
+        <div class="backlink-context">機能仕様書から参照</div>
+      </div>
+    </div>
+
+    <div class="meta-section">
+      <div class="meta-title">関連ナレッジ（RAG）</div>
+      <div class="backlink-row">
+        <strong>LangGraph 人間承認ループ</strong>
+        <div class="backlink-context">類似度 0.84</div>
+      </div>
+      <div class="backlink-row">
+        <strong>JWT カスタムクレーム設計</strong>
+        <div class="backlink-context">類似度 0.79</div>
+      </div>
+      <div class="backlink-row">
+        <strong>監査ログ・1年保持パターン</strong>
+        <div class="backlink-context">類似度 0.71</div>
+      </div>
+    </div>
+
+    <div class="meta-section">
+      <div class="meta-title">アクション</div>
+      <div class="flex flex-col gap-2">
+        <button class="btn btn-outlined btn-sm w-full" style="justify-content: center;"><i data-icon="sparkles"></i>共通ナレッジに昇格</button>
+        <button class="btn btn-ghost btn-sm w-full" style="justify-content: center;"><i data-icon="external-link"></i>Obsidian Vault に書出</button>
+      </div>
+    </div>
+  </aside>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

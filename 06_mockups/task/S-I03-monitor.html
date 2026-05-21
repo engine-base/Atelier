@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>実行モニター — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── ダークテーマ ───────── */
+  body { background: #0F172A; color: #E2E8F0; }
+  .layout { background: #0F172A; }
+  .sidebar { background: #0B1220; border-right-color: #1E293B; }
+  .sidebar .brand-name, .sidebar .nav-item { color: #94A3B8; }
+  .sidebar .nav-item.active { background: rgba(37,99,235,0.18); color: #93C5FD; border-left-color: var(--color-primary); }
+  .sidebar .nav-section-label { color: #475569; }
+  .sidebar-brand { border-bottom-color: #1E293B; }
+  .topbar { background: rgba(11,18,32,0.92); border-bottom-color: #1E293B; color: #E2E8F0; backdrop-filter: blur(8px); }
+  .breadcrumb { color: #94A3B8; } .breadcrumb strong { color: #E2E8F0; } .breadcrumb a { color: #93C5FD; }
+
+  /* ───────── 役割カード ───────── */
+  .role-card {
+    margin: 20px 24px 16px;
+    background: linear-gradient(135deg, rgba(37,99,235,0.16) 0%, rgba(20,184,166,0.06) 100%);
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-lg);
+    padding: 22px 26px;
+    display: grid; grid-template-columns: 60px 1fr; gap: 20px; align-items: start;
+  }
+  .role-icon {
+    width: 60px; height: 60px;
+    background: var(--color-primary); color: #FFFFFF;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .role-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .role-title { font-size: 18.5px; font-weight: 700; letter-spacing: -0.01em; color: #F1F5F9; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    background: rgba(20,184,166,0.18);
+    color: var(--color-tertiary);
+    border: 1px solid var(--color-tertiary);
+    border-radius: var(--rounded-full);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  }
+  .live-dot { width: 8px; height: 8px; background: var(--color-tertiary); border-radius: 50%; animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.3); } }
+  .role-lead { font-size: 13px; color: #94A3B8; margin-bottom: 16px; line-height: 1.7; }
+  .role-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .role-point {
+    background: rgba(11,18,32,0.55);
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-md);
+    padding: 12px 14px;
+  }
+  .role-point-num { width: 24px; height: 24px; border-radius: 50%; background: var(--color-primary); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+  .role-point-label { font-size: 12.5px; font-weight: 700; color: #F1F5F9; margin-bottom: 3px; }
+  .role-point-desc { font-size: 11.5px; color: #94A3B8; line-height: 1.55; }
+
+  /* ───────── 統計バー ───────── */
+  .stats {
+    margin: 0 24px 16px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  .stat-card {
+    background: #0B1220;
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-md);
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 11px; color: #64748B; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .stat-value { font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat-value.blue { color: #93C5FD; }
+  .stat-value.green { color: var(--color-tertiary); }
+  .stat-value.amber { color: var(--color-secondary); }
+  .stat-sub { font-size: 11px; color: #64748B; margin-top: 4px; }
+
+  /* ───────── ツールバー ───────── */
+  .controls {
+    margin: 0 24px 16px;
+    background: #0B1220;
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-md);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .controls-section { display: flex; align-items: center; gap: 10px; }
+  .controls-label { font-size: 11px; font-weight: 700; color: #94A3B8; letter-spacing: 0.06em; }
+  .seg-dark { display: flex; gap: 2px; padding: 3px; background: #1E293B; border-radius: var(--rounded-md); }
+  .seg-dark button { padding: 6px 12px; font-size: 12px; font-weight: 600; color: #94A3B8; border-radius: 5px; }
+  .seg-dark button.active { background: var(--color-primary); color: #FFFFFF; }
+  .controls-sep { width: 1px; height: 22px; background: #1E293B; }
+  .controls-spacer { flex: 1; }
+  .btn-dark { padding: 8px 14px; background: #1E293B; color: #E2E8F0; border-radius: var(--rounded-md); font-weight: 600; font-size: 12.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-dark:hover { background: #334155; }
+  .btn-dark-primary { background: rgba(37,99,235,0.22); color: #93C5FD; border: 1px solid #3B82F6; }
+  .btn-dark-primary:hover { background: var(--color-primary); color: #FFFFFF; }
+
+  /* ───────── セクション区切り ───────── */
+  .section-head {
+    margin: 24px 24px 12px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-head-icon { width: 28px; height: 28px; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .section-head-icon.attention { background: rgba(199,160,74,0.18); color: var(--color-secondary); border: 1px solid var(--color-secondary); }
+  .section-head-icon.running { background: rgba(20,184,166,0.18); color: var(--color-tertiary); border: 1px solid var(--color-tertiary); }
+  .section-head-icon.queue { background: #1E293B; color: #94A3B8; border: 1px solid #334155; }
+  .section-title { font-size: 14px; font-weight: 700; color: #F1F5F9; }
+  .section-sub { font-size: 12px; color: #94A3B8; }
+  .section-line { flex: 1; height: 1px; background: #1E293B; }
+
+  /* ───────── セッションカード ───────── */
+  .session-grid {
+    margin: 0 24px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+  }
+  .session {
+    background: #0B1220;
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-lg);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .session.attention { border-color: var(--color-secondary); box-shadow: 0 0 0 1px rgba(199,160,74,0.28); }
+  .session-head {
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(90deg, rgba(37,99,235,0.06) 0%, transparent 100%);
+    border-bottom: 1px solid #1E293B;
+  }
+  .session.attention .session-head { background: linear-gradient(90deg, rgba(199,160,74,0.10) 0%, transparent 100%); }
+  .session-pulse { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; animation: pulse 1.4s infinite; }
+  .session-pulse.green { background: var(--color-tertiary); }
+  .session-pulse.blue { background: var(--color-primary); }
+  .session-pulse.amber { background: var(--color-secondary); }
+  .session-id { font-size: 12.5px; color: #94A3B8; }
+  .session-id strong { font-size: 14px; color: #F1F5F9; font-weight: 700; display: block; margin-bottom: 2px; }
+  .session-time {
+    margin-left: auto; font-size: 11.5px;
+    color: #94A3B8; font-variant-numeric: tabular-nums;
+    background: #1E293B; padding: 4px 10px; border-radius: var(--rounded-full);
+  }
+  .session-body { padding: 0; flex: 1; display: flex; flex-direction: column; }
+
+  .session-role-row {
+    padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #1E293B;
+    font-size: 12px;
+  }
+  .session-role-row .avatar { width: 24px; height: 24px; font-size: 11px; }
+  .session-stage { margin-left: auto; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: var(--rounded-full); }
+  .session-stage.impl { background: rgba(37,99,235,0.18); color: #93C5FD; }
+  .session-stage.verify { background: rgba(199,160,74,0.18); color: var(--color-secondary); }
+  .session-stage.retry { background: rgba(199,160,74,0.18); color: var(--color-secondary); }
+  .session-stage.design { background: rgba(20,184,166,0.18); color: var(--color-tertiary); }
+
+  .session-progress { padding: 12px 16px; border-bottom: 1px solid #1E293B; }
+  .progress-row { display: flex; align-items: center; gap: 10px; font-size: 12px; margin-bottom: 6px; }
+  .progress-row .label { color: #94A3B8; }
+  .progress-row .value { margin-left: auto; font-weight: 700; color: #F1F5F9; font-variant-numeric: tabular-nums; }
+  .progress-bar { height: 6px; background: #1E293B; border-radius: var(--rounded-full); overflow: hidden; }
+  .progress-bar .fill { height: 100%; border-radius: var(--rounded-full); transition: width 0.3s; }
+  .progress-bar .fill.green { background: var(--color-tertiary); }
+  .progress-bar .fill.blue { background: var(--color-primary); }
+  .progress-bar .fill.amber { background: var(--color-secondary); }
+
+  .session-log {
+    padding: 12px 16px;
+    background: #050B17;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px; line-height: 1.7;
+    max-height: 160px; overflow-y: auto;
+    flex: 1;
+  }
+  .log-t { color: #475569; }
+  .log-info { color: #93C5FD; }
+  .log-ok { color: #6EE7B7; }
+  .log-warn { color: #FCD34D; }
+
+  .session-foot {
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 8px;
+    border-top: 1px solid #1E293B;
+    background: #0F172A;
+  }
+  .btn-session { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: var(--rounded-md); display: inline-flex; align-items: center; gap: 5px; }
+  .btn-session-stop { background: #1E293B; color: #94A3B8; }
+  .btn-session-stop:hover { background: #334155; color: #F1F5F9; }
+  .btn-session-detail { background: rgba(37,99,235,0.2); color: #93C5FD; }
+  .btn-session-detail:hover { background: var(--color-primary); color: #FFFFFF; }
+  .btn-session-approve { background: var(--color-tertiary); color: #FFFFFF; }
+  .btn-session-approve:hover { filter: brightness(1.1); }
+  .btn-session-reject { background: #1E293B; color: #FCA5A5; }
+  .session-foot-meta { margin-left: auto; font-size: 11px; color: #64748B; }
+
+  /* ───────── 順番待ち ───────── */
+  .queue-card {
+    margin: 0 24px 28px;
+    background: #0B1220;
+    border: 1px dashed #334155;
+    border-radius: var(--rounded-lg);
+    padding: 16px 20px;
+  }
+  .queue-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .queue-title { font-size: 13.5px; font-weight: 700; color: #F1F5F9; }
+  .queue-desc { font-size: 11.5px; color: #94A3B8; }
+  .queue-list { display: flex; flex-direction: column; gap: 8px; }
+  .queue-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    background: #0F172A;
+    border: 1px solid #1E293B;
+    border-radius: var(--rounded-md);
+    font-size: 12.5px;
+  }
+  .queue-num { width: 22px; height: 22px; border-radius: 50%; background: #1E293B; color: #94A3B8; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .queue-task-id { font-family: monospace; color: #64748B; font-size: 11px; }
+  .queue-task-name { color: #E2E8F0; font-weight: 600; }
+  .queue-task-est { margin-left: auto; color: #94A3B8; font-size: 11.5px; }
+  .queue-cancel { background: transparent; color: #64748B; padding: 4px 8px; border-radius: var(--rounded-sm); }
+  .queue-cancel:hover { color: #FCA5A5; background: #1E293B; }
+
+  @media (max-width: 1100px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .session-foot-meta { display: none; }
+    .role-points { grid-template-columns: 1fr; }
+    .session-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item active" href="#"><i data-icon="cpu"></i>実行モニター</a>
+    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-I03" data-bf-screen-name="execution_monitor" data-bf-category="task" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb"><a href="S-I01-kanban.html">タスク</a><span class="breadcrumb-sep">/</span><strong>実行モニター</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<!-- ━━━━━━ 1. 役割カード ━━━━━━ -->
+<section class="role-card">
+  <div class="role-icon"><i data-icon="cpu" data-size="28"></i></div>
+  <div>
+    <div class="role-title-row">
+      <div class="role-title">実行モニター — AI 社員の作業状況をリアルタイムで見守る場所</div>
+      <span class="live-badge"><span class="live-dot"></span>リアルタイム更新中</span>
+    </div>
+    <div class="role-lead">
+      タスクボードで再生したタスクは、<strong style="color:#F1F5F9;">Atelier Bridge</strong>（あなたの PC で動くデスクトップアプリ）がローカル Claude Code を並列起動し、FastAPI 上のディスパッチャがタスクを差配します。実行は完全にあなたの Claude プラン内で完結。基本は放置で OK、橙色のセッションだけ判断が必要です。
+    </div>
+    <div class="role-points">
+      <div class="role-point">
+        <div class="role-point-num">1</div>
+        <div class="role-point-label">いま何が動いているか見る</div>
+        <div class="role-point-desc">セッションごとに進捗・実行ログ・スコアを表示します</div>
+      </div>
+      <div class="role-point">
+        <div class="role-point-num">2</div>
+        <div class="role-point-label">要対応のセッションを察知する</div>
+        <div class="role-point-desc">橙色の枠は承認 / 差し戻し / 再試行の判断待ちです</div>
+      </div>
+      <div class="role-point">
+        <div class="role-point-num">3</div>
+        <div class="role-point-label">必要なら介入する</div>
+        <div class="role-point-desc">セッションを停止・承認・差し戻しできます</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━━━━ 2. 統計バー ━━━━━━ -->
+<section class="stats">
+  <div class="stat-card">
+    <div class="stat-label"><i data-icon="play-circle" data-size="12"></i>いま動いている</div>
+    <div class="stat-value blue">4</div>
+    <div class="stat-sub">同時実行枠 10 件中</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><i data-icon="alert-circle" data-size="12"></i>あなたの判断待ち</div>
+    <div class="stat-value amber">2</div>
+    <div class="stat-sub">承認 1 件・再試行 1 件</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><i data-icon="clock" data-size="12"></i>順番待ち</div>
+    <div class="stat-value">3</div>
+    <div class="stat-sub">枠が空き次第、自動で開始</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label"><i data-icon="check-circle" data-size="12"></i>今日 完了</div>
+    <div class="stat-value green">12</div>
+    <div class="stat-sub">平均スコア 0.91 · 平均 38 分</div>
+  </div>
+</section>
+
+<!-- ━━━━━━ 3. ツールバー ━━━━━━ -->
+<section class="controls">
+  <div class="controls-section" style="background:rgba(20,184,166,0.10);padding:6px 12px;border-radius:var(--rounded-md);border:1px solid rgba(20,184,166,0.3);">
+    <span class="live-dot" style="width:8px;height:8px;background:var(--color-tertiary);border-radius:50%;animation:pulse 1.4s infinite;"></span>
+    <span style="font-size:12px;font-weight:700;color:var(--color-tertiary);">ローカル Claude Code に接続中</span>
+    <span style="font-size:11px;color:#94A3B8;">Bridge v1.2 · MacBook Pro (M.K.)</span>
+  </div>
+  <div class="controls-sep"></div>
+  <div class="controls-section">
+    <span class="controls-label">同時実行できる数</span>
+    <strong style="color:#F1F5F9;font-size:14px;">4 / 10</strong>
+    <span style="font-size:11.5px;color:#94A3B8;">（あと 6 枠空いています）</span>
+  </div>
+  <div class="controls-sep"></div>
+  <div class="controls-section">
+    <span class="controls-label">表示方法</span>
+    <div class="seg-dark">
+      <button class="active"><i data-icon="layout-grid" data-size="13"></i>カード</button>
+      <button><i data-icon="list" data-size="13"></i>一覧</button>
+      <button><i data-icon="terminal" data-size="13"></i>ログ集約</button>
+    </div>
+  </div>
+  <div class="controls-sep"></div>
+  <div class="controls-section">
+    <span class="controls-label">並び替え</span>
+    <div class="seg-dark">
+      <button class="active">要対応が上</button>
+      <button>新しい順</button>
+      <button>進捗順</button>
+    </div>
+  </div>
+  <div class="controls-spacer"></div>
+  <button class="btn-dark"><i data-icon="pause" data-size="13"></i>すべて一時停止</button>
+  <button class="btn-dark btn-dark-primary"><i data-icon="play-circle" data-size="13"></i>順番待ちから 1 件追加</button>
+</section>
+
+<!-- ━━━━━━ 4. 要対応セクション ━━━━━━ -->
+<div class="section-head">
+  <div class="section-head-icon attention"><i data-icon="alert-triangle" data-size="14"></i></div>
+  <div>
+    <div class="section-title">あなたの判断待ち</div>
+    <div class="section-sub">承認・差し戻し・再試行のいずれかを選んでください</div>
+  </div>
+  <div class="section-line"></div>
+  <span class="section-sub"><strong style="color:var(--color-secondary);">2 件</strong></span>
+</div>
+
+<div class="session-grid">
+  <!-- Session A: 承認待ち -->
+  <div class="session attention">
+    <div class="session-head">
+      <span class="session-pulse amber"></span>
+      <div class="session-id">
+        <strong>T-016 退会フロー（30 日猶予）</strong>
+        セッション ID：bridge-c7e2 · 作業ブランチ：T-016
+      </div>
+      <span class="session-time">経過 6 分 21 秒</span>
+    </div>
+    <div class="session-body">
+      <div class="session-role-row">
+        <div class="avatar avatar-sm avatar-vision">V</div>
+        <span style="color:#E2E8F0;">ヴィジョン（検証担当）</span>
+        <span class="session-stage verify">スコア確定 · 人間の承認が必要</span>
+      </div>
+      <div class="session-progress">
+        <div class="progress-row">
+          <span class="label">達成スコア</span>
+          <span class="value">0.87 / 0.95（自動承認しきい値）</span>
+        </div>
+        <div class="progress-bar"><div class="fill amber" style="width:87%;"></div></div>
+      </div>
+      <div class="session-log">
+<span class="log-t">16:52:01</span> <span class="log-ok">実装完了</span>
+<span class="log-t">16:52:15</span> <span class="log-info">検証 AI ヴィジョンを起動</span>
+<span class="log-t">16:53:08</span> <span class="log-ok">受入条件 11 / 12 達成</span>
+<span class="log-t">16:53:45</span> <span class="log-ok">テスト 6 / 6 合格</span>
+<span class="log-t">16:54:12</span> <span class="log-warn">AI 評価 0.79（解約フローの体験を要改善）</span>
+<span class="log-t">16:54:18</span> <span class="log-warn">最終スコア 0.87 → 人間の承認が必要</span>
+      </div>
+      <div class="session-foot">
+        <button class="btn-session btn-session-approve"><i data-icon="check" data-size="13"></i>承認</button>
+        <button class="btn-session btn-session-reject">差し戻し</button>
+        <button class="btn-session btn-session-detail"><i data-icon="external-link" data-size="12"></i>詳細</button>
+        <span class="session-foot-meta">16:48 着手 · 完了率 87%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session B: 再試行中 -->
+  <div class="session attention">
+    <div class="session-head">
+      <span class="session-pulse amber"></span>
+      <div class="session-id">
+        <strong>T-014 ログイン画面の実装</strong>
+        セッション ID：bridge-a4f2 · 作業ブランチ：T-014
+      </div>
+      <span class="session-time">経過 10 分 32 秒</span>
+    </div>
+    <div class="session-body">
+      <div class="session-role-row">
+        <div class="avatar avatar-sm avatar-thor">T</div>
+        <span style="color:#E2E8F0;">ソー（実装担当）</span>
+        <span class="session-stage retry">再試行 1 回目 / 最大 3 回</span>
+      </div>
+      <div class="session-progress">
+        <div class="progress-row">
+          <span class="label">受入条件の達成</span>
+          <span class="value">10 / 12 件</span>
+        </div>
+        <div class="progress-bar"><div class="fill blue" style="width:83%;"></div></div>
+      </div>
+      <div class="session-log">
+<span class="log-t">16:42:08</span> <span class="log-ok">モック読込：S-A01-signin.html</span>
+<span class="log-t">16:43:24</span> <span class="log-ok">ログイン画面を作成</span>
+<span class="log-t">16:44:01</span> <span class="log-ok">サインインフォームを作成</span>
+<span class="log-t">16:46:18</span> <span class="log-ok">テスト 8 / 8 合格</span>
+<span class="log-t">16:47:33</span> <span class="log-warn">条件 6（5 回失敗で 15 分ロック）が未実装</span>
+<span class="log-t">16:48:04</span> <span class="log-info">再試行 1 / 3 をスケジュール</span>
+      </div>
+      <div class="session-foot">
+        <button class="btn-session btn-session-stop"><i data-icon="pause" data-size="12"></i>停止</button>
+        <button class="btn-session btn-session-detail"><i data-icon="external-link" data-size="12"></i>詳細</button>
+        <span class="session-foot-meta">16:42 着手 · 残り推定 4 分</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━━ 5. 順調セクション ━━━━━━ -->
+<div class="section-head">
+  <div class="section-head-icon running"><i data-icon="loader" data-size="14"></i></div>
+  <div>
+    <div class="section-title">順調に進行中</div>
+    <div class="section-sub">介入は不要です。完了すれば自動で承認待ち or 完了になります</div>
+  </div>
+  <div class="section-line"></div>
+  <span class="section-sub"><strong style="color:var(--color-tertiary);">2 件</strong></span>
+</div>
+
+<div class="session-grid">
+  <!-- Session C: 実装中 -->
+  <div class="session">
+    <div class="session-head">
+      <span class="session-pulse blue"></span>
+      <div class="session-id">
+        <strong>T-026 文脈構築レイヤ</strong>
+        セッション ID：bridge-b3a1 · 作業ブランチ：T-026
+      </div>
+      <span class="session-time">経過 14 分 08 秒</span>
+    </div>
+    <div class="session-body">
+      <div class="session-role-row">
+        <div class="avatar avatar-sm avatar-thor">T</div>
+        <span style="color:#E2E8F0;">ソー（実装担当）</span>
+        <span class="session-stage impl">実装中</span>
+      </div>
+      <div class="session-progress">
+        <div class="progress-row">
+          <span class="label">進捗</span>
+          <span class="value">62%</span>
+        </div>
+        <div class="progress-bar"><div class="fill blue" style="width:62%;"></div></div>
+      </div>
+      <div class="session-log">
+<span class="log-t">16:38:11</span> <span class="log-info">目標：文脈構築レイヤの実装</span>
+<span class="log-t">16:39:24</span> <span class="log-ok">LLM 抽象化層を作成</span>
+<span class="log-t">16:41:02</span> <span class="log-ok">文脈ビルダーを作成</span>
+<span class="log-t">16:44:35</span> <span class="log-ok">埋め込みベクトル基盤を統合</span>
+<span class="log-t">16:50:18</span> <span class="log-info">長期記憶レイヤを構築中…</span>
+<span class="log-t">16:52:13</span> <span class="log-ok">対話圧縮 + 文脈注入の基盤 OK</span>
+      </div>
+      <div class="session-foot">
+        <button class="btn-session btn-session-stop"><i data-icon="pause" data-size="12"></i>停止</button>
+        <button class="btn-session btn-session-detail"><i data-icon="external-link" data-size="12"></i>詳細</button>
+        <span class="session-foot-meta">16:38 着手 · 残り推定 9 分</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session D: 設計中 -->
+  <div class="session">
+    <div class="session-head">
+      <span class="session-pulse green"></span>
+      <div class="session-id">
+        <strong>T-042 プロジェクト一覧の権限制御</strong>
+        セッション ID：bridge-d8c5 · 作業ブランチ：T-042
+      </div>
+      <span class="session-time">経過 2 分 14 秒</span>
+    </div>
+    <div class="session-body">
+      <div class="session-role-row">
+        <div class="avatar avatar-sm avatar-strange">D</div>
+        <span style="color:#E2E8F0;">ストレンジ（設計担当）</span>
+        <span class="session-stage design">設計中</span>
+      </div>
+      <div class="session-progress">
+        <div class="progress-row">
+          <span class="label">進捗</span>
+          <span class="value">18%</span>
+        </div>
+        <div class="progress-bar"><div class="fill green" style="width:18%;"></div></div>
+      </div>
+      <div class="session-log">
+<span class="log-t">16:55:50</span> <span class="log-info">目標：プロジェクト一覧の権限制御を実装</span>
+<span class="log-t">16:56:22</span> <span class="log-ok">機能分解からデータ定義を読込</span>
+<span class="log-t">16:57:14</span> <span class="log-ok">権限ポリシー 4 件をドラフト</span>
+<span class="log-t">16:58:02</span> <span class="log-info">ポリシーのテスト準備中…</span>
+      </div>
+      <div class="session-foot">
+        <button class="btn-session btn-session-stop"><i data-icon="pause" data-size="12"></i>停止</button>
+        <button class="btn-session btn-session-detail"><i data-icon="external-link" data-size="12"></i>詳細</button>
+        <span class="session-foot-meta">16:55 着手 · 残り推定 1 分</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ━━━━━━ 6. 順番待ち ━━━━━━ -->
+<div class="section-head">
+  <div class="section-head-icon queue"><i data-icon="clock" data-size="14"></i></div>
+  <div>
+    <div class="section-title">順番待ち（同時実行枠が空いたら自動で開始）</div>
+    <div class="section-sub">並列上限の 10 件を超えた分は、ここに積まれます</div>
+  </div>
+  <div class="section-line"></div>
+  <span class="section-sub"><strong style="color:#94A3B8;">3 件</strong></span>
+</div>
+
+<div class="queue-card">
+  <div class="queue-list">
+    <div class="queue-item">
+      <div class="queue-num">1</div>
+      <span class="queue-task-id">T-015</span>
+      <span class="queue-task-name">メールリンク発行</span>
+      <span class="queue-task-est">見積 12 時間 · あと 1 枠待ち</span>
+      <button class="queue-cancel"><i data-icon="x" data-size="13"></i></button>
+    </div>
+    <div class="queue-item">
+      <div class="queue-num">2</div>
+      <span class="queue-task-id">T-027</span>
+      <span class="queue-task-name">逐次配信（リアルタイム応答）</span>
+      <span class="queue-task-est">見積 10 時間 · あと 2 枠待ち</span>
+      <button class="queue-cancel"><i data-icon="x" data-size="13"></i></button>
+    </div>
+    <div class="queue-item">
+      <div class="queue-num">3</div>
+      <span class="queue-task-id">T-031</span>
+      <span class="queue-task-name">AI 社員の表示名カスタマイズ</span>
+      <span class="queue-task-est">見積 6 時間 · あと 3 枠待ち</span>
+      <button class="queue-cancel"><i data-icon="x" data-size="13"></i></button>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

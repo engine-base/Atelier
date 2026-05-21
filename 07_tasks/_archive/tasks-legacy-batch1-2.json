@@ -1,0 +1,1621 @@
+{
+  "project": "Atelier",
+  "version": "v1.0",
+  "created_at": "2026-05-19",
+  "schema_version": "1.0",
+  "schema_ref": "07_tasks/SCHEMA.md",
+  "decomposed_by": "ピーター（タスク部長）",
+  "summary": {
+    "total_tasks": 61,
+    "batches_completed": ["batch_1_foundation", "batch_2_auth_workspace_project"],
+    "batches_remaining": ["batch_3_ai_chat", "batch_4_workflow_output", "batch_5_task_bridge_dispatcher", "batch_6_knowledge_sales", "batch_7_admin_legal"]
+  },
+  "tasks": [
+    {
+      "id": "T-001",
+      "title": "モノレポ初期化（pnpm + Turborepo）",
+      "description": "pnpm workspaces と Turborepo によるモノレポ構成を作成。apps/web（Next.js）と apps/api（FastAPI）の 2 サブプロジェクトを初期化。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 4,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null,
+        "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-001-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-001.html",
+        "adr_refs": ["ADR-001"]
+      },
+      "dependencies": [],
+      "prerequisites": [],
+      "blocks": ["T-002", "T-003", "T-004", "T-005", "T-006"],
+      "files_changed_predicted": [
+        "package.json",
+        "pnpm-workspace.yaml",
+        "turbo.json",
+        ".gitignore",
+        "apps/web/package.json",
+        "apps/api/pyproject.toml"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 2, "tier3_regression": 1, "total": 6},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition",
+      "parent_task_id": null,
+      "auto_advance_allowed": true
+    },
+    {
+      "id": "T-002",
+      "title": "TypeScript / Python ツールチェイン整備",
+      "description": "TS：tsc strict + ESLint + Prettier。Python：uv + ruff + pyright strict。pre-commit hooks 設定。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 4,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-002-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-002.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-001"],
+      "prerequisites": ["T-001"],
+      "blocks": ["T-007", "T-008"],
+      "files_changed_predicted": [
+        "tsconfig.json", "tsconfig.base.json",
+        ".eslintrc.json", ".prettierrc",
+        "apps/api/pyproject.toml", "apps/api/ruff.toml",
+        ".pre-commit-config.yaml"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 3, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-003",
+      "title": "Next.js 15 (App Router) 初期化",
+      "description": "apps/web を Next.js 15 App Router + TypeScript strict + Tailwind + shadcn/ui で初期化。レイアウト・ルート構造を確立。",
+      "category": "infrastructure",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-003-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-003.html",
+        "adr_refs": ["ADR-001", "ADR-002"]
+      },
+      "dependencies": ["T-001"],
+      "prerequisites": ["T-001"],
+      "blocks": ["T-009", "T-014"],
+      "files_changed_predicted": [
+        "apps/web/app/layout.tsx", "apps/web/app/page.tsx",
+        "apps/web/app/globals.css", "apps/web/tailwind.config.ts",
+        "apps/web/components.json", "apps/web/lib/utils.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 2, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-004",
+      "title": "FastAPI 初期化",
+      "description": "apps/api を Python 3.12 + FastAPI + uv で初期化。CORS / ヘルスチェック / ルーティング基本構造を確立。",
+      "category": "infrastructure",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-004-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-004.html",
+        "adr_refs": ["ADR-001"]
+      },
+      "dependencies": ["T-001"],
+      "prerequisites": ["T-001"],
+      "blocks": ["T-018", "T-021"],
+      "files_changed_predicted": [
+        "apps/api/src/main.py", "apps/api/src/config.py",
+        "apps/api/src/routes/health.py", "apps/api/src/routes/__init__.py",
+        "apps/api/Dockerfile", "apps/api/.env.example"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 3, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-005",
+      "title": "Supabase プロジェクト作成（Tokyo region）",
+      "description": "Supabase プロジェクトを Tokyo region で作成。Auth / Storage / Realtime / Vault を有効化。CLI でローカル開発環境を構築。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 4,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-005-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-005.html",
+        "adr_refs": ["ADR-003", "ADR-004"]
+      },
+      "dependencies": ["T-001"],
+      "prerequisites": ["T-001"],
+      "blocks": ["T-010", "T-011", "T-012"],
+      "files_changed_predicted": [
+        "supabase/config.toml", "supabase/migrations/",
+        ".env.local.example", "apps/web/src/lib/supabase/server.ts",
+        "apps/web/src/lib/supabase/client.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-006",
+      "title": "Vercel / Fly.io ホスティング初期セットアップ",
+      "description": "Vercel に apps/web をデプロイ、Fly.io Tokyo region に apps/api をデプロイ。Preview Deploy・カスタムドメイン・環境変数を整備。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-006-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-006.html",
+        "adr_refs": ["ADR-015"]
+      },
+      "dependencies": ["T-003", "T-004"],
+      "prerequisites": ["T-003", "T-004"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "vercel.json", "apps/web/vercel.json",
+        "apps/api/fly.toml", ".github/workflows/deploy.yml"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-007",
+      "title": "GitHub Actions CI/CD パイプライン（8 merge gate）",
+      "description": "lint / 受入条件 / 監査 / RLS / test / type×2 / mock-impl-diff の 8 ゲートを実装。trunk-based + worktree + branch <agent>/<task_id> 運用。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 12,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-007-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-007.html",
+        "adr_refs": ["ADR-005"]
+      },
+      "dependencies": ["T-002"],
+      "prerequisites": ["T-002"],
+      "blocks": [],
+      "files_changed_predicted": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/v3-gate.yml",
+        ".github/workflows/auto-merge.yml",
+        "scripts/check-mock-impl-diff.ts",
+        "scripts/check-rls-policies.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 6, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-008",
+      "title": "観測基盤（Sentry / Langfuse OSS / Better Stack）",
+      "description": "Sentry でエラー監視、Langfuse OSS で LLM トレース・コスト計測、Better Stack Free で死活監視を導入。",
+      "category": "infrastructure",
+      "type": "infrastructure",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 8,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-008-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-008.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-002", "T-003", "T-004"],
+      "prerequisites": ["T-002", "T-003", "T-004"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/sentry.client.config.ts", "apps/web/sentry.server.config.ts",
+        "apps/api/src/observability/langfuse.py",
+        "apps/api/src/observability/sentry.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-009",
+      "title": "Atelier デザインシステム統合（atelier.css + Lucide + Noto Sans JP）",
+      "description": "06_mockups/_shared/atelier.css のトークン定義を Next.js 側に取り込み。Lucide React アイコン統一、Noto Sans JP 単一フォント設定。",
+      "category": "design",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 8,
+      "assigned_employee_id": "wanda",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null,
+        "mock_path": "06_mockups/_shared/atelier.css",
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-009-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-009.html",
+        "adr_refs": ["ADR-002"]
+      },
+      "dependencies": ["T-003"],
+      "prerequisites": ["T-003"],
+      "blocks": ["T-014", "T-020"],
+      "files_changed_predicted": [
+        "apps/web/src/styles/atelier-tokens.css",
+        "apps/web/tailwind.config.ts",
+        "apps/web/src/components/ui/Icon.tsx",
+        "apps/web/src/app/layout.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 3, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-010",
+      "title": "DB スキーマ：users / workspaces / workspace_memberships",
+      "description": "Supabase migration で 3 テーブルを作成。UUID v7・ソフトデリート・TIMESTAMPTZ 規約に従う。型・index・check 制約を完備。",
+      "category": "workspace",
+      "type": "migration",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-001", "F-003"],
+        "entity_ids": ["E-001", "E-002", "E-003"],
+        "spec_html_path": "07_tasks/specs/T-010-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-010.html",
+        "adr_refs": ["ADR-006"]
+      },
+      "dependencies": ["T-005"],
+      "prerequisites": ["T-005"],
+      "blocks": ["T-011", "T-012", "T-013"],
+      "files_changed_predicted": [
+        "supabase/migrations/0001_users.sql",
+        "supabase/migrations/0002_workspaces.sql",
+        "supabase/migrations/0003_workspace_memberships.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 4, "tier3_regression": 2, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-011",
+      "title": "DB スキーマ：projects / phases / workflow_outputs",
+      "description": "プロジェクト・工程フェーズ・工程成果物の 3 テーブルを作成。9 工程の phase enum も定義。",
+      "category": "project",
+      "type": "migration",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-002"],
+        "entity_ids": ["E-004", "E-005", "E-006"],
+        "spec_html_path": "07_tasks/specs/T-011-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-011.html",
+        "adr_refs": ["ADR-006"]
+      },
+      "dependencies": ["T-010"],
+      "prerequisites": ["T-010"],
+      "blocks": ["T-015"],
+      "files_changed_predicted": [
+        "supabase/migrations/0004_projects.sql",
+        "supabase/migrations/0005_phases.sql",
+        "supabase/migrations/0006_workflow_outputs.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 3, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-012",
+      "title": "DB スキーマ：audit_logs / consents / external_uploads",
+      "description": "監査ログ・同意ログ・外部アップロードの 3 テーブル。法令対応の正本。1 年保持規約。",
+      "category": "legal",
+      "type": "migration",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 5,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-LEGAL-001", "F-LEGAL-004"],
+        "entity_ids": ["E-020", "E-025", "E-024"],
+        "spec_html_path": "07_tasks/specs/T-012-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-012.html",
+        "adr_refs": ["ADR-006", "ADR-013"]
+      },
+      "dependencies": ["T-010"],
+      "prerequisites": ["T-010"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "supabase/migrations/0007_audit_logs.sql",
+        "supabase/migrations/0008_consents.sql",
+        "supabase/migrations/0009_external_uploads.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 4, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-013",
+      "title": "RLS 基盤ポリシー（per-entity policy 規約）",
+      "description": "全テーブル共通の RLS 規約を確立。テナント分離 = workspace_scoped をデフォルト、project_scoped・account_scoped・client_portal の各パターンを実装。",
+      "category": "workspace",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 10,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-001"],
+        "entity_ids": ["E-001", "E-002", "E-003", "E-004"],
+        "spec_html_path": "07_tasks/specs/T-013-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-013.html",
+        "adr_refs": ["ADR-007", "ADR-008"]
+      },
+      "dependencies": ["T-010", "T-011"],
+      "prerequisites": ["T-010", "T-011"],
+      "blocks": ["T-016", "T-026"],
+      "files_changed_predicted": [
+        "supabase/migrations/0010_rls_users.sql",
+        "supabase/migrations/0011_rls_workspaces.sql",
+        "supabase/migrations/0012_rls_projects.sql",
+        "supabase/migrations/0013_rls_audit_logs.sql",
+        "docs/rls-conventions.md"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 6, "tier3_regression": 3, "total": 14},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-014",
+      "title": "Drizzle ORM セットアップ（TS 側）",
+      "description": "Drizzle ORM を Edge Runtime 対応で設定。Supabase スキーマから型生成。マイグレーションは Supabase CLI を正本とし、Drizzle は読み取り型のみ。",
+      "category": "infrastructure",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 6,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-014-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-014.html",
+        "adr_refs": ["ADR-006"]
+      },
+      "dependencies": ["T-003", "T-009", "T-010"],
+      "prerequisites": ["T-003", "T-009", "T-010"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/db/schema.ts",
+        "apps/web/src/db/index.ts",
+        "apps/web/drizzle.config.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 2, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-015",
+      "title": "asyncpg + SQLAlchemy 2.0 セットアップ（Python 側）",
+      "description": "FastAPI から Supabase Postgres に接続するための asyncpg + SQLAlchemy Core 設定。コネクションプール・トランザクション管理。",
+      "category": "infrastructure",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 5,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-015-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-015.html",
+        "adr_refs": ["ADR-006"]
+      },
+      "dependencies": ["T-004", "T-011"],
+      "prerequisites": ["T-004", "T-011"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/db/engine.py",
+        "apps/api/src/db/session.py",
+        "apps/api/src/db/models.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-016",
+      "title": "LLMClient 抽象化レイヤ実装（自前 30-100 行）",
+      "description": "chat / stream / tool / search / embed / count の 6 メソッドを持つ薄ラッパー。v1 は Anthropic SDK、v2 で GPT/Gemini 追加。重い抽象化に依存しない。",
+      "category": "ai_infra",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 10,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-S01"],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-016-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-016.html",
+        "adr_refs": ["ADR-009"]
+      },
+      "dependencies": ["T-004"],
+      "prerequisites": ["T-004"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/llm/client.py",
+        "apps/api/src/llm/anthropic_provider.py",
+        "apps/api/src/llm/types.py",
+        "apps/api/tests/llm/test_client.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 6, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-017",
+      "title": "LangGraph + Inngest オーケストレーション基盤",
+      "description": "LangGraph で人間承認・スコアループを定義、Inngest で cron・サーバレス実行。基本パターン（リトライ・タイムアウト・分岐）を確立。",
+      "category": "ai_infra",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 12,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-017-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-017.html",
+        "adr_refs": ["ADR-010"]
+      },
+      "dependencies": ["T-016"],
+      "prerequisites": ["T-016"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/orchestration/graphs/__init__.py",
+        "apps/api/src/orchestration/inngest_client.py",
+        "apps/api/src/orchestration/patterns.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-018",
+      "title": "Voyage AI 埋め込み + pgvector セットアップ",
+      "description": "Voyage AI (voyage-3-large) で埋め込み、pgvector で検索基盤を構築。バッチ埋め込み・キャッシュ機構を備える。",
+      "category": "knowledge",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 10,
+      "assigned_employee_id": "tchalla",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-018-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-018.html",
+        "adr_refs": ["ADR-011"]
+      },
+      "dependencies": ["T-005", "T-016"],
+      "prerequisites": ["T-005", "T-016"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/embedding/voyage_client.py",
+        "apps/api/src/embedding/cache.py",
+        "supabase/migrations/0014_pgvector_extension.sql",
+        "supabase/migrations/0015_embedding_columns.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-019",
+      "title": "Anthropic Prompt Caching + Batch API + LLMLingua 統合",
+      "description": "コスト最適化基盤。Prompt Caching で繰り返し参照を高速化、Batch API で夜間処理 50% 削減、LLMLingua でプロンプト圧縮。",
+      "category": "ai_infra",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "medium",
+      "estimated_hours": 8,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-E02"],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-019-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-019.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-016"],
+      "prerequisites": ["T-016"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/llm/prompt_cache.py",
+        "apps/api/src/llm/batch_api.py",
+        "apps/api/src/llm/llmlingua_compressor.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-020",
+      "title": "shadcn/ui + assistant-ui + tool-ui コンポーネント基盤",
+      "description": "shadcn/ui で基本コンポーネント、assistant-ui でチャット骨格、tool-ui でツール呼出カードを設置。Atelier テーマで色をオーバーライド。",
+      "category": "design",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 10,
+      "assigned_employee_id": "wanda",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null,
+        "mock_path": "06_mockups/_shared/atelier.css",
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-020-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-020.html",
+        "adr_refs": ["ADR-002"]
+      },
+      "dependencies": ["T-009"],
+      "prerequisites": ["T-009"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/components/ui/button.tsx",
+        "apps/web/src/components/ui/dialog.tsx",
+        "apps/web/src/components/chat/Thread.tsx",
+        "apps/web/src/components/chat/Composer.tsx",
+        "apps/web/src/components/chat/ToolCard.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 6, "tier2_functional": 4, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-021",
+      "title": "Resend メール配信 + React Email テンプレ基盤",
+      "description": "Resend SDK 統合、React Email でメールテンプレを書ける環境。サインアップ確認・招待・通知メールの共通レイアウトを準備。",
+      "category": "integration",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 5,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-021-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-021.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-004"],
+      "prerequisites": ["T-004"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/email/resend_client.py",
+        "apps/web/src/emails/layout.tsx",
+        "apps/web/src/emails/welcome.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-022",
+      "title": "監査ログ書込ライブラリ（共通）",
+      "description": "audit_logs テーブルへの書込を全エンドポイントから簡潔に呼べる共通ライブラリ。actor / target / action / metadata の規約化。",
+      "category": "legal",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "vision",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-LEGAL-001"],
+        "entity_ids": ["E-020"],
+        "spec_html_path": "07_tasks/specs/T-022-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-022.html",
+        "adr_refs": ["ADR-013"]
+      },
+      "dependencies": ["T-012", "T-015"],
+      "prerequisites": ["T-012", "T-015"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/audit/logger.py",
+        "apps/api/src/audit/types.py",
+        "apps/api/tests/audit/test_logger.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-023",
+      "title": "Supabase Vault 設定（BYOK キー暗号化保管）",
+      "description": "byok_api_keys テーブルを Supabase Vault で暗号化保管。create / decrypt 操作で監査ログ記録。",
+      "category": "legal",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "critical",
+      "estimated_hours": 6,
+      "assigned_employee_id": "strange",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": ["E-022"],
+        "spec_html_path": "07_tasks/specs/T-023-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-023.html",
+        "adr_refs": ["ADR-008", "ADR-013"]
+      },
+      "dependencies": ["T-005", "T-022"],
+      "prerequisites": ["T-005", "T-022"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "supabase/migrations/0016_byok_api_keys.sql",
+        "supabase/migrations/0017_vault_setup.sql",
+        "apps/api/src/secrets/vault_client.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 3, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-024",
+      "title": "Inngest cron 基盤（4 ジョブ枠）",
+      "description": "Inngest で cron 実行基盤を作成。F-CUC04 整合性チェック・退会データ削除・ナレッジ整理・横断抽出の 4 種を投入可能にする。",
+      "category": "execution",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 6,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-O01"],
+        "entity_ids": ["E-023"],
+        "spec_html_path": "07_tasks/specs/T-024-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-024.html",
+        "adr_refs": ["ADR-010"]
+      },
+      "dependencies": ["T-017"],
+      "prerequisites": ["T-017"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "supabase/migrations/0018_cron_schedules.sql",
+        "apps/api/src/cron/inngest_jobs.py",
+        "apps/api/src/cron/registry.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-025",
+      "title": "Anthropic web_search ツール統合",
+      "description": "Claude 公式 web_search 標準ツール（web_search_20250305）を Agent SDK 経由で利用可能にする。Free tier 範囲の利用制限制御も含む。",
+      "category": "ai_infra",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 4,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-025-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-025.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-016"],
+      "prerequisites": ["T-016"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/llm/web_search_tool.py",
+        "apps/api/tests/llm/test_web_search.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 3, "tier3_regression": 1, "total": 6},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-026",
+      "title": "MCP Server 同居実装（Python MCP SDK）",
+      "description": "FastAPI 内に MCP Server を同居。外部 MCP Client（Claude デスクトップ等）から workspace の AI 社員を呼び出すためのトークン経路。",
+      "category": "integration",
+      "type": "foundation",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 10,
+      "assigned_employee_id": "tony",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": ["E-021"],
+        "spec_html_path": "07_tasks/specs/T-026-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-026.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-013", "T-016"],
+      "prerequisites": ["T-013", "T-016"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/mcp/server.py",
+        "apps/api/src/mcp/tools.py",
+        "supabase/migrations/0019_mcp_tokens.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 5, "tier3_regression": 2, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-027",
+      "title": "Playwright E2E テスト基盤",
+      "description": "Playwright で E2E テストを書ける環境。Auth helper（テストユーザー作成・ログイン）と Visual regression 用スクリーンショット比較を設定。",
+      "category": "verification",
+      "type": "verification",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 8,
+      "assigned_employee_id": "vision",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-027-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-027.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-003", "T-007"],
+      "prerequisites": ["T-003", "T-007"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/playwright.config.ts",
+        "apps/web/tests/e2e/helpers/auth.ts",
+        "apps/web/tests/e2e/smoke.spec.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-028",
+      "title": "Vitest + pytest 基盤統合",
+      "description": "TS 側 Vitest、Python 側 pytest + pytest-asyncio + pytest-cov を統合。Turborepo タスクで `pnpm test` 一発実行・カバレッジ 80% 閾値設定。",
+      "category": "verification",
+      "type": "verification",
+      "phase": 1,
+      "priority": "high",
+      "estimated_hours": 5,
+      "assigned_employee_id": "vision",
+      "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [],
+        "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-028-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-028.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-002", "T-007"],
+      "prerequisites": ["T-002", "T-007"],
+      "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/vitest.config.ts",
+        "apps/api/pytest.ini",
+        "turbo.json"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+
+    {
+      "id": "T-029",
+      "title": "Supabase Auth 基本セットアップ（Email / Magic Link / OAuth）",
+      "description": "Supabase Auth の Email Password・Magic Link・Google OAuth・GitHub OAuth プロバイダを有効化。Email Templates を Resend 配信に切替。",
+      "category": "auth", "type": "foundation", "phase": 2, "priority": "critical", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-029-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-029.html",
+        "adr_refs": ["ADR-001", "ADR-007"]
+      },
+      "dependencies": ["T-005", "T-013", "T-021"], "prerequisites": ["T-005", "T-013", "T-021"], "blocks": ["T-030", "T-031", "T-032", "T-033"],
+      "files_changed_predicted": ["supabase/config.toml", "apps/web/src/lib/supabase/auth.ts"],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-030",
+      "title": "サインイン画面の実装（メール + パスワード）",
+      "description": "S-A01 のメールサインインフォームを実装。バリデーション・エラー表示・成功時のリダイレクト・5 回失敗時のロックを含む。",
+      "category": "auth", "type": "screen", "phase": 2, "priority": "critical", "estimated_hours": 10,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-030-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-030.html",
+        "adr_refs": ["ADR-007"]
+      },
+      "dependencies": ["T-009", "T-020", "T-029"], "prerequisites": ["T-009", "T-020", "T-029"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(public)/signin/page.tsx",
+        "apps/web/src/modules/auth/sign-in-form.tsx",
+        "apps/web/src/modules/auth/use-sign-in.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 5, "tier3_regression": 3, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-031",
+      "title": "Magic Link 発行・受信フロー",
+      "description": "メールアドレスを入力 → ワンタイムリンクを Resend 配信 → クリックで自動ログイン。トークン有効期限 10 分・1 回限り使用。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 8,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-031-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-031.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-029", "T-021"], "prerequisites": ["T-029", "T-021"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(public)/signin/magic-link/page.tsx",
+        "apps/web/src/app/(public)/auth/callback/route.ts",
+        "apps/web/src/emails/magic-link.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-032",
+      "title": "Google 外部サービス連携",
+      "description": "Google OAuth 経由のサインイン・サインアップを実装。既存メールユーザーとの紐付け確認モーダル含む。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-032-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-032.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-029"], "prerequisites": ["T-029"], "blocks": [],
+      "files_changed_predicted": ["apps/web/src/modules/auth/oauth-google.ts"],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 4, "tier3_regression": 2, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-033",
+      "title": "GitHub 外部サービス連携",
+      "description": "GitHub OAuth 経由のサインイン・サインアップを実装。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "medium", "estimated_hours": 4,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-033-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-033.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-029"], "prerequisites": ["T-029"], "blocks": [],
+      "files_changed_predicted": ["apps/web/src/modules/auth/oauth-github.ts"],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 4, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-034",
+      "title": "サインアップ + 規約・PP・越境同意の取得",
+      "description": "新規ユーザー登録フォーム。利用規約・プライバシーポリシー・越境同意（Anthropic/Voyage/Whisper 米国）3 種の必須チェック。同意ログを consents テーブルに記録。",
+      "category": "auth", "type": "screen", "phase": 2, "priority": "critical", "estimated_hours": 10,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001", "F-LEGAL-004", "F-LEGAL-011"], "entity_ids": ["E-001", "E-025"],
+        "spec_html_path": "07_tasks/specs/T-034-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-034.html",
+        "adr_refs": ["ADR-014"]
+      },
+      "dependencies": ["T-022", "T-029", "T-030"], "prerequisites": ["T-022", "T-029", "T-030"], "blocks": ["T-038"],
+      "files_changed_predicted": [
+        "apps/web/src/app/(public)/signup/page.tsx",
+        "apps/web/src/modules/auth/sign-up-form.tsx",
+        "apps/web/src/modules/auth/consents-checkbox.tsx",
+        "apps/api/src/routes/consents.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 6, "tier3_regression": 3, "total": 13},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-035",
+      "title": "パスワード強度ポリシー + 5 回失敗で 15 分ロック",
+      "description": "パスワード最小 8 文字・英数記号混在の検証ロジック。連続失敗 5 回でアカウントを 15 分ロック、ロック解除メール通知。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-035-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-035.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-030"], "prerequisites": ["T-030"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/auth/password-policy.ts",
+        "apps/api/src/auth/lockout.py",
+        "supabase/migrations/0020_auth_failed_attempts.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 5, "tier3_regression": 3, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-036",
+      "title": "パスワードリセットフロー",
+      "description": "メールアドレス入力 → リセットリンク配信 → 新パスワード設定 → 全セッション無効化。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 5,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-036-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-036.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-031"], "prerequisites": ["T-031"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(public)/reset-password/page.tsx",
+        "apps/web/src/emails/reset-password.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 4, "tier3_regression": 2, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-037",
+      "title": "JWT Cookie 設定 + セッション維持",
+      "description": "httpOnly + Secure + SameSite=Lax Cookie で JWT を保存、リフレッシュトークン自動更新、24 時間 idle 切断。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-001"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-037-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-037.html",
+        "adr_refs": ["ADR-007"]
+      },
+      "dependencies": ["T-029"], "prerequisites": ["T-029"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/middleware.ts",
+        "apps/web/src/lib/auth/session.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 3, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-038",
+      "title": "退会フロー（30 日猶予 + 再登録防止）",
+      "description": "退会申請 → 30 日猶予期間中はキャンセル可・データは論理削除 → 30 日経過後に cron で物理削除。退会直後の再登録は同メールで 30 日間ブロック。",
+      "category": "auth", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 10,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A03", "mock_path": "06_mockups/workspace/S-A03-settings.html",
+        "feature_ids": ["F-001", "F-LEGAL-002"], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-038-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-038.html",
+        "adr_refs": ["ADR-013"]
+      },
+      "dependencies": ["T-024", "T-034"], "prerequisites": ["T-024", "T-034"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/account/delete-account.tsx",
+        "apps/api/src/routes/account.py",
+        "apps/api/src/cron/hard_delete.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 3, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-039",
+      "title": "共通レイアウト：サイドバー + トップバー",
+      "description": "全画面で使うサイドバー（ワークスペース/プロジェクトナビ）+ トップバー（パンくず・通知・アバター）。Atelier デザイントークン使用。",
+      "category": "design", "type": "foundation", "phase": 2, "priority": "critical", "estimated_hours": 8,
+      "assigned_employee_id": "wanda", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": "06_mockups/_shared/atelier.css",
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-039-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-039.html",
+        "adr_refs": ["ADR-002"]
+      },
+      "dependencies": ["T-009", "T-020", "T-037"], "prerequisites": ["T-009", "T-020", "T-037"], "blocks": ["T-040", "T-043", "T-046", "T-049"],
+      "files_changed_predicted": [
+        "apps/web/src/components/layout/Sidebar.tsx",
+        "apps/web/src/components/layout/Topbar.tsx",
+        "apps/web/src/components/layout/AppShell.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 3, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-040",
+      "title": "ワークスペース自動作成（サインアップ完了時）",
+      "description": "新規ユーザーのサインアップ完了時に、デフォルトワークスペース 1 件を自動作成し、owner ロールで紐付け。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 4,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-003"], "entity_ids": ["E-002", "E-003"],
+        "spec_html_path": "07_tasks/specs/T-040-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-040.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-034"], "prerequisites": ["T-034"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/services/workspace_provisioner.py",
+        "apps/api/src/routes/auth.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 4, "tier3_regression": 2, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-041",
+      "title": "ワークスペース設定画面の実装（S-A03）",
+      "description": "S-A03 を実装。基本情報・メンバー一覧・MCP トークン・退会の 4 タブ構造。各タブの編集機能を実装。",
+      "category": "workspace", "type": "screen", "phase": 2, "priority": "high", "estimated_hours": 12,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A03", "mock_path": "06_mockups/workspace/S-A03-settings.html",
+        "feature_ids": ["F-003"], "entity_ids": ["E-002"],
+        "spec_html_path": "07_tasks/specs/T-041-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-041.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039", "T-040"], "prerequisites": ["T-039", "T-040"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(app)/workspace/settings/page.tsx",
+        "apps/web/src/modules/workspace/workspace-form.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 5, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-042",
+      "title": "メンバー管理（招待・ロール変更・削除）",
+      "description": "ワークスペースメンバーの招待（メール送信）・オーナー/メンバー/閲覧者ロール変更・削除。同時に 1 名のオーナー必須制約。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 10,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A03", "mock_path": "06_mockups/workspace/S-A03-settings.html",
+        "feature_ids": ["F-003"], "entity_ids": ["E-002", "E-003"],
+        "spec_html_path": "07_tasks/specs/T-042-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-042.html",
+        "adr_refs": ["ADR-007"]
+      },
+      "dependencies": ["T-041", "T-021"], "prerequisites": ["T-041", "T-021"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/workspace/members-table.tsx",
+        "apps/api/src/routes/workspace_members.py",
+        "apps/web/src/emails/workspace-invite.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 6, "tier3_regression": 3, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-043",
+      "title": "MCP トークン発行・失効 UI",
+      "description": "ワークスペース設定の MCP トークンタブ。発行 = 暗号化保管、表示は 1 度のみ、コピー後はマスク、失効ボタンで削除。監査ログ記録。",
+      "category": "integration", "type": "feature", "phase": 2, "priority": "medium", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A03", "mock_path": "06_mockups/workspace/S-A03-settings.html",
+        "feature_ids": [], "entity_ids": ["E-021"],
+        "spec_html_path": "07_tasks/specs/T-043-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-043.html",
+        "adr_refs": ["ADR-008"]
+      },
+      "dependencies": ["T-026", "T-041"], "prerequisites": ["T-026", "T-041"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/workspace/mcp-tokens.tsx",
+        "apps/api/src/routes/mcp_tokens.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-044",
+      "title": "BYOK API キー管理 UI（ワークスペース内 AI 用）",
+      "description": "Anthropic API キーをユーザーが登録・ローテーション・削除する UI。Supabase Vault で暗号化保管。表示はマスク。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A03", "mock_path": "06_mockups/workspace/S-A03-settings.html",
+        "feature_ids": [], "entity_ids": ["E-022"],
+        "spec_html_path": "07_tasks/specs/T-044-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-044.html",
+        "adr_refs": ["ADR-008"]
+      },
+      "dependencies": ["T-023", "T-041"], "prerequisites": ["T-023", "T-041"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/workspace/byok-keys.tsx",
+        "apps/api/src/routes/byok.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 3, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-045",
+      "title": "プロジェクト一覧画面の実装（S-B01）",
+      "description": "S-B01 を実装。検索・フィルタ（種別・ステータス）・並べ替え・新規作成 CTA・ワークスペース切替 UI を含む。",
+      "category": "project", "type": "screen", "phase": 2, "priority": "critical", "estimated_hours": 12,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B01", "mock_path": "06_mockups/project/S-B01-list.html",
+        "feature_ids": ["F-002"], "entity_ids": ["E-004"],
+        "spec_html_path": "07_tasks/specs/T-045-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-045.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039", "T-040"], "prerequisites": ["T-039", "T-040"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(app)/projects/page.tsx",
+        "apps/web/src/modules/project/project-list.tsx",
+        "apps/web/src/modules/project/project-filters.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 5, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-046",
+      "title": "プロジェクト新規作成フロー",
+      "description": "新規プロジェクト作成モーダル。プロジェクト名・種別（自社プロダクト / クライアント案件 / 個人開発）・初期 AI 学習設定（デフォルト OFF）を入力。",
+      "category": "project", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B01", "mock_path": "06_mockups/project/S-B01-list.html",
+        "feature_ids": ["F-002", "F-LEGAL-003"], "entity_ids": ["E-004"],
+        "spec_html_path": "07_tasks/specs/T-046-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-046.html",
+        "adr_refs": ["ADR-014"]
+      },
+      "dependencies": ["T-045"], "prerequisites": ["T-045"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/project/new-project-dialog.tsx",
+        "apps/api/src/routes/projects.py",
+        "apps/api/src/services/project_provisioner.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-047",
+      "title": "プロジェクトダッシュボード画面の実装（S-B02）",
+      "description": "S-B02 を実装。プロジェクト概要・工程ステージフロー・KPI（進捗 / 承認待ち / 完了率）・アクティビティフィードを表示。",
+      "category": "project", "type": "screen", "phase": 2, "priority": "critical", "estimated_hours": 14,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B02", "mock_path": "06_mockups/project/S-B02-dashboard.html",
+        "feature_ids": ["F-002"], "entity_ids": ["E-004", "E-005"],
+        "spec_html_path": "07_tasks/specs/T-047-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-047.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039", "T-045", "T-046"], "prerequisites": ["T-039", "T-045", "T-046"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(app)/projects/[id]/page.tsx",
+        "apps/web/src/modules/project/dashboard-stage-flow.tsx",
+        "apps/web/src/modules/project/dashboard-kpis.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 5, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-048",
+      "title": "プロジェクト設定画面の実装（S-B03）",
+      "description": "S-B03 を実装。基本情報・種別・ステータス（進行中/下書き/一時停止/アーカイブ）・AI 学習 OFF 設定・削除の 5 セクション。",
+      "category": "project", "type": "screen", "phase": 2, "priority": "high", "estimated_hours": 10,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B03", "mock_path": "06_mockups/project/S-B03-settings.html",
+        "feature_ids": ["F-002", "F-LEGAL-003"], "entity_ids": ["E-004"],
+        "spec_html_path": "07_tasks/specs/T-048-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-048.html",
+        "adr_refs": ["ADR-014"]
+      },
+      "dependencies": ["T-039", "T-046"], "prerequisites": ["T-039", "T-046"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(app)/projects/[id]/settings/page.tsx",
+        "apps/web/src/modules/project/project-settings-form.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 5, "tier2_functional": 5, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-049",
+      "title": "プロジェクトアーカイブ / 削除フロー",
+      "description": "アーカイブはステータス変更のみ（復元可）。削除は 30 日論理削除 → cron でハードデリート。削除時は所属タスク・成果物すべて連鎖。",
+      "category": "project", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 8,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B03", "mock_path": "06_mockups/project/S-B03-settings.html",
+        "feature_ids": ["F-002", "F-LEGAL-002"], "entity_ids": ["E-004"],
+        "spec_html_path": "07_tasks/specs/T-049-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-049.html",
+        "adr_refs": ["ADR-013"]
+      },
+      "dependencies": ["T-024", "T-048"], "prerequisites": ["T-024", "T-048"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/routes/projects.py",
+        "apps/api/src/cron/project_hard_delete.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 5, "tier3_regression": 3, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-050",
+      "title": "AI 学習デフォルト OFF（プロジェクト・アカウント単位）",
+      "description": "プロジェクト設定で AI 学習可否をプロジェクト/アカウント単位で切替。デフォルト OFF。外部 LLM（Anthropic）の学習除外フラグを送信。",
+      "category": "legal", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 6,
+      "assigned_employee_id": "strange", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B03", "mock_path": "06_mockups/project/S-B03-settings.html",
+        "feature_ids": ["F-LEGAL-003"], "entity_ids": ["E-001", "E-004"],
+        "spec_html_path": "07_tasks/specs/T-050-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-050.html",
+        "adr_refs": ["ADR-014"]
+      },
+      "dependencies": ["T-016", "T-048"], "prerequisites": ["T-016", "T-048"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/llm/learning_opt_out.py",
+        "supabase/migrations/0021_learning_opt_out_columns.sql"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 3, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-051",
+      "title": "プロジェクト切替 UI（複数 WS・複数プロジェクト）",
+      "description": "サイドバー上部のプロジェクトピッカー。最近使った 5 件 + 全件検索。URL の :project_id に基づきリアクティブ更新。",
+      "category": "project", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 6,
+      "assigned_employee_id": "wanda", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B01", "mock_path": "06_mockups/project/S-B01-list.html",
+        "feature_ids": ["F-002"], "entity_ids": ["E-002", "E-004"],
+        "spec_html_path": "07_tasks/specs/T-051-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-051.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039", "T-045"], "prerequisites": ["T-039", "T-045"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/components/layout/project-picker.tsx",
+        "apps/web/src/hooks/use-current-project.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-052",
+      "title": "ロールベースアクセス制御（RBAC）共通ヘルパー",
+      "description": "オーナー/メンバー/閲覧者のロール判定共通ヘルパー。サーバ側 + クライアント側で同一ロジック。useCanEdit / useCanView 等のフック提供。",
+      "category": "workspace", "type": "foundation", "phase": 2, "priority": "high", "estimated_hours": 6,
+      "assigned_employee_id": "tony", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-003"], "entity_ids": ["E-003"],
+        "spec_html_path": "07_tasks/specs/T-052-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-052.html",
+        "adr_refs": ["ADR-007"]
+      },
+      "dependencies": ["T-013", "T-037"], "prerequisites": ["T-013", "T-037"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/lib/auth/rbac.ts",
+        "apps/api/src/auth/rbac.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 3, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-053",
+      "title": "認証フロー全体の E2E テスト",
+      "description": "サインアップ → メール確認 → ワークスペース自動作成 → プロジェクト作成 → ログアウト → 再ログイン → 退会 → 30 日後ハード削除を Playwright で検証。",
+      "category": "auth", "type": "verification", "phase": 2, "priority": "critical", "estimated_hours": 10,
+      "assigned_employee_id": "vision", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-A01", "mock_path": "06_mockups/auth/S-A01-signin.html",
+        "feature_ids": ["F-001", "F-003", "F-LEGAL-002", "F-LEGAL-004"], "entity_ids": ["E-001", "E-002", "E-004"],
+        "spec_html_path": "07_tasks/specs/T-053-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-053.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-027", "T-038", "T-046"], "prerequisites": ["T-027", "T-038", "T-046"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/tests/e2e/auth/sign-up.spec.ts",
+        "apps/web/tests/e2e/auth/sign-in.spec.ts",
+        "apps/web/tests/e2e/account/delete-account.spec.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 8, "tier3_regression": 2, "total": 12},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-054",
+      "title": "RLS 越境試験（ワークスペース・プロジェクト・クライアント分離）",
+      "description": "他ワークスペースのデータが見えないこと、他プロジェクトに侵入できないことを SQL テスト + Playwright で網羅。R-T08 致命級リスク対応。",
+      "category": "verification", "type": "verification", "phase": 2, "priority": "critical", "estimated_hours": 12,
+      "assigned_employee_id": "vision", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-001", "F-003"], "entity_ids": ["E-002", "E-003", "E-004"],
+        "spec_html_path": "07_tasks/specs/T-054-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-054.html",
+        "adr_refs": ["ADR-007", "ADR-008"]
+      },
+      "dependencies": ["T-013", "T-046", "T-053"], "prerequisites": ["T-013", "T-046", "T-053"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/tests/security/test_rls_workspace_isolation.py",
+        "apps/api/tests/security/test_rls_project_isolation.py",
+        "apps/web/tests/e2e/security/cross-workspace-access.spec.ts"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 10, "tier3_regression": 4, "total": 16},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-055",
+      "title": "監査ログを認証・WS・プロジェクト全イベントに紐付け",
+      "description": "サインアップ・サインイン・ロックアウト・WS 作成・メンバー招待・プロジェクト作成・削除など、全イベントを T-022 共通ライブラリで audit_logs に記録。",
+      "category": "legal", "type": "feature", "phase": 2, "priority": "critical", "estimated_hours": 6,
+      "assigned_employee_id": "vision", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-LEGAL-001"], "entity_ids": ["E-020"],
+        "spec_html_path": "07_tasks/specs/T-055-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-055.html",
+        "adr_refs": ["ADR-013"]
+      },
+      "dependencies": ["T-022", "T-038", "T-042", "T-049"], "prerequisites": ["T-022", "T-038", "T-042", "T-049"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/api/src/routes/auth.py",
+        "apps/api/src/routes/workspace.py",
+        "apps/api/src/routes/projects.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 6, "tier3_regression": 3, "total": 11},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-056",
+      "title": "通知ベル（トップバー右上）+ お知らせセンター",
+      "description": "未読バッジ付き通知ベル。クリックでお知らせ一覧。承認待ち・仕様変更・新規メンション等を表示。Supabase Realtime で push 更新。",
+      "category": "collaboration", "type": "feature", "phase": 2, "priority": "medium", "estimated_hours": 8,
+      "assigned_employee_id": "wanda", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-056-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-056.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039"], "prerequisites": ["T-039"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/components/notifications/NotificationBell.tsx",
+        "apps/web/src/components/notifications/NotificationCenter.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-057",
+      "title": "ユーザープロフィール（表示名 / アバター / 言語設定）",
+      "description": "右上アバタークリックでプロフィール編集。表示名・アバター画像アップロード（Supabase Storage）・言語（日本語 / 英語）切替。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "medium", "estimated_hours": 6,
+      "assigned_employee_id": "thor", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": ["E-001"],
+        "spec_html_path": "07_tasks/specs/T-057-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-057.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039"], "prerequisites": ["T-039"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/modules/profile/profile-dialog.tsx",
+        "apps/api/src/routes/profile.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 4, "tier3_regression": 2, "total": 9},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-058",
+      "title": "プロジェクト・ワークスペースの完了率 / 進捗 KPI 計算ロジック",
+      "description": "ダッシュボード（S-B02）で表示する KPI（タスク完了率・工程進捗・承認待ち件数・平均スコア）を集計する SQL ビュー + API。",
+      "category": "project", "type": "feature", "phase": 2, "priority": "high", "estimated_hours": 8,
+      "assigned_employee_id": "strange", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": "S-B02", "mock_path": "06_mockups/project/S-B02-dashboard.html",
+        "feature_ids": ["F-002"], "entity_ids": ["E-004", "E-005"],
+        "spec_html_path": "07_tasks/specs/T-058-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-058.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-011", "T-015"], "prerequisites": ["T-011", "T-015"], "blocks": ["T-047"],
+      "files_changed_predicted": [
+        "supabase/migrations/0022_project_kpi_views.sql",
+        "apps/api/src/routes/project_kpis.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 5, "tier3_regression": 2, "total": 10},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-059",
+      "title": "オンボーディング・ウェルカム画面",
+      "description": "初回ログインユーザーに表示。AI 社員 10 名の紹介 + 9 工程ワークフローの概要 + 初回プロジェクト作成 CTA。スキップ可。",
+      "category": "ai_employee", "type": "screen", "phase": 2, "priority": "medium", "estimated_hours": 8,
+      "assigned_employee_id": "wanda", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": [], "entity_ids": [],
+        "spec_html_path": "07_tasks/specs/T-059-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-059.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-040"], "prerequisites": ["T-040"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/app/(app)/welcome/page.tsx",
+        "apps/web/src/modules/onboarding/welcome-flow.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 4, "tier2_functional": 3, "tier3_regression": 1, "total": 8},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-060",
+      "title": "ワークスペース複数所属時の切替 UI",
+      "description": "サインインユーザーが複数ワークスペースに所属している場合、サイドバー上部に WS 切替ピッカー。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "medium", "estimated_hours": 5,
+      "assigned_employee_id": "wanda", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-003"], "entity_ids": ["E-002"],
+        "spec_html_path": "07_tasks/specs/T-060-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-060.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-039", "T-051"], "prerequisites": ["T-039", "T-051"], "blocks": [],
+      "files_changed_predicted": [
+        "apps/web/src/components/layout/workspace-picker.tsx"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 3, "tier2_functional": 3, "tier3_regression": 1, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    },
+    {
+      "id": "T-061",
+      "title": "プロジェクト数 / メンバー数の上限制御",
+      "description": "ワークスペース内のアクティブプロジェクト数・メンバー数の上限を設定可能に。Phase 8 課金プランに応じた上限切替の土台。",
+      "category": "workspace", "type": "feature", "phase": 2, "priority": "low", "estimated_hours": 4,
+      "assigned_employee_id": "strange", "lifecycle_stage": "triage",
+      "links": {
+        "screen_id": null, "mock_path": null,
+        "feature_ids": ["F-003"], "entity_ids": ["E-002"],
+        "spec_html_path": "07_tasks/specs/T-061-spec.html",
+        "ac_html_path": "07_tasks/acceptance-criteria/T-061.html",
+        "adr_refs": []
+      },
+      "dependencies": ["T-046"], "prerequisites": ["T-046"], "blocks": [],
+      "files_changed_predicted": [
+        "supabase/migrations/0023_workspace_limits.sql",
+        "apps/api/src/limits/workspace_limits.py"
+      ],
+      "acceptance_criteria_summary": {"tier1_structural": 2, "tier2_functional": 3, "tier3_regression": 2, "total": 7},
+      "verification": {"auto_approve_threshold": 0.95, "human_approval_threshold": 0.80, "max_retries": 3},
+      "origin_type": "initial_decomposition", "parent_task_id": null, "auto_advance_allowed": true
+    }
+  ]
+}

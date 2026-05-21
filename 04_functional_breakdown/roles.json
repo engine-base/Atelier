@@ -1,0 +1,470 @@
+{
+  "project": "Atelier",
+  "version": "1.0",
+  "created_at": "2026-05-18",
+  "schema_version": "v3",
+  "auth_provider": "Supabase Auth",
+  "authorization_framework": "Postgres RLS (per-entity policy) + Application Layer 二重チェック",
+  "roles": [
+    {
+      "id": "R-001",
+      "name": "Guest",
+      "description": "未ログイン訪問者",
+      "represented_by": "Supabase Auth anon role (auth.role() = 'anon')",
+      "scope": "global",
+      "main_permissions": [
+        "公開ページの閲覧（規約/PP/特商法表記/サインアップ/ログイン）"
+      ],
+      "status": "decided"
+    },
+    {
+      "id": "R-002",
+      "name": "WorkspaceOwner",
+      "description": "ワークスペースの所有者",
+      "represented_by": "workspace_memberships.role = 'owner'",
+      "scope": "workspace",
+      "main_permissions": [
+        "WS設定",
+        "メンバー招待・除名・ロール変更",
+        "プラン管理",
+        "WS削除",
+        "全プロジェクト編集",
+        "MCPトークン発行",
+        "クライアント招待発行",
+        "AI社員人格カスタマイズ（編集可項目のみ）"
+      ],
+      "status": "decided"
+    },
+    {
+      "id": "R-003",
+      "name": "WorkspaceMember",
+      "description": "通常メンバー",
+      "represented_by": "workspace_memberships.role = 'member'",
+      "scope": "workspace",
+      "main_permissions": [
+        "プロジェクト作成・編集",
+        "チャット",
+        "タスク実行",
+        "ナレッジ書込承認",
+        "AI社員人格カスタマイズ（編集可項目のみ）"
+      ],
+      "status": "decided"
+    },
+    {
+      "id": "R-004",
+      "name": "WorkspaceViewer",
+      "description": "閲覧者",
+      "represented_by": "workspace_memberships.role = 'viewer'",
+      "scope": "workspace",
+      "main_permissions": [
+        "全項目閲覧",
+        "コメント投稿",
+        "編集不可"
+      ],
+      "status": "decided"
+    },
+    {
+      "id": "R-005",
+      "name": "ClientGuest",
+      "description": "招待されたクライアント",
+      "represented_by": "JWT role = 'client_portal' (Supabase JWT カスタムclaim、別経路)",
+      "scope": "project",
+      "main_permissions": [
+        "招待されたプロジェクトの全フェーズ閲覧",
+        "コメント投稿（自分のみ編集・削除可）"
+      ],
+      "status": "decided",
+      "isolation_note": "通常ユーザーJWTと完全分離。workspace_memberships は一切参照しない。R-T08 致命級リスク対策"
+    },
+    {
+      "id": "R-006",
+      "name": "PlatformAdmin",
+      "description": "運営管理者",
+      "represented_by": "auth.users.raw_app_meta_data->>'role' = 'admin'",
+      "scope": "global",
+      "main_permissions": [
+        "スキル管理（アップロード・版管理・許可リスト）",
+        "AI社員テンプレ管理",
+        "ユーザー管理",
+        "監査ログ閲覧",
+        "プラン管理（Phase 8）"
+      ],
+      "status": "decided"
+    }
+  ],
+  "matrix": {
+    "description": "ロール × 主要操作 × 主要エンティティ のアクセス権マトリクス",
+    "legend": {
+      "R": "Read",
+      "C": "Create",
+      "U": "Update",
+      "D": "Delete",
+      "-": "Denied"
+    },
+    "rows": [
+      {
+        "entity": "workspaces",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "R"
+      },
+      {
+        "entity": "workspace_memberships",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "R"
+      },
+      {
+        "entity": "projects",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCU",
+        "Viewer": "R",
+        "Client": "R(自分の招待プロジェクトのみ)",
+        "Admin": "R"
+      },
+      {
+        "entity": "phases",
+        "Guest": "-",
+        "Owner": "RCU",
+        "Member": "RCU",
+        "Viewer": "R",
+        "Client": "R",
+        "Admin": "R"
+      },
+      {
+        "entity": "workflow_outputs",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "R",
+        "Admin": "R"
+      },
+      {
+        "entity": "ai_employees",
+        "Guest": "-",
+        "Owner": "RU(編集可項目のみ・削除不可)",
+        "Member": "RU(編集可項目のみ)",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "R"
+      },
+      {
+        "entity": "ai_employee_templates",
+        "Guest": "-",
+        "Owner": "R",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "RCUD"
+      },
+      {
+        "entity": "skills",
+        "Guest": "-",
+        "Owner": "R",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "RCUD"
+      },
+      {
+        "entity": "chat_threads",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "chat_messages",
+        "Guest": "-",
+        "Owner": "RCUD(自分のみU/D)",
+        "Member": "RCUD(自分のみU/D)",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "tasks",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "R",
+        "Admin": "-"
+      },
+      {
+        "entity": "task_executions",
+        "Guest": "-",
+        "Owner": "R",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "acceptance_criteria",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "R",
+        "Admin": "-"
+      },
+      {
+        "entity": "mocks",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "R",
+        "Admin": "-"
+      },
+      {
+        "entity": "comments",
+        "Guest": "-",
+        "Owner": "RCUD(自分のみU/D)",
+        "Member": "RCUD(自分のみU/D)",
+        "Viewer": "RC(自分のみU/D)",
+        "Client": "RC(自分のみU/D)",
+        "Admin": "-"
+      },
+      {
+        "entity": "client_invitations",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "R",
+        "Viewer": "R",
+        "Client": "R(自分のみ)",
+        "Admin": "-"
+      },
+      {
+        "entity": "knowledge_nodes",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCU",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "approval_inbox",
+        "Guest": "-",
+        "Owner": "RCUD(自分のみ)",
+        "Member": "RCUD(自分のみ)",
+        "Viewer": "RCUD(自分のみ)",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "audit_logs",
+        "Guest": "-",
+        "Owner": "-",
+        "Member": "-",
+        "Viewer": "-",
+        "Client": "-",
+        "Admin": "R"
+      },
+      {
+        "entity": "mcp_tokens",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "R(masked)",
+        "Viewer": "R(masked)",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "byok_api_keys",
+        "Guest": "-",
+        "Owner": "RCUD(自分のみ)",
+        "Member": "RCUD(自分のみ)",
+        "Viewer": "RCUD(自分のみ)",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "cron_schedules",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "external_uploads",
+        "Guest": "-",
+        "Owner": "RCUD",
+        "Member": "RCUD",
+        "Viewer": "R",
+        "Client": "-",
+        "Admin": "-"
+      },
+      {
+        "entity": "consents",
+        "Guest": "-",
+        "Owner": "RC(自分のみ)",
+        "Member": "RC(自分のみ)",
+        "Viewer": "RC(自分のみ)",
+        "Client": "-",
+        "Admin": "R"
+      }
+    ]
+  },
+  "object_constraints": [
+    {
+      "id": "OC-001",
+      "constraint_name": "owner cannot demote last owner",
+      "description": "最後のownerをmember/viewerに降格できない",
+      "applies_to_role": "R-002",
+      "target_entity": "workspace_memberships",
+      "access_predicate_expr": "NOT (NEW.role != 'owner' AND (SELECT COUNT(*) FROM workspace_memberships WHERE workspace_id = NEW.workspace_id AND role = 'owner' AND user_id != NEW.user_id) = 0)",
+      "rationale": "WS は最低1名のownerを持つ"
+    },
+    {
+      "id": "OC-002",
+      "constraint_name": "default ai_employees cannot be deleted",
+      "description": "デフォルト10名のAI社員は削除不可",
+      "applies_to_role": "R-002",
+      "target_entity": "ai_employees",
+      "access_predicate_expr": "is_default = false",
+      "rationale": "デフォルト10名は組織構造の最低保証"
+    },
+    {
+      "id": "OC-003",
+      "constraint_name": "user editable ai_employee fields are display_name/icon/tone only",
+      "description": "ユーザー編集可: display_name / icon / tone_preset / custom_tone_text のみ。AI社員の追加・削除・スキル変更は不可",
+      "applies_to_role": "R-002, R-003",
+      "target_entity": "ai_employees",
+      "access_predicate_expr": "OLD.name = NEW.name AND OLD.role = NEW.role AND OLD.department = NEW.department AND OLD.attached_skills = NEW.attached_skills AND OLD.system_prompt_override = NEW.system_prompt_override",
+      "rationale": "AI社員 10名は運営側で完全固定。スキル概念もユーザーには非表示。"
+    },
+    {
+      "id": "OC-004",
+      "constraint_name": "client comments are own only",
+      "description": "クライアントは自分のコメントのみ編集・削除可",
+      "applies_to_role": "R-005",
+      "target_entity": "comments",
+      "access_predicate_expr": "author_invitation_id = (current_setting('request.jwt.claims', true)::jsonb->>'invitation_id')::uuid",
+      "rationale": "クライアント間のコメント干渉防止"
+    },
+    {
+      "id": "OC-005",
+      "constraint_name": "client project scope",
+      "description": "クライアントは招待JWTのproject_idと一致するプロジェクトのみアクセス可",
+      "applies_to_role": "R-005",
+      "target_entity": "projects",
+      "access_predicate_expr": "id = (current_setting('request.jwt.claims', true)::jsonb->>'project_id')::uuid",
+      "rationale": "クライアントは1招待=1プロジェクトに限定"
+    },
+    {
+      "id": "OC-006",
+      "constraint_name": "byok keys are self-only",
+      "description": "APIキーは本人のみ閲覧・編集",
+      "applies_to_role": "R-002, R-003, R-004",
+      "target_entity": "byok_api_keys",
+      "access_predicate_expr": "user_id = auth.uid()",
+      "rationale": "個人秘密情報"
+    },
+    {
+      "id": "OC-007",
+      "constraint_name": "consents are immutable",
+      "description": "同意ログは編集・削除不可、版変更時は新行追加",
+      "applies_to_role": "R-002, R-003, R-004",
+      "target_entity": "consents",
+      "access_predicate_expr": "FALSE /* UPDATE/DELETE禁止、INSERTのみ */",
+      "rationale": "F-LEGAL-004 個情法対応"
+    },
+    {
+      "id": "OC-008",
+      "constraint_name": "service role bypass for AI writes",
+      "description": "AI生成（task_executions / chat_messages role=assistant / knowledge_nodes source=ai_extracted）は service_role 経由のみ",
+      "applies_to_role": "service_role",
+      "target_entity": "multiple",
+      "access_predicate_expr": "auth.role() = 'service_role'",
+      "rationale": "AI からの書込は FastAPI service_role 経由"
+    },
+    {
+      "id": "OC-009",
+      "constraint_name": "admin only for templates and skills mutations",
+      "description": "ai_employee_templates / skills の編集は admin のみ",
+      "applies_to_role": "R-006",
+      "target_entity": "ai_employee_templates, skills",
+      "access_predicate_expr": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')",
+      "rationale": "プロダクト品質を運営側で統制"
+    },
+    {
+      "id": "OC-010",
+      "constraint_name": "mcp token issuance owner only",
+      "description": "MCPトークンの発行・失効は owner のみ",
+      "applies_to_role": "R-002",
+      "target_entity": "mcp_tokens",
+      "access_predicate_expr": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')",
+      "rationale": "セキュリティ重要度高"
+    }
+  ],
+  "auth_integration": {
+    "supabase_auth": {
+      "methods": [
+        "Email + Password",
+        "Magic Link (OTP)",
+        "Google OAuth",
+        "GitHub OAuth"
+      ],
+      "session": "JWT in HTTP-only Cookie, SameSite=Lax, Secure",
+      "mfa": "Phase 5+ (TOTP / Passkey)"
+    },
+    "jwt_claims": {
+      "standard": [
+        "sub (user_id)",
+        "role (authenticated/anon/service_role/client_portal)",
+        "exp"
+      ],
+      "custom_authenticated": [
+        "workspace_memberships (lazy-loaded via JWT helper)"
+      ],
+      "custom_client_portal": [
+        "invitation_token_hash",
+        "project_id",
+        "invitation_id"
+      ]
+    },
+    "rls_helper_functions": [
+      {
+        "name": "fn_is_workspace_member(ws_id uuid)",
+        "returns": "boolean",
+        "body": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())"
+      },
+      {
+        "name": "fn_is_workspace_owner(ws_id uuid)",
+        "returns": "boolean",
+        "body": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')"
+      },
+      {
+        "name": "fn_is_client_invitation_valid(invitation_id uuid)",
+        "returns": "boolean",
+        "body": "EXISTS (SELECT 1 FROM client_invitations WHERE id = invitation_id AND token_hash = (current_setting('request.jwt.claims', true)::jsonb->>'invitation_token_hash') AND expires_at > now() AND revoked_at IS NULL)"
+      },
+      {
+        "name": "fn_is_admin()",
+        "returns": "boolean",
+        "body": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')"
+      }
+    ]
+  },
+  "summary": {
+    "total_roles": 6,
+    "total_object_constraints": 10,
+    "client_portal_isolation": "別JWT経路でR-005を完全分離（致命級リスクR-T08対策）",
+    "rls_helper_functions": 4
+  }
+}

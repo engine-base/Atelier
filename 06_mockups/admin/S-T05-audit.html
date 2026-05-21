@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>監査ログ — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .admin-badge { background: var(--color-error); color: #FFFFFF; padding: 2px 8px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .filter-bar { display: grid; grid-template-columns: 1fr auto auto auto auto auto; gap: 10px; align-items: center; padding: 12px 16px; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); margin-bottom: 14px; }
+  .log-row { display: grid; grid-template-columns: 130px 90px 1fr 1.5fr 100px 40px; gap: 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--color-border); font-size: 12.5px; }
+  .log-row:hover { background: var(--color-surface-variant); }
+  .log-time { font-family: monospace; font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .actor-ai { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); padding: 1px 7px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .actor-user { background: var(--color-primary-container); color: var(--color-on-primary-container); padding: 1px 7px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .actor-system { background: var(--color-surface-variant); color: var(--color-on-surface-variant); padding: 1px 7px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+  .action-name { font-family: monospace; font-size: 12px; font-weight: 600; }
+  .target-text { font-size: 12.5px; }
+  .target-meta { font-size: 10.5px; color: var(--color-on-surface-variant); font-family: monospace; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" style="background:#0F172A;border-right:1px solid #1E293B;">
+  <div class="sidebar-brand" style="border-bottom-color:#1E293B;">
+    <div class="brand-mark" style="background:var(--color-error);">A</div>
+    <div><div class="brand-name" style="color:#FFFFFF;">Atelier Admin</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label" style="color:#475569;">PLATFORM</div>
+    <a class="nav-item" href="S-T01-dashboard.html" style="color:#94A3B8;"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="S-T02-skills.html" style="color:#94A3B8;"><i data-icon="zap"></i>スキル管理</a>
+    <a class="nav-item" href="S-T03-templates.html" style="color:#94A3B8;"><i data-icon="bot"></i>AI社員テンプレ</a>
+    <a class="nav-item" href="S-T04-users.html" style="color:#94A3B8;"><i data-icon="users"></i>ユーザー管理</a>
+    <a class="nav-item active" href="#" style="color:#93C5FD;background:rgba(37,99,235,0.15);border-left-color:var(--color-primary);"><i data-icon="file-text"></i>監査ログ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-T05" data-bf-screen-name="admin_audit" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="flex items-center gap-3"><span class="admin-badge">ADMIN</span><div class="breadcrumb"><strong>監査ログ</strong></div></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1500px;">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="page-eyebrow">Audit Log</div>
+      <h1 class="page-title">監査ログ</h1>
+      <p class="page-subtitle">全操作の証跡（1 年保持） · 個人情報閲覧 · AI 書込 · システム自動処理</p>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-outlined btn-sm"><i data-icon="download"></i>CSV エクスポート</button>
+    </div>
+  </div>
+
+  <div class="grid grid-4 gap-4 mb-6">
+    <div class="card"><div class="page-eyebrow">本日の操作</div><div class="text-3xl font-bold tabular mt-1">1,247</div></div>
+    <div class="card"><div class="page-eyebrow">AI 操作</div><div class="text-3xl font-bold tabular mt-1 text-tertiary">982</div></div>
+    <div class="card"><div class="page-eyebrow">ユーザー操作</div><div class="text-3xl font-bold tabular mt-1 text-primary">242</div></div>
+    <div class="card"><div class="page-eyebrow">致命級アラート</div><div class="text-3xl font-bold tabular mt-1 text-muted">0</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <div class="flex items-center gap-2" style="flex: 1;">
+      <i data-icon="search"></i>
+      <input class="input" style="border: none; background: transparent; flex: 1;" placeholder="action / target / actor で検索">
+    </div>
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>全アクター</option>
+      <option>AI</option>
+      <option>User</option>
+      <option>System</option>
+    </select>
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>全アクション</option>
+      <option>create</option>
+      <option>update</option>
+      <option>delete</option>
+      <option>access</option>
+    </select>
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>全 WS</option>
+      <option>ENGINE BASE</option>
+      <option>マツリデハッピー</option>
+    </select>
+    <input type="date" class="input" style="padding: 6px 10px; font-size: 12px; width: auto;" value="2026-05-18">
+    <button class="btn btn-ghost btn-sm"><i data-icon="filter"></i></button>
+  </div>
+
+  <div class="card" style="padding: 0;">
+    <div class="log-row" style="background: var(--color-surface-variant); font-weight: 700; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant);">
+      <div>時刻</div>
+      <div>アクター</div>
+      <div>アクション</div>
+      <div>対象</div>
+      <div>WS</div>
+      <div></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:48:32</div>
+      <div class="flex items-center gap-1"><span class="actor-ai">AI</span><div class="avatar avatar-sm avatar-jarvis">J</div></div>
+      <div>
+        <div class="action-name">phase.propose</div>
+        <div class="target-meta">F-CUC01</div>
+      </div>
+      <div>
+        <div class="target-text">Phase 2 への移行を提案</div>
+        <div class="target-meta">project_id: 4d7e···2c</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:48:01</div>
+      <div class="flex items-center gap-1"><span class="actor-ai">AI</span><div class="avatar avatar-sm avatar-thor">T</div></div>
+      <div>
+        <div class="action-name">task_execution.complete</div>
+        <div class="target-meta">retry 1/3</div>
+      </div>
+      <div>
+        <div class="target-text">T-014 ログイン画面実装 · score 0.96</div>
+        <div class="target-meta">execution_id: a4f2e8···</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:47:35</div>
+      <div class="flex items-center gap-1"><span class="actor-ai">AI</span><div class="avatar avatar-sm avatar-vision">V</div></div>
+      <div>
+        <div class="action-name">verification.score</div>
+        <div class="target-meta">F-J02</div>
+      </div>
+      <div>
+        <div class="target-text">T-014 検証スコア 0.83（AC 10/12）</div>
+        <div class="target-meta">→ awaiting_approval</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:42:18</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm">M</div></div>
+      <div>
+        <div class="action-name">workflow_output.update</div>
+        <div class="target-meta">F-E03 直編集</div>
+      </div>
+      <div>
+        <div class="target-text">要件定義書 v1.0 §2 を編集</div>
+        <div class="target-meta">workflow_output_id: 8c1a···fd</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:35:02</div>
+      <div class="flex items-center gap-1"><span class="actor-ai">AI</span><div class="avatar avatar-sm avatar-tchalla">T</div></div>
+      <div>
+        <div class="action-name">knowledge.propose</div>
+        <div class="target-meta">industry_extract</div>
+      </div>
+      <div>
+        <div class="target-text">3 案件共通：認証フローのベストプラクティス</div>
+        <div class="target-meta">confidence: 0.89 · 共通ナレッジへ昇格候補</div>
+      </div>
+      <div><span class="badge badge-neutral">all WS</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:32:14</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm" style="background:#0891B2;">K</div></div>
+      <div>
+        <div class="action-name">comment.create</div>
+        <div class="target-meta">client_portal</div>
+      </div>
+      <div>
+        <div class="target-text">小松様：要件定義 §2 にコメント</div>
+        <div class="target-meta">comment_id: 7d3b···91 · 別 JWT 経路</div>
+      </div>
+      <div><span class="badge badge-neutral">マツリデハッピー</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">16:18:42</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm">M</div></div>
+      <div>
+        <div class="action-name">byok_api_key.create</div>
+        <div class="target-meta">Vault 暗号化</div>
+      </div>
+      <div>
+        <div class="target-text">Anthropic API キーを登録</div>
+        <div class="target-meta">provider: claude · ip: 192.0.2.***</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">15:42:08</div>
+      <div class="flex items-center gap-1"><span class="actor-system">SYS</span><i data-icon="cpu" data-size="14"></i></div>
+      <div>
+        <div class="action-name">cron.run</div>
+        <div class="target-meta">F-CUC04</div>
+      </div>
+      <div>
+        <div class="target-text">日次整合性チェック完了 · 不整合 0 件</div>
+        <div class="target-meta">run_duration: 1m04s</div>
+      </div>
+      <div><span class="badge badge-neutral">all WS</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">15:20:04</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm" style="background:#16A34A;">N</div></div>
+      <div>
+        <div class="action-name">workspace.create</div>
+        <div class="target-meta">新規作成</div>
+      </div>
+      <div>
+        <div class="target-text">「個人プロジェクト」WS 作成 · デフォルト AI 社員 10 名複製</div>
+        <div class="target-meta">workspace_id: 9f4e···01</div>
+      </div>
+      <div><span class="badge badge-neutral">個人プロジェクト</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">14:08:32</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm">M</div></div>
+      <div>
+        <div class="action-name">client_invitation.create</div>
+        <div class="target-meta">JWT発行</div>
+      </div>
+      <div>
+        <div class="target-text">小松 太郎様に招待リンク発行（有効 7 日）</div>
+        <div class="target-meta">project_id: 4d7e···2c · token_hash: ***3a9f</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">12:48:18</div>
+      <div class="flex items-center gap-1"><span class="actor-ai">AI</span><div class="avatar avatar-sm avatar-steve">S</div></div>
+      <div>
+        <div class="action-name">workflow_output.generate</div>
+        <div class="target-meta">三層出力</div>
+      </div>
+      <div>
+        <div class="target-text">要件定義 v1.0 を HTML/JSON/MD 同時生成</div>
+        <div class="target-meta">workflow_output_id: 8c1a···fd</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">12:01:42</div>
+      <div class="flex items-center gap-1"><span class="actor-system">SYS</span><i data-icon="key" data-size="14"></i></div>
+      <div>
+        <div class="action-name">byok_api_key.decrypt</div>
+        <div class="target-meta">Vault</div>
+      </div>
+      <div>
+        <div class="target-text">BYOK キー復号（高本まさと · provider: claude）</div>
+        <div class="target-meta">requester: service_role · purpose: chat</div>
+      </div>
+      <div><span class="badge badge-neutral">ENGINE BASE</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="log-row">
+      <div class="log-time">10:22:08</div>
+      <div class="flex items-center gap-1"><span class="actor-user">USER</span><div class="avatar avatar-sm" style="background:#BE185D;">F</div></div>
+      <div>
+        <div class="action-name">account.delete_request</div>
+        <div class="target-meta">F-U01</div>
+      </div>
+      <div>
+        <div class="target-text">退会申請 · 30 日後ハード削除予約</div>
+        <div class="target-meta">scheduled_at: 2026-06-17</div>
+      </div>
+      <div><span class="badge badge-neutral">個人</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div style="padding: 12px 18px; text-align: center; color: var(--color-on-surface-variant); font-size: 13px; border-top: 1px solid var(--color-border);">
+      <span class="tabular">1,247 件中 13 件表示 · </span>
+      <a href="#" class="text-primary font-semibold">次のページ →</a>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

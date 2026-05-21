@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atelier — UI モックアップ一覧（33画面）</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_shared/atelier.css">
+<style>
+  body { padding: 48px 24px 96px; }
+  .index-wrap { max-width: 1080px; margin: 0 auto; }
+  .index-header { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; padding: 36px 40px; background: linear-gradient(135deg, var(--color-primary-container) 0%, var(--color-tertiary-container) 100%); border-radius: var(--rounded-lg); margin-bottom: 32px; }
+  .index-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .index-brand .brand-mark { width: 32px; height: 32px; font-size: 15px; }
+  .index-brand .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
+  .index-h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 8px; color: var(--color-on-primary-container); }
+  .index-subtitle { font-size: 14px; color: var(--color-on-primary-container); opacity: 0.85; line-height: 1.6; }
+  .index-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-family: monospace; font-variant-numeric: tabular-nums; }
+  .stat-box { background: rgba(255,255,255,0.6); padding: 12px 16px; border-radius: var(--rounded-md); }
+  .stat-num { font-size: 26px; font-weight: 700; color: var(--color-on-primary-container); }
+  .stat-label { font-size: 11px; font-weight: 600; color: var(--color-on-primary-container); opacity: 0.75; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .phase-section { margin-bottom: 32px; }
+  .phase-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border); }
+  .phase-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .phase-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .phase-count { font-size: 11.5px; color: var(--color-on-surface-variant); margin-left: auto; font-family: monospace; }
+
+  .mock-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .mock-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: 14px 16px; transition: all 0.15s; text-decoration: none; color: inherit; display: flex; gap: 12px; align-items: flex-start; }
+  .mock-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); transform: translateY(-1px); text-decoration: none; }
+  .mock-id { font-family: monospace; font-size: 11px; font-weight: 700; color: var(--color-primary); background: var(--color-primary-container); padding: 3px 7px; border-radius: var(--rounded-sm); flex-shrink: 0; min-width: 56px; text-align: center; }
+  .mock-name { font-size: 13.5px; font-weight: 600; line-height: 1.4; margin-bottom: 2px; }
+  .mock-cat { font-size: 11px; color: var(--color-on-surface-variant); }
+  .footer-note { margin-top: 48px; padding: 20px 24px; background: var(--color-secondary-container); color: var(--color-on-secondary-container); border-radius: var(--rounded-md); border-left: 4px solid var(--color-secondary); font-size: 12.5px; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="index-wrap">
+  <div class="index-header">
+    <div>
+      <div class="index-brand">
+        <div class="brand-mark">A</div>
+        <span class="brand-name">Atelier</span>
+        <span class="badge badge-tertiary">v1.0 mocks</span>
+      </div>
+      <h1 class="index-h1">UI モックアップ一覧</h1>
+      <p class="index-subtitle">
+        AI 社員常駐型 開発プロジェクト統合管理 SaaS · 33 画面の HTML モック<br>
+        Notion / Obsidian 風エディトリアル · Noto Sans JP · Lucide icons · Atelier カラーパレット
+      </p>
+    </div>
+    <div class="index-stats">
+      <div class="stat-box"><div class="stat-num">33</div><div class="stat-label">画面</div></div>
+      <div class="stat-box"><div class="stat-num">17</div><div class="stat-label">カテゴリ</div></div>
+      <div class="stat-box"><div class="stat-num">6</div><div class="stat-label">ロール対応</div></div>
+      <div class="stat-box"><div class="stat-num">6</div><div class="stat-label">段階別</div></div>
+    </div>
+  </div>
+
+  <section class="phase-section">
+    <div class="phase-head">
+      <div>
+        <div class="phase-eyebrow">第 1〜2 段階 · 基盤・コア</div>
+        <div class="phase-title">基盤・認証・AI社員・チャット・公開ページ</div>
+      </div>
+      <div class="phase-count">12 / 33 画面</div>
+    </div>
+    <div class="mock-grid">
+      <a class="mock-card" href="auth/S-A01-signin.html"><span class="mock-id">S-A01</span><div><div class="mock-name">ログイン/サインアップ</div><div class="mock-cat">auth</div></div></a>
+      <a class="mock-card" href="workspace/S-A03-settings.html"><span class="mock-id">S-A03</span><div><div class="mock-name">ワークスペース設定</div><div class="mock-cat">workspace</div></div></a>
+      <a class="mock-card" href="project/S-B01-list.html"><span class="mock-id">S-B01</span><div><div class="mock-name">プロジェクト一覧</div><div class="mock-cat">project · 主導線</div></div></a>
+      <a class="mock-card" href="project/S-B02-dashboard.html"><span class="mock-id">S-B02</span><div><div class="mock-name">プロジェクトダッシュボード</div><div class="mock-cat">project · KPI · 工程フロー</div></div></a>
+      <a class="mock-card" href="project/S-B03-settings.html"><span class="mock-id">S-B03</span><div><div class="mock-name">プロジェクト設定</div><div class="mock-cat">project</div></div></a>
+      <a class="mock-card" href="employee/S-C01-org.html"><span class="mock-id">S-C01</span><div><div class="mock-name">AI社員組織図</div><div class="mock-cat">ai_employee · 10名固定</div></div></a>
+      <a class="mock-card" href="employee/S-C02-detail.html"><span class="mock-id">S-C02</span><div><div class="mock-name">AI社員詳細・編集</div><div class="mock-cat">ai_employee · 能力表示</div></div></a>
+      <a class="mock-card" href="chat/S-E01-thread.html"><span class="mock-id">S-E01</span><div><div class="mock-name">チャット画面（assistant-ui）</div><div class="mock-cat">chat · 心臓部</div></div></a>
+      <a class="mock-card" href="public/S-PUB01-terms.html"><span class="mock-id">S-PUB01</span><div><div class="mock-name">利用規約</div><div class="mock-cat">legal</div></div></a>
+      <a class="mock-card" href="public/S-PUB02-privacy.html"><span class="mock-id">S-PUB02</span><div><div class="mock-name">プライバシーポリシー</div><div class="mock-cat">legal</div></div></a>
+      <a class="mock-card" href="public/S-PUB03-tokushoho.html"><span class="mock-id">S-PUB03</span><div><div class="mock-name">特商法表記</div><div class="mock-cat">legal</div></div></a>
+      <a class="mock-card" href="public/S-PUB04-data-deletion.html"><span class="mock-id">S-PUB04</span><div><div class="mock-name">データ削除要求</div><div class="mock-cat">legal</div></div></a>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-head">
+      <div>
+        <div class="phase-eyebrow">第 3 段階 · 工程ワークフロー</div>
+        <div class="phase-title">工程・成果物・モック・クライアント招待</div>
+      </div>
+      <div class="phase-count">7 / 33 画面</div>
+    </div>
+    <div class="mock-grid">
+      <a class="mock-card" href="workflow/S-F01-flow.html"><span class="mock-id">S-F01</span><div><div class="mock-name">工程ワークフロービュー</div><div class="mock-cat">工程 · 9 段階</div></div></a>
+      <a class="mock-card" href="workflow/S-F02-phases.html"><span class="mock-id">S-F02</span><div><div class="mock-name">フェーズ管理（影響範囲）</div><div class="mock-cat">workflow（フェーズ管理）</div></div></a>
+      <a class="mock-card" href="output/S-G01-viewer.html"><span class="mock-id">S-G01</span><div><div class="mock-name">成果物ビューア（三層）</div><div class="mock-cat">output · コメント</div></div></a>
+      <a class="mock-card" href="mock/S-H01-viewer.html"><span class="mock-id">S-H01</span><div><div class="mock-name">モックビューア</div><div class="mock-cat">design · version</div></div></a>
+      <a class="mock-card" href="client/S-L01-invite-mgmt.html"><span class="mock-id">S-L01</span><div><div class="mock-name">クライアント招待管理</div><div class="mock-cat">client_portal</div></div></a>
+      <a class="mock-card" href="client/S-L02-signin.html"><span class="mock-id">S-L02</span><div><div class="mock-name">クライアントログイン</div><div class="mock-cat">client_portal · 別JWT</div></div></a>
+      <a class="mock-card" href="client/S-L03-project.html"><span class="mock-id">S-L03</span><div><div class="mock-name">クライアントプロジェクトビュー</div><div class="mock-cat">client_portal · 限定UI</div></div></a>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-head">
+      <div>
+        <div class="phase-eyebrow">第 4 段階 · タスク実行・仕様徹底</div>
+        <div class="phase-title">かんばん・並列実行・スコア評価ループ</div>
+      </div>
+      <div class="phase-count">4 / 33 画面</div>
+    </div>
+    <div class="mock-grid">
+      <a class="mock-card" href="task/S-I01-kanban.html"><span class="mock-id">S-I01</span><div><div class="mock-name">タスクボード（6 列）</div><div class="mock-cat">タスク · 再生</div></div></a>
+      <a class="mock-card" href="task/S-I02-detail.html"><span class="mock-id">S-I02</span><div><div class="mock-name">タスク詳細</div><div class="mock-cat">タスク · 受入条件</div></div></a>
+      <a class="mock-card" href="task/S-I03-monitor.html"><span class="mock-id">S-I03</span><div><div class="mock-name">実行モニター</div><div class="mock-cat">タスク · 並列 5-10</div></div></a>
+      <a class="mock-card" href="inbox/S-J01-list.html"><span class="mock-id">S-J01</span><div><div class="mock-name">承認待ち</div><div class="mock-cat">承認 · 仕様変更</div></div></a>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-head">
+      <div>
+        <div class="phase-eyebrow">第 5 段階 · ナレッジ・商談周辺</div>
+        <div class="phase-title">ナレッジ・議事録・提案/見積/契約・cron</div>
+      </div>
+      <div class="phase-count">5 / 33 画面</div>
+    </div>
+    <div class="mock-grid">
+      <a class="mock-card" href="knowledge/S-K01-explorer.html"><span class="mock-id">S-K01</span><div><div class="mock-name">ナレッジエクスプローラ</div><div class="mock-cat">knowledge · Obsidian風</div></div></a>
+      <a class="mock-card" href="knowledge/S-K02-review.html"><span class="mock-id">S-K02</span><div><div class="mock-name">ナレッジ書込承認</div><div class="mock-cat">knowledge · AI提案</div></div></a>
+      <a class="mock-card" href="upload/S-M01-meeting.html"><span class="mock-id">S-M01</span><div><div class="mock-name">議事録アップロード</div><div class="mock-cat">ingestion · Whisper</div></div></a>
+      <a class="mock-card" href="sales/S-N01-drafts.html"><span class="mock-id">S-N01</span><div><div class="mock-name">提案/見積/契約ドラフト</div><div class="mock-cat">sales · 5タブ</div></div></a>
+      <a class="mock-card" href="cron/S-O01-schedule.html"><span class="mock-id">S-O01</span><div><div class="mock-name">スケジュール設定（cron）</div><div class="mock-cat">execution · Inngest</div></div></a>
+    </div>
+  </section>
+
+  <section class="phase-section">
+    <div class="phase-head">
+      <div>
+        <div class="phase-eyebrow">第 6 段階 · 運営側</div>
+        <div class="phase-title">運営ダッシュボード・スキル・テンプレ・ユーザー・監査</div>
+      </div>
+      <div class="phase-count">5 / 33 画面</div>
+    </div>
+    <div class="mock-grid">
+      <a class="mock-card" href="admin/S-T01-dashboard.html"><span class="mock-id">S-T01</span><div><div class="mock-name">管理者ダッシュボード</div><div class="mock-cat">admin · KPI 6種</div></div></a>
+      <a class="mock-card" href="admin/S-T02-skills.html"><span class="mock-id">S-T02</span><div><div class="mock-name">スキル管理</div><div class="mock-cat">admin · 版管理</div></div></a>
+      <a class="mock-card" href="admin/S-T03-templates.html"><span class="mock-id">S-T03</span><div><div class="mock-name">AI社員テンプレ管理</div><div class="mock-cat">admin · 10名</div></div></a>
+      <a class="mock-card" href="admin/S-T04-users.html"><span class="mock-id">S-T04</span><div><div class="mock-name">ユーザー管理</div><div class="mock-cat">admin</div></div></a>
+      <a class="mock-card" href="admin/S-T05-audit.html"><span class="mock-id">S-T05</span><div><div class="mock-name">監査ログビュー</div><div class="mock-cat">admin · 1年保持</div></div></a>
+    </div>
+  </section>
+
+  <div class="footer-note">
+    <strong>これはモックアップです。</strong> 実際のデータ・API 連携・ロジックは含まれていません。デザインの方向性と画面構成の確認用です。<br>
+    フィードバックがある場合は <code>feedback_template.json</code> に記入してください。
+  </div>
+</div>
+<script src="_shared/icons.js"></script>
+</body>
+</html>

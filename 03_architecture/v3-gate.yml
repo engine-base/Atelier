@@ -1,0 +1,265 @@
+# Atelier - Foundation Phase Gate (v3)
+# Path: .github/workflows/v3-gate.yml
+# 8 merge gate parallel execution. All gates must pass for main merge.
+
+name: v3-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.12'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ============================================================
+  # Gate 1: mock lint (ESLint + Prettier + ruff + shellcheck + no-emoji)
+  # ============================================================
+  gate-1-lint:
+    name: 'Gate 1: Lint'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: ESLint + Prettier
+        run: pnpm lint
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: 'latest'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --frozen
+      - name: ruff
+        run: uv run ruff check .
+      - name: shellcheck
+        run: |
+          find scripts -name "*.sh" -print0 | xargs -0 -r shellcheck
+      - name: No-emoji check
+        run: pnpm tsx scripts/no-emoji-check.ts
+
+  # ============================================================
+  # Gate 2: 3-tier AC validator
+  # ============================================================
+  gate-2-ac-validator:
+    name: 'Gate 2: 3-tier AC Validator'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Validate AC HTML/JSON/MD consistency
+        run: pnpm tsx scripts/validate-ac.ts
+
+  # ============================================================
+  # Gate 3: audit MD validator
+  # ============================================================
+  gate-3-audit-md:
+    name: 'Gate 3: Audit MD Validator'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Validate audit MD
+        run: pnpm tsx scripts/validate-audit-md.ts
+
+  # ============================================================
+  # Gate 4: access control (RLS) coverage
+  # ============================================================
+  gate-4-rls:
+    name: 'Gate 4: RLS Coverage'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations
+        run: supabase db push --db-url postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Verify all tables have RLS enabled
+        run: pnpm tsx scripts/verify-rls.ts
+      - name: Test RLS policies (per-entity)
+        run: pnpm tsx scripts/test-rls-policies.ts
+
+  # ============================================================
+  # Gate 5: unit test + coverage (backend + frontend in parallel)
+  # ============================================================
+  gate-5-test-backend:
+    name: 'Gate 5a: Backend Test + Coverage'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --frozen
+      - name: pytest with coverage
+        run: |
+          cd apps/api
+          uv run pytest --cov --cov-report=xml --cov-fail-under=80
+
+  gate-5-test-frontend:
+    name: 'Gate 5b: Frontend Test + Coverage'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Vitest with coverage
+        run: pnpm test --coverage --reporter=verbose
+
+  # ============================================================
+  # Gate 6: type check (backend, pyright strict)
+  # ============================================================
+  gate-6-type-backend:
+    name: 'Gate 6: Type Check (Backend)'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --frozen
+      - name: pyright strict
+        run: uv run pyright --warnings --outputjson
+
+  # ============================================================
+  # Gate 7: type check (frontend) + lint
+  # ============================================================
+  gate-7-type-frontend:
+    name: 'Gate 7: Type Check (Frontend)'
+    runs-on: ubuntu-latest
+    needs: gate-1-lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: TypeScript strict
+        run: pnpm tsc --noEmit
+      - name: ESLint with no warnings
+        run: pnpm eslint . --max-warnings 0
+
+  # ============================================================
+  # Gate 8: mock-impl diff (frontend label only)
+  # ============================================================
+  gate-8-mock-impl-diff:
+    name: 'Gate 8: Mock-Impl Diff'
+    if: contains(github.event.pull_request.labels.*.name, 'has-frontend')
+    runs-on: ubuntu-latest
+    needs:
+      - gate-4-rls
+      - gate-5-test-frontend
+      - gate-7-type-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Mock-Impl pixel diff (Playwright + pixelmatch)
+        run: pnpm tsx scripts/mock-impl-diff.ts
+      - name: Upload diff artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mock-impl-diff
+          path: artifacts/diff/
+
+  # ============================================================
+  # Aggregate: all gates must pass
+  # ============================================================
+  all-gates-pass:
+    name: 'All Gates Pass'
+    runs-on: ubuntu-latest
+    needs:
+      - gate-1-lint
+      - gate-2-ac-validator
+      - gate-3-audit-md
+      - gate-4-rls
+      - gate-5-test-backend
+      - gate-5-test-frontend
+      - gate-6-type-backend
+      - gate-7-type-frontend
+    if: always()
+    steps:
+      - name: Check all required gates
+        run: |
+          if [[ "${{ needs.gate-1-lint.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-2-ac-validator.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-3-audit-md.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-4-rls.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-5-test-backend.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-5-test-frontend.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-6-type-backend.result }}" != "success" ]] || \
+             [[ "${{ needs.gate-7-type-frontend.result }}" != "success" ]]; then
+            echo "One or more gates failed"
+            exit 1
+          fi
+          echo "All gates passed"

@@ -1,0 +1,53 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node
+node_modules/
+.pnpm-store/
+.next/
+.turbo/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+.eslintcache
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# JIT 一時 CLAUDE.md（dispatch.sh が /tmp に生成。ルートに置かれた一時ファイルも除外）
+/CLAUDE.md.tmp
+/tmp/
+
+# Atelier 専有
+.atelier-cache/

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Atelier 依存 DAG / Wave 構成 v3.1</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --panel2:#eef1f7; --line:#dee3ec;
+    --text:#1c2230; --muted:#6b7385; --accent:#2563eb; --crit:#d92d20;
+    --foundation:#6d56ff; --data:#0ea5e9; --api:#e94e7c; --ushared:#7c4dff; --uscreen:#10b981; --polish:#d97706;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);background:#fff}
+  h1{margin:0 0 6px;font-size:18px}
+  .sub{color:var(--muted);font-size:12px}
+  main{padding:18px 22px 60px;max-width:1400px;margin:0 auto}
+  section{margin-bottom:30px}
+  h2{font-size:15px;letter-spacing:.02em;margin:24px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .lane{display:grid;grid-template-columns:170px 1fr 110px;gap:12px;align-items:center;padding:10px 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .lane .name{font-weight:600;display:flex;flex-direction:column;gap:2px}
+  .lane .name small{color:var(--muted);font-size:11px;font-weight:400}
+  .bar{position:relative;height:22px;border-radius:6px;overflow:hidden;background:#eef1f7;border:1px solid var(--line)}
+  .seg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,.25)}
+  .meta{text-align:right;color:var(--muted);font-size:11px}
+  .w0{background:var(--foundation)} .w1{background:var(--data)} .w2{background:var(--api)} .w3{background:var(--ushared)} .w4{background:var(--uscreen)} .w5{background:var(--polish)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:#fff;border:1px solid var(--line);color:var(--muted)}
+  .badge.w0{color:#fff;background:var(--foundation);border-color:transparent}
+  .badge.w1{color:#fff;background:var(--data);border-color:transparent}
+  .badge.w2{color:#fff;background:var(--api);border-color:transparent}
+  .badge.w3{color:#fff;background:var(--ushared);border-color:transparent}
+  .badge.w4{color:#fff;background:var(--uscreen);border-color:transparent}
+  .badge.w5{color:#fff;background:var(--polish);border-color:transparent}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+  thead th{background:var(--panel2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){ .grid2{grid-template-columns:1fr} }
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .box h3{margin:0 0 8px;font-size:13px;color:var(--accent)}
+  .flow{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;white-space:pre;color:#3a4258;background:#f1f4fa;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto}
+  .crit{color:var(--crit);font-weight:700}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  ul{margin:6px 0 0 18px;padding:0;color:#3a4258;font-size:12px}
+  ul li{margin:2px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>🕸 Atelier — 依存 DAG / Wave 構成（v3.1 API-First）</h1>
+  <div class="sub">
+    タスクカード <a href="./TASK-CARDS.html">TASK-CARDS.html</a> ・
+    信頼源 <a href="./tickets.json">tickets.json</a> ・
+    MD 版 <a href="./DEPENDENCIES.md">DEPENDENCIES.md</a>
+  </div>
+</header>
+<main>
+
+<section>
+<h2>二軸 Wave 別 時間内訳</h2>
+<table style="margin-bottom:14px">
+<thead><tr><th>Wave</th><th>件数</th><th>並列度</th><th>Human h</th><th>AI compute h</th><th>Wall-clock h</th><th>短縮率</th></tr></thead>
+<tbody>
+<tr><td>W0 Foundation</td><td class="num">28</td><td class="num">5</td><td class="num">213</td><td class="num">18.6</td><td class="num"><b>6.7</b></td><td class="num">~11×</td></tr>
+<tr><td>W1 Data</td><td class="num">35</td><td class="num">8</td><td class="num">188</td><td class="num">17.8</td><td class="num"><b>5.5</b></td><td class="num">~11×</td></tr>
+<tr><td>W2 API</td><td class="num">45</td><td class="num">10</td><td class="num">310</td><td class="num">26.6</td><td class="num"><b>4.7</b></td><td class="num">~12×</td></tr>
+<tr><td>W3 UI Foundation</td><td class="num">18</td><td class="num">5</td><td class="num">96</td><td class="num">9.6</td><td class="num"><b>2.4</b></td><td class="num">~10×</td></tr>
+<tr><td>W4 UI Parallel</td><td class="num">40</td><td class="num">10</td><td class="num">368</td><td class="num">36.8</td><td class="num"><b>3.7</b></td><td class="num">~10×</td></tr>
+<tr><td>W5 Integration</td><td class="num">24</td><td class="num">5</td><td class="num">144</td><td class="num">14.4</td><td class="num"><b>4.9</b></td><td class="num">~10×</td></tr>
+<tr style="background:#f1f4fa;font-weight:700"><td>計</td><td class="num">190</td><td>–</td><td class="num">1,328</td><td class="num">123.7</td><td class="num">27.9</td><td class="num"><b>10.7×</b></td></tr>
+</tbody></table>
+<div class="sub">※ Wall-clock = AI compute / 並列度 + 人間 review 時間。スケジュール詳細は <a href="../08_schedule/SCHEDULE.html">SCHEDULE.html</a>（トグル切替）参照。</div>
+</section>
+
+<section>
+<h2>Wave タイムライン（推定所要時間ベース）</h2>
+<div id="lanes"></div>
+<div class="legend">
+  <span class="badge w0">Wave 0 Foundation</span>
+  <span class="badge w1">Wave 1 Data</span>
+  <span class="badge w2">Wave 2 API</span>
+  <span class="badge w3">Wave 3 UI Foundation</span>
+  <span class="badge w4">Wave 4 UI Parallel</span>
+  <span class="badge w5">Wave 5 Integration</span>
+</div>
+</section>
+
+<section>
+<h2>Phase Gate 機械判定</h2>
+<table><thead><tr><th>Phase</th><th>Wave</th><th>Group</th><th>件数</th><th>並列数</th><th>所要 h</th><th>マイルストーン</th></tr></thead>
+<tbody>
+<tr><td>1_foundation</td><td>0</td><td>F</td><td class="num">28</td><td class="num">5</td><td class="num">60</td><td>Foundation Ready</td></tr>
+<tr><td>2_data</td><td>1</td><td>D</td><td class="num">35</td><td class="num">8</td><td class="num">35</td><td>Data Layer Ready</td></tr>
+<tr><td>3_api</td><td>2</td><td>A</td><td class="num">45</td><td class="num">10</td><td class="num">35</td><td><span class="crit">🔒 API 契約凍結</span> (2026-05-20T13:30)</td></tr>
+<tr><td>4_ui_foundation</td><td>3</td><td>U-shared</td><td class="num">18</td><td class="num">5</td><td class="num">25</td><td>UI Foundation Ready</td></tr>
+<tr><td>5_ui_parallel</td><td>4</td><td>U-screen</td><td class="num">40</td><td class="num">10</td><td class="num">40</td><td>UI Parallel Complete</td></tr>
+<tr><td>6_integration</td><td>5</td><td>I</td><td class="num">24</td><td class="num">5</td><td class="num">35</td><td><span class="crit">🚀 本番リリース可能</span></td></tr>
+</tbody></table>
+</section>
+
+<section>
+<h2>Blocking タスク（着手不可解除条件）</h2>
+<table><thead><tr><th>ID</th><th>タイトル</th><th>解除されると…</th></tr></thead>
+<tbody>
+<tr><td>T-F-07</td><td>GitHub Actions CI/CD（v3-gate.yml 10 gate）</td><td>全タスクの auto-merge / 3-tier AC validation が動く</td></tr>
+<tr><td>T-F-25</td><td>OpenAPI → TS/Pydantic 自動生成パイプライン</td><td>API 契約 ↔ 型同期が走り、UI と API が drift しなくなる</td></tr>
+<tr><td>T-F-27</td><td>Atelier Bridge 開発基盤（Vibeyard fork）</td><td>ローカル Claude Code 5-10 並列実行が可能になる</td></tr>
+<tr><td>T-F-28</td><td>Hermes 互換 kanban_tools 移植基盤</td><td>dispatcher / 6 列ライフサイクルが動き出す</td></tr>
+<tr><td>T-D-13</td><td>cron_schedules + シードデータ</td><td>Inngest cron が起動し、F-O01 自動化が始動</td></tr>
+<tr><td>T-A-45</td><td>★ OpenAPI 確定 + screen-api-coverage 100% 検証</td><td><span class="crit">API 契約凍結</span> → UI 並列実装解禁</td></tr>
+<tr><td>T-US-04</td><td>型安全 API クライアント（openapi-typescript 消費）</td><td>UI Parallel 着手解禁 / type drift 検査稼働</td></tr>
+</tbody></table>
+</section>
+
+<section>
+<h2>クリティカルパス</h2>
+<div class="flow">T-F-01 → T-F-02 → T-F-07 ★
+         → T-F-10/11 → T-F-25 ★ → T-F-26 → T-D-26/27
+T-F-01 → T-F-04 → T-F-12 → T-F-13 → T-F-22 (MCP)
+T-F-01 → T-F-04/11 → T-F-28 ★ (Hermes 移植) → T-A-28 (kanban_tools 完全実装)
+T-F-01 → T-F-27 ★ (Bridge fork) → T-A-29 (CB/PID) → T-A-30 (Monitor)
+                                                     ↓
+[Wave 1 Data]  T-D-01 → T-D-02 → T-D-05 (tasks 10 field) → T-D-06 → T-D-10
+                                              ↓
+       T-D-08 (client_invitations) → T-D-22 (R-T08 致命級 RLS) → T-D-33 (越境試験)
+                                              ↓
+[Wave 2 API]   T-A-01..44 並列 (10 並列) → T-A-45 ★ <span class="crit">API 契約凍結</span>
+                                              ↓
+[Wave 3 UI 基盤] T-US-01..03 → T-US-04 ★ (型安全クライアント) → T-US-05..18
+                                              ↓
+[Wave 4 UI 並列]  T-UC-01..40 (10 並列・40 画面同時生成)
+                                              ↓
+[Wave 5 結合]   T-I-05/07 (RLS 最終) → T-I-09/10 (CWV/a11y) → T-I-13..18 (機能完走) → T-I-24 ★ <span class="crit">本番リリース判定</span></div>
+</section>
+
+<section class="grid2">
+<div class="box">
+  <h3>📋 CI gate 10 種（v3-gate.yml）</h3>
+  <ul>
+    <li>1. lint （Ruff / Biome）</li>
+    <li>2. 3-tier AC validator (structural/functional/regression)</li>
+    <li>3. type check（tsc / mypy）</li>
+    <li>4. coverage 80%（Vitest + pytest）</li>
+    <li>5. endpoint-existence check</li>
+    <li>6. mock-impl diff（screen vs impl）</li>
+    <li>7. type drift（OpenAPI ↔ TS / Pydantic）</li>
+    <li>8. Schemathesis contract test</li>
+    <li>9. screen-API coverage 100%</li>
+    <li>10. RLS isolation matrix（R-T08）</li>
+  </ul>
+  <div class="sub" style="margin-top:8px">→ 10 / 10 PASS で main 自動マージ</div>
+</div>
+<div class="box">
+  <h3>🛡 R-T08 致命級リスク（クライアント別 JWT 完全分離）</h3>
+  <ul>
+    <li>T-D-08 client_invitations スキーマ</li>
+    <li>T-D-22 クライアント別 JWT 経路完全分離 RLS（10h）</li>
+    <li>T-D-33 RLS 越境試験：client_portal（8h）</li>
+    <li>T-A-35 クライアント別 JWT signin + project view（8h）</li>
+    <li>T-US-15 クライアントポータル用別レイアウト</li>
+    <li>T-UC-20/21/22 クライアント招待管理 / signin / プロジェクトビュー</li>
+    <li>T-I-07 RLS 越境：client_portal 完全分離（最終 8h）</li>
+  </ul>
+  <div class="sub" style="margin-top:8px">→ 計 60h+ を R-T08 単独に投下、CI gate 10 で永続監視</div>
+</div>
+</section>
+
+<section class="grid2">
+<div class="box">
+  <h3>🔁 OSS 流用ポイント（REUSE label）</h3>
+  <ul>
+    <li><b>Vibeyard</b>（MIT, Electron + PTY） → T-F-27 Bridge 基盤として fork</li>
+    <li><b>Hermes Agent kanban_tools</b>（MIT） → T-F-28 移植基盤 + T-A-28 で 7 ツール完全実装</li>
+  </ul>
+</div>
+<div class="box">
+  <h3>📐 Vertical Slice ではなく API-First を採用した理由</h3>
+  <ul>
+    <li>UI クライアント 3 種（Atelier 本体 / クライアントポータル / 運営 admin）</li>
+    <li>AI エージェント並列実装が前提（Bridge 経由ローカル Claude Code 5-10 並列）</li>
+    <li>RLS / 監査ログ / 認可など横断的関心事が極めて多い</li>
+    <li>API 契約凍結 → 40 画面を Wave 4 で本気の並列実装に持ち込む</li>
+  </ul>
+</div>
+</section>
+
+</main>
+<script>
+const PHASES = [
+  {wave:0, name:'Wave 0 — Foundation', subtitle:'Group F・並列 5', h:60, cls:'w0'},
+  {wave:1, name:'Wave 1 — Data Layer', subtitle:'Group D・並列 8', h:35, cls:'w1'},
+  {wave:2, name:'Wave 2 — API Layer', subtitle:'Group A・並列 10 → 🔒 契約凍結', h:35, cls:'w2'},
+  {wave:3, name:'Wave 3 — UI Foundation', subtitle:'Group U-shared・並列 5', h:25, cls:'w3'},
+  {wave:4, name:'Wave 4 — UI Parallel', subtitle:'Group U-screen・並列 10（最大並列）', h:40, cls:'w4'},
+  {wave:5, name:'Wave 5 — Integration', subtitle:'Group I・並列 5 → 🚀 本番', h:35, cls:'w5'}
+];
+const TOTAL = PHASES.reduce((s,p)=>s+p.h,0);
+const lanes = document.getElementById('lanes');
+let offset = 0;
+PHASES.forEach(p=>{
+  const lane = document.createElement('div'); lane.className='lane';
+  lane.innerHTML = `
+    <div class="name">${p.name}<small>${p.subtitle}</small></div>
+    <div class="bar"><div class="seg ${p.cls}" style="left:${(offset/TOTAL)*100}%;width:${(p.h/TOTAL)*100}%">${p.h}h</div></div>
+    <div class="meta">+${offset}h → +${offset+p.h}h</div>`;
+  lanes.append(lane);
+  offset += p.h;
+});
+</script>
+</body>
+</html>

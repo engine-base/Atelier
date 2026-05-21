@@ -1,0 +1,393 @@
+{
+  "project_name": "Atelier",
+  "created_at": "2026-05-18",
+  "client": "高本まさと（自社サービス）",
+  "project_type": "SaaS / 開発プロジェクト統合管理ツール",
+  "goal": {
+    "surface_request": "AI社員が常駐し、ヒアリング〜納品まで開発プロジェクトを一元管理する統合ツール",
+    "underlying_need": "1人で同時10案件以上を回せる属人性の低い開発体制を確立し、AI実装の品質を仕様徹底で担保する",
+    "essential_goal": "2026年内に100社/100名に使われるSaaSを作り、2-3年後に〜10億円規模での売却を実現する",
+    "success_definition": {
+      "quantitative": "2026年内100社/100名利用、SaaS課金開始、同時10案件並行運用可能",
+      "qualitative": "Claude以外のLLMでも品質維持、属人性低く第三者運用・売却可能"
+    }
+  },
+  "constraints": {
+    "deadline": "2026-08-31",
+    "budget": "BYOK前提でインフラコスト最小化",
+    "team_size": 1,
+    "tech_stack_constraints": [
+      "Next.js (App Router)",
+      "TypeScript",
+      "Supabase (Postgres/Auth/Realtime/Storage/pgvector)",
+      "Python FastAPI (AI処理層)",
+      "Anthropic SDK / Claude Agent SDK",
+      "Stripe (課金)"
+    ],
+    "existing_systems": [
+      "~/.claude/skills/ (スキル群、コピー取込)",
+      "Obsidian (任意連携)",
+      "ローカルClaude Code (実装ブリッジ)"
+    ]
+  },
+  "requirements": {
+    "must": [
+      "ワークスペース/プロジェクトCRUD",
+      "認証・課金（BYOK＋運営APIキーモード切替）",
+      "AI社員三階層（COO/リーダー/メンバー、人格カスタマイズ）",
+      "スキル取り込み機構（~/.claude/skills/からコピー）",
+      "チャットUI（OSS/SDK活用、Claudeレベル品質）",
+      "コンテキスト圧縮層",
+      "工程ワークフロー（ヒアリング〜納品）",
+      "三層出力（HTML/JSON/MD）",
+      "フェーズ分割管理（AI提案→ユーザー選択）",
+      "デザインモック（HTML、チャット内）",
+      "タスク分解スキル統合（1-2日粒度、依存関係必須）",
+      "かんばん/リスト",
+      "並列実行エンジン（5-10、ローカルClaude Codeブリッジ）",
+      "仕様徹底ループ（受入基準＋テスト＋検証AI、スコア評価）",
+      "人間承認ゲート",
+      "ナレッジ管理（アカウント単位、RAG）",
+      "MCP連携",
+      "クライアント招待モード",
+      "データ削除・退会フロー"
+    ],
+    "should": [
+      "議事録/商談アップロード解析",
+      "提案/見積/契約 自動ドラフト生成",
+      "マルチLLM対応（GPT/Gemini）",
+      "cron的スケジュール実行",
+      "Git/GitHub連携（最小）",
+      "監査ログ/履歴（最小）",
+      "Obsidian連携（任意）"
+    ],
+    "could": [
+      "オンボーディング導線",
+      "ツール内フィードバック機構",
+      "ローカルLLM（Ollama）対応",
+      "コスト/トークン可視化ダッシュボード",
+      "チーム/権限管理"
+    ],
+    "wont": [
+      "API/Webhook公開（MCPで代替）",
+      "多言語対応",
+      "SOC2等認証取得",
+      "リアルタイム文字起こし",
+      "既存会社運営DB直接取込"
+    ]
+  },
+  "stakeholders": [
+    {
+      "role": "最終決裁者",
+      "name": "高本まさと",
+      "involvement": "high",
+      "concerns": "単独GO/NOGO"
+    },
+    {
+      "role": "初期利用者",
+      "name": "本人＋自社チーム",
+      "involvement": "high",
+      "concerns": "同時10案件運用"
+    },
+    {
+      "role": "ベータユーザー",
+      "name": "知り合い10名前後",
+      "involvement": "medium",
+      "concerns": "6月開始"
+    },
+    {
+      "role": "一般ユーザー",
+      "name": "100社/100名",
+      "involvement": "high",
+      "concerns": "8月リリース後"
+    },
+    {
+      "role": "クライアント（間接）",
+      "name": "受託先各社",
+      "involvement": "medium",
+      "concerns": "招待モードでコメント"
+    },
+    {
+      "role": "売却候補先",
+      "name": "未定",
+      "involvement": "low",
+      "concerns": "2-3年後、利用者数・売上・コードクリーン"
+    }
+  ],
+  "mvp_concept": "本人が実案件1件をヒアリングから納品まで完走でき、知り合いベータユーザーが自分のプロジェクトを1つ動かせる状態。Must M01〜M14が動作し、Should/Couldは未着手で可。",
+  "workflow_order": {
+    "phase1_to_3": "ヒアリング → 要件定義 → アーキテクチャ設計 → デザイン → 機能分解 → タスク分解 → 実装 → 検証 → 納品",
+    "phase4_extension": "[提案] → [見積] → 上記フロー（提案・見積は前段に挿入）",
+    "task_card_required_links": [
+      "関連画面（モックHTML）",
+      "機能仕様書（HTML/JSON/MD）",
+      "受入基準HTML",
+      "テスト仕様書",
+      "依存タスク（dependencies/prerequisites/blocks）",
+      "関連API/DBスキーマ",
+      "ナレッジ参照"
+    ]
+  },
+  "knowledge_structure": {
+    "scope": "アカウント単位（プロジェクト跨ぎで再活用）",
+    "layers": {
+      "common": "ユーザー方向性 / 業界傾向（3案件以上で自動抽出）/ プロジェクト横断テンプレ",
+      "employee_specific": {
+        "ワンダ（デザイン）": "参考デザイン一覧 / カラー傾向 / フォント選好",
+        "トニー（営業）": "過去提案テンプレ / 成約パターン / 価格戦略",
+        "ストレンジ（設計）": "採用したアーキテクチャ / 失敗パターン",
+        "ヴィジョン（検証）": "よくある仕様逸脱 / 検証チェックリスト",
+        "ティチャラ（横断）": "全社員のナレッジ統括・整理担当"
+      }
+    },
+    "reference_policy": "各社員は自分のナレッジ優先、共通ナレッジも参照可",
+    "write_policy": "AIが候補生成→ユーザー承認で書込み",
+    "auto_organize": "AIが自動でカテゴリ分け・タグ付け・重複統合",
+    "industry_extraction": "3プロジェクト以上の類似度＋頻度ベースで自動抽出"
+  },
+  "ai_roster": [
+    {
+      "id": "coo-jarvis",
+      "name": "ジャービス",
+      "en": "Jarvis",
+      "department": "経営",
+      "role": "COO"
+    },
+    {
+      "id": "sales-tony",
+      "name": "トニー",
+      "en": "Tony Stark",
+      "department": "営業・契約部",
+      "role": "部長"
+    },
+    {
+      "id": "sales-natasha",
+      "name": "ナターシャ",
+      "en": "Black Widow",
+      "department": "営業・契約部",
+      "role": "メンバー"
+    },
+    {
+      "id": "product-steve",
+      "name": "スティーブ",
+      "en": "Captain America",
+      "department": "プロダクト企画部",
+      "role": "部長"
+    },
+    {
+      "id": "product-peter",
+      "name": "ピーター",
+      "en": "Spider-Man",
+      "department": "プロダクト企画部",
+      "role": "メンバー"
+    },
+    {
+      "id": "arch-strange",
+      "name": "ストレンジ",
+      "en": "Doctor Strange",
+      "department": "設計部",
+      "role": "部長"
+    },
+    {
+      "id": "design-wanda",
+      "name": "ワンダ",
+      "en": "Scarlet Witch",
+      "department": "デザイン部",
+      "role": "部長"
+    },
+    {
+      "id": "dev-thor",
+      "name": "ソー",
+      "en": "Thor",
+      "department": "開発・検証部",
+      "role": "部長"
+    },
+    {
+      "id": "qa-vision",
+      "name": "ヴィジョン",
+      "en": "Vision",
+      "department": "開発・検証部",
+      "role": "メンバー"
+    },
+    {
+      "id": "knowledge-tchalla",
+      "name": "ティチャラ",
+      "en": "Black Panther",
+      "department": "全社横断",
+      "role": "ナレッジ統括"
+    }
+  ],
+  "release_phases": [
+    {
+      "phase": 0,
+      "period": "2026-05下旬〜06上旬",
+      "scope": "基盤（Next.js+Supabase、Auth/RLS、WS/プロジェクトCRUD、AI社員DB、デザインシステム、チャットUI雛形、MCPサーバー雛形）"
+    },
+    {
+      "phase": 1,
+      "period": "2026-06",
+      "scope": "AI組織+スキル+チャット（スキルコピー、人格定義、装着、三層出力基盤、MCP公開）→ベータ開始"
+    },
+    {
+      "phase": 2,
+      "period": "2026-06下旬〜07前半",
+      "scope": "工程ワークフロー（各スキル統合、フェーズ管理、モック、クライアント招待）"
+    },
+    {
+      "phase": 3,
+      "period": "2026-07",
+      "scope": "タスク分解+並列実行+仕様徹底（かんばん、Claude Codeブリッジ、受入基準、検証AI、人間承認）"
+    },
+    {
+      "phase": 4,
+      "period": "2026-07下旬〜08初旬",
+      "scope": "ナレッジ+周辺（RAG、Obsidian任意、議事録、提案/見積/契約、cron、課金）"
+    },
+    {
+      "phase": 5,
+      "period": "2026-08",
+      "scope": "本格リリース（マルチLLM、Git連携最小、監査ログ最小、QA）"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "3ヶ月での全Phase完走",
+      "impact": "high",
+      "mitigation": "Phase 1で本人1案件完走を最優先MVP、それ以外は柔軟圧縮"
+    },
+    {
+      "risk": "検証ループの無限化",
+      "impact": "high",
+      "mitigation": "スコア閾値（受入基準95%）で停止＋人間承認ゲート"
+    },
+    {
+      "risk": "ローカルClaude Codeブリッジの不安定性",
+      "impact": "high",
+      "mitigation": "OAuth連携可否を早期検証、ダメなら初回CLIログイン"
+    },
+    {
+      "risk": "コンテキスト圧縮で情報欠落",
+      "impact": "high",
+      "mitigation": "HTML原本を圧縮対象外として保持・再参照可能化"
+    },
+    {
+      "risk": "依存関係漏れによるタスク失敗",
+      "impact": "high",
+      "mitigation": "タスクカードにdependencies/prerequisites/blocks必須属性化"
+    },
+    {
+      "risk": "プロバイダー追加時の再実装",
+      "impact": "high",
+      "mitigation": "Phase 0でLLMClient抽象化レイヤー必須実装"
+    },
+    {
+      "risk": "クライアント招待RLS設計",
+      "impact": "medium",
+      "mitigation": "Phase 0のRLS設計時に最初から考慮"
+    },
+    {
+      "risk": "売却時KPI（利用者数/利用度）軽視",
+      "impact": "medium",
+      "mitigation": "Phase 5でアナリティクス計測組込"
+    }
+  ],
+  "tech_stack_oss": {
+    "core": [
+      "Anthropic SDK",
+      "Claude Agent SDK",
+      "Claude web_search標準ツール"
+    ],
+    "bridge_desktop": [
+      "Vibeyard fork (MIT, elirantutia/vibeyard)",
+      "Electron",
+      "node-pty",
+      "xterm.js"
+    ],
+    "implementation_dispatcher": [
+      "Hermes Agent kanban (MIT, NousResearch/hermes-agent) port",
+      "git worktree"
+    ],
+    "orchestration": [
+      "LangGraph",
+      "Inngest"
+    ],
+    "rag": [
+      "LlamaIndex",
+      "Cognee",
+      "Voyage AI",
+      "Supabase pgvector"
+    ],
+    "document_parsing": [
+      "Whisper",
+      "Unstructured.io"
+    ],
+    "observability": [
+      "Langfuse OSS"
+    ],
+    "cost_optimization": [
+      "LLMLingua",
+      "Anthropic Prompt Caching",
+      "Batch API"
+    ],
+    "abstraction": "自前LLMClientラッパー (chat/stream/tool/search/embed/count)"
+  },
+  "oss_reuse_strategy": {
+    "principle": "車輪の再発明を回避。実装系の基盤は実績ある MIT OSS を fork or port、独自部分は 9 工程ワークフロー・AI 社員ペルソナ・F-CTX01/F-IMP01/F-CUC01-04 に集中",
+    "vibeyard_fork": {
+      "purpose": "Atelier Bridge デスクトップクライアント",
+      "reused": [
+        "pty-manager",
+        "claude-cli 接続",
+        "codex-cli 接続",
+        "gemini-cli 接続",
+        "セッション再開",
+        "カンバン UI",
+        "swarm モード",
+        "セッション telemetry"
+      ],
+      "removed": [
+        "P2P セッション共有 (WebRTC)",
+        "埋め込みブラウザ",
+        "Vibeyard 独自の AI Readiness Score"
+      ],
+      "added": [
+        "Atelier クラウドへの SSE 接続",
+        "9 工程ワークフロー連動",
+        "AI 社員 Skill 自動注入"
+      ]
+    },
+    "hermes_port": {
+      "purpose": "工程7(実装)のタスクディスパッチャ",
+      "reused": [
+        "HERMES_KANBAN_TASK env worker spawn パターン",
+        "git worktree 自動作成",
+        "サーキットブレーカ(max-retries+PIDポーリング)",
+        "構造化ハンドオフ(summary+metadata)",
+        "kanban_show/complete/block/unblock の7ツール",
+        "依存解消による Ready 昇格"
+      ],
+      "lifecycle": "6 列モデル (Triage→Ready→In Progress→Blocked→Awaiting→Done)"
+    },
+    "attribution": [
+      "Atelier Bridge は Vibeyard (MIT, © Eliran Tutia) を基にしています",
+      "タスクディスパッチャは Hermes Agent (MIT, © Nous Research) のパターンを採用しています"
+    ]
+  },
+  "next_skill": "requirements-definition",
+  "release_milestones_dual_axis": {
+    "mvp": {
+      "human": "2026-11-15",
+      "ai_parallel": "2026-06-10"
+    },
+    "beta": {
+      "human": "2026-12-01",
+      "ai_parallel": "2026-06-15"
+    },
+    "ga": {
+      "human": "2027-08-31",
+      "ai_parallel": "2026-12-31"
+    }
+  },
+  "schedule_ref": "08_schedule/schedule.json",
+  "two_axis_policy": "v3.1-dual"
+}

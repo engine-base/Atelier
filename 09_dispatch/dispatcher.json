@@ -1,0 +1,3690 @@
+{
+  "version": "v3.1-dual",
+  "project": "Atelier",
+  "skill": "distributed-dev",
+  "created_at": "2026-05-20",
+  "runtime": {
+    "engine": "atelier-bridge",
+    "executor": "local-claude-code",
+    "billing": "claude-plan-quota (no API charge)",
+    "max_parallel": 10,
+    "git_provider": "github",
+    "repository": "private-monorepo (placeholder: org/atelier)",
+    "base_branch": "main"
+  },
+  "branch_naming": {
+    "pattern": "<prefix>/<task_id_lower>-<slug>",
+    "prefixes": {
+      "NEW": "feat",
+      "REFACTOR": "refactor",
+      "REUSE": "feat",
+      "FIX": "fix",
+      "ARCHIVE": "chore",
+      "cleanup": "chore"
+    }
+  },
+  "wave_dispatch": [
+    {
+      "wave": 0,
+      "phase": "1_foundation",
+      "parallel_capacity": 5,
+      "start_date": "2026-05-20",
+      "end_date": "2026-05-21",
+      "execution": "parallel"
+    },
+    {
+      "wave": 1,
+      "phase": "2_data",
+      "parallel_capacity": 8,
+      "start_date": "2026-05-22",
+      "end_date": "2026-05-25",
+      "execution": "parallel"
+    },
+    {
+      "wave": 2,
+      "phase": "3_api",
+      "parallel_capacity": 10,
+      "start_date": "2026-05-26",
+      "end_date": "2026-05-27",
+      "execution": "parallel"
+    },
+    {
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "parallel_capacity": 5,
+      "start_date": "2026-05-28",
+      "end_date": "2026-05-29",
+      "execution": "parallel"
+    },
+    {
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "parallel_capacity": 10,
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-03",
+      "execution": "parallel"
+    },
+    {
+      "wave": 5,
+      "phase": "6_integration",
+      "parallel_capacity": 5,
+      "start_date": "2026-06-04",
+      "end_date": "2026-06-09",
+      "execution": "sequential"
+    }
+  ],
+  "ci_gates": [
+    {
+      "n": 1,
+      "name": "lint",
+      "runner": "biome+ruff",
+      "threshold": "0 error",
+      "budget_sec": 30
+    },
+    {
+      "n": 2,
+      "name": "3-tier-ac-validator",
+      "runner": "pnpm ac-validate",
+      "threshold": "all arrays non-empty",
+      "budget_sec": 10
+    },
+    {
+      "n": 3,
+      "name": "type-check",
+      "runner": "tsc+mypy",
+      "threshold": "0 error on touched",
+      "budget_sec": 60
+    },
+    {
+      "n": 4,
+      "name": "coverage",
+      "runner": "vitest+pytest",
+      "threshold": ">=80%",
+      "budget_sec": 120
+    },
+    {
+      "n": 5,
+      "name": "endpoint-existence",
+      "runner": "pnpm api-lint",
+      "threshold": "0 missing",
+      "budget_sec": 15
+    },
+    {
+      "n": 6,
+      "name": "mock-impl-diff",
+      "runner": "pnpm mock-diff",
+      "threshold": "0 diff",
+      "budget_sec": 30
+    },
+    {
+      "n": 7,
+      "name": "type-drift",
+      "runner": "pnpm type-sync-check",
+      "threshold": "0 drift",
+      "budget_sec": 20
+    },
+    {
+      "n": 8,
+      "name": "schemathesis-contract",
+      "runner": "schemathesis run",
+      "threshold": "0 violation",
+      "budget_sec": 90
+    },
+    {
+      "n": 9,
+      "name": "screen-api-coverage",
+      "runner": "pnpm coverage-screen-api",
+      "threshold": "100%",
+      "budget_sec": 20
+    },
+    {
+      "n": 10,
+      "name": "rls-isolation-matrix",
+      "runner": "pnpm rls-matrix",
+      "threshold": "0 cross",
+      "budget_sec": 60
+    }
+  ],
+  "auto_merge_policy": {
+    "required_tiers": [
+      "structural",
+      "functional",
+      "regression"
+    ],
+    "required_gates": 10,
+    "retry_count_max": 3,
+    "retry_backoff_sec": [
+      10,
+      30,
+      60
+    ],
+    "on_blocking_task": "require-human-approval",
+    "on_critical_gate": "require-executive-approval",
+    "escalation_channel": "S-E01-chat (#executive)"
+  },
+  "file_mutex": {
+    "enabled": true,
+    "scope": "wave",
+    "source_of_truth": "tickets.json files_changed_predicted",
+    "conflict_resolution": "first-claim-wins, others queue"
+  },
+  "audit_md_protocol": {
+    "required_before_start": true,
+    "template_script": "scripts/gen-audit.sh <TASK_ID>",
+    "path_pattern": "07_tasks/acceptance-criteria/<TASK_ID>.md",
+    "generic_phrase_reject": true
+  },
+  "stale_detection": {
+    "upstream_files": [
+      "07_tasks/tickets.json",
+      "07_api_design/openapi.yaml",
+      "06_mockups/**",
+      "05_design/DESIGN-atelier.md"
+    ],
+    "freeze_sha_at_branch_create": true,
+    "reject_on_drift": true
+  },
+  "task_count": 190,
+  "summary": {
+    "total_tasks": 190,
+    "total_estimate_hours_human": 1328.0,
+    "total_estimate_hours_ai_compute": 123.7,
+    "total_wall_clock_h_ai_parallel": 27.9,
+    "human_review_total_h": 10.8,
+    "ai_acceleration_factor_overall": 10.7,
+    "calendar_days_ai": 15,
+    "calendar_days_human": 240
+  },
+  "packages": [
+    {
+      "id": "T-F-01",
+      "branch": "feat/t-f-01-pnpm-turborepo",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-01.md",
+      "depends_on": [],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-01"
+    },
+    {
+      "id": "T-F-02",
+      "branch": "feat/t-f-02-ts-python",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-02.md",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-02"
+    },
+    {
+      "id": "T-F-03",
+      "branch": "feat/t-f-03-next-js-15-app-router",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-03.md",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-03"
+    },
+    {
+      "id": "T-F-04",
+      "branch": "feat/t-f-04-fastapi",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-04.md",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-04"
+    },
+    {
+      "id": "T-F-05",
+      "branch": "feat/t-f-05-supabase--tokyo-region",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-05.md",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-05"
+    },
+    {
+      "id": "T-F-06",
+      "branch": "feat/t-f-06-vercel-fly-io",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-06.md",
+      "depends_on": [
+        "T-F-03",
+        "T-F-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-06"
+    },
+    {
+      "id": "T-F-07",
+      "branch": "feat/t-f-07-github-actions-ci-cd-v3-gate-yml-10-gate",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 0.93,
+      "wall_clock_h_ai": 1.43,
+      "human_review_h": 0.5,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-07.md",
+      "depends_on": [
+        "T-F-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-07"
+    },
+    {
+      "id": "T-F-08",
+      "branch": "feat/t-f-08-sentry-langfuse-better-stack",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 0.53,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-08.md",
+      "depends_on": [
+        "T-F-02",
+        "T-F-03",
+        "T-F-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-08"
+    },
+    {
+      "id": "T-F-09",
+      "branch": "feat/t-f-09-atelier",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 0.53,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-09.md",
+      "depends_on": [
+        "T-F-03"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-09"
+    },
+    {
+      "id": "T-F-10",
+      "branch": "feat/t-f-10-drizzle-orm",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-10.md",
+      "depends_on": [
+        "T-F-03",
+        "T-F-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-10"
+    },
+    {
+      "id": "T-F-11",
+      "branch": "feat/t-f-11-asyncpg-sqlalchemy-2-0",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-11.md",
+      "depends_on": [
+        "T-F-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-11"
+    },
+    {
+      "id": "T-F-12",
+      "branch": "feat/t-f-12-llmclient",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-12.md",
+      "depends_on": [
+        "T-F-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-12"
+    },
+    {
+      "id": "T-F-13",
+      "branch": "feat/t-f-13-langgraph-inngest",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 12,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-13.md",
+      "depends_on": [
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-13"
+    },
+    {
+      "id": "T-F-14",
+      "branch": "feat/t-f-14-voyage-ai--pgvector",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tchalla",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-14.md",
+      "depends_on": [
+        "T-F-05",
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-14"
+    },
+    {
+      "id": "T-F-15",
+      "branch": "feat/t-f-15-prompt-caching-batch-api-llmlingua",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 0.53,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-15.md",
+      "depends_on": [
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-15"
+    },
+    {
+      "id": "T-F-16",
+      "branch": "feat/t-f-16-shadcn-ui-assistant-ui-tool-ui",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-16.md",
+      "depends_on": [
+        "T-F-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-16"
+    },
+    {
+      "id": "T-F-17",
+      "branch": "feat/t-f-17-resend-react-email",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-17.md",
+      "depends_on": [
+        "T-F-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-17"
+    },
+    {
+      "id": "T-F-18",
+      "branch": "feat/t-f-18-task",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-18.md",
+      "depends_on": [
+        "T-F-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-18"
+    },
+    {
+      "id": "T-F-19",
+      "branch": "feat/t-f-19-supabase-vault-byok",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-19.md",
+      "depends_on": [
+        "T-F-05",
+        "T-F-18"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-19"
+    },
+    {
+      "id": "T-F-20",
+      "branch": "feat/t-f-20-inngest-cron",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-20.md",
+      "depends_on": [
+        "T-F-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-20"
+    },
+    {
+      "id": "T-F-21",
+      "branch": "feat/t-f-21-anthropic-websearch",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-21.md",
+      "depends_on": [
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-21"
+    },
+    {
+      "id": "T-F-22",
+      "branch": "feat/t-f-22-mcp-server",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-22.md",
+      "depends_on": [
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-22"
+    },
+    {
+      "id": "T-F-23",
+      "branch": "feat/t-f-23-playwright-e2e",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-23.md",
+      "depends_on": [
+        "T-F-03",
+        "T-F-07"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-23"
+    },
+    {
+      "id": "T-F-24",
+      "branch": "feat/t-f-24-vitest-pytest",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-24.md",
+      "depends_on": [
+        "T-F-02",
+        "T-F-07"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-24"
+    },
+    {
+      "id": "T-F-25",
+      "branch": "feat/t-f-25-openapi--ts--pydantic",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 1.03,
+      "human_review_h": 0.5,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-25.md",
+      "depends_on": [
+        "T-F-02",
+        "T-F-10",
+        "T-F-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-25"
+    },
+    {
+      "id": "T-F-26",
+      "branch": "feat/t-f-26-schemathesis-contract-test",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-26.md",
+      "depends_on": [
+        "T-F-07",
+        "T-F-25"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-26"
+    },
+    {
+      "id": "T-F-27",
+      "branch": "feat/t-f-27-atelier-bridge--vibeyard-fork",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 16,
+      "estimate_hours_ai": 3.2,
+      "wall_clock_h_ai": 4.2,
+      "human_review_h": 1.0,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-27.md",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-27"
+    },
+    {
+      "id": "T-F-28",
+      "branch": "feat/t-f-28-hermes--kanbantools",
+      "wave": 0,
+      "phase": "1_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 12,
+      "estimate_hours_ai": 2.4,
+      "wall_clock_h_ai": 3.4,
+      "human_review_h": 1.0,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-F-28.md",
+      "depends_on": [
+        "T-F-04",
+        "T-F-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-F-28"
+    },
+    {
+      "id": "T-D-01",
+      "branch": "feat/t-d-01-db--users-workspaces-workspacemembership",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-01.md",
+      "depends_on": [
+        "T-F-10",
+        "T-F-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-01"
+    },
+    {
+      "id": "T-D-02",
+      "branch": "feat/t-d-02-db--projects-phases-workflowoutputs",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-02.md",
+      "depends_on": [
+        "T-D-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-02"
+    },
+    {
+      "id": "T-D-03",
+      "branch": "feat/t-d-03-db--aiemployees-templates-skills",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-03.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-03"
+    },
+    {
+      "id": "T-D-04",
+      "branch": "feat/t-d-04-db--chatthreads-chatmessages",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-04.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-04"
+    },
+    {
+      "id": "T-D-05",
+      "branch": "feat/t-d-05-db--tasks-v3-1-hermes--10",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 7,
+      "estimate_hours_ai": 0.58,
+      "wall_clock_h_ai": 0.58,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-05.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-05"
+    },
+    {
+      "id": "T-D-06",
+      "branch": "feat/t-d-06-db--taskexecutions-acceptancecriteria",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-06.md",
+      "depends_on": [
+        "T-D-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-06"
+    },
+    {
+      "id": "T-D-07",
+      "branch": "feat/t-d-07-db--mocks-comments",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-07.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-07"
+    },
+    {
+      "id": "T-D-08",
+      "branch": "feat/t-d-08-db--clientinvitations",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-08.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-08"
+    },
+    {
+      "id": "T-D-09",
+      "branch": "feat/t-d-09-db--knowledgenodes-pgvector",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-09.md",
+      "depends_on": [
+        "T-D-02",
+        "T-F-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-09"
+    },
+    {
+      "id": "T-D-10",
+      "branch": "feat/t-d-10-db--approvalinbox",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-10.md",
+      "depends_on": [
+        "T-D-05",
+        "T-D-06"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-10"
+    },
+    {
+      "id": "T-D-11",
+      "branch": "feat/t-d-11-db--auditlogs-consents-externaluploads",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-11.md",
+      "depends_on": [
+        "T-D-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-11"
+    },
+    {
+      "id": "T-D-12",
+      "branch": "feat/t-d-12-db--mcptokens-byokapikeys",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-12.md",
+      "depends_on": [
+        "T-D-01",
+        "T-F-19"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-12"
+    },
+    {
+      "id": "T-D-13",
+      "branch": "feat/t-d-13-db--cronschedules",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.72,
+      "human_review_h": 0.3,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-13.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-13"
+    },
+    {
+      "id": "T-D-14",
+      "branch": "feat/t-d-14-rls-users-workspacememberships-per-entit",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 7,
+      "estimate_hours_ai": 0.58,
+      "wall_clock_h_ai": 0.58,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-14.md",
+      "depends_on": [
+        "T-D-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-14"
+    },
+    {
+      "id": "T-D-15",
+      "branch": "feat/t-d-15-rls-workspaces-projects",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-15.md",
+      "depends_on": [
+        "T-D-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-15"
+    },
+    {
+      "id": "T-D-16",
+      "branch": "feat/t-d-16-rls-tasks-executions-acceptancecriteria",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-16.md",
+      "depends_on": [
+        "T-D-05",
+        "T-D-06"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-16"
+    },
+    {
+      "id": "T-D-17",
+      "branch": "feat/t-d-17-rls-chat-mocks-comments-approvalinbox",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-17.md",
+      "depends_on": [
+        "T-D-04",
+        "T-D-07",
+        "T-D-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-17"
+    },
+    {
+      "id": "T-D-18",
+      "branch": "feat/t-d-18-rls-knowledgenodes-scope-per-entity",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-18.md",
+      "depends_on": [
+        "T-D-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-18"
+    },
+    {
+      "id": "T-D-19",
+      "branch": "feat/t-d-19-rls-auditlogs-consents-externaluploads",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-19.md",
+      "depends_on": [
+        "T-D-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-19"
+    },
+    {
+      "id": "T-D-20",
+      "branch": "feat/t-d-20-rls-mcptokens-byokapikeys-cron",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-20.md",
+      "depends_on": [
+        "T-D-12",
+        "T-D-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-20"
+    },
+    {
+      "id": "T-D-21",
+      "branch": "feat/t-d-21-rls-aiemployees-templates-skills-phases",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-21.md",
+      "depends_on": [
+        "T-D-03"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-21"
+    },
+    {
+      "id": "T-D-22",
+      "branch": "feat/t-d-22-jwt--rls-r-t08",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 2.5,
+      "wall_clock_h_ai": 5.5,
+      "human_review_h": 3.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-22.md",
+      "depends_on": [
+        "T-D-08",
+        "T-D-14",
+        "T-D-15",
+        "T-D-16",
+        "T-D-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-22"
+    },
+    {
+      "id": "T-D-23",
+      "branch": "feat/t-d-23-service-role-bypass-bridge-token",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-23.md",
+      "depends_on": [
+        "T-D-14",
+        "T-D-15",
+        "T-D-16",
+        "T-D-17",
+        "T-D-18",
+        "T-D-19",
+        "T-D-20",
+        "T-D-21"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-23"
+    },
+    {
+      "id": "T-D-24",
+      "branch": "feat/t-d-24-ai--10--skill-templates",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-24.md",
+      "depends_on": [
+        "T-D-03"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-24"
+    },
+    {
+      "id": "T-D-25",
+      "branch": "feat/t-d-25-terms-privacy",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.25,
+      "wall_clock_h_ai": 0.25,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-25.md",
+      "depends_on": [
+        "T-D-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-25"
+    },
+    {
+      "id": "T-D-26",
+      "branch": "feat/t-d-26-drizzle",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-26.md",
+      "depends_on": [
+        "T-D-01",
+        "T-D-02",
+        "T-D-03",
+        "T-D-04",
+        "T-D-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-26"
+    },
+    {
+      "id": "T-D-27",
+      "branch": "feat/t-d-27-sqlalchemy",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-27.md",
+      "depends_on": [
+        "T-D-01",
+        "T-D-02",
+        "T-D-03",
+        "T-D-04",
+        "T-D-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-27"
+    },
+    {
+      "id": "T-D-28",
+      "branch": "feat/t-d-28-migration--rollback",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-28.md",
+      "depends_on": [
+        "T-D-26",
+        "T-D-27"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-28"
+    },
+    {
+      "id": "T-D-29",
+      "branch": "feat/t-d-29-db-index",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-29.md",
+      "depends_on": [
+        "T-D-01",
+        "T-D-02",
+        "T-D-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-29"
+    },
+    {
+      "id": "T-D-30",
+      "branch": "feat/t-d-30-db",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-30.md",
+      "depends_on": [
+        "T-F-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-30"
+    },
+    {
+      "id": "T-D-31",
+      "branch": "feat/t-d-31-rls--workspace",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-31.md",
+      "depends_on": [
+        "T-D-14",
+        "T-D-15",
+        "T-D-16",
+        "T-D-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-31"
+    },
+    {
+      "id": "T-D-32",
+      "branch": "feat/t-d-32-rls--project",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-32.md",
+      "depends_on": [
+        "T-D-31"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-32"
+    },
+    {
+      "id": "T-D-33",
+      "branch": "feat/t-d-33-rls--clientportal-r-t08",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-33.md",
+      "depends_on": [
+        "T-D-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-33"
+    },
+    {
+      "id": "T-D-34",
+      "branch": "feat/t-d-34-rls--bridge-token-scope",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-34.md",
+      "depends_on": [
+        "T-D-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-34"
+    },
+    {
+      "id": "T-D-35",
+      "branch": "feat/t-d-35-rls--cron-vault-mcptokens",
+      "wave": 1,
+      "phase": "2_data",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-D-35.md",
+      "depends_on": [
+        "T-D-19",
+        "T-D-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-D-35"
+    },
+    {
+      "id": "T-A-01",
+      "branch": "feat/t-a-01-api-signup--f-legal-004",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-01.md",
+      "depends_on": [
+        "T-D-14",
+        "T-D-19",
+        "T-F-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-01"
+    },
+    {
+      "id": "T-A-02",
+      "branch": "feat/t-a-02-api-signin-5",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-02.md",
+      "depends_on": [
+        "T-A-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-02"
+    },
+    {
+      "id": "T-A-03",
+      "branch": "feat/t-a-03-api-magic-link-oauth-google-github",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.83,
+      "wall_clock_h_ai": 0.83,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-03.md",
+      "depends_on": [
+        "T-A-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-03"
+    },
+    {
+      "id": "T-A-04",
+      "branch": "feat/t-a-04-api--jwt-refresh",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-04.md",
+      "depends_on": [
+        "T-A-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-04"
+    },
+    {
+      "id": "T-A-05",
+      "branch": "feat/t-a-05-api--30--f-legal-002",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-05.md",
+      "depends_on": [
+        "T-A-01",
+        "T-F-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-05"
+    },
+    {
+      "id": "T-A-06",
+      "branch": "feat/t-a-06-crud",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-06.md",
+      "depends_on": [
+        "T-D-15"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-06"
+    },
+    {
+      "id": "T-A-07",
+      "branch": "feat/t-a-07-ws",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-07.md",
+      "depends_on": [
+        "T-A-06",
+        "T-F-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-07"
+    },
+    {
+      "id": "T-A-08",
+      "branch": "feat/t-a-08-mcp--api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-08.md",
+      "depends_on": [
+        "T-A-06",
+        "T-F-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-08"
+    },
+    {
+      "id": "T-A-09",
+      "branch": "feat/t-a-09-byok-api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-09.md",
+      "depends_on": [
+        "T-A-06",
+        "T-F-19"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-09"
+    },
+    {
+      "id": "T-A-10",
+      "branch": "feat/t-a-10-crud",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 7,
+      "estimate_hours_ai": 0.58,
+      "wall_clock_h_ai": 0.58,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-10.md",
+      "depends_on": [
+        "T-D-15"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-10"
+    },
+    {
+      "id": "T-A-11",
+      "branch": "feat/t-a-11-dashboard-activities-api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-11.md",
+      "depends_on": [
+        "T-A-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-11"
+    },
+    {
+      "id": "T-A-12",
+      "branch": "feat/t-a-12-30",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-12.md",
+      "depends_on": [
+        "T-A-10",
+        "T-F-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-12"
+    },
+    {
+      "id": "T-A-13",
+      "branch": "feat/t-a-13-ai--off",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-13.md",
+      "depends_on": [
+        "T-A-10",
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-13"
+    },
+    {
+      "id": "T-A-14",
+      "branch": "feat/t-a-14-ai----api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-14.md",
+      "depends_on": [
+        "T-D-21",
+        "T-D-24"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-14"
+    },
+    {
+      "id": "T-A-15",
+      "branch": "feat/t-a-15-ai",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-15.md",
+      "depends_on": [
+        "T-A-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-15"
+    },
+    {
+      "id": "T-A-16",
+      "branch": "feat/t-a-16-crud",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-16.md",
+      "depends_on": [
+        "T-D-17",
+        "T-A-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-16"
+    },
+    {
+      "id": "T-A-17",
+      "branch": "feat/t-a-17-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-17.md",
+      "depends_on": [
+        "T-A-16",
+        "T-F-12"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-17"
+    },
+    {
+      "id": "T-A-18",
+      "branch": "feat/t-a-18-sse--f-ctx01",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.17,
+      "wall_clock_h_ai": 1.17,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-18.md",
+      "depends_on": [
+        "T-A-17",
+        "T-F-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-18"
+    },
+    {
+      "id": "T-A-19",
+      "branch": "feat/t-a-19-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-19.md",
+      "depends_on": [
+        "T-A-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-19"
+    },
+    {
+      "id": "T-A-20",
+      "branch": "feat/t-a-20-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 7,
+      "estimate_hours_ai": 0.58,
+      "wall_clock_h_ai": 0.58,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-20.md",
+      "depends_on": [
+        "T-A-10",
+        "T-F-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-20"
+    },
+    {
+      "id": "T-A-21",
+      "branch": "feat/t-a-21-workflowoutputs",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-21.md",
+      "depends_on": [
+        "T-A-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-21"
+    },
+    {
+      "id": "T-A-22",
+      "branch": "feat/t-a-22-api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-22.md",
+      "depends_on": [
+        "T-A-21",
+        "T-D-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-22"
+    },
+    {
+      "id": "T-A-23",
+      "branch": "feat/t-a-23-f-imp01--networkx",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "strange",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.83,
+      "wall_clock_h_ai": 0.83,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-23.md",
+      "depends_on": [
+        "T-A-20",
+        "T-F-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-23"
+    },
+    {
+      "id": "T-A-24",
+      "branch": "feat/t-a-24-api-dispatcher",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-24.md",
+      "depends_on": [
+        "T-F-28",
+        "T-D-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-24"
+    },
+    {
+      "id": "T-A-25",
+      "branch": "feat/t-a-25-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-25.md",
+      "depends_on": [
+        "T-A-24"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-25"
+    },
+    {
+      "id": "T-A-26",
+      "branch": "feat/t-a-26-crud",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-26.md",
+      "depends_on": [
+        "T-D-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-26"
+    },
+    {
+      "id": "T-A-27",
+      "branch": "feat/t-a-27-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-27.md",
+      "depends_on": [
+        "T-A-24"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-27"
+    },
+    {
+      "id": "T-A-28",
+      "branch": "feat/t-a-28-hermes--kanbantools-7",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.17,
+      "wall_clock_h_ai": 1.17,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-28.md",
+      "depends_on": [
+        "T-F-28",
+        "T-A-24"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-28"
+    },
+    {
+      "id": "T-A-29",
+      "branch": "feat/t-a-29-pid",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-29.md",
+      "depends_on": [
+        "T-A-28"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-29"
+    },
+    {
+      "id": "T-A-30",
+      "branch": "feat/t-a-30-api-bridge",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-30.md",
+      "depends_on": [
+        "T-A-28",
+        "T-F-27"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-30"
+    },
+    {
+      "id": "T-A-31",
+      "branch": "feat/t-a-31-sse",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-31.md",
+      "depends_on": [
+        "T-A-30"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-31"
+    },
+    {
+      "id": "T-A-32",
+      "branch": "feat/t-a-32-5--decide",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.83,
+      "wall_clock_h_ai": 0.83,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-32.md",
+      "depends_on": [
+        "T-D-10",
+        "T-A-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-32"
+    },
+    {
+      "id": "T-A-33",
+      "branch": "feat/t-a-33-crud",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-33.md",
+      "depends_on": [
+        "T-D-07"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-33"
+    },
+    {
+      "id": "T-A-34",
+      "branch": "feat/t-a-34-api",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-34.md",
+      "depends_on": [
+        "T-D-08",
+        "T-F-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-34"
+    },
+    {
+      "id": "T-A-35",
+      "branch": "feat/t-a-35-jwt-signin-project-view-r-t08",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-35.md",
+      "depends_on": [
+        "T-A-34",
+        "T-D-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-35"
+    },
+    {
+      "id": "T-A-36",
+      "branch": "feat/t-a-36-crud-voyage-semantic",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tchalla",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.83,
+      "wall_clock_h_ai": 0.83,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-36.md",
+      "depends_on": [
+        "T-D-18",
+        "T-F-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-36"
+    },
+    {
+      "id": "T-A-37",
+      "branch": "feat/t-a-37-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tchalla",
+      "estimate_hours_human": 7,
+      "estimate_hours_ai": 0.58,
+      "wall_clock_h_ai": 0.58,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-37.md",
+      "depends_on": [
+        "T-A-36"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-37"
+    },
+    {
+      "id": "T-A-38",
+      "branch": "feat/t-a-38-whisper-transcription",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "steve",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-38.md",
+      "depends_on": [
+        "T-D-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-38"
+    },
+    {
+      "id": "T-A-39",
+      "branch": "feat/t-a-39-task",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "steve",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-39.md",
+      "depends_on": [
+        "T-A-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-39"
+    },
+    {
+      "id": "T-A-40",
+      "branch": "feat/t-a-40-cron--crud-inngest",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-40.md",
+      "depends_on": [
+        "T-F-20",
+        "T-D-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-40"
+    },
+    {
+      "id": "T-A-41",
+      "branch": "feat/t-a-41-admin-dashboard-users",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-41.md",
+      "depends_on": [
+        "T-A-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-41"
+    },
+    {
+      "id": "T-A-42",
+      "branch": "feat/t-a-42-admin--ai",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-42.md",
+      "depends_on": [
+        "T-A-15"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-42"
+    },
+    {
+      "id": "T-A-43",
+      "branch": "feat/t-a-43-admin",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.33,
+      "wall_clock_h_ai": 0.33,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-43.md",
+      "depends_on": [
+        "T-D-19",
+        "T-F-18"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-43"
+    },
+    {
+      "id": "T-A-44",
+      "branch": "feat/t-a-44-api--4",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.42,
+      "wall_clock_h_ai": 0.42,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-44.md",
+      "depends_on": [
+        "T-D-25"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-44"
+    },
+    {
+      "id": "T-A-45",
+      "branch": "feat/t-a-45-openapi--ts--screen-api-coverage-100",
+      "wave": 2,
+      "phase": "3_api",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 1.2,
+      "wall_clock_h_ai": 3.2,
+      "human_review_h": 2.0,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-A-45.md",
+      "depends_on": [
+        "T-A-01",
+        "T-A-02",
+        "T-A-03",
+        "T-A-04",
+        "T-A-05",
+        "T-A-06",
+        "T-A-07",
+        "T-A-08",
+        "T-A-09",
+        "T-A-10",
+        "T-A-11",
+        "T-A-12",
+        "T-A-13",
+        "T-A-14",
+        "T-A-15",
+        "T-A-16",
+        "T-A-17",
+        "T-A-18",
+        "T-A-19",
+        "T-A-20",
+        "T-A-21",
+        "T-A-22",
+        "T-A-23",
+        "T-A-24",
+        "T-A-25",
+        "T-A-26",
+        "T-A-27",
+        "T-A-28",
+        "T-A-29",
+        "T-A-30",
+        "T-A-31",
+        "T-A-32",
+        "T-A-33",
+        "T-A-34",
+        "T-A-35",
+        "T-A-36",
+        "T-A-37",
+        "T-A-38",
+        "T-A-39",
+        "T-A-40",
+        "T-A-41",
+        "T-A-42",
+        "T-A-43",
+        "T-A-44",
+        "T-F-25",
+        "T-F-26"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-A-45"
+    },
+    {
+      "id": "T-US-01",
+      "branch": "feat/t-us-01-appshell---main",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-01.md",
+      "depends_on": [
+        "T-F-09",
+        "T-F-16",
+        "T-A-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-01"
+    },
+    {
+      "id": "T-US-02",
+      "branch": "feat/t-us-02-ws",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-02.md",
+      "depends_on": [
+        "T-US-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-02"
+    },
+    {
+      "id": "T-US-03",
+      "branch": "feat/t-us-03-jwt-cookie-refresh",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-03.md",
+      "depends_on": [
+        "T-A-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-03"
+    },
+    {
+      "id": "T-US-04",
+      "branch": "feat/t-us-04-api--openapi-typescript",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 1.1,
+      "human_review_h": 0.5,
+      "blocking": true,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-04.md",
+      "depends_on": [
+        "T-A-45",
+        "T-F-25"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-04"
+    },
+    {
+      "id": "T-US-05",
+      "branch": "feat/t-us-05-tanstack-query",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-05.md",
+      "depends_on": [
+        "T-US-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-05"
+    },
+    {
+      "id": "T-US-06",
+      "branch": "feat/t-us-06-errorboundary-sentry",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-06.md",
+      "depends_on": [
+        "T-F-08"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-06"
+    },
+    {
+      "id": "T-US-07",
+      "branch": "feat/t-us-07-realtime",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-07.md",
+      "depends_on": [
+        "T-US-01",
+        "T-A-32"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-07"
+    },
+    {
+      "id": "T-US-08",
+      "branch": "feat/t-us-08-dialog-toast",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-08.md",
+      "depends_on": [
+        "T-F-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-08"
+    },
+    {
+      "id": "T-US-09",
+      "branch": "feat/t-us-09-ai",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-09.md",
+      "depends_on": [
+        "T-F-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-09"
+    },
+    {
+      "id": "T-US-10",
+      "branch": "feat/t-us-10-task",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-10.md",
+      "depends_on": [
+        "T-US-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-10"
+    },
+    {
+      "id": "T-US-11",
+      "branch": "feat/t-us-11-react-hook-form-zod",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-11.md",
+      "depends_on": [
+        "T-F-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-11"
+    },
+    {
+      "id": "T-US-12",
+      "branch": "feat/t-us-12-i18n--v1",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-12.md",
+      "depends_on": [
+        "T-US-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-12"
+    },
+    {
+      "id": "T-US-13",
+      "branch": "feat/t-us-13-a11y--wcag-2-2-aa",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-13.md",
+      "depends_on": [
+        "T-F-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-13"
+    },
+    {
+      "id": "T-US-14",
+      "branch": "feat/t-us-14-pdf",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-14.md",
+      "depends_on": [
+        "T-F-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-14"
+    },
+    {
+      "id": "T-US-15",
+      "branch": "feat/t-us-15-task",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-15.md",
+      "depends_on": [
+        "T-US-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-15"
+    },
+    {
+      "id": "T-US-16",
+      "branch": "feat/t-us-16-admin",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-16.md",
+      "depends_on": [
+        "T-US-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-16"
+    },
+    {
+      "id": "T-US-17",
+      "branch": "feat/t-us-17-task",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-17.md",
+      "depends_on": [
+        "T-F-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-17"
+    },
+    {
+      "id": "T-US-18",
+      "branch": "feat/t-us-18-tailwind",
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-US-18.md",
+      "depends_on": [
+        "T-F-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-US-18"
+    },
+    {
+      "id": "T-UC-01",
+      "branch": "feat/t-uc-01-s-a01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-01.md",
+      "depends_on": [
+        "T-US-03",
+        "T-US-04",
+        "T-A-01",
+        "T-A-02",
+        "T-A-03",
+        "T-A-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-01"
+    },
+    {
+      "id": "T-UC-02",
+      "branch": "feat/t-uc-02-s-a03",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 12,
+      "estimate_hours_ai": 1.2,
+      "wall_clock_h_ai": 1.2,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-02.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-06",
+        "T-A-07",
+        "T-A-08",
+        "T-A-09",
+        "T-A-05"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-02"
+    },
+    {
+      "id": "T-UC-03",
+      "branch": "feat/t-uc-03-s-b01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-03.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-03"
+    },
+    {
+      "id": "T-UC-04",
+      "branch": "feat/t-uc-04-s-b02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-04.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-11",
+        "T-A-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-04"
+    },
+    {
+      "id": "T-UC-05",
+      "branch": "feat/t-uc-05-s-b03",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-05.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-10",
+        "T-A-12",
+        "T-A-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-05"
+    },
+    {
+      "id": "T-UC-06",
+      "branch": "feat/t-uc-06-s-c01-ai",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-06.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-06"
+    },
+    {
+      "id": "T-UC-07",
+      "branch": "feat/t-uc-07-s-c02-ai",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-07.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-07"
+    },
+    {
+      "id": "T-UC-08",
+      "branch": "feat/t-uc-08-s-e01--assistant-ui-sse-tool-ui",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 20,
+      "estimate_hours_ai": 2.0,
+      "wall_clock_h_ai": 2.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-08.md",
+      "depends_on": [
+        "T-US-04",
+        "T-F-16",
+        "T-A-16",
+        "T-A-17",
+        "T-A-18",
+        "T-A-19"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-08"
+    },
+    {
+      "id": "T-UC-09",
+      "branch": "feat/t-uc-09-s-e01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-09.md",
+      "depends_on": [
+        "T-UC-08",
+        "T-A-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-09"
+    },
+    {
+      "id": "T-UC-10",
+      "branch": "feat/t-uc-10-s-f01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-10.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-20",
+        "T-A-21",
+        "T-A-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-10"
+    },
+    {
+      "id": "T-UC-11",
+      "branch": "feat/t-uc-11-s-f02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-11.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-11"
+    },
+    {
+      "id": "T-UC-12",
+      "branch": "feat/t-uc-12-s-g01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 12,
+      "estimate_hours_ai": 1.2,
+      "wall_clock_h_ai": 1.2,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-12.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-21",
+        "T-A-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-12"
+    },
+    {
+      "id": "T-UC-13",
+      "branch": "feat/t-uc-13-s-h01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-13.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-33",
+        "T-A-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-13"
+    },
+    {
+      "id": "T-UC-14",
+      "branch": "feat/t-uc-14-s-i01--6",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 18,
+      "estimate_hours_ai": 1.8,
+      "wall_clock_h_ai": 1.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-14.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-24",
+        "T-A-25",
+        "T-A-30"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-14"
+    },
+    {
+      "id": "T-UC-15",
+      "branch": "feat/t-uc-15-s-i02--6",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-15.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-25",
+        "T-A-26",
+        "T-A-27"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-15"
+    },
+    {
+      "id": "T-UC-16",
+      "branch": "feat/t-uc-16-s-i03---sse",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-16.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-30",
+        "T-A-31"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-16"
+    },
+    {
+      "id": "T-UC-17",
+      "branch": "feat/t-uc-17-s-j01--5",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 12,
+      "estimate_hours_ai": 1.2,
+      "wall_clock_h_ai": 1.2,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-17.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-32"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-17"
+    },
+    {
+      "id": "T-UC-18",
+      "branch": "feat/t-uc-18-s-k01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-18.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-36"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-18"
+    },
+    {
+      "id": "T-UC-19",
+      "branch": "feat/t-uc-19-s-k02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-19.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-37"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-19"
+    },
+    {
+      "id": "T-UC-20",
+      "branch": "feat/t-uc-20-s-l01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-20.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-34"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-20"
+    },
+    {
+      "id": "T-UC-21",
+      "branch": "feat/t-uc-21-s-l02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-21.md",
+      "depends_on": [
+        "T-US-15",
+        "T-A-35"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-21"
+    },
+    {
+      "id": "T-UC-22",
+      "branch": "feat/t-uc-22-s-l03",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-22.md",
+      "depends_on": [
+        "T-US-15",
+        "T-A-35",
+        "T-A-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-22"
+    },
+    {
+      "id": "T-UC-23",
+      "branch": "feat/t-uc-23-s-m01--transcript",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-23.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-38"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-23"
+    },
+    {
+      "id": "T-UC-24",
+      "branch": "feat/t-uc-24-s-n01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-24.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-39"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-24"
+    },
+    {
+      "id": "T-UC-25",
+      "branch": "feat/t-uc-25-s-o01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-25.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-40"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-25"
+    },
+    {
+      "id": "T-UC-26",
+      "branch": "feat/t-uc-26-s-pub01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-26.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-44"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-26"
+    },
+    {
+      "id": "T-UC-27",
+      "branch": "feat/t-uc-27-s-pub02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-27.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-44"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-27"
+    },
+    {
+      "id": "T-UC-28",
+      "branch": "feat/t-uc-28-s-pub03",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-28.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-44"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-28"
+    },
+    {
+      "id": "T-UC-29",
+      "branch": "feat/t-uc-29-s-pub04",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-29.md",
+      "depends_on": [
+        "T-US-04",
+        "T-A-44"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-29"
+    },
+    {
+      "id": "T-UC-30",
+      "branch": "feat/t-uc-30-s-t01",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 14,
+      "estimate_hours_ai": 1.4,
+      "wall_clock_h_ai": 1.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-30.md",
+      "depends_on": [
+        "T-US-16",
+        "T-A-41"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-30"
+    },
+    {
+      "id": "T-UC-31",
+      "branch": "feat/t-uc-31-s-t02",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-31.md",
+      "depends_on": [
+        "T-US-16",
+        "T-A-42"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-31"
+    },
+    {
+      "id": "T-UC-32",
+      "branch": "feat/t-uc-32-s-t03-ai",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-32.md",
+      "depends_on": [
+        "T-US-16",
+        "T-A-42"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-32"
+    },
+    {
+      "id": "T-UC-33",
+      "branch": "feat/t-uc-33-s-t04",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-33.md",
+      "depends_on": [
+        "T-US-16",
+        "T-A-41"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-33"
+    },
+    {
+      "id": "T-UC-34",
+      "branch": "feat/t-uc-34-s-t05",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-34.md",
+      "depends_on": [
+        "T-US-16",
+        "T-A-43"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-34"
+    },
+    {
+      "id": "T-UC-35",
+      "branch": "feat/t-uc-35-task",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-35.md",
+      "depends_on": [
+        "T-US-01"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-35"
+    },
+    {
+      "id": "T-UC-36",
+      "branch": "feat/t-uc-36-task",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-36.md",
+      "depends_on": [
+        "T-US-07"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-36"
+    },
+    {
+      "id": "T-UC-37",
+      "branch": "feat/t-uc-37-task",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "thor",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-37.md",
+      "depends_on": [
+        "T-US-01",
+        "T-A-04"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-37"
+    },
+    {
+      "id": "T-UC-38",
+      "branch": "feat/t-uc-38-ws",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-38.md",
+      "depends_on": [
+        "T-US-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-38"
+    },
+    {
+      "id": "T-UC-39",
+      "branch": "feat/t-uc-39-task",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-39.md",
+      "depends_on": [
+        "T-US-02"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-39"
+    },
+    {
+      "id": "T-UC-40",
+      "branch": "feat/t-uc-40-task",
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-UC-40.md",
+      "depends_on": [
+        "T-US-01",
+        "T-A-36"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-UC-40"
+    },
+    {
+      "id": "T-I-01",
+      "branch": "feat/t-i-01-e2e",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-01.md",
+      "depends_on": [
+        "T-UC-01",
+        "T-UC-04",
+        "T-F-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-01"
+    },
+    {
+      "id": "T-I-02",
+      "branch": "feat/t-i-02-e2e",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-02.md",
+      "depends_on": [
+        "T-UC-14",
+        "T-UC-17",
+        "T-F-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-02"
+    },
+    {
+      "id": "T-I-03",
+      "branch": "feat/t-i-03-e2e--f-ctx01",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-03.md",
+      "depends_on": [
+        "T-UC-08"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-03"
+    },
+    {
+      "id": "T-I-04",
+      "branch": "feat/t-i-04-e2e---30--hard-delete",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-04.md",
+      "depends_on": [
+        "T-UC-02",
+        "T-A-05",
+        "T-F-20"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-04"
+    },
+    {
+      "id": "T-I-05",
+      "branch": "feat/t-i-05-rls--workspace",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-05.md",
+      "depends_on": [
+        "T-D-31",
+        "T-A-45"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-05"
+    },
+    {
+      "id": "T-I-06",
+      "branch": "feat/t-i-06-rls--project-bridge-token",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-06.md",
+      "depends_on": [
+        "T-D-32",
+        "T-D-34"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-06"
+    },
+    {
+      "id": "T-I-07",
+      "branch": "feat/t-i-07-rls--clientportal--r-t08",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-07.md",
+      "depends_on": [
+        "T-D-33",
+        "T-A-35",
+        "T-UC-22"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-07"
+    },
+    {
+      "id": "T-I-08",
+      "branch": "feat/t-i-08-rls--servicerole-vault-cron",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-08.md",
+      "depends_on": [
+        "T-D-35"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-08"
+    },
+    {
+      "id": "T-I-09",
+      "branch": "feat/t-i-09-lighthouse---33--cwv",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-09.md",
+      "depends_on": [
+        "T-UC-01",
+        "T-UC-02",
+        "T-UC-03",
+        "T-UC-04",
+        "T-UC-05",
+        "T-UC-06",
+        "T-UC-07",
+        "T-UC-08",
+        "T-UC-09",
+        "T-UC-10",
+        "T-UC-11",
+        "T-UC-12",
+        "T-UC-13",
+        "T-UC-14",
+        "T-UC-15",
+        "T-UC-16",
+        "T-UC-17",
+        "T-UC-18",
+        "T-UC-19",
+        "T-UC-20",
+        "T-UC-21",
+        "T-UC-22",
+        "T-UC-23",
+        "T-UC-24",
+        "T-UC-25",
+        "T-UC-26",
+        "T-UC-27",
+        "T-UC-28",
+        "T-UC-29",
+        "T-UC-30",
+        "T-UC-31",
+        "T-UC-32",
+        "T-UC-33",
+        "T-UC-34"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-09"
+    },
+    {
+      "id": "T-I-10",
+      "branch": "feat/t-i-10-a11y-axe---33--aa",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-10.md",
+      "depends_on": [
+        "T-I-09"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-10"
+    },
+    {
+      "id": "T-I-11",
+      "branch": "feat/t-i-11-bridge--macos-dmg-signednotarized",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 0.53,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-11.md",
+      "depends_on": [
+        "T-F-27",
+        "T-A-30",
+        "T-A-31"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-11"
+    },
+    {
+      "id": "T-I-12",
+      "branch": "feat/t-i-12-bridge--linux-windows-npm-publish",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-12.md",
+      "depends_on": [
+        "T-I-11"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-12"
+    },
+    {
+      "id": "T-I-13",
+      "branch": "feat/t-i-13-f-j02---5-10",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-13.md",
+      "depends_on": [
+        "T-A-28",
+        "T-UC-14",
+        "T-UC-15",
+        "T-UC-16"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-13"
+    },
+    {
+      "id": "T-I-14",
+      "branch": "feat/t-i-14-f-j02-retry",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-14.md",
+      "depends_on": [
+        "T-I-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-14"
+    },
+    {
+      "id": "T-I-15",
+      "branch": "feat/t-i-15-10",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-15.md",
+      "depends_on": [
+        "T-I-13"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-15"
+    },
+    {
+      "id": "T-I-16",
+      "branch": "feat/t-i-16-f-cuc01-04",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-16.md",
+      "depends_on": [
+        "T-A-23",
+        "T-A-32",
+        "T-UC-17"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-16"
+    },
+    {
+      "id": "T-I-17",
+      "branch": "feat/t-i-17-f-imp01--networkx",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-17.md",
+      "depends_on": [
+        "T-A-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-17"
+    },
+    {
+      "id": "T-I-18",
+      "branch": "feat/t-i-18-f-ctx01",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-18.md",
+      "depends_on": [
+        "T-A-18",
+        "T-UC-08",
+        "T-F-14"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-18"
+    },
+    {
+      "id": "T-I-19",
+      "branch": "chore/t-i-19-dead-code-cleanup-knip-depcheck-ts-prune",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-19.md",
+      "depends_on": [
+        "T-I-10"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-19"
+    },
+    {
+      "id": "T-I-20",
+      "branch": "feat/t-i-20-storybook---phase-5",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "wanda",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.53,
+      "wall_clock_h_ai": 0.53,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-20.md",
+      "depends_on": [
+        "T-US-18"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-20"
+    },
+    {
+      "id": "T-I-21",
+      "branch": "feat/t-i-21-ssl",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-21.md",
+      "depends_on": [
+        "T-F-06"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-21"
+    },
+    {
+      "id": "T-I-22",
+      "branch": "feat/t-i-22-better-stack",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-22.md",
+      "depends_on": [
+        "T-F-08",
+        "T-I-21"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-22"
+    },
+    {
+      "id": "T-I-23",
+      "branch": "feat/t-i-23-task",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "tony",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.27,
+      "wall_clock_h_ai": 0.27,
+      "human_review_h": 0.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-23.md",
+      "depends_on": [
+        "T-I-21"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-23"
+    },
+    {
+      "id": "T-I-24",
+      "branch": "feat/t-i-24-v3-gate-yml-10--pass",
+      "wave": 5,
+      "phase": "6_integration",
+      "assigned_employee": "vision",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 2.8,
+      "human_review_h": 2.0,
+      "blocking": false,
+      "audit_md_path": "07_tasks/acceptance-criteria/T-I-24.md",
+      "depends_on": [
+        "T-I-01",
+        "T-I-02",
+        "T-I-03",
+        "T-I-04",
+        "T-I-05",
+        "T-I-06",
+        "T-I-07",
+        "T-I-08",
+        "T-I-09",
+        "T-I-10",
+        "T-I-11",
+        "T-I-12",
+        "T-I-13",
+        "T-I-14",
+        "T-I-15",
+        "T-I-16",
+        "T-I-17",
+        "T-I-18",
+        "T-I-19",
+        "T-I-21",
+        "T-I-22",
+        "T-I-23"
+      ],
+      "jit_command": "./09_dispatch/scripts/dispatch.sh T-I-24"
+    }
+  ],
+  "packages_generation": "JIT via ./09_dispatch/scripts/dispatch.sh <TASK_ID>",
+  "jit_policy": {
+    "static_files_forbidden": true,
+    "template": "09_dispatch/CLAUDE.md.template",
+    "generator": "09_dispatch/scripts/dispatch.sh",
+    "validator": "09_dispatch/scripts/validate.sh",
+    "source_of_truth": "07_tasks/tickets.json"
+  }
+}

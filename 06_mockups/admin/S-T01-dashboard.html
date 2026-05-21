@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>運営ダッシュボード — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── ダーク管理サイドバー ───────── */
+  .sidebar { background: #0F172A; border-right-color: #1E293B; }
+  .sidebar-brand { border-bottom-color: #1E293B; padding: 18px 18px; }
+  .sidebar .brand-mark { background: var(--color-error); }
+  .sidebar .brand-name { color: #FFFFFF; }
+  .sidebar-sub { font-size: 10px; color: #94A3B8; letter-spacing: 0.1em; }
+  .sidebar .nav-section-label { color: #475569; }
+  .sidebar .nav-item { color: #94A3B8; }
+  .sidebar .nav-item:hover { background: rgba(255,255,255,0.04); color: #E2E8F0; }
+  .sidebar .nav-item.active { background: rgba(37,99,235,0.12); color: #93C5FD; border-left-color: var(--color-primary); }
+  .sidebar .nav-item.active i[data-icon] { color: #93C5FD; }
+
+  .admin-tag {
+    background: var(--color-error); color: #FFFFFF;
+    padding: 3px 10px; border-radius: var(--rounded-sm);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+  }
+
+  /* ───────── ミッションヒーロー ───────── */
+  .mission {
+    background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%);
+    color: #FFFFFF;
+    border-radius: var(--rounded-lg);
+    padding: 26px 32px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 28px;
+    align-items: center;
+  }
+  .mission-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; opacity: 0.7; text-transform: uppercase; margin-bottom: 8px; }
+  .mission-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 8px; line-height: 1.4; }
+  .mission-sub { font-size: 13px; opacity: 0.8; line-height: 1.6; max-width: 580px; }
+  .mission-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; max-width: 480px; }
+  .mission-mini-stat { background: rgba(255,255,255,0.06); border-radius: var(--rounded-md); padding: 10px 14px; }
+  .mission-mini-label { font-size: 10.5px; opacity: 0.65; letter-spacing: 0.06em; }
+  .mission-mini-value { font-size: 18px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .mission-progress-card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--rounded-lg);
+    padding: 18px 20px;
+  }
+  .progress-circle-wrap { display: flex; align-items: center; gap: 16px; }
+  .progress-ring {
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    background: conic-gradient(var(--color-tertiary) 0% 13%, rgba(255,255,255,0.08) 13% 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .progress-ring::before { content: ''; position: absolute; inset: 7px; background: #1E3A8A; border-radius: 50%; }
+  .progress-ring-inner { position: relative; text-align: center; }
+  .progress-ring-num { font-size: 22px; font-weight: 900; line-height: 1; color: #FFFFFF; }
+  .progress-ring-pct { font-size: 10.5px; opacity: 0.7; margin-top: 2px; }
+  .progress-info { flex: 1; }
+  .progress-label { font-size: 11px; opacity: 0.7; letter-spacing: 0.08em; text-transform: uppercase; }
+  .progress-headline { font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.5; }
+  .progress-need { font-size: 11.5px; opacity: 0.75; margin-top: 6px; }
+
+  /* ───────── KPI bento ───────── */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .bento-card {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bento-card.span-2 { grid-column: span 2; }
+  .bento-label { font-size: 11px; font-weight: 700; color: var(--color-on-surface-variant); letter-spacing: 0.06em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .bento-value { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .bento-delta { font-size: 11.5px; font-weight: 700; margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; }
+  .bento-delta.up { color: var(--color-tertiary); }
+  .bento-delta.down { color: var(--color-error); }
+  .bento-delta.neutral { color: var(--color-on-surface-variant); }
+  .bento-spark {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 36px;
+    pointer-events: none; opacity: 0.7;
+  }
+
+  /* ───────── 2 列：トレンド + 取得状況 ───────── */
+  .row-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .panel {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 20px 22px;
+  }
+  .panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .panel-title { font-size: 14px; font-weight: 700; }
+  .panel-sub { font-size: 11.5px; color: var(--color-on-surface-variant); margin-left: auto; }
+
+  .legend-inline { display: flex; gap: 14px; font-size: 11.5px; }
+  .legend-inline .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+  .seg-tabs { display: flex; gap: 2px; padding: 3px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .seg-tabs button { padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 5px; }
+  .seg-tabs button.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: var(--shadow-sm); }
+
+  /* ───────── 健全性パネル ───────── */
+  .health-row { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); align-items: center; }
+  .health-row:last-child { border-bottom: none; }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; margin: 0 9px; }
+  .health-dot.ok { background: var(--color-tertiary); box-shadow: 0 0 0 4px rgba(20,184,166,0.18); }
+  .health-dot.warn { background: var(--color-secondary); box-shadow: 0 0 0 4px rgba(199,160,74,0.18); }
+  .health-dot.err { background: var(--color-error); box-shadow: 0 0 0 4px rgba(220,38,38,0.18); }
+  .health-name { font-size: 13px; font-weight: 600; }
+  .health-detail { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .health-meta { font-size: 11.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+
+  /* ───────── ベータFB ───────── */
+  .fb-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: 12px 14px; margin-bottom: 8px; }
+  .fb-meta { font-size: 11px; color: var(--color-on-surface-variant); display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .fb-tag { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--rounded-full); }
+  .fb-tag.bug { background: #FEE2E2; color: #991B1B; }
+  .fb-tag.feature { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .fb-tag.praise { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .fb-text { font-size: 12.5px; line-height: 1.6; }
+
+  /* ───────── 活動フィード ───────── */
+  .activity-list .row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--color-border);
+    align-items: flex-start;
+  }
+  .activity-list .row:last-child { border-bottom: none; }
+  .activity-list .icon {
+    width: 28px; height: 28px;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .activity-list .icon.signup { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .activity-list .icon.ws { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .activity-list .icon.fb { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .activity-list .icon.churn { background: #FEE2E2; color: #991B1B; }
+  .activity-list .icon.skill { background: #E2E8F0; color: #1E293B; }
+  .activity-text { font-size: 13px; line-height: 1.5; }
+  .activity-text .who { font-weight: 700; }
+  .activity-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ───────── コスト（運営側のみ） ───────── */
+  .cost-row { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-border); align-items: center; }
+  .cost-row:last-child { border-bottom: none; }
+  .cost-icon { width: 32px; height: 32px; border-radius: var(--rounded-md); background: var(--color-surface-variant); display: flex; align-items: center; justify-content: center; }
+  .cost-name { font-size: 13px; font-weight: 600; }
+  .cost-desc { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .cost-val { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
+  .cost-val-sub { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .cost-total { padding: 14px 0 4px; display: flex; justify-content: space-between; align-items: baseline; border-top: 2px solid var(--color-on-surface); }
+  .cost-total-label { font-size: 12.5px; font-weight: 700; }
+  .cost-total-val { font-size: 22px; font-weight: 900; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 1200px) {
+    .mission { grid-template-columns: 1fr; }
+    .bento { grid-template-columns: repeat(2, 1fr); }
+    .row-2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">A</div>
+    <div>
+      <div class="brand-name">Atelier Admin</div>
+      <div class="sidebar-sub">運営管理</div>
+    </div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">プラットフォーム</div>
+    <a class="nav-item active" href="#"><i data-icon="layout-dashboard"></i>運営ダッシュボード</a>
+    <a class="nav-item" href="S-T02-skills.html"><i data-icon="zap"></i>能力（スキル）管理</a>
+    <a class="nav-item" href="S-T03-templates.html"><i data-icon="bot"></i>AI 社員テンプレ</a>
+    <a class="nav-item" href="S-T04-users.html"><i data-icon="users"></i>ユーザー管理</a>
+    <a class="nav-item" href="S-T05-audit.html"><i data-icon="file-text"></i>監査ログ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-T01" data-bf-screen-name="admin_dashboard" data-bf-category="admin" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="flex items-center gap-3">
+    <span class="admin-tag">運営</span>
+    <div class="breadcrumb"><strong>運営ダッシュボード</strong></div>
+  </div>
+  <div class="flex items-center gap-3">
+    <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;">
+      <option>過去 7 日</option>
+      <option selected>過去 30 日</option>
+      <option>過去 90 日</option>
+      <option>今年</option>
+    </select>
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<div class="content" style="max-width: 1400px;">
+
+  <!-- ━━━━━━ 1. ミッションヒーロー ━━━━━━ -->
+  <section class="mission">
+    <div>
+      <div class="mission-eyebrow">2026 年内ゴール</div>
+      <h1 class="mission-title">100 社獲得 — あと <strong style="color: var(--color-tertiary);">87 社</strong>、月平均 <strong style="color: var(--color-tertiary);">13 社</strong> のペースが必要</h1>
+      <p class="mission-sub">いまの伸びは月 +8 名。このペースだと年内 35 社着地の見込み。タレント獲得、紹介経路、コンテンツ施策のうち、最も伸びるレバーを月次で見直してください。</p>
+      <div class="mission-stats">
+        <div class="mission-mini-stat">
+          <div class="mission-mini-label">必要なペース</div>
+          <div class="mission-mini-value">+13 社 / 月</div>
+        </div>
+        <div class="mission-mini-stat">
+          <div class="mission-mini-label">いまのペース</div>
+          <div class="mission-mini-value" style="color: var(--color-secondary);">+8 社 / 月</div>
+        </div>
+        <div class="mission-mini-stat">
+          <div class="mission-mini-label">想定 ARR（100社時）</div>
+          <div class="mission-mini-value">¥36M</div>
+        </div>
+        <div class="mission-mini-stat">
+          <div class="mission-mini-label">想定売却 評価額</div>
+          <div class="mission-mini-value">¥800M – 1.2B</div>
+        </div>
+      </div>
+    </div>
+    <div class="mission-progress-card">
+      <div class="progress-circle-wrap">
+        <div class="progress-ring">
+          <div class="progress-ring-inner">
+            <div class="progress-ring-num">13</div>
+            <div class="progress-ring-pct">/ 100</div>
+          </div>
+        </div>
+        <div class="progress-info">
+          <div class="progress-label">獲得</div>
+          <div class="progress-headline">個人 9 / 法人 4</div>
+          <div class="progress-need">あと 87 社 · 残り 7 ヶ月</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 2. KPI bento ━━━━━━ -->
+  <section class="bento">
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="users" data-size="12"></i>月間アクティブ</div>
+      <div class="bento-value">13</div>
+      <div class="bento-delta up"><i data-icon="trending-up" data-size="12"></i>+8 名（30 日）</div>
+      <svg class="bento-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <path d="M 0,30 L 25,28 L 50,25 L 75,22 L 100,18 L 125,14 L 150,10 L 175,7 L 200,4" stroke="var(--color-tertiary)" stroke-width="2" fill="none"/>
+        <path d="M 0,30 L 25,28 L 50,25 L 75,22 L 100,18 L 125,14 L 150,10 L 175,7 L 200,4 L 200,36 L 0,36 Z" fill="var(--color-tertiary)" fill-opacity="0.12"/>
+      </svg>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="folder" data-size="12"></i>プロジェクト数</div>
+      <div class="bento-value">28</div>
+      <div class="bento-delta up"><i data-icon="trending-up" data-size="12"></i>+18 件</div>
+      <svg class="bento-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <path d="M 0,32 L 30,30 L 60,28 L 90,22 L 120,18 L 150,12 L 180,8 L 200,5" stroke="var(--color-primary)" stroke-width="2" fill="none"/>
+        <path d="M 0,32 L 30,30 L 60,28 L 90,22 L 120,18 L 150,12 L 180,8 L 200,5 L 200,36 L 0,36 Z" fill="var(--color-primary)" fill-opacity="0.12"/>
+      </svg>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="check-circle" data-size="12"></i>タスク実行 / 30日</div>
+      <div class="bento-value">1,247</div>
+      <div class="bento-delta up">平均スコア <strong>0.91</strong></div>
+      <svg class="bento-spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <path d="M 0,28 L 30,26 L 60,28 L 90,20 L 120,18 L 150,14 L 180,10 L 200,8" stroke="var(--color-tertiary)" stroke-width="2" fill="none"/>
+      </svg>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="dollar-sign" data-size="12"></i>月次経常収益 (MRR)</div>
+      <div class="bento-value">¥0</div>
+      <div class="bento-delta neutral">ベータ無料運用中</div>
+    </div>
+
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="message-square" data-size="12"></i>ベータ FB 件数</div>
+      <div class="bento-value">42</div>
+      <div class="bento-delta up">+12 件 · 未対応 <strong style="color:var(--color-error);">5</strong></div>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="user-x" data-size="12"></i>退会・離脱（30日）</div>
+      <div class="bento-value">1</div>
+      <div class="bento-delta neutral">継続率 <strong>92%</strong></div>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="zap" data-size="12"></i>稼働 Bridge 数</div>
+      <div class="bento-value">9</div>
+      <div class="bento-delta up">/ 13 ユーザー中</div>
+    </div>
+    <div class="bento-card">
+      <div class="bento-label"><i data-icon="alert-circle" data-size="12"></i>サーキットブレーカ作動</div>
+      <div class="bento-value">3</div>
+      <div class="bento-delta neutral">直近 7 日 · 全て自動復旧</div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 3. トレンドグラフ + 内訳 ━━━━━━ -->
+  <div class="row-2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">利用者・プロジェクト・収益の推移</div>
+        <div class="legend-inline" style="margin-left:auto;">
+          <span><span class="dot" style="background:var(--color-primary);"></span>月間アクティブ</span>
+          <span><span class="dot" style="background:var(--color-tertiary);"></span>プロジェクト</span>
+          <span><span class="dot" style="background:var(--color-secondary);"></span>MRR (千円)</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 600 180" preserveAspectRatio="none" style="width:100%; height:180px;">
+        <defs>
+          <linearGradient id="bgGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="#2563EB" stop-opacity="0.16"/>
+            <stop offset="100%" stop-color="#2563EB" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <g stroke="#E7E5E4" stroke-width="1" stroke-dasharray="3,4">
+          <line x1="0" y1="30" x2="600" y2="30"/>
+          <line x1="0" y1="80" x2="600" y2="80"/>
+          <line x1="0" y1="130" x2="600" y2="130"/>
+        </g>
+        <text x="4" y="26" font-size="9" fill="#94A3B8">100</text>
+        <text x="4" y="76" font-size="9" fill="#94A3B8">50</text>
+        <text x="4" y="126" font-size="9" fill="#94A3B8">10</text>
+        <path d="M 0,160 L 60,150 L 120,140 L 180,120 L 240,100 L 300,80 L 360,70 L 420,55 L 480,40 L 540,30 L 600,20 L 600,180 L 0,180 Z" fill="url(#bgGrad)"/>
+        <path d="M 0,160 L 60,150 L 120,140 L 180,120 L 240,100 L 300,80 L 360,70 L 420,55 L 480,40 L 540,30 L 600,20" stroke="#2563EB" stroke-width="2.5" fill="none"/>
+        <path d="M 0,170 L 60,168 L 120,162 L 180,155 L 240,148 L 300,142 L 360,128 L 420,108 L 480,88 L 540,68 L 600,55" stroke="#14B8A6" stroke-width="2.5" fill="none"/>
+        <path d="M 0,178 L 60,178 L 120,178 L 180,178 L 240,178 L 300,178 L 360,178 L 420,178 L 480,178 L 540,178 L 600,178" stroke="#C7A04A" stroke-width="2.5" fill="none" stroke-dasharray="4,4"/>
+        <g font-size="9" fill="#94A3B8" text-anchor="middle">
+          <text x="0" y="178">4/19</text>
+          <text x="150" y="178">4/26</text>
+          <text x="300" y="178">5/3</text>
+          <text x="450" y="178">5/10</text>
+          <text x="600" y="178">5/19</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">取得チャネル別</div>
+        <div class="seg-tabs" style="margin-left:auto;">
+          <button class="active">30 日</button>
+          <button>累計</button>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap: 11px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;"><span>紹介・口コミ</span><strong>5 件</strong></div>
+          <div style="height:6px;background:var(--color-surface-variant);border-radius:99px;overflow:hidden;"><div style="height:100%;background:var(--color-primary);width:62%;border-radius:99px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;"><span>SNS（X / note）</span><strong>2 件</strong></div>
+          <div style="height:6px;background:var(--color-surface-variant);border-radius:99px;overflow:hidden;"><div style="height:100%;background:var(--color-tertiary);width:25%;border-radius:99px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;"><span>個人つながり</span><strong>1 件</strong></div>
+          <div style="height:6px;background:var(--color-surface-variant);border-radius:99px;overflow:hidden;"><div style="height:100%;background:var(--color-secondary);width:13%;border-radius:99px;"></div></div>
+        </div>
+        <div style="font-size:11.5px;color:var(--color-on-surface-variant);margin-top:6px;padding-top:10px;border-top:1px dashed var(--color-border);">
+          <strong style="color:var(--color-on-surface);">気付き：</strong>紹介経由が 62%。紹介プログラムを Phase 5 で前倒し設計を推奨。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━━━━━ 4. 健全性 + ベータ FB ━━━━━━ -->
+  <div class="row-2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">プラットフォーム健全性</div>
+        <span class="panel-sub">直近 60 分</span>
+      </div>
+      <div class="health-row">
+        <div class="health-dot ok"></div>
+        <div>
+          <div class="health-name">Atelier クラウド（Vercel + FastAPI）</div>
+          <div class="health-detail">レスポンスタイム p95：280ms · エラー率 0.04%</div>
+        </div>
+        <span class="health-meta">99.97% 稼働</span>
+      </div>
+      <div class="health-row">
+        <div class="health-dot ok"></div>
+        <div>
+          <div class="health-name">Supabase Tokyo region</div>
+          <div class="health-detail">DB 240 MB / 500 MB · 接続数 22 / 200</div>
+        </div>
+        <span class="health-meta">正常</span>
+      </div>
+      <div class="health-row">
+        <div class="health-dot ok"></div>
+        <div>
+          <div class="health-name">ディスパッチャ（Hermes port）</div>
+          <div class="health-detail">アクティブ worker 12 · キュー待ち 7</div>
+        </div>
+        <span class="health-meta">正常</span>
+      </div>
+      <div class="health-row">
+        <div class="health-dot warn"></div>
+        <div>
+          <div class="health-name">ユーザー Bridge 接続</div>
+          <div class="health-detail">9 / 13 が接続中（4 ユーザーは未起動 or オフライン）</div>
+        </div>
+        <span class="health-meta">確認推奨</span>
+      </div>
+      <div class="health-row">
+        <div class="health-dot ok"></div>
+        <div>
+          <div class="health-name">外部 API（Voyage / Whisper / Resend）</div>
+          <div class="health-detail">エラーなし · レート制限内</div>
+        </div>
+        <span class="health-meta">正常</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">ベータ FB（未対応 5 件）</div>
+        <a href="#" class="text-sm text-primary font-semibold" style="margin-left:auto;">すべて見る →</a>
+      </div>
+      <div class="fb-card">
+        <div class="fb-meta">
+          <span class="fb-tag bug">不具合</span>
+          <span>matsumoto@</span>
+          <span style="margin-left:auto;">3 時間前</span>
+        </div>
+        <div class="fb-text">タスクボードで「再生」を連打するとエラー。一時的に連打防止を入れたい。</div>
+      </div>
+      <div class="fb-card">
+        <div class="fb-meta">
+          <span class="fb-tag feature">要望</span>
+          <span>komatsu@</span>
+          <span style="margin-left:auto;">5 時間前</span>
+        </div>
+        <div class="fb-text">クライアントポータルから AI に直接質問できる機能がほしい。</div>
+      </div>
+      <div class="fb-card">
+        <div class="fb-meta">
+          <span class="fb-tag praise">称賛</span>
+          <span>fukuura@</span>
+          <span style="margin-left:auto;">昨日</span>
+        </div>
+        <div class="fb-text">仕様変更の影響範囲が自動で出るの本当に助かる。これ目当てで使ってる。</div>
+      </div>
+      <div class="fb-card">
+        <div class="fb-meta">
+          <span class="fb-tag feature">要望</span>
+          <span>ito@</span>
+          <span style="margin-left:auto;">昨日</span>
+        </div>
+        <div class="fb-text">並列実行時のセッション切替を改善してほしい。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━━━━━ 5. アクティビティ + 運営コスト ━━━━━━ -->
+  <div class="row-2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">プラットフォーム アクティビティ</div>
+        <span class="panel-sub">直近 24 時間</span>
+      </div>
+      <div class="activity-list">
+        <div class="row">
+          <div class="icon signup"><i data-icon="user-plus" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">新規サインアップ</span> · matsumoto@example.com（招待経由）<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">小松様 EC モール統合プロジェクトに参加</span>
+          </div>
+          <span class="activity-time">3 時間前</span>
+        </div>
+        <div class="row">
+          <div class="icon ws"><i data-icon="folder-plus" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">新規ワークスペース</span> · 個人ユーザー K · 「個人プロジェクト」<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">プロジェクト 2 件を即時起票</span>
+          </div>
+          <span class="activity-time">5 時間前</span>
+        </div>
+        <div class="row">
+          <div class="icon skill"><i data-icon="zap" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">能力（スキル）更新</span> · 要件定義スキル v3 → v3.1<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">影響：全プロジェクトのナターシャに即時反映</span>
+          </div>
+          <span class="activity-time">昨日 14:22</span>
+        </div>
+        <div class="row">
+          <div class="icon fb"><i data-icon="message-square" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">ベータ FB 受信</span> · 「並列実行時のセッション切替を改善してほしい」<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">投稿者：ito@ · カテゴリ：要望</span>
+          </div>
+          <span class="activity-time">昨日 22:18</span>
+        </div>
+        <div class="row">
+          <div class="icon churn"><i data-icon="user-x" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">退会申請</span> · ユーザー A<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">30 日後（6/16）にハード削除予約</span>
+          </div>
+          <span class="activity-time">昨日 20:04</span>
+        </div>
+        <div class="row">
+          <div class="icon skill"><i data-icon="sparkles" data-size="13"></i></div>
+          <div class="activity-text">
+            <span class="who">新規能力（スキル）公開</span> · エネルギー調達ドメイン能力 v1.0<br>
+            <span style="color:var(--color-on-surface-variant);font-size:11.5px;">公開先：トニー（CTO）/ ナターシャ（要件部長）</span>
+          </div>
+          <span class="activity-time">2 日前</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">運営側コスト（30 日）</div>
+        <span class="panel-sub">ユーザー BYOK 分は除く</span>
+      </div>
+      <div class="cost-row">
+        <div class="cost-icon"><i data-icon="server" data-size="14"></i></div>
+        <div>
+          <div class="cost-name">Fly.io（Tokyo region）</div>
+          <div class="cost-desc">FastAPI 本番環境 · 夜間停止</div>
+        </div>
+        <div>
+          <div class="cost-val">¥328</div>
+          <div class="cost-val-sub">156 時間稼働</div>
+        </div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-icon"><i data-icon="zap" data-size="14"></i></div>
+        <div>
+          <div class="cost-name">運営側 Claude API</div>
+          <div class="cost-desc">BYOK 未設定ユーザー向け fallback</div>
+        </div>
+        <div>
+          <div class="cost-val">¥578</div>
+          <div class="cost-val-sub">512k トークン</div>
+        </div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-icon"><i data-icon="database" data-size="14"></i></div>
+        <div>
+          <div class="cost-name">Supabase / Vercel / Resend / Sentry</div>
+          <div class="cost-desc">すべて Free tier 内</div>
+        </div>
+        <div>
+          <div class="cost-val">¥0</div>
+        </div>
+      </div>
+      <div class="cost-row">
+        <div class="cost-icon"><i data-icon="search" data-size="14"></i></div>
+        <div>
+          <div class="cost-name">Voyage AI（埋め込み）</div>
+          <div class="cost-desc">Free tier 内（8.2M / 200M トークン）</div>
+        </div>
+        <div>
+          <div class="cost-val">¥0</div>
+        </div>
+      </div>
+
+      <div class="cost-total">
+        <span class="cost-total-label">合計（運営側 30 日）</span>
+        <span class="cost-total-val">¥906</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--color-on-surface-variant);margin-top:6px;line-height:1.6;">
+        目標 ¥0–1,500 / 月 の範囲内。ユーザーが BYOK 設定すれば fallback コストは減ります。
+      </div>
+    </div>
+  </div>
+
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

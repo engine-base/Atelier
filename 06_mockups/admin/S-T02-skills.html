@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>スキル管理 — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .admin-badge { background: var(--color-error); color: #FFFFFF; padding: 2px 8px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .skill-table { width: 100%; }
+  .skill-row { display: grid; grid-template-columns: 1fr 80px 100px 120px 80px 80px 40px; gap: 14px; padding: 14px 18px; align-items: center; border-bottom: 1px solid var(--color-border); }
+  .skill-row:hover { background: var(--color-surface-variant); }
+  .skill-name { font-weight: 700; font-size: 13.5px; font-family: monospace; }
+  .skill-desc { font-size: 11.5px; color: var(--color-on-surface-variant); margin-top: 2px; }
+  .upload-zone { background: #FFFFFF; border: 2px dashed var(--color-border); border-radius: var(--rounded-lg); padding: 28px 24px; text-align: center; cursor: pointer; }
+  .upload-zone:hover { border-color: var(--color-primary); background: var(--color-primary-container); }
+  .allow-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: var(--color-surface-variant); border-radius: var(--rounded-sm); font-size: 10.5px; font-weight: 600; margin: 1px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" style="background:#0F172A;border-right:1px solid #1E293B;">
+  <div class="sidebar-brand" style="border-bottom-color:#1E293B;">
+    <div class="brand-mark" style="background:var(--color-error);">A</div>
+    <div><div class="brand-name" style="color:#FFFFFF;">Atelier Admin</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label" style="color:#475569;">PLATFORM</div>
+    <a class="nav-item" href="S-T01-dashboard.html" style="color:#94A3B8;"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item active" href="#" style="color:#93C5FD;background:rgba(37,99,235,0.15);border-left-color:var(--color-primary);"><i data-icon="zap"></i>スキル管理</a>
+    <a class="nav-item" href="S-T03-templates.html" style="color:#94A3B8;"><i data-icon="bot"></i>AI社員テンプレ</a>
+    <a class="nav-item" href="S-T04-users.html" style="color:#94A3B8;"><i data-icon="users"></i>ユーザー管理</a>
+    <a class="nav-item" href="S-T05-audit.html" style="color:#94A3B8;"><i data-icon="file-text"></i>監査ログ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-T02" data-bf-screen-name="admin_skills" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="flex items-center gap-3"><span class="admin-badge">ADMIN</span><div class="breadcrumb"><strong>スキル管理</strong></div></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1300px;">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="page-eyebrow">Skill Management</div>
+      <h1 class="page-title">スキル管理</h1>
+      <p class="page-subtitle">ユーザー側ではスキルの中身は編集できません。運営側で一括管理します。</p>
+    </div>
+    <div class="flex gap-2">
+      <button class="btn btn-outlined"><i data-icon="download"></i>~/.claude/skills/ から再取込</button>
+      <button class="btn btn-primary"><i data-icon="upload"></i>新規アップロード</button>
+    </div>
+  </div>
+
+  <div class="grid grid-3 gap-4 mb-6">
+    <div class="card"><div class="page-eyebrow">登録スキル</div><div class="text-3xl font-bold tabular mt-1">68</div></div>
+    <div class="card"><div class="page-eyebrow">有効</div><div class="text-3xl font-bold tabular mt-1 text-tertiary">64</div></div>
+    <div class="card"><div class="page-eyebrow">合計装着回数（AI社員 × WS）</div><div class="text-3xl font-bold tabular mt-1">421</div></div>
+  </div>
+
+  <div class="upload-zone mb-6">
+    <i data-icon="upload" data-size="24"></i>
+    <div class="text-base font-bold mt-2">スキルファイルをドロップ</div>
+    <p class="text-muted text-sm">SKILL.md + assets/ フォルダ · YAML frontmatter 付き · 既存スキルは新バージョンとして登録</p>
+  </div>
+
+  <div class="card" style="padding: 0;">
+    <div class="flex items-center justify-between" style="padding: 12px 18px; border-bottom: 1px solid var(--color-border);">
+      <h2 class="section-title">スキル一覧</h2>
+      <div class="flex items-center gap-2">
+        <input class="input" style="padding: 6px 12px; font-size: 12px; width: 240px;" placeholder="検索...">
+        <select class="select" style="padding: 6px 12px; font-size: 12px; width: auto;"><option>全カテゴリ</option><option>ワークフロー</option><option>営業</option></select>
+      </div>
+    </div>
+
+    <div class="skill-row" style="background: var(--color-surface-variant); font-weight: 700; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant);">
+      <div>スキル名 / 説明</div>
+      <div>Version</div>
+      <div>許可ロール</div>
+      <div>許可 AI 社員</div>
+      <div>装着数</div>
+      <div>有効</div>
+      <div></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">hearing</div>
+        <div class="skill-desc">ヒアリング・商談からの要件抽出</div>
+      </div>
+      <div><span class="badge badge-primary">v1.2</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">スティーブ</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">requirements-definition</div>
+        <div class="skill-desc">要件定義書の生成（6STEP対話）</div>
+      </div>
+      <div><span class="badge badge-primary">v3.1</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">スティーブ</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">task-decomposition</div>
+        <div class="skill-desc">1-2日粒度のタスクカード生成</div>
+      </div>
+      <div><span class="badge badge-primary">v2.0</span></div>
+      <div><span class="allow-chip">member</span></div>
+      <div><span class="allow-chip">ピーター</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">verification-loop</div>
+        <div class="skill-desc">仕様徹底ループ（F-J02連動）</div>
+      </div>
+      <div><span class="badge badge-primary">v1.0</span></div>
+      <div><span class="allow-chip">member</span></div>
+      <div><span class="allow-chip">ヴィジョン</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">design-md</div>
+        <div class="skill-desc">design.md トークン定義 + HTMLプレビュー</div>
+      </div>
+      <div><span class="badge badge-primary">v1.0</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">ワンダ</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">ui-mockup</div>
+        <div class="skill-desc">35画面のHTMLモック生成</div>
+      </div>
+      <div><span class="badge badge-primary">v1.0</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">ワンダ</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">proposal</div>
+        <div class="skill-desc">提案書ドラフト生成</div>
+      </div>
+      <div><span class="badge badge-primary">v1.3</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">トニー</span></div>
+      <div class="tabular text-sm">7</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">business-contract</div>
+        <div class="skill-desc">業務委託契約ドラフト</div>
+      </div>
+      <div><span class="badge badge-primary">v1.0</span></div>
+      <div><span class="allow-chip">member</span></div>
+      <div><span class="allow-chip">ナターシャ</span></div>
+      <div class="tabular text-sm">6</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row">
+      <div>
+        <div class="skill-name">architecture-design</div>
+        <div class="skill-desc">アーキ設計書 + 9形式出力</div>
+      </div>
+      <div><span class="badge badge-primary">v3</span></div>
+      <div><span class="allow-chip">lead</span></div>
+      <div><span class="allow-chip">ストレンジ</span></div>
+      <div class="tabular text-sm">9</div>
+      <div><span class="pill pill-completed" style="padding:2px 8px;"><span class="pill-dot"></span>active</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div class="skill-row" style="opacity:0.55;">
+      <div>
+        <div class="skill-name">old-task-management</div>
+        <div class="skill-desc">レガシー版 · task-management v0.9 で置換</div>
+      </div>
+      <div><span class="badge badge-neutral">v0.5</span></div>
+      <div><span class="allow-chip">all</span></div>
+      <div><span class="allow-chip">—</span></div>
+      <div class="tabular text-sm">0</div>
+      <div><span class="pill pill-blocked" style="padding:2px 8px;"><span class="pill-dot"></span>disabled</span></div>
+      <div><button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button></div>
+    </div>
+
+    <div style="padding: 12px 18px; text-align: center; color: var(--color-on-surface-variant); font-size: 13px;">
+      他 58 件を表示する →
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

@@ -1,0 +1,920 @@
+{
+  "project": "Atelier",
+  "version": "1.0",
+  "created_at": "2026-05-18",
+  "schema_version": "v3",
+  "naming_convention": {
+    "entity_case": "PascalCase",
+    "table_case": "snake_case_plural",
+    "forbidden_prefixes": ["tbl_", "m_", "t_"],
+    "forbidden_names": ["data", "info", "value"],
+    "reserved_word_handling": "singular_allowed",
+    "validator": "entity-table-naming lint rule"
+  },
+  "tenant_isolation_default": {
+    "type": "workspace_scoped",
+    "column": "workspace_id",
+    "fk_table": "workspaces"
+  },
+  "entities": [
+    {
+      "id": "E-001",
+      "name": "User",
+      "table_name": "users",
+      "description": "Supabase Auth と同期されるユーザーアカウント。public.users で Auth と紐付け",
+      "status": "decided",
+      "tenant_isolation": {"type": "none", "column": null, "fk_table": null, "note": "self-scoped、auth.uid() で識別"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"], "note": "Supabase Auth users.id と同一"},
+        {"name": "email", "type": "text", "constraints": ["UK", "NN"]},
+        {"name": "display_name", "type": "text", "constraints": []},
+        {"name": "avatar_url", "type": "text", "constraints": []},
+        {"name": "created_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "updated_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "deleted_at", "type": "timestamptz", "constraints": []}
+      ],
+      "relations": [
+        {"to": "workspace_memberships", "type": "1:N", "via": "user_id"},
+        {"to": "byok_api_keys", "type": "1:N", "via": "user_id"},
+        {"to": "consents", "type": "1:N", "via": "user_id"},
+        {"to": "approval_inbox", "type": "1:N", "via": "user_id"}
+      ],
+      "indexes": [
+        {"name": "idx_users_email", "columns": ["email"], "type": "btree"},
+        {"name": "idx_users_active", "columns": ["deleted_at"], "type": "partial", "where": "deleted_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "users_self_select", "operation": "SELECT", "role": "authenticated", "predicate": "id = auth.uid()", "rationale": "自分のレコードのみ閲覧"},
+        {"name": "users_self_update", "operation": "UPDATE", "role": "authenticated", "predicate": "id = auth.uid()", "rationale": "自分のレコードのみ更新"},
+        {"name": "users_admin_select", "operation": "SELECT", "role": "authenticated", "predicate": "raw_app_meta_data->>'role' = 'admin'", "rationale": "運営管理者は全件閲覧可"}
+      ],
+      "checklist_status": "decided",
+      "checked_items": ["table_name", "access_control_policies", "tenant_isolation", "fields", "relations", "indexes", "soft_delete", "timestamps"]
+    },
+    {
+      "id": "E-002",
+      "name": "Workspace",
+      "table_name": "workspaces",
+      "description": "個人 or 組織の作業領域。最上位テナント境界",
+      "status": "decided",
+      "tenant_isolation": {"type": "account_scoped", "column": "id", "fk_table": null, "note": "ワークスペース自体がテナント"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "owner_user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "name", "type": "text", "constraints": ["NN"], "check": "length BETWEEN 2 AND 50"},
+        {"name": "icon", "type": "text", "constraints": [], "note": "Lucide icon name or storage URL"},
+        {"name": "plan", "type": "text", "constraints": ["NN"], "default": "'free'"},
+        {"name": "settings", "type": "jsonb", "constraints": ["NN"], "default": "'{}'"},
+        {"name": "created_at / updated_at / deleted_at", "type": "timestamptz", "constraints": []}
+      ],
+      "relations": [
+        {"to": "workspace_memberships", "type": "1:N", "via": "workspace_id"},
+        {"to": "projects", "type": "1:N", "via": "workspace_id"},
+        {"to": "ai_employees", "type": "1:N", "via": "workspace_id"},
+        {"to": "mcp_tokens", "type": "1:N", "via": "workspace_id"},
+        {"to": "audit_logs", "type": "1:N", "via": "workspace_id"}
+      ],
+      "indexes": [
+        {"name": "idx_workspaces_owner_user_id", "columns": ["owner_user_id"], "type": "btree"},
+        {"name": "idx_workspaces_active", "columns": ["deleted_at"], "type": "partial", "where": "deleted_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "workspaces_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()) AND deleted_at IS NULL", "rationale": "メンバーのみ閲覧"},
+        {"name": "workspaces_owner_insert", "operation": "INSERT", "role": "authenticated", "predicate": "owner_user_id = auth.uid()", "rationale": "自分がオーナーで作成"},
+        {"name": "workspaces_owner_update", "operation": "UPDATE", "role": "authenticated", "predicate": "id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "オーナーのみ更新"},
+        {"name": "workspaces_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "オーナーのみ削除"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-003",
+      "name": "WorkspaceMembership",
+      "table_name": "workspace_memberships",
+      "description": "ユーザーとワークスペースの所属関係",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces"},
+      "soft_delete": false,
+      "timestamps": ["joined_at"],
+      "fields": [
+        {"name": "workspace_id", "type": "uuid", "constraints": ["FK workspaces.id", "NN"]},
+        {"name": "user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "role", "type": "workspace_member_role_enum", "constraints": ["NN"], "values": ["owner", "member", "viewer"]},
+        {"name": "joined_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"}
+      ],
+      "relations": [
+        {"to": "workspaces", "type": "N:1", "via": "workspace_id"},
+        {"to": "users", "type": "N:1", "via": "user_id"}
+      ],
+      "indexes": [
+        {"name": "uq_workspace_memberships_ws_user", "columns": ["workspace_id", "user_id"], "type": "unique"},
+        {"name": "idx_workspace_memberships_user_id", "columns": ["user_id"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "memberships_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())", "rationale": "同じWSメンバーのみ"},
+        {"name": "memberships_owner_insert", "operation": "INSERT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "オーナーのみ招待可"},
+        {"name": "memberships_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "オーナーのみ除名可"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-004",
+      "name": "Project",
+      "table_name": "projects",
+      "description": "1案件 = 1プロジェクト。フェーズ/タスク/チャットの親",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "workspace_id", "type": "uuid", "constraints": ["FK workspaces.id", "NN"]},
+        {"name": "name", "type": "text", "constraints": ["NN"]},
+        {"name": "client_name", "type": "text", "constraints": []},
+        {"name": "project_type", "type": "project_type_enum", "constraints": ["NN"], "values": ["client_work", "internal_product", "personal"]},
+        {"name": "status", "type": "project_status_enum", "constraints": ["NN"], "default": "'draft'", "values": ["draft", "active", "paused", "archived"]},
+        {"name": "ai_training_optout", "type": "boolean", "constraints": ["NN"], "default": "true", "note": "F-LEGAL-011 デフォルトOFF（学習しない）"},
+        {"name": "settings", "type": "jsonb", "constraints": ["NN"], "default": "'{}'"}
+      ],
+      "relations": [
+        {"to": "workspaces", "type": "N:1", "via": "workspace_id"},
+        {"to": "phases", "type": "1:N", "via": "project_id"},
+        {"to": "tasks", "type": "1:N", "via": "project_id"},
+        {"to": "chat_threads", "type": "1:N", "via": "project_id"},
+        {"to": "mocks", "type": "1:N", "via": "project_id"},
+        {"to": "comments", "type": "1:N", "via": "project_id"},
+        {"to": "client_invitations", "type": "1:N", "via": "project_id"},
+        {"to": "external_uploads", "type": "1:N", "via": "project_id"},
+        {"to": "cron_schedules", "type": "1:N", "via": "project_id"}
+      ],
+      "indexes": [
+        {"name": "idx_projects_workspace_id_status", "columns": ["workspace_id", "status"], "type": "btree"},
+        {"name": "idx_projects_active", "columns": ["deleted_at"], "type": "partial", "where": "deleted_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "projects_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()) AND deleted_at IS NULL", "rationale": "WSメンバーのみ"},
+        {"name": "projects_member_insert", "operation": "INSERT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))", "rationale": "owner/memberのみ作成可"},
+        {"name": "projects_member_update", "operation": "UPDATE", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))", "rationale": "owner/memberのみ更新"},
+        {"name": "projects_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "ownerのみ削除"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-005",
+      "name": "Phase",
+      "table_name": "phases",
+      "description": "プロジェクト内のフェーズ。AI提案→ユーザー承認で確定",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由でscope"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "started_at", "completed_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "order", "type": "integer", "constraints": ["NN"], "note": "表示順"},
+        {"name": "name", "type": "text", "constraints": ["NN"]},
+        {"name": "description", "type": "text", "constraints": []},
+        {"name": "status", "type": "phase_status_enum", "constraints": ["NN"], "default": "'pending'", "values": ["pending", "in_progress", "completed", "skipped"]},
+        {"name": "started_at", "type": "timestamptz", "constraints": []},
+        {"name": "completed_at", "type": "timestamptz", "constraints": []}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "workflow_outputs", "type": "1:N", "via": "phase_id"},
+        {"to": "tasks", "type": "1:N", "via": "phase_id"}
+      ],
+      "indexes": [
+        {"name": "idx_phases_project_id_order", "columns": ["project_id", "order"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "phases_project_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "プロジェクトメンバーのみ"},
+        {"name": "phases_project_member_insert", "operation": "INSERT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/memberのみ"},
+        {"name": "phases_project_member_update", "operation": "UPDATE", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/memberのみ"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-006",
+      "name": "WorkflowOutput",
+      "table_name": "workflow_outputs",
+      "description": "各工程の三層出力（HTML/JSON/MD）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "phase_id", "type": "uuid", "constraints": ["FK phases.id"]},
+        {"name": "stage", "type": "workflow_stage_enum", "constraints": ["NN"], "values": ["proposal", "estimate", "hearing", "requirements", "architecture", "design", "breakdown", "tasks", "implementation", "verification", "delivery"]},
+        {"name": "html_path", "type": "text", "constraints": [], "note": "Supabase Storage パス"},
+        {"name": "json_path", "type": "text", "constraints": []},
+        {"name": "md_path", "type": "text", "constraints": []},
+        {"name": "summary", "type": "text", "constraints": [], "note": "次工程引き継ぎ用要約"},
+        {"name": "version", "type": "integer", "constraints": ["NN"], "default": "1"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "phases", "type": "N:1", "via": "phase_id"},
+        {"to": "comments", "type": "1:N", "via": "target_id (target_type=workflow_output)"}
+      ],
+      "indexes": [
+        {"name": "idx_workflow_outputs_project_id_stage", "columns": ["project_id", "stage"], "type": "btree"},
+        {"name": "idx_workflow_outputs_summary_fts", "columns": ["summary"], "type": "gin_tsvector"}
+      ],
+      "access_control_policies": [
+        {"name": "workflow_outputs_project_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "プロジェクトメンバー"},
+        {"name": "workflow_outputs_client_select", "operation": "SELECT", "role": "client_portal", "predicate": "project_id = (current_setting('request.jwt.claims', true)::jsonb->>'project_id')::uuid AND EXISTS (SELECT 1 FROM client_invitations WHERE project_id = workflow_outputs.project_id AND token_hash = current_setting('request.jwt.claims', true)::jsonb->>'invitation_token_hash' AND expires_at > now() AND revoked_at IS NULL)", "rationale": "クライアント招待経路（別JWT）"},
+        {"name": "workflow_outputs_member_insert", "operation": "INSERT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/memberのみ"},
+        {"name": "workflow_outputs_member_update", "operation": "UPDATE", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/memberのみ"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-007",
+      "name": "AiEmployee",
+      "table_name": "ai_employees",
+      "description": "ワークスペースに配属されたAI社員。テンプレからインスタンス化",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "workspace_id", "type": "uuid", "constraints": ["FK workspaces.id", "NN"]},
+        {"name": "template_id", "type": "uuid", "constraints": ["FK ai_employee_templates.id"]},
+        {"name": "name", "type": "text", "constraints": ["NN"], "note": "内部名（jarvis等）"},
+        {"name": "display_name", "type": "text", "constraints": ["NN"], "note": "表示名（ユーザー編集可）"},
+        {"name": "icon", "type": "text", "constraints": [], "note": "Lucide icon name or アバター画像URL"},
+        {"name": "role", "type": "ai_employee_role_enum", "constraints": ["NN"], "values": ["coo", "lead", "member"]},
+        {"name": "department", "type": "ai_employee_department_enum", "constraints": ["NN"], "values": ["executive", "sales", "product", "architecture", "design", "dev_qa", "cross_functional"]},
+        {"name": "tone_preset", "type": "tone_preset_enum", "constraints": ["NN"], "default": "'polite'", "values": ["polite", "friendly", "casual", "concise", "coaching"]},
+        {"name": "custom_tone_text", "type": "text", "constraints": [], "check": "length <= 500"},
+        {"name": "attached_skills", "type": "uuid[]", "constraints": ["NN"], "default": "ARRAY[]::uuid[]"},
+        {"name": "attached_knowledge_cats", "type": "text[]", "constraints": ["NN"], "default": "ARRAY[]::text[]"},
+        {"name": "system_prompt_override", "type": "text", "constraints": [], "note": "admin only"},
+        {"name": "is_default", "type": "boolean", "constraints": ["NN"], "default": "false"},
+        {"name": "archived", "type": "boolean", "constraints": ["NN"], "default": "false"}
+      ],
+      "relations": [
+        {"to": "ai_employee_templates", "type": "N:1", "via": "template_id"},
+        {"to": "chat_threads", "type": "1:N", "via": "ai_employee_id"},
+        {"to": "tasks", "type": "1:N", "via": "assigned_employee_id"},
+        {"to": "knowledge_nodes", "type": "1:N", "via": "owner_employee_id"}
+      ],
+      "indexes": [
+        {"name": "idx_ai_employees_workspace_id", "columns": ["workspace_id"], "type": "btree"},
+        {"name": "idx_ai_employees_attached_skills_gin", "columns": ["attached_skills"], "type": "gin_array"}
+      ],
+      "access_control_policies": [
+        {"name": "ai_employees_ws_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())", "rationale": "WSメンバー"},
+        {"name": "ai_employees_member_update", "operation": "UPDATE", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))", "rationale": "ユーザー編集可項目のみ（CHECK制約でカラム制限）"},
+        {"name": "ai_employees_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner') AND is_default = false", "rationale": "ownerのみ、デフォルト10名は削除不可"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-008",
+      "name": "AiEmployeeTemplate",
+      "table_name": "ai_employee_templates",
+      "description": "デフォルト10名のテンプレート定義（admin管理）",
+      "status": "decided",
+      "tenant_isolation": {"type": "none", "column": null, "fk_table": null, "note": "global、admin only"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "default_name", "type": "text", "constraints": ["NN"], "note": "jarvis / tony / natasha 等"},
+        {"name": "default_display_name", "type": "text", "constraints": ["NN"], "note": "ジャービス / トニー 等"},
+        {"name": "default_icon", "type": "text", "constraints": []},
+        {"name": "department", "type": "ai_employee_department_enum", "constraints": ["NN"]},
+        {"name": "role", "type": "ai_employee_role_enum", "constraints": ["NN"]},
+        {"name": "default_skills", "type": "uuid[]", "constraints": ["NN"]},
+        {"name": "default_knowledge_cats", "type": "text[]", "constraints": ["NN"]},
+        {"name": "system_prompt", "type": "text", "constraints": ["NN"]},
+        {"name": "specialty", "type": "text", "constraints": ["NN"]},
+        {"name": "version", "type": "integer", "constraints": ["NN"], "default": "1"},
+        {"name": "is_active", "type": "boolean", "constraints": ["NN"], "default": "true"}
+      ],
+      "relations": [{"to": "ai_employees", "type": "1:N", "via": "template_id"}],
+      "indexes": [{"name": "idx_ai_employee_templates_active", "columns": ["is_active"], "type": "btree"}],
+      "access_control_policies": [
+        {"name": "templates_all_select", "operation": "SELECT", "role": "authenticated", "predicate": "is_active = true", "rationale": "全認証ユーザー閲覧（雇用時に必要）"},
+        {"name": "templates_admin_all", "operation": "ALL", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')", "rationale": "admin のみ編集"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-009",
+      "name": "Skill",
+      "table_name": "skills",
+      "description": "管理側でアップロードされるスキル定義",
+      "status": "decided",
+      "tenant_isolation": {"type": "none", "column": null, "fk_table": null, "note": "global"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "name", "type": "text", "constraints": ["NN"]},
+        {"name": "version", "type": "text", "constraints": ["NN"], "note": "semver"},
+        {"name": "description", "type": "text", "constraints": []},
+        {"name": "content_md", "type": "text", "constraints": ["NN"]},
+        {"name": "assets_storage_path", "type": "text", "constraints": []},
+        {"name": "allowed_employee_roles", "type": "text[]", "constraints": ["NN"]},
+        {"name": "allowed_employee_ids", "type": "uuid[]", "constraints": ["NN"]},
+        {"name": "is_active", "type": "boolean", "constraints": ["NN"], "default": "true"}
+      ],
+      "relations": [{"to": "ai_employees", "type": "N:N", "via": "ai_employees.attached_skills[]"}],
+      "indexes": [
+        {"name": "uq_skills_name_version", "columns": ["name", "version"], "type": "unique"},
+        {"name": "idx_skills_active", "columns": ["is_active"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "skills_all_select", "operation": "SELECT", "role": "authenticated", "predicate": "is_active = true", "rationale": "全認証ユーザー閲覧"},
+        {"name": "skills_admin_all", "operation": "ALL", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')", "rationale": "admin のみ編集"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-010",
+      "name": "ChatThread",
+      "table_name": "chat_threads",
+      "description": "AI社員ごとのチャットスレッド",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "ai_employee_id", "type": "uuid", "constraints": ["FK ai_employees.id", "NN"]},
+        {"name": "title", "type": "text", "constraints": []},
+        {"name": "archived", "type": "boolean", "constraints": ["NN"], "default": "false"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "ai_employees", "type": "N:1", "via": "ai_employee_id"},
+        {"to": "chat_messages", "type": "1:N", "via": "thread_id"}
+      ],
+      "indexes": [
+        {"name": "idx_chat_threads_project_employee", "columns": ["project_id", "ai_employee_id"], "type": "btree"},
+        {"name": "idx_chat_threads_active", "columns": ["archived", "deleted_at"], "type": "partial", "where": "archived = false AND deleted_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "chat_threads_member_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/memberが操作"},
+        {"name": "chat_threads_viewer_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "viewerは閲覧のみ"},
+        {"name": "chat_threads_service_role_insert", "operation": "INSERT", "role": "service_role", "predicate": "true", "rationale": "FastAPI からスレッド自動生成"},
+        {"name": "chat_threads_client_denied", "operation": "ALL", "role": "client_portal", "predicate": "false", "rationale": "クライアントはチャット見えない"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-011",
+      "name": "ChatMessage",
+      "table_name": "chat_messages",
+      "description": "チャットメッセージ（user/assistant/system/tool）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "thread経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "thread_id", "type": "uuid", "constraints": ["FK chat_threads.id", "NN"]},
+        {"name": "role", "type": "chat_message_role_enum", "constraints": ["NN"], "values": ["user", "assistant", "system", "tool"]},
+        {"name": "content", "type": "text", "constraints": ["NN"]},
+        {"name": "content_tsv", "type": "tsvector", "constraints": [], "note": "trigger で自動更新"},
+        {"name": "embedding", "type": "vector(1024)", "constraints": [], "note": "Voyage AI、F-CTX01 のセマンティック検索用"},
+        {"name": "tool_calls", "type": "jsonb", "constraints": [], "default": "'[]'"},
+        {"name": "attachments", "type": "jsonb", "constraints": [], "default": "'[]'"},
+        {"name": "parent_message_id", "type": "uuid", "constraints": ["FK chat_messages.id"]},
+        {"name": "token_count", "type": "integer", "constraints": []}
+      ],
+      "relations": [
+        {"to": "chat_threads", "type": "N:1", "via": "thread_id"},
+        {"to": "chat_messages", "type": "N:1", "via": "parent_message_id (self-ref)"}
+      ],
+      "indexes": [
+        {"name": "idx_chat_messages_thread_id_created_at", "columns": ["thread_id", "created_at"], "type": "btree"},
+        {"name": "idx_chat_messages_content_tsv", "columns": ["content_tsv"], "type": "gin"},
+        {"name": "idx_chat_messages_embedding_hnsw", "columns": ["embedding"], "type": "hnsw vector_cosine_ops"}
+      ],
+      "access_control_policies": [
+        {"name": "chat_messages_via_thread_select", "operation": "SELECT", "role": "authenticated", "predicate": "thread_id IN (SELECT id FROM chat_threads WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())))", "rationale": "thread 経由"},
+        {"name": "chat_messages_member_insert", "operation": "INSERT", "role": "authenticated", "predicate": "thread_id IN (SELECT id FROM chat_threads WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))))", "rationale": "owner/member"},
+        {"name": "chat_messages_service_role_insert", "operation": "INSERT", "role": "service_role", "predicate": "true", "rationale": "AI応答の保存"},
+        {"name": "chat_messages_self_update", "operation": "UPDATE", "role": "authenticated", "predicate": "role = 'user' AND thread_id IN (SELECT id FROM chat_threads WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))))", "rationale": "F-E03 人間直編集即反映"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-012",
+      "name": "Task",
+      "table_name": "tasks",
+      "description": "1-2日粒度のタスクカード。F-016で分解、F-018で実行",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "phase_id", "type": "uuid", "constraints": ["FK phases.id"]},
+        {"name": "category", "type": "text", "constraints": ["NN"], "note": "かんばんのグルーピング（機能/画面/フェーズ別）"},
+        {"name": "title", "type": "text", "constraints": ["NN"]},
+        {"name": "description", "type": "text", "constraints": []},
+        {"name": "type", "type": "task_type_enum", "constraints": ["NN"], "values": ["foundation", "screen", "feature", "verification", "infrastructure"]},
+        {"name": "estimated_hours", "type": "integer", "constraints": ["NN"], "check": "estimated_hours BETWEEN 1 AND 24"},
+        {"name": "dependencies", "type": "uuid[]", "constraints": ["NN"], "default": "ARRAY[]::uuid[]", "note": "必須属性"},
+        {"name": "prerequisites", "type": "uuid[]", "constraints": ["NN"], "default": "ARRAY[]::uuid[]"},
+        {"name": "blocks", "type": "uuid[]", "constraints": ["NN"], "default": "ARRAY[]::uuid[]"},
+        {"name": "acceptance_criteria_id", "type": "uuid", "constraints": ["FK acceptance_criteria.id"]},
+        {"name": "mock_id", "type": "uuid", "constraints": ["FK mocks.id"]},
+        {"name": "spec_html_path", "type": "text", "constraints": []},
+        {"name": "assigned_employee_id", "type": "uuid", "constraints": ["FK ai_employees.id"]},
+        {"name": "status", "type": "task_status_enum", "constraints": ["NN"], "default": "'pending'"},
+        {"name": "priority", "type": "task_priority_enum", "constraints": ["NN"], "default": "'medium'"},
+        {"name": "auto_advance_allowed", "type": "boolean", "constraints": ["NN"], "default": "true"},
+        {"name": "files_changed", "type": "text[]", "constraints": ["NN"], "default": "ARRAY[]::text[]", "note": "衝突回避用"},
+        {"name": "parent_task_id", "type": "uuid", "constraints": ["FK tasks.id"], "note": "F-CUC02 リファクタタスクの親タスク（completed タスクへの追従用）"},
+        {"name": "origin_type", "type": "text", "constraints": ["NN"], "default": "'initial_decomposition'", "note": "initial_decomposition / refactor / scope_change_auto / manual_added"},
+        {"name": "lifecycle_stage", "type": "task_lifecycle_enum", "constraints": ["NN"], "default": "'triage'", "values": ["triage", "ready", "in_progress", "blocked", "awaiting", "done"], "note": "Hermes 6 列モデル。UI 表示: 準備中/着手可/実装中/要対応/承認待ち/完了"},
+        {"name": "summary", "type": "text", "constraints": [], "note": "Hermes 互換: kanban_complete 時に worker が記述する完了サマリ。下流タスクへハンドオフ"},
+        {"name": "metadata", "type": "jsonb", "constraints": ["NN"], "default": "'{}'::jsonb", "note": "Hermes 互換: kanban_complete 時の構造化メタデータ。下流タスクへハンドオフ"},
+        {"name": "blocked_reason", "type": "text", "constraints": [], "note": "Hermes 互換: kanban_block(reason) で記録、Blocked 列から脱出時に worker が参照"},
+        {"name": "retry_count", "type": "integer", "constraints": ["NN"], "default": "0", "check": "retry_count BETWEEN 0 AND 3", "note": "F-DISP01 サーキットブレーカ用、3 超過で Blocked 固定"},
+        {"name": "worktree_path", "type": "text", "constraints": [], "note": "F-BRIDGE01 が git worktree add で作成したパス。例: ../worktrees/T-014"},
+        {"name": "dispatch_status", "type": "task_dispatch_enum", "constraints": [], "values": ["queued", "spawning", "running", "completing", "dead", "reclaimed"], "note": "Bridge worker プロセスの低レベル状態。lifecycle_stage と独立、PID ポーリング用"},
+        {"name": "worker_pid", "type": "integer", "constraints": [], "note": "Bridge が spawn した PTY プロセスの PID。dispatch_status=dead 検出に使用"},
+        {"name": "worker_started_at", "type": "timestamptz", "constraints": []},
+        {"name": "worker_last_heartbeat_at", "type": "timestamptz", "constraints": [], "note": "F-DISP01 が PID ポーリング時に更新"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "phases", "type": "N:1", "via": "phase_id"},
+        {"to": "acceptance_criteria", "type": "1:1", "via": "acceptance_criteria_id"},
+        {"to": "mocks", "type": "N:1", "via": "mock_id"},
+        {"to": "ai_employees", "type": "N:1", "via": "assigned_employee_id"},
+        {"to": "task_executions", "type": "1:N", "via": "task_id"},
+        {"to": "tasks", "type": "N:1", "via": "parent_task_id (self-ref, refactor lineage)"}
+      ],
+      "indexes": [
+        {"name": "idx_tasks_project_id_status", "columns": ["project_id", "status"], "type": "btree"},
+        {"name": "idx_tasks_assigned_employee_id", "columns": ["assigned_employee_id"], "type": "btree"},
+        {"name": "idx_tasks_active", "columns": ["status"], "type": "partial", "where": "status NOT IN ('completed', 'blocked') AND deleted_at IS NULL"},
+        {"name": "idx_tasks_dependencies_gin", "columns": ["dependencies"], "type": "gin_array", "note": "F-IMP01 影響範囲解析用"},
+        {"name": "idx_tasks_lifecycle_stage", "columns": ["lifecycle_stage"], "type": "btree", "note": "Hermes 6 列モデルでのレーン別取得"},
+        {"name": "idx_tasks_dispatch_active", "columns": ["dispatch_status", "worker_last_heartbeat_at"], "type": "partial", "where": "dispatch_status IN ('spawning','running','completing')", "note": "F-DISP01 PID ポーリング用"}
+      ],
+      "access_control_policies": [
+        {"name": "tasks_member_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/member"},
+        {"name": "tasks_viewer_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "viewer閲覧"},
+        {"name": "tasks_client_select", "operation": "SELECT", "role": "client_portal", "predicate": "project_id = (current_setting('request.jwt.claims', true)::jsonb->>'project_id')::uuid", "rationale": "クライアント閲覧（コメント可）"},
+        {"name": "tasks_service_role_insert", "operation": "INSERT", "role": "service_role", "predicate": "true", "rationale": "F-016 タスク分解"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-013",
+      "name": "TaskExecution",
+      "table_name": "task_executions",
+      "description": "F-018 並列実行エンジンの実行履歴。F-021 スコア評価結果",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "task経由"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "started_at", "completed_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "task_id", "type": "uuid", "constraints": ["FK tasks.id", "NN"]},
+        {"name": "started_at", "type": "timestamptz", "constraints": ["NN"]},
+        {"name": "completed_at", "type": "timestamptz"},
+        {"name": "score", "type": "numeric(4,3)", "constraints": [], "note": "0.000〜1.000"},
+        {"name": "ac_pass_rate", "type": "numeric(4,3)"},
+        {"name": "test_pass_rate", "type": "numeric(4,3)"},
+        {"name": "verification_score", "type": "numeric(4,3)"},
+        {"name": "retry_count", "type": "integer", "constraints": ["NN"], "default": "0", "check": "retry_count <= 3"},
+        {"name": "claude_code_session_id", "type": "text"},
+        {"name": "status", "type": "task_execution_status_enum", "constraints": ["NN"], "values": ["running", "succeeded", "failed", "cancelled", "timeout"]},
+        {"name": "logs_storage_path", "type": "text"},
+        {"name": "error_summary", "type": "text"}
+      ],
+      "relations": [{"to": "tasks", "type": "N:1", "via": "task_id"}],
+      "indexes": [
+        {"name": "idx_task_executions_task_started", "columns": ["task_id", "started_at"], "type": "btree"},
+        {"name": "idx_task_executions_status", "columns": ["status"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "task_executions_via_task_select", "operation": "SELECT", "role": "authenticated", "predicate": "task_id IN (SELECT id FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())))", "rationale": "task経由"},
+        {"name": "task_executions_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "FastAPIから書込"},
+        {"name": "task_executions_no_user_write", "operation": "INSERT,UPDATE,DELETE", "role": "authenticated", "predicate": "false", "rationale": "ユーザーは書込不可"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-014",
+      "name": "AcceptanceCriteria",
+      "table_name": "acceptance_criteria",
+      "description": "受入基準HTML（F-J01）。タスクと1:1",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "task経由"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "task_id", "type": "uuid", "constraints": ["FK tasks.id", "UK", "NN"]},
+        {"name": "html_path", "type": "text", "constraints": ["NN"]},
+        {"name": "items", "type": "jsonb", "constraints": ["NN"], "default": "'[]'", "note": "[{id, text, tier(structural/functional/regression), passed, evidence}]"},
+        {"name": "version", "type": "integer", "constraints": ["NN"], "default": "1"}
+      ],
+      "relations": [{"to": "tasks", "type": "1:1", "via": "task_id"}],
+      "indexes": [{"name": "uq_acceptance_criteria_task_id", "columns": ["task_id"], "type": "unique"}],
+      "access_control_policies": [
+        {"name": "ac_via_task_select", "operation": "SELECT", "role": "authenticated", "predicate": "task_id IN (SELECT id FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())))", "rationale": "task経由"},
+        {"name": "ac_client_select", "operation": "SELECT", "role": "client_portal", "predicate": "task_id IN (SELECT id FROM tasks WHERE project_id = (current_setting('request.jwt.claims', true)::jsonb->>'project_id')::uuid)", "rationale": "クライアント閲覧"},
+        {"name": "ac_member_all", "operation": "INSERT,UPDATE,DELETE", "role": "authenticated", "predicate": "task_id IN (SELECT id FROM tasks WHERE project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))))", "rationale": "owner/member"},
+        {"name": "ac_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "AI生成"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-015",
+      "name": "Mock",
+      "table_name": "mocks",
+      "description": "HTMLモック（F-013/F-014）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "screen_name", "type": "text", "constraints": ["NN"]},
+        {"name": "html_storage_path", "type": "text", "constraints": ["NN"]},
+        {"name": "version", "type": "integer", "constraints": ["NN"], "default": "1"},
+        {"name": "parent_mock_id", "type": "uuid", "constraints": ["FK mocks.id"], "note": "version chain"},
+        {"name": "meta_tags", "type": "jsonb", "constraints": [], "note": "{screen_id, screen_name, category, status, version}"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "mocks", "type": "N:1", "via": "parent_mock_id"},
+        {"to": "tasks", "type": "1:N", "via": "mock_id"}
+      ],
+      "indexes": [{"name": "idx_mocks_project_screen", "columns": ["project_id", "screen_name"], "type": "btree"}],
+      "access_control_policies": [
+        {"name": "mocks_member_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/member"},
+        {"name": "mocks_viewer_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "viewer"},
+        {"name": "mocks_client_select", "operation": "SELECT", "role": "client_portal", "predicate": "project_id = (current_setting('request.jwt.claims', true)::jsonb->>'project_id')::uuid", "rationale": "クライアント閲覧"},
+        {"name": "mocks_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "AI生成"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-016",
+      "name": "Comment",
+      "table_name": "comments",
+      "description": "成果物/モック/タスク/受入基準への要素単位コメント",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "polymorphic target"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "target_type", "type": "comment_target_type_enum", "constraints": ["NN"], "values": ["workflow_output", "mock", "task", "acceptance_criteria"]},
+        {"name": "target_id", "type": "uuid", "constraints": ["NN"]},
+        {"name": "target_element_id", "type": "text", "constraints": [], "note": "HTML要素ID"},
+        {"name": "author_user_id", "type": "uuid", "constraints": ["FK users.id"]},
+        {"name": "author_invitation_id", "type": "uuid", "constraints": ["FK client_invitations.id"]},
+        {"name": "content", "type": "text", "constraints": ["NN"]},
+        {"name": "status", "type": "text", "constraints": ["NN"], "default": "'open'", "note": "open/resolved/deleted"},
+        {"name": "parent_comment_id", "type": "uuid", "constraints": ["FK comments.id"]}
+      ],
+      "relations": [
+        {"to": "users", "type": "N:1", "via": "author_user_id"},
+        {"to": "client_invitations", "type": "N:1", "via": "author_invitation_id"},
+        {"to": "comments", "type": "N:1", "via": "parent_comment_id"}
+      ],
+      "indexes": [
+        {"name": "idx_comments_target", "columns": ["target_type", "target_id"], "type": "btree"},
+        {"name": "idx_comments_status", "columns": ["status"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "comments_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "true /* 詳細は target ベースで関数化 */", "rationale": "target解決関数 fn_can_access_comment_target() で判定"},
+        {"name": "comments_member_insert", "operation": "INSERT", "role": "authenticated", "predicate": "author_user_id = auth.uid()", "rationale": "自分の名前でのみ"},
+        {"name": "comments_client_insert", "operation": "INSERT", "role": "client_portal", "predicate": "author_invitation_id IS NOT NULL AND EXISTS (SELECT 1 FROM client_invitations WHERE id = author_invitation_id AND token_hash = current_setting('request.jwt.claims', true)::jsonb->>'invitation_token_hash' AND expires_at > now() AND revoked_at IS NULL)", "rationale": "クライアント別経路"},
+        {"name": "comments_self_update", "operation": "UPDATE,DELETE", "role": "authenticated", "predicate": "author_user_id = auth.uid()", "rationale": "自分のみ"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-017",
+      "name": "ClientInvitation",
+      "table_name": "client_invitations",
+      "description": "クライアント招待リンク。別JWT経路で完全分離",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "expires_at", "used_at", "revoked_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "email", "type": "text", "constraints": ["NN"]},
+        {"name": "token_hash", "type": "text", "constraints": ["UK", "NN"], "note": "sha256"},
+        {"name": "scopes", "type": "jsonb", "constraints": ["NN"], "default": "'[\"view\",\"comment\"]'"},
+        {"name": "expires_at", "type": "timestamptz", "constraints": ["NN"], "note": "数日（デフォルト7日）"},
+        {"name": "used_at", "type": "timestamptz"},
+        {"name": "revoked_at", "type": "timestamptz"},
+        {"name": "client_display_name", "type": "text"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "comments", "type": "1:N", "via": "author_invitation_id"}
+      ],
+      "indexes": [
+        {"name": "uq_client_invitations_token_hash", "columns": ["token_hash"], "type": "unique"},
+        {"name": "idx_client_invitations_project_id", "columns": ["project_id"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "invitations_owner_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner'))", "rationale": "ownerのみ発行・失効"},
+        {"name": "invitations_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "memberは閲覧"},
+        {"name": "invitations_client_select_own", "operation": "SELECT", "role": "client_portal", "predicate": "token_hash = current_setting('request.jwt.claims', true)::jsonb->>'invitation_token_hash'", "rationale": "招待者本人"},
+        {"name": "invitations_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "招待JWT発行"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-018",
+      "name": "KnowledgeNode",
+      "table_name": "knowledge_nodes",
+      "description": "ナレッジ（共通＋AI社員別の2層）。アカウント単位で蓄積",
+      "status": "decided",
+      "tenant_isolation": {"type": "account_scoped", "column": "account_id", "fk_table": "polymorphic(workspaces|users)", "note": "account_type で識別"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "approved_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "account_id", "type": "uuid", "constraints": ["NN"]},
+        {"name": "account_type", "type": "knowledge_account_type_enum", "constraints": ["NN"], "values": ["workspace", "user"]},
+        {"name": "scope", "type": "knowledge_scope_enum", "constraints": ["NN"], "values": ["common", "employee_specific"]},
+        {"name": "owner_employee_id", "type": "uuid", "constraints": ["FK ai_employees.id"], "note": "scope=employee_specific時のみ"},
+        {"name": "category", "type": "text", "constraints": ["NN"]},
+        {"name": "tags", "type": "text[]", "constraints": ["NN"], "default": "ARRAY[]::text[]"},
+        {"name": "title", "type": "text", "constraints": ["NN"]},
+        {"name": "content_md", "type": "text", "constraints": ["NN"]},
+        {"name": "embedding", "type": "vector(1024)", "constraints": [], "note": "Voyage AI"},
+        {"name": "source_type", "type": "text", "constraints": ["NN"], "default": "'manual'", "note": "manual / ai_extracted / import / mem0"},
+        {"name": "source_project_id", "type": "uuid", "constraints": ["FK projects.id"]},
+        {"name": "confidence_score", "type": "numeric(3,2)", "constraints": ["NN"], "default": "0.5"},
+        {"name": "usage_count", "type": "integer", "constraints": ["NN"], "default": "0", "note": "参照回数でconfidence上昇"},
+        {"name": "is_anonymized", "type": "boolean", "constraints": ["NN"], "default": "false", "note": "F-LEGAL-015"},
+        {"name": "approved_by_user_id", "type": "uuid", "constraints": ["FK users.id"]}
+      ],
+      "relations": [
+        {"to": "ai_employees", "type": "N:1", "via": "owner_employee_id"},
+        {"to": "projects", "type": "N:1", "via": "source_project_id"}
+      ],
+      "indexes": [
+        {"name": "idx_knowledge_account_scope_owner", "columns": ["account_id", "scope", "owner_employee_id"], "type": "btree"},
+        {"name": "idx_knowledge_embedding_hnsw", "columns": ["embedding"], "type": "hnsw vector_cosine_ops"},
+        {"name": "idx_knowledge_tags_gin", "columns": ["tags"], "type": "gin_array"},
+        {"name": "idx_knowledge_content_fts", "columns": ["content_md"], "type": "gin_tsvector"}
+      ],
+      "access_control_policies": [
+        {"name": "knowledge_account_select", "operation": "SELECT", "role": "authenticated", "predicate": "(account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())) OR (account_type = 'user' AND account_id = auth.uid())", "rationale": "アカウント単位"},
+        {"name": "knowledge_account_insert", "operation": "INSERT", "role": "authenticated", "predicate": "approved_by_user_id = auth.uid() AND ((account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))) OR (account_type = 'user' AND account_id = auth.uid()))", "rationale": "承認時記録"},
+        {"name": "knowledge_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "AI候補生成 / mem0連携"},
+        {"name": "knowledge_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "(account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')) OR (account_type = 'user' AND account_id = auth.uid())", "rationale": "owner/本人のみ"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-019",
+      "name": "ApprovalInbox",
+      "table_name": "approval_inbox",
+      "description": "F-022 人間承認ゲートのInbox + F-CUC01 scope_change 通知ハブ",
+      "status": "decided",
+      "tenant_isolation": {"type": "user_scoped", "column": "user_id", "fk_table": "users"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "resolved_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "type", "type": "approval_inbox_type_enum", "constraints": ["NN"], "values": ["task_approval", "phase_approval", "knowledge_write", "comment_response", "scope_change"]},
+        {"name": "target_type", "type": "text", "constraints": ["NN"]},
+        {"name": "target_id", "type": "uuid", "constraints": ["NN"]},
+        {"name": "title", "type": "text", "constraints": ["NN"]},
+        {"name": "payload", "type": "jsonb", "constraints": ["NN"], "default": "'{}'"},
+        {"name": "status", "type": "text", "constraints": ["NN"], "default": "'pending'", "note": "pending/approved/rejected"},
+        {"name": "resolved_at", "type": "timestamptz"},
+        {"name": "resolution_note", "type": "text"}
+      ],
+      "relations": [{"to": "users", "type": "N:1", "via": "user_id"}],
+      "indexes": [
+        {"name": "idx_approval_inbox_user_status", "columns": ["user_id", "status"], "type": "btree"},
+        {"name": "idx_approval_inbox_pending", "columns": ["status"], "type": "partial", "where": "status = 'pending'"}
+      ],
+      "access_control_policies": [
+        {"name": "inbox_self_all", "operation": "ALL", "role": "authenticated", "predicate": "user_id = auth.uid()", "rationale": "自分のInboxのみ"},
+        {"name": "inbox_service_role_insert", "operation": "INSERT", "role": "service_role", "predicate": "true", "rationale": "AIから書込"},
+        {"name": "inbox_self_resolve", "operation": "UPDATE", "role": "authenticated", "predicate": "user_id = auth.uid()", "rationale": "本人のみ解決"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-020",
+      "name": "AuditLog",
+      "table_name": "audit_logs",
+      "description": "管理者専用の監査ログ（1年保持）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces"},
+      "soft_delete": false,
+      "timestamps": ["created_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "workspace_id", "type": "uuid", "constraints": ["FK workspaces.id"]},
+        {"name": "actor_type", "type": "text", "constraints": ["NN"], "note": "ai/user/system"},
+        {"name": "actor_id", "type": "text", "constraints": ["NN"]},
+        {"name": "action", "type": "text", "constraints": ["NN"]},
+        {"name": "target_type", "type": "text", "constraints": ["NN"]},
+        {"name": "target_id", "type": "uuid", "constraints": []},
+        {"name": "before", "type": "jsonb", "constraints": []},
+        {"name": "after", "type": "jsonb", "constraints": []},
+        {"name": "ip_address", "type": "inet", "constraints": []}
+      ],
+      "relations": [{"to": "workspaces", "type": "N:1", "via": "workspace_id"}],
+      "indexes": [
+        {"name": "idx_audit_logs_workspace_created_at", "columns": ["workspace_id", "created_at"], "type": "btree"},
+        {"name": "idx_audit_logs_actor", "columns": ["actor_type", "actor_id"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "audit_logs_admin_select", "operation": "SELECT", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')", "rationale": "管理者専用"},
+        {"name": "audit_logs_service_role_insert", "operation": "INSERT", "role": "service_role", "predicate": "true", "rationale": "システムから書込"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-021",
+      "name": "McpToken",
+      "table_name": "mcp_tokens",
+      "description": "MCPサーバーアクセストークン（F-P01）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "expires_at", "last_used_at", "revoked_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "workspace_id", "type": "uuid", "constraints": ["FK workspaces.id", "NN"]},
+        {"name": "token_hash", "type": "text", "constraints": ["UK", "NN"]},
+        {"name": "name", "type": "text", "constraints": ["NN"]},
+        {"name": "scopes", "type": "text[]", "constraints": ["NN"]},
+        {"name": "expires_at", "type": "timestamptz"},
+        {"name": "revoked_at", "type": "timestamptz"},
+        {"name": "last_used_at", "type": "timestamptz"}
+      ],
+      "relations": [{"to": "workspaces", "type": "N:1", "via": "workspace_id"}],
+      "indexes": [{"name": "uq_mcp_tokens_token_hash", "columns": ["token_hash"], "type": "unique"}],
+      "access_control_policies": [
+        {"name": "mcp_tokens_owner_all", "operation": "ALL", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')", "rationale": "ownerのみ"},
+        {"name": "mcp_tokens_member_select", "operation": "SELECT", "role": "authenticated", "predicate": "workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())", "rationale": "メンバー閲覧（token_hash は select 時にマスク）"},
+        {"name": "mcp_tokens_service_role_select", "operation": "SELECT", "role": "service_role", "predicate": "true", "rationale": "MCP認証時"},
+        {"name": "mcp_tokens_service_role_update", "operation": "UPDATE", "role": "service_role", "predicate": "true", "rationale": "last_used_at 更新"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-022",
+      "name": "ByokApiKey",
+      "table_name": "byok_api_keys",
+      "description": "ユーザーAPIキー（Supabase Vault暗号化保管）",
+      "status": "decided",
+      "tenant_isolation": {"type": "user_scoped", "column": "user_id", "fk_table": "users"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "provider", "type": "text", "constraints": ["NN"], "note": "claude / openai / gemini"},
+        {"name": "encrypted_key", "type": "text", "constraints": ["NN"], "note": "Supabase Vault"},
+        {"name": "key_label", "type": "text"},
+        {"name": "is_active", "type": "boolean", "constraints": ["NN"], "default": "true"}
+      ],
+      "relations": [{"to": "users", "type": "N:1", "via": "user_id"}],
+      "indexes": [
+        {"name": "uq_byok_api_keys_user_provider", "columns": ["user_id", "provider"], "type": "unique"}
+      ],
+      "access_control_policies": [
+        {"name": "byok_self_all", "operation": "ALL", "role": "authenticated", "predicate": "user_id = auth.uid()", "rationale": "自分のみ"},
+        {"name": "byok_service_role_decrypt", "operation": "SELECT", "role": "service_role", "predicate": "true", "rationale": "FastAPIから復号（Vault SECURITY DEFINER）"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-023",
+      "name": "CronSchedule",
+      "table_name": "cron_schedules",
+      "description": "F-O01 cronスケジュール（Inngest連携）",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at", "next_run_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "name", "type": "text", "constraints": ["NN"]},
+        {"name": "cron_expression", "type": "text", "constraints": ["NN"]},
+        {"name": "target_action", "type": "text", "constraints": ["NN"], "note": "task_replay / knowledge_organize / industry_extract / report_summary"},
+        {"name": "target_payload", "type": "jsonb", "constraints": ["NN"], "default": "'{}'"},
+        {"name": "enabled", "type": "boolean", "constraints": ["NN"], "default": "true"},
+        {"name": "next_run_at", "type": "timestamptz"}
+      ],
+      "relations": [{"to": "projects", "type": "N:1", "via": "project_id"}],
+      "indexes": [
+        {"name": "idx_cron_schedules_next_run", "columns": ["next_run_at"], "type": "partial", "where": "enabled = true"}
+      ],
+      "access_control_policies": [
+        {"name": "cron_member_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/member"},
+        {"name": "cron_viewer_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "viewer閲覧"},
+        {"name": "cron_service_role_update", "operation": "UPDATE", "role": "service_role", "predicate": "true", "rationale": "next_run_at 更新"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-024",
+      "name": "ExternalUpload",
+      "table_name": "external_uploads",
+      "description": "F-M01 議事録・PDF・Office アップロード",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "parsed_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"]},
+        {"name": "uploaded_by_user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "type", "type": "external_upload_type_enum", "constraints": ["NN"]},
+        {"name": "storage_path", "type": "text", "constraints": ["NN"]},
+        {"name": "file_name", "type": "text", "constraints": ["NN"]},
+        {"name": "file_size_bytes", "type": "bigint", "constraints": ["NN"]},
+        {"name": "mime_type", "type": "text", "constraints": ["NN"]},
+        {"name": "parsed_at", "type": "timestamptz"},
+        {"name": "parse_result_path", "type": "text"},
+        {"name": "parse_error", "type": "text"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "users", "type": "N:1", "via": "uploaded_by_user_id"}
+      ],
+      "indexes": [
+        {"name": "idx_external_uploads_project_id", "columns": ["project_id"], "type": "btree"},
+        {"name": "idx_external_uploads_unparsed", "columns": ["parsed_at"], "type": "partial", "where": "parsed_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "uploads_member_all", "operation": "ALL", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member')))", "rationale": "owner/member"},
+        {"name": "uploads_viewer_select", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT id FROM projects WHERE workspace_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid()))", "rationale": "viewer"},
+        {"name": "uploads_service_role_update", "operation": "UPDATE", "role": "service_role", "predicate": "true", "rationale": "解析結果書込"},
+        {"name": "uploads_client_denied", "operation": "ALL", "role": "client_portal", "predicate": "false", "rationale": "クライアントはアップロード見えない"}
+      ],
+      "checklist_status": "decided"
+    },
+    {
+      "id": "E-025",
+      "name": "Consent",
+      "table_name": "consents",
+      "description": "F-LEGAL-004 同意取得ログ（編集不可、版ごとに新行）",
+      "status": "decided",
+      "tenant_isolation": {"type": "user_scoped", "column": "user_id", "fk_table": "users"},
+      "soft_delete": false,
+      "timestamps": ["accepted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "user_id", "type": "uuid", "constraints": ["FK users.id", "NN"]},
+        {"name": "type", "type": "consent_type_enum", "constraints": ["NN"], "values": ["terms_of_service", "privacy_policy", "data_residency", "ai_training_optin"]},
+        {"name": "version", "type": "text", "constraints": ["NN"]},
+        {"name": "accepted", "type": "boolean", "constraints": ["NN"]},
+        {"name": "accepted_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "ip_address", "type": "inet"},
+        {"name": "user_agent", "type": "text"}
+      ],
+      "relations": [{"to": "users", "type": "N:1", "via": "user_id"}],
+      "indexes": [
+        {"name": "idx_consents_user_type", "columns": ["user_id", "type"], "type": "btree"},
+        {"name": "idx_consents_latest", "columns": ["user_id", "type", "accepted_at"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "consents_self_all", "operation": "SELECT,INSERT", "role": "authenticated", "predicate": "user_id = auth.uid()", "rationale": "自分のみ"},
+        {"name": "consents_no_update_delete", "operation": "UPDATE,DELETE", "role": "authenticated", "predicate": "false", "rationale": "編集不可・新版で新行"},
+        {"name": "consents_admin_select", "operation": "SELECT", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')", "rationale": "管理者監査"}
+      ],
+      "checklist_status": "decided"
+    }
+  ],
+  "summary": {
+    "total_entities": 25,
+    "total_access_control_policies": 85,
+    "tenant_isolation_breakdown": {"workspace_scoped": 17, "user_scoped": 4, "account_scoped": 1, "none_global": 3},
+    "soft_delete_enabled": 14,
+    "vector_indexed": 2,
+    "fts_indexed": 3
+  }
+}

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>提案/見積/契約ドラフト — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .sales-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); margin-bottom: 24px; overflow-x: auto; }
+  .sales-tab { padding: 12px 18px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-bottom: 2px solid transparent; white-space: nowrap; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .sales-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .sales-tab .count { background: var(--color-surface-variant); padding: 1px 7px; border-radius: var(--rounded-full); font-size: 10.5px; font-weight: 700; }
+  .sales-tab.active .count { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+
+  .doc-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+  .doc-preview { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; }
+  .doc-toolbar { padding: 12px 18px; background: var(--color-surface-variant); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; }
+  .doc-content { padding: 40px 56px; max-height: 720px; overflow-y: auto; }
+  .doc-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 8px; }
+  .doc-h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 8px; }
+  .doc-meta { color: var(--color-on-surface-variant); font-size: 13px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border); }
+  .doc-h2 { font-size: 18px; font-weight: 700; margin: 24px 0 10px; }
+  .doc-p { margin-bottom: 12px; font-size: 14px; line-height: 1.8; }
+  .doc-list { padding-left: 22px; line-height: 1.85; margin-bottom: 12px; }
+  .quote-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+  .quote-table th { background: var(--color-surface-variant); padding: 8px 10px; text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant); border-bottom: 1px solid var(--color-border); }
+  .quote-table td { padding: 10px; border-bottom: 1px solid var(--color-border); font-variant-numeric: tabular-nums; }
+  .quote-table tr.total td { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 700; font-size: 15px; border: none; }
+
+  .gen-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 20px; }
+  .gen-step { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); align-items: center; font-size: 12.5px; }
+  .gen-step:last-child { border-bottom: none; }
+  .gen-step-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--color-tertiary); color: var(--color-on-tertiary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .gen-step-icon.pending { background: var(--color-surface-variant); color: var(--color-on-surface-variant); }
+  .source-row { padding: 10px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item" href="../upload/S-M01-meeting.html"><i data-icon="upload"></i>議事録</a>
+    <a class="nav-item active" href="#"><i data-icon="file-text"></i>営業ドラフト</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-N01" data-bf-screen-name="sales_drafts" data-bf-category="sales" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>営業ドラフト</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1300px;">
+  <div class="page-header">
+    <div class="page-eyebrow">Sales Drafts · トニー + ナターシャ</div>
+    <h1 class="page-title">提案 / 見積 / 契約 / 請求書ドラフト</h1>
+    <p class="page-subtitle">ナレッジの過去成約パターンから自動生成。修正はチャットで行えます。</p>
+  </div>
+
+  <div class="sales-tabs">
+    <div class="sales-tab"><i data-icon="file-text" data-size="13"></i>提案書 <span class="count">v3</span></div>
+    <div class="sales-tab active"><i data-icon="file-text" data-size="13"></i>見積書 <span class="count">v2</span></div>
+    <div class="sales-tab"><i data-icon="file-text" data-size="13"></i>業務委託契約 <span class="count">v1</span></div>
+    <div class="sales-tab"><i data-icon="shield-check" data-size="13"></i>NDA <span class="count">v1</span></div>
+    <div class="sales-tab"><i data-icon="file-text" data-size="13"></i>請求書 <span class="count">draft</span></div>
+  </div>
+
+  <div class="doc-layout">
+    <div class="doc-preview">
+      <div class="doc-toolbar">
+        <span class="badge badge-primary">v2 · 最新</span>
+        <span class="text-muted text-sm">2026-05-18 16:48 トニー生成 · ナレッジ参照 3 件</span>
+        <div style="margin-left:auto;" class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm"><i data-icon="message-square"></i>修正依頼</button>
+          <button class="btn btn-ghost btn-sm"><i data-icon="download"></i>PDF</button>
+          <button class="btn btn-outlined btn-sm"><i data-icon="edit"></i>編集</button>
+          <button class="btn btn-primary btn-sm"><i data-icon="mail"></i>送信</button>
+        </div>
+      </div>
+
+      <div class="doc-content">
+        <div class="doc-eyebrow">Estimate / 見積書</div>
+        <h1 class="doc-h1">Atelier 自社開発プロジェクト 開発見積</h1>
+        <div class="doc-meta">
+          見積番号：EST-2026-0518-001 · 発行日：2026年5月18日 · 有効期限：2026年6月18日
+        </div>
+
+        <h2 class="doc-h2">お見積先</h2>
+        <p class="doc-p">ENGINE BASE 株式会社<br>代表 高本まさと 様</p>
+
+        <h2 class="doc-h2">見積内容</h2>
+        <table class="quote-table">
+          <thead>
+            <tr>
+              <th>項目</th>
+              <th style="text-align: right;">単価</th>
+              <th style="text-align: center;">数量</th>
+              <th style="text-align: right;">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong>第 1 段階 · 基盤構築</strong><br>
+                <span class="text-muted text-sm">Supabase + Next.js + FastAPI · CI/CD · RLS 設計</span>
+              </td>
+              <td style="text-align: right;">¥400,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥400,000</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>第 2 段階 · AI組織 + チャット + MCP</strong><br>
+                <span class="text-muted text-sm">AI社員10名 · スキル装着 · assistant-ui 統合</span>
+              </td>
+              <td style="text-align: right;">¥1,200,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥1,200,000</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>第 3 段階 · 工程ワークフロー</strong><br>
+                <span class="text-muted text-sm">9工程 · モック · クライアント招待</span>
+              </td>
+              <td style="text-align: right;">¥800,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥800,000</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>第 4 段階 · タスク並列実行</strong><br>
+                <span class="text-muted text-sm">かんばん · Claude Code ブリッジ · 仕様徹底ループ</span>
+              </td>
+              <td style="text-align: right;">¥1,500,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥1,500,000</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>第 5 段階 · ナレッジ + 商談周辺</strong><br>
+                <span class="text-muted text-sm">RAG · 議事録解析 · 提案/見積生成</span>
+              </td>
+              <td style="text-align: right;">¥1,000,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥1,000,000</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>第 6 段階 · 本格リリース準備</strong><br>
+                <span class="text-muted text-sm">マルチLLM · Git連携 · 法令対応 · QA</span>
+              </td>
+              <td style="text-align: right;">¥700,000</td>
+              <td style="text-align: center;">1</td>
+              <td style="text-align: right;">¥700,000</td>
+            </tr>
+            <tr>
+              <td style="text-align: right; padding-top: 16px;" colspan="3">小計</td>
+              <td style="text-align: right; padding-top: 16px;">¥5,600,000</td>
+            </tr>
+            <tr>
+              <td style="text-align: right;" colspan="3">消費税（10%）</td>
+              <td style="text-align: right;">¥560,000</td>
+            </tr>
+            <tr class="total">
+              <td colspan="3" style="text-align: right;">合計（税込）</td>
+              <td style="text-align: right;">¥6,160,000</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2 class="doc-h2">見積条件</h2>
+        <ul class="doc-list">
+          <li>納期：2026年5月下旬〜2026年8月末（約 3 ヶ月）</li>
+          <li>支払い：着手金 30% / 中間 30% / 納品時 40%</li>
+          <li>AI 利用費（Anthropic API・Claude Code プラン）はお客様ご自身のアカウントでご契約・ご負担いただきます</li>
+          <li>外部サービス：Vercel / Fly.io / Supabase の利用料は別途</li>
+        </ul>
+
+        <p class="doc-p text-muted text-sm" style="margin-top: 24px;">
+          発行者：ENGINE BASE 株式会社 / 高本まさと<br>
+          ※ 本見積は AI 補助で作成されたドラフトです。最終版は人間レビュー後に発行されます。
+        </p>
+      </div>
+    </div>
+
+    <aside class="flex flex-col gap-4">
+      <div class="gen-card">
+        <h3 class="section-title mb-3" style="font-size: 14px;">生成プロセス</h3>
+        <div class="gen-step">
+          <div class="gen-step-icon"><i data-icon="check" data-size="11"></i></div>
+          <div>
+            <div class="font-semibold">ナレッジ参照</div>
+            <div class="text-muted text-sm">過去類似 3 案件</div>
+          </div>
+        </div>
+        <div class="gen-step">
+          <div class="gen-step-icon"><i data-icon="check" data-size="11"></i></div>
+          <div>
+            <div class="font-semibold">機能分解から工数算出</div>
+            <div class="text-muted text-sm">35 機能 · 87 タスク</div>
+          </div>
+        </div>
+        <div class="gen-step">
+          <div class="gen-step-icon"><i data-icon="check" data-size="11"></i></div>
+          <div>
+            <div class="font-semibold">トニーが項目構成</div>
+            <div class="text-muted text-sm">フェーズ別に集約</div>
+          </div>
+        </div>
+        <div class="gen-step">
+          <div class="gen-step-icon"><i data-icon="check" data-size="11"></i></div>
+          <div>
+            <div class="font-semibold">ナターシャが価格レビュー</div>
+            <div class="text-muted text-sm">市場相場との照合済み</div>
+          </div>
+        </div>
+        <div class="gen-step">
+          <div class="gen-step-icon pending"><i data-icon="check" data-size="11"></i></div>
+          <div>
+            <div class="font-semibold text-muted">人間レビュー</div>
+            <div class="text-muted text-sm">承認後に確定</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gen-card" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container); border: none;">
+        <h3 class="section-title mb-2" style="font-size: 14px;">参照ナレッジ</h3>
+        <div class="source-row" style="background: rgba(255,255,255,0.6);">
+          <strong>受託案件の提案書テンプレ v3</strong>
+          <div class="text-sm" style="margin-top: 2px; opacity: 0.85;">成約率 +18% パターン · トニー</div>
+        </div>
+        <div class="source-row" style="background: rgba(255,255,255,0.6);">
+          <strong>SaaS 開発の価格レンジ</strong>
+          <div class="text-sm" style="margin-top: 2px; opacity: 0.85;">業界傾向 · 共通ナレッジ</div>
+        </div>
+        <div class="source-row" style="background: rgba(255,255,255,0.6);">
+          <strong>Phase 別工数の積算式</strong>
+          <div class="text-sm" style="margin-top: 2px; opacity: 0.85;">トニー専用ナレッジ</div>
+        </div>
+      </div>
+
+      <div class="gen-card">
+        <h3 class="section-title mb-3" style="font-size: 14px;">送信履歴</h3>
+        <div class="text-sm text-muted">まだ送信されていません</div>
+        <button class="btn btn-primary w-full mt-3" style="justify-content: center;"><i data-icon="mail"></i>クライアントにメール送信</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

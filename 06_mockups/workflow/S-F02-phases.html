@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>フェーズ管理 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .phase-timeline { display: flex; flex-direction: column; gap: 10px; position: relative; }
+  .phase-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 18px 22px; }
+  .phase-card.proposed { background: var(--color-secondary-container); border-color: var(--color-secondary); }
+  .phase-card.current { border-left: 3px solid var(--color-primary); }
+  .phase-card.done { background: var(--color-tertiary-container); }
+  .phase-card-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .phase-num { width: 30px; height: 30px; border-radius: 50%; background: var(--color-surface-variant); color: var(--color-on-surface-variant); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+  .phase-card.done .phase-num { background: var(--color-tertiary); color: var(--color-on-tertiary); }
+  .phase-card.current .phase-num { background: var(--color-primary); color: var(--color-on-primary); }
+  .phase-card.proposed .phase-num { background: var(--color-secondary); color: var(--color-on-secondary); }
+  .phase-tasks { font-size: 12.5px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); display: flex; gap: 16px; flex-wrap: wrap; }
+  .impact-graph { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 20px; }
+  .impact-node { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-full); font-size: 12px; margin: 4px; }
+  .impact-node.changed { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; }
+  .impact-node.affected { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .arrow { color: var(--color-on-surface-variant); margin: 0 4px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="git-branch"></i>フェーズ管理</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-F02" data-bf-screen-name="phases" data-bf-category="workflow" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>フェーズ管理</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1100px;">
+  <div class="page-header">
+    <div class="page-eyebrow">Phase Management</div>
+    <h1 class="page-title">フェーズ管理</h1>
+    <p class="page-subtitle">AI 提案を承認してフェーズを確定。タスク移動時は F-IMP01 が影響範囲を解析します。</p>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 2fr 1fr; gap: 20px;">
+    <section>
+      <div class="section-header"><h2 class="section-title">フェーズタイムライン</h2></div>
+      <div class="phase-timeline">
+        <div class="phase-card done">
+          <div class="phase-card-head">
+            <div class="phase-num"><i data-icon="check"></i></div>
+            <div style="flex:1;">
+              <div class="font-bold">第 1 段階 · 基盤</div>
+              <div class="text-sm" style="opacity:0.8;">2026-05-18 〜 2026-05-25 · CI/CD・RLS・WS/プロジェクトCRUD</div>
+            </div>
+            <span class="pill pill-completed"><span class="pill-dot"></span>完了</span>
+          </div>
+          <div class="phase-tasks">
+            <span><strong>12</strong> タスク完了</span>
+            <span class="text-tertiary">スコア平均 0.94</span>
+          </div>
+        </div>
+
+        <div class="phase-card current">
+          <div class="phase-card-head">
+            <div class="phase-num">1</div>
+            <div style="flex:1;">
+              <div class="font-bold">第 2 段階 · AI組織+チャット+MCP</div>
+              <div class="text-sm text-muted">2026-05-26 〜 2026-06-22 · AI社員・スキル・チャット・三層出力・MCP公開</div>
+            </div>
+            <span class="pill pill-in-progress"><span class="pill-dot"></span>進行中 42%</span>
+          </div>
+          <div class="phase-tasks">
+            <span><strong>8</strong> / 24 タスク完了</span>
+            <span><strong>3</strong> 承認待ち</span>
+            <span class="text-tertiary">スコア平均 0.91</span>
+          </div>
+        </div>
+
+        <div class="phase-card proposed">
+          <div class="phase-card-head">
+            <div class="phase-num"><i data-icon="sparkles" data-size="14"></i></div>
+            <div style="flex:1;">
+              <div class="font-bold">第 3 段階 · 工程ワークフロー（AI提案）</div>
+              <div class="text-sm" style="opacity:0.85;">2026-06-23 〜 2026-07-13 · 工程・モック・クライアント招待・コメント</div>
+            </div>
+            <span class="pill pill-awaiting"><span class="pill-dot"></span>承認待ち</span>
+          </div>
+          <div class="phase-tasks">
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-jarvis">J</div>ジャービスが提案 · 2 分前</span>
+          </div>
+          <div class="flex gap-2 mt-4">
+            <button class="btn btn-primary btn-sm"><i data-icon="check"></i>承認</button>
+            <button class="btn btn-outlined btn-sm">却下</button>
+            <button class="btn btn-ghost btn-sm">提案理由を見る</button>
+          </div>
+        </div>
+
+        <div class="phase-card">
+          <div class="phase-card-head">
+            <div class="phase-num">3</div>
+            <div style="flex:1;">
+              <div class="font-bold">第 4 段階 · タスク実行+仕様徹底</div>
+              <div class="text-sm text-muted">未着手</div>
+            </div>
+            <span class="pill pill-pending"><span class="pill-dot"></span>未着手</span>
+          </div>
+        </div>
+
+        <div class="phase-card">
+          <div class="phase-card-head">
+            <div class="phase-num">4</div>
+            <div style="flex:1;">
+              <div class="font-bold">第 5 段階 · ナレッジ+商談周辺</div>
+              <div class="text-sm text-muted">未着手</div>
+            </div>
+            <span class="pill pill-pending"><span class="pill-dot"></span>未着手</span>
+          </div>
+        </div>
+
+        <div class="phase-card">
+          <div class="phase-card-head">
+            <div class="phase-num">5</div>
+            <div style="flex:1;">
+              <div class="font-bold">第 6 段階 · 本格リリース</div>
+              <div class="text-sm text-muted">未着手</div>
+            </div>
+            <span class="pill pill-pending"><span class="pill-dot"></span>未着手</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div class="card" style="background: var(--color-primary-container); color: var(--color-on-primary-container); border: none;">
+        <div class="eyebrow mb-2" style="color: inherit; opacity: 0.7;">F-IMP01 · 影響範囲解析</div>
+        <h3 class="font-bold mb-2">タスク T-042 を 第 3 段階 へ移動した場合</h3>
+        <p class="text-sm mb-3">7 タスクへの影響を検出（実装済み 2 / 未着手 5）</p>
+        <div>
+          <span class="impact-node changed">T-042</span>
+          <span class="arrow">→</span>
+          <span class="impact-node affected">T-055</span>
+          <span class="impact-node affected">T-061</span>
+          <span class="impact-node affected">T-068</span>
+        </div>
+        <p class="text-sm mt-3" style="opacity:0.85;">完了済 2 タスクは <strong>リファクタタスクとして自動起票</strong> されます（F-CUC02）。</p>
+        <button class="btn btn-sm mt-3" style="background: var(--color-on-primary-container); color: var(--color-primary-container);">解析結果を見る</button>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title mb-3" style="font-size:14px;">統計</h3>
+        <div class="flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted">確定フェーズ数</span>
+            <span class="font-bold tabular">1 / 5</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted">提案中</span>
+            <span class="font-bold tabular text-primary">1</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted">F-IMP01 実行回数</span>
+            <span class="font-bold tabular">12 回（本日）</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-muted">日次整合性チェック</span>
+            <span class="font-bold tabular text-tertiary">OK</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title mb-3" style="font-size:14px;">運用ルール</h3>
+        <ul class="text-sm" style="padding-left: 18px; line-height: 1.7;">
+          <li>フェーズ追加は AI 提案のみ</li>
+          <li>確定後の追加は次フェーズで対応</li>
+          <li>タスク移動は影響解析 → 承認</li>
+          <li>完了タスクへ影響時は <strong>リファクタタスク自動起票</strong></li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

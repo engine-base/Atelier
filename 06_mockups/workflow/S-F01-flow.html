@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>工程ワークフロー — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* === 9工程フローバー（上部の常設） === */
+  .stage-bar { background: #FFFFFF; border-bottom: 1px solid var(--color-border); padding: 14px 24px; position: sticky; top: 56px; z-index: 5; }
+  .stage-bar-row { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 0 2px; }
+  .stage-node { flex: 1; min-width: 96px; display: flex; flex-direction: column; align-items: center; position: relative; cursor: pointer; padding: 4px 4px 0; transition: all 0.12s; border-radius: var(--rounded-md); }
+  .stage-node:hover { background: var(--color-surface-variant); }
+  .stage-node.selected { background: var(--color-primary-container); }
+  .stage-circle { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12.5px; background: var(--color-surface-variant); color: var(--color-on-surface-variant); border: 2px solid var(--color-border); position: relative; z-index: 2; flex-shrink: 0; }
+  .stage-node.done .stage-circle { background: var(--color-tertiary); color: var(--color-on-tertiary); border-color: var(--color-tertiary); }
+  .stage-node.current .stage-circle { background: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-container); }
+  .stage-node:not(:last-child)::after { content: ''; position: absolute; top: 23px; left: calc(50% + 17px); right: calc(-50% + 17px); height: 2px; background: var(--color-border); z-index: 1; }
+  .stage-node.done:not(:last-child)::after { background: var(--color-tertiary); }
+  .stage-node.current:not(:last-child)::after { background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) 42%, var(--color-border) 42%); }
+  .stage-name { font-size: 11.5px; font-weight: 700; margin-top: 8px; text-align: center; }
+  .stage-meta { font-size: 10px; color: var(--color-on-surface-variant); margin-top: 2px; text-align: center; }
+  .stage-node.current .stage-name { color: var(--color-primary); }
+  .stage-node.selected .stage-meta { color: var(--color-on-primary-container); }
+
+  /* === 工程ヘッダー === */
+  .stage-header { padding: 24px 32px 20px; background: linear-gradient(180deg, var(--color-primary-container) 0%, transparent 100%); }
+  .stage-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; color: var(--color-on-primary-container); }
+  .stage-info-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--color-on-primary-container); }
+  .progress-bar { height: 6px; background: rgba(255,255,255,0.5); border-radius: var(--rounded-full); overflow: hidden; min-width: 180px; flex: 1; max-width: 320px; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--rounded-full); }
+
+  /* === メインレイアウト === */
+  .stage-body { display: grid; grid-template-columns: 1fr 320px; gap: 20px; padding: 20px 32px 60px; }
+
+  /* タブ */
+  .tabs-row { display: flex; gap: 2px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px; overflow-x: auto; }
+  .tab-btn { padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-bottom: 2px solid transparent; white-space: nowrap; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .tab-btn .count { background: var(--color-surface-variant); padding: 1px 7px; border-radius: var(--rounded-full); font-size: 10.5px; font-weight: 700; }
+  .tab-btn.active .count { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+
+  /* 確定事項 */
+  .decision-list { display: flex; flex-direction: column; gap: 8px; }
+  .decision-item { background: #FFFFFF; border: 1px solid var(--color-border); border-left: 3px solid var(--color-tertiary); border-radius: var(--rounded-md); padding: 14px 18px; transition: all 0.12s; }
+  .decision-item:hover { box-shadow: var(--shadow-sm); }
+  .decision-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--color-on-surface-variant); margin-bottom: 4px; }
+  .decision-body { font-size: 14px; font-weight: 600; margin-bottom: 4px; line-height: 1.5; }
+  .decision-refl { font-size: 12px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+
+  /* 成果物プレビュー */
+  .preview-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; }
+  .preview-tabs { display: flex; gap: 4px; padding: 8px 12px; background: var(--color-surface-variant); border-bottom: 1px solid var(--color-border); align-items: center; }
+  .preview-tabs .tab { padding: 5px 12px; font-size: 11.5px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .preview-tabs .tab.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .preview-actions { margin-left: auto; display: flex; gap: 4px; }
+
+  .preview-frame { padding: 0; background: var(--color-surface-variant); min-height: 360px; max-height: 540px; overflow: auto; }
+  .doc-preview { background: #FFFFFF; padding: 32px 44px; margin: 16px; border-radius: var(--rounded-md); border: 1px solid var(--color-border); font-size: 13px; line-height: 1.85; }
+  .doc-preview h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; line-height: 1.3; }
+  .doc-preview .doc-meta { color: var(--color-on-surface-variant); font-size: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); margin-bottom: 18px; }
+  .doc-preview h2 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--color-border); }
+  .doc-preview h3 { font-size: 13.5px; font-weight: 700; margin: 12px 0 6px; }
+  .doc-preview ul { padding-left: 22px; margin: 6px 0 10px; }
+  .doc-preview p { margin-bottom: 8px; }
+  .doc-preview table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0; }
+  .doc-preview th { background: var(--color-surface-variant); padding: 6px 10px; text-align: left; font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant); border-bottom: 1px solid var(--color-border); }
+  .doc-preview td { padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
+  .doc-preview code { background: var(--color-surface-variant); padding: 1px 6px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+
+  /* 議論中 */
+  .thread-item { display: flex; gap: 12px; padding: 12px 14px; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); margin-bottom: 6px; cursor: pointer; transition: all 0.12s; align-items: center; }
+  .thread-item:hover { border-color: var(--color-primary); background: var(--color-surface-variant); }
+  .thread-item-body { flex: 1; min-width: 0; }
+  .thread-item-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .thread-item-meta { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .thread-unread-badge { background: var(--color-primary); color: var(--color-on-primary); padding: 1px 7px; border-radius: var(--rounded-full); font-size: 10.5px; font-weight: 700; }
+
+  /* 未確認 */
+  .unresolved-item { display: flex; gap: 10px; padding: 10px 14px; background: var(--color-secondary-container); color: var(--color-on-secondary-container); border-radius: var(--rounded-md); margin-bottom: 6px; align-items: flex-start; }
+  .unresolved-icon { width: 22px; height: 22px; background: var(--color-secondary); color: var(--color-on-secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; }
+
+  /* 右カラム */
+  .side-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 16px 18px; margin-bottom: 14px; }
+  .side-card-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 12px; }
+  .side-link-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12.5px; border-bottom: 1px solid var(--color-border); }
+  .side-link-row:last-child { border-bottom: none; }
+  .side-link-row a { display: flex; align-items: center; gap: 6px; flex: 1; color: inherit; text-decoration: none; }
+  .side-link-row a:hover { color: var(--color-primary); }
+  .side-link-count { font-variant-numeric: tabular-nums; color: var(--color-on-surface-variant); font-size: 11.5px; }
+  .quick-action-btn { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); font-size: 12.5px; font-weight: 600; margin-bottom: 6px; cursor: pointer; width: 100%; text-align: left; border: none; font-family: inherit; transition: all 0.12s; }
+  .quick-action-btn:hover { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+
+  /* タブパネル */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item active" href="#"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item" href="S-F02-phases.html"><i data-icon="git-branch"></i>フェーズ管理</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="../chat/S-E01-thread.html"><i data-icon="message-square"></i>チャット</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-F01" data-bf-screen-name="workflow" data-bf-category="workflow" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>工程</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<!-- 上部：9工程フローバー -->
+<div class="stage-bar">
+  <div class="stage-bar-row">
+    <div class="stage-node done"><div class="stage-circle"><i data-icon="check" data-size="13"></i></div><div class="stage-name">ヒアリング</div><div class="stage-meta">完了</div></div>
+    <div class="stage-node done"><div class="stage-circle"><i data-icon="check" data-size="13"></i></div><div class="stage-name">要件定義</div><div class="stage-meta">完了</div></div>
+    <div class="stage-node done"><div class="stage-circle"><i data-icon="check" data-size="13"></i></div><div class="stage-name">アーキ設計</div><div class="stage-meta">完了</div></div>
+    <div class="stage-node done"><div class="stage-circle"><i data-icon="check" data-size="13"></i></div><div class="stage-name">デザイン</div><div class="stage-meta">完了</div></div>
+    <div class="stage-node current selected"><div class="stage-circle">5</div><div class="stage-name">機能分解</div><div class="stage-meta">87%</div></div>
+    <div class="stage-node"><div class="stage-circle">6</div><div class="stage-name">タスク分解</div><div class="stage-meta">待機</div></div>
+    <div class="stage-node"><div class="stage-circle">7</div><div class="stage-name">実装</div><div class="stage-meta">待機</div></div>
+    <div class="stage-node"><div class="stage-circle">8</div><div class="stage-name">検証</div><div class="stage-meta">待機</div></div>
+    <div class="stage-node"><div class="stage-circle">9</div><div class="stage-name">納品</div><div class="stage-meta">待機</div></div>
+  </div>
+</div>
+
+<!-- 工程ヘッダー -->
+<div class="stage-header">
+  <div class="flex items-center gap-2 mb-2" style="font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-primary);">
+    <i data-icon="layout-dashboard" data-size="12"></i> Stage 5 / 9 · 機能分解 工程
+  </div>
+  <h1 class="stage-h1">機能分解</h1>
+  <div class="stage-info-row">
+    <span class="flex items-center gap-2"><div class="avatar avatar-sm avatar-steve">S</div>スティーブ</span>
+    <span class="flex items-center gap-2"><div class="avatar avatar-sm avatar-peter">P</div>ピーター</span>
+    <span class="badge badge-primary">進行中 87%</span>
+    <div class="progress-bar"><div class="progress-fill" style="width: 87%;"></div></div>
+    <span class="tabular text-sm" style="margin-left: auto;">開始 2026-05-18 16:48 · 経過 02:14</span>
+  </div>
+</div>
+
+<!-- メインレイアウト -->
+<div class="stage-body">
+  <!-- 左カラム -->
+  <section>
+    <div class="tabs-row">
+      <div class="tab-btn active" data-tab="decisions">確定事項<span class="count">12</span></div>
+      <div class="tab-btn" data-tab="output">成果物<span class="count">4</span></div>
+      <div class="tab-btn" data-tab="discussion">議論中<span class="count">3</span></div>
+      <div class="tab-btn" data-tab="unresolved">未確認<span class="count">5</span></div>
+    </div>
+
+    <!-- タブ：確定事項 -->
+    <div class="tab-panel active" data-panel="decisions">
+      <div class="decision-list">
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 16:42</span>
+            <div class="avatar avatar-sm avatar-steve">S</div>
+            <span>スティーブ + あなた</span>
+          </div>
+          <div class="decision-body">画面数を 35 → 33 に確定（S-A02 / S-C03 を廃止）</div>
+          <div class="decision-refl">反映先：screens.json · functional-breakdown.html · 06_mockups/index.html</div>
+        </div>
+
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 16:43</span>
+            <div class="avatar avatar-sm avatar-steve">S</div>
+            <span>スティーブ + あなた</span>
+          </div>
+          <div class="decision-body">スキル概念はユーザーに非表示。「できること（能力）」として変換表示</div>
+          <div class="decision-refl">反映先：F-007 を管理者専用に降格 · S-C02 を能力ベース UI に書き換え</div>
+        </div>
+
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 16:44</span>
+            <div class="avatar avatar-sm avatar-jarvis">J</div>
+            <span>ジャービス（COO）+ あなた</span>
+          </div>
+          <div class="decision-body">完了 2 タスクのリファクタは T-014 完了後に起票</div>
+          <div class="decision-refl">反映先：S-J01 Inbox に通知済み（F-CUC02）</div>
+        </div>
+
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 15:18</span>
+            <div class="avatar avatar-sm avatar-peter">P</div>
+            <span>ピーター</span>
+          </div>
+          <div class="decision-body">AI 社員は運営側完全固定（10 名）。ユーザーは追加・削除・雇用不可</div>
+          <div class="decision-refl">反映先：F-006 / roles.json OC-003 / S-C01 の雇用ボタン撤廃</div>
+        </div>
+
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 14:02</span>
+            <div class="avatar avatar-sm avatar-steve">S</div>
+            <span>スティーブ</span>
+          </div>
+          <div class="decision-body">F-CUC01〜04 を独立機能化（継続的更新サイクル）</div>
+          <div class="decision-refl">反映先：features.json + bf_feature_spec.json の 第 4 段階 配置</div>
+        </div>
+
+        <div class="decision-item">
+          <div class="decision-meta">
+            <span class="badge badge-tertiary">確定</span>
+            <span class="tabular">2026-05-19 11:48</span>
+            <div class="avatar avatar-sm avatar-strange">D</div>
+            <span>ストレンジ</span>
+          </div>
+          <div class="decision-body">25 エンティティ + 85 RLS ポリシー + 19 ENUM を確定</div>
+          <div class="decision-refl">反映先：entities.json · ER 図 v1</div>
+        </div>
+
+        <div class="text-center" style="padding: 16px 0;"><a href="#" class="text-primary font-semibold text-sm">他 6 件を見る →</a></div>
+      </div>
+    </div>
+
+    <!-- タブ：成果物 -->
+    <div class="tab-panel" data-panel="output">
+      <div class="preview-card">
+        <div class="preview-tabs">
+          <span class="tab active"><i data-icon="eye" data-size="11"></i> HTML</span>
+          <span class="tab"><i data-icon="file-code" data-size="11"></i> JSON</span>
+          <span class="tab"><i data-icon="file-text" data-size="11"></i> MD</span>
+          <div class="preview-actions">
+            <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i>全画面</button>
+            <button class="btn btn-ghost btn-sm"><i data-icon="download"></i>DL</button>
+            <a class="btn btn-outlined btn-sm" href="../output/S-G01-viewer.html"><i data-icon="message-square"></i>コメント (3)</a>
+          </div>
+        </div>
+        <div class="preview-frame">
+          <div class="doc-preview">
+            <h1>Atelier 機能分解 v1.0</h1>
+            <div class="doc-meta">スキーマ v3 · 2026-05-19 · スティーブ + ピーター</div>
+
+            <h2>1. エンティティ（25）</h2>
+            <p>25 テーブル、合計 <strong>85 の RLS ポリシー</strong>定義。命名規約 <code>PascalCase Entity → snake_case_plural table</code>。全テーブルで UUID v7 + ソフトデリート + TIMESTAMPTZ を採用。</p>
+            <table>
+              <thead><tr><th>分離タイプ</th><th>件数</th><th>対象</th></tr></thead>
+              <tbody>
+                <tr><td>workspace_scoped</td><td>17</td><td>projects / tasks / chat_threads 等</td></tr>
+                <tr><td>user_scoped</td><td>4</td><td>approval_inbox / byok_api_keys / consents</td></tr>
+                <tr><td>account_scoped</td><td>1</td><td>knowledge_nodes</td></tr>
+                <tr><td>none</td><td>3</td><td>users / ai_employee_templates / skills</td></tr>
+              </tbody>
+            </table>
+
+            <h2>2. 機能（39）</h2>
+            <p>decided 36 / draft 2 / blocked 1。すべて EARS 5 形式の AC seed を持つ。</p>
+
+            <h3>注目機能</h3>
+            <ul>
+              <li><strong>F-CTX01</strong>：Hybrid Context Construction Layer（7 層構築）</li>
+              <li><strong>F-IMP01</strong>：Impact Analyzer（NetworkX グラフ走査）</li>
+              <li><strong>F-CUC01〜04</strong>：継続的更新サイクル</li>
+            </ul>
+
+            <h2>3. ロール（6）+ 画面（33）</h2>
+            <p>6 ロール + 10 オブジェクト制約。<strong>R-005 ClientGuest</strong> は別 JWT 経路で完全分離（致命級リスク R-T08 対策）。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-2 gap-3 mt-4">
+        <div class="card" style="padding: 12px 14px;">
+          <div class="flex items-center gap-2 mb-1"><i data-icon="file-text" data-size="13"></i><strong class="text-sm">entities.json</strong></div>
+          <div class="text-muted text-sm">25 エンティティ · 65 KB</div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-ghost btn-sm"><i data-icon="eye" data-size="12"></i>表示</button><button class="btn btn-ghost btn-sm"><i data-icon="download" data-size="12"></i>DL</button></div>
+        </div>
+        <div class="card" style="padding: 12px 14px;">
+          <div class="flex items-center gap-2 mb-1"><i data-icon="file-text" data-size="13"></i><strong class="text-sm">features.json</strong></div>
+          <div class="text-muted text-sm">39 機能 · 152 API</div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-ghost btn-sm"><i data-icon="eye" data-size="12"></i>表示</button><button class="btn btn-ghost btn-sm"><i data-icon="download" data-size="12"></i>DL</button></div>
+        </div>
+        <div class="card" style="padding: 12px 14px;">
+          <div class="flex items-center gap-2 mb-1"><i data-icon="file-text" data-size="13"></i><strong class="text-sm">roles.json</strong></div>
+          <div class="text-muted text-sm">6 ロール · 10 制約</div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-ghost btn-sm"><i data-icon="eye" data-size="12"></i>表示</button><button class="btn btn-ghost btn-sm"><i data-icon="download" data-size="12"></i>DL</button></div>
+        </div>
+        <div class="card" style="padding: 12px 14px;">
+          <div class="flex items-center gap-2 mb-1"><i data-icon="file-text" data-size="13"></i><strong class="text-sm">screens.json</strong></div>
+          <div class="text-muted text-sm">33 画面 · meta_tags 完備</div>
+          <div class="flex gap-2 mt-2"><button class="btn btn-ghost btn-sm"><i data-icon="eye" data-size="12"></i>表示</button><button class="btn btn-ghost btn-sm"><i data-icon="download" data-size="12"></i>DL</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- タブ：議論中 -->
+    <div class="tab-panel" data-panel="discussion">
+      <a class="thread-item" href="../chat/S-E01-thread.html">
+        <div class="avatar avatar-steve">S</div>
+        <div class="thread-item-body">
+          <div class="thread-item-title">F-CUC02 3 択判断モーダルの UX 検討</div>
+          <div class="thread-item-meta">スティーブ · 5 件のメッセージ · 8 分前</div>
+        </div>
+        <span class="thread-unread-badge">2</span>
+      </a>
+      <a class="thread-item" href="../chat/S-E01-thread.html">
+        <div class="avatar avatar-peter">P</div>
+        <div class="thread-item-body">
+          <div class="thread-item-title">タスクカードの必須フィールド最終確認</div>
+          <div class="thread-item-meta">ピーター · 12 件のメッセージ · 25 分前</div>
+        </div>
+      </a>
+      <a class="thread-item" href="../chat/S-E01-thread.html">
+        <div class="avatar avatar-wanda">W</div>
+        <div class="thread-item-body">
+          <div class="thread-item-title">能力表示の文言と表記揺れの整理</div>
+          <div class="thread-item-meta">ワンダ · 4 件のメッセージ · 昨日</div>
+        </div>
+      </a>
+
+      <button class="btn btn-outlined w-full mt-3" style="justify-content: center;"><i data-icon="plus"></i>この工程で新規チャット</button>
+    </div>
+
+    <!-- タブ：未確認 -->
+    <div class="tab-panel" data-panel="unresolved">
+      <div class="unresolved-item">
+        <div class="unresolved-icon">!</div>
+        <div>
+          <div class="font-semibold text-sm">月額単価の具体値（個人/法人別）</div>
+          <div class="text-sm" style="opacity: 0.85;">解決すべきフェーズ：product-strategy（第 8 段階-8）</div>
+        </div>
+      </div>
+      <div class="unresolved-item">
+        <div class="unresolved-icon">!</div>
+        <div>
+          <div class="font-semibold text-sm">無料枠／体験版の設計</div>
+          <div class="text-sm" style="opacity: 0.85;">解決すべきフェーズ：product-strategy（第 8 段階-8）</div>
+        </div>
+      </div>
+      <div class="unresolved-item">
+        <div class="unresolved-icon">!</div>
+        <div>
+          <div class="font-semibold text-sm">スコア計算式の最終チューニング（F-J02）</div>
+          <div class="text-sm" style="opacity: 0.85;">解決すべきタイミング：第 2 段階 の本人案件実走後</div>
+        </div>
+      </div>
+      <div class="unresolved-item">
+        <div class="unresolved-icon">!</div>
+        <div>
+          <div class="font-semibold text-sm">電気通信事業届出の要否確認</div>
+          <div class="text-sm" style="opacity: 0.85;">解決すべきタイミング：リリース 1ヶ月前 / 弁護士 or 総務省窓口</div>
+        </div>
+      </div>
+      <div class="unresolved-item">
+        <div class="unresolved-icon">!</div>
+        <div>
+          <div class="font-semibold text-sm">AI 社員のリリース時名称（商標リスク）</div>
+          <div class="text-sm" style="opacity: 0.85;">解決すべきフェーズ：第 5 段階 まで</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右カラム -->
+  <aside>
+    <div class="side-card">
+      <div class="side-card-title">クイックアクション</div>
+      <button class="quick-action-btn"><i data-icon="message-square" data-size="14"></i>スティーブと議論</button>
+      <button class="quick-action-btn"><i data-icon="message-square" data-size="14"></i>ピーターに依頼</button>
+      <button class="quick-action-btn"><i data-icon="check" data-size="14"></i>この工程を完了として承認</button>
+      <button class="quick-action-btn"><i data-icon="git-branch" data-size="14"></i>次工程（タスク分解）を開始</button>
+    </div>
+
+    <div class="side-card">
+      <div class="side-card-title">関連リンク</div>
+      <div class="side-link-row">
+        <a href="../chat/S-E01-thread.html"><i data-icon="message-square" data-size="14"></i>進行中チャット</a>
+        <span class="side-link-count">3 件</span>
+      </div>
+      <div class="side-link-row">
+        <a href="../task/S-I01-kanban.html"><i data-icon="kanban" data-size="14"></i>関連タスク</a>
+        <span class="side-link-count">12 件</span>
+      </div>
+      <div class="side-link-row">
+        <a href="#"><i data-icon="brain" data-size="14"></i>参照ナレッジ</a>
+        <span class="side-link-count">5 件</span>
+      </div>
+      <div class="side-link-row">
+        <a href="S-F02-phases.html"><i data-icon="git-branch" data-size="14"></i>フェーズ管理</a>
+        <span class="side-link-count">第 2 段階</span>
+      </div>
+      <div class="side-link-row">
+        <a href="../output/S-G01-viewer.html"><i data-icon="external-link" data-size="14"></i>成果物ビューア</a>
+        <span class="side-link-count">→</span>
+      </div>
+    </div>
+
+    <div class="side-card">
+      <div class="side-card-title">前工程から引き継いだサマリー</div>
+      <div class="text-sm" style="line-height: 1.65;">
+        デザイン工程で <strong>33 画面</strong>のモック確定 + design.md トークン v1.0。ワンダ作成。<br>
+        <span class="text-muted">→ 機能分解工程ではこの 33 画面に紐づく機能・エンティティ・ロールを定義する</span>
+      </div>
+      <button class="btn btn-ghost btn-sm mt-3"><i data-icon="external-link" data-size="12"></i>前工程の成果物を見る</button>
+    </div>
+
+    <div class="side-card" style="background: var(--color-surface-variant); border: none;">
+      <div class="side-card-title" style="color: var(--color-on-surface-variant);">次工程への引き継ぎ予告</div>
+      <div class="text-sm" style="line-height: 1.65;">
+        この工程の完了時に <strong>タスク分解</strong> 工程へ自動的に：
+        <ul style="padding-left: 20px; margin-top: 6px;">
+          <li>33 画面 + 39 機能の対応リスト</li>
+          <li>タスク優先度（Phase 別）</li>
+          <li>5 件の未確認事項</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</div>
+</main>
+</div>
+
+<script src="../_shared/icons.js"></script>
+<script>
+// タブ切替
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`[data-panel="${tab}"]`).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

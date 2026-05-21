@@ -1,0 +1,76 @@
+{
+  "version": "v3.1-dual",
+  "schema_version": "1.0",
+  "applies_to": "all 190 tasks",
+  "tiers": {
+    "tier_1_structural": {
+      "description": "モック / spec / OpenAPI / DS と impl の一致",
+      "gates_responsible": [
+        5,
+        6,
+        7,
+        9
+      ],
+      "applies_to": [
+        "UI task",
+        "API task"
+      ],
+      "validator": "scripts/validate-tier1.sh"
+    },
+    "tier_2_functional": {
+      "description": "EARS 5 形式の機能仕様（access policy 含む）",
+      "gates_responsible": [
+        8,
+        10
+      ],
+      "ears_types": [
+        "UBIQUITOUS",
+        "STATE-DRIVEN",
+        "EVENT-DRIVEN",
+        "OPTIONAL-FEATURE",
+        "UNWANTED"
+      ],
+      "unwanted_critical": true,
+      "validator": "scripts/validate-tier2.sh"
+    },
+    "tier_3_regression": {
+      "description": "v3-gate.yml 10 gate 全 PASS",
+      "gates_responsible": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "coverage_threshold_pct": 80,
+      "validator": ".github/workflows/v3-gate.yml"
+    }
+  },
+  "auto_merge": {
+    "condition": "all_three_tiers_pass",
+    "retry_max": 3,
+    "retry_backoff_sec": [
+      10,
+      30,
+      60
+    ],
+    "blocking_task_requires": "human-approval",
+    "critical_gate_requires": "executive-approval",
+    "escalation_channel": "S-E01-chat"
+  },
+  "audit_md": {
+    "required_before_start": true,
+    "rejected_phrases": [
+      "shall implement T-",
+      "as specified",
+      "TBD",
+      "lorem ipsum"
+    ],
+    "minimum_chars": 800
+  }
+}

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>クライアント招待 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .invite-form { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 24px; margin-bottom: 24px; }
+  .invite-row { display: grid; grid-template-columns: 1fr 1fr 110px 110px 90px 60px; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+  .invite-row:last-child { border-bottom: none; }
+  .copy-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-sm); font-size: 11px; font-family: monospace; cursor: pointer; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .copy-pill:hover { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .invite-table { table-layout: fixed; width: 100%; }
+  .invite-table col.col-client { width: 22%; }
+  .invite-table col.col-link { width: 28%; }
+  .invite-table col.col-status { width: 14%; }
+  .invite-table col.col-date { width: 14%; }
+  .invite-table col.col-count { width: 12%; }
+  .invite-table col.col-actions { width: 10%; }
+  .history-section { background: var(--color-surface-variant); border-radius: var(--rounded-lg); padding: 16px 20px; margin-top: 32px; }
+  .history-section .table-wrap { background: #FFFFFF; border-radius: var(--rounded-md); }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="users"></i>クライアント招待</a>
+    <a class="nav-item" href="../project/S-B03-settings.html"><i data-icon="settings"></i>設定</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-L01" data-bf-screen-name="client_invite_mgmt" data-bf-category="client_portal" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>クライアント招待</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1100px;">
+  <div class="page-header">
+    <div class="page-eyebrow">Client Invitation</div>
+    <h1 class="page-title">クライアント招待</h1>
+    <p class="page-subtitle">1 招待 = 1 メール（個別 JWT 経路）。閲覧 + コメントのみ可能。</p>
+  </div>
+
+  <div class="notice notice-tertiary mb-6">
+    <i data-icon="shield-check"></i>
+    <div><strong>セキュリティ：</strong>クライアントは別 JWT 経路（<code>role=client_portal</code>）で完全分離。通常ユーザーのテーブルには一切アクセスできません（R-T08 致命級リスク対策）。</div>
+  </div>
+
+  <section class="invite-form">
+    <h2 class="section-title mb-4">新規招待を発行</h2>
+    <div class="grid grid-2 gap-4">
+      <div class="form-group">
+        <label class="form-label">クライアント表示名</label>
+        <input class="input" placeholder="例：小松 太郎">
+      </div>
+      <div class="form-group">
+        <label class="form-label">メールアドレス</label>
+        <input class="input" type="email" placeholder="client@example.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">有効期限（日）</label>
+        <select class="select">
+          <option>3 日</option>
+          <option selected>7 日（推奨）</option>
+          <option>14 日</option>
+          <option>30 日</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">スコープ</label>
+        <select class="select">
+          <option selected>閲覧 + コメント（推奨）</option>
+          <option>閲覧のみ</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex items-center gap-3 mt-2">
+      <button class="btn btn-primary"><i data-icon="mail"></i>招待メール送信</button>
+      <span class="text-sm text-muted">Resend 経由でメール配信されます</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-header"><h2 class="section-title">アクティブな招待（2）</h2></div>
+    <div class="table-wrap">
+      <table class="invite-table">
+        <colgroup>
+          <col class="col-client"><col class="col-link"><col class="col-status"><col class="col-date"><col class="col-count"><col class="col-actions">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>クライアント</th>
+            <th>招待リンク</th>
+            <th>状態</th>
+            <th>有効期限</th>
+            <th>使用回数</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="font-semibold">小松 太郎</div>
+              <div class="text-muted text-sm">komatsu@matsuride.com</div>
+            </td>
+            <td><span class="copy-pill"><i data-icon="link" data-size="11"></i>atelier.app/i/T3kF2...</span></td>
+            <td><span class="pill pill-completed"><span class="pill-dot"></span>使用中</span></td>
+            <td class="tabular">残り 4 日</td>
+            <td class="tabular">12 回</td>
+            <td>
+              <div class="flex gap-1">
+                <button class="btn btn-ghost btn-sm" title="再送"><i data-icon="mail"></i></button>
+                <button class="btn btn-ghost btn-sm" title="失効"><i data-icon="trash"></i></button>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="font-semibold">福浦 様</div>
+              <div class="text-muted text-sm">fukuura@ast.co.jp</div>
+            </td>
+            <td><span class="copy-pill"><i data-icon="link" data-size="11"></i>atelier.app/i/Pq8aV...</span></td>
+            <td><span class="pill pill-pending"><span class="pill-dot"></span>未使用</span></td>
+            <td class="tabular">残り 6 日</td>
+            <td class="tabular">0 回</td>
+            <td>
+              <div class="flex gap-1">
+                <button class="btn btn-ghost btn-sm" title="再送"><i data-icon="mail"></i></button>
+                <button class="btn btn-ghost btn-sm" title="失効"><i data-icon="trash"></i></button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="history-section">
+    <div class="section-header" style="margin-bottom:12px;">
+      <div>
+        <h2 class="section-title" style="margin:0;">履歴（失効・期限切れ）</h2>
+        <p class="text-sm text-muted" style="margin:4px 0 0;">過去 90 日以内に終了した招待リンク</p>
+      </div>
+      <span class="pill pill-muted">2 件</span>
+    </div>
+    <div class="table-wrap">
+      <table class="invite-table">
+        <colgroup>
+          <col class="col-client"><col class="col-link"><col class="col-status"><col class="col-date"><col class="col-count"><col class="col-actions">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>クライアント</th>
+            <th>招待リンク</th>
+            <th>状態</th>
+            <th>終了日</th>
+            <th>使用回数</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="font-semibold">山田 様</div>
+              <div class="text-muted text-sm">yamada@example.com</div>
+            </td>
+            <td><span class="copy-pill" style="opacity:.5;"><i data-icon="link" data-size="11"></i>atelier.app/i/aB9xY...</span></td>
+            <td><span class="pill pill-blocked"><span class="pill-dot"></span>期限切れ</span></td>
+            <td class="tabular text-muted">2026-05-10</td>
+            <td class="tabular">8 回</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" title="再発行"><i data-icon="rotate-cw"></i></button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="font-semibold">佐藤 様</div>
+              <div class="text-muted text-sm">sato@example.com</div>
+            </td>
+            <td><span class="copy-pill" style="opacity:.5;"><i data-icon="link" data-size="11"></i>atelier.app/i/mN4qR...</span></td>
+            <td><span class="pill pill-blocked"><span class="pill-dot"></span>失効</span></td>
+            <td class="tabular text-muted">2026-05-05</td>
+            <td class="tabular">3 回</td>
+            <td>
+              <button class="btn btn-ghost btn-sm" title="再発行"><i data-icon="rotate-cw"></i></button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

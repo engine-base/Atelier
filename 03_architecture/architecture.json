@@ -1,0 +1,134 @@
+{
+  "project": "Atelier",
+  "version": "1.0",
+  "created_at": "2026-05-18",
+  "architecture": {
+    "type": "modular-monolith × 2-tier (Next.js + Python FastAPI)",
+    "reason": "1人運用＋3ヶ月期限＋AI処理のPython優位性。マイクロサービス分割は不可能、完全モノリスはAI機能を犠牲、3-tierは BFF を Next.js Route Handlers で兼用するため不要"
+  },
+  "tier_structure": {
+    "tier_1_frontend_bff": {
+      "name": "Next.js モジュラーモノリス",
+      "responsibility": "UI / Realtime / BFF / 認証フロー / Supabase 直接アクセス（RLS経由）",
+      "modules": ["workspace", "project", "employee", "chat", "task", "knowledge", "workflow", "client_portal", "admin"],
+      "deployment": "Vercel (Hobby Free → Pro)"
+    },
+    "tier_2_ai_processing": {
+      "name": "Python FastAPI AI 処理層",
+      "responsibility": "LLM呼出 / Agent / Skill 実行 / Hybrid Context Construction / RAG / Orchestration / Impact Analysis / MCP / Verification ループ",
+      "modules": ["llm_client", "agents", "skills", "context (F-CTX01)", "orchestration (LangGraph)", "rag (LlamaIndex+Cognee+Voyage)", "impact_analyzer (F-IMP01)", "continuous_update_cycle (F-CUC01-04)", "verification", "mcp_server", "bridges/claude_code"],
+      "deployment": "Fly.io Tokyo region (Free 3 VM → 従量)",
+      "key_principles": {
+        "context_strategy": "DB-as-truth + Hybrid Context Construction（直近N件ではなくセマンティック関連性ベース + DB現在状態スナップショット）",
+        "context_layers": ["AI社員ペルソナ(静的)", "直近メッセージ5-10件(短期)", "プロジェクト状態スナップショット(DB SELECT 常に最新)", "セマンティック関連メッセージ(Voyage埋め込み+リランカー、time decay)", "RAGナレッジ検索(社員別優先+共通)", "言及エンティティ最新値SELECT", "LLMLingua圧縮(必要時のみ)"],
+        "human_edit_handling": "DB更新 → audit_logs記録のみ。チャット履歴への変更イベント注入はしない。次応答時にDB最新を再SELECT",
+        "impact_analysis": "フェーズ移動・新フェーズ追加・仕様変更時に dependencies/prerequisites/blocks グラフを traverse、影響タスクを抽出、再分解推奨",
+        "continuous_update_cycle": "初期一気通貫後の追加要望に対応する4機能群。F-CUC01: scope_change検知→影響工程再起動提案 / F-CUC02: タスク状態別更新ポリシー(pending=自動上書き / in_progress=3択 / completed=リファクタ起票) / F-CUC03: 成果物の版管理＋クライアント招待先への通知 / F-CUC04: Inngest cronで日次整合性チェック"
+      }
+    },
+    "shared_data_layer": {
+      "name": "Supabase (Tokyo)",
+      "components": ["PostgreSQL 16", "pgvector", "Auth", "Storage", "Realtime", "Vault"],
+      "shared_between": ["tier_1_frontend_bff", "tier_2_ai_processing"]
+    }
+  },
+  "tech_stack": {
+    "frontend": {"framework": "Next.js 15", "version": "App Router", "language": "TypeScript strict"},
+    "frontend_ui": {"core": "shadcn/ui + Tailwind CSS", "ai_chat": "assistant-ui", "tool_calls": "tool-ui", "icons": "Lucide React (emoji forbidden)"},
+    "frontend_state": {"client": "Zustand", "server": "TanStack Query", "form": "React Hook Form + Zod"},
+    "backend": {"framework": "FastAPI", "runtime": "Python 3.12", "language": "Python with pyright strict", "package_manager": "uv"},
+    "ai_sdk": ["Anthropic SDK", "Claude Agent SDK"],
+    "llm_client_abstraction": "自前 LLMClient (chat/stream/tool/search/embed/count, 30-100 lines)",
+    "orchestration": ["LangGraph", "Inngest"],
+    "rag": ["LlamaIndex", "Cognee", "Voyage AI", "pgvector"],
+    "document_parsing": ["OpenAI Whisper API", "Unstructured.io"],
+    "observability": ["Sentry Free", "Langfuse OSS / Cloud Free", "Better Stack Free"],
+    "cost_optimization": ["LLMLingua", "Anthropic Prompt Caching", "Batch API"],
+    "browser_automation_ai": "Chrome MCP + Claude Computer Use (Phase 5+, Playwright fallback)",
+    "database": {"type": "PostgreSQL 16", "host": "Supabase Tokyo region", "orm_ts": "Drizzle ORM", "orm_py": "asyncpg + SQLAlchemy 2.0 Core"},
+    "auth": "Supabase Auth + Postgres RLS (per-entity policy)",
+    "storage": "Supabase Storage",
+    "realtime": "Supabase Realtime (Postgres Changes + Broadcast)",
+    "hosting": {"frontend": "Vercel Hobby → Pro", "backend": "Fly.io Tokyo region"},
+    "cdn": "Vercel Edge (内蔵)",
+    "dns": "Cloudflare",
+    "ci_cd": "GitHub Actions Free",
+    "secrets": "Vercel env + Fly.io secrets",
+    "billing": "Stripe (Phase 8)",
+    "email": "Resend",
+    "execution_bridge": {
+      "desktop_client": "Atelier Bridge = Vibeyard fork (MIT, elirantutia/vibeyard)",
+      "client_stack": ["Electron", "node-pty", "xterm.js", "TypeScript"],
+      "dispatcher": "Hermes Agent kanban port (MIT, NousResearch/hermes-agent) on FastAPI",
+      "dispatcher_tools": ["kanban_show", "kanban_complete", "kanban_block", "kanban_unblock", "kanban_list", "kanban_assign", "kanban_comment"],
+      "lifecycle": "6-column model (Triage→Ready→In Progress→Blocked→Awaiting→Done)",
+      "transport": {"bridge_to_cloud": "SSE", "cloud_to_bridge": "WebSocket"},
+      "auth": "claude CLI login state shared (Claude プラン枠)",
+      "worktree": "git worktree per task, auto-create by dispatcher",
+      "circuit_breaker": "max-retries 3 + PID polling for dead workers",
+      "handoff": "structured (summary + metadata) propagated to children"
+    },
+    "monorepo": "pnpm workspaces + Turborepo",
+    "linter": {"backend": "ruff", "frontend": "ESLint + Prettier"},
+    "type_checker": {"backend": "pyright strict", "frontend": "tsc strict"},
+    "test": {"backend": "pytest + pytest-asyncio + pytest-cov", "frontend": "Vitest", "e2e": "Playwright"},
+    "design_system_doc": "design.md (Google Labs)",
+    "design_tone": "エディトリアル (Notion / Obsidian 風)"
+  },
+  "database": {
+    "soft_delete": true,
+    "pk_type": "UUID v7",
+    "migration_tool": "Supabase CLI",
+    "naming_convention": "snake_case_plural",
+    "timestamp_type": "TIMESTAMPTZ",
+    "table_count": 25,
+    "entities": [
+      "users", "workspaces", "workspace_memberships", "projects", "phases",
+      "workflow_outputs", "ai_employees", "ai_employee_templates", "skills",
+      "chat_threads", "chat_messages", "tasks", "task_executions",
+      "acceptance_criteria", "mocks", "comments", "client_invitations",
+      "knowledge_nodes", "approval_inbox", "audit_logs", "mcp_tokens",
+      "byok_api_keys", "cron_schedules", "external_uploads", "consents"
+    ]
+  },
+  "access_control": {
+    "framework": "Postgres RLS",
+    "auth_provider": "Supabase Auth",
+    "tenant_isolation_pattern": "workspace_scoped (main) + project_scoped (sub) + account_scoped (knowledge only)",
+    "policy_naming_convention": "<table>_<actor>_<operation>",
+    "service_role_bypass": true,
+    "client_portal_isolation": "別 JWT claim (invitation_token_hash) で完全分離"
+  },
+  "security": {
+    "auth_method": "Supabase Auth (Email / Magic Link / Google OAuth / GitHub OAuth)",
+    "authz_method": "RLS + Application Layer 二重チェック",
+    "https": true,
+    "tls_version": "1.3",
+    "rate_limiting": "Vercel Edge Middleware + Upstash Ratelimit (Phase 4+) + FastAPI 自前",
+    "csp": "nonce-based CSP",
+    "encryption_at_rest": "AES-256 + Supabase Vault for BYOK keys",
+    "secret_scanning": "GitHub Secret Scanning + gitleaks pre-commit"
+  },
+  "environments": ["local", "preview", "staging", "production"],
+  "git_strategy": {
+    "workflow": "trunk-based + worktree",
+    "branch_naming": "<agent>/<task_id>",
+    "worktree_pattern": "$REPO_ROOT/../worktrees/<task_id>",
+    "merge_method": "squash + auto-merge",
+    "parallel_session_capacity": "small (5-10)"
+  },
+  "phases": [
+    {"phase": 0, "label": "基盤", "period": "2026-05下旬〜06上旬"},
+    {"phase": 1, "label": "AI組織+チャット+MCP", "period": "2026-06"},
+    {"phase": 2, "label": "工程ワークフロー", "period": "2026-06下旬〜07前半"},
+    {"phase": 3, "label": "タスク実行+仕様徹底", "period": "2026-07"},
+    {"phase": 4, "label": "ナレッジ+商談周辺", "period": "2026-07下旬〜08初旬"},
+    {"phase": 5, "label": "本格リリース", "period": "2026-08"}
+  ],
+  "cost_targets": {
+    "initial_monthly": "$0-10",
+    "beta_monthly": "$10-30",
+    "release_monthly": "$30-100",
+    "year_1_monthly": "$100-300"
+  }
+}

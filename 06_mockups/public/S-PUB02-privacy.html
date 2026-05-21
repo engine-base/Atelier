@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>プライバシーポリシー — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .pub-header { background: #FFFFFF; border-bottom: 1px solid var(--color-border); padding: 14px 24px; }
+  .pub-header-inner { max-width: 920px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+  .pub-nav { display: flex; gap: 16px; font-size: 13px; }
+  .pub-nav a { color: var(--color-on-surface-variant); }
+  .pub-nav a:hover { color: var(--color-primary); }
+  .resi-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+  .resi-table th, .resi-table td { padding: 10px 12px; border: 1px solid var(--color-border); text-align: left; }
+  .resi-table th { background: var(--color-surface-variant); font-weight: 600; }
+</style>
+</head>
+<body>
+<main data-bf-screen-id="S-PUB02" data-bf-screen-name="privacy" data-bf-category="legal" data-bf-status="active" data-bf-version="1">
+<header class="pub-header">
+  <div class="pub-header-inner">
+    <a class="flex items-center gap-2" href="../auth/S-A01-signin.html"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></a>
+    <nav class="pub-nav"><a href="S-PUB01-terms.html">利用規約</a><a href="S-PUB02-privacy.html">プライバシーポリシー</a><a href="S-PUB03-tokushoho.html">特商法表記</a></nav>
+  </div>
+</header>
+
+<div class="public-wrap">
+  <div class="public-meta">最終更新：2026年5月18日 · バージョン 1.0</div>
+  <h1 class="public-h1">プライバシーポリシー</h1>
+  <p>ENGINE BASE 株式会社（以下「当社」）は、ユーザーの個人情報保護を重要視し、個人情報保護法を遵守して以下のとおりプライバシーポリシーを定めます。</p>
+
+  <h2 class="public-h2">1. 取得する個人情報</h2>
+  <ul>
+    <li>メールアドレス、表示名、アバター画像</li>
+    <li>ワークスペース・プロジェクトデータ（クライアント機密含む可能性あり）</li>
+    <li>AI チャット履歴・成果物・モック</li>
+    <li>議事録音声・動画・テキスト（アップロード時）</li>
+    <li>BYOK API キー（Supabase Vault で AES-256 暗号化保管）</li>
+    <li>アクセスログ（IP アドレス、UserAgent、操作履歴）</li>
+  </ul>
+
+  <h2 class="public-h2">2. 利用目的</h2>
+  <ol>
+    <li>本サービスの提供・運営</li>
+    <li>ユーザーサポート対応</li>
+    <li>AI 機能の応答品質向上（プロジェクト内で完結、外部学習には使用しません）</li>
+    <li>不正利用の検知・対応</li>
+    <li>サービス改善のための統計分析（個人を特定しない形）</li>
+  </ol>
+
+  <h2 class="public-h2">3. 第三者提供</h2>
+  <p>当社は法令に基づく場合を除き、ユーザーの同意なく個人情報を第三者に提供しません。ただし、本サービスの提供に必要な以下のサービスを利用しています：</p>
+  <table class="resi-table">
+    <thead><tr><th>サービス</th><th>用途</th><th>所在地</th></tr></thead>
+    <tbody>
+      <tr><td>Supabase</td><td>DB・認証・ストレージ</td><td>日本（Tokyo region）</td></tr>
+      <tr><td>Vercel</td><td>フロントエンドホスティング</td><td>米国（CDNはグローバル）</td></tr>
+      <tr><td>Fly.io</td><td>API ホスティング</td><td>日本（Tokyo region）</td></tr>
+      <tr><td>Anthropic</td><td>Claude AI API</td><td>米国</td></tr>
+      <tr><td>Voyage AI</td><td>埋め込み生成</td><td>米国</td></tr>
+      <tr><td>OpenAI</td><td>Whisper（音声→テキスト）</td><td>米国</td></tr>
+      <tr><td>Resend</td><td>メール配信</td><td>米国</td></tr>
+      <tr><td>Stripe</td><td>決済（第 7 段階）</td><td>米国</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="public-h2">4. 越境移転について</h2>
+  <p>本サービスのデータの一部は、AI 処理・メール配信・決済のため米国所在のサービスを経由します。サインアップ時にユーザーから明示的な同意を取得します。</p>
+
+  <h2 class="public-h2">5. AI 学習への利用</h2>
+  <p>ユーザーのプロジェクトデータは、デフォルトで外部 AI モデルの学習には使用されません（<code>ai_training_optout = true</code>）。学習への提供をユーザーが明示的に ON にした場合のみ、匿名化された形で利用されます。</p>
+
+  <h2 class="public-h2">6. 開示・訂正・削除請求</h2>
+  <p>ユーザーは、保有個人情報の開示・訂正・利用停止・削除を請求できます。管理画面の「データ削除要求フォーム」、またはメール（privacy@atelier.app）にてお問い合わせください。</p>
+  <p><a class="btn btn-outlined btn-sm" href="S-PUB04-data-deletion.html"><i data-icon="trash"></i>データ削除要求フォーム</a></p>
+
+  <h2 class="public-h2">7. 退会後のデータ取扱い</h2>
+  <p>退会から 30 日後、個人情報を含むデータは完全削除されます。ただしナレッジ（横断学習データ）は氏名・案件特定情報を除去した形で匿名保持される場合があります。</p>
+
+  <h2 class="public-h2">8. 漏洩時の対応</h2>
+  <p>個人情報漏洩が発生または疑われる場合、48 時間以内に個人情報保護委員会へ報告し、影響を受ける本人に通知します。</p>
+
+  <h2 class="public-h2">9. お問い合わせ窓口</h2>
+  <p>ENGINE BASE 株式会社 個人情報保護担当<br>メール：privacy@atelier.app</p>
+</div>
+<script src="../_shared/icons.js"></script>
+</main>
+</body>
+</html>

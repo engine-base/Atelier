@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "project": "Atelier",
+    "created_at": "2026-05-20",
+    "skill": "api-design",
+    "skill_version": "v3.1",
+    "total_endpoints": 119,
+    "frozen_at": "2026-05-20T13:30:00+09:00"
+  },
+  "context": {
+    "api_style": "REST",
+    "auth_method": "JWT (Supabase Auth) + Client Portal別JWT + MCP Token + Service Role",
+    "versioning": "url-versioning (/api/v1/)",
+    "contract_test_framework": "Schemathesis (OpenAPI-driven fuzz)",
+    "ts_client_generator": "openapi-typescript",
+    "server_schema_generator": "datamodel-code-generator (Pydantic v2)",
+    "pagination": "cursor (default) + offset (small admin lists)",
+    "rate_limit_backend": "Upstash Redis Free Tier + slowapi",
+    "documentation_hosts": ["Swagger UI", "Redoc", "openapi.yaml"]
+  },
+  "decision_log": [
+    {
+      "decision": "REST を採用、GraphQL/tRPC は不採用",
+      "reason": "複数クライアント (Web + MCP + Client Portal + Admin) が消費、OpenAPI → TS 型/Pydantic 自動生成エコシステムが成熟、Anthropic SDK との親和性",
+      "alternatives": ["GraphQL", "tRPC"],
+      "tradeoffs": "N+1 解決は aggregation endpoint で対応、過剰フェッチは個別 endpoint で対応"
+    },
+    {
+      "decision": "URL バージョニング (/api/v1/) を採用",
+      "reason": "MCP / Client Portal / Admin など複数クライアントが消費するため、URL レベルで明示分離が運用容易",
+      "alternatives": ["ヘッダーバージョニング", "なし"],
+      "tradeoffs": "URL に v1 が混ざるが、将来 v2 移行時の並行運用が楽"
+    },
+    {
+      "decision": "認証は 4 系統で分離（一般 JWT / Client Portal 別 JWT / MCP Token / Service Role）",
+      "reason": "R-T08 致命級リスク (クライアント招待データ漏洩) 対応。client_portal は project_id のみクレームに含み、users/workspaces 完全分離",
+      "alternatives": ["単一 JWT で role 切替"],
+      "tradeoffs": "JWT 4 系統で実装複雑度は上がるが、セキュリティ境界が機械的に保証される"
+    },
+    {
+      "decision": "ID 形式は UUID v7 を採用",
+      "reason": "時系列ソート可能、entities.json で確定済、Postgres uuid 型と互換",
+      "alternatives": ["UUID v4", "ULID", "連番"],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "ページネーションはカーソル方式をデフォルト",
+      "reason": "タスク・チャットメッセージ・監査ログなど時系列で増え続けるリソースが多い。深いページでも遅くならない",
+      "alternatives": ["オフセット全採用"],
+      "tradeoffs": "管理画面の小規模リスト (AI 社員 10 名) はオフセット方式で十分なので併用"
+    },
+    {
+      "decision": "JWT は access 15min + refresh 7days（refresh は httpOnly Cookie）",
+      "reason": "短命 access で漏洩リスク最小化、refresh は CSRF 対策で httpOnly Cookie",
+      "alternatives": ["access 1h", "access 24h"],
+      "tradeoffs": "再認証頻度高いが、refresh で透過的に更新"
+    },
+    {
+      "decision": "退会 30 日猶予中の同メール再登録を 409 でブロック",
+      "reason": "誤操作からの復元期間を確保、同時に悪意ある再登録を防止",
+      "alternatives": ["即時再登録許可"],
+      "tradeoffs": "30 日待つ必要があるが、F-LEGAL-002 と整合"
+    },
+    {
+      "decision": "F-J02 スコア閾値：≥0.95 自動承認 / [0.80, 0.95) 承認待ち / <0.80 自動再試行 (max 3)",
+      "reason": "ヒアリング時点で確定済の閾値、AI 検証品質と人間介入の最適バランス",
+      "alternatives": ["≥0.90 自動", "全件人間承認"],
+      "tradeoffs": "—"
+    },
+    {
+      "decision": "Bridge オフライン時はタスク再生を 503 + queue_position 返却で自動キューイング",
+      "reason": "Bridge は局所的に切断する可能性あり (ローカル PC 起動)、ユーザー操作を失敗させずキューに保留して接続復活で自動再開",
+      "alternatives": ["即時 503 で失敗"],
+      "tradeoffs": "キュー実装コスト増、ただし UX 向上"
+    },
+    {
+      "decision": "Hermes 互換 kanban tools (kanban_show/complete/block/unblock/list/assign/comment) を Bridge worker 専用 endpoint として提供",
+      "reason": "Hermes Agent (MIT) の dispatcher パターンを port、Bridge worker が HERMES_KANBAN_TASK env で呼ぶ 7 ツールを互換実装",
+      "alternatives": ["独自プロトコル定義"],
+      "tradeoffs": "MIT 帰属表記必須、ただし実装パターン確立済で安全"
+    },
+    {
+      "decision": "OpenAPI → openapi-typescript + datamodel-code-generator で TS 型/Pydantic 自動生成",
+      "reason": "OpenAPI を信頼源にして TS フロント / Python バックの型を一括生成、drift 検出を CI gate に組込",
+      "alternatives": ["手書き型維持", "ts-rest", "zod-openapi"],
+      "tradeoffs": "ビルドステップ増、ただし契約凍結が保証される"
+    },
+    {
+      "decision": "Schemathesis を Foundation phase の CI gate に組込（contract test）",
+      "reason": "OpenAPI-driven fuzz で境界値・スキーマ違反を網羅、FastAPI 親和性◎",
+      "alternatives": ["Pact (consumer-driven)", "手書きテスト"],
+      "tradeoffs": "CI 時間増、ただし API 信頼性大幅向上"
+    },
+    {
+      "decision": "レート制限は Upstash Redis Free Tier + slowapi",
+      "reason": "コスト 0、Edge runtime 親和性、フォールバックは in-memory",
+      "alternatives": ["Cloudflare Rate Limiting", "自前 Postgres"],
+      "tradeoffs": "Free 枠上限あり、超過時は Pro 移行"
+    },
+    {
+      "decision": "API ドキュメントは Swagger UI (/api/docs) + Redoc (/api/redoc) + 生 YAML (/api/openapi.yaml)",
+      "reason": "FastAPI 自動生成、開発者向け + 公開向け + 機械可読の 3 形態",
+      "alternatives": ["Stoplight Elements"],
+      "tradeoffs": "Stoplight は Phase 5 以降で検討"
+    },
+    {
+      "decision": "v3.1 Mock-Driven Contract Generation を採用、画面 ↔ API カバレッジ 100% を STEP 5 完了条件とする",
+      "reason": "モック先行プロジェクトのため、UI 実装前に API 契約凍結 → 並列実装可能化が最重要",
+      "alternatives": ["mock を参考程度に使用"],
+      "tradeoffs": "STEP 2 で逆引き作業必要、ただし UI 実装フェーズで手戻りゼロ"
+    },
+    {
+      "decision": "API 契約凍結ポイントを STEP 5 完了時に設定、以後の変更は ADR + 影響解析 + 承認フロー必須",
+      "reason": "task-decomposition の API-First モードで Phase 3 完了 = 凍結という流れと整合",
+      "alternatives": ["凍結なし、随時変更可"],
+      "tradeoffs": "変更手続き煩雑化、ただし AI 並列実装の前提が崩れない"
+    }
+  ],
+  "api_patterns": [
+    {
+      "pattern_name": "標準 CRUD",
+      "applicable_to": "リソース型操作 (workspaces, projects, knowledge, etc.)",
+      "endpoints": ["GET /resources", "POST /resources", "GET /resources/:id", "PATCH /resources/:id", "DELETE /resources/:id"]
+    },
+    {
+      "pattern_name": "状態遷移 + Hermes 互換",
+      "applicable_to": "tasks (lifecycle_stage 操作)",
+      "endpoints": ["POST /tasks/:id/play", "POST /tasks/:id/approve", "POST /tasks/:id/reject", "POST /tasks/:id/retry", "POST /kanban/*"]
+    },
+    {
+      "pattern_name": "SSE ストリーミング",
+      "applicable_to": "リアルタイム配信 (chat, executions logs)",
+      "endpoints": ["POST /chat-threads/:id/messages/stream", "GET /executions/:id/logs"]
+    },
+    {
+      "pattern_name": "集計・KPI",
+      "applicable_to": "read-only aggregation",
+      "endpoints": ["GET /projects/:id/dashboard", "GET /admin/dashboard", "GET /projects/:id/activities"]
+    },
+    {
+      "pattern_name": "承認系",
+      "applicable_to": "approval_inbox 経由",
+      "endpoints": ["GET /approval-inbox", "POST /approval-inbox/:id/decide"]
+    },
+    {
+      "pattern_name": "クライアント別経路 (R-T08 対応)",
+      "applicable_to": "client_portal role JWT",
+      "endpoints": ["POST /client/auth/signin", "GET /client/projects/:id"]
+    }
+  ],
+  "research": {
+    "sources": [
+      {"url": "https://github.com/elirantutia/vibeyard", "title": "Vibeyard (MIT) - Atelier Bridge fork base", "accessed_at": "2026-05-19"},
+      {"url": "https://github.com/NousResearch/hermes-agent", "title": "Hermes Agent (MIT) - kanban tools pattern", "accessed_at": "2026-05-19"},
+      {"url": "https://schemathesis.readthedocs.io/", "title": "Schemathesis OpenAPI fuzz", "accessed_at": "2026-05-20"},
+      {"url": "https://github.com/drwpow/openapi-typescript", "title": "openapi-typescript", "accessed_at": "2026-05-20"}
+    ],
+    "findings": [
+      "Hermes kanban_* 7 tools がそのまま Bridge worker 用 API として port 可能",
+      "Vibeyard の Electron + node-pty 構成が Bridge クライアントとして流用可",
+      "Schemathesis + openapi-typescript の組合せが FastAPI + Next.js のデファクト",
+      "Supabase Realtime は SSE 代替として使えるが、複雑な制御は SSE 直接実装が柔軟"
+    ],
+    "research_date": "2026-05-20"
+  }
+}

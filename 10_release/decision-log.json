@@ -1,0 +1,78 @@
+{
+  "version": "v3.1-dual",
+  "project": "Atelier",
+  "skill": "release-planning",
+  "created_at": "2026-05-20",
+  "decisions": [
+    {
+      "id": "RP-DEC-01",
+      "title": "3 段階リリース MVP → β → GA で確定",
+      "rationale": "動作確認 / 価格検証 / 一般公開を段階分離。各段階で go/no-go ゲートを設置。"
+    },
+    {
+      "id": "RP-DEC-02",
+      "title": "二軸日付（AI 並列 vs Human 逐次）を全マイルストーンに適用",
+      "rationale": "対外（Human）と内部計画（AI）を併走、状況に応じて使い分け。"
+    },
+    {
+      "id": "RP-DEC-03",
+      "title": "MVP デプロイ時刻 06:00 JST",
+      "rationale": "国内ユーザー稼働前。万一の障害でも午前中に対応可能。"
+    },
+    {
+      "id": "RP-DEC-04",
+      "title": "β 招待 10 社・半額または無料",
+      "rationale": "フィードバック獲得を最優先。価格検証は後続フェーズで実施。"
+    },
+    {
+      "id": "RP-DEC-05",
+      "title": "GA 日 = Product Hunt 投稿 12-31",
+      "rationale": "年末年始は競合投稿が少なく狙い目。AI ツール枠で目立てる。"
+    },
+    {
+      "id": "RP-DEC-06",
+      "title": "自動ロールバック 4 条件",
+      "rationale": "error_rate / latency / auth / db の 4 軸で多角的に検知。閾値は MVP 初期保守的に設定。"
+    },
+    {
+      "id": "RP-DEC-07",
+      "title": "障害対応 RTO: P0=30分 / P1=2h / P2=24h / P3=1週",
+      "rationale": "SaaS 業界標準を踏襲しつつ、初期は AI 社員 vision 自動対応でカバー。"
+    },
+    {
+      "id": "RP-DEC-08",
+      "title": "CHANGELOG 自動生成 + S-E01 1 クリック承認",
+      "rationale": "conventional commits → release-please → jarvis ドラフト → 経営者承認のフロー。"
+    },
+    {
+      "id": "RP-DEC-09",
+      "title": "SOC2 Type1 を GA フェーズで取得開始",
+      "rationale": "エンタープライズ顧客獲得・売却 DD 対応のため。¥1B 査定の前提条件。"
+    },
+    {
+      "id": "RP-DEC-10",
+      "title": "AI 学習デフォルト OFF を全段階で維持",
+      "rationale": "顧客プライバシー保護の根幹。GA 以降も維持。"
+    },
+    {
+      "id": "RP-DEC-11",
+      "title": "四層出力 HTML/JSON/MD/CHANGELOG",
+      "rationale": "Atelier 三層 + CHANGELOG (semver) を追加。release-planning の固有要件。"
+    }
+  ],
+  "validation": {
+    "stages_count": 3,
+    "stages_with_dual_axis": 3,
+    "rollback_conditions": 4,
+    "incident_severities": 4,
+    "ci_gates_referenced": 10,
+    "blocking_tasks_referenced": [
+      "T-I-24",
+      "T-I-23"
+    ],
+    "schedule_consistency": "PASS (08_schedule/schedule.json と一致)",
+    "tickets_consistency": "PASS",
+    "two_axis_applied": true
+  },
+  "next_skill": "sprint-planning / test-verification / integration が残候補"
+}

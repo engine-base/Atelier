@@ -1,0 +1,411 @@
+{
+  "meta": {
+    "project": "Atelier",
+    "created_at": "2026-05-18",
+    "skill_version": "2.0",
+    "requirements_version": "1.0"
+  },
+  "context": {
+    "project_type": "B2B/B2C SaaS（AI生成型プロジェクト管理ツール）",
+    "scale": "大規模（55機能、30画面、25エンティティ）",
+    "priority": "速度優先（3ヶ月で8月リリース）+ 品質（仕様徹底ループが心臓）"
+  },
+  "decision_log": [
+    {
+      "decision": "工程フローを ヒアリング→要件→アーキ→デザイン→機能分解→タスク→実装→検証→納品 とする",
+      "reason": "アーキ・デザイン確定後に機能分解することで各タスクに画面/モック/テスト/依存を漏れなく紐付けられる",
+      "alternatives": [
+        "機能分解→アーキ",
+        "デザイン後置"
+      ],
+      "why_not_chosen": "下流での漏れ・手戻りリスク"
+    },
+    {
+      "decision": "工程間引き継ぎ要約を必須化",
+      "reason": "HTML原本は残るが次工程AIの初期コンテキスト最適化のため要約を併設",
+      "alternatives": [
+        "原本だけ",
+        "要約なし"
+      ],
+      "why_not_chosen": "トークン浪費・初期応答品質低下"
+    },
+    {
+      "decision": "デザインスキルを design-md→ui-mockup に変更",
+      "reason": "Google Labs design.md仕様準拠でカラー/タイポ/コンポを統一",
+      "alternatives": [
+        "design-foundation"
+      ],
+      "why_not_chosen": "design-md の方が標準化されている"
+    },
+    {
+      "decision": "かんばんは 2軸構造（機能/画面カテゴリ × ステータス）",
+      "reason": "状態だけだと案件混雑時に視認性が落ちる、カテゴリで分けると関連タスクが集約",
+      "alternatives": [
+        "ステータス単軸",
+        "ツリー型"
+      ],
+      "why_not_chosen": "視認性"
+    },
+    {
+      "decision": "並列実行はバックグラウンド継続、ストリーミングはオプション",
+      "reason": "ユーザー閉じても進行、コスト/帯域最適化、デバッグ時のみモニター",
+      "alternatives": [
+        "常時ストリーミング",
+        "完了通知のみ"
+      ],
+      "why_not_chosen": "コスト/UX両立"
+    },
+    {
+      "decision": "/goal駆動実行モードを採用（F-I05）",
+      "reason": "Claude Code側の自走能力を最大活用、ツール側はゴール定義と結果収集に専念",
+      "alternatives": [
+        "毎ステップ指示",
+        "通常chat"
+      ],
+      "why_not_chosen": "自走能力を活かせない"
+    },
+    {
+      "decision": "仕様徹底ループのスコア計算を AC×0.6+Test×0.3+検証AI×0.1 とする",
+      "reason": "受入基準を最重視、テストで検証、AI評価は補助",
+      "alternatives": [
+        "等配分",
+        "AC×1.0"
+      ],
+      "why_not_chosen": "テストとAI評価で多角的に担保"
+    },
+    {
+      "decision": "段階制御 95%以上自動/80-94%承認/80%未満強制介入、最大3回再試行",
+      "reason": "無限ループ防止しつつ自動化を最大化",
+      "alternatives": [
+        "全自動",
+        "全承認"
+      ],
+      "why_not_chosen": "バランス重視"
+    },
+    {
+      "decision": "AI社員ロスター: ジャービス（COO）+ アベンジャーズ9名",
+      "reason": "ユーザー要望、内輪コードネームとして親しみやすい",
+      "alternatives": [
+        "オリジナル名",
+        "数字記号"
+      ],
+      "why_not_chosen": "ベータまでは内輪向け",
+      "follow_up": "リリース時に商標リスク観点で名称見直しを検討"
+    },
+    {
+      "decision": "ナレッジは2層構造（共通+社員別）",
+      "reason": "プロジェクト跨ぎ再利用と専門性を両立、各社員は自分のナレッジ優先+共通参照可",
+      "alternatives": [
+        "共通のみ",
+        "社員別のみ"
+      ],
+      "why_not_chosen": "両立できないと運用が破綻"
+    },
+    {
+      "decision": "ナレッジ書込はユーザー承認制",
+      "reason": "プライバシー/秘密保持の観点、誤書込防止",
+      "alternatives": [
+        "自動書込"
+      ],
+      "why_not_chosen": "信頼性"
+    },
+    {
+      "decision": "Web検索は Claude公式 web_search 標準ツールのみ採用",
+      "reason": "Agent SDK完全統合、$10/1k検索で最安、引用付き",
+      "alternatives": [
+        "Exa",
+        "Tavily",
+        "Brave",
+        "Firecrawl"
+      ],
+      "why_not_chosen": "追加SDKと追加コストを避ける"
+    },
+    {
+      "decision": "LLMClient抽象化レイヤーを Phase 0 で必須実装",
+      "reason": "v2でGPT/Gemini追加時に呼び出し側コード無変更にする",
+      "alternatives": [
+        "Vercel AI SDK",
+        "LangChain",
+        "LiteLLM"
+      ],
+      "why_not_chosen": "重い抽象化に依存せず、各社公式SDK直叩きで品質維持"
+    },
+    {
+      "decision": "AI処理層をPython FastAPIで切り出し",
+      "reason": "Anthropic公式SDK最新がPython側、LlamaIndex/LangGraph等もPython親和性",
+      "alternatives": [
+        "Node.js一本",
+        "Next.js内"
+      ],
+      "why_not_chosen": "AI層独立で売却時にも評価ポイント"
+    },
+    {
+      "decision": "Claude Codeブリッジは初回CLIログイン方式（OAuthは検証次第）",
+      "reason": "現実的にすぐ動かせる、OAuthは技術検証後",
+      "alternatives": [
+        "OAuth前提",
+        "サーバー側実行"
+      ],
+      "why_not_chosen": "ユーザープラン課金のため"
+    },
+    {
+      "decision": "並列規模は5-10タスク",
+      "reason": "個人/小規模受託のキャパとコスト両立",
+      "alternatives": [
+        "30-50",
+        "100+"
+      ],
+      "why_not_chosen": "個人開発者がメインターゲット"
+    },
+    {
+      "decision": "クライアント招待は数日有効リンク、全フェーズ閲覧+コメント",
+      "reason": "ベータ運用のシンプルさ優先",
+      "alternatives": [
+        "フェーズ限定",
+        "永続"
+      ],
+      "why_not_chosen": "シンプルさとセキュリティ"
+    },
+    {
+      "decision": "オーケストレーションは LangGraph + Inngest",
+      "reason": "LangGraph=人間承認/スコアループ、Inngest=cron/サーバレス",
+      "alternatives": [
+        "Temporal",
+        "Trigger.dev",
+        "自前"
+      ],
+      "why_not_chosen": "学習コストと運用負荷"
+    },
+    {
+      "decision": "埋め込みは Voyage AI（Anthropic推奨）",
+      "reason": "コード/日本語強い、Claudeエコシステム親和",
+      "alternatives": [
+        "OpenAI",
+        "BGEローカル"
+      ],
+      "why_not_chosen": "品質優先"
+    },
+    {
+      "decision": "退会後30日保持、ナレッジは匿名化保持",
+      "reason": "事業価値（横断学習）+ 個情法対応両立",
+      "alternatives": [
+        "即時削除",
+        "完全削除"
+      ],
+      "why_not_chosen": "事業価値の損失"
+    },
+    {
+      "decision": "AI学習利用可否設定をデフォルトOFF",
+      "reason": "プライバシー優先、ユーザーが明示的にONした場合のみ",
+      "alternatives": [
+        "デフォルトON"
+      ],
+      "why_not_chosen": "信頼性"
+    },
+    {
+      "decision": "MCP連携をPhase 1並行で実装",
+      "reason": "アーキの土台が固まらないと後で破綻",
+      "alternatives": [
+        "Phase 2以降"
+      ],
+      "why_not_chosen": "後追い設計困難"
+    },
+    {
+      "decision": "API/Webhook公開は不採用",
+      "reason": "MCPで代替十分、開発工数削減",
+      "alternatives": [
+        "REST API公開"
+      ],
+      "why_not_chosen": "MCPで足りる"
+    },
+    {
+      "decision": "多言語対応なし（日本語のみ）",
+      "reason": "100社目標は国内、海外展開時に再検討",
+      "alternatives": [
+        "EN/JA"
+      ],
+      "why_not_chosen": "スコープ削減"
+    },
+    {
+      "decision": "SOC2等認証は当面取得しない",
+      "reason": "2-3年後売却時に検討、現段階で過剰",
+      "alternatives": [
+        "即取得"
+      ],
+      "why_not_chosen": "工数とコスト"
+    }
+  ],
+  "features_extended": [
+    {
+      "id": "F-I03",
+      "name": "並列実行エンジン",
+      "category": "実行",
+      "complexity": "高",
+      "dependencies": [
+        "F-I01",
+        "F-J01",
+        "F-J02",
+        "F-S01"
+      ],
+      "risk": "ローカルClaude Codeブリッジの安定性、認証方式技術検証"
+    },
+    {
+      "id": "F-J02",
+      "name": "仕様徹底ループ",
+      "category": "検証",
+      "complexity": "高",
+      "dependencies": [
+        "F-J01",
+        "F-I03"
+      ],
+      "risk": "無限ループ・スコア計算式の妥当性"
+    },
+    {
+      "id": "F-K01",
+      "name": "ナレッジ管理基盤",
+      "category": "ナレッジ",
+      "complexity": "中",
+      "dependencies": [
+        "F-A01"
+      ],
+      "risk": "プロジェクト跨ぎ参照のRLS設計"
+    },
+    {
+      "id": "F-S01",
+      "name": "LLMClient抽象化",
+      "category": "基盤",
+      "complexity": "中",
+      "dependencies": [],
+      "risk": "Tool Use挙動のプロバイダー差異吸収"
+    },
+    {
+      "id": "F-P01",
+      "name": "MCPサーバー公開",
+      "category": "外部連携",
+      "complexity": "中",
+      "dependencies": [
+        "F-C01",
+        "F-E01"
+      ],
+      "risk": "MCP仕様変更追従"
+    },
+    {
+      "id": "F-L01",
+      "name": "クライアント招待モード",
+      "category": "招待",
+      "complexity": "高",
+      "dependencies": [
+        "F-B01"
+      ],
+      "risk": "RLS設計ミスでのデータ漏洩"
+    },
+    {
+      "id": "F-LEGAL-014",
+      "name": "電気通信事業届出",
+      "category": "法令",
+      "complexity": "低（運用）",
+      "dependencies": [],
+      "risk": "リリース前の届出漏れ"
+    }
+  ],
+  "unresolved": [
+    {
+      "topic": "Claude CodeブリッジOAuth可否",
+      "impact": "認証UX全体設計",
+      "priority": "高"
+    },
+    {
+      "topic": "電気通信事業届出の要否",
+      "impact": "リリース可否",
+      "priority": "高"
+    },
+    {
+      "topic": "月額単価（個人/法人）",
+      "impact": "課金実装と訴求",
+      "priority": "高"
+    },
+    {
+      "topic": "無料枠/体験版設計",
+      "impact": "100社獲得経路",
+      "priority": "高"
+    },
+    {
+      "topic": "スコア計算式チューニング",
+      "impact": "仕様徹底ループ実用性",
+      "priority": "高"
+    },
+    {
+      "topic": "AI学習可否デフォルト",
+      "impact": "プライバシー",
+      "priority": "高"
+    },
+    {
+      "topic": "Supabaseリージョン選択",
+      "impact": "越境同意UI",
+      "priority": "中"
+    },
+    {
+      "topic": "Whisperクラウド/セルフホスト",
+      "impact": "議事録コスト",
+      "priority": "中"
+    },
+    {
+      "topic": "デフォルト10名の装着スキル最終セット",
+      "impact": "Phase 1体験",
+      "priority": "中"
+    },
+    {
+      "topic": "AI社員のリリース名称（商標リスク）",
+      "impact": "ブランディング",
+      "priority": "中"
+    }
+  ],
+  "research": {
+    "sources": [
+      {
+        "url": "https://github.com/elirantutia/vibeyard",
+        "title": "vibeyard（かんばん→並列実行UI参考）",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+        "title": "Hermes Agent かんばんチュートリアル",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "Anthropic公式",
+        "title": "Claude Web Search Tool（web_search_20250305）",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "Voyage AI",
+        "title": "Anthropic推奨埋め込みプロバイダー",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "Google Labs",
+        "title": "design.md仕様",
+        "accessed_at": "2026-05-18"
+      }
+    ],
+    "findings": [
+      "Claude公式 web_search は $10/1k検索でGemini($35)/OpenAI($25-30)より安く、Agent SDK完全統合",
+      "かんばん×並列サブエージェント実行UXは2026年時点で実装事例増加、参考UI多数",
+      "Voyage AIはコード/日本語強くRAG精度に寄与、Anthropicエコシステム親和",
+      "競合（Linear/Notion/ClickUp/Devin/Cursor/v0）は単機能特化で「AI組織×全工程×Claude Code×仕様徹底」の組合せに空白地帯",
+      "design.md仕様はYAMLフロントマター+MDボディの統一フォーマットでデザイントークンを管理"
+    ],
+    "research_date": "2026-05-18"
+  },
+  "schedule_reference": {
+    "schedule_path": "08_schedule/schedule.json",
+    "mvp_release_human_date": "2026-11-15",
+    "mvp_release_ai_date": "2026-06-10",
+    "beta_human_date": "2026-12-01",
+    "beta_ai_date": "2026-06-15",
+    "ga_target_human_date": "2027-08-31",
+    "ga_target_ai_date": "2026-12-31",
+    "applied_at": "2026-05-20",
+    "two_axis_policy_version": "v3.1-dual"
+  }
+}

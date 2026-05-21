@@ -1,0 +1,485 @@
+{
+  "version": "v3.1",
+  "project": "Atelier",
+  "skill": "schedule-design",
+  "created_at": "2026-05-20",
+  "policy": {
+    "decomposition_mode": "api_first",
+    "two_axis_required": true,
+    "default_start_date": "2026-05-20",
+    "business_hours_per_day": 8,
+    "weekend_skip": true,
+    "parallel_capacity_default": 10,
+    "bridge_runtime": "local Claude Code 5-10 並列 (Atelier Bridge)"
+  },
+  "summary": {
+    "total_tasks": 190,
+    "total_estimate_hours_human": 1328.0,
+    "total_estimate_hours_ai_compute": 123.7,
+    "total_wall_clock_h_ai_parallel": 27.9,
+    "human_review_total_h": 17,
+    "calendar_days_ai": 15,
+    "calendar_days_human": 240,
+    "ai_acceleration_factor_overall": 10.7,
+    "human_review_total_h_task_level": 10.8,
+    "human_review_total_h_gate_level": 17,
+    "_note": "human_review は 2 種類：task-level (10.8h) は tickets.json 由来の per-task review、gate-level (17h) は Wave 境界の経営者レビュー。スケジュール wall-clock 計算では gate-level を採用。",
+    "data_source": "07_tasks/tickets.json (source of truth)"
+  },
+  "ai_employees_assignment": {
+    "tony": {
+      "primary_waves": [
+        "W0",
+        "W2",
+        "W5"
+      ],
+      "scope": "Foundation infra / Bridge / dispatcher / CI"
+    },
+    "strange": {
+      "primary_waves": [
+        "W1"
+      ],
+      "scope": "DB schema + RLS (R-T08)"
+    },
+    "thor": {
+      "primary_waves": [
+        "W2",
+        "W4"
+      ],
+      "scope": "API + 認証 + 画面実装"
+    },
+    "wanda": {
+      "primary_waves": [
+        "W0",
+        "W3",
+        "W4"
+      ],
+      "scope": "デザインシステム + UI 共通 + 一部画面"
+    },
+    "vision": {
+      "primary_waves": [
+        "W1",
+        "W5"
+      ],
+      "scope": "RLS 越境試験 + E2E + リリース判定"
+    },
+    "tchalla": {
+      "primary_waves": [
+        "W2"
+      ],
+      "scope": "RAG / Voyage / Knowledge"
+    },
+    "steve": {
+      "primary_waves": [
+        "W2"
+      ],
+      "scope": "議事録 / 商談ドキュメント"
+    }
+  },
+  "waves": [
+    {
+      "wave": 0,
+      "phase": "1_foundation",
+      "task_count": 28,
+      "parallel_capacity": 5,
+      "estimate_hours_human": 60,
+      "estimate_hours_ai_compute": 6.0,
+      "wall_clock_h_ai": 1.2,
+      "human_review_h": 1.0,
+      "ai_acceleration_factor": 10,
+      "start_date": "2026-05-20",
+      "end_date": "2026-05-21",
+      "milestone": "Foundation Ready"
+    },
+    {
+      "wave": 1,
+      "phase": "2_data",
+      "task_count": 35,
+      "parallel_capacity": 8,
+      "estimate_hours_human": 35,
+      "estimate_hours_ai_compute": 2.9,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 3.0,
+      "ai_acceleration_factor": 12,
+      "start_date": "2026-05-22",
+      "end_date": "2026-05-25",
+      "milestone": "Data Layer Ready (R-T08 reviewed)"
+    },
+    {
+      "wave": 2,
+      "phase": "3_api",
+      "task_count": 45,
+      "parallel_capacity": 10,
+      "estimate_hours_human": 35,
+      "estimate_hours_ai_compute": 2.9,
+      "wall_clock_h_ai": 0.3,
+      "human_review_h": 2.0,
+      "ai_acceleration_factor": 12,
+      "start_date": "2026-05-26",
+      "end_date": "2026-05-27",
+      "milestone": "🔒 API 契約凍結 (2026-05-27 13:30 凍結)"
+    },
+    {
+      "wave": 3,
+      "phase": "4_ui_foundation",
+      "task_count": 18,
+      "parallel_capacity": 5,
+      "estimate_hours_human": 25,
+      "estimate_hours_ai_compute": 2.5,
+      "wall_clock_h_ai": 0.5,
+      "human_review_h": 1.0,
+      "ai_acceleration_factor": 10,
+      "start_date": "2026-05-28",
+      "end_date": "2026-05-29",
+      "milestone": "UI Foundation Ready"
+    },
+    {
+      "wave": 4,
+      "phase": "5_ui_parallel",
+      "task_count": 40,
+      "parallel_capacity": 10,
+      "estimate_hours_human": 40,
+      "estimate_hours_ai_compute": 4.0,
+      "wall_clock_h_ai": 0.4,
+      "human_review_h": 4.0,
+      "ai_acceleration_factor": 10,
+      "start_date": "2026-06-01",
+      "end_date": "2026-06-03",
+      "milestone": "UI Parallel Complete"
+    },
+    {
+      "wave": 5,
+      "phase": "6_integration",
+      "task_count": 24,
+      "parallel_capacity": 5,
+      "estimate_hours_human": 35,
+      "estimate_hours_ai_compute": 3.5,
+      "wall_clock_h_ai": 0.7,
+      "human_review_h": 6.0,
+      "ai_acceleration_factor": 10,
+      "start_date": "2026-06-04",
+      "end_date": "2026-06-09",
+      "milestone": "🚀 本番リリース可能 (go/no-go PASS)"
+    }
+  ],
+  "milestones_dual_axis": [
+    {
+      "name": "Foundation Ready",
+      "human_date": "2026-06-15",
+      "ai_date": "2026-05-21"
+    },
+    {
+      "name": "Data Layer Ready",
+      "human_date": "2026-07-10",
+      "ai_date": "2026-05-25"
+    },
+    {
+      "name": "🔒 API 契約凍結",
+      "human_date": "2026-08-01",
+      "ai_date": "2026-05-27"
+    },
+    {
+      "name": "UI Foundation Ready",
+      "human_date": "2026-08-20",
+      "ai_date": "2026-05-29"
+    },
+    {
+      "name": "UI Parallel Complete",
+      "human_date": "2026-10-01",
+      "ai_date": "2026-06-03"
+    },
+    {
+      "name": "🚀 本番リリース可能",
+      "human_date": "2026-11-15",
+      "ai_date": "2026-06-10"
+    },
+    {
+      "name": "β 開始 (10 社招待)",
+      "human_date": "2026-12-01",
+      "ai_date": "2026-06-15"
+    },
+    {
+      "name": "GA / 100 ユーザー目標",
+      "human_date": "2027-08-31",
+      "ai_date": "2026-12-31"
+    }
+  ],
+  "human_gates": [
+    {
+      "date": "2026-05-21",
+      "name": "Foundation Ready 承認",
+      "duration_h": 1,
+      "critical": false,
+      "owner": "経営者 or vision"
+    },
+    {
+      "date": "2026-05-25",
+      "name": "R-T08 RLS 設計レビュー",
+      "duration_h": 3,
+      "critical": true,
+      "owner": "経営者★"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "API 契約凍結承認",
+      "duration_h": 2,
+      "critical": true,
+      "owner": "経営者★"
+    },
+    {
+      "date": "2026-05-29",
+      "name": "UI Foundation QA",
+      "duration_h": 1,
+      "critical": false,
+      "owner": "wanda + vision"
+    },
+    {
+      "date": "2026-06-03",
+      "name": "UI Parallel デザイン QA",
+      "duration_h": 2,
+      "critical": false,
+      "owner": "wanda + 経営者"
+    },
+    {
+      "date": "2026-06-05",
+      "name": "性能 + a11y レビュー",
+      "duration_h": 2,
+      "critical": false,
+      "owner": "vision"
+    },
+    {
+      "date": "2026-06-08",
+      "name": "セキュリティ最終",
+      "duration_h": 2,
+      "critical": false,
+      "owner": "natasha (Phase 2 で稼働) or 経営者"
+    },
+    {
+      "date": "2026-06-09",
+      "name": "本番 go/no-go",
+      "duration_h": 2,
+      "critical": true,
+      "owner": "経営者★"
+    }
+  ],
+  "calendar": [
+    {
+      "day": 1,
+      "date": "2026-05-20",
+      "weekday": "水",
+      "wave": "W0",
+      "primary": "Foundation 28 task 並列起動",
+      "ai_h": 1.2,
+      "human_h": 0,
+      "employees": [
+        "tony",
+        "strange",
+        "wanda"
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-05-21",
+      "weekday": "木",
+      "wave": "W0→W1",
+      "primary": "Foundation Ready → W1 解禁",
+      "ai_h": 0.2,
+      "human_h": 1,
+      "employees": [
+        "vision"
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-05-22",
+      "weekday": "金",
+      "wave": "W1",
+      "primary": "Data 35 task 並列",
+      "ai_h": 0.4,
+      "human_h": 0,
+      "employees": [
+        "strange"
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-05-25",
+      "weekday": "月",
+      "wave": "W1→W2",
+      "primary": "R-T08 RLS 設計レビュー",
+      "ai_h": 0.1,
+      "human_h": 3,
+      "employees": [
+        "strange",
+        "vision",
+        "経営者"
+      ],
+      "critical_gate": true
+    },
+    {
+      "day": 5,
+      "date": "2026-05-26",
+      "weekday": "火",
+      "wave": "W2",
+      "primary": "API 45 task 並列",
+      "ai_h": 0.3,
+      "human_h": 0,
+      "employees": [
+        "thor",
+        "tchalla",
+        "steve",
+        "tony"
+      ]
+    },
+    {
+      "day": 6,
+      "date": "2026-05-27",
+      "weekday": "水",
+      "wave": "W2→W3",
+      "primary": "🔒 API 契約凍結（13:30）",
+      "ai_h": 0.1,
+      "human_h": 2,
+      "employees": [
+        "tony",
+        "経営者"
+      ],
+      "critical_gate": true
+    },
+    {
+      "day": 7,
+      "date": "2026-05-28",
+      "weekday": "木",
+      "wave": "W3",
+      "primary": "UI 共通 18 task",
+      "ai_h": 0.5,
+      "human_h": 0,
+      "employees": [
+        "wanda",
+        "thor"
+      ]
+    },
+    {
+      "day": 8,
+      "date": "2026-05-29",
+      "weekday": "金",
+      "wave": "W3→W4",
+      "primary": "UI Foundation Ready → W4 解禁",
+      "ai_h": 0.2,
+      "human_h": 1,
+      "employees": [
+        "wanda",
+        "vision"
+      ]
+    },
+    {
+      "day": 9,
+      "date": "2026-06-01",
+      "weekday": "月",
+      "wave": "W4",
+      "primary": "UI 40 画面並列実装（10 並列）",
+      "ai_h": 0.4,
+      "human_h": 0,
+      "employees": [
+        "thor",
+        "wanda"
+      ]
+    },
+    {
+      "day": 10,
+      "date": "2026-06-02",
+      "weekday": "火",
+      "wave": "W4",
+      "primary": "UI 並列継続",
+      "ai_h": 0.4,
+      "human_h": 0,
+      "employees": [
+        "thor",
+        "wanda"
+      ]
+    },
+    {
+      "day": 11,
+      "date": "2026-06-03",
+      "weekday": "水",
+      "wave": "W4→W5",
+      "primary": "40 画面完了 + QA",
+      "ai_h": 0.2,
+      "human_h": 2,
+      "employees": [
+        "wanda",
+        "経営者"
+      ]
+    },
+    {
+      "day": 12,
+      "date": "2026-06-04",
+      "weekday": "木",
+      "wave": "W5",
+      "primary": "E2E / RLS 越境 / 性能",
+      "ai_h": 0.7,
+      "human_h": 0,
+      "employees": [
+        "vision",
+        "tony"
+      ]
+    },
+    {
+      "day": 13,
+      "date": "2026-06-05",
+      "weekday": "金",
+      "wave": "W5",
+      "primary": "Lighthouse / axe / セキュリティ",
+      "ai_h": 0.5,
+      "human_h": 2,
+      "employees": [
+        "vision"
+      ]
+    },
+    {
+      "day": 14,
+      "date": "2026-06-08",
+      "weekday": "月",
+      "wave": "W5",
+      "primary": "Bridge 配布 / 本番監視",
+      "ai_h": 0.4,
+      "human_h": 2,
+      "employees": [
+        "tony"
+      ]
+    },
+    {
+      "day": 15,
+      "date": "2026-06-09",
+      "weekday": "火",
+      "wave": "W5 完了",
+      "primary": "v3-gate.yml 10 PASS → go/no-go",
+      "ai_h": 0.2,
+      "human_h": 2,
+      "employees": [
+        "vision",
+        "経営者"
+      ],
+      "critical_gate": true
+    },
+    {
+      "day": 16,
+      "date": "2026-06-10",
+      "weekday": "水",
+      "wave": "🚀",
+      "primary": "本番リリース可能",
+      "ai_h": 0,
+      "human_h": 0,
+      "employees": [],
+      "milestone": "MVP_LAUNCH"
+    }
+  ],
+  "validation": {
+    "all_waves_have_dual_axis": true,
+    "all_milestones_have_dual_axis": true,
+    "human_review_total_matches": 17,
+    "ai_compute_total_matches": 21.9,
+    "wall_clock_total_h": 3.5,
+    "calendar_days_total": 15,
+    "weekend_business_days_skipped": true
+  }
+}

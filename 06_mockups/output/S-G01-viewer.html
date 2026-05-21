@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>要件定義 v1.0 — 成果物ビューア</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .viewer-layout { display: grid; grid-template-columns: 1fr 320px; gap: 0; height: calc(100vh - 56px); }
+  .viewer-main { display: flex; flex-direction: column; overflow: hidden; }
+  .viewer-toolbar { padding: 12px 24px; background: #FFFFFF; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; }
+  .tabs-row { display: flex; gap: 4px; padding: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .tab-item { padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .tab-item.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .version-select { padding: 6px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); font-size: 12.5px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  .preview-wrap { flex: 1; overflow: auto; padding: 32px; }
+  .preview-doc { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 48px 56px; max-width: 760px; margin: 0 auto; }
+  .doc-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 12px; }
+  .doc-h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 14px; }
+  .doc-meta { color: var(--color-on-surface-variant); font-size: 13px; margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--color-border); }
+  .doc-h2 { font-size: 19px; font-weight: 700; margin: 28px 0 12px; padding-bottom: 4px; border-bottom: 1px solid var(--color-border); position: relative; }
+  .doc-h3 { font-size: 15px; font-weight: 700; margin: 18px 0 8px; }
+  .doc-p { margin-bottom: 12px; font-size: 14.5px; line-height: 1.8; }
+  .has-comment { position: relative; background: rgba(199, 160, 74, 0.18); border-bottom: 2px solid var(--color-secondary); cursor: pointer; transition: all 0.12s; padding: 1px 4px; border-radius: 3px; }
+  .has-comment:hover { background: rgba(199, 160, 74, 0.32); }
+  .has-comment.active { background: var(--color-secondary); color: var(--color-on-secondary); border-bottom-color: var(--color-on-secondary); }
+  .inline-comment-pin { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: var(--color-secondary); color: var(--color-on-secondary); border-radius: 50%; font-size: 10px; font-weight: 700; vertical-align: super; margin-left: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+  .inline-comment-pin.resolved { background: var(--color-tertiary); }
+  .comment-indicator { position: absolute; right: -32px; top: 6px; width: 22px; height: 22px; background: var(--color-secondary); color: var(--color-on-secondary); border-radius: 50%; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .comment-pin-large { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: var(--color-secondary); color: var(--color-on-secondary); border-radius: 50%; font-size: 11px; font-weight: 700; margin-left: 8px; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+  .comment-panel { background: #FFFFFF; border-left: 1px solid var(--color-border); display: flex; flex-direction: column; }
+  .comment-header { padding: 14px 18px; border-bottom: 1px solid var(--color-border); }
+  .comment-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .comment-card { background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 12px 14px; margin: 8px 0; }
+  .comment-meta { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .comment-meta-name { font-size: 12.5px; font-weight: 700; }
+  .comment-meta-time { font-size: 11px; color: var(--color-on-surface-variant); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .comment-text { font-size: 13px; line-height: 1.55; }
+  .comment-target { font-size: 10.5px; color: var(--color-on-surface-variant); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; padding: 4px 8px; background: rgba(199, 160, 74, 0.15); border-radius: var(--rounded-sm); }
+  .comment-target.resolved { background: rgba(20, 184, 166, 0.15); }
+  .comment-target-pin { width: 18px; height: 18px; background: var(--color-secondary); color: var(--color-on-secondary); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .comment-target.resolved .comment-target-pin { background: var(--color-tertiary); color: var(--color-on-tertiary); }
+  .comment-target-text { flex: 1; font-weight: 600; color: var(--color-on-surface); }
+  .comment-target-link { font-size: 10px; color: var(--color-primary); cursor: pointer; font-weight: 600; }
+  .comment-target-link:hover { text-decoration: underline; }
+  .comment-input { padding: 10px 16px 16px; border-top: 1px solid var(--color-border); }
+  .ai-fix { background: var(--color-primary-container); color: var(--color-on-primary-container); padding: 10px 12px; border-radius: var(--rounded-md); margin-top: 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="file-text"></i>成果物</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-G01" data-bf-screen-name="output_viewer" data-bf-category="output" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../workflow/S-F01-flow.html">工程</a><span class="breadcrumb-sep">/</span>要件定義<span class="breadcrumb-sep">/</span><strong>v1.0</strong></div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="download"></i>DL</button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<div class="viewer-layout">
+  <div class="viewer-main">
+    <div class="viewer-toolbar">
+      <div class="tabs-row">
+        <div class="tab-item active"><i data-icon="eye" data-size="12"></i> HTML</div>
+        <div class="tab-item"><i data-icon="file-code" data-size="12"></i> JSON</div>
+        <div class="tab-item"><i data-icon="file-text" data-size="12"></i> MD</div>
+      </div>
+      <div class="version-select"><i data-icon="git-branch" data-size="12"></i><strong>v1.0</strong><span class="text-muted">2026-05-18 16:48</span><i data-icon="chevron-down" data-size="12"></i></div>
+      <div style="margin-left:auto;" class="flex items-center gap-2">
+        <span class="badge badge-tertiary">最新版</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="edit"></i>編集</button>
+        <button class="btn btn-outlined btn-sm"><i data-icon="external-link"></i>原本</button>
+      </div>
+    </div>
+
+    <div class="preview-wrap">
+      <div class="preview-doc">
+        <div class="doc-eyebrow">Requirements Specification</div>
+        <h1 class="doc-h1">Atelier 要件定義書</h1>
+        <div class="doc-meta">v1.0 · 2026-05-18 · 高本まさと</div>
+
+        <h2 class="doc-h2">1. プロジェクト概要</h2>
+        <p class="doc-p">AI 社員（COO／部署リーダー／専門メンバーの三階層）が常駐し、<span class="has-comment" id="anchor-1" data-comment-id="1">ヒアリングから納品まで開発プロジェクトの全工程を一元管理する SaaS<span class="inline-comment-pin">1</span></span> を構築する。クライアントは AI と対話するだけでプロジェクトを完走でき、運営者は 1 人で同時 10 案件以上を回せる属人性の低い体制を実現する。</p>
+        <p class="doc-p">最終的に SaaS として広く提供し、2-3 年後の事業売却（〜10 億円規模）を視野に入れる。</p>
+
+        <h2 class="doc-h2">2. 成功の定義</h2>
+        <table style="width:100%; border-collapse: collapse; font-size: 13px; margin-bottom: 12px;">
+          <thead>
+            <tr style="background: var(--color-surface-variant);">
+              <th style="padding: 10px 12px; text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-on-surface-variant);">軸</th>
+              <th style="padding: 10px 12px; text-align: left;">指標</th>
+              <th style="padding: 10px 12px; text-align: left;">目標値</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">事業</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">利用社数</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);"><span class="has-comment" id="anchor-2" data-comment-id="2">2026 年内 100 社<span class="inline-comment-pin">2</span></span></td></tr>
+            <tr><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">自己</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">並列案件数</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">同時 10 案件以上</td></tr>
+            <tr><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">出口</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">事業価値</td><td style="padding: 10px 12px; border-top: 1px solid var(--color-border);">〜10 億円規模</td></tr>
+          </tbody>
+        </table>
+        <p class="doc-p" id="anchor-3">スレッド：<span class="has-comment" data-comment-id="3">100 社内訳の議論<span class="inline-comment-pin">3</span></span> · スティーブと高本まさとの返信が続いています。</p>
+
+        <h2 class="doc-h2">3. 主要機能（39 機能）</h2>
+        <p class="doc-p" id="anchor-4">F-CTX01 Hybrid Context Construction Layer、F-IMP01 Impact Analyzer、<span class="has-comment" data-comment-id="4">F-CUC01-04 継続的更新サイクル<span class="inline-comment-pin resolved">4</span></span>等のコア機能群を含む 39 機能を Phase 0〜5 で実装する。</p>
+        <p class="doc-p text-muted text-sm">詳細は <code>features.json</code> を参照。</p>
+      </div>
+    </div>
+  </div>
+
+  <aside class="comment-panel">
+    <div class="comment-header">
+      <div class="flex items-center justify-between">
+        <strong style="font-size: 13px;">コメント（5）</strong>
+        <span class="badge badge-secondary">未解決 3</span>
+      </div>
+    </div>
+    <div class="comment-list">
+
+      <div class="comment-card">
+        <div class="comment-target" onclick="jumpToAnchor(1)">
+          <span class="comment-target-pin">1</span>
+          <span class="comment-target-text">§1 プロジェクト概要 · 「一元管理する SaaS」の箇所</span>
+          <span class="comment-target-link">本文へ →</span>
+        </div>
+        <div class="comment-meta">
+          <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+          <span class="comment-meta-name">小松様（招待）</span>
+          <span class="comment-meta-time">5 分前</span>
+        </div>
+        <div class="comment-text">定義をもう少し具体化したいです。クライアント側からの可視範囲を明示してほしい。</div>
+        <div class="ai-fix">
+          <strong><i data-icon="sparkles" data-size="11"></i> スティーブの修正提案：</strong>
+          <p style="margin-top: 4px;">2.5 項に「クライアント招待モードでの可視範囲」サブセクションを追加します。承認しますか？</p>
+          <div class="flex gap-2 mt-2">
+            <button class="btn btn-primary btn-sm">承認</button>
+            <button class="btn btn-ghost btn-sm">却下</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="comment-card">
+        <div class="comment-target" onclick="jumpToAnchor(2)">
+          <span class="comment-target-pin">2</span>
+          <span class="comment-target-text">§2 表の「2026 年内 100 社」セル</span>
+          <span class="comment-target-link">本文へ →</span>
+        </div>
+        <div class="comment-meta">
+          <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+          <span class="comment-meta-name">小松様（招待）</span>
+          <span class="comment-meta-time">10 分前</span>
+        </div>
+        <div class="comment-text">100 社の内訳（個人 vs 法人）を分けて記載してほしい。</div>
+      </div>
+
+      <div class="comment-card">
+        <div class="comment-target" onclick="jumpToAnchor(3)">
+          <span class="comment-target-pin">3</span>
+          <span class="comment-target-text">§2 への返信スレッド</span>
+          <span class="comment-target-link">本文へ →</span>
+        </div>
+        <div class="comment-meta">
+          <div class="avatar avatar-sm">M</div>
+          <span class="comment-meta-name">高本まさと</span>
+          <span class="comment-meta-time">8 分前</span>
+        </div>
+        <div class="comment-text" style="padding-left: 12px; border-left: 2px solid var(--color-border); margin-left: 2px;">↩ コメント 2 への返信：<br>了解です。Phase 7 の課金設計と合わせて分解しましょう。</div>
+      </div>
+
+      <div class="comment-card" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);">
+        <div class="comment-target resolved" onclick="jumpToAnchor(4)">
+          <span class="comment-target-pin">4</span>
+          <span class="comment-target-text">§3 「F-CUC01-04 継続的更新サイクル」</span>
+          <span class="comment-target-link">本文へ →</span>
+        </div>
+        <div class="comment-meta">
+          <div class="avatar avatar-sm avatar-vision">V</div>
+          <span class="comment-meta-name">ヴィジョン</span>
+          <span class="comment-meta-time">解決済み · 30 分前</span>
+        </div>
+        <div class="comment-text">F-CTX01 と F-IMP01 の依存関係を要件定義書にも明記しました。</div>
+      </div>
+    </div>
+    <div class="comment-input">
+      <div class="composer-card" style="background:var(--color-surface-variant);padding:10px 12px;border-radius:var(--rounded-md);">
+        <textarea style="width:100%;border:none;background:transparent;resize:none;font-family:inherit;outline:none;font-size:13px;" rows="2" placeholder="選択箇所にコメント..."></textarea>
+        <div class="flex justify-end mt-2">
+          <button class="btn btn-primary btn-sm">投稿</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+<script>
+function jumpToAnchor(n) {
+  const el = document.getElementById('anchor-' + n);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.querySelectorAll('.has-comment.active').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), 2000);
+}
+</script>
+</body>
+</html>

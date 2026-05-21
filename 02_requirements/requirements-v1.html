@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>要件定義書 v1.0 — Atelier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+body { font-family: "Noto Sans JP", -apple-system, BlinkMacSystemFont, sans-serif; background: #f0f2f5; color: #1a1a1a; line-height: 1.7; -webkit-font-smoothing: antialiased; font-feature-settings: "palt"; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 240px; flex-shrink: 0; background: #1a6648; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 100; }
+.sidebar-logo { padding: 22px 18px 16px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.sidebar-logo .doc-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.5); display: block; margin-bottom: 4px; }
+.sidebar-logo .doc-title { font-size: 12px; font-weight: 600; color: #fff; line-height: 1.4; }
+.sidebar-logo .doc-version { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 6px; }
+.toc { padding: 10px 0 30px; }
+.toc-group-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); padding: 14px 18px 4px; }
+.toc a { display: flex; align-items: center; gap: 8px; padding: 6px 18px; text-decoration: none; color: rgba(255,255,255,0.7); font-size: 11.5px; transition: all 0.15s; border-left: 2px solid transparent; }
+.toc a:hover { color: #fff; background: rgba(255,255,255,0.07); border-left-color: rgba(255,255,255,0.3); }
+.toc a.active { color: #fff; background: rgba(255,255,255,0.1); border-left-color: #00c97a; }
+.toc-num { min-width: 20px; font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.4); }
+.main { margin-left: 240px; padding: 32px 32px 80px; max-width: 1000px; }
+.doc-cover { background: #fff; border-radius: 8px; padding: 36px 40px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.cover-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8; margin-bottom: 10px; }
+.cover-title { font-size: 24px; font-weight: 700; color: #1a6648; line-height: 1.3; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; }
+.cover-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.meta-item { display: flex; flex-direction: column; gap: 2px; }
+.meta-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.06em; text-transform: uppercase; }
+.meta-value { font-size: 13px; color: #1a1a1a; font-weight: 500; }
+.notice-banner { background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 12px 16px; font-size: 12px; color: #92400e; margin-bottom: 20px; }
+.section-card { background: #fff; border-radius: 8px; padding: 28px 32px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+.section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #e2e8f0; }
+.section-num { width: 30px; height: 30px; background: #1a6648; color: #fff; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.section-title { font-size: 17px; font-weight: 700; color: #1a6648; }
+.subsection { margin-bottom: 22px; }
+.subsection:last-child { margin-bottom: 0; }
+.subsection-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; padding-left: 10px; border-left: 3px solid #1a6648; }
+.table-wrap { overflow-x: auto; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+thead th { background: #1a6648; color: #fff; font-weight: 600; padding: 10px 12px; text-align: left; font-size: 12px; }
+tbody td { padding: 8px 12px; border-top: 1px solid #f1f5f9; vertical-align: top; color: #334155; }
+tbody tr:nth-child(even) td { background: #f8fafc; }
+tbody tr:hover td { background: #e6f4ee; }
+.feature-block { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.feature-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.feature-id { font-size: 11px; font-weight: 700; color: #1a6648; background: #e6f4ee; padding: 2px 8px; border-radius: 4px; font-family: 'SF Mono','Courier New',monospace; }
+.feature-name { font-size: 14px; font-weight: 700; color: #1a6648; }
+.feature-phase { margin-left: auto; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #e6f4ee; color: #1a6648; border: 1px solid #b3d9c8; }
+.feature-row { display: grid; grid-template-columns: 110px 1fr; border-bottom: 1px solid #f1f5f9; }
+.feature-row:last-child { border-bottom: none; }
+.feature-row-label { padding: 10px 14px; font-size: 11px; font-weight: 600; color: #64748b; background: #fafafa; border-right: 1px solid #f1f5f9; }
+.feature-row-value { padding: 10px 14px; font-size: 12.5px; color: #334155; }
+.feature-row-value ul { margin: 0; padding-left: 16px; }
+.feature-row-value li { margin-bottom: 3px; }
+.badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+.badge-must { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.badge-should { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.badge-could { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
+.badge-wont { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+.badge-p1 { background: #e6f4ee; color: #1a6648; border: 1px solid #b3d9c8; }
+.badge-hypothesis { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 14px; }
+.info-card-label { font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px; }
+.info-card-value { font-size: 13px; color: #1a1a1a; font-weight: 500; }
+.persona-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; background: #fff; }
+.persona-name { font-size: 14px; font-weight: 700; color: #1a6648; margin-bottom: 8px; }
+.persona-attrs { font-size: 11.5px; color: #64748b; margin-bottom: 8px; }
+.persona-body { font-size: 12.5px; color: #334155; }
+.risk-table tbody td:nth-child(3), .risk-table tbody td:nth-child(4) { text-align: center; font-weight: 600; }
+.impact-h { color: #991b1b; }
+.impact-m { color: #92400e; }
+.impact-l { color: #1a6648; }
+ul.scope-list { padding-left: 18px; }
+ul.scope-list li { margin-bottom: 4px; font-size: 12.5px; color: #334155; }
+.signature { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 20px; }
+.sign-box { border: 1px solid #cbd5e1; border-radius: 6px; padding: 16px; }
+.sign-label { font-size: 11px; color: #64748b; margin-bottom: 24px; }
+.sign-line { border-bottom: 1px solid #cbd5e1; margin-top: 30px; }
+@media print {
+  .sidebar { display: none; }
+  .main { margin-left: 0; max-width: 100%; }
+  .section-card { box-shadow: none; border: 1px solid #e2e8f0; page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="doc-badge">Requirements</span>
+    <div class="doc-title">Atelier</div>
+    <div class="doc-version">v1.0 ／ 2026-05-18</div>
+  </div>
+  <nav class="toc">
+    <div class="toc-group-label">概要</div>
+    <a href="#sec-1"><span class="toc-num">1</span>プロジェクト概要</a>
+    <a href="#sec-2"><span class="toc-num">2</span>ターゲットユーザー</a>
+    <a href="#sec-3"><span class="toc-num">3</span>主要機能一覧</a>
+    <div class="toc-group-label">詳細</div>
+    <a href="#sec-4"><span class="toc-num">4</span>機能要件詳細</a>
+    <a href="#sec-5"><span class="toc-num">5</span>非機能要件</a>
+    <a href="#sec-6"><span class="toc-num">6</span>画面・UX</a>
+    <a href="#sec-7"><span class="toc-num">7</span>データ構造</a>
+    <a href="#sec-8"><span class="toc-num">8</span>外部連携</a>
+    <div class="toc-group-label">運営・法務</div>
+    <a href="#sec-9"><span class="toc-num">9</span>法的考慮</a>
+    <a href="#sec-10"><span class="toc-num">10</span>リスク</a>
+    <a href="#sec-11"><span class="toc-num">11</span>未確認事項</a>
+    <a href="#sec-12"><span class="toc-num">12</span>スケジュール</a>
+    <a href="#sec-13"><span class="toc-num">13</span>改訂履歴</a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<!-- カバー -->
+<div class="doc-cover">
+  <div class="cover-label">Requirements Specification</div>
+  <h1 class="cover-title">Atelier 要件定義書</h1>
+  <div class="cover-meta">
+    <div class="meta-item"><span class="meta-label">Project</span><span class="meta-value">Atelier</span></div>
+    <div class="meta-item"><span class="meta-label">Owner</span><span class="meta-value">高本まさと</span></div>
+    <div class="meta-item"><span class="meta-label">Version</span><span class="meta-value">1.0</span></div>
+    <div class="meta-item"><span class="meta-label">Issue Date</span><span class="meta-value">2026年5月18日</span></div>
+    <div class="meta-item"><span class="meta-label">Beta Start</span><span class="meta-value">2026年6月</span></div>
+    <div class="meta-item"><span class="meta-label">Release</span><span class="meta-value">2026年8月</span></div>
+  </div>
+</div>
+
+<div class="notice-banner">
+  ⚠ 本書は要件定義STEP4までの確定情報をベースとした v1.0 です。仮説項目は <span class="badge badge-hypothesis">【仮説】</span> で明示。Phase 0 PoC・法務確認の結果で改訂予定（v1.1 想定：2026年6月中）。
+</div>
+
+<!-- ============ 1. プロジェクト概要 ============ -->
+<section class="section-card" id="sec-1" data-bf-tab="overview">
+  <div class="section-header"><div class="section-num">1</div><div class="section-title">プロジェクト概要</div></div>
+
+  <div class="subsection">
+    <div class="subsection-title">1-1. 目的・背景</div>
+    <p>AI社員（COO／部署リーダー／専門メンバーの三階層）が常駐し、<strong>ヒアリングから納品まで開発プロジェクトの全工程を一元管理する SaaS</strong> を構築する。クライアントはAIと対話するだけでプロジェクトを完走でき、運営者（個人／受託会社）は <strong>1人で同時10案件以上を回せる属人性の低い体制</strong> を実現する。最終的に SaaS として広く提供し、2-3年後の事業売却（〜10億円規模）を視野に入れる。</p>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">1-2. 現状の課題</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th style="width:50%">現状の課題</th><th>影響</th></tr></thead>
+      <tbody>
+        <tr><td>Claude Code等のAIは「実行」は強いが「管理・全体統括・品質担保」が弱い</td><td>サービス品質に達するプロダクトを生むには結局人手が必要</td></tr>
+        <tr><td>タスク分解の粒度最適化が難しい</td><td>実装漏れ・手戻り発生、タスクが無駄になる</td></tr>
+        <tr><td>AI実装が「楽な実装に逃げる」「仕様漏れする」</td><td>仕様徹底できず、成果物の信頼性低下</td></tr>
+        <tr><td>議事録・提案・見積・契約・ヒアリング・要件・実装が別ツールに分散</td><td>商談→納品の速度と精度が出ない</td></tr>
+        <tr><td>AI成果物が Markdown 単独で構造化されていない</td><td>クライアント提示時の品質に問題</td></tr>
+        <tr><td>既存ツール（Linear/Notion/ClickUp/Devin/Cursor/v0）は単機能特化</td><td>「AI組織×全工程×Claude Code×仕様徹底」を満たすものがない</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">1-3. 成功の定義・KPI</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>軸</th><th>指標</th><th>目標値</th></tr></thead>
+      <tbody>
+        <tr><td>事業</td><td>利用社／利用者数</td><td>2026年内 100社/100名以上</td></tr>
+        <tr><td>事業</td><td>SaaS課金</td><td>8月本格リリース時点で課金導入</td></tr>
+        <tr><td>自己</td><td>同時並行案件数</td><td>1人で同時10案件以上</td></tr>
+        <tr><td>出口</td><td>事業価値</td><td>2-3年後 〜10億円規模での売却視野</td></tr>
+        <tr><td>マイルストーン</td><td>ベータ開始</td><td>2026年6月</td></tr>
+        <tr><td>マイルストーン</td><td>本格リリース</td><td>2026年8月</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">1-4. 制約・前提</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">期限</div><div class="info-card-value">2026年8月（残約3ヶ月）</div></div>
+      <div class="info-card"><div class="info-card-label">予算</div><div class="info-card-value">BYOK前提、インフラ最小化</div></div>
+      <div class="info-card"><div class="info-card-label">チーム</div><div class="info-card-value">本人1名＋Claude Code</div></div>
+      <div class="info-card"><div class="info-card-label">対象市場</div><div class="info-card-value">日本国内のみ</div></div>
+      <div class="info-card"><div class="info-card-label">並列規模</div><div class="info-card-value">同時5-10タスク</div></div>
+      <div class="info-card"><div class="info-card-label">出力形式</div><div class="info-card-value">HTML / JSON / MD 三層</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">1-5. 技術スタック</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>領域</th><th>採用技術</th></tr></thead>
+      <tbody>
+        <tr><td>フロント</td><td>Next.js (App Router) + TypeScript</td></tr>
+        <tr><td>BFF</td><td>Next.js Route Handlers</td></tr>
+        <tr><td>AI処理層</td><td>Python FastAPI</td></tr>
+        <tr><td>AI SDK</td><td>Anthropic SDK + Claude Agent SDK（web_search標準ツール含む）</td></tr>
+        <tr><td>抽象化</td><td>自前 LLMClient（chat/stream/tool/search/embed/count）</td></tr>
+        <tr><td>オーケストレーション</td><td>LangGraph（人間承認・スコア評価ループ）＋ Inngest（cron・サーバレス）</td></tr>
+        <tr><td>DB / Auth</td><td>Supabase（Postgres + pgvector + Auth + Storage + Realtime）</td></tr>
+        <tr><td>RAG</td><td>LlamaIndex + Cognee + Voyage AI（Anthropic推奨埋め込み）</td></tr>
+        <tr><td>文書解析</td><td>Whisper API（議事録）+ Unstructured.io（PDF/Office）</td></tr>
+        <tr><td>観測</td><td>Langfuse（OSSセルフホスト）</td></tr>
+        <tr><td>コスト最適化</td><td>LLMLingua（圧縮）+ Anthropic Prompt Caching + Batch API</td></tr>
+        <tr><td>課金</td><td>Stripe（Phase 8）</td></tr>
+        <tr><td>実装ブリッジ</td><td>ローカル Claude Code（WebSocket/SSE、初回CLIログイン）</td></tr>
+        <tr><td>外部呼出</td><td>MCP（Claudeデスクトップ等から呼出）</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============ 2. ターゲットユーザー ============ -->
+<section class="section-card" id="sec-2" data-bf-tab="users">
+  <div class="section-header"><div class="section-num">2</div><div class="section-title">ターゲットユーザー</div></div>
+
+  <div class="persona-card">
+    <div class="persona-name">👤 ペルソナ1：ソロ受託開発者「タカミ」さん（40代男性）— メインターゲット</div>
+    <div class="persona-attrs">個人開発者 / 受託開発で年商1000万〜3000万円 / Claude Code/Cursor等を日常利用 / ITリテラシー高</div>
+    <div class="persona-body"><strong>動機：</strong>1人で同時10案件以上を回したい。AIに「実行」だけでなく「全体管理・仕様徹底」を任せて受注キャパを増やしたい。<br><strong>困りごと：</strong>タスク分解の粒度、AIの仕様逸脱、議事録/提案/見積/契約の分散管理、複数AIツールの行き来。</div>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-name">👤 ペルソナ2：小規模受託会社の経営者「ササキ」さん（35代）</div>
+    <div class="persona-attrs">エンジニア5名以下の受託会社 / 経営兼任プレイヤー / Notion+Linear併用</div>
+    <div class="persona-body"><strong>動機：</strong>属人化排除、新人でも一定品質を出せる仕組み。<strong>困りごと：</strong>エンジニア間でAI活用の差、引き継ぎロス、全体進捗が見えにくい。</div>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-name">👤 ペルソナ3：個人開発者・スタートアップ「ナカジマ」さん（28代）</div>
+    <div class="persona-attrs">1人で自社サービス開発 / 副業兼任 / vibe coder</div>
+    <div class="persona-body"><strong>動機：</strong>1人で複数自社サービスを並行開発。<strong>困りごと：</strong>1人で全工程やると漏れが出る、自分用テンプレ整備が間に合わない。</div>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-name">👤 ペルソナ4：クライアント「コマツ」さん（招待モード利用）</div>
+    <div class="persona-attrs">受託先の発注担当 / 非エンジニア / ITリテラシー中</div>
+    <div class="persona-body"><strong>動機：</strong>開発状況を見たい、コメントしたい。<strong>困りごと：</strong>従来は別ツールで見せられて分かりにくい、合意形成が遅い。</div>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-name">👤 ペルソナ5：運営管理者「アドミン」</div>
+    <div class="persona-attrs">本ツール運営者（本人＋将来チーム）</div>
+    <div class="persona-body"><strong>動機：</strong>スキル管理、AI社員テンプレ更新、ユーザーサポート。<strong>困りごと：</strong>スキル版管理、問い合わせ対応コスト。</div>
+  </div>
+</section>
+
+<!-- ============ 3. 主要機能一覧 ============ -->
+<section class="section-card" id="sec-3" data-bf-tab="features">
+  <div class="section-header"><div class="section-num">3</div><div class="section-title">主要機能一覧</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>カテゴリ</th><th>機能群</th><th>優先度</th><th>フェーズ</th></tr></thead>
+    <tbody>
+      <tr><td>A. ワークスペース管理</td><td>WS作成、メンバー招待、退会フロー</td><td><span class="badge badge-must">Must</span></td><td>Phase 0</td></tr>
+      <tr><td>B. プロジェクト管理</td><td>CRUD、フェーズ管理、ダッシュボード</td><td><span class="badge badge-must">Must</span></td><td>Phase 0-1</td></tr>
+      <tr><td>C. AI社員システム</td><td>三階層10名、人格カスタム、雇用</td><td><span class="badge badge-must">Must</span></td><td>Phase 1</td></tr>
+      <tr><td>D. スキルシステム</td><td>管理側アップロード、装着、版管理</td><td><span class="badge badge-must">Must</span></td><td>Phase 1</td></tr>
+      <tr><td>E. チャット基盤</td><td>AI社員別チャット、圧縮、直編集反映</td><td><span class="badge badge-must">Must</span></td><td>Phase 1</td></tr>
+      <tr><td>F. 工程ワークフロー</td><td>9工程（ヒアリング〜納品）</td><td><span class="badge badge-must">Must</span></td><td>Phase 2</td></tr>
+      <tr><td>G. 三層出力</td><td>HTML/JSON/MD 同時生成</td><td><span class="badge badge-must">Must</span></td><td>Phase 1-2</td></tr>
+      <tr><td>H. デザインモック</td><td>HTML生成・修正・コメント</td><td><span class="badge badge-must">Must</span></td><td>Phase 2</td></tr>
+      <tr><td>I. タスク・並列実行</td><td>かんばん、▶再生、Claude Codeブリッジ、/goal</td><td><span class="badge badge-must">Must</span></td><td>Phase 3</td></tr>
+      <tr><td>J. 仕様徹底ループ</td><td>受入基準、スコア評価、承認ゲート</td><td><span class="badge badge-must">Must</span></td><td>Phase 3</td></tr>
+      <tr><td>K. ナレッジ</td><td>共通＋社員別、RAG、自動整理</td><td><span class="badge badge-must">Must</span></td><td>Phase 4</td></tr>
+      <tr><td>L. クライアント招待</td><td>数日リンク、全閲覧、コメント</td><td><span class="badge badge-must">Must</span></td><td>Phase 2</td></tr>
+      <tr><td>M. 議事録解析</td><td>音声/動画/テキスト解析</td><td><span class="badge badge-should">Should</span></td><td>Phase 4</td></tr>
+      <tr><td>N. 提案/見積/契約</td><td>自動ドラフト生成</td><td><span class="badge badge-should">Should</span></td><td>Phase 4</td></tr>
+      <tr><td>O. cron実行</td><td>夜間自動進行</td><td><span class="badge badge-should">Should</span></td><td>Phase 4</td></tr>
+      <tr><td>P. MCP連携</td><td>外部からAI社員呼出</td><td><span class="badge badge-must">Must</span></td><td>Phase 1並行</td></tr>
+      <tr><td>Q. GitHub連携</td><td>PR/コミット閲覧のみ</td><td><span class="badge badge-should">Should</span></td><td>Phase 5</td></tr>
+      <tr><td>R. 監査ログ</td><td>管理者専用ビュー、編集取消</td><td><span class="badge badge-should">Should</span></td><td>Phase 5</td></tr>
+      <tr><td>S. マルチLLM</td><td>抽象化レイヤー（Phase 0）、GPT/Gemini（v2）</td><td><span class="badge badge-must">Must（基盤）</span></td><td>Phase 0/v2</td></tr>
+      <tr><td>T. 管理者機能</td><td>スキル・テンプレ・ユーザー管理</td><td><span class="badge badge-must">Must</span></td><td>Phase 1-5</td></tr>
+      <tr><td>U. 法的対応</td><td>規約・PP・データ削除</td><td><span class="badge badge-must">Must</span></td><td>Phase 5</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 4. 機能要件詳細 ============ -->
+<section class="section-card" id="sec-4" data-bf-tab="features-detail">
+  <div class="section-header"><div class="section-num">4</div><div class="section-title">機能要件詳細</div></div>
+
+  <p style="font-size:12.5px;color:#64748b;margin-bottom:16px;">主要機能の詳細は別添 <code>step3_functional_spec.md</code> および <code>bf_feature_spec.json</code> を参照。本書では中核機能のみ抜粋掲載する。</p>
+
+  <!-- F-I03 -->
+  <div class="feature-block">
+    <div class="feature-header"><span class="feature-id">F-I03</span><span class="feature-name">並列実行エンジン（最重要）</span><span class="feature-phase">Phase 3</span></div>
+    <div class="feature-row"><div class="feature-row-label">概要</div><div class="feature-row-value">▶再生でタスク群をローカルClaude Codeに投入し並列実行（5-10並列）。バックグラウンド継続。</div></div>
+    <div class="feature-row"><div class="feature-row-label">入力</div><div class="feature-row-value">選択タスク（依存解決後）、受入基準HTML、関連モック、仕様書</div></div>
+    <div class="feature-row"><div class="feature-row-label">出力</div><div class="feature-row-value">実行ログ、成果物（コード/テスト/差分）、スコア、状態更新</div></div>
+    <div class="feature-row"><div class="feature-row-label">処理</div><div class="feature-row-value"><ul><li>依存解決→実行可能タスク抽出</li><li>各タスクごとに Claude Code セッション起動</li><li>受入基準/モック/spec を /goal 文として渡す</li><li>verification-loop / acceptance-criteria / test-verification スキルを同梱</li><li>Claude Code側で「実装→検証→スコア→再実装」自走</li><li>スコア基準達成 or 最大3回で停止、結果返却</li></ul></div></div>
+    <div class="feature-row"><div class="feature-row-label">エラー</div><div class="feature-row-value"><ul><li>セッション失敗→自動リトライ1回→失敗通知</li><li>並列上限到達→キューイング</li><li>認証エラー→初回CLIログイン誘導</li></ul></div></div>
+    <div class="feature-row"><div class="feature-row-label">制約</div><div class="feature-row-value">初回ターミナルCLIログイン必須／OAuth対応は Phase 5以降検証／ストリーミングはオプション（通常はBG）</div></div>
+  </div>
+
+  <!-- F-J02 -->
+  <div class="feature-block">
+    <div class="feature-header"><span class="feature-id">F-J02</span><span class="feature-name">仕様徹底ループ（差別化の心臓）</span><span class="feature-phase">Phase 3</span></div>
+    <div class="feature-row"><div class="feature-row-label">概要</div><div class="feature-row-value">実装→検証→スコア評価→再実装をClaude Code側で自走。無限ループ防止のスコア閾値・最大再試行制御を内蔵。</div></div>
+    <div class="feature-row"><div class="feature-row-label">スコア計算</div><div class="feature-row-value"><code>total_score = AC達成率 × 0.6 + テスト成功率 × 0.3 + 検証AI評価 × 0.1</code></div></div>
+    <div class="feature-row"><div class="feature-row-label">段階制御</div><div class="feature-row-value"><ul><li>≥ 95% → 自動承認、次タスクへ</li><li>80-94% → 人間承認ゲート（Inbox）</li><li>< 80% → 強制人間介入</li></ul></div></div>
+    <div class="feature-row"><div class="feature-row-label">再試行制限</div><div class="feature-row-value">最大3回。以上は人間介入</div></div>
+    <div class="feature-row"><div class="feature-row-label">スキル統合</div><div class="feature-row-value">verification-loop / acceptance-criteria / test-verification / quality-gate</div></div>
+  </div>
+
+  <!-- F-K01 -->
+  <div class="feature-block">
+    <div class="feature-header"><span class="feature-id">F-K01</span><span class="feature-name">ナレッジ管理基盤（2層構造）</span><span class="feature-phase">Phase 4</span></div>
+    <div class="feature-row"><div class="feature-row-label">概要</div><div class="feature-row-value">アカウント単位の共通＋AI社員別の2層ナレッジ。プロジェクト跨ぎで再活用。</div></div>
+    <div class="feature-row"><div class="feature-row-label">共通</div><div class="feature-row-value">ユーザー方向性 / 業界傾向（3案件以上で自動抽出）/ プロジェクト横断テンプレ</div></div>
+    <div class="feature-row"><div class="feature-row-label">社員別</div><div class="feature-row-value"><ul><li>ワンダ → 参考デザイン / カラー傾向 / フォント選好</li><li>トニー → 過去提案テンプレ / 成約パターン</li><li>ストレンジ → 採用アーキ / 失敗パターン</li><li>ヴィジョン → 検証チェックリスト</li><li>ティチャラ → 全社員のナレッジ統括</li></ul></div></div>
+    <div class="feature-row"><div class="feature-row-label">参照</div><div class="feature-row-value">各社員は自分のナレッジ優先＋共通も参照可</div></div>
+    <div class="feature-row"><div class="feature-row-label">書込</div><div class="feature-row-value">AI候補生成→ユーザー承認で書込み</div></div>
+    <div class="feature-row"><div class="feature-row-label">整理</div><div class="feature-row-value">AI自動でカテゴリ・タグ・重複統合（夜間cron）</div></div>
+    <div class="feature-row"><div class="feature-row-label">検索</div><div class="feature-row-value">ベクトル＋キーワードハイブリッド、Voyage Reranker</div></div>
+  </div>
+
+  <!-- F-I05 -->
+  <div class="feature-block">
+    <div class="feature-header"><span class="feature-id">F-I05</span><span class="feature-name">/goal駆動実行モード</span><span class="feature-phase">Phase 3</span></div>
+    <div class="feature-row"><div class="feature-row-label">概要</div><div class="feature-row-value">タスクカード→ゴール文自動生成→Claude Code /goal 投入→自走実行→結果収集</div></div>
+    <div class="feature-row"><div class="feature-row-label">ゴール生成</div><div class="feature-row-value">タイトル＋受入基準＋依存タスク＋関連モックパスから自動生成</div></div>
+    <div class="feature-row"><div class="feature-row-label">利点</div><div class="feature-row-value">Claude Codeの自走能力を最大活用、ツール側はゴール定義と結果収集に専念</div></div>
+  </div>
+</section>
+
+<!-- ============ 5. 非機能要件 ============ -->
+<section class="section-card" id="sec-5" data-bf-tab="nonfunctional">
+  <div class="section-header"><div class="section-num">5</div><div class="section-title">非機能要件</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>種別</th><th>要件</th><th>根拠</th></tr></thead>
+    <tbody>
+      <tr><td>パフォーマンス</td><td>チャット初回応答 ≤ 2秒（ストリーミング開始）</td><td>Claudeレベル維持</td></tr>
+      <tr><td>パフォーマンス</td><td>ダッシュボード表示 ≤ 3秒</td><td>SaaS標準</td></tr>
+      <tr><td>パフォーマンス</td><td>モックHTML生成 ≤ 30秒</td><td>進行表示で待ち感緩和</td></tr>
+      <tr><td>パフォーマンス</td><td>並列5-10タスク起動 ≤ 5秒</td><td>Claude Code起動含む</td></tr>
+      <tr><td>パフォーマンス</td><td>RAG検索 ≤ 1秒</td><td>HNSWインデックス</td></tr>
+      <tr><td>可用性</td><td>99%（月次）</td><td>個人/小規模向け</td></tr>
+      <tr><td>可用性</td><td>日次自動バックアップ＋Storage二重化</td><td>案件データ保護</td></tr>
+      <tr><td>セキュリティ</td><td>TLS 1.3 / HTTPS必須</td><td>標準</td></tr>
+      <tr><td>セキュリティ</td><td>Supabase Auth + RLS（WS/プロジェクト/ロール）</td><td>マルチテナント分離</td></tr>
+      <tr><td>セキュリティ</td><td>個人情報・APIキー：AES-256 / Supabase Vault</td><td>個情法・BYOK保護</td></tr>
+      <tr><td>セキュリティ</td><td>個人情報閲覧の監査ログ 1年保持</td><td>個情法</td></tr>
+      <tr><td>セキュリティ</td><td>招待リンク：JWT＋有効期限＋使用後失効</td><td>クライアント招待</td></tr>
+      <tr><td>拡張性</td><td>5000プロジェクト規模で安定動作</td><td>1年目想定×安全係数</td></tr>
+      <tr><td>拡張性</td><td>LLMプロバイダー追加：1日以内</td><td>抽象化レイヤー前提</td></tr>
+      <tr><td>データ保管</td><td>退会後30日保持→ハード削除、ナレッジは匿名化保持</td><td>事業価値・法令</td></tr>
+      <tr><td>互換性</td><td>Chrome / Safari / Edge / Firefox 最新2版</td><td>標準</td></tr>
+      <tr><td>互換性</td><td>OS：macOS / Windows(WSL) / Linux</td><td>Claude Codeブリッジ</td></tr>
+      <tr><td>データレジデンシー</td><td>Supabase Tokyo region 推奨</td><td>国内データ留置</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 6. 画面・UX ============ -->
+<section class="section-card" id="sec-6" data-bf-tab="screens">
+  <div class="section-header"><div class="section-num">6</div><div class="section-title">画面・UX概要</div></div>
+
+  <div class="subsection">
+    <div class="subsection-title">6-1. 一般ユーザー画面（20）</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>画面名</th><th>役割</th></tr></thead>
+      <tbody>
+        <tr><td>S-A01</td><td>ログイン/サインアップ</td><td>認証エントリ</td></tr>
+        <tr><td>S-A02</td><td>WS一覧</td><td>WS切替・新規作成</td></tr>
+        <tr><td>S-A03</td><td>WS設定</td><td>メンバー・招待・プラン・退会</td></tr>
+        <tr><td>S-B01</td><td>プロジェクト一覧</td><td>CRUD・進捗</td></tr>
+        <tr><td>S-B02</td><td>プロジェクトダッシュボード</td><td>進捗・最新出力・AI活動</td></tr>
+        <tr><td>S-B03</td><td>プロジェクト設定</td><td>概要・削除</td></tr>
+        <tr><td>S-C01</td><td>AI社員一覧（組織図）</td><td>三階層組織図</td></tr>
+        <tr><td>S-C02</td><td>AI社員詳細・編集</td><td>名前/アイコン/口調/スキル装着</td></tr>
+        <tr><td>S-C03</td><td>AI社員追加（雇用）</td><td>テンプレから雇用</td></tr>
+        <tr><td>S-E01</td><td>チャット画面</td><td>AI社員別チャット</td></tr>
+        <tr><td>S-F01</td><td>工程ワークフロービュー</td><td>9工程の進行</td></tr>
+        <tr><td>S-F02</td><td>フェーズ管理</td><td>フェーズタイムライン・提案承認</td></tr>
+        <tr><td>S-G01</td><td>成果物ビューア</td><td>HTML/JSON/MD プレビュー・コメント</td></tr>
+        <tr><td>S-H01</td><td>モックビューア</td><td>HTMLモック・コメント</td></tr>
+        <tr><td>S-I01</td><td>かんばんビュー</td><td>2軸構造、▶再生</td></tr>
+        <tr><td>S-I02</td><td>タスク詳細パネル</td><td>仕様・モック・AC・テスト・依存・ログ</td></tr>
+        <tr><td>S-I03</td><td>実行モニター</td><td>リアルタイム（オプション）</td></tr>
+        <tr><td>S-J01</td><td>承認待ちInbox</td><td>人間承認ゲート一覧</td></tr>
+        <tr><td>S-K01</td><td>ナレッジエクスプローラ</td><td>共通＋社員別ナレッジ</td></tr>
+        <tr><td>S-K02</td><td>ナレッジ書込承認</td><td>AI提案候補レビュー</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">6-2. クライアント画面（3）</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>画面名</th><th>役割</th></tr></thead>
+      <tbody>
+        <tr><td>S-L02</td><td>クライアントログイン</td><td>招待リンク経由</td></tr>
+        <tr><td>S-L03</td><td>プロジェクトビュー</td><td>全フェーズ閲覧（編集不可）</td></tr>
+        <tr><td>S-L04</td><td>コメント</td><td>要素単位のコメント</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">6-3. 管理者画面（6）</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>ID</th><th>画面名</th><th>役割</th></tr></thead>
+      <tbody>
+        <tr><td>S-T01</td><td>管理者ダッシュボード</td><td>利用者数/利用度/売上</td></tr>
+        <tr><td>S-T02</td><td>スキル管理</td><td>アップロード・版管理・許可リスト</td></tr>
+        <tr><td>S-T03</td><td>AI社員テンプレ管理</td><td>デフォルト10名編集</td></tr>
+        <tr><td>S-T04</td><td>ユーザー管理</td><td>アカウント・サポート</td></tr>
+        <tr><td>S-T05</td><td>監査ログビュー</td><td>操作ログ閲覧</td></tr>
+        <tr><td>S-T06</td><td>プラン管理</td><td>課金プラン定義（Phase 8）</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">6-4. 主要ユーザーフロー</div>
+    <ol style="padding-left:20px;font-size:12.5px;color:#334155;line-height:2">
+      <li><strong>UF-1：</strong>サインアップ → WS作成 → デフォルト10名AI社員配属 → プロジェクト作成 → ジャービスが「どこから始める？」提案 → ヒアリングor議事録アップロード</li>
+      <li><strong>UF-2：</strong>ピーターがタスク分解 → かんばん配置 → ▶再生 → ローカルClaude Code起動 → /goal自走 → スコア評価で承認/再実装/介入 → バックグラウンド継続</li>
+      <li><strong>UF-3：</strong>オーナーがクライアント招待発行 → メール送信 → クライアントが招待リンクからログイン → 全フェーズ閲覧 → コメント投稿 → AI修正提案 → オーナー承認 → 反映</li>
+      <li><strong>UF-4：</strong>プロジェクト進行中ティチャラがナレッジ候補抽出 → ユーザー承認 → 書込＋埋め込み生成 → 別プロジェクトで自動参照 → 3件以上で業界ナレッジ昇格</li>
+      <li><strong>UF-5：</strong>MCPトークン発行 → Claudeデスクトップに設定 → AI社員呼出 → ナレッジ参照→生成→返却</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 7. データ構造 ============ -->
+<section class="section-card" id="sec-7" data-bf-tab="data">
+  <div class="section-header"><div class="section-num">7</div><div class="section-title">データ構造（主要エンティティ）</div></div>
+  <p style="font-size:12.5px;color:#64748b;margin-bottom:12px;">主要25エンティティ。詳細は別添 <code>bf_feature_spec.json</code>。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>エンティティ</th><th>主要項目</th><th>関係</th></tr></thead>
+    <tbody>
+      <tr><td>users</td><td>id, email, name, avatar</td><td>1:N workspaces</td></tr>
+      <tr><td>workspaces</td><td>id, owner_id, name, plan, settings</td><td>N:N users</td></tr>
+      <tr><td>workspace_memberships</td><td>workspace_id, user_id, role</td><td>—</td></tr>
+      <tr><td>projects</td><td>id, workspace_id, name, client_name, type, status</td><td>1:N phases, tasks</td></tr>
+      <tr><td>phases</td><td>id, project_id, order, name, status</td><td>1:N workflow_outputs</td></tr>
+      <tr><td>workflow_outputs</td><td>id, project_id, phase_id, stage, html/json/md_path</td><td>—</td></tr>
+      <tr><td>ai_employees</td><td>id, workspace_id, template_id, name, tone_preset, attached_skills[]</td><td>—</td></tr>
+      <tr><td>ai_employee_templates</td><td>id, role, department, system_prompt, specialty</td><td>管理側のみ</td></tr>
+      <tr><td>skills</td><td>id, name, version, content, allowed_employees[]</td><td>—</td></tr>
+      <tr><td>chat_threads</td><td>id, project_id, ai_employee_id</td><td>1:N messages</td></tr>
+      <tr><td>chat_messages</td><td>id, thread_id, role, content, tool_calls, attachments[]</td><td>—</td></tr>
+      <tr><td>tasks</td><td>id, project_id, category, dependencies[], ac_id, mock_id, spec_id, status</td><td>—</td></tr>
+      <tr><td>task_executions</td><td>id, task_id, score, ac_pass_rate, retry_count, status, logs_path</td><td>—</td></tr>
+      <tr><td>acceptance_criteria</td><td>id, task_id, html_path, items[]</td><td>—</td></tr>
+      <tr><td>mocks</td><td>id, project_id, screen_name, html_path, version</td><td>—</td></tr>
+      <tr><td>comments</td><td>id, target_type, target_id, target_element_id, content</td><td>—</td></tr>
+      <tr><td>client_invitations</td><td>id, project_id, email, token, expires_at</td><td>—</td></tr>
+      <tr><td>knowledge_nodes</td><td>id, account_id, scope, owner_employee_id, category, content_md, embedding</td><td>—</td></tr>
+      <tr><td>approval_inbox</td><td>id, user_id, type, target_id, status</td><td>—</td></tr>
+      <tr><td>audit_logs</td><td>id, workspace_id, actor_type, action, target, before/after</td><td>管理者のみ</td></tr>
+      <tr><td>mcp_tokens</td><td>id, workspace_id, token_hash, scopes[]</td><td>—</td></tr>
+      <tr><td>byok_api_keys</td><td>id, user_id, provider, encrypted_key</td><td>Vault</td></tr>
+      <tr><td>cron_schedules</td><td>id, project_id, cron_expression, target_action</td><td>Inngest</td></tr>
+      <tr><td>external_uploads</td><td>id, project_id, type, file_path, parsed_at</td><td>議事録等</td></tr>
+      <tr><td>consents</td><td>id, user_id, type, version, accepted_at</td><td>同意ログ</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 8. 外部連携 ============ -->
+<section class="section-card" id="sec-8" data-bf-tab="integrations">
+  <div class="section-header"><div class="section-num">8</div><div class="section-title">外部連携</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>サービス</th><th>用途</th><th>方式</th><th>フェーズ</th></tr></thead>
+    <tbody>
+      <tr><td>Anthropic API</td><td>Claude（チャット・Tool・web_search・Batch・Cache）</td><td>REST/SDK</td><td>Phase 1</td></tr>
+      <tr><td>Voyage AI</td><td>埋め込み・リランカー</td><td>REST</td><td>Phase 4</td></tr>
+      <tr><td>ローカルClaude Code</td><td>タスク実行ブリッジ</td><td>WebSocket/SSE</td><td>Phase 3</td></tr>
+      <tr><td>Inngest</td><td>cron・スケジュール</td><td>TS SDK</td><td>Phase 4</td></tr>
+      <tr><td>Stripe</td><td>課金・サブスク</td><td>REST/Webhook</td><td>Phase 8</td></tr>
+      <tr><td>GitHub</td><td>PR/コミット閲覧</td><td>OAuth + REST</td><td>Phase 5</td></tr>
+      <tr><td>Supabase</td><td>DB/Auth/Storage/Realtime/pgvector</td><td>公式SDK</td><td>Phase 0</td></tr>
+      <tr><td>Resend / SendGrid</td><td>メール送信</td><td>REST</td><td>Phase 1</td></tr>
+      <tr><td>Obsidian Vault</td><td>ナレッジ書出（任意）</td><td>ファイル書出</td><td>Phase 4</td></tr>
+      <tr><td>OpenAI Whisper API</td><td>音声→テキスト</td><td>REST</td><td>Phase 4</td></tr>
+      <tr><td>Langfuse</td><td>LLM観測</td><td>SDK（OSS）</td><td>Phase 2</td></tr>
+      <tr><td>OpenAI / Google GenAI</td><td>マルチLLM</td><td>REST/SDK</td><td>v2</td></tr>
+      <tr><td>MCP Clients</td><td>Claudeデスクトップ等</td><td>MCP Protocol</td><td>Phase 1</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 9. 法的考慮 ============ -->
+<section class="section-card" id="sec-9" data-bf-tab="legal">
+  <div class="section-header"><div class="section-num">9</div><div class="section-title">法的考慮・コンプライアンス</div></div>
+
+  <div class="subsection">
+    <div class="subsection-title">9-1. 業種・取扱データ</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">業種</div><div class="info-card-value">B2B/B2C SaaS（AI生成型）</div></div>
+      <div class="info-card"><div class="info-card-label">取引形態</div><div class="info-card-value">サブスクリプション</div></div>
+      <div class="info-card"><div class="info-card-label">海外展開</div><div class="info-card-value">無し（日本国内）</div></div>
+      <div class="info-card"><div class="info-card-label">第三者通信媒介</div><div class="info-card-value">あり（クライアント招待コメント）</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">9-2. 適用法令</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>法令</th><th>適用</th><th>対応方針</th></tr></thead>
+      <tbody>
+        <tr><td>特定商取引法</td><td>必須</td><td>法定表記・解約導線</td></tr>
+        <tr><td>個人情報保護法</td><td>必須</td><td>PP・同意・削除窓口・漏洩通知48h</td></tr>
+        <tr><td>消費者契約法</td><td>必須</td><td>不当条項排除・解約条件明示</td></tr>
+        <tr><td>電気通信事業法（届出）</td><td>必須（要確認）</td><td>クライアント招待コメント→届出要否を法務確認</td></tr>
+        <tr><td>NDA・秘密保持</td><td>必須</td><td>規約に明示・AI学習可否設定</td></tr>
+        <tr><td>著作権法</td><td>必須</td><td>権利帰属明示・第三者著作物アップロード禁止</td></tr>
+        <tr><td>不正アクセス禁止法</td><td>必須</td><td>招待・MCPトークン管理</td></tr>
+        <tr><td>特定電子メール法</td><td>必須</td><td>配信停止・送信者表示</td></tr>
+        <tr><td>プロバイダ責任制限法</td><td>該当時</td><td>コメント削除依頼窓口</td></tr>
+        <tr><td>Anthropic利用規約</td><td>必須</td><td>禁止用途遵守</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">9-3. 必要な実装要件（法令対応）</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>機能ID</th><th>内容</th><th>紐づく法令</th></tr></thead>
+      <tbody>
+        <tr><td>F-LEGAL-001</td><td>利用規約ページ</td><td>特商法・消費者契約法・著作権法</td></tr>
+        <tr><td>F-LEGAL-002</td><td>プライバシーポリシー</td><td>個情法</td></tr>
+        <tr><td>F-LEGAL-003</td><td>特商法表記</td><td>特商法</td></tr>
+        <tr><td>F-LEGAL-004</td><td>同意取得＋同意ログ保存</td><td>個情法・消費者契約法</td></tr>
+        <tr><td>F-LEGAL-005</td><td>解約フォーム（ダークパターン禁止）</td><td>特商法</td></tr>
+        <tr><td>F-LEGAL-006</td><td>データ削除要求受付＋30日後ハード削除</td><td>個情法</td></tr>
+        <tr><td>F-LEGAL-007</td><td>閲覧・訂正・利用停止要求窓口</td><td>個情法</td></tr>
+        <tr><td>F-LEGAL-008</td><td>個人情報漏洩通知体制（48h）</td><td>個情法</td></tr>
+        <tr><td>F-LEGAL-009</td><td>クライアントコメント削除依頼窓口</td><td>プロバイダ責任制限法</td></tr>
+        <tr><td>F-LEGAL-010</td><td>著作権帰属の明示</td><td>著作権法</td></tr>
+        <tr><td>F-LEGAL-011</td><td>AI学習利用可否設定（デフォルトOFF）</td><td>個情法・秘密保持</td></tr>
+        <tr><td>F-LEGAL-012</td><td>メール配信停止＋送信者表示</td><td>特定電子メール法</td></tr>
+        <tr><td>F-LEGAL-013</td><td>データ越境通知＋同意取得</td><td>個情法</td></tr>
+        <tr><td>F-LEGAL-014</td><td>電気通信事業届出</td><td>電気通信事業法</td></tr>
+        <tr><td>F-LEGAL-015</td><td>退会後ナレッジ匿名化</td><td>個情法</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============ 10. リスク ============ -->
+<section class="section-card" id="sec-10" data-bf-tab="risks">
+  <div class="section-header"><div class="section-num">10</div><div class="section-title">リスク分析</div></div>
+  <div class="table-wrap"><table class="risk-table">
+    <thead><tr><th>ID</th><th>リスク</th><th>影響</th><th>確率</th><th>対応</th></tr></thead>
+    <tbody>
+      <tr><td>R-T01</td><td>Claude Codeブリッジ不安定性</td><td class="impact-h">高</td><td>中</td><td>Phase 0でPoC</td></tr>
+      <tr><td>R-T02</td><td>仕様徹底ループ無限化</td><td class="impact-h">高</td><td>中</td><td>スコア閾値＋最大3回＋人間承認</td></tr>
+      <tr><td>R-T03</td><td>コンテキスト圧縮で情報欠落</td><td class="impact-h">高</td><td>中</td><td>HTML原本を保持・参照可能</td></tr>
+      <tr><td>R-T04</td><td>タスク依存関係漏れ</td><td class="impact-h">高</td><td>中</td><td>カード必須属性・バリデーション</td></tr>
+      <tr><td>R-T08</td><td>RLS設計ミスでクライアント漏洩</td><td class="impact-h">致命</td><td>中</td><td>Phase 0でRLSテスト必須</td></tr>
+      <tr><td>R-O01</td><td>ベータ期間サポート負荷</td><td class="impact-h">高</td><td>高</td><td>ベータ10名前後に絞る</td></tr>
+      <tr><td>R-O05</td><td>個人情報漏洩</td><td class="impact-h">致命</td><td>低</td><td>暗号化・最小権限・48h通知</td></tr>
+      <tr><td>R-S01</td><td>3ヶ月での全Phase完走</td><td class="impact-h">高</td><td class="impact-h">高</td><td>Phase 1で1案件完走MVP優先</td></tr>
+      <tr><td>R-L01</td><td>電気通信事業届出未提出</td><td class="impact-h">致命</td><td>中</td><td>リリース前に法務確認</td></tr>
+      <tr><td>R-L02</td><td>規約・PP不備</td><td class="impact-h">高</td><td>中</td><td>専門家レビュー1回必須</td></tr>
+      <tr><td>R-B02</td><td>競合急増（Notion AI/Devin/Cursor）</td><td class="impact-m">中</td><td class="impact-h">高</td><td>4軸組合せで差別化</td></tr>
+      <tr><td>R-B03</td><td>Claude依存リスク</td><td class="impact-m">中</td><td>低</td><td>v2マルチLLM・抽象化</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 11. 未確認事項 ============ -->
+<section class="section-card" id="sec-11" data-bf-tab="unresolved">
+  <div class="section-header"><div class="section-num">11</div><div class="section-title">未確認事項・今後の確認事項</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>項目</th><th>影響</th><th>確認タイミング</th></tr></thead>
+    <tbody>
+      <tr><td>Claude CodeブリッジOAuth可否</td><td>認証UX全体</td><td>Phase 0 PoC</td></tr>
+      <tr><td>電気通信事業届出の要否</td><td>リリース可否</td><td>リリース1ヶ月前</td></tr>
+      <tr><td>月額単価（個人/法人）</td><td>課金実装</td><td>Phase 7-8</td></tr>
+      <tr><td>無料枠/体験版設計</td><td>100社獲得経路</td><td>Phase 7-8</td></tr>
+      <tr><td>スコア計算式チューニング</td><td>仕様徹底実用性</td><td>Phase 1実走</td></tr>
+      <tr><td>AI学習利用可否デフォルト</td><td>プライバシー設計</td><td>Phase 0</td></tr>
+      <tr><td>Supabaseリージョン</td><td>越境同意UI</td><td>Phase 0</td></tr>
+      <tr><td>Whisperクラウド/セルフホスト</td><td>議事録コスト</td><td>Phase 4</td></tr>
+      <tr><td>デフォルト10名の装着スキル最終セット</td><td>Phase 1体験</td><td>functional-breakdown</td></tr>
+      <tr><td>AI社員のリリース名称（アベンジャーズ系→オリジナル化検討）</td><td>商標リスク</td><td>Phase 4</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 12. スケジュール ============ -->
+<section class="section-card" id="sec-12" data-bf-tab="schedule">
+  <div class="section-header"><div class="section-num">12</div><div class="section-title">スケジュール</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Phase</th><th>期間</th><th>主要スコープ</th></tr></thead>
+    <tbody>
+      <tr><td>Phase 0</td><td>5月下旬〜6月上旬</td><td>基盤・Auth/RLS・WS/プロジェクトCRUD・AI社員DB・デザインシステム・チャットUI雛形・MCP雛形・LLMClient抽象化・Claude CodeブリッジPoC</td></tr>
+      <tr><td>Phase 1</td><td>6月</td><td>AI組織・スキル取込・チャット・三層出力・MCP公開 → ベータ開始</td></tr>
+      <tr><td>Phase 2</td><td>6月下旬〜7月前半</td><td>工程ワークフロー・フェーズ管理・モック・クライアント招待・コメント</td></tr>
+      <tr><td>Phase 3</td><td>7月</td><td>タスク分解・かんばん・並列実行・/goal・受入基準・仕様徹底ループ・承認ゲート</td></tr>
+      <tr><td>Phase 4</td><td>7月下旬〜8月初旬</td><td>ナレッジ・RAG・議事録解析・提案/見積/契約・cron・課金</td></tr>
+      <tr><td>Phase 5</td><td>8月</td><td>マルチLLM v2準備・Git連携・監査ログ・法令対応・最終QA → 本格リリース</td></tr>
+      <tr><td>Phase 6+</td><td>9月以降</td><td>オンボーディング・フィードバック機構・ローカルLLM・チーム管理</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 13. 改訂履歴 + 署名 ============ -->
+<section class="section-card" id="sec-13" data-bf-tab="history">
+  <div class="section-header"><div class="section-num">13</div><div class="section-title">改訂履歴・承認</div></div>
+  <div class="subsection">
+    <div class="subsection-title">改訂履歴</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Ver</th><th>日付</th><th>変更内容</th><th>承認</th></tr></thead>
+      <tbody>
+        <tr><td>1.0</td><td>2026-05-18</td><td>初版（ヒアリング→要件定義STEP7まで反映）</td><td>高本まさと</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <div class="subsection">
+    <div class="subsection-title">承認欄</div>
+    <div class="signature">
+      <div class="sign-box"><div class="sign-label">プロジェクトオーナー</div><div class="sign-line"></div></div>
+      <div class="sign-box"><div class="sign-label">技術リード</div><div class="sign-line"></div></div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

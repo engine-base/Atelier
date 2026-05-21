@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Atelier 自社開発 — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .kpi { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 18px 20px; }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--color-on-surface-variant); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .kpi-value { font-size: 28px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .kpi-delta { font-size: 11.5px; color: var(--color-tertiary); margin-top: 4px; font-weight: 600; }
+  .kpi-delta.down { color: var(--color-error); }
+  .grid-main { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+  .phase-flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding: 4px 0 12px; position: relative; }
+  .phase-node { flex: 1; min-width: 100px; display: flex; flex-direction: column; align-items: center; position: relative; }
+  .phase-circle { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; background: var(--color-surface-variant); color: var(--color-on-surface-variant); border: 2px solid var(--color-border); position: relative; z-index: 2; transition: all 0.15s; flex-shrink: 0; }
+  .phase-node.done .phase-circle { background: var(--color-tertiary); color: var(--color-on-tertiary); border-color: var(--color-tertiary); }
+  .phase-node.current .phase-circle { background: var(--color-primary); color: var(--color-on-primary); border-color: var(--color-primary); box-shadow: 0 0 0 4px var(--color-primary-container); }
+  .phase-node:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 19px;
+    left: calc(50% + 19px);
+    right: calc(-50% + 19px);
+    height: 2px;
+    background: var(--color-border);
+    z-index: 1;
+  }
+  .phase-node.done:not(:last-child)::after { background: var(--color-tertiary); }
+  .phase-node.current:not(:last-child)::after {
+    background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary) 42%, var(--color-border) 42%);
+  }
+  .phase-name { font-size: 12px; font-weight: 700; margin-top: 10px; text-align: center; letter-spacing: -0.01em; }
+  .phase-status { font-size: 11px; color: var(--color-on-surface-variant); margin-top: 2px; text-align: center; }
+  .phase-node.current .phase-name { color: var(--color-primary); }
+  .phase-node.current .phase-status { color: var(--color-primary); font-weight: 600; }
+  .activity-row { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); align-items: flex-start; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 56px; }
+  .activity-text { font-size: 13px; flex: 1; }
+  .activity-text strong { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item" href="#"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">3</span></a>
+    <a class="nav-item" href="../workspace/S-A03-settings.html"><i data-icon="settings"></i>設定</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item active" href="#"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="#"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="../chat/S-E01-thread.html"><i data-icon="message-square"></i>チャット</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-B02" data-bf-screen-name="project_dashboard" data-bf-category="project" data-bf-status="active" data-bf-version="1" data-bf-kpi-labels="全体進捗率,未承認Inbox件数,今日のAI活動,未解決コメント数">
+<header class="topbar">
+  <div class="breadcrumb">
+    <span>ENGINE BASE</span><span class="breadcrumb-sep">/</span>
+    <span>プロジェクト</span><span class="breadcrumb-sep">/</span>
+    <strong>Atelier 自社開発</strong>
+  </div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+<div class="content" style="max-width: 1400px;">
+  <div class="page-header">
+    <div class="page-eyebrow">Project Dashboard</div>
+    <h1 class="page-title">プロジェクトダッシュボード</h1>
+    <p class="page-subtitle">Atelier 自社開発 · クライアント：内製 · 第 4 段階 実装中</p>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">全体進捗率</div>
+      <div class="kpi-value">48<span style="font-size:18px;opacity:0.6;">%</span></div>
+      <div class="kpi-delta">+12% 今週</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">未承認 Inbox 件数</div>
+      <div class="kpi-value">3</div>
+      <div class="kpi-delta down">+2 から</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">今日の AI 活動</div>
+      <div class="kpi-value">27</div>
+      <div class="kpi-delta">タスク 12 / チャット 15</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">未解決コメント</div>
+      <div class="kpi-value">5</div>
+      <div class="kpi-delta">クライアント 2</div>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="section-header">
+      <h2 class="section-title">工程の流れ（9 工程）</h2>
+      <a class="btn btn-outlined btn-sm" href="../workflow/S-F01-flow.html"><i data-icon="external-link"></i>工程画面で確定事項・成果物を見る</a>
+    </div>
+    <div class="card" style="padding: 22px 24px; cursor: pointer;" onclick="location.href='../workflow/S-F01-flow.html'">
+      <div class="phase-flow">
+        <div class="phase-node done"><div class="phase-circle"><i data-icon="check" data-size="14"></i></div><div class="phase-name">ヒアリング</div><div class="phase-status">完了</div></div>
+        <div class="phase-node done"><div class="phase-circle"><i data-icon="check" data-size="14"></i></div><div class="phase-name">要件定義</div><div class="phase-status">完了</div></div>
+        <div class="phase-node done"><div class="phase-circle"><i data-icon="check" data-size="14"></i></div><div class="phase-name">アーキ設計</div><div class="phase-status">完了</div></div>
+        <div class="phase-node done"><div class="phase-circle"><i data-icon="check" data-size="14"></i></div><div class="phase-name">デザイン</div><div class="phase-status">完了</div></div>
+        <div class="phase-node current"><div class="phase-circle">5</div><div class="phase-name">機能分解</div><div class="phase-status">進行中 87%</div></div>
+        <div class="phase-node"><div class="phase-circle">6</div><div class="phase-name">タスク分解</div><div class="phase-status">待機</div></div>
+        <div class="phase-node"><div class="phase-circle">7</div><div class="phase-name">実装</div><div class="phase-status">待機</div></div>
+        <div class="phase-node"><div class="phase-circle">8</div><div class="phase-name">検証</div><div class="phase-status">待機</div></div>
+        <div class="phase-node"><div class="phase-circle">9</div><div class="phase-name">納品</div><div class="phase-status">待機</div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid-main">
+    <section class="card">
+      <h2 class="section-title mb-4">最新の AI 活動</h2>
+      <div class="activity-row">
+        <div class="activity-time">14:32</div>
+        <div class="avatar avatar-sm avatar-thor">S</div>
+        <div class="activity-text"><strong>ソー</strong> がタスク T-042「ログイン画面実装」を完了。スコア 0.96。</div>
+      </div>
+      <div class="activity-row">
+        <div class="activity-time">14:18</div>
+        <div class="avatar avatar-sm avatar-vision">V</div>
+        <div class="activity-text"><strong>ヴィジョン</strong> が T-038 を検証完了。受入基準 12/12 達成。</div>
+      </div>
+      <div class="activity-row">
+        <div class="activity-time">13:55</div>
+        <div class="avatar avatar-sm avatar-peter">P</div>
+        <div class="activity-text"><strong>ピーター</strong> が機能分解出力に基づき 8 件のタスクを起票。</div>
+      </div>
+      <div class="activity-row">
+        <div class="activity-time">12:40</div>
+        <div class="avatar avatar-sm avatar-jarvis">J</div>
+        <div class="activity-text"><strong>ジャービス</strong> が 第 5 段階 への移行を提案。<a href="../inbox/S-J01-list.html">承認待ち</a></div>
+      </div>
+      <div class="activity-row">
+        <div class="activity-time">11:22</div>
+        <div class="avatar avatar-sm avatar-wanda">W</div>
+        <div class="activity-text"><strong>ワンダ</strong> がモック S-I01-kanban.html を v3 に更新。</div>
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div class="card card-primary">
+        <div class="eyebrow mb-2" style="color:var(--color-on-primary-container);">AI 提案</div>
+        <div class="font-semibold mb-2">第 5 段階 への移行を提案します</div>
+        <p class="text-sm mb-3" style="opacity:0.9;">機能分解が 87% 完了し、次工程（タスク分解）への移行準備が整っています。</p>
+        <div class="flex gap-2">
+          <button class="btn btn-primary btn-sm" style="background:var(--color-on-primary-container);color:var(--color-primary-container);">承認</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--color-on-primary-container);">後で</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title mb-3" style="font-size:14px;">最新成果物</h3>
+        <a class="flex items-center gap-2 py-2 text-sm" href="#"><i data-icon="file-text" data-size="14"></i>機能分解 v1.0<span style="margin-left:auto;" class="text-muted text-sm">HTML</span></a>
+        <a class="flex items-center gap-2 py-2 text-sm" href="#"><i data-icon="file-text" data-size="14"></i>アーキ設計 v1.0<span style="margin-left:auto;" class="text-muted text-sm">HTML</span></a>
+        <a class="flex items-center gap-2 py-2 text-sm" href="#"><i data-icon="palette" data-size="14"></i>DESIGN.md<span style="margin-left:auto;" class="text-muted text-sm">MD</span></a>
+        <a class="flex items-center gap-2 py-2 text-sm" href="#"><i data-icon="file-text" data-size="14"></i>要件定義 v1.0<span style="margin-left:auto;" class="text-muted text-sm">HTML</span></a>
+      </div>
+
+      <div class="card">
+        <h3 class="section-title mb-3" style="font-size:14px;">AI 社員アクティビティ</h3>
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2 text-sm"><div class="avatar avatar-sm avatar-thor">S</div><span class="font-semibold">ソー</span><span style="margin-left:auto;" class="pill pill-in-progress" style="padding:2px 8px;"><span class="pill-dot"></span>実装中</span></div>
+          <div class="flex items-center gap-2 text-sm"><div class="avatar avatar-sm avatar-vision">V</div><span class="font-semibold">ヴィジョン</span><span style="margin-left:auto;" class="pill pill-verifying" style="padding:2px 8px;"><span class="pill-dot"></span>検証中</span></div>
+          <div class="flex items-center gap-2 text-sm"><div class="avatar avatar-sm avatar-peter">P</div><span class="font-semibold">ピーター</span><span style="margin-left:auto;" class="text-muted">待機</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

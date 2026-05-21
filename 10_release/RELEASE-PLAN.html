@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><title>Atelier リリース計画 — v3.1-dual</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{--bg:#f6f7fb;--panel:#fff;--panel2:#eef1f7;--line:#dee3ec;--text:#1c2230;--muted:#6b7385;--accent:#2563eb;--crit:#d92d20;--ok:#10b981;
+        --mvp:#6d56ff;--beta:#0ea5e9;--ga:#d97706}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+  h1{margin:0 0 6px;font-size:18px}.sub{color:var(--muted);font-size:12px}
+  .toggle{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px;margin:10px 0 0;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .toggle button{border:none;background:transparent;padding:7px 16px;font:600 12px/1 inherit;color:var(--muted);border-radius:999px;cursor:pointer;letter-spacing:.04em}
+  .toggle button.on{background:var(--accent);color:#fff}
+  main{padding:18px 22px 60px;max-width:1400px;margin:0 auto}
+  h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;font-weight:700;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .stages{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  @media (max-width:1000px){.stages{grid-template-columns:1fr}}
+  .stage{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(20,30,60,.06);position:relative;overflow:hidden}
+  .stage::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px}
+  .stage.mvp::before{background:var(--mvp)}.stage.beta::before{background:var(--beta)}.stage.ga::before{background:var(--ga)}
+  .stage h3{margin:0 0 4px;font-size:15px}.stage .ver{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);margin-bottom:8px;display:block}
+  .stage .date{font-size:18px;font-weight:700}.stage .date small{display:block;font-size:11px;color:var(--muted);font-weight:400;margin-top:2px}
+  .stage .scope{font-size:12px;color:var(--muted);margin:8px 0}.stage .goal{font-size:12px;background:#f1f4fa;padding:6px 8px;border-radius:6px;margin:8px 0}
+  .stage ul{margin:8px 0 0 16px;padding:0;font-size:12px;color:#3a4258}.stage ul li{margin:2px 0}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  th,td{padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}
+  thead th{background:var(--panel2);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
+  .badge.mvp{background:var(--mvp)}.badge.beta{background:var(--beta)}.badge.ga{background:var(--ga)}
+  .badge.p0{background:var(--crit)}.badge.p1{background:#dc6e26}.badge.p2{background:#d4a017}.badge.p3{background:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media (max-width:900px){.grid2{grid-template-columns:1fr}}
+  .box{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .box h3{margin:0 0 8px;font-size:13px;color:var(--accent)}.box ul{margin:0 0 0 18px;padding:0;font-size:12px;color:#3a4258}
+  .timeline{position:relative;background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .tl-track{position:relative;height:60px}
+  .tl-line{position:absolute;top:30px;left:0;right:0;height:2px;background:var(--line)}
+  .tl-point{position:absolute;top:18px;width:24px;height:24px;border-radius:50%;background:var(--mvp);transform:translateX(-12px);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px}
+  .tl-label{position:absolute;top:50px;transform:translateX(-50%);font-size:11px;color:var(--muted);white-space:nowrap;text-align:center}
+  .tl-label b{display:block;color:var(--text);font-size:12px}
+  a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+</style></head><body>
+<header>
+  <h1>📅 Atelier — リリース計画書（v3.1-dual / MVP→β→GA）</h1>
+  <div class="sub">信頼源 <a href="./release-plan.json">release-plan.json</a> ・ MD <a href="./RELEASE-PLAN.md">RELEASE-PLAN.md</a> ・ CHANGELOG <a href="./CHANGELOG.md">CHANGELOG.md</a> ・ スケジュール <a href="../08_schedule/SCHEDULE.html">SCHEDULE.html</a> ・ パッケージ <a href="../09_dispatch/PACKAGES.html">PACKAGES.html</a></div>
+  <div class="toggle"><button id="btnAI" class="on">⚡ AI 並列モード</button><button id="btnHuman">👤 Human 逐次モード</button></div>
+</header>
+<main>
+
+<h2>タイムライン</h2>
+<div class="timeline"><div class="tl-track" id="tlTrack"></div></div>
+
+<h2>3 ステージ</h2>
+<div class="stages" id="stages"></div>
+
+<h2>MVP リリースゲート（Day 16 タイムライン）</h2>
+<table>
+  <thead><tr><th>時刻</th><th>アクション</th><th>担当</th></tr></thead>
+  <tbody>
+    <tr><td>06:00</td><td>feature flag MVP_LAUNCH ON</td><td>経営者</td></tr>
+    <tr><td>06:05</td><td>Vercel + Fly.io 本番 deploy</td><td>tony</td></tr>
+    <tr><td>06:10</td><td>smoke test（5 分）</td><td>vision</td></tr>
+    <tr><td>06:15</td><td>Bridge DL ページ公開</td><td>tony</td></tr>
+    <tr><td>06:20</td><td>招待リンク 5-10 社送付</td><td>経営者</td></tr>
+    <tr><td>07:00</td><td>1h 運用ステータス確認</td><td>vision</td></tr>
+    <tr><td>12:00</td><td>半日レビュー</td><td>経営者 + vision</td></tr>
+    <tr><td>18:00</td><td>1 日レビュー → 自動監視移行</td><td>vision</td></tr>
+  </tbody>
+</table>
+
+<h2>自動ロールバック条件</h2>
+<table>
+  <thead><tr><th>メトリクス</th><th>閾値</th><th>窓</th></tr></thead>
+  <tbody id="rbRows"></tbody>
+</table>
+
+<h2>障害対応 SOP</h2>
+<table>
+  <thead><tr><th>重度</th><th>検知 → 通知</th><th>初動</th><th>RTO</th></tr></thead>
+  <tbody id="incRows"></tbody>
+</table>
+
+<h2>セキュリティ・コンプライアンス</h2>
+<div class="grid2">
+  <div class="box"><h3>MVP 時点</h3><ul id="secMvp"></ul></div>
+  <div class="box"><h3>β 時点（追加）</h3><ul id="secBeta"></ul></div>
+</div>
+<div class="box" style="margin-top:14px"><h3>GA 時点（追加）</h3><ul id="secGa"></ul></div>
+
+<h2>GA マーケティングカウントダウン</h2>
+<table>
+  <thead><tr><th>M-N</th><th>日付（AI mode）</th><th>アクション</th></tr></thead>
+  <tbody id="mkRows"></tbody>
+</table>
+
+<h2>配信チャネル</h2>
+<table>
+  <thead><tr><th>チャネル</th><th>MVP</th><th>β</th><th>GA</th></tr></thead>
+  <tbody id="chRows"></tbody>
+</table>
+
+</main>
+<script id="data" type="application/json">{"version":"v3.1-dual","project":"Atelier","skill":"release-planning","created_at":"2026-05-20","product":{"name":"Atelier","tagline":"AI 社員 10 名常駐型プロジェクト管理 SaaS","delivery":"Web SaaS + Atelier Bridge (macOS .dmg / Linux / Windows)","pricing_model_hypothesis":"月額 ¥30,000-50,000 / WS（pricing-design で確定予定）","billing":"BYOK + Claude プラン枠（API 課金なし）","ai_learning_default":"OFF"},"stages":[{"id":"mvp","name":"🚀 MVP (α)","version":"v0.1.0-mvp","date_ai":"2026-06-10","date_human":"2026-11-15","weekday":"水","scope":"内部 + 親しい数社 (5-10 社)","goal":"動作確認 / フィードバック収集 / 重大バグの検出","gates":["v3-gate.yml 10/10 PASS","T-I-24 本番リリース判定 AC 全 PASS","経営者 go/no-go (2h・06-09 火)","監視ダッシュボード稼働 (Better Stack / Sentry / Langfuse)","ロールバック手順書 (T-I-23) 整備","Bridge 配布パッケージ (.dmg / npm) 準備"],"deploy_time":"06:00 JST","kpi_targets":{"重大障害P0_P1":0,"招待企業数":"5-10","smoke_test_pass":"100%"}},{"id":"beta","name":"β (10 社招待)","version":"v0.5.0-beta","date_ai":"2026-06-15","date_human":"2026-12-01","weekday":"月","scope":"招待制 10 社","goal":"価格検証 / オンボーディング検証 / NPS 計測","gates":["MVP 5 営業日運用で重大障害ゼロ","10 社招待リスト確定 + 利用規約締結","価格表案 + 請求書発行 SOP 整備","オンボーディング動画 3 本 + ヘルプ記事 20 本","Sentry エラー集約 + プライバシー設計レビュー"],"kpi_targets":{"継続利用_10社中":"≥ 8 社","重大障害":0,"完走率":"≥ 70%","NPS":"≥ 40","工数削減実感":"≥ 5×"},"pricing_beta":"月額 ¥10,000 / WS (半額) or 無料","duration_weeks":24},{"id":"ga","name":"GA / 100 ユーザー目標","version":"v1.0.0","date_ai":"2026-12-31","date_human":"2027-08-31","weekday":"木","scope":"一般公開","goal":"100 ユーザー / ¥3M MRR / 売却査定 ¥1B","gates":["β 期間で 80% 以上継続","P0/P1 = 0、P2 ≤ 5 件","SOC2 Type1 監査開始 or 取得","AI 社員 10 名完全稼働 (natasha / peter / jarvis Phase 2 起動)","営業 + CS 自動化 (Atelier 自身が運用)"],"kpi_targets_m90":{"ユーザー数":"100 名 / 30 社","MRR":"¥3,000,000","Churn_monthly":"< 5%","NPS":"≥ 50","売却査定":"¥1B (10-15× ARR)"},"marketing_countdown":[{"days_before":30,"action":"LP 公開 (atelier.dev) + β 体験談 5 本"},{"days_before":21,"action":"note / Zenn 開発記事連載 (週 2 本)"},{"days_before":14,"action":"Twitter/X 告知開始"},{"days_before":7,"action":"Product Hunt ティザー"},{"days_before":3,"action":"PH 投稿予告 + メーカー枠確保"},{"days_before":1,"action":"ローンチメール (β 顧客 + ウェイトリスト)"},{"days_before":0,"action":"Product Hunt 投稿 00:01 PST + 全チャネル告知"}]}],"rollback_auto_conditions":[{"metric":"error_rate","threshold":"> 5%","window_min":5},{"metric":"p95_latency","threshold":"> 5s","window_min":10},{"metric":"auth_success_rate","threshold":"< 95%","window_min":10},{"metric":"db_connection_errors","threshold":"> 10/min","window_min":1}],"rollback_target":"Vercel + Fly.io 直前 deploy に自動 revert + S-E01 通知","incident_sop":[{"severity":"P0","detection":"監視自動 → S-E01 + SMS(経営者)","initial":"即時ロールバック","rto_min":30},{"severity":"P1","detection":"監視自動 → S-E01","initial":"feature flag OFF","rto_h":2},{"severity":"P2","detection":"ユーザー報告 → S-E01","initial":"hotfix branch","rto_h":24},{"severity":"P3","detection":"起票 → 次 Wave","initial":"通常タスク化","rto_week":1}],"security_compliance_checklist":{"mvp":["TLS 1.3 / HSTS","Supabase Vault BYOK 暗号化","監査ログ全 mutating API","RLS 越境試験 PASS (R-T08)","個人情報保護法対応","特商法表記","AI 学習 OFF"],"beta":["Sentry エラー集約","プライバシー設計レビュー","データ削除請求フロー (F-LEGAL-002)","退会 30 日猶予フロー"],"ga":["SOC2 Type1 監査開始 or 取得","ISO 27001 検討","ペネトレーションテスト 1 回","脆弱性開示プログラム"]},"channels":{"direct_invite":{"mvp":"5-10 社","beta":"10 社","ga":"30 社"},"twitter_x":{"mvp":"–","beta":"一部","ga":"公開"},"lp":{"mvp":"–","beta":"β 募集","ga":"GA + 課金"},"product_hunt":{"mvp":"–","beta":"–","ga":"GA 当日 (12-31)"},"blog_note_zenn":{"mvp":"開発記事のみ","beta":"体験談","ga":"連載"}},"changelog_workflow":{"commit_format":"conventional commits","automation":"release-please bot → AI 社員 jarvis ドラフト → S-E01 1 クリック承認 → git tag → GitHub Release","versioning":"Semantic Versioning"},"schedule_ref":"08_schedule/schedule.json","tickets_ref":"07_tasks/tickets.json","dispatcher_ref":"09_dispatch/dispatcher.json","summary":{"total_stages":3,"calendar_days_ai_to_ga":225,"calendar_days_human_to_ga":469,"ga_target_ai_date":"2026-12-31","ga_target_human_date":"2027-08-31","two_axis_applied":true}}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+let MODE='ai';
+function el(t,a,h){a=a||{};const e=document.createElement(t);for(const k in a){if(k==='cls')e.className=a[k];else e.setAttribute(k,a[k]);}if(h!==undefined)e.innerHTML=h;return e;}
+
+function renderTimeline(){
+  const t=document.getElementById('tlTrack'); t.innerHTML='<div class="tl-line"></div>';
+  const today = new Date('2026-05-20');
+  const dates = D.stages.map(s=> MODE==='ai'? new Date(s.date_ai) : new Date(s.date_human));
+  const maxD = Math.max(...dates.map(d=>(d-today)/(1000*60*60*24)));
+  D.stages.forEach((s,i)=>{
+    const d = MODE==='ai' ? new Date(s.date_ai) : new Date(s.date_human);
+    const days = (d-today)/(1000*60*60*24);
+    const left = (days/maxD)*92 + 4;
+    const cls = s.id;
+    const pt = el('div',{cls:`tl-point ${cls}`}, ['🚀','β','GA'][i]);
+    pt.style.left=left+'%';
+    pt.style.background = cls==='mvp'?'var(--mvp)':cls==='beta'?'var(--beta)':'var(--ga)';
+    t.append(pt);
+    const lb = el('div',{cls:'tl-label'}, `<b>${s.name.replace('🚀 ','').replace(' (10 社招待)','').replace(' / 100 ユーザー目標','')}</b>${MODE==='ai'?s.date_ai:s.date_human}<br>${s.version}`);
+    lb.style.left=left+'%'; t.append(lb);
+  });
+}
+
+function renderStages(){
+  const wrap=document.getElementById('stages'); wrap.innerHTML='';
+  D.stages.forEach(s=>{
+    const date = MODE==='ai' ? s.date_ai : s.date_human;
+    const kpiHtml = Object.entries(s.kpi_targets || s.kpi_targets_m90 || {}).map(([k,v])=>`<li>${k}: <b>${v}</b></li>`).join('');
+    const gatesHtml = (s.gates||[]).map(g=>`<li>□ ${g}</li>`).join('');
+    wrap.append(el('div',{cls:'stage '+s.id},`
+      <h3>${s.name}</h3>
+      <span class="ver">${s.version}</span>
+      <div class="date">${date}<small>(${s.weekday}曜 / ${MODE==='ai'?'AI 並列モード':'Human 逐次モード'})</small></div>
+      <div class="scope">📍 ${s.scope}</div>
+      <div class="goal">🎯 ${s.goal}</div>
+      <div style="font-weight:600;font-size:12px;margin-top:10px">Release Gates</div>
+      <ul>${gatesHtml}</ul>
+      <div style="font-weight:600;font-size:12px;margin-top:10px">KPI</div>
+      <ul>${kpiHtml}</ul>
+    `));
+  });
+}
+
+function renderRollback(){
+  const tb=document.getElementById('rbRows'); tb.innerHTML='';
+  D.rollback_auto_conditions.forEach(r=>{
+    tb.append(el('tr',{},`<td><code>${r.metric}</code></td><td>${r.threshold}</td><td class="num">${r.window_min} 分</td>`));
+  });
+}
+function renderIncident(){
+  const tb=document.getElementById('incRows'); tb.innerHTML='';
+  D.incident_sop.forEach(r=>{
+    const rto = r.rto_min?(r.rto_min+'分'):r.rto_h?(r.rto_h+'時間'):r.rto_week?(r.rto_week+'週'):'-';
+    tb.append(el('tr',{},`<td><span class="badge ${r.severity.toLowerCase()}">${r.severity}</span></td><td>${r.detection}</td><td>${r.initial}</td><td class="num">${rto}</td>`));
+  });
+}
+function renderSec(){
+  const m=D.security_compliance_checklist;
+  document.getElementById('secMvp').innerHTML = m.mvp.map(x=>`<li>□ ${x}</li>`).join('');
+  document.getElementById('secBeta').innerHTML = m.beta.map(x=>`<li>□ ${x}</li>`).join('');
+  document.getElementById('secGa').innerHTML = m.ga.map(x=>`<li>□ ${x}</li>`).join('');
+}
+function renderMarketing(){
+  const ga = D.stages.find(s=>s.id==='ga');
+  const tb=document.getElementById('mkRows'); tb.innerHTML='';
+  const gaDate = new Date(MODE==='ai'?ga.date_ai:ga.date_human);
+  (ga.marketing_countdown||[]).forEach(c=>{
+    const d=new Date(gaDate); d.setDate(d.getDate()-c.days_before);
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    tb.append(el('tr',{},`<td>M-${c.days_before}</td><td>${ds}</td><td>${c.action}</td>`));
+  });
+}
+function renderChannels(){
+  const tb=document.getElementById('chRows'); tb.innerHTML='';
+  Object.entries(D.channels).forEach(([k,v])=>{
+    tb.append(el('tr',{},`<td><code>${k}</code></td><td>${v.mvp}</td><td>${v.beta}</td><td>${v.ga}</td>`));
+  });
+}
+
+function rerender(){renderTimeline();renderStages();renderRollback();renderIncident();renderSec();renderMarketing();renderChannels();}
+document.getElementById('btnAI').addEventListener('click',()=>{MODE='ai';document.getElementById('btnAI').classList.add('on');document.getElementById('btnHuman').classList.remove('on');rerender();});
+document.getElementById('btnHuman').addEventListener('click',()=>{MODE='human';document.getElementById('btnHuman').classList.add('on');document.getElementById('btnAI').classList.remove('on');rerender();});
+rerender();
+</script></body></html>

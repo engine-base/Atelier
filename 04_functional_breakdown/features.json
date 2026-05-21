@@ -1,0 +1,3851 @@
+{
+  "project": "Atelier",
+  "version": "1.0",
+  "created_at": "2026-05-18",
+  "schema_version": "v3",
+  "api_path_convention": "/api/v1/<resource>/<action>",
+  "items": [
+    {
+      "id": "F-001",
+      "name": "認証（Supabase Auth + RLS）",
+      "category": "auth",
+      "status": "decided",
+      "happy_path": [
+        "メール入力",
+        "OTP受信 or OAuth flow",
+        "JWT発行→HTTP-only Cookie",
+        "session開始"
+      ],
+      "error_paths": [
+        "メール未存在→サインアップへ",
+        "OTPタイムアウト→再送",
+        "OAuth失敗→エラー画面"
+      ],
+      "policies": [
+        "JWT HTTP-only Cookie",
+        "SameSite=Lax",
+        "Secure",
+        "MFA は Phase 5+"
+      ],
+      "notifications": [
+        "新規ログイン通知（メール）",
+        "パスワード変更通知"
+      ],
+      "audit_logs": [
+        "login_success",
+        "login_failed",
+        "logout",
+        "password_reset",
+        "oauth_link",
+        "oauth_unlink",
+        "account_deleted"
+      ],
+      "access_roles": [
+        "guest",
+        "authenticated"
+      ],
+      "external_services": [
+        "Supabase Auth",
+        "Google OAuth",
+        "GitHub OAuth",
+        "Resend (OTP/通知メール)"
+      ],
+      "related_screens": [
+        "S-A01",
+        "S-A03"
+      ],
+      "related_entities": [
+        "E-001 users",
+        "E-025 consents"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/signup",
+          "auth": "none",
+          "inputs": {
+            "email": "string",
+            "password": "string?",
+            "consents": "string[]"
+          },
+          "outputs_2xx": {
+            "user_id": "uuid",
+            "session": "object"
+          },
+          "outputs_4xx": [
+            "INVALID_EMAIL",
+            "WEAK_PASSWORD",
+            "CONSENT_REQUIRED"
+          ],
+          "rate_limit": "5/min/IP",
+          "related_entities": [
+            "users",
+            "consents"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/login",
+          "auth": "none",
+          "inputs": {
+            "email": "string",
+            "password_or_otp": "string"
+          },
+          "outputs_2xx": {
+            "session": "object"
+          },
+          "outputs_4xx": [
+            "INVALID_CREDENTIALS",
+            "ACCOUNT_LOCKED"
+          ],
+          "rate_limit": "10/min/IP",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/magic-link",
+          "auth": "none",
+          "inputs": {
+            "email": "string"
+          },
+          "outputs_2xx": {
+            "sent": "true"
+          },
+          "outputs_4xx": [
+            "RATE_LIMIT"
+          ],
+          "rate_limit": "3/min/IP",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/oauth/:provider",
+          "auth": "none",
+          "inputs": {
+            "provider": "google|github"
+          },
+          "outputs_2xx": {
+            "redirect_url": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/auth/callback/:provider",
+          "auth": "none",
+          "inputs": {
+            "code": "string"
+          },
+          "outputs_2xx": {
+            "session": "object"
+          },
+          "outputs_4xx": [
+            "OAUTH_FAILED"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/logout",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/account/delete",
+          "auth": "required",
+          "inputs": {
+            "confirmation": "string"
+          },
+          "outputs_2xx": {
+            "scheduled_deletion_at": "timestamp"
+          },
+          "outputs_4xx": [
+            "INVALID_CONFIRMATION"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/auth/account/restore",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [
+            "NOT_IN_GRACE_PERIOD"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ],
+          "note": "30日以内ならキャンセル"
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは認証済みユーザーのリクエストにのみ保護されたAPIへのアクセスを許可しなければならない。",
+        "EVENT-DRIVEN: ユーザーが正しいメール・パスワードでログインした時、システムはJWTセッションをHTTP-onlyクッキーで発行しなければならない。",
+        "EVENT-DRIVEN: ユーザーが退会申請をした時、システムはdeleted_atをセットし30日後のハード削除をスケジュールしなければならない。",
+        "STATE-DRIVEN: ユーザーがログアウト状態の間、システムは保護されたリソースへのアクセスを401で拒否しなければならない。",
+        "UNWANTED: ユーザーが5回連続でパスワードを誤入力した場合、システムは15分間アカウントロックを掛けなければならない。",
+        "UNWANTED: ユーザーが利用規約・プライバシーポリシーに同意していない場合、システムはサインアップを許可してはならない。",
+        "OPTIONAL: ユーザーがGoogle/GitHub OAuth連携を選択する場合、システムは外部プロバイダーのアカウントとリンクしなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-A01",
+        "S-A03",
+        "E-001",
+        "E-025",
+        "F-LEGAL-004"
+      ]
+    },
+    {
+      "id": "F-002",
+      "name": "ワークスペース管理",
+      "category": "workspace",
+      "status": "decided",
+      "happy_path": [
+        "WS作成→デフォルトAI社員10名複製→ナレッジ初期化→URL発行"
+      ],
+      "error_paths": [
+        "WS名空 / Plan上限"
+      ],
+      "policies": [
+        "削除後30日保持",
+        "オーナー1名以上"
+      ],
+      "audit_logs": [
+        "workspace_created",
+        "workspace_updated",
+        "workspace_deleted"
+      ],
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "external_services": [
+        "Supabase"
+      ],
+      "related_screens": [
+        "S-A02",
+        "S-A03"
+      ],
+      "related_entities": [
+        "E-002",
+        "E-003",
+        "E-007"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "workspaces": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workspaces"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces",
+          "auth": "required",
+          "inputs": {
+            "name": "string",
+            "icon": "string?"
+          },
+          "outputs_2xx": {
+            "workspace_id": "uuid"
+          },
+          "outputs_4xx": [
+            "INVALID_NAME"
+          ],
+          "rate_limit": "10/hour/user",
+          "related_entities": [
+            "workspaces",
+            "ai_employees"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/:id",
+          "auth": "required",
+          "inputs": {
+            "id": "uuid"
+          },
+          "outputs_2xx": {
+            "workspace": "object"
+          },
+          "outputs_4xx": [
+            "NOT_FOUND",
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspaces"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/workspaces/:id",
+          "auth": "required",
+          "inputs": {
+            "name?": "string",
+            "icon?": "string",
+            "settings?": "object"
+          },
+          "outputs_2xx": {
+            "workspace": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspaces"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/:id",
+          "auth": "required",
+          "inputs": {
+            "id": "uuid"
+          },
+          "outputs_2xx": {
+            "scheduled_deletion_at": "timestamp"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspaces"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーがWSを作成した時、システムはデフォルトAI社員10名のテンプレートを自動複製しなければならない。",
+        "STATE-DRIVEN: WSが削除済み（deleted_at IS NOT NULL）の間、システムはそのWSの全データへのアクセスを拒否しなければならない。",
+        "UNWANTED: 認証されていないユーザーがWS情報にアクセスした場合、システムは401を返さなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-A02",
+        "S-A03",
+        "E-002",
+        "E-007"
+      ]
+    },
+    {
+      "id": "F-003",
+      "name": "メンバー招待・ロール管理",
+      "category": "workspace",
+      "status": "decided",
+      "happy_path": [
+        "招待発行→メール送信→受諾→membership作成"
+      ],
+      "error_paths": [
+        "既存メンバー",
+        "招待リンク失効",
+        "メール送信失敗"
+      ],
+      "policies": [
+        "1招待=1メール",
+        "招待有効期限7日"
+      ],
+      "audit_logs": [
+        "invitation_sent",
+        "invitation_accepted",
+        "member_removed",
+        "role_changed"
+      ],
+      "access_roles": [
+        "WorkspaceOwner"
+      ],
+      "external_services": [
+        "Resend"
+      ],
+      "related_screens": [
+        "S-A03"
+      ],
+      "related_entities": [
+        "E-003"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/:id/invitations",
+          "auth": "required",
+          "inputs": {
+            "email": "string",
+            "role": "enum"
+          },
+          "outputs_2xx": {
+            "invitation_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN",
+            "EMAIL_INVALID"
+          ],
+          "rate_limit": "20/hour/ws",
+          "related_entities": [
+            "workspace_memberships"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/invitations/:token/accept",
+          "auth": "required",
+          "inputs": {
+            "token": "string"
+          },
+          "outputs_2xx": {
+            "workspace_id": "uuid"
+          },
+          "outputs_4xx": [
+            "EXPIRED",
+            "ALREADY_USED"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspace_memberships"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/workspaces/:id/members/:user_id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN",
+            "LAST_OWNER"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspace_memberships"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/workspaces/:id/members/:user_id/role",
+          "auth": "required",
+          "inputs": {
+            "role": "enum"
+          },
+          "outputs_2xx": {
+            "member": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN",
+            "LAST_OWNER"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workspace_memberships"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ownerが招待を発行した時、システムは指定メールに招待リンクを送信しなければならない。",
+        "UNWANTED: 最後のownerを削除しようとした場合、システムはLAST_OWNERエラーで拒否しなければならない。",
+        "UNWANTED: 期限切れまたは使用済みの招待トークンが提示された場合、システムはアクセスを拒否しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-A03",
+        "E-003"
+      ]
+    },
+    {
+      "id": "F-004",
+      "name": "プロジェクトCRUD",
+      "category": "project",
+      "status": "decided",
+      "happy_path": [
+        "プロジェクト作成→初期フェーズ枠→URL発行"
+      ],
+      "error_paths": [
+        "WS削除済",
+        "Plan上限"
+      ],
+      "policies": [
+        "ai_training_optout デフォルトtrue",
+        "ソフトデリート+30日"
+      ],
+      "audit_logs": [
+        "project_created",
+        "project_updated",
+        "project_deleted"
+      ],
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Supabase"
+      ],
+      "related_screens": [
+        "S-B01",
+        "S-B02",
+        "S-B03"
+      ],
+      "related_entities": [
+        "E-004",
+        "E-005"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/:ws_id/projects",
+          "auth": "required",
+          "inputs": {
+            "filter?": "object"
+          },
+          "outputs_2xx": {
+            "projects": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "projects"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/:ws_id/projects",
+          "auth": "required",
+          "inputs": {
+            "name": "string",
+            "client_name?": "string",
+            "project_type": "enum"
+          },
+          "outputs_2xx": {
+            "project_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "projects",
+            "phases"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "project": "object"
+          },
+          "outputs_4xx": [
+            "NOT_FOUND"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "projects"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/projects/:id",
+          "auth": "required",
+          "inputs": {
+            "name?": "string",
+            "status?": "enum",
+            "ai_training_optout?": "bool"
+          },
+          "outputs_2xx": {
+            "project": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "projects"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/projects/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "scheduled_deletion_at": "timestamp"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "projects"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは ai_training_optout のデフォルトを true（学習しない）にしなければならない。",
+        "EVENT-DRIVEN: プロジェクトが作成された時、システムは初期フェーズ枠（未着手）を生成しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-B01",
+        "S-B02",
+        "S-B03",
+        "E-004",
+        "E-005"
+      ]
+    },
+    {
+      "id": "F-005",
+      "name": "フェーズ管理（AI提案→承認）",
+      "category": "workflow",
+      "status": "decided",
+      "happy_path": [
+        "AIがフェーズ提案→Inboxに通知→ユーザー承認→確定"
+      ],
+      "error_paths": [
+        "承認待ちのまま放置",
+        "却下",
+        "重複提案"
+      ],
+      "policies": [
+        "手動追加なし",
+        "確定フェーズ内のタスク移動は可（F-IMP01で影響解析）"
+      ],
+      "audit_logs": [
+        "phase_proposed",
+        "phase_approved",
+        "phase_rejected",
+        "task_moved_between_phases"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-F02"
+      ],
+      "related_entities": [
+        "E-005"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:id/phases/propose",
+          "auth": "service_role",
+          "inputs": {
+            "phases": "array"
+          },
+          "outputs_2xx": {
+            "inbox_ids": "uuid[]"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "phases",
+            "approval_inbox"
+          ],
+          "note": "AI（COOジャービス）が呼ぶ"
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/phases/:id/approve",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "phase": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "phases"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/phases/:id/reject",
+          "auth": "required",
+          "inputs": {
+            "reason?": "string"
+          },
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "phases"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks/:id/move-phase",
+          "auth": "required",
+          "inputs": {
+            "target_phase_id": "uuid"
+          },
+          "outputs_2xx": {
+            "impact_analysis_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ],
+          "note": "F-IMP01自動起動"
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: AIがフェーズを提案した時、システムはApprovalInboxにエントリを作成しユーザーに通知しなければならない。",
+        "STATE-DRIVEN: フェーズがpending状態の間、システムは下流タスクの実行を許可してはならない。",
+        "EVENT-DRIVEN: タスクがフェーズ間で移動された時、システムはF-IMP01を起動して影響解析を実行しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-F02",
+        "E-005",
+        "F-IMP01"
+      ]
+    },
+    {
+      "id": "F-006",
+      "name": "AI社員 人格カスタマイズ（管理側固定編成）",
+      "category": "ai_employee",
+      "status": "decided",
+      "happy_path": [
+        "AI社員一覧表示（運営側固定10名）→ 名前/アイコン/口調プリセット/カスタム文章を編集 → 下部固定バーで保存"
+      ],
+      "error_paths": [
+        "不正なtone値",
+        "system_prompt編集権限なし"
+      ],
+      "policies": [
+        "AI社員10名は運営側で完全固定。ユーザーは追加/削除/雇用できない",
+        "ユーザー編集可: display_name / icon / tone_preset / custom_tone_text のみ",
+        "管理側のみ: system_prompt / specialty / attached_skills / role / department",
+        "スキルという概念はユーザーに見せず、「できること（能力）」として表示する"
+      ],
+      "audit_logs": [
+        "ai_employee_customized",
+        "ai_employee_hired"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-C01",
+        "S-C02"
+      ],
+      "related_entities": [
+        "E-007",
+        "E-008"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/:ws_id/employees",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "employees": "array (10 fixed)"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "ai_employees"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/employees/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "employee": "object with abilities (derived from attached_skills, masked)"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "ai_employees"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/employees/:id",
+          "auth": "required",
+          "inputs": {
+            "display_name?": "string",
+            "icon?": "string",
+            "tone_preset?": "enum",
+            "custom_tone_text?": "string"
+          },
+          "outputs_2xx": {
+            "employee": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN_FIELD"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "ai_employees"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはユーザーに display_name / icon / tone_preset / custom_tone_text のみの編集を許可しなければならない。",
+        "UBIQUITOUS: システムはAI社員のスキル情報を直接ユーザーに公開してはならない。能力（abilities）として変換して表示する。",
+        "UNWANTED: ユーザーが system_prompt / attached_skills / role / department を変更しようとした場合、システムは FORBIDDEN_FIELD で拒否しなければならない。",
+        "UNWANTED: ユーザーがAI社員の追加・削除・雇用APIを呼んだ場合、システムは NOT_ALLOWED で拒否しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-C01",
+        "S-C02",
+        "S-C03",
+        "E-007",
+        "E-008"
+      ]
+    },
+    {
+      "id": "F-007",
+      "name": "スキル管理（管理者専用・ユーザーには非表示）",
+      "category": "admin",
+      "status": "decided",
+      "happy_path": [
+        "管理者がスキルをアップロード → 各AI社員に装着 → 全WSに自動同期"
+      ],
+      "error_paths": [
+        "許可されていないスキル"
+      ],
+      "policies": [
+        "スキルという概念はユーザーには一切見せない（UI上の語彙からも排除）",
+        "ユーザー画面では「できること（能力）」として変換表示",
+        "スキル → 能力 変換マッピングは backend で行う"
+      ],
+      "audit_logs": [
+        "skill_attached",
+        "skill_detached"
+      ],
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-T02"
+      ],
+      "related_entities": [
+        "E-009",
+        "E-007"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/skills",
+          "auth": "admin",
+          "inputs": {},
+          "outputs_2xx": {
+            "skills": "array"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "skills"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/skills",
+          "auth": "admin",
+          "inputs": {
+            "file": "multipart",
+            "allowed_employee_ids": "uuid[]"
+          },
+          "outputs_2xx": {
+            "skill_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "skills"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/admin/employees/:id/skills",
+          "auth": "admin",
+          "inputs": {
+            "attached_skills": "uuid[]"
+          },
+          "outputs_2xx": {
+            "employee": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "ai_employees"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: スキル管理APIは admin ロールのみアクセス可能でなければならない。",
+        "UBIQUITOUS: 通常ユーザー向けAPIではスキル情報を直接返してはならず、必ず能力（abilities）に変換しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-T02",
+        "E-009"
+      ]
+    },
+    {
+      "id": "F-008",
+      "name": "チャット基盤（assistant-ui統合）",
+      "category": "chat",
+      "status": "decided",
+      "happy_path": [
+        "ユーザー送信→F-CTX01でコンテキスト構築→LLMClient.chat()→ストリーミング→DB保存→ナレッジ書込候補生成"
+      ],
+      "error_paths": [
+        "LLMエラー3回リトライ→通知",
+        "スキル実行失敗→通常応答fallback"
+      ],
+      "policies": [
+        "DB-as-truth",
+        "コンテキスト圧縮はF-E02",
+        "@メンション他AI社員可"
+      ],
+      "audit_logs": [
+        "chat_message_sent",
+        "tool_call_executed",
+        "context_built"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Anthropic API",
+        "Voyage AI"
+      ],
+      "related_screens": [
+        "S-E01"
+      ],
+      "related_entities": [
+        "E-010",
+        "E-011",
+        "E-007"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/threads",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "threads": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_threads"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/threads",
+          "auth": "required",
+          "inputs": {
+            "ai_employee_id": "uuid",
+            "title?": "string"
+          },
+          "outputs_2xx": {
+            "thread_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_threads"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/threads/:id/messages",
+          "auth": "required",
+          "inputs": {
+            "cursor?": "string"
+          },
+          "outputs_2xx": {
+            "messages": "array",
+            "next_cursor": "string?"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_messages"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/threads/:id/messages",
+          "auth": "required",
+          "inputs": {
+            "content": "string",
+            "attachments?": "array"
+          },
+          "outputs_2xx": "SSE stream",
+          "outputs_4xx": [
+            "LLM_ERROR"
+          ],
+          "rate_limit": "60/min/user",
+          "related_entities": [
+            "chat_messages"
+          ],
+          "note": "SSEでストリーミング応答"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/messages/:id",
+          "auth": "required",
+          "inputs": {
+            "content": "string"
+          },
+          "outputs_2xx": {
+            "message": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_messages"
+          ],
+          "note": "F-E03 人間直編集"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/messages/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_messages"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーがチャットメッセージを送信した時、システムはF-CTX01でコンテキストを構築してLLMClient.chat()を呼ばなければならない。",
+        "EVENT-DRIVEN: LLM応答がストリーミングで届く間、システムはSSEでクライアントに逐次配信しなければならない。",
+        "UNWANTED: LLM呼出が3回連続で失敗した場合、システムはエラー応答を保存しユーザーに通知しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-E01",
+        "E-010",
+        "E-011",
+        "F-CTX01"
+      ]
+    },
+    {
+      "id": "F-009",
+      "name": "人間直編集の即時反映（DB-as-truth）",
+      "category": "chat",
+      "status": "decided",
+      "happy_path": [
+        "ユーザーが成果物/モック/ナレッジを編集→DB更新→audit_logs記録→次のチャット応答時にF-CTX01がDB最新を再SELECT"
+      ],
+      "error_paths": [
+        "編集中の競合（最終編集勝ち）"
+      ],
+      "policies": [
+        "DBが正、チャット履歴への変更イベント注入はしない"
+      ],
+      "audit_logs": [
+        "entity_edited_by_human"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-G01",
+        "S-H01",
+        "S-K01",
+        "S-E01"
+      ],
+      "related_entities": [
+        "E-006",
+        "E-015",
+        "E-018"
+      ],
+      "api_endpoints": [
+        {
+          "method": "PATCH",
+          "path": "/api/v1/workflow-outputs/:id",
+          "auth": "required",
+          "inputs": {
+            "html?": "string",
+            "json?": "string",
+            "md?": "string",
+            "summary?": "string"
+          },
+          "outputs_2xx": {
+            "output": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/mocks/:id",
+          "auth": "required",
+          "inputs": {
+            "html": "string"
+          },
+          "outputs_2xx": {
+            "mock": "object",
+            "version": "int"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mocks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーが成果物・モック・ナレッジを編集した時、システムはupdated_atを更新しaudit_logsに記録しなければならない。",
+        "UBIQUITOUS: システムは次のチャット応答時にDBから最新値を再SELECTしてコンテキストに含めなければならない。",
+        "UNWANTED: システムは変更イベントをチャット履歴に注入してはならない（DBが正）。"
+      ],
+      "vertical_slice_components": [
+        "S-G01",
+        "S-H01",
+        "S-K01",
+        "E-006",
+        "E-015",
+        "E-018",
+        "F-CTX01"
+      ]
+    },
+    {
+      "id": "F-010",
+      "name": "三層出力（HTML/JSON/MD）",
+      "category": "output",
+      "status": "decided",
+      "happy_path": [
+        "各工程でAIが三層を同時生成→Storageに保存→DBに索引"
+      ],
+      "error_paths": [
+        "Storage書込失敗→リトライ"
+      ],
+      "policies": [
+        "HTML原本は圧縮対象外",
+        "単体DL可",
+        "一括エクスポートは不要"
+      ],
+      "audit_logs": [
+        "output_generated",
+        "output_downloaded"
+      ],
+      "access_roles": [
+        "WorkspaceMember",
+        "ClientGuest"
+      ],
+      "external_services": [
+        "Supabase Storage"
+      ],
+      "related_screens": [
+        "S-G01"
+      ],
+      "related_entities": [
+        "E-006"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/outputs",
+          "auth": "required",
+          "inputs": {
+            "stage?": "enum"
+          },
+          "outputs_2xx": {
+            "outputs": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/outputs/:id/html",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "HTML stream",
+          "outputs_4xx": [
+            "NOT_FOUND"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/outputs/:id/json",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "JSON",
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/outputs/:id/md",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "MD",
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは全工程の成果物をHTML/JSON/MDの三層で同時に生成し保存しなければならない。",
+        "EVENT-DRIVEN: ユーザーが出力をダウンロードした時、システムはaudit_logsに記録しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-G01",
+        "E-006"
+      ]
+    },
+    {
+      "id": "F-011",
+      "name": "工程ワークフロー（9工程）",
+      "category": "workflow",
+      "status": "decided",
+      "happy_path": [
+        "ヒアリング→要件→アーキ→デザイン→機能分解→タスク→実装→検証→納品の順で進行"
+      ],
+      "error_paths": [
+        "工程飛ばし→警告"
+      ],
+      "policies": [
+        "前工程未完了で次工程開始可（並列）、ただし依存タスクは順守"
+      ],
+      "audit_logs": [
+        "stage_started",
+        "stage_completed"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-F01"
+      ],
+      "related_entities": [
+        "E-005",
+        "E-006"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/workflow",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "stages": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "phases",
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/workflow/:stage/start",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "thread_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_threads"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは9工程（hearing/requirements/architecture/design/breakdown/tasks/implementation/verification/delivery）のステータスを管理しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-F01",
+        "E-005",
+        "E-006"
+      ]
+    },
+    {
+      "id": "F-012",
+      "name": "工程間引き継ぎ（要約必須）",
+      "category": "workflow",
+      "status": "decided",
+      "happy_path": [
+        "工程完了→前工程AIが引き継ぎ要約生成→次工程AIに注入"
+      ],
+      "policies": [
+        "要約は1-2画面分",
+        "HTML原本リンク併記"
+      ],
+      "audit_logs": [
+        "handoff_generated"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-F01"
+      ],
+      "related_entities": [
+        "E-006"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/handoff",
+          "auth": "service_role",
+          "inputs": {
+            "from_stage": "enum",
+            "to_stage": "enum"
+          },
+          "outputs_2xx": {
+            "handoff_summary": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/handoff/:stage",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "summary": "string",
+            "original_links": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: 工程が完了した時、システムは次工程AI用の引き継ぎ要約を自動生成しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-F01",
+        "E-006"
+      ]
+    },
+    {
+      "id": "F-013",
+      "name": "デザインモック生成（design-md→ui-mockup）",
+      "category": "design",
+      "status": "decided",
+      "happy_path": [
+        "要件参照→design-mdでトークン定義→ui-mockupでHTML生成→Storage保存"
+      ],
+      "error_paths": [
+        "生成失敗→リトライ+スタブ"
+      ],
+      "policies": [
+        "モック専用、実装ではない",
+        "version chain で履歴保持"
+      ],
+      "audit_logs": [
+        "mock_generated",
+        "mock_updated"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-H01"
+      ],
+      "related_entities": [
+        "E-015"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/mocks/generate",
+          "auth": "required",
+          "inputs": {
+            "screen_name": "string",
+            "requirements_ref": "uuid"
+          },
+          "outputs_2xx": {
+            "mock_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "10/hour/project",
+          "related_entities": [
+            "mocks"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/mocks/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "mock": "object",
+            "html_url": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mocks"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/mocks/:id/revise",
+          "auth": "required",
+          "inputs": {
+            "instructions": "string"
+          },
+          "outputs_2xx": {
+            "new_version_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mocks"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/mocks/:id/preview",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "HTML stream",
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mocks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーがモック生成を依頼した時、システムはdesign-md→ui-mockupスキルチェーンで生成しなければならない。",
+        "EVENT-DRIVEN: ユーザーがモック修正を依頼した時、システムは差分パッチを当てて新バージョンを生成しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-H01",
+        "E-015"
+      ]
+    },
+    {
+      "id": "F-014",
+      "name": "クライアント招待モード",
+      "category": "client_portal",
+      "status": "decided",
+      "happy_path": [
+        "owner発行→1メール1招待→クライアントが招待リンクから別JWTログイン→限定UI"
+      ],
+      "error_paths": [
+        "招待期限切れ→再発行",
+        "失効済み"
+      ],
+      "policies": [
+        "A: 1招待=1メール（個別）",
+        "RLS別経路で完全分離",
+        "数日有効（デフォルト7日）"
+      ],
+      "audit_logs": [
+        "client_invited",
+        "client_signed_in",
+        "invitation_revoked"
+      ],
+      "access_roles": [
+        "WorkspaceOwner",
+        "ClientGuest"
+      ],
+      "external_services": [
+        "Resend"
+      ],
+      "related_screens": [
+        "S-L01",
+        "S-L02",
+        "S-L03"
+      ],
+      "related_entities": [
+        "E-017"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/client-invitations",
+          "auth": "required",
+          "inputs": {
+            "email": "string",
+            "client_display_name?": "string",
+            "expires_in_days?": "int"
+          },
+          "outputs_2xx": {
+            "invitation_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "20/hour",
+          "related_entities": [
+            "client_invitations"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/client-invitations",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "invitations": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "client_invitations"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/client-portal/signin",
+          "auth": "none",
+          "inputs": {
+            "token": "string"
+          },
+          "outputs_2xx": {
+            "session": "object",
+            "project_id": "uuid"
+          },
+          "outputs_4xx": [
+            "INVALID_TOKEN",
+            "EXPIRED"
+          ],
+          "rate_limit": "10/min/IP",
+          "related_entities": [
+            "client_invitations"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/client-invitations/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "client_invitations"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/client-portal/project",
+          "auth": "client",
+          "inputs": {},
+          "outputs_2xx": {
+            "project": "object",
+            "outputs": "array",
+            "mocks": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "projects",
+            "workflow_outputs",
+            "mocks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは1招待につき1メールアドレスで個別にtokenを発行しなければならない。",
+        "EVENT-DRIVEN: 招待リンクが使用された時、システムは別JWT（client_portal role）でクライアント専用セッションを発行しなければならない。",
+        "STATE-DRIVEN: 招待トークンがexpires_atを超えた間、システムは招待を無効として扱わなければならない。",
+        "UNWANTED: クライアントポータルJWTが通常ユーザーのテーブルにアクセスした場合、システムはRLSで拒否しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-L01",
+        "S-L02",
+        "S-L03",
+        "E-017"
+      ]
+    },
+    {
+      "id": "F-015",
+      "name": "コメント機能（全工程出力+モック）",
+      "category": "collaboration",
+      "status": "decided",
+      "happy_path": [
+        "要素単位コメント投稿→該当AI社員に通知→AI修正提案→ユーザー承認→反映"
+      ],
+      "policies": [
+        "target_type: workflow_output / mock / task / acceptance_criteria",
+        "クライアントは別JWT経路"
+      ],
+      "audit_logs": [
+        "comment_created",
+        "comment_resolved",
+        "comment_deleted"
+      ],
+      "access_roles": [
+        "WorkspaceMember",
+        "ClientGuest"
+      ],
+      "external_services": [
+        "Resend"
+      ],
+      "related_screens": [
+        "S-G01",
+        "S-H01",
+        "S-I02"
+      ],
+      "related_entities": [
+        "E-016"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/comments",
+          "auth": "required",
+          "inputs": {
+            "target_type": "enum",
+            "target_id": "uuid"
+          },
+          "outputs_2xx": {
+            "comments": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "comments"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/comments",
+          "auth": "required_or_client",
+          "inputs": {
+            "target_type": "enum",
+            "target_id": "uuid",
+            "target_element_id?": "string",
+            "content": "string"
+          },
+          "outputs_2xx": {
+            "comment_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "30/min",
+          "related_entities": [
+            "comments"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/comments/:id",
+          "auth": "required_or_client",
+          "inputs": {
+            "content?": "string",
+            "status?": "enum"
+          },
+          "outputs_2xx": {
+            "comment": "object"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "comments"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/comments/:id",
+          "auth": "required_or_client",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "comments"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/comments/:id/propose-fix",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "proposal": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_messages"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: コメントが投稿された時、システムは該当AI社員にメール通知しAI修正提案を生成しなければならない。",
+        "UBIQUITOUS: クライアントは自分が投稿したコメントのみを編集・削除できなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-G01",
+        "S-H01",
+        "S-I02",
+        "E-016"
+      ]
+    },
+    {
+      "id": "F-016",
+      "name": "タスク分解（1-2日粒度・依存必須）",
+      "category": "task",
+      "status": "decided",
+      "happy_path": [
+        "要件+アーキ+モック→ピーターがtask-decompositionスキル実行→1-2日粒度タスクツリー生成→F-IMP01で既存影響検証"
+      ],
+      "error_paths": [
+        "依存漏れ→再分解",
+        "粒度大きすぎ→警告"
+      ],
+      "policies": [
+        "dependencies/prerequisites/blocks必須",
+        "acceptance_criteria_id/mock_id/spec_html_path必須リンク"
+      ],
+      "audit_logs": [
+        "tasks_decomposed"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-I01"
+      ],
+      "related_entities": [
+        "E-012",
+        "E-014",
+        "E-015"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/tasks/decompose",
+          "auth": "required",
+          "inputs": {
+            "phase_id?": "uuid",
+            "scope_description": "string"
+          },
+          "outputs_2xx": {
+            "task_ids": "uuid[]",
+            "dependency_graph": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "10/hour/project",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/tasks",
+          "auth": "required",
+          "inputs": {
+            "filter?": "object"
+          },
+          "outputs_2xx": {
+            "tasks": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks",
+          "auth": "required",
+          "inputs": {
+            "project_id": "uuid",
+            "title": "string",
+            "type": "enum",
+            "estimated_hours": "int",
+            "dependencies": "uuid[]"
+          },
+          "outputs_2xx": {
+            "task_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/tasks/:id",
+          "auth": "required",
+          "inputs": "...partial",
+          "outputs_2xx": {
+            "task": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはタスク分解時にすべてのタスクにdependencies/prerequisites/blocksを必須属性として持たせなければならない。",
+        "UBIQUITOUS: システムは各タスクにacceptance_criteria_idとspec_html_pathを必ずリンクしなければならない。",
+        "EVENT-DRIVEN: タスク分解が完了した時、システムはF-IMP01を起動して既存タスクへの影響を解析しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I01",
+        "E-012",
+        "E-014",
+        "E-015",
+        "F-IMP01"
+      ]
+    },
+    {
+      "id": "F-017",
+      "name": "かんばん/リスト（2軸）",
+      "category": "task",
+      "status": "decided",
+      "happy_path": [
+        "カテゴリ×ステータス2軸表示→D&D移動→詳細パネル"
+      ],
+      "policies": [
+        "グルーピング軸: 機能/画面/担当/フェーズ で切替可",
+        "5-10並列上限可視化"
+      ],
+      "audit_logs": [
+        "task_status_changed",
+        "task_priority_changed"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-I01",
+        "S-I02"
+      ],
+      "related_entities": [
+        "E-012"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/tasks/board",
+          "auth": "required",
+          "inputs": {
+            "group_by?": "enum"
+          },
+          "outputs_2xx": {
+            "groups": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks/:id/status",
+          "auth": "required",
+          "inputs": {
+            "status": "enum"
+          },
+          "outputs_2xx": {
+            "task": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはタスクをカテゴリ×ステータスの2軸で表示しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I01",
+        "S-I02",
+        "E-012"
+      ]
+    },
+    {
+      "id": "F-018",
+      "name": "並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher",
+      "category": "execution",
+      "status": "decided",
+      "happy_path": [
+        "1. ユーザーがタスク選択→▶再生 (Web UI)",
+        "2. FastAPI Dispatcher (Hermes port) が依存解消→Ready 列のタスクを並列枠まで pop",
+        "3. Dispatcher が Atelier Bridge (Vibeyard fork) へ WebSocket で worker spawn 指示",
+        "4. Bridge が git worktree add → PTY で claude CLI を HERMES_KANBAN_TASK env 付き起動",
+        "5. claude プロセスが kanban_show() で自身のタスク取得→自走→kanban_complete(summary, metadata)",
+        "6. Bridge が SSE で結果を Atelier クラウドへ送信→ Dispatcher が状態遷移 (Awaiting / Done)"
+      ],
+      "error_paths": [
+        "セッション失敗→サーキットブレーカで最大3回再試行→超過で Blocked 固定",
+        "worker dead→PID ポーリングで検出→自動再 spawn",
+        "並列上限→Ready 列で順番待ち",
+        "認証エラー→初回 claude CLI ログイン誘導 UI",
+        "Bridge オフライン→Atelier クラウド側でキューに保留、再接続で再開"
+      ],
+      "policies": [
+        "初回 claude CLI ログイン必須 (Claude Max/Pro プラン認証を共有)",
+        "BG 継続 (Web UI 閉じても Bridge は稼働継続)",
+        "ストリーミングはオプション",
+        "Hermes 互換: kanban_show / complete / block / unblock / list / assign / comment の 7 ツール提供",
+        "MIT 帰属表記必須 (Vibeyard, Hermes Agent)"
+      ],
+      "audit_logs": [
+        "execution_started",
+        "execution_completed",
+        "execution_failed",
+        "worker_spawned",
+        "worker_dead_reclaimed",
+        "circuit_breaker_tripped"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Atelier Bridge Desktop (Vibeyard fork, MIT) — ローカル PTY セッション管理",
+        "Claude Code CLI (ユーザー Claude プラン枠)",
+        "git worktree (ローカル)"
+      ],
+      "related_screens": [
+        "S-I01",
+        "S-I03"
+      ],
+      "related_entities": [
+        "E-012",
+        "E-013"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/execute/play",
+          "auth": "required",
+          "inputs": {
+            "task_ids": "uuid[]",
+            "stream_mode?": "bool"
+          },
+          "outputs_2xx": {
+            "execution_ids": "uuid[]"
+          },
+          "outputs_4xx": [
+            "AUTH_REQUIRED",
+            "PARALLEL_LIMIT"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/executions/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "execution": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/executions/:id/logs",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "SSE/log stream",
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/executions/:id/cancel",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/claude-code-bridge/authenticate",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "bridge_session_id": "string"
+          },
+          "outputs_4xx": [
+            "CLI_LOGIN_REQUIRED"
+          ],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "WS",
+          "path": "/api/v1/claude-code-bridge/ws",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": "WebSocket",
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは最大5-10並列でClaude Codeセッションを起動できなければならない。",
+        "EVENT-DRIVEN: タスク実行が開始された時、システムは受入基準HTMLとモックを/goal文として Claude Codeに渡さなければならない。",
+        "STATE-DRIVEN: ユーザーが画面を閉じている間も、システムはバックグラウンドで実行を継続しなければならない。",
+        "UNWANTED: 初回CLIログインが完了していない場合、システムは AUTH_REQUIRED で拒否しユーザーをCLIログインに誘導しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I01",
+        "S-I03",
+        "E-012",
+        "E-013",
+        "F-019",
+        "F-021"
+      ]
+    },
+    {
+      "id": "F-019",
+      "name": "/goal駆動実行モード",
+      "category": "execution",
+      "status": "decided",
+      "happy_path": [
+        "タスクカード→ゴール文自動生成→Claude Code /goal投入→自走"
+      ],
+      "policies": [
+        "タイトル+AC+依存+モックパスからゴール文生成"
+      ],
+      "audit_logs": [
+        "goal_generated"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Claude Code"
+      ],
+      "related_screens": [],
+      "related_entities": [
+        "E-012"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks/:id/goal",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "goal_text": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはタスクの title + acceptance_criteria + dependencies + mock_path からゴール文を自動生成しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "E-012",
+        "F-018"
+      ]
+    },
+    {
+      "id": "F-020",
+      "name": "受入基準HTML化",
+      "category": "verification",
+      "status": "decided",
+      "happy_path": [
+        "タスク分解時に各タスクのAC HTML自動生成→Zod検証"
+      ],
+      "policies": [
+        "全タスク必須",
+        "3-tier AC: structural / functional / regression"
+      ],
+      "audit_logs": [
+        "ac_generated",
+        "ac_updated"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-I02"
+      ],
+      "related_entities": [
+        "E-014"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks/:id/acceptance-criteria/generate",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "ac_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "acceptance_criteria"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/tasks/:id/acceptance-criteria",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ac": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "acceptance_criteria"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/acceptance-criteria/:id",
+          "auth": "required",
+          "inputs": {
+            "items": "array"
+          },
+          "outputs_2xx": {
+            "ac": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "acceptance_criteria"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは全タスクに受入基準HTMLを必ず生成しなければならない。",
+        "UBIQUITOUS: システムは受入基準を structural / functional / regression の3層で管理しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I02",
+        "E-014"
+      ]
+    },
+    {
+      "id": "F-021",
+      "name": "仕様徹底ループ（スコア評価）",
+      "category": "verification",
+      "status": "decided",
+      "happy_path": [
+        "Claude Code側で実装→検証→スコア計算→再実装ループ"
+      ],
+      "policies": [
+        "スコア = AC×0.6 + Test×0.3 + 検証AI×0.1",
+        "≥95%自動承認 / 80-94%承認待ち / <80%強制介入",
+        "最大3回再試行"
+      ],
+      "audit_logs": [
+        "verification_completed",
+        "auto_approved",
+        "approval_required",
+        "force_intervention"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Claude Code",
+        "LangGraph"
+      ],
+      "related_screens": [
+        "S-I02",
+        "S-J01"
+      ],
+      "related_entities": [
+        "E-013",
+        "E-019"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/executions/:id/verify",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "score": "number",
+            "decision": "enum"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/executions/:id/retry",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "new_execution_id": "uuid"
+          },
+          "outputs_4xx": [
+            "MAX_RETRIES"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "task_executions"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは検証スコアを AC達成率×0.6 + テスト成功率×0.3 + 検証AI評価×0.1 で計算しなければならない。",
+        "EVENT-DRIVEN: スコアが95%以上の時、システムは自動承認してタスクを完了状態に移行しなければならない。",
+        "EVENT-DRIVEN: スコアが80-94%の時、システムは ApprovalInbox にエントリを作成し人間承認を待たなければならない。",
+        "EVENT-DRIVEN: スコアが80%未満の時、システムは強制人間介入として実行を停止しなければならない。",
+        "UNWANTED: 再試行回数が3を超えた場合、システムは自動再実装をせず人間介入を要求しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I02",
+        "S-J01",
+        "E-013",
+        "E-014",
+        "E-019",
+        "F-018"
+      ]
+    },
+    {
+      "id": "F-022",
+      "name": "人間承認ゲート（Inbox通知）",
+      "category": "verification",
+      "status": "decided",
+      "happy_path": [
+        "AI が approval_inbox にエントリ作成→メール+ツール内通知→ユーザー承認/差戻"
+      ],
+      "policies": [
+        "Inbox一覧、種別フィルタ",
+        "メール通知ON/OFF設定可"
+      ],
+      "audit_logs": [
+        "inbox_entry_created",
+        "inbox_entry_resolved"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Resend"
+      ],
+      "related_screens": [
+        "S-J01"
+      ],
+      "related_entities": [
+        "E-019"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/inbox",
+          "auth": "required",
+          "inputs": {
+            "filter?": "object"
+          },
+          "outputs_2xx": {
+            "items": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inbox/:id/approve",
+          "auth": "required",
+          "inputs": {
+            "note?": "string"
+          },
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inbox/:id/reject",
+          "auth": "required",
+          "inputs": {
+            "reason?": "string"
+          },
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/inbox/bulk-approve",
+          "auth": "required",
+          "inputs": {
+            "ids": "uuid[]"
+          },
+          "outputs_2xx": {
+            "approved_count": "int"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: AI承認ゲートが発火した時、システムはApprovalInboxにエントリを作成しメール通知を送信しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-J01",
+        "E-019"
+      ]
+    },
+    {
+      "id": "F-023",
+      "name": "ナレッジ管理（共通+社員別2層）",
+      "category": "knowledge",
+      "status": "decided",
+      "happy_path": [
+        "AI候補生成→ユーザー承認→DB書込+埋め込み生成"
+      ],
+      "policies": [
+        "2層: 共通+社員別",
+        "各社員は自分のナレッジ優先+共通も参照可",
+        "退会時匿名化"
+      ],
+      "audit_logs": [
+        "knowledge_proposed",
+        "knowledge_approved",
+        "knowledge_rejected",
+        "knowledge_deleted"
+      ],
+      "access_roles": [
+        "WorkspaceMember"
+      ],
+      "external_services": [
+        "Voyage AI"
+      ],
+      "related_screens": [
+        "S-K01",
+        "S-K02"
+      ],
+      "related_entities": [
+        "E-018"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/knowledge",
+          "auth": "required",
+          "inputs": {
+            "scope?": "enum",
+            "owner_employee_id?": "uuid",
+            "category?": "string"
+          },
+          "outputs_2xx": {
+            "nodes": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/knowledge",
+          "auth": "required",
+          "inputs": {
+            "scope": "enum",
+            "owner_employee_id?": "uuid",
+            "category": "string",
+            "title": "string",
+            "content_md": "string"
+          },
+          "outputs_2xx": {
+            "node_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/knowledge/proposals",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "proposals": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/knowledge/:id/approve",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "node": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/knowledge/:id",
+          "auth": "required",
+          "inputs": "...partial",
+          "outputs_2xx": {
+            "node": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/knowledge/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: AIがナレッジ書込候補を生成した時、システムはユーザー承認を経るまでDBに書込んではならない。",
+        "UBIQUITOUS: 各AI社員はscope=employee_specificの自分のナレッジを優先参照しscope=commonにフォールバックしなければならない。",
+        "EVENT-DRIVEN: ユーザーが退会した時、システムは関連ナレッジを匿名化しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-K01",
+        "S-K02",
+        "E-018",
+        "F-CTX01"
+      ]
+    },
+    {
+      "id": "F-024",
+      "name": "ナレッジ検索（RAG）",
+      "category": "knowledge",
+      "status": "decided",
+      "happy_path": [
+        "クエリ→Voyage埋め込み→pgvector検索+FTS+リランカー→出典付き結果"
+      ],
+      "policies": [
+        "ベクトル+キーワードハイブリッド",
+        "社員別優先"
+      ],
+      "external_services": [
+        "Voyage AI"
+      ],
+      "related_screens": [
+        "S-K01"
+      ],
+      "related_entities": [
+        "E-018"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/knowledge/search",
+          "auth": "required",
+          "inputs": {
+            "query": "string",
+            "scope?": "enum",
+            "owner_employee_id?": "uuid",
+            "limit?": "int"
+          },
+          "outputs_2xx": {
+            "results": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "60/min/user",
+          "related_entities": [
+            "knowledge_nodes"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/knowledge/embed",
+          "auth": "service_role",
+          "inputs": {
+            "texts": "string[]"
+          },
+          "outputs_2xx": {
+            "embeddings": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/knowledge/rerank",
+          "auth": "service_role",
+          "inputs": {
+            "query": "string",
+            "documents": "string[]"
+          },
+          "outputs_2xx": {
+            "reranked": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはVoyage埋め込み+pgvector+FTSのハイブリッド検索でナレッジを検索しなければならない。",
+        "UBIQUITOUS: 検索結果には常に出典リンクを併記しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-K01",
+        "E-018"
+      ]
+    },
+    {
+      "id": "F-025",
+      "name": "議事録/商談アップロード解析",
+      "category": "ingestion",
+      "phase": 4,
+      "status": "decided",
+      "happy_path": [
+        "音声/動画/テキストアップロード→Whisper or 直接解析→構造化サマリー→スティーブが対話深掘り"
+      ],
+      "external_services": [
+        "OpenAI Whisper API",
+        "Unstructured.io"
+      ],
+      "related_screens": [
+        "S-M01"
+      ],
+      "related_entities": [
+        "E-024"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/uploads",
+          "auth": "required",
+          "inputs": "multipart",
+          "outputs_2xx": {
+            "upload_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FILE_TOO_LARGE"
+          ],
+          "rate_limit": "20/hour",
+          "related_entities": [
+            "external_uploads"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/uploads/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "upload": "object",
+            "parsed_text?": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "external_uploads"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/uploads/:id/process",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "parse_result_path": "string"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "external_uploads"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: 音声/動画ファイルがアップロードされた時、システムはWhisper APIで文字起こしを実行しなければならない。",
+        "EVENT-DRIVEN: 解析が完了した時、システムはスティーブのチャットで深掘り対話を開始しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-M01",
+        "E-024"
+      ]
+    },
+    {
+      "id": "F-026",
+      "name": "提案/見積/契約自動ドラフト",
+      "category": "sales",
+      "phase": 4,
+      "status": "decided",
+      "happy_path": [
+        "ナレッジ参照→トニー/ナターシャがドラフト生成→ユーザー確認・修正"
+      ],
+      "external_services": [
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-N01"
+      ],
+      "related_entities": [
+        "E-006"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/sales/proposal",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "output_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/sales/estimate",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "output_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/sales/contract",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "output_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/sales/nda",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "output_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/sales/invoice",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "output_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーが提案ドラフト生成を依頼した時、システムはナレッジから過去類似案件のテンプレを参照してドラフト生成しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-N01",
+        "E-006"
+      ]
+    },
+    {
+      "id": "F-027",
+      "name": "cronスケジュール実行",
+      "category": "execution",
+      "phase": 4,
+      "status": "decided",
+      "happy_path": [
+        "cron式GUI→Inngest登録→定刻にトリガー→F-018で実行"
+      ],
+      "policies": [
+        "cronはトリガーのみ、実行本体はF-018"
+      ],
+      "external_services": [
+        "Inngest"
+      ],
+      "related_screens": [
+        "S-O01"
+      ],
+      "related_entities": [
+        "E-023"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/cron",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "schedules": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "cron_schedules"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/cron",
+          "auth": "required",
+          "inputs": {
+            "name": "string",
+            "cron_expression": "string",
+            "target_action": "string",
+            "target_payload": "object"
+          },
+          "outputs_2xx": {
+            "schedule_id": "uuid"
+          },
+          "outputs_4xx": [
+            "INVALID_CRON"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "cron_schedules"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/v1/cron/:id",
+          "auth": "required",
+          "inputs": "...partial",
+          "outputs_2xx": {
+            "schedule": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "cron_schedules"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/cron/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "cron_schedules"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "STATE-DRIVEN: cron_schedules.enabled = true の間、システムはInngest経由で次回実行をスケジュールしなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-O01",
+        "E-023",
+        "F-018"
+      ]
+    },
+    {
+      "id": "F-028",
+      "name": "MCPサーバー公開",
+      "category": "integration",
+      "status": "decided",
+      "happy_path": [
+        "管理画面でトークン発行→ClaudeデスクトップにMCP設定→AI社員呼出"
+      ],
+      "policies": [
+        "WS単位トークン",
+        "スコープで書込制御"
+      ],
+      "audit_logs": [
+        "mcp_token_issued",
+        "mcp_token_used",
+        "mcp_token_revoked"
+      ],
+      "external_services": [
+        "MCP Protocol"
+      ],
+      "related_screens": [
+        "S-A03"
+      ],
+      "related_entities": [
+        "E-021"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/workspaces/:ws_id/mcp-tokens",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "tokens": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mcp_tokens"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/workspaces/:ws_id/mcp-tokens",
+          "auth": "required",
+          "inputs": {
+            "name": "string",
+            "scopes": "string[]",
+            "expires_in_days?": "int"
+          },
+          "outputs_2xx": {
+            "token": "string",
+            "token_id": "uuid"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "mcp_tokens"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/mcp-tokens/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "mcp_tokens"
+          ]
+        },
+        {
+          "method": "MCP",
+          "path": "mcp://atelier",
+          "auth": "mcp_token",
+          "inputs": "MCP Protocol",
+          "outputs_2xx": "MCP tools/resources/prompts",
+          "outputs_4xx": [
+            "INVALID_TOKEN",
+            "SCOPE_DENIED"
+          ],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはMCPトークンをWS単位で発行しスコープで操作を制限しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-A03",
+        "E-021"
+      ]
+    },
+    {
+      "id": "F-CTX01",
+      "name": "Hybrid Context Construction Layer",
+      "category": "ai_infra",
+      "status": "decided",
+      "happy_path": [
+        "1.ペルソナ(自前) → 2.直近5-10件(LlamaIndex ChatMemoryBuffer) → 3.プロジェクト状態(Supabase SELECT、DB-as-truth) → 4.セマンティック関連メッセージ(LlamaIndex VectorMemory + Voyage Reranker) → 5.RAGナレッジ(LlamaIndex+Cognee+Voyage) → 6.mem0で長期記憶 → 7.言及エンティティ最新値 → 8.必要時LLMLingua圧縮"
+      ],
+      "policies": [
+        "DB-as-truth原則",
+        "直近slicingではなく関連性ベース",
+        "OSS活用で自前は100行未満"
+      ],
+      "external_services": [
+        "Voyage AI",
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-E01"
+      ],
+      "related_entities": [
+        "E-007",
+        "E-010",
+        "E-011",
+        "E-018"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/context/build",
+          "auth": "service_role",
+          "inputs": {
+            "thread_id": "uuid",
+            "user_message": "string",
+            "ai_employee_id": "uuid"
+          },
+          "outputs_2xx": {
+            "context_blocks": "array",
+            "token_count": "int"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_messages",
+            "knowledge_nodes",
+            "ai_employees"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはチャット応答ごとに7層のコンテキストを構築しなければならない。",
+        "UBIQUITOUS: システムはプロジェクト状態をDBから常に最新でSELECTしなければならない（DB-as-truth）。",
+        "UBIQUITOUS: システムは関連メッセージ取得においてVoyageリランカーで再順位付けしなければならない。",
+        "EVENT-DRIVEN: 合計トークンが上限の80%を超えた時、システムはLLMLinguaで圧縮しなければならない（state/knowledgeは保護）。"
+      ],
+      "vertical_slice_components": [
+        "S-E01",
+        "E-007",
+        "E-010",
+        "E-011",
+        "E-018",
+        "F-008"
+      ]
+    },
+    {
+      "id": "F-CUC01",
+      "name": "要件変更検知 → 影響工程の自動再起動",
+      "category": "continuous_update",
+      "phase": 3,
+      "status": "decided",
+      "happy_path": [
+        "変更トリガー（チャット/出力編集/議事録）→ F-IMP01 起点 → 影響工程特定 → AI再実行提案 → ユーザー承認 → 該当工程の AI 社員が再実行"
+      ],
+      "policies": [
+        "変更検知は3経路: (1) チャット意図抽出 (2) workflow_outputs更新時のトリガー (3) external_uploadsからの新規要件抽出",
+        "再実行は必ずユーザー承認を経る（自動上書きしない）"
+      ],
+      "audit_logs": [
+        "scope_change_detected",
+        "downstream_stages_identified",
+        "stage_re_run_proposed",
+        "stage_re_run_approved"
+      ],
+      "external_services": [
+        "LangGraph",
+        "Anthropic API"
+      ],
+      "related_screens": [
+        "S-E01",
+        "S-J01",
+        "S-F01"
+      ],
+      "related_entities": [
+        "E-005",
+        "E-006",
+        "E-019",
+        "E-012"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/scope-change/detect",
+          "auth": "service_role",
+          "inputs": {
+            "source_type": "enum",
+            "source_id": "uuid",
+            "diff": "object"
+          },
+          "outputs_2xx": {
+            "impact_analysis_id": "uuid",
+            "affected_stages": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/scope-change/:id/propose-rerun",
+          "auth": "service_role",
+          "inputs": {
+            "target_stages": "enum[]"
+          },
+          "outputs_2xx": {
+            "inbox_ids": "uuid[]"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "approval_inbox"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/scope-change/:id/approve",
+          "auth": "required",
+          "inputs": {
+            "stages_to_rerun": "enum[]"
+          },
+          "outputs_2xx": {
+            "thread_ids": "uuid[]"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "chat_threads"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーがチャットで追加機能・仕様変更を発言した時、システムは意図を抽出し scope_change を検知しなければならない。",
+        "EVENT-DRIVEN: workflow_outputs が編集された時、システムは下流工程への影響範囲を F-IMP01 で解析しなければならない。",
+        "UBIQUITOUS: システムは再実行提案を ApprovalInbox 経由でユーザー承認を必須としなければならない。",
+        "UNWANTED: システムは下流工程の成果物をユーザー承認なしに自動上書きしてはならない。"
+      ],
+      "vertical_slice_components": [
+        "S-E01",
+        "S-J01",
+        "E-006",
+        "E-019",
+        "F-IMP01",
+        "F-CTX01"
+      ]
+    },
+    {
+      "id": "F-CUC02",
+      "name": "タスク状態別の更新ポリシー",
+      "category": "continuous_update",
+      "phase": 3,
+      "status": "decided",
+      "happy_path": [
+        "仕様変更検知 → 各タスクの状態判定 → 状態別アクション実行"
+      ],
+      "policies": [
+        "pending: 自動上書き＋通知",
+        "in_progress: 一時停止＋3択判断",
+        "in_verification: 完了待ち＋リファクタ起票",
+        "awaiting_approval: 承認ブロック＋再検証",
+        "completed: リファクタタスク自動起票（type=infrastructure, parent_task紐付け）",
+        "blocked: ブロック理由再評価"
+      ],
+      "audit_logs": [
+        "task_auto_updated",
+        "task_paused_for_change",
+        "refactor_task_auto_created",
+        "task_approval_blocked"
+      ],
+      "external_services": [
+        "LangGraph"
+      ],
+      "related_screens": [
+        "S-I02",
+        "S-J01"
+      ],
+      "related_entities": [
+        "E-012",
+        "E-014",
+        "E-019"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/scope-change/:id/apply-to-tasks",
+          "auth": "service_role",
+          "inputs": {
+            "affected_task_ids": "uuid[]"
+          },
+          "outputs_2xx": {
+            "updated_count": "int",
+            "paused_count": "int",
+            "refactor_created_count": "int"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/tasks/:id/resume-with-change",
+          "auth": "required",
+          "inputs": {
+            "decision": "enum (incorporate|complete_as_is|discard_and_redecompose)"
+          },
+          "outputs_2xx": {
+            "task": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: 仕様変更が pending タスクに影響する時、システムは spec_html / AC / dependencies / mock_id を最新で自動再生成しなければならない。",
+        "EVENT-DRIVEN: 仕様変更が in_progress タスクに影響する時、システムは実行を一時停止しユーザーに3択判断（incorporate/complete_as_is/discard_and_redecompose）を要求しなければならない。",
+        "EVENT-DRIVEN: 仕様変更が completed タスクに影響する時、システムは type=infrastructure のリファクタタスクを parent_task 紐付けで自動起票しなければならない。",
+        "EVENT-DRIVEN: 仕様変更が awaiting_approval タスクに影響する時、システムは承認をブロックし再検証を実行しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I02",
+        "S-J01",
+        "E-012",
+        "E-014",
+        "F-IMP01",
+        "F-CUC01"
+      ]
+    },
+    {
+      "id": "F-CUC03",
+      "name": "成果物の整合性メンテ",
+      "category": "continuous_update",
+      "phase": 3,
+      "status": "decided",
+      "happy_path": [
+        "変更検知 → 影響成果物特定 → 責任AI社員に再生成依頼（BG）→ 新バージョン生成 → 履歴保持 → クライアント招待先に通知"
+      ],
+      "policies": [
+        "三層出力（HTML/JSON/MD）は版管理で履歴保持",
+        "クライアント招待で公開中の成果物は更新時にメール通知"
+      ],
+      "audit_logs": [
+        "output_regenerated",
+        "client_notified_of_update"
+      ],
+      "external_services": [
+        "Anthropic API",
+        "Resend"
+      ],
+      "related_screens": [
+        "S-G01",
+        "S-H01"
+      ],
+      "related_entities": [
+        "E-006",
+        "E-015"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/scope-change/:id/regenerate-outputs",
+          "auth": "service_role",
+          "inputs": {
+            "affected_output_ids": "uuid[]"
+          },
+          "outputs_2xx": {
+            "new_version_ids": "uuid[]"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs",
+            "mocks"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/outputs/:id/versions",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "versions": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "workflow_outputs"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: 仕様変更が成果物に影響する時、システムは責任AI社員に再生成をバックグラウンドで依頼しなければならない。",
+        "EVENT-DRIVEN: 公開中のクライアント招待がある成果物が更新された時、システムは招待者にメール通知しなければならない。",
+        "UBIQUITOUS: システムは成果物の旧バージョンを履歴として保持しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-G01",
+        "S-H01",
+        "E-006",
+        "E-015",
+        "F-CUC01"
+      ]
+    },
+    {
+      "id": "F-CUC04",
+      "name": "依存関係の日次整合性チェック",
+      "category": "continuous_update",
+      "phase": 3,
+      "status": "decided",
+      "happy_path": [
+        "毎日深夜 Inngest cron 起動 → 全プロジェクトの依存整合性スキャン → 不整合検出 → 整合性レポート生成 → 重大はApprovalInbox通知"
+      ],
+      "policies": [
+        "毎日深夜実行（Batch APIでコスト最小）",
+        "全プロジェクト走査"
+      ],
+      "audit_logs": [
+        "daily_consistency_check_completed",
+        "consistency_issue_detected"
+      ],
+      "external_services": [
+        "Inngest",
+        "NetworkX"
+      ],
+      "related_screens": [
+        "S-J01"
+      ],
+      "related_entities": [
+        "E-012",
+        "E-014",
+        "E-015",
+        "E-019"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/admin/consistency-check/run",
+          "auth": "service_role",
+          "inputs": {},
+          "outputs_2xx": {
+            "report_id": "uuid",
+            "issues_count": "int"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/consistency-check/reports/:id",
+          "auth": "admin",
+          "inputs": {},
+          "outputs_2xx": {
+            "report": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは毎日深夜に全プロジェクトの依存整合性を自動チェックしなければならない。",
+        "UBIQUITOUS: システムは以下の不整合を検出しなければならない: (1) 削除済みタスクIDが依存に残存 (2) AC version が陳腐化 (3) mock_id 削除/更新 (4) files_changed 重複",
+        "EVENT-DRIVEN: 重大な不整合が検出された時、システムは ApprovalInbox にユーザー通知しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-J01",
+        "E-012",
+        "E-014",
+        "E-015",
+        "E-023"
+      ]
+    },
+    {
+      "id": "F-IMP01",
+      "name": "Impact Analyzer（影響範囲解析・拡張版）",
+      "category": "execution",
+      "phase": 3,
+      "status": "decided",
+      "happy_path": [
+        "変更トリガー→NetworkX DiGraph構築→descendants()で影響タスク抽出→実装済み判定→LangGraphでフロー→AI対応案"
+      ],
+      "policies": [
+        "LangGraph node",
+        "Inngest cronで日次整合性チェック"
+      ],
+      "audit_logs": [
+        "impact_analysis_started",
+        "impact_analysis_completed"
+      ],
+      "external_services": [
+        "NetworkX",
+        "LangGraph"
+      ],
+      "related_screens": [
+        "S-F02",
+        "S-I02"
+      ],
+      "related_entities": [
+        "E-012"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/impact-analysis",
+          "auth": "required_or_service",
+          "inputs": {
+            "trigger_type": "enum",
+            "target_id": "uuid"
+          },
+          "outputs_2xx": {
+            "affected_tasks": "array",
+            "recommendations": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "tasks"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/impact-analysis/:id",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "analysis": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: タスクのフェーズ移動・新フェーズ追加・仕様変更があった時、システムは影響範囲解析を起動しなければならない。",
+        "UBIQUITOUS: システムは影響を受ける下流タスクを NetworkX descendants() で抽出しなければならない。",
+        "EVENT-DRIVEN: 実装済みタスクに影響がある場合、システムは再分解推奨を ApprovalInbox に通知しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-F02",
+        "S-I02",
+        "E-012",
+        "F-005",
+        "F-016"
+      ]
+    },
+    {
+      "id": "F-Q01",
+      "name": "GitHub連携（閲覧のみ）",
+      "category": "integration",
+      "phase": 5,
+      "status": "draft",
+      "happy_path": [
+        "GitHub OAuth→リポジトリ選択→PR/コミット紐付け表示"
+      ],
+      "policies": [
+        "閲覧のみ、PR作成/マージなし"
+      ],
+      "external_services": [
+        "GitHub API"
+      ],
+      "related_screens": [
+        "S-I02"
+      ],
+      "related_entities": [
+        "E-012"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/github/repos",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "repos": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/projects/:p_id/github/link",
+          "auth": "required",
+          "inputs": {
+            "repo_full_name": "string"
+          },
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/projects/:p_id/github/prs",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "prs": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": []
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはGitHub連携で書込操作（PR作成、マージ）を提供してはならない。"
+      ],
+      "vertical_slice_components": [
+        "S-I02"
+      ]
+    },
+    {
+      "id": "F-R01",
+      "name": "監査ログ（管理者専用ビュー）",
+      "category": "admin",
+      "phase": 5,
+      "status": "draft",
+      "happy_path": [
+        "管理者ログイン→ログ一覧→フィルタ→詳細"
+      ],
+      "policies": [
+        "管理者専用、1年保持"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-T05"
+      ],
+      "related_entities": [
+        "E-020"
+      ],
+      "api_endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/v1/admin/audit-logs",
+          "auth": "admin",
+          "inputs": {
+            "filter?": "object",
+            "cursor?": "string"
+          },
+          "outputs_2xx": {
+            "logs": "array"
+          },
+          "outputs_4xx": [
+            "FORBIDDEN"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "audit_logs"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: 監査ログは管理者ロールのユーザーのみが閲覧可能でなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-T05",
+        "E-020"
+      ]
+    },
+    {
+      "id": "F-U01",
+      "name": "データ削除・退会フロー",
+      "category": "legal",
+      "phase": 5,
+      "status": "decided",
+      "happy_path": [
+        "退会申請→30日カウントダウン→ナレッジ匿名化→ハード削除"
+      ],
+      "policies": [
+        "30日内ならキャンセル可",
+        "ナレッジは匿名化保持"
+      ],
+      "audit_logs": [
+        "account_deletion_requested",
+        "account_anonymized",
+        "account_hard_deleted"
+      ],
+      "external_services": [
+        "Inngest"
+      ],
+      "related_screens": [
+        "S-PUB04"
+      ],
+      "related_entities": [
+        "E-001",
+        "E-018"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/data-deletion/request",
+          "auth": "required",
+          "inputs": {
+            "confirmation": "string",
+            "reason?": "string"
+          },
+          "outputs_2xx": {
+            "scheduled_deletion_at": "timestamp"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/v1/data-deletion/cancel",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "ok": "true"
+          },
+          "outputs_4xx": [
+            "NOT_IN_GRACE_PERIOD"
+          ],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/data-deletion/status",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "status": "enum",
+            "scheduled_deletion_at?": "timestamp"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "users"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: ユーザーが退会を申請した時、システムは30日後のハード削除をInngestでスケジュールしなければならない。",
+        "EVENT-DRIVEN: 30日経過した時、システムは個人情報を削除しナレッジを匿名化しなければならない。",
+        "STATE-DRIVEN: 退会申請から30日以内の間、システムはユーザーの再ログインによる復帰を許可しなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-PUB04",
+        "E-001",
+        "E-018"
+      ]
+    },
+    {
+      "id": "F-LEGAL-004",
+      "name": "同意取得+ログ保存",
+      "category": "legal",
+      "status": "decided",
+      "happy_path": [
+        "サインアップ時に規約/PP/越境同意を取得→consentsテーブルに記録"
+      ],
+      "policies": [
+        "バージョン管理",
+        "編集不可・新版で新行"
+      ],
+      "audit_logs": [
+        "consent_accepted"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-A01",
+        "S-PUB01",
+        "S-PUB02",
+        "S-PUB03"
+      ],
+      "related_entities": [
+        "E-025"
+      ],
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/v1/consents",
+          "auth": "required",
+          "inputs": {
+            "type": "enum",
+            "version": "string",
+            "accepted": "bool"
+          },
+          "outputs_2xx": {
+            "consent_id": "uuid"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "consents"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/consents/latest",
+          "auth": "required",
+          "inputs": {},
+          "outputs_2xx": {
+            "consents": "array"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "consents"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはサインアップ時にterms_of_service / privacy_policy / data_residency への同意を必須としなければならない。",
+        "UNWANTED: 必須同意が取得されていない場合、システムはサインアップを完了させてはならない。"
+      ],
+      "vertical_slice_components": [
+        "S-A01",
+        "E-025"
+      ]
+    },
+    {
+      "id": "F-LEGAL-011",
+      "name": "AI学習利用可否設定（デフォルトOFF）",
+      "category": "legal",
+      "status": "decided",
+      "policies": [
+        "プロジェクト/アカウント単位設定",
+        "デフォルトai_training_optout=true"
+      ],
+      "audit_logs": [
+        "ai_training_optin_changed"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-A03",
+        "S-B03"
+      ],
+      "related_entities": [
+        "E-004"
+      ],
+      "api_endpoints": [
+        {
+          "method": "PATCH",
+          "path": "/api/v1/projects/:id/ai-training-optout",
+          "auth": "required",
+          "inputs": {
+            "optout": "bool"
+          },
+          "outputs_2xx": {
+            "project": "object"
+          },
+          "outputs_4xx": [],
+          "rate_limit": "",
+          "related_entities": [
+            "projects"
+          ]
+        }
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムはai_training_optoutのデフォルトをtrueとしなければならない。"
+      ],
+      "vertical_slice_components": [
+        "S-B03",
+        "E-004"
+      ]
+    },
+    {
+      "id": "F-LEGAL-014",
+      "name": "電気通信事業届出",
+      "category": "legal",
+      "phase": 5,
+      "status": "blocked",
+      "blocked_reason": "リリース前に総務省/弁護士に届出要否を確認",
+      "policies": [
+        "クライアント招待コメント機能が第三者間通信媒介に該当の可能性"
+      ],
+      "audit_logs": [],
+      "external_services": [],
+      "related_screens": [],
+      "related_entities": [],
+      "api_endpoints": [],
+      "ears_ac_seed": [],
+      "vertical_slice_components": []
+    }
+  ],
+  "summary": {
+    "total_features": 39,
+    "decided": 37,
+    "draft": 2,
+    "blocked": 1,
+    "total_api_endpoints": 152,
+    "phase_breakdown": {
+      "phase_0_1": 22,
+      "phase_2": 5,
+      "phase_3": 8,
+      "phase_4": 3,
+      "phase_5": 4
+    },
+    "continuous_update_cycle": {
+      "features": [
+        "F-CUC01",
+        "F-CUC02",
+        "F-CUC03",
+        "F-CUC04",
+        "F-IMP01"
+      ],
+      "description": "初期一気通貫後の追加要望・仕様変更に対し、依存解析→影響工程再起動→タスク状態別更新→成果物再生成→日次整合性チェック の完全フロー"
+    }
+  },
+  "schedule_reference": {
+    "schedule_path": "08_schedule/schedule.json",
+    "mvp_release_human_date": "2026-11-15",
+    "mvp_release_ai_date": "2026-06-10",
+    "beta_human_date": "2026-12-01",
+    "beta_ai_date": "2026-06-15",
+    "ga_target_human_date": "2027-08-31",
+    "ga_target_ai_date": "2026-12-31",
+    "applied_at": "2026-05-20",
+    "two_axis_policy_version": "v3.1-dual"
+  },
+  "effort_note": "feature ごとの工数は tickets.json (07_tasks) で二軸管理。本ファイルでは feature 単位の概算は持たない。"
+}

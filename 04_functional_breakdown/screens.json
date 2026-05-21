@@ -1,0 +1,2151 @@
+{
+  "project": "Atelier",
+  "version": "1.0",
+  "created_at": "2026-05-18",
+  "schema_version": "v3",
+  "design_system": "design.md + shadcn/ui + Tailwind + Lucide React (絵文字禁止)",
+  "ai_chat_ui": "assistant-ui",
+  "tool_calls_ui": "tool-ui",
+  "responsive_breakpoints_default": [
+    "mobile (375)",
+    "tablet (768)",
+    "desktop (1280)",
+    "wide (1536)"
+  ],
+  "meta_tag_convention": "data-bf-* attributes on root <main> element (screen_id, screen_name, category, status, version)",
+  "items": [
+    {
+      "id": "S-A01",
+      "name": "ログイン/サインアップ",
+      "category": "auth",
+      "status": "decided",
+      "access_roles": [
+        "Guest"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/auth/S-A01-signin.html",
+      "h1_text": "Atelier へようこそ",
+      "section_h2_texts": [
+        "メールでサインイン",
+        "ソーシャルサインイン",
+        "規約・プライバシー同意"
+      ],
+      "kpi_labels": [],
+      "meta_tags": {
+        "screen_id": "S-A01",
+        "screen_name": "signin",
+        "category": "auth",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "email入力",
+        "password入力（任意・Magic Link優先）",
+        "OAuthボタン×2",
+        "規約/PP/越境同意チェックボックス×3"
+      ],
+      "actions": [
+        "メール送信→OTP/Magic Link",
+        "Google OAuth",
+        "GitHub OAuth",
+        "サインアップ切替"
+      ],
+      "states": [
+        "フォーム入力中",
+        "OTP送信中",
+        "OTP入力待ち",
+        "OAuth リダイレクト中",
+        "エラー",
+        "成功→S-A02 へ"
+      ],
+      "transitions": [
+        {
+          "to": "S-B01",
+          "trigger": "サインイン成功"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/auth/signup",
+        "POST /api/v1/auth/login",
+        "POST /api/v1/auth/magic-link",
+        "GET /api/v1/auth/oauth/:provider",
+        "POST /api/v1/consents"
+      ],
+      "related_entities": [
+        "E-001",
+        "E-025"
+      ],
+      "notes": "サインイン成功後、デフォルトWSのプロジェクト一覧 S-B01 へ直行。WS 切替はサイドバー WSピッカーで対応"
+    },
+    {
+      "id": "S-A03",
+      "name": "ワークスペース設定",
+      "category": "workspace",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/workspace/S-A03-settings.html",
+      "h1_text": "ワークスペース設定",
+      "section_h2_texts": [
+        "基本情報",
+        "メンバー",
+        "招待管理",
+        "MCPトークン",
+        "プラン",
+        "AI学習設定",
+        "退会"
+      ],
+      "meta_tags": {
+        "screen_id": "S-A03",
+        "screen_name": "workspace_settings",
+        "category": "workspace",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "WS名/アイコン",
+        "メンバー一覧+ロール変更",
+        "招待発行フォーム",
+        "MCPトークン一覧/発行/失効",
+        "プラン情報",
+        "AI学習可否",
+        "退会ボタン"
+      ],
+      "actions": [
+        "WS情報更新",
+        "メンバー招待",
+        "メンバー除名",
+        "ロール変更",
+        "MCPトークン発行",
+        "MCPトークン失効",
+        "退会申請"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving",
+        "error"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "PATCH /api/v1/workspaces/:id",
+        "POST /api/v1/workspaces/:id/invitations",
+        "DELETE /api/v1/workspaces/:id/members/:user_id",
+        "PATCH /api/v1/workspaces/:id/members/:user_id/role",
+        "POST /api/v1/workspaces/:ws_id/mcp-tokens",
+        "DELETE /api/v1/mcp-tokens/:id",
+        "DELETE /api/v1/workspaces/:id"
+      ],
+      "related_entities": [
+        "E-002",
+        "E-003",
+        "E-021"
+      ]
+    },
+    {
+      "id": "S-B01",
+      "name": "プロジェクト一覧",
+      "category": "project",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember"
+      ],
+      "mock_path": "mocks/project/S-B01-list.html",
+      "h1_text": "プロジェクト",
+      "section_h2_texts": [
+        "アクティブ",
+        "アーカイブ",
+        "新規作成"
+      ],
+      "meta_tags": {
+        "screen_id": "S-B01",
+        "screen_name": "project_list",
+        "category": "project",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "プロジェクトカード×N（名前/クライアント/フェーズ進捗/最終更新）",
+        "フィルタ（種別/ステータス）",
+        "ソート",
+        "検索",
+        "新規作成ボタン"
+      ],
+      "actions": [
+        "プロジェクト選択→S-B02",
+        "新規作成",
+        "フィルタ/ソート",
+        "アーカイブ"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "empty",
+        "error"
+      ],
+      "transitions": [
+        {
+          "to": "S-B02",
+          "trigger": "プロジェクト選択"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/workspaces/:ws_id/projects",
+        "POST /api/v1/workspaces/:ws_id/projects"
+      ],
+      "related_entities": [
+        "E-004"
+      ],
+      "notes": "ログイン後の主導線。トップバーに WS Picker ドロップダウンを持つ"
+    },
+    {
+      "id": "S-B02",
+      "name": "プロジェクトダッシュボード",
+      "category": "project",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/project/S-B02-dashboard.html",
+      "h1_text": "プロジェクトダッシュボード",
+      "section_h2_texts": [
+        "フェーズ進捗",
+        "AI活動",
+        "未承認Inbox",
+        "最新成果物",
+        "未解決コメント"
+      ],
+      "kpi_labels": [
+        "全体進捗率",
+        "未承認Inbox件数",
+        "今日のAI活動",
+        "未解決コメント数"
+      ],
+      "meta_tags": {
+        "screen_id": "S-B02",
+        "screen_name": "project_dashboard",
+        "category": "project",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "進捗バー×9工程",
+        "AI活動カード",
+        "Inbox件数バッジ",
+        "最新成果物リンク×N",
+        "コメント件数"
+      ],
+      "actions": [
+        "フェーズクリック→S-F01",
+        "Inboxクリック→S-J01",
+        "成果物クリック→S-G01"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "empty"
+      ],
+      "transitions": [
+        {
+          "to": "S-F01",
+          "trigger": "工程ボタン"
+        },
+        {
+          "to": "S-I01",
+          "trigger": "タスクボタン"
+        },
+        {
+          "to": "S-J01",
+          "trigger": "Inboxバッジ"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:id",
+        "GET /api/v1/projects/:p_id/workflow",
+        "GET /api/v1/inbox?filter=...",
+        "GET /api/v1/projects/:p_id/outputs"
+      ],
+      "related_entities": [
+        "E-004",
+        "E-005",
+        "E-006",
+        "E-019"
+      ]
+    },
+    {
+      "id": "S-B03",
+      "name": "プロジェクト設定",
+      "category": "project",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/project/S-B03-settings.html",
+      "h1_text": "プロジェクト設定",
+      "section_h2_texts": [
+        "基本情報",
+        "AI学習設定",
+        "クライアント招待",
+        "削除"
+      ],
+      "meta_tags": {
+        "screen_id": "S-B03",
+        "screen_name": "project_settings",
+        "category": "project",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "プロジェクト名/クライアント名/種別",
+        "ai_training_optout チェックボックス",
+        "招待管理（S-L01へリンク）",
+        "削除ボタン"
+      ],
+      "actions": [
+        "保存",
+        "AI学習可否切替",
+        "削除→30日カウントダウン"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving"
+      ],
+      "transitions": [
+        {
+          "to": "S-L01",
+          "trigger": "クライアント招待管理"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "PATCH /api/v1/projects/:id",
+        "DELETE /api/v1/projects/:id",
+        "PATCH /api/v1/projects/:id/ai-training-optout"
+      ],
+      "related_entities": [
+        "E-004"
+      ]
+    },
+    {
+      "id": "S-C01",
+      "name": "AI社員組織図",
+      "category": "ai_employee",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/employee/S-C01-org.html",
+      "h1_text": "AI社員",
+      "section_h2_texts": [
+        "組織図",
+        "リスト"
+      ],
+      "meta_tags": {
+        "screen_id": "S-C01",
+        "screen_name": "ai_org",
+        "category": "ai_employee",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "三階層組織図（COO→部長×5→メンバー×N）",
+        "ビュー切替（組織図/リスト）",
+        "雇用ボタン"
+      ],
+      "actions": [
+        "AI社員選択→S-C02",
+        "雇用→S-C03",
+        "ビュー切替"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [
+        {
+          "to": "S-C02",
+          "trigger": "AI社員カード"
+        },
+        {
+          "to": "S-C03",
+          "trigger": "雇用ボタン"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/workspaces/:ws_id/employees"
+      ],
+      "related_entities": [
+        "E-007"
+      ]
+    },
+    {
+      "id": "S-C02",
+      "name": "AI社員詳細・編集",
+      "category": "ai_employee",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/employee/S-C02-detail.html",
+      "h1_text": "AI社員詳細",
+      "section_h2_texts": [
+        "表示",
+        "口調",
+        "カスタム文章",
+        "できること",
+        "担当範囲",
+        "最近の活動"
+      ],
+      "meta_tags": {
+        "screen_id": "S-C02",
+        "screen_name": "ai_detail",
+        "category": "ai_employee",
+        "status": "active",
+        "version": "2"
+      },
+      "fields": [
+        "display_name 編集",
+        "icon 編集（Lucide または画像）",
+        "tone_preset セレクタ×5",
+        "custom_tone_text",
+        "「できること」表示（読み取り専用・能力ベース）",
+        "担当範囲表示",
+        "最近の活動表示"
+      ],
+      "actions": [
+        "保存（下部固定バー）",
+        "チャット開始→S-E01"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "チャットボタン"
+        },
+        {
+          "to": "S-K01",
+          "trigger": "ナレッジリンク"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/employees/:id",
+        "PATCH /api/v1/employees/:id",
+        "GET /api/v1/employees/:id/allowed-skills",
+        "PUT /api/v1/employees/:id/skills"
+      ],
+      "related_entities": [
+        "E-007",
+        "E-009"
+      ],
+      "version": 2,
+      "notes": "スキル概念はユーザーに非表示。能力ベース表示。保存は下部固定バーで全体一括。"
+    },
+    {
+      "id": "S-E01",
+      "name": "チャット画面",
+      "category": "chat",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/chat/S-E01-thread.html",
+      "h1_text": "チャット",
+      "section_h2_texts": [
+        "スレッドリスト",
+        "メッセージ",
+        "コンテキスト",
+        "添付"
+      ],
+      "meta_tags": {
+        "screen_id": "S-E01",
+        "screen_name": "chat_thread",
+        "category": "chat",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "assistant-ui Thread コンポーネント",
+        "Composer（添付・@メンション・Lucide送信アイコン）",
+        "Status 表示（Thinking/Analyzing/Calling tool）",
+        "Context Panel（参照ナレッジ・関連エンティティ）",
+        "Tool Call カード（tool-ui）",
+        "BranchPicker",
+        "EditComposer（人間直編集）"
+      ],
+      "actions": [
+        "送信",
+        "添付",
+        "@メンション",
+        "メッセージ編集",
+        "メッセージ削除",
+        "新規スレッド",
+        "スレッド切替"
+      ],
+      "states": [
+        "loading",
+        "streaming",
+        "tool_calling",
+        "compressing",
+        "error",
+        "idle"
+      ],
+      "transitions": [
+        {
+          "to": "S-G01",
+          "trigger": "成果物リンク"
+        },
+        {
+          "to": "S-H01",
+          "trigger": "モックリンク"
+        },
+        {
+          "to": "S-K02",
+          "trigger": "ナレッジ書込候補"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:p_id/threads",
+        "GET /api/v1/threads/:id/messages",
+        "POST /api/v1/threads/:id/messages (SSE)",
+        "PATCH /api/v1/messages/:id",
+        "POST /api/v1/context/build"
+      ],
+      "related_entities": [
+        "E-010",
+        "E-011"
+      ]
+    },
+    {
+      "id": "S-F01",
+      "name": "工程ワークフロービュー",
+      "category": "workflow",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/workflow/S-F01-flow.html",
+      "h1_text": "工程ワークフロー",
+      "section_h2_texts": [
+        "9工程タイムライン",
+        "各工程の成果物"
+      ],
+      "meta_tags": {
+        "screen_id": "S-F01",
+        "screen_name": "workflow",
+        "category": "workflow",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "9工程タイムライン（hearing→requirements→architecture→design→breakdown→tasks→implementation→verification→delivery）",
+        "各工程のステータス",
+        "成果物リンク（HTML/JSON/MD）"
+      ],
+      "actions": [
+        "工程選択→チャット",
+        "成果物プレビュー→S-G01"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "工程チャット"
+        },
+        {
+          "to": "S-G01",
+          "trigger": "成果物"
+        },
+        {
+          "to": "S-F02",
+          "trigger": "フェーズ管理"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:p_id/workflow",
+        "POST /api/v1/projects/:p_id/workflow/:stage/start"
+      ],
+      "related_entities": [
+        "E-005",
+        "E-006"
+      ]
+    },
+    {
+      "id": "S-F02",
+      "name": "フェーズ管理",
+      "category": "workflow",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/workflow/S-F02-phases.html",
+      "h1_text": "フェーズ管理",
+      "section_h2_texts": [
+        "フェーズ一覧",
+        "AI提案",
+        "影響範囲（F-IMP01）"
+      ],
+      "meta_tags": {
+        "screen_id": "S-F02",
+        "screen_name": "phases",
+        "category": "workflow",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "フェーズタイムライン",
+        "AI提案カード（承認/却下）",
+        "影響範囲ビジュアル（NetworkX グラフ）"
+      ],
+      "actions": [
+        "AI提案を承認",
+        "却下",
+        "タスクをフェーズ移動",
+        "影響範囲確認"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "analyzing"
+      ],
+      "transitions": [
+        {
+          "to": "S-J01",
+          "trigger": "承認待ち"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/phases/:id/approve",
+        "POST /api/v1/phases/:id/reject",
+        "POST /api/v1/tasks/:id/move-phase",
+        "POST /api/v1/impact-analysis"
+      ],
+      "related_entities": [
+        "E-005",
+        "E-012"
+      ]
+    },
+    {
+      "id": "S-G01",
+      "name": "成果物ビューア（三層）",
+      "category": "output",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer",
+        "ClientGuest"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/output/S-G01-viewer.html",
+      "h1_text": "成果物ビューア",
+      "section_h2_texts": [
+        "HTML プレビュー",
+        "JSON",
+        "MD",
+        "コメント",
+        "バージョン履歴"
+      ],
+      "meta_tags": {
+        "screen_id": "S-G01",
+        "screen_name": "output_viewer",
+        "category": "output",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "3層タブ切替（HTML/JSON/MD）",
+        "iframe HTML プレビュー",
+        "JSON/MD ビューア",
+        "ダウンロードボタン",
+        "コメントサイドパネル（要素単位）",
+        "バージョン履歴セレクタ（F-CUC03 旧版閲覧）"
+      ],
+      "actions": [
+        "タブ切替",
+        "ダウンロード",
+        "コメント投稿",
+        "編集（メンバー）",
+        "バージョン切替",
+        "旧版との差分表示"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "editing",
+        "saving"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "AI修正提案リンク"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/outputs/:id/html",
+        "GET /api/v1/outputs/:id/json",
+        "GET /api/v1/outputs/:id/md",
+        "PATCH /api/v1/workflow-outputs/:id",
+        "GET /api/v1/comments?target_type=workflow_output&target_id=...",
+        "POST /api/v1/comments"
+      ],
+      "related_entities": [
+        "E-006",
+        "E-016"
+      ]
+    },
+    {
+      "id": "S-H01",
+      "name": "モックビューア",
+      "category": "design",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer",
+        "ClientGuest"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/mock/S-H01-viewer.html",
+      "h1_text": "モックビューア",
+      "section_h2_texts": [
+        "プレビュー",
+        "デバイス切替",
+        "バージョン履歴",
+        "コメント"
+      ],
+      "meta_tags": {
+        "screen_id": "S-H01",
+        "screen_name": "mock_viewer",
+        "category": "design",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "iframe モックプレビュー",
+        "デバイス切替（mobile/tablet/desktop）",
+        "バージョン履歴",
+        "コメントサイドパネル",
+        "修正依頼ボタン→チャット"
+      ],
+      "actions": [
+        "デバイス切替",
+        "バージョン切替",
+        "コメント投稿",
+        "修正依頼→S-E01"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "修正依頼"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/mocks/:id",
+        "GET /api/v1/mocks/:id/preview",
+        "POST /api/v1/mocks/:id/revise"
+      ],
+      "related_entities": [
+        "E-015",
+        "E-016"
+      ]
+    },
+    {
+      "id": "S-I01",
+      "name": "タスクボード（Hermes 6 列モデル）",
+      "category": "task",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/task/S-I01-kanban.html",
+      "h1_text": "タスクボード",
+      "section_h2_texts": [
+        "準備中",
+        "着手可",
+        "実装中",
+        "要対応",
+        "承認待ち",
+        "完了"
+      ],
+      "meta_tags": {
+        "screen_id": "S-I01",
+        "screen_name": "kanban",
+        "category": "task",
+        "status": "active",
+        "version": "2"
+      },
+      "fields": [
+        "役割カード（タスクを選ぶ→再生する→承認待ちに進むのを待つの 3 ポイント）",
+        "再生バー（選択件数・合計見積・並列実行枠・大きな再生ボタン）",
+        "ツールバー（表示 [かんばん/リスト/依存グラフ] × 分類 [機能/画面/担当 AI/フェーズ] × 絞り込み）",
+        "凡例（6 レーンの色分け説明）",
+        "カテゴリ別グループ（各グループに 6 レーン）",
+        "6 レーン：準備中（Triage）/ 着手可（Ready）/ 実装中（In Progress）/ 要対応（Blocked）/ 承認待ち（Awaiting）/ 完了（Done）",
+        "タスクカード（チェックボックス・タイトル・タスク ID・担当 AI・見積/進捗・スコア）",
+        "カード hover で個別再生ボタン",
+        "実装中カードに走査アニメ + 進捗テキスト"
+      ],
+      "lifecycle_mapping": {
+        "design_source": "Hermes Agent (MIT, NousResearch/hermes-agent) の kanban パターン",
+        "lanes": [
+          {"jp": "準備中", "en": "Triage", "meaning": "起票直後・仕様未確定。AC・モック・依存定義が未完", "card_appearance": "opacity 0.75、見積は『未見積』"},
+          {"jp": "着手可", "en": "Ready", "meaning": "依存解消済み・仕様確定。再生待ち", "card_appearance": "通常、個別再生ボタンと選択チェック表示"},
+          {"jp": "実装中", "en": "In Progress", "meaning": "Bridge が claude CLI を spawn 済み、worker 稼働中", "card_appearance": "走査アニメ + 進捗テキスト"},
+          {"jp": "要対応", "en": "Blocked", "meaning": "サーキットブレーカ作動 / 再試行中 / 仕様変更検知 / 人間介入必須", "card_appearance": "赤系ボーダー、エラー理由を併記"},
+          {"jp": "承認待ち", "en": "Awaiting", "meaning": "F-J02 スコアが 0.80〜0.94 で人間判断が必要", "card_appearance": "スコアピル表示"},
+          {"jp": "完了", "en": "Done", "meaning": "F-J02 スコア 0.95 以上で自動承認 or 人間承認", "card_appearance": "高スコアピル"}
+        ]
+      },
+      "actions": [
+        "タスククリック→S-I02",
+        "再生",
+        "D&D移動",
+        "ビュー切替"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "running"
+      ],
+      "transitions": [
+        {
+          "to": "S-I02",
+          "trigger": "タスクカード"
+        },
+        {
+          "to": "S-I03",
+          "trigger": "モニターモード"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:p_id/tasks/board",
+        "POST /api/v1/projects/:p_id/execute/play"
+      ],
+      "related_entities": [
+        "E-012"
+      ]
+    },
+    {
+      "id": "S-I02",
+      "name": "タスク詳細パネル",
+      "category": "task",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/task/S-I02-detail.html",
+      "h1_text": "タスク詳細",
+      "section_h2_texts": [
+        "仕様書",
+        "関連モック",
+        "受入基準",
+        "テスト仕様",
+        "依存タスク",
+        "API/DB",
+        "ナレッジ参照",
+        "実行ログ",
+        "親タスク（リファクタ起源）",
+        "scope_change判断"
+      ],
+      "meta_tags": {
+        "screen_id": "S-I02",
+        "screen_name": "task_detail",
+        "category": "task",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "タスクメタ（ID/タイトル/担当AI/状態/スコア/origin_type）",
+        "spec_html プレビュー",
+        "mock リンク",
+        "AC チェックリスト",
+        "依存タスクグラフ",
+        "API/DB 参照",
+        "ナレッジ",
+        "実行ログ",
+        "parent_task リンク（リファクタ起源時）",
+        "F-CUC02 in_progress時の3択判断モーダル（取り込み継続/現状完了/破棄して再分解）"
+      ],
+      "actions": [
+        "実行開始/停止",
+        "再分解",
+        "編集",
+        "コメント投稿",
+        "scope_change時の3択判断"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "running",
+        "verifying",
+        "awaiting_approval"
+      ],
+      "transitions": [
+        {
+          "to": "S-I03",
+          "trigger": "実行ログ詳細"
+        },
+        {
+          "to": "S-G01",
+          "trigger": "spec リンク"
+        },
+        {
+          "to": "S-H01",
+          "trigger": "モックリンク"
+        }
+      ],
+      "responsive_breakpoints": [
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/tasks/:id/acceptance-criteria",
+        "GET /api/v1/executions/:id",
+        "GET /api/v1/executions/:id/logs"
+      ],
+      "related_entities": [
+        "E-012",
+        "E-013",
+        "E-014",
+        "E-015"
+      ]
+    },
+    {
+      "id": "S-I03",
+      "name": "実行モニター",
+      "category": "task",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/task/S-I03-monitor.html",
+      "h1_text": "実行モニター",
+      "section_h2_texts": [
+        "並列セッション",
+        "ログストリーム"
+      ],
+      "meta_tags": {
+        "screen_id": "S-I03",
+        "screen_name": "execution_monitor",
+        "category": "task",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "5-10並列セッションのタイル表示",
+        "リアルタイムログストリーム（オプション）",
+        "スコア表示"
+      ],
+      "actions": [
+        "セッション選択",
+        "停止"
+      ],
+      "states": [
+        "streaming",
+        "idle"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/executions/:id/logs (SSE)"
+      ],
+      "related_entities": [
+        "E-013"
+      ]
+    },
+    {
+      "id": "S-J01",
+      "name": "承認待ち Inbox",
+      "category": "verification",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/inbox/S-J01-list.html",
+      "h1_text": "承認待ち",
+      "section_h2_texts": [
+        "未処理",
+        "解決済み",
+        "scope_change（変更要求）"
+      ],
+      "kpi_labels": [
+        "未処理件数",
+        "今日の承認数",
+        "未処理scope_change件数"
+      ],
+      "meta_tags": {
+        "screen_id": "S-J01",
+        "screen_name": "approval_inbox",
+        "category": "verification",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "種別フィルタ（task_approval / phase_approval / knowledge_write / comment_response / scope_change）",
+        "Inboxアイテム×N（種別/対象/詳細プレビュー/承認・却下ボタン）",
+        "一括承認ボタン",
+        "scope_change詳細パネル（影響工程リスト/影響タスク件数/再実行対象選択）"
+      ],
+      "actions": [
+        "承認",
+        "却下",
+        "詳細展開",
+        "一括承認",
+        "scope_change承認→該当工程の再実行",
+        "scope_change却下"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "empty"
+      ],
+      "transitions": [
+        {
+          "to": "S-I02",
+          "trigger": "タスク詳細"
+        },
+        {
+          "to": "S-K02",
+          "trigger": "ナレッジ書込"
+        },
+        {
+          "to": "S-F02",
+          "trigger": "フェーズ承認"
+        },
+        {
+          "to": "S-E01",
+          "trigger": "scope_change承認後の再実行チャット"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/inbox",
+        "POST /api/v1/inbox/:id/approve",
+        "POST /api/v1/inbox/:id/reject",
+        "POST /api/v1/inbox/bulk-approve",
+        "POST /api/v1/scope-change/:id/approve"
+      ],
+      "related_entities": [
+        "E-019"
+      ]
+    },
+    {
+      "id": "S-K01",
+      "name": "ナレッジエクスプローラ",
+      "category": "knowledge",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/knowledge/S-K01-explorer.html",
+      "h1_text": "ナレッジ",
+      "section_h2_texts": [
+        "共通ナレッジ",
+        "AI社員別",
+        "検索",
+        "グラフビュー"
+      ],
+      "meta_tags": {
+        "screen_id": "S-K01",
+        "screen_name": "knowledge_explorer",
+        "category": "knowledge",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "scope切替（共通/社員別）",
+        "カテゴリツリー",
+        "ノードリスト/グラフ",
+        "検索バー（ハイブリッド検索）",
+        "MDプレビュー",
+        "編集ボタン"
+      ],
+      "actions": [
+        "検索",
+        "ノード選択",
+        "編集",
+        "削除",
+        "新規作成",
+        "ビュー切替（リスト/グラフ）"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "searching"
+      ],
+      "transitions": [
+        {
+          "to": "S-C02",
+          "trigger": "owner社員リンク"
+        }
+      ],
+      "responsive_breakpoints": [
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/knowledge",
+        "POST /api/v1/knowledge/search",
+        "POST /api/v1/knowledge",
+        "PATCH /api/v1/knowledge/:id",
+        "DELETE /api/v1/knowledge/:id"
+      ],
+      "related_entities": [
+        "E-018"
+      ]
+    },
+    {
+      "id": "S-K02",
+      "name": "ナレッジ書込承認",
+      "category": "knowledge",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/knowledge/S-K02-review.html",
+      "h1_text": "ナレッジ書込候補",
+      "section_h2_texts": [
+        "AI提案",
+        "編集"
+      ],
+      "meta_tags": {
+        "screen_id": "S-K02",
+        "screen_name": "knowledge_review",
+        "category": "knowledge",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "候補リスト×N",
+        "候補プレビュー（MD）",
+        "編集エディタ",
+        "採用/編集/却下ボタン"
+      ],
+      "actions": [
+        "採用",
+        "編集して採用",
+        "却下"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [
+        {
+          "to": "S-K01",
+          "trigger": "採用後"
+        }
+      ],
+      "responsive_breakpoints": [
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/knowledge/proposals",
+        "POST /api/v1/knowledge/:id/approve"
+      ],
+      "related_entities": [
+        "E-018",
+        "E-019"
+      ]
+    },
+    {
+      "id": "S-L01",
+      "name": "クライアント招待管理",
+      "category": "client_portal",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/client/S-L01-invite-mgmt.html",
+      "h1_text": "クライアント招待",
+      "section_h2_texts": [
+        "招待発行",
+        "アクティブな招待",
+        "履歴"
+      ],
+      "meta_tags": {
+        "screen_id": "S-L01",
+        "screen_name": "client_invite_mgmt",
+        "category": "client_portal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "新規招待フォーム（email、表示名、有効期限日数）",
+        "招待一覧（クライアント名/メール/期限/状態/失効ボタン）"
+      ],
+      "actions": [
+        "招待発行",
+        "失効",
+        "再送"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "sending"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:p_id/client-invitations",
+        "POST /api/v1/projects/:p_id/client-invitations",
+        "DELETE /api/v1/client-invitations/:id"
+      ],
+      "related_entities": [
+        "E-017"
+      ]
+    },
+    {
+      "id": "S-L02",
+      "name": "クライアントログイン（招待）",
+      "category": "client_portal",
+      "status": "decided",
+      "access_roles": [
+        "Guest"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/client/S-L02-signin.html",
+      "h1_text": "ご招待ありがとうございます",
+      "section_h2_texts": [
+        "プロジェクト情報",
+        "規約同意"
+      ],
+      "meta_tags": {
+        "screen_id": "S-L02",
+        "screen_name": "client_signin",
+        "category": "client_portal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "プロジェクト名/オーナー名表示",
+        "規約・PP・データ取扱同意チェック",
+        "サインインボタン"
+      ],
+      "actions": [
+        "同意してサインイン→S-L03"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "signing_in",
+        "expired"
+      ],
+      "transitions": [
+        {
+          "to": "S-L03",
+          "trigger": "サインイン成功"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/client-portal/signin",
+        "POST /api/v1/consents"
+      ],
+      "related_entities": [
+        "E-017",
+        "E-025"
+      ]
+    },
+    {
+      "id": "S-L03",
+      "name": "クライアントプロジェクトビュー",
+      "category": "client_portal",
+      "status": "decided",
+      "access_roles": [
+        "ClientGuest"
+      ],
+      "edit_roles": [
+        "ClientGuest"
+      ],
+      "mock_path": "mocks/client/S-L03-project.html",
+      "h1_text": "プロジェクト進捗",
+      "section_h2_texts": [
+        "フェーズ進捗",
+        "成果物",
+        "モック",
+        "あなたのコメント"
+      ],
+      "meta_tags": {
+        "screen_id": "S-L03",
+        "screen_name": "client_project_view",
+        "category": "client_portal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "フェーズ進捗バー",
+        "成果物リンク（S-G01の限定UI）",
+        "モックリンク（S-H01の限定UI）",
+        "コメント一覧",
+        "編集禁止表示"
+      ],
+      "actions": [
+        "成果物プレビュー",
+        "モックプレビュー",
+        "コメント投稿",
+        "自分のコメント編集/削除"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [
+        {
+          "to": "S-G01",
+          "trigger": "成果物（限定UI）"
+        },
+        {
+          "to": "S-H01",
+          "trigger": "モック（限定UI）"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/client-portal/project"
+      ],
+      "related_entities": [
+        "E-004",
+        "E-006",
+        "E-015",
+        "E-016"
+      ]
+    },
+    {
+      "id": "S-M01",
+      "name": "議事録アップロード",
+      "category": "ingestion",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/upload/S-M01-meeting.html",
+      "h1_text": "議事録/商談アップロード",
+      "section_h2_texts": [
+        "ファイル選択",
+        "解析状況",
+        "結果プレビュー"
+      ],
+      "meta_tags": {
+        "screen_id": "S-M01",
+        "screen_name": "meeting_upload",
+        "category": "ingestion",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "ドロップゾーン（mp3/m4a/mp4/txt）",
+        "アップロード進捗",
+        "解析進捗（Whisper等）",
+        "解析結果サマリープレビュー",
+        "対話開始ボタン"
+      ],
+      "actions": [
+        "アップロード",
+        "解析待ち",
+        "解析結果確認",
+        "スティーブに渡す→S-E01"
+      ],
+      "states": [
+        "empty",
+        "uploading",
+        "parsing",
+        "parsed",
+        "error"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "対話開始"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/projects/:p_id/uploads",
+        "GET /api/v1/uploads/:id"
+      ],
+      "related_entities": [
+        "E-024"
+      ]
+    },
+    {
+      "id": "S-N01",
+      "name": "提案/見積/契約ドラフト",
+      "category": "sales",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/sales/S-N01-drafts.html",
+      "h1_text": "営業ドラフト",
+      "section_h2_texts": [
+        "提案書",
+        "見積書",
+        "業務委託契約",
+        "NDA",
+        "請求書"
+      ],
+      "meta_tags": {
+        "screen_id": "S-N01",
+        "screen_name": "sales_drafts",
+        "category": "sales",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "ドラフト種別タブ×5",
+        "ドラフトHTMLプレビュー",
+        "編集ボタン→S-E01",
+        "PDF出力",
+        "送信履歴"
+      ],
+      "actions": [
+        "生成依頼",
+        "編集",
+        "PDF出力",
+        "ダウンロード"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "generating"
+      ],
+      "transitions": [
+        {
+          "to": "S-E01",
+          "trigger": "編集→チャット"
+        }
+      ],
+      "responsive_breakpoints": [
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/projects/:p_id/sales/proposal",
+        "POST /api/v1/projects/:p_id/sales/estimate",
+        "POST /api/v1/projects/:p_id/sales/contract",
+        "POST /api/v1/projects/:p_id/sales/nda",
+        "POST /api/v1/projects/:p_id/sales/invoice"
+      ],
+      "related_entities": [
+        "E-006"
+      ]
+    },
+    {
+      "id": "S-O01",
+      "name": "スケジュール設定",
+      "category": "execution",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/cron/S-O01-schedule.html",
+      "h1_text": "スケジュール",
+      "section_h2_texts": [
+        "スケジュール一覧",
+        "新規作成"
+      ],
+      "meta_tags": {
+        "screen_id": "S-O01",
+        "screen_name": "cron_schedule",
+        "category": "execution",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "スケジュール一覧（名前/cron式/対象/次回実行）",
+        "新規フォーム（cron GUI 助手）",
+        "有効/無効スイッチ"
+      ],
+      "actions": [
+        "新規作成",
+        "編集",
+        "有効化/無効化",
+        "削除"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:p_id/cron",
+        "POST /api/v1/projects/:p_id/cron",
+        "PATCH /api/v1/cron/:id",
+        "DELETE /api/v1/cron/:id"
+      ],
+      "related_entities": [
+        "E-023"
+      ]
+    },
+    {
+      "id": "S-T01",
+      "name": "管理者ダッシュボード",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/admin/S-T01-dashboard.html",
+      "h1_text": "管理ダッシュボード",
+      "section_h2_texts": [
+        "利用統計",
+        "売上",
+        "ベータFB"
+      ],
+      "kpi_labels": [
+        "MAU",
+        "WS数",
+        "プロジェクト数",
+        "タスク実行数",
+        "MRR",
+        "ベータFB件数"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T01",
+        "screen_name": "admin_dashboard",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "KPIカード×6",
+        "成長グラフ",
+        "アクティビティフィード"
+      ],
+      "actions": [
+        "期間切替"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/admin/stats"
+      ],
+      "related_entities": []
+    },
+    {
+      "id": "S-T02",
+      "name": "スキル管理（管理者）",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [
+        "PlatformAdmin"
+      ],
+      "mock_path": "mocks/admin/S-T02-skills.html",
+      "h1_text": "スキル管理",
+      "section_h2_texts": [
+        "スキル一覧",
+        "アップロード",
+        "許可リスト"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T02",
+        "screen_name": "admin_skills",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "スキル一覧（名前/version/有効）",
+        "アップロードフォーム",
+        "許可AI社員リスト編集"
+      ],
+      "actions": [
+        "アップロード",
+        "版管理",
+        "有効化/無効化",
+        "許可リスト編集"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "uploading"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/admin/skills",
+        "POST /api/v1/admin/skills",
+        "PATCH /api/v1/admin/skills/:id"
+      ],
+      "related_entities": [
+        "E-009"
+      ]
+    },
+    {
+      "id": "S-T03",
+      "name": "AI社員テンプレ管理",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [
+        "PlatformAdmin"
+      ],
+      "mock_path": "mocks/admin/S-T03-templates.html",
+      "h1_text": "AI社員テンプレート",
+      "section_h2_texts": [
+        "テンプレ一覧",
+        "編集"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T03",
+        "screen_name": "admin_templates",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "デフォルト10名テンプレ一覧",
+        "system_prompt 編集",
+        "デフォルトスキル/ナレッジカテゴリ",
+        "version"
+      ],
+      "actions": [
+        "編集",
+        "新規追加",
+        "全WS反映"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/admin/employee-templates",
+        "PATCH /api/v1/admin/employee-templates/:id"
+      ],
+      "related_entities": [
+        "E-008"
+      ]
+    },
+    {
+      "id": "S-T04",
+      "name": "ユーザー管理",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [
+        "PlatformAdmin"
+      ],
+      "mock_path": "mocks/admin/S-T04-users.html",
+      "h1_text": "ユーザー管理",
+      "section_h2_texts": [
+        "ユーザー一覧",
+        "サポート対応"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T04",
+        "screen_name": "admin_users",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "ユーザー一覧",
+        "検索",
+        "ステータス",
+        "サポート対応メモ"
+      ],
+      "actions": [
+        "詳細閲覧",
+        "ロール変更（admin昇格等）",
+        "強制ログアウト"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/admin/users"
+      ],
+      "related_entities": [
+        "E-001"
+      ]
+    },
+    {
+      "id": "S-T05",
+      "name": "監査ログビュー",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [],
+      "mock_path": "mocks/admin/S-T05-audit.html",
+      "h1_text": "監査ログ",
+      "section_h2_texts": [
+        "ログ一覧",
+        "フィルタ"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T05",
+        "screen_name": "admin_audit",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "ログテーブル",
+        "フィルタ（actor/action/target/period）",
+        "エクスポート"
+      ],
+      "actions": [
+        "フィルタ",
+        "詳細展開",
+        "CSVエクスポート"
+      ],
+      "states": [
+        "loading",
+        "loaded"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/admin/audit-logs"
+      ],
+      "related_entities": [
+        "E-020"
+      ]
+    },
+    {
+      "id": "S-PUB01",
+      "name": "利用規約",
+      "category": "legal",
+      "status": "decided",
+      "access_roles": [
+        "Guest"
+      ],
+      "mock_path": "mocks/public/S-PUB01-terms.html",
+      "h1_text": "利用規約",
+      "meta_tags": {
+        "screen_id": "S-PUB01",
+        "screen_name": "terms",
+        "category": "legal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "規約本文（バージョン管理）"
+      ],
+      "actions": [],
+      "states": [
+        "static"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [],
+      "related_entities": []
+    },
+    {
+      "id": "S-PUB02",
+      "name": "プライバシーポリシー",
+      "category": "legal",
+      "status": "decided",
+      "access_roles": [
+        "Guest"
+      ],
+      "mock_path": "mocks/public/S-PUB02-privacy.html",
+      "h1_text": "プライバシーポリシー",
+      "meta_tags": {
+        "screen_id": "S-PUB02",
+        "screen_name": "privacy",
+        "category": "legal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "ポリシー本文",
+        "保有個人情報",
+        "第三者提供",
+        "越境通知",
+        "削除要求窓口リンク"
+      ],
+      "actions": [],
+      "states": [
+        "static"
+      ],
+      "transitions": [
+        {
+          "to": "S-PUB04",
+          "trigger": "削除要求リンク"
+        }
+      ],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [],
+      "related_entities": []
+    },
+    {
+      "id": "S-PUB03",
+      "name": "特商法表記",
+      "category": "legal",
+      "status": "decided",
+      "access_roles": [
+        "Guest"
+      ],
+      "mock_path": "mocks/public/S-PUB03-tokushoho.html",
+      "h1_text": "特定商取引法に基づく表記",
+      "meta_tags": {
+        "screen_id": "S-PUB03",
+        "screen_name": "tokushoho",
+        "category": "legal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "事業者名",
+        "所在地",
+        "連絡先",
+        "販売価格",
+        "解約方法",
+        "返金条件"
+      ],
+      "actions": [],
+      "states": [
+        "static"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [],
+      "related_entities": []
+    },
+    {
+      "id": "S-PUB04",
+      "name": "データ削除要求フォーム",
+      "category": "legal",
+      "status": "decided",
+      "access_roles": [
+        "Guest",
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "mock_path": "mocks/public/S-PUB04-data-deletion.html",
+      "h1_text": "個人データ削除要求",
+      "section_h2_texts": [
+        "削除内容の確認",
+        "理由（任意）",
+        "確認",
+        "30日内キャンセル"
+      ],
+      "meta_tags": {
+        "screen_id": "S-PUB04",
+        "screen_name": "data_deletion",
+        "category": "legal",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "削除対象内容",
+        "理由入力",
+        "確認テキスト入力",
+        "申請ボタン",
+        "キャンセルボタン（既申請者）"
+      ],
+      "actions": [
+        "削除申請",
+        "キャンセル"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "submitting",
+        "scheduled",
+        "cancelled"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "POST /api/v1/data-deletion/request",
+        "POST /api/v1/data-deletion/cancel",
+        "GET /api/v1/data-deletion/status"
+      ],
+      "related_entities": [
+        "E-001"
+      ]
+    }
+  ],
+  "summary": {
+    "total_screens": 33,
+    "by_role_scope": {
+      "guest_public": 5,
+      "workspace_app": 23,
+      "client_portal": 3,
+      "admin_only": 5
+    },
+    "by_category": {
+      "auth": 1,
+      "workspace": 1,
+      "project": 3,
+      "ai_employee": 2,
+      "chat": 1,
+      "workflow": 2,
+      "output": 1,
+      "design": 1,
+      "task": 3,
+      "verification": 1,
+      "knowledge": 2,
+      "client_portal": 3,
+      "ingestion": 1,
+      "sales": 1,
+      "execution": 1,
+      "admin": 5,
+      "legal": 4
+    },
+    "mock_path_count": 33,
+    "meta_tags_count": 33,
+    "h1_text_count": 33,
+    "kpi_labels_screens": 3,
+    "dashboard_screens": [
+      "S-B02",
+      "S-J01",
+      "S-T01"
+    ]
+  }
+}

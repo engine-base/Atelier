@@ -1,0 +1,96 @@
+{
+  "version": "v3",
+  "project": "Atelier",
+  "created_at": "2026-05-18",
+  "purpose": "Foundation phase で必ず先行整備する N merge gate の定義。すべての feature PR がこの gate を通過しないと main にマージできない。",
+  "parallel_capacity": "small (5-10)",
+  "merge_gates": [
+    {
+      "id": 1,
+      "name": "mock lint",
+      "script": "pnpm lint && uv run ruff check . && shellcheck scripts/**/*.sh && pnpm tsx scripts/no-emoji-check.ts",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-02",
+      "detects": ["ESLint違反", "Prettier未整形", "ruff違反", "shell script シンタックスエラー", "絵文字使用（emoji-regex検出）"],
+      "depends_on": []
+    },
+    {
+      "id": 2,
+      "name": "3-tier AC validator",
+      "script": "pnpm tsx scripts/validate-ac.ts",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-06",
+      "detects": ["AC HTML / JSON / MD 三層出力の整合性違反", "Zod schema 違反", "受入基準 ID の重複"],
+      "depends_on": [1]
+    },
+    {
+      "id": 3,
+      "name": "audit MD validator",
+      "script": "pnpm tsx scripts/validate-audit-md.ts",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-06",
+      "detects": ["audit ログMDのフォーマット違反", "必須メタデータ欠落"],
+      "depends_on": [1]
+    },
+    {
+      "id": 4,
+      "name": "access control (RLS) coverage",
+      "script": "pnpm tsx scripts/verify-rls.ts && pnpm tsx scripts/test-rls-policies.ts",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-04",
+      "detects": ["RLS 未有効テーブル", "ポリシー未定義", "クライアント招待経路の漏洩", "service_role bypass の意図しない適用"],
+      "depends_on": [1]
+    },
+    {
+      "id": 5,
+      "name": "unit test + coverage",
+      "script": "pnpm test --coverage && uv run pytest --cov --cov-fail-under=80",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-08",
+      "detects": ["テスト失敗", "カバレッジ < 80%"],
+      "depends_on": [1]
+    },
+    {
+      "id": 6,
+      "name": "type check (backend)",
+      "script": "uv run pyright --warnings --outputjson",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-07",
+      "detects": ["pyright strict 型エラー", "warning"],
+      "depends_on": [1]
+    },
+    {
+      "id": 7,
+      "name": "type check (frontend) + lint",
+      "script": "pnpm tsc --noEmit && pnpm eslint . --max-warnings 0",
+      "blocking": true,
+      "owner_task": "T-V3-INFRA-07",
+      "detects": ["tsc strict 型エラー", "ESLint warning"],
+      "depends_on": [1]
+    },
+    {
+      "id": 8,
+      "name": "mock-impl diff",
+      "script": "pnpm tsx scripts/mock-impl-diff.ts",
+      "blocking": true,
+      "blocking_condition": "labels contains 'has-frontend'",
+      "owner_task": "T-V3-INFRA-03",
+      "detects": ["モックHTMLと実装画面のピクセル差分閾値超過（>5%）", "受入基準カバレッジ不足"],
+      "depends_on": [4, 5, 7]
+    }
+  ],
+  "ci_workflow_path": ".github/workflows/v3-gate.yml",
+  "retry_protocol": {
+    "max_attempts": 3,
+    "on_failure": "human_escalation",
+    "escalation_to": "PM (高本まさと)",
+    "notification": ["email", "approval_inbox"],
+    "retry_strategy": "前回ログを Claude Code に渡してコンテキスト引き継ぎ、別 worktree で起動",
+    "circuit_breaker": "同一エラーが連続3回 → 同タスクを human 介入キューに移動"
+  },
+  "additional_checks": {
+    "secret_scanning": "GitHub Secret Scanning (常時有効)",
+    "dependency_audit": "Dependabot + pnpm audit + uv pip audit (週次)",
+    "container_scan": "Fly.io image scan (デプロイ時)"
+  }
+}

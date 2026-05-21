@@ -1,0 +1,222 @@
+{
+  "version": "v3.1",
+  "project": "Atelier",
+  "skill": "task-decomposition",
+  "created_at": "2026-05-20",
+  "decomposition_mode": "api_first",
+  "decisions": [
+    {
+      "id": "TD-DEC-01",
+      "title": "decomposition_mode を api_first で確定",
+      "rationale": "UI クライアント 3 系統（Atelier 本体 / クライアントポータル / 運営 admin）+ AI エージェント並列実装前提 + 横断的関心事（RLS / 監査ログ / R-T08）多。Vertical Slice では契約衝突が発生する。",
+      "alternative_considered": "vertical_slice",
+      "decided_by": "user",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-02",
+      "title": "190 タスク / 6 Group / 6 Wave で確定",
+      "rationale": "F:28 / D:35 / A:45 / U-shared:18 / U-screen:40 / I:24。並列度最大化のため UI を共通基盤と画面で分割。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-03",
+      "title": "API 契約凍結マイルストーンを T-A-45 完了時点に固定",
+      "rationale": "Phase 3 完了 = OpenAPI 確定 + TS 型自動生成 + screen-api-coverage 100% 検証 PASS の三点同時達成時。",
+      "frozen_at": "2026-05-20T13:30:00+09:00",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-04",
+      "title": "Blocking task 7 件を明示",
+      "tasks": [
+        "T-F-07",
+        "T-F-25",
+        "T-F-27",
+        "T-F-28",
+        "T-D-13",
+        "T-A-45",
+        "T-US-04"
+      ],
+      "rationale": "解除されないと Wave/Phase 全体が進行不能になる致命的依存。tickets.json の blocking フィールドおよび TASK-CARDS で ★ 表示。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-05",
+      "title": "OSS 流用：Vibeyard / Hermes kanban_tools を REUSE ラベルで採用",
+      "rationale": "Bridge は Vibeyard (MIT, Electron+PTY) を fork、dispatcher は Hermes (MIT) の kanban_tools 7 ツールを完全実装。自作よりも実装担保が早い。",
+      "tasks": [
+        "T-F-27",
+        "T-F-28"
+      ],
+      "license_check": "両者 MIT で社内/商用利用可",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-06",
+      "title": "3-tier AC（structural / functional EARS / regression）を全タスク必須",
+      "rationale": "v1/v2 では test pass = done だったが、画面・spec drift / access policy 漏れが検知できなかった。3-tier 全 pass で初めて done に。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-07",
+      "title": "CI gate 10 種（v3-gate.yml）",
+      "gates": [
+        "lint (Ruff/Biome)",
+        "3-tier AC validator",
+        "type check (tsc/mypy)",
+        "coverage 80%",
+        "endpoint-existence check",
+        "mock-impl diff",
+        "type drift (OpenAPI↔TS/Pydantic)",
+        "Schemathesis contract test",
+        "screen-API coverage 100%",
+        "RLS isolation matrix"
+      ],
+      "rationale": "v3 標準 8 種に Atelier 固有の screen-API coverage 100% と RLS isolation matrix（R-T08）を追加。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-08",
+      "title": "R-T08（クライアント別 JWT 完全分離）に 60h+ を投下",
+      "tasks": [
+        "T-D-08",
+        "T-D-22",
+        "T-D-33",
+        "T-A-35",
+        "T-US-15",
+        "T-UC-20",
+        "T-UC-21",
+        "T-UC-22",
+        "T-I-07"
+      ],
+      "rationale": "致命級リスクのため独立タスク + 越境試験 2 回（Wave 1 + Wave 5）+ CI gate #10 で永続監視。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-09",
+      "title": "Supabase は Auth/Storage/Vault/Realtime のみ採用、PostgREST は不採用",
+      "rationale": "全 CRUD を FastAPI 経由に統一することで監査ログ・AI フック・BYOK rate limit・R-T08 分離を一元化。Phase 4 で読み取り専用に限り Supabase JS を直接利用可（最適化扱い）。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-10",
+      "title": "実装は Claude プラン枠で実行（API 課金なし）",
+      "rationale": "実装系 AI 社員（tony / thor / strange / wanda / vision 等）は Atelier Bridge 経由でユーザーのローカル Claude Code を 5-10 並列起動。ツール内 AI のみ BYOK API（Phase 3+）。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-11",
+      "title": "HTML / JSON / MD 三層出力を最終成果物形態に確定",
+      "files": [
+        "tickets.json (信頼源・機械可読)",
+        "TASK-CARDS.md (人間レビュー・差分追跡)",
+        "TASK-CARDS.html (検索/フィルタ/色分け対話)",
+        "DEPENDENCIES.md / DEPENDENCIES.html (依存 DAG)",
+        "decision-log.json (決定履歴)"
+      ],
+      "rationale": "01_hearing/decision_log.json の方針『HTML/JSON/MD 三層出力』を全 12 スキルで適用。task-decomposition でも tickets.json を信頼源にしつつ HTML/MD で人間レビューを担保。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-12",
+      "title": "AI 社員割当：MVP では 5 名集中、3 名は後続",
+      "active": [
+        "tony",
+        "thor",
+        "strange",
+        "wanda",
+        "vision",
+        "tchalla",
+        "steve"
+      ],
+      "deferred": [
+        "natasha",
+        "peter",
+        "jarvis"
+      ],
+      "rationale": "MVP は実装速度優先。peter（フロント詳細）/ natasha（セキュリティ）/ jarvis（COO 監督）は Phase 拡張時に稼働。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-13",
+      "title": "audit MD は着手前に手動執筆を必須化",
+      "path_pattern": "07_tasks/acceptance-criteria/<TASK_ID>.md",
+      "rationale": "auto-generated は generic 文言の隠れ蓑になり drift を検知できない。template から手動執筆 + 3-tier AC 逐語埋め込みを義務化。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-14",
+      "title": "file-level mutex で並列実行時の衝突を事前防止",
+      "rationale": "files_changed_predicted を全タスクに宣言。Wave 内で並列起動する際に同一ファイルへの同時 write を排他制御。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-15",
+      "title": "screen-api-coverage 100% を CI gate に組み込み",
+      "rationale": "33 画面 × 119 API の全マッピングを 07_api_design/screen-api-coverage.json で凍結。1 行でも漏れたら CI で reject。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-16",
+      "title": "Wave 4（UI Parallel）で最大並列度 10 を確保",
+      "rationale": "API 契約凍結後の 40 画面を最大並列で実装。Bridge 経由ローカル Claude Code 10 並列を仮定。1 画面平均 ~8h で 40h 完了見込み。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "TD-DEC-17",
+      "title": "全 190 タスクに二軸時間フィールドを遡及注入",
+      "rationale": "スキル側で『時間・工数の二軸表示ポリシー』を全 12 スキルに追加したため、既存 tickets.json も同スキーマに整合させた。category-multiplier 法で acceleration_factor を機械的算出。",
+      "applied_at": "2026-05-20",
+      "schema_version": "v3.1-dual",
+      "downstream_updates": [
+        "TASK-CARDS.md",
+        "TASK-CARDS.html",
+        "DEPENDENCIES.md",
+        "DEPENDENCIES.html",
+        "SCHEMA.md"
+      ]
+    }
+  ],
+  "research_references": [
+    {
+      "topic": "Vibeyard fork 実装工数",
+      "source": "github.com/elirantutia/vibeyard",
+      "note": "Electron + PTY 既存実装あり、Bridge 基盤として 16h で fork+設定可能と判断"
+    },
+    {
+      "topic": "Hermes Agent kanban_tools",
+      "source": "hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+      "note": "7 ツールの ABI が明確、移植 12h + 完全実装 14h で計 26h"
+    },
+    {
+      "topic": "Next.js 15 App Router 認証",
+      "source": "nextjs.org/docs/app/building-your-application/authentication",
+      "note": "Magic Link + OAuth 含めて 10h 見積もり"
+    },
+    {
+      "topic": "Schemathesis contract test",
+      "source": "schemathesis.readthedocs.io",
+      "note": "OpenAPI 既存なら 6h で gate 化可能"
+    }
+  ],
+  "next_skill": "distributed-dev または schedule-design に進行可。タスク分解の信頼源は tickets.json として確定済み。",
+  "validation": {
+    "screen_coverage_pct": 100,
+    "api_coverage_pct": 100,
+    "tasks_with_audit_path": 190,
+    "tasks_with_layer": 190,
+    "tasks_with_wave": 190,
+    "blocking_tasks_count": 7,
+    "total_estimate_hours_legacy": 1367,
+    "total_estimate_hours_human": 1328,
+    "total_estimate_hours_ai_compute": 123.7,
+    "total_wall_clock_h_ai_parallel": 27.9,
+    "human_review_total_h": 10.8,
+    "ai_acceleration_factor_overall": 10.7,
+    "calendar_days_ai": 15,
+    "calendar_days_human": 240,
+    "dual_axis_applied": true,
+    "tasks_with_both_axes": 190
+  }
+}

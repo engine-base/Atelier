@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Atelier ヒアリングサマリー</title>
+<style>
+:root {
+  --bg: #fafaf9;
+  --text: #1a1a1a;
+  --muted: #6b6b6b;
+  --accent: #2563eb;
+  --border: #e5e5e5;
+  --surface: #ffffff;
+  --code-bg: #f5f5f4;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Hiragino Sans", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  margin: 0;
+  padding: 3rem 1.5rem;
+  font-size: 15px;
+}
+.container { max-width: 880px; margin: 0 auto; }
+h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
+h2 { font-size: 1.4rem; font-weight: 600; margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); letter-spacing: -0.01em; }
+h3 { font-size: 1.1rem; font-weight: 600; margin: 2rem 0 0.75rem; color: var(--accent); }
+.meta { color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; margin: 1rem 0; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+th, td { text-align: left; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; }
+ul, ol { padding-left: 1.5rem; }
+li { margin: 0.3rem 0; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-right: 4px; }
+.tag-must { background: #fee2e2; color: #991b1b; }
+.tag-should { background: #fef3c7; color: #92400e; }
+.tag-could { background: #dbeafe; color: #1e40af; }
+.tag-wont { background: #e5e5e5; color: #525252; }
+.phase-line { display: flex; gap: 1rem; align-items: baseline; padding: 0.75rem 0; border-bottom: 1px dashed var(--border); }
+.phase-num { font-weight: 700; color: var(--accent); min-width: 80px; }
+.phase-period { color: var(--muted); min-width: 180px; font-size: 0.88rem; }
+code { background: var(--code-bg); padding: 1px 6px; border-radius: 3px; font-size: 0.88em; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Atelier</h1>
+<div class="meta">ヒアリングサマリー ｜ 2026-05-18（要件定義STEP3反映） ｜ 高本まさと</div>
+
+<div class="card">
+<strong>本質的なゴール：</strong> 1人で同時10案件以上を回せる属人性の低い開発プロジェクト統合管理SaaSを作り、2026年内に100社/100名利用、最終的に2-3年後に〜10億円規模での売却を視野。
+</div>
+
+<h2>プロジェクト概要</h2>
+<table>
+<tr><th>項目</th><th>内容</th></tr>
+<tr><td>作るもの</td><td>AI社員が常駐し、ヒアリング〜納品まで開発プロジェクトを一元管理する統合ツール</td></tr>
+<tr><td>定量成功</td><td>2026年内100社/100名利用、SaaS課金開始、同時10案件並行運用可能</td></tr>
+<tr><td>定性成功</td><td>マルチLLMで品質維持、属人性低く第三者運用・売却可能</td></tr>
+<tr><td>ベータ開始</td><td>2026年6月</td></tr>
+<tr><td>本格リリース</td><td>2026年8月</td></tr>
+<tr><td>売却視野</td><td>2-3年後、〜10億円規模</td></tr>
+</table>
+
+<h2>制約</h2>
+<table>
+<tr><th>制約</th><th>内容</th></tr>
+<tr><td>期限</td><td>2026年8月本格リリース（残約3ヶ月）</td></tr>
+<tr><td>予算</td><td>BYOK前提、インフラコスト最小化</td></tr>
+<tr><td>チーム</td><td>基本1人＋Claude Code、必要時チーム稼働</td></tr>
+<tr><td>技術</td><td>Next.js + Supabase + TypeScript + Python FastAPI（AI処理層）</td></tr>
+</table>
+
+<h2>機能優先度</h2>
+
+<h3><span class="tag tag-must">Must</span> 8月リリース必須（19項目）</h3>
+<ol>
+<li>ワークスペース/プロジェクトCRUD</li>
+<li>認証・課金プラン管理（Stripe、BYOK＋運営APIキーモード切替）</li>
+<li>AI社員三階層（COO/リーダー/メンバー、人格カスタマイズ可）</li>
+<li>スキル取り込み機構（~/.claude/skills/ からコピー、独自管理）</li>
+<li>チャットUI（OSS/SDK活用、Claudeレベル品質、人間直編集即反映）</li>
+<li>コンテキスト圧縮層</li>
+<li>工程ワークフロー（ヒアリング〜納品）</li>
+<li>三層出力（HTML/JSON/MD）</li>
+<li>フェーズ分割管理（AI提案→ユーザー選択UI）</li>
+<li>デザインモック（HTML、チャット内）</li>
+<li>タスク分解スキル統合（1-2日粒度、依存関係必須属性）</li>
+<li>かんばん/リスト</li>
+<li>並列実行エンジン（5-10並列、ローカルClaude Codeブリッジ）</li>
+<li>仕様徹底ループ（受入基準HTML化＋検証AI＋スコア評価）</li>
+<li>人間承認ゲート</li>
+<li>ナレッジ管理（アカウント単位、RAG）</li>
+<li>MCP連携</li>
+<li>クライアント招待モード</li>
+<li>データ削除・退会フロー</li>
+</ol>
+
+<h3><span class="tag tag-should">Should</span> あれば良い・8月リリースに含めたい</h3>
+<ul>
+<li>議事録/商談アップロード解析</li>
+<li>提案/見積/契約 自動ドラフト生成</li>
+<li>マルチLLM対応（GPT/Gemini）</li>
+<li>cron的スケジュール実行</li>
+<li>Git/GitHub連携（最小）</li>
+<li>監査ログ/履歴（最小）</li>
+<li>Obsidian連携（任意）</li>
+</ul>
+
+<h3><span class="tag tag-could">Could</span> 次フェーズ以降</h3>
+<ul>
+<li>オンボーディング導線</li>
+<li>ツール内フィードバック機構</li>
+<li>ローカルLLM（Ollama）対応</li>
+<li>コスト/トークン可視化ダッシュボード</li>
+<li>チーム/権限管理</li>
+</ul>
+
+<h3><span class="tag tag-wont">Won't</span> スコープ外</h3>
+<ul>
+<li>API/Webhook公開（MCPで代替）</li>
+<li>多言語対応（日本語のみ）</li>
+<li>SOC2等認証取得</li>
+<li>リアルタイム文字起こし</li>
+<li>既存「会社運営DB」直接取込</li>
+</ul>
+
+<h2>フェーズ計画</h2>
+<div class="phase-line"><span class="phase-num">Phase 0</span><span class="phase-period">5月下旬〜6月上旬</span><span>基盤（Next.js+Supabase、Auth/RLS、WS/プロジェクトCRUD、AI社員DB、デザインシステム、チャットUI雛形、MCPサーバー雛形）</span></div>
+<div class="phase-line"><span class="phase-num">Phase 1</span><span class="phase-period">6月</span><span>AI組織+スキル+チャット → ベータ開始</span></div>
+<div class="phase-line"><span class="phase-num">Phase 2</span><span class="phase-period">6月下旬〜7月前半</span><span>工程ワークフロー（各スキル統合、フェーズ管理、モック、クライアント招待）</span></div>
+<div class="phase-line"><span class="phase-num">Phase 3</span><span class="phase-period">7月</span><span>タスク分解+並列実行+仕様徹底</span></div>
+<div class="phase-line"><span class="phase-num">Phase 4</span><span class="phase-period">7月下旬〜8月初旬</span><span>ナレッジ+周辺（議事録、提案/見積/契約、cron、課金）</span></div>
+<div class="phase-line"><span class="phase-num">Phase 5</span><span class="phase-period">8月</span><span>本格リリース（マルチLLM、Git連携、監査ログ、QA）</span></div>
+
+<h2>ナレッジ構造（追記）</h2>
+<div class="card">
+アカウント単位のナレッジは <strong>共通＋AI社員別の2層構造</strong> で管理する。
+<ul>
+<li><strong>共通ナレッジ</strong>：ユーザー方向性 / 業界傾向（3案件以上で自動抽出）/ 横断テンプレ</li>
+<li><strong>AI社員別ナレッジ</strong>：ワンダ→参考デザイン、トニー→提案テンプレ、ストレンジ→アーキ判断、ヴィジョン→検証チェックリスト等</li>
+<li>各社員は自分のナレッジ優先＋共通ナレッジも参照可</li>
+<li>プロジェクト跨ぎで自動再利用、ユーザー承認時に追加・更新</li>
+</ul>
+</div>
+
+<h2>AI社員ロスター（STEP1で確定）</h2>
+<table>
+<tr><th>名前</th><th>所属</th><th>役職</th></tr>
+<tr><td>ジャービス (Jarvis)</td><td>経営</td><td>COO</td></tr>
+<tr><td>トニー (Tony Stark)</td><td>営業・契約部</td><td>部長</td></tr>
+<tr><td>ナターシャ (Black Widow)</td><td>営業・契約部</td><td>メンバー</td></tr>
+<tr><td>スティーブ (Captain America)</td><td>プロダクト企画部</td><td>部長</td></tr>
+<tr><td>ピーター (Spider-Man)</td><td>プロダクト企画部</td><td>メンバー</td></tr>
+<tr><td>ストレンジ (Doctor Strange)</td><td>設計部</td><td>部長</td></tr>
+<tr><td>ワンダ (Scarlet Witch)</td><td>デザイン部</td><td>部長</td></tr>
+<tr><td>ソー (Thor)</td><td>開発・検証部</td><td>部長</td></tr>
+<tr><td>ヴィジョン (Vision)</td><td>開発・検証部</td><td>メンバー</td></tr>
+<tr><td>ティチャラ (Black Panther)</td><td>全社横断</td><td>ナレッジ統括</td></tr>
+</table>
+
+<h2>工程ワークフロー（STEP3で確定）</h2>
+<div class="card">
+<code>[提案] → [見積] → ヒアリング → 要件 → アーキ → デザイン → 機能分解 → タスク → 実装 → 検証 → 納品</code>
+<br><br>
+各タスクには <strong>モック / 仕様書 / 受入基準 / テスト仕様 / 依存タスク</strong> を必須リンク。<br>
+※ [提案][見積] は Phase 4 以降で前段に追加。
+</div>
+
+<h2>採用OSS/SDKスタック</h2>
+<table>
+<tr><th>領域</th><th>採用</th></tr>
+<tr><td>コア</td><td>Anthropic SDK + Claude Agent SDK（web_search標準ツール含む）</td></tr>
+<tr><td>オーケストレーション</td><td>LangGraph + Inngest</td></tr>
+<tr><td>RAG</td><td>LlamaIndex + Cognee + Voyage AI + Supabase pgvector</td></tr>
+<tr><td>文書解析</td><td>Whisper + Unstructured.io</td></tr>
+<tr><td>観測</td><td>Langfuse OSS</td></tr>
+<tr><td>コスト最適化</td><td>LLMLingua + Anthropicプロンプトキャッシュ + Batch API</td></tr>
+<tr><td>抽象化</td><td>自前LLMClientラッパー（chat/stream/tool/search/embed/count）</td></tr>
+</table>
+
+<h2>リスクと対策</h2>
+<table>
+<tr><th>リスク</th><th>影響</th><th>対策</th></tr>
+<tr><td>3ヶ月での全Phase完走</td><td>High</td><td>Phase 1で本人1案件完走を最優先MVP化</td></tr>
+<tr><td>検証ループの無限化</td><td>High</td><td>スコア閾値95%＋人間承認ゲート</td></tr>
+<tr><td>ローカルClaude Codeブリッジの不安定性</td><td>High</td><td>OAuth可否を早期検証</td></tr>
+<tr><td>コンテキスト圧縮で情報欠落</td><td>High</td><td>HTML原本を圧縮対象外で保持</td></tr>
+<tr><td>依存関係漏れ</td><td>High</td><td>タスクカードに dependencies/prerequisites/blocks 必須属性化</td></tr>
+<tr><td>プロバイダー追加時の再実装</td><td>High</td><td>Phase 0でLLMClient抽象化必須</td></tr>
+<tr><td>売却時KPI軽視</td><td>Medium</td><td>Phase 5でアナリティクス計測組込</td></tr>
+</table>
+
+<h2>未解決の不明点（後続フェーズで確認）</h2>
+<ul>
+<li>月額単価の具体値（個人/法人別） → product-strategy</li>
+<li>無料枠/フリーミアム設計 → product-strategy</li>
+<li>Claude CodeブリッジのOAuth可否 → architecture-design</li>
+<li>マルチLLMリリース時期 → requirements-definition</li>
+<li>Git/GitHub連携のUI統合範囲 → functional-breakdown</li>
+<li>監査ログのUI露出範囲 → functional-breakdown</li>
+<li>AI人格カスタマイズ範囲 → functional-breakdown</li>
+</ul>
+
+<h2>次のスキル</h2>
+<div class="card">
+<strong>requirements-definition（要件定義）</strong> へ進む<br>
+<span class="meta">→ functional-breakdown → architecture-design → feature-decomposition → task-decomposition の順で進行予定</span>
+</div>
+
+</div>
+</body>
+</html>

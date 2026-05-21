@@ -1,0 +1,117 @@
+{
+  "version": "v3.1",
+  "project": "Atelier",
+  "skill": "schedule-design",
+  "created_at": "2026-05-20",
+  "decisions": [
+    {
+      "id": "SC-DEC-01",
+      "title": "二軸タイムライン方式の採用（Human-baseline + AI-accelerated）",
+      "rationale": "1,367h 人間逐次の参考値と、Claude+Bridge 並列の wall-clock を併走させることで、対外（投資家・顧客）と内部（経営判断）の両方に最適な数値を提供。監査・売却 DD 時にも両方を提示できる。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-02",
+      "title": "MVP リリース日 = 2026-06-10（起点から 15 営業日 / 約 3 週）",
+      "rationale": "Wave 合計 wall-clock 3.5h + 人間 review 17h + 補正・バッファで 15 営業日に圧縮。100 ユーザー獲得目標（2026 年内）に対し 6 ヶ月以上の販売・運用期間を確保できる。",
+      "alternative": "2026-06-30（4 週・余裕重視）",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-03",
+      "title": "稼働モデル：平日 8h / 土日休 / Sprint = Wave 単位",
+      "rationale": "Bridge 経由ローカル Claude Code は人間 1 人の見守り下で動作する前提。Sprint = Wave は Atelier の高密度モデル。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-04",
+      "title": "経営者ゲートを 3 件に集約（計 7h）",
+      "gates": [
+        {"date": "2026-05-25", "name": "R-T08 RLS 設計レビュー", "h": 3},
+        {"date": "2026-05-27", "name": "API 契約凍結承認", "h": 2},
+        {"date": "2026-06-09", "name": "本番 go/no-go", "h": 2}
+      ],
+      "rationale": "致命級リスク（R-T08）/ 変更不可凍結（API contract）/ 本番判定（go/no-go）の 3 つは経営者の責任で判断。残り 5 件は AI 社員 vision / wanda / natasha（Phase 2）が代行可。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-05",
+      "title": "Wave 並列度の決定（5 / 8 / 10 / 5 / 10 / 5）",
+      "rationale": "Foundation (W0) は依存が密で並列 5、Data (W1) は entity 独立で 8、API (W2) は最大 10、UI Foundation (W3) は共通基盤で 5、UI Parallel (W4) は最大並列 10、Integration (W5) は順序制約があり 5。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-06",
+      "title": "短縮率の根拠（致命級 4×、通常 10-12×、インフラ 15×）",
+      "rationale": "致命級は人間レビュー必須のため 4× 止まり。通常 CRUD・UI は Claude が型・spec を持って即実装できるため 10-12×。設定系インフラは template 適用で 15× まで伸びる。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-07",
+      "title": "β / GA タイミング",
+      "beta_at": "2026-06-15 (10 社招待)",
+      "ga_target": "2026-12-31 (100 ユーザー)",
+      "rationale": "MVP リリース後 5 営業日で β 招待開始、6 ヶ月で GA 到達を目指す。営業・カスタマーサクセスは Atelier 自身で運用（AI 社員ジャービス系の Phase 2 機能）。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-08",
+      "title": "AI 社員稼働マップ（MVP は 7 名集中）",
+      "active": ["tony","strange","thor","wanda","vision","tchalla","steve"],
+      "deferred": ["natasha","peter","jarvis"],
+      "rationale": "natasha（セキュリティ専任）/ peter（フロント細部）/ jarvis（COO 監督）は Phase 2 で稼働。MVP は 7 名で並列度 10 を実現。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-09",
+      "title": "三層出力（HTML + JSON + MD）+ HTML はトグル切替",
+      "files": [
+        "schedule.json (信頼源)",
+        "SCHEDULE.html (二軸 Gantt + トグル + カレンダー + ゲート表)",
+        "SCHEDULE.md (人間レビュー / Wave 別表)",
+        "decision-log.json (決定履歴)"
+      ],
+      "rationale": "Atelier 確定方針に従い三層出力。HTML は AI ⇄ Human モードをワンクリック切替できる UX。",
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-10",
+      "title": "Calendar buffer 採用方針",
+      "rationale": "理論値 wall-clock = 3.5h だが、context load / retry / 依存解放待ち / Bridge 起動準備で実際は ~75h。これに人間 review 17h を加え、平日 8h 稼働で 15 営業日に着地。バッファは Wave 5 (Integration) 内に集約。",
+      "buffer_distribution": {"W0":0,"W1":0,"W2":0,"W3":0,"W4":0.5,"W5":1.5},
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-11",
+      "title": "対外コミュニケーション時の数値選択方針",
+      "rules": [
+        "投資家・顧客・パートナー → Human-baseline 提示",
+        "内部計画・経営判断 → AI-accelerated 採用",
+        "監査 / SOC2 / ISO → Human-baseline 提出",
+        "売却 DD → 両方を併記"
+      ],
+      "decided_at": "2026-05-20"
+    },
+    {
+      "id": "SC-DEC-12",
+      "title": "schedule.json は後続スキルの入力契約",
+      "consumers": [
+        "sprint-planning: Sprint = Wave / capacity 計算",
+        "distributed-dev: 並列度 × 開始日で dispatcher 設定",
+        "release-planning: MVP/β/GA 日付確定",
+        "test-verification: Wave 別テスト計画"
+      ],
+      "decided_at": "2026-05-20"
+    }
+  ],
+  "validation": {
+    "dual_axis_coverage_pct": 100,
+    "waves_with_both_axes": 6,
+    "milestones_with_both_axes": 8,
+    "human_gates_documented": 8,
+    "critical_gates": 3,
+    "calendar_days_count": 16,
+    "weekend_skipped": true
+  },
+  "next_skill": "sprint-planning, distributed-dev, または release-planning に進行可"
+}

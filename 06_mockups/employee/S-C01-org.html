@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AI社員 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .org-coo { display: flex; justify-content: center; margin-bottom: 32px; }
+  .org-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 16px 20px; text-align: center; cursor: pointer; transition: all 0.15s; min-width: 200px; }
+  .org-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .org-card.coo { background: var(--color-primary-container); border-color: var(--color-primary); }
+  .org-card .avatar { margin: 0 auto 10px; }
+  .org-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+  .org-en { font-size: 11px; color: var(--color-on-surface-variant); font-style: italic; margin-bottom: 6px; }
+  .org-role { font-size: 11px; font-weight: 600; }
+  .org-skills { font-size: 10.5px; color: var(--color-on-surface-variant); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .org-depts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 28px; position: relative; }
+  .org-depts::before { content: ''; position: absolute; top: -24px; left: 10%; right: 10%; height: 1px; background: var(--color-border); }
+  .dept { display: flex; flex-direction: column; gap: 12px; }
+  .dept-header { text-align: center; padding-bottom: 8px; border-bottom: 1px solid var(--color-border); margin-bottom: 6px; }
+  .dept-name { font-size: 12px; font-weight: 700; color: var(--color-on-surface-variant); letter-spacing: 0.06em; text-transform: uppercase; }
+  .view-toggle { display: flex; gap: 4px; padding: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .view-toggle button { padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; color: var(--color-on-surface-variant); }
+  .view-toggle button.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item active" href="#"><i data-icon="users"></i>AI社員<span style="margin-left:auto;font-size:11px;">10</span></a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item" href="../workspace/S-A03-settings.html"><i data-icon="settings"></i>設定</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-C01" data-bf-screen-name="ai_org" data-bf-category="ai_employee" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><span>ENGINE BASE</span><span class="breadcrumb-sep">/</span><strong>AI社員</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1400px;">
+  <div class="flex items-center justify-between mb-8">
+    <div>
+      <div class="page-eyebrow">AI Organization</div>
+      <h1 class="page-title">AI 社員</h1>
+      <p class="page-subtitle">10 名のデフォルト編成 · COO + 5 部署 + 横断スタッフ</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="view-toggle">
+        <button class="active"><i data-icon="layout-dashboard" data-size="12"></i> 組織図</button>
+        <button><i data-icon="list-checks" data-size="12"></i> リスト</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COO -->
+  <div class="org-coo">
+    <a class="org-card coo" href="S-C02-detail.html">
+      <div class="avatar avatar-lg avatar-jarvis">J</div>
+      <div class="org-name">ジャービス</div>
+      <div class="org-en">Jarvis</div>
+      <div class="org-role" style="color:var(--color-primary);">COO · 全社統括</div>
+      <div class="org-skills">5 skills · task-management, weekly-review</div>
+    </a>
+  </div>
+
+  <!-- 部署 -->
+  <div class="org-depts">
+    <div class="dept">
+      <div class="dept-header"><div class="dept-name">営業・契約部</div></div>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-tony">T</div>
+        <div class="org-name">トニー</div>
+        <div class="org-en">Tony Stark</div>
+        <div class="org-role text-primary">部長</div>
+        <div class="org-skills">sales-email, proposal, estimate</div>
+      </a>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-natasha">N</div>
+        <div class="org-name">ナターシャ</div>
+        <div class="org-en">Black Widow</div>
+        <div class="org-role">メンバー</div>
+        <div class="org-skills">business-contract, nda-review</div>
+      </a>
+    </div>
+
+    <div class="dept">
+      <div class="dept-header"><div class="dept-name">プロダクト企画部</div></div>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-steve">S</div>
+        <div class="org-name">スティーブ</div>
+        <div class="org-en">Captain America</div>
+        <div class="org-role text-primary">部長</div>
+        <div class="org-skills">hearing, requirements-definition</div>
+      </a>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-peter">P</div>
+        <div class="org-name">ピーター</div>
+        <div class="org-en">Spider-Man</div>
+        <div class="org-role">メンバー</div>
+        <div class="org-skills">task-decomposition, acceptance-criteria</div>
+      </a>
+    </div>
+
+    <div class="dept">
+      <div class="dept-header"><div class="dept-name">設計部</div></div>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-strange">D</div>
+        <div class="org-name">ストレンジ</div>
+        <div class="org-en">Doctor Strange</div>
+        <div class="org-role text-primary">部長</div>
+        <div class="org-skills">architecture-design, api-design</div>
+      </a>
+    </div>
+
+    <div class="dept">
+      <div class="dept-header"><div class="dept-name">デザイン部</div></div>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-wanda">W</div>
+        <div class="org-name">ワンダ</div>
+        <div class="org-en">Scarlet Witch</div>
+        <div class="org-role text-primary">部長</div>
+        <div class="org-skills">design-md, ui-mockup, brand-voice</div>
+      </a>
+    </div>
+
+    <div class="dept">
+      <div class="dept-header"><div class="dept-name">開発・検証部</div></div>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-thor">T</div>
+        <div class="org-name">ソー</div>
+        <div class="org-en">Thor</div>
+        <div class="org-role text-primary">部長</div>
+        <div class="org-skills">distributed-dev, tdd-workflow</div>
+      </a>
+      <a class="org-card" href="S-C02-detail.html">
+        <div class="avatar avatar-vision">V</div>
+        <div class="org-name">ヴィジョン</div>
+        <div class="org-en">Vision</div>
+        <div class="org-role">メンバー</div>
+        <div class="org-skills">verification-loop, quality-gate</div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 全社横断 -->
+  <div class="flex flex-col items-center" style="margin-top: 28px;">
+    <div class="text-muted text-sm mb-3" style="font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px;">全社横断</div>
+    <a class="org-card" href="S-C02-detail.html" style="background:var(--color-surface-variant);min-width:280px;">
+      <div class="avatar avatar-tchalla">T</div>
+      <div class="org-name">ティチャラ</div>
+      <div class="org-en">Black Panther</div>
+      <div class="org-role text-tertiary">ナレッジ統括</div>
+      <div class="org-skills">ナレッジ整理 · 業界傾向抽出 · 横断学習</div>
+    </a>
+  </div>
+
+  <div class="notice notice-primary" style="margin-top: 40px;">
+    <i data-icon="sparkles"></i>
+    <div>AI 社員 10 名は <strong>運営側で全て整えられた構成</strong> です。追加・削除はできません。各社員の <strong>名前・アイコン・口調プリセット・カスタム文章</strong> のみユーザーが編集できます。</div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

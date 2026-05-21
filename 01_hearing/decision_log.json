@@ -1,0 +1,255 @@
+{
+  "meta": {
+    "project": "Atelier",
+    "created_at": "2026-05-18",
+    "skill_version": "1.0",
+    "hearing_rounds": 3
+  },
+  "context": {
+    "industry": "B2B SaaS / 開発者向けツール / AIエージェント",
+    "client_type": "個人事業主→将来SaaS提供企業",
+    "project_trigger": "自社案件増加 + Claude Code/Agent SDKの成熟により、1人で複数案件並行運用の実現可能性が見えた"
+  },
+  "decision_log": [
+    {
+      "decision": "技術スタックをNext.js+Supabase+TS+Python FastAPIとする",
+      "reason": "Supabaseは受託実績豊富かつRLSでマルチワークスペース対応容易、AI処理層は公式SDK最新がPython側のため分離",
+      "alternatives": [
+        "Next.js+独自バック",
+        "Electron/Tauri"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "AI記憶はプロジェクト単位、ナレッジはアカウント単位",
+      "reason": "プロジェクト混線回避＋横断学習の両立",
+      "alternatives": [
+        "アカウント単位完全永続",
+        "プロジェクトリセット"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "MCP連携Phase 1並行",
+      "reason": "アーキの土台が固まらないと設計が破綻するため早期着手",
+      "alternatives": [
+        "Phase 2以降",
+        "MVP除外"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "実装はローカルClaude Codeブリッジ、ツール内AIはAPI",
+      "reason": "実装課金をユーザープランに寄せコスト最小化、ツール内はBYOKデフォ",
+      "alternatives": [
+        "サーバー側Agent SDK実行",
+        "両対応"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "Atelier Bridge デスクトップクライアントは Vibeyard (MIT, elirantutia/vibeyard) を fork",
+      "reason": "Electron + node-pty + xterm.js による Claude Code / Codex / Gemini CLI のマルチセッション管理が完成済み。pty-manager / claude-cli / セッション再開 / カンバン UI / swarm モードを即時獲得、3-6ヶ月の自作工数を回避",
+      "alternatives": [
+        "完全自作 Electron",
+        "Tauri で自作",
+        "Vibeyard 参照のみで再実装"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "工程7(実装)のタスクディスパッチャは Hermes Agent (MIT, NousResearch/hermes-agent) の kanban パターンを FastAPI に port",
+      "reason": "HERMES_KANBAN_TASK env による worker spawn、git worktree 自動作成、サーキットブレーカ、構造化ハンドオフ(summary+metadata)、kanban_show/complete/block/unblock 等7ツールが完成済み。157k スター実績で安全",
+      "alternatives": [
+        "完全自作ディスパッチャ",
+        "Celery+Redis 自前",
+        "Temporal"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "タスクライフサイクルは Hermes 流 6 列モデル (Triage→Ready→In Progress→Blocked→Awaiting→Done) を採用",
+      "reason": "Hermes 実運用検証済み、依存解消後 Ready 昇格・人間判断は Blocked/Awaiting で分離、UI 上は日本語ラベル(準備中/着手可/実装中/要対応/承認待ち/完了)",
+      "alternatives": [
+        "独自5列",
+        "Trello風3列"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "並列規模は5-10タスク",
+      "reason": "個人・小規模受託の現実的キャパ、コスト抑制",
+      "alternatives": [
+        "30-50",
+        "100+",
+        "可変"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "全工程HTML→JSON→MD三層出力",
+      "reason": "Anthropic Thariq等の議論を踏まえHTMLプライマリ、JSON構造化、MDフォールバックの三段構え",
+      "alternatives": [
+        "MDのみ",
+        "JSONのみ"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "スキルは~/.claude/skills/から全コピー独自管理",
+      "reason": "デスクトップClaude依存を排除、ツール内独立進化",
+      "alternatives": [
+        "シンボリックリンク参照",
+        "MCP動的読込"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "仕様徹底は検知ではなく逃げないループ設計",
+      "reason": "ユーザーの最大ストレス源、受入基準HTML化＋検証AI＋スコア評価で根本対策",
+      "alternatives": [
+        "事後検出",
+        "人間レビュー依存"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "Web検索はClaude公式web_search標準ツール",
+      "reason": "追加SDK不要、Agent SDK完全統合、コスト$10/1k検索",
+      "alternatives": [
+        "Exa",
+        "Tavily",
+        "Brave"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "プロバイダー追加は自前LLMClient薄ラッパーで対応",
+      "reason": "Vercel AI SDK等の重い抽象化に依存せず、各社公式SDK直叩きで品質維持",
+      "alternatives": [
+        "Vercel AI SDK",
+        "LangChain",
+        "LiteLLM"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "オーケストレーションはLangGraph+Inngest",
+      "reason": "LangGraphで人間承認ゲート・スコア評価ループ、Inngestでcron・サーバレス実行",
+      "alternatives": [
+        "Temporal",
+        "Trigger.dev",
+        "自前"
+      ],
+      "hypothesis_confirmed": true
+    },
+    {
+      "decision": "RAGはLlamaIndex+Cognee+Voyage AI+pgvector",
+      "reason": "Anthropic推奨Voyage、ナレッジグラフでObsidian的体験、Supabase統合",
+      "alternatives": [
+        "LangChain",
+        "Weaviate",
+        "Qdrant"
+      ],
+      "hypothesis_confirmed": true
+    }
+  ],
+  "hearing_patterns": [
+    {
+      "pattern_name": "プロダクト方針の事前すり合わせ→ヒアリング深掘り型",
+      "applicable_to": "自社プロダクト/SaaS開発",
+      "description": "クライアントヒアリングと異なり、本人発案の自社サービスでは前提が固まっていることが多い。ヒアリング前に方針確認→ヒアリングで深掘りの順が効率的"
+    },
+    {
+      "pattern_name": "ストレス源逆引きヒアリング",
+      "applicable_to": "業務効率化系プロダクト全般",
+      "description": "「何を作りたいか」より「現状の最大ストレスは何か」を聞くことで、本質要件（仕様徹底・依存漏れ等）が浮かび上がる"
+    },
+    {
+      "pattern_name": "出口戦略確認による設計影響把握",
+      "applicable_to": "SaaS/事業価値型プロダクト",
+      "description": "売却視野・売却タイミングを聞くことで、属人性削減・KPI計測・コードクリーン等の設計優先度が変わる"
+    }
+  ],
+  "unresolved": [
+    {
+      "question": "月額単価の具体値（個人/法人別）",
+      "importance": "high",
+      "resolve_in": "product-strategy"
+    },
+    {
+      "question": "無料枠/体験版/フリーミアム設計",
+      "importance": "high",
+      "resolve_in": "product-strategy"
+    },
+    {
+      "question": "Claude CodeブリッジのOAuth可否技術検証",
+      "importance": "high",
+      "resolve_in": "architecture-design"
+    },
+    {
+      "question": "マルチLLMリリース時期（8月同時 vs v2先送り）",
+      "importance": "medium",
+      "resolve_in": "requirements-definition"
+    },
+    {
+      "question": "Git/GitHub連携のUI統合範囲",
+      "importance": "medium",
+      "resolve_in": "functional-breakdown"
+    },
+    {
+      "question": "監査ログのUI露出範囲",
+      "importance": "medium",
+      "resolve_in": "functional-breakdown"
+    },
+    {
+      "question": "AI人格カスタマイズ範囲（口調プリセット数等）",
+      "importance": "low",
+      "resolve_in": "functional-breakdown"
+    },
+    {
+      "question": "ベータユーザー数の上限設定",
+      "importance": "low",
+      "resolve_in": "product-strategy"
+    }
+  ],
+  "research": {
+    "sources": [
+      {
+        "url": "https://github.com/elirantutia/vibeyard",
+        "title": "vibeyard (かんばん→並列実行UI参考)",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "https://hermes-agent.nousresearch.com/docs/user-guide/features/kanban-tutorial",
+        "title": "Hermes Agent かんばんチュートリアル",
+        "accessed_at": "2026-05-18"
+      },
+      {
+        "url": "Simon Willison / Anthropic Thariq / Thurrott 他",
+        "title": "HTML vs Markdown 議論（三層出力方針の根拠）",
+        "accessed_at": "2026-05-18"
+      }
+    ],
+    "findings": [
+      "Anthropicは現在出力フォーマットでHTML優位の議論を進めており、AI生成成果物の三層化（HTML/JSON/MD）が品質担保に寄与する",
+      "vibeyard/Hermesに代表されるかんばん×並列サブエージェント実行UXは2026年時点で実装事例増加中、UI/UX参考に最適",
+      "Claude Web Search標準ツール（$10/1k検索）は他社（Gemini $35/1k、OpenAI $25-30/1k）より安価でAgent SDK統合済み",
+      "Voyage AIはAnthropic推奨の埋め込みプロバイダー、コード/日本語強くRAG精度に寄与",
+      "競合：Linear/Notion/ClickUp/Devin/Cursor/v0は存在するが「AI組織モデル × 全工程網羅 × Claude Code直接実行 × 仕様徹底ループ」の組み合わせは空白地帯"
+    ],
+    "research_date": "2026-05-18"
+  },
+  "schedule_reference": {
+    "schedule_path": "08_schedule/schedule.json",
+    "mvp_release_human_date": "2026-11-15",
+    "mvp_release_ai_date": "2026-06-10",
+    "beta_human_date": "2026-12-01",
+    "beta_ai_date": "2026-06-15",
+    "ga_target_human_date": "2027-08-31",
+    "ga_target_ai_date": "2026-12-31",
+    "applied_at": "2026-05-20",
+    "two_axis_policy_version": "v3.1-dual"
+  },
+  "release_strategy_note": "MVP/β/GA は二軸表示。対外（投資家・顧客）には Human-baseline 日付、内部計画と経営判断には AI-accelerated 日付を採用。"
+}

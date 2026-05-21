@@ -1,0 +1,93 @@
+{
+  "schema_version": "bf-legal-v1.0",
+  "project": "Atelier",
+  "generated_at": "2026-05-18",
+  "audience": "compliance_audit",
+  "business_classification": {
+    "type": "B2B/B2C SaaS",
+    "contains_ai_generation": true,
+    "billing_model": "subscription_byok_default",
+    "data_residency_preference": "Japan_Tokyo_region",
+    "international_scope": "domestic_only",
+    "third_party_communication_mediation": true,
+    "third_party_communication_context": "クライアント招待モードのコメント機能でユーザー⇔クライアント間通信を媒介"
+  },
+  "handled_data_types": [
+    {"category": "personal_info", "items": ["氏名", "メールアドレス", "アバター"]},
+    {"category": "payment", "items": ["Stripe経由のみ、自社非保持"]},
+    {"category": "project_data", "items": ["クライアント機密含む可能性", "案件契約データ"]},
+    {"category": "media", "items": ["議事録音声", "動画", "テキスト"]},
+    {"category": "ai_generated", "items": ["成果物", "ナレッジ", "提案書"]},
+    {"category": "credentials", "items": ["BYOK APIキー（暗号化保管）"]}
+  ],
+  "applicable_laws": [
+    {"law": "特定商取引法", "required": true, "scope": ["サブスクリプション", "通信販売"], "impl_ids": ["F-LEGAL-001", "F-LEGAL-003", "F-LEGAL-005"]},
+    {"law": "個人情報保護法", "required": true, "scope": ["個人情報全般"], "impl_ids": ["F-LEGAL-002", "F-LEGAL-004", "F-LEGAL-006", "F-LEGAL-007", "F-LEGAL-008", "F-LEGAL-011", "F-LEGAL-013", "F-LEGAL-015"]},
+    {"law": "消費者契約法", "required": true, "scope": ["利用規約"], "impl_ids": ["F-LEGAL-001", "F-LEGAL-004", "F-LEGAL-005"]},
+    {"law": "電気通信事業法", "required": "verification_needed", "scope": ["第三者間通信媒介"], "impl_ids": ["F-LEGAL-014"], "note": "クライアント招待コメントが該当の可能性。リリース前に総務省・弁護士確認必須"},
+    {"law": "NDA・秘密保持義務", "required": true, "scope": ["クライアント機密データ"], "impl_ids": ["F-LEGAL-001", "F-LEGAL-011"]},
+    {"law": "著作権法", "required": true, "scope": ["ユーザーアップロード", "AI生成物"], "impl_ids": ["F-LEGAL-001", "F-LEGAL-010"]},
+    {"law": "不正アクセス禁止法", "required": true, "scope": ["認証", "MCP", "APIキー"], "impl_ids": []},
+    {"law": "特定電子メール法", "required": true, "scope": ["通知メール", "マーケティングメール"], "impl_ids": ["F-LEGAL-012"]},
+    {"law": "プロバイダ責任制限法", "required": "conditional", "scope": ["クライアントコメント"], "impl_ids": ["F-LEGAL-009"]},
+    {"law": "Anthropic利用規約", "required": true, "scope": ["Claude API利用全般"], "impl_ids": []},
+    {"law": "資金決済法", "required": false, "scope": [], "note": "プリペイドなし、対象外"},
+    {"law": "金融商品取引法", "required": false, "scope": [], "note": "対象外"},
+    {"law": "景品表示法", "required": "conditional", "scope": ["無料枠表示（Phase 8）"], "impl_ids": []},
+    {"law": "GDPR/CCPA/PIPL", "required": false, "scope": [], "note": "国内のみ、海外展開時に再検討"}
+  ],
+  "legal_features": [
+    {"id": "F-LEGAL-001", "name": "利用規約ページ", "phase": 5, "implementation": "静的ページ + バージョン管理"},
+    {"id": "F-LEGAL-002", "name": "プライバシーポリシー", "phase": 5, "implementation": "静的ページ + バージョン管理"},
+    {"id": "F-LEGAL-003", "name": "特商法表記", "phase": 5, "implementation": "静的ページ"},
+    {"id": "F-LEGAL-004", "name": "同意取得+ログ保存", "phase": 1, "implementation": "サインアップフロー + consents テーブル"},
+    {"id": "F-LEGAL-005", "name": "解約フォーム（ダークパターン禁止）", "phase": 5, "implementation": "ワンクリック解約UI"},
+    {"id": "F-LEGAL-006", "name": "データ削除要求受付", "phase": 5, "implementation": "退会フロー + 30日後ハード削除"},
+    {"id": "F-LEGAL-007", "name": "閲覧・訂正・利用停止要求窓口", "phase": 5, "implementation": "管理画面 + メール"},
+    {"id": "F-LEGAL-008", "name": "個人情報漏洩通知体制", "phase": 5, "implementation": "運用フロー（48h以内に個情委+本人通知）"},
+    {"id": "F-LEGAL-009", "name": "コメント削除依頼窓口", "phase": 2, "implementation": "コメント機能内"},
+    {"id": "F-LEGAL-010", "name": "著作権帰属の明示", "phase": 5, "implementation": "利用規約内"},
+    {"id": "F-LEGAL-011", "name": "AI学習利用可否設定", "phase": 1, "implementation": "プロジェクト/アカウント設定UI、デフォルトOFF"},
+    {"id": "F-LEGAL-012", "name": "メール配信停止+送信者表示", "phase": 1, "implementation": "全通知メールの末尾に配信停止リンク"},
+    {"id": "F-LEGAL-013", "name": "データ越境同意UI", "phase": 1, "implementation": "サインアップ時にSupabaseリージョン明示+同意"},
+    {"id": "F-LEGAL-014", "name": "電気通信事業届出", "phase": 5, "implementation": "総務省への届出（運用手続き）"},
+    {"id": "F-LEGAL-015", "name": "退会後ナレッジ匿名化", "phase": 5, "implementation": "氏名・案件特定情報除去パイプライン"}
+  ],
+  "non_functional_legal_requirements": {
+    "encryption_at_rest": "AES-256",
+    "encryption_in_transit": "TLS 1.3",
+    "key_management": "Supabase Vault for BYOK API keys",
+    "access_logs_retention": "1年",
+    "audit_logs_retention": "1年",
+    "backup_retention": "90日",
+    "breach_notification_window": "48時間以内",
+    "data_residency": "Supabase Tokyo region 推奨",
+    "ai_training_optout_default": "OFF"
+  },
+  "regulatory_actions_required_before_release": [
+    {"action": "電気通信事業届出の要否確認", "deadline": "リリース1ヶ月前", "owner": "高本まさと", "approach": "弁護士 or 総務省窓口"},
+    {"action": "利用規約・プライバシーポリシーの専門家レビュー", "deadline": "リリース1ヶ月前", "owner": "高本まさと", "approach": "リーガル専門家1回レビュー"},
+    {"action": "ベータ規約と通常規約の分離作成", "deadline": "ベータ開始前", "owner": "高本まさと", "approach": "ベータは免責多め、通常は標準"},
+    {"action": "個人情報漏洩通知体制の運用整備", "deadline": "リリース前", "owner": "運営", "approach": "48h以内通知のプロセス文書化"}
+  ],
+  "open_legal_risks": [
+    {"risk": "AI社員名称（アベンジャーズ系）の商標リスク", "severity": "medium", "mitigation": "リリース前にオリジナル名orコードネームのみに変更検討"},
+    {"risk": "第三者著作物のアップロード混入", "severity": "medium", "mitigation": "規約で権利保証義務をユーザーに課す"},
+    {"risk": "BYOK時のAPIキー漏洩責任分界", "severity": "medium", "mitigation": "規約で運営は厳重保管、最終責任はユーザーと明記"},
+    {"risk": "Anthropic利用規約変更への追従", "severity": "low", "mitigation": "規約変更モニタリング体制"}
+  ],
+  "compliance_audit_checklist": [
+    "サインアップ時に利用規約・PP・データ取扱への同意取得 → consents 保存",
+    "プライバシーポリシーに保有個人情報の利用目的・第三者提供・越境を明示",
+    "特商法表記に運営者情報・連絡先・販売価格・解約方法を明示",
+    "解約フォームがワンクリックでアクセス可能、ダークパターンなし",
+    "メール末尾に配信停止リンク+送信者情報",
+    "BYOK APIキーは Supabase Vault で暗号化、復号アクセスログ保存",
+    "個人情報閲覧時の監査ログ1年保持",
+    "退会後30日でハード削除、ナレッジ匿名化",
+    "AI学習利用可否設定のデフォルトOFF",
+    "Supabase Tokyo region 設定",
+    "電気通信事業届出の完了（リリース前）",
+    "個人情報漏洩通知体制の整備（48h以内）"
+  ]
+}

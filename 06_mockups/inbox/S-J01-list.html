@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>承認待ち — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── 役割カード ───────── */
+  .role-card {
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--color-primary-container) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 18px; align-items: start;
+  }
+  .role-icon { width: 56px; height: 56px; background: var(--color-primary); color: #FFFFFF; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; }
+  .role-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .role-lead { font-size: 13px; color: var(--color-on-surface-variant); margin-bottom: 14px; line-height: 1.7; }
+  .role-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .role-point { background: rgba(255,255,255,0.7); border-radius: var(--rounded-md); padding: 10px 12px; }
+  .role-point-num { width: 22px; height: 22px; border-radius: 50%; background: var(--color-primary); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .role-point-label { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .role-point-desc { font-size: 11.5px; color: var(--color-on-surface-variant); line-height: 1.55; }
+
+  /* ───────── KPI ───────── */
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    padding: 14px 18px;
+  }
+  .kpi.urgent { border-color: var(--color-error); background: #FEF2F2; }
+  .kpi-label { font-size: 11.5px; font-weight: 700; color: var(--color-on-surface-variant); letter-spacing: 0.04em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .kpi-value { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .kpi-value.urgent { color: var(--color-error); }
+  .kpi-value.green { color: var(--color-tertiary); }
+  .kpi-sub { font-size: 11.5px; color: var(--color-on-surface-variant); margin-top: 6px; }
+
+  /* ───────── カテゴリチップ ───────── */
+  .category-bar {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .category-label { font-size: 11.5px; font-weight: 700; color: var(--color-on-surface-variant); margin-right: 4px; }
+  .cat-chip {
+    padding: 6px 14px;
+    border-radius: var(--rounded-full);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--color-on-surface-variant);
+    background: var(--color-surface-variant);
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .cat-chip:hover { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .cat-chip.active { background: var(--color-primary); color: #FFFFFF; }
+  .cat-chip.urgent { background: #FEE2E2; color: #991B1B; }
+  .cat-chip.urgent.active { background: var(--color-error); color: #FFFFFF; }
+  .cat-chip .num { background: rgba(0,0,0,0.10); padding: 1px 7px; border-radius: var(--rounded-full); font-size: 11px; font-weight: 700; }
+  .cat-chip.active .num { background: rgba(255,255,255,0.25); }
+  .cat-chip.urgent .num { background: rgba(220,38,38,0.18); }
+  .cat-chip.urgent.active .num { background: rgba(255,255,255,0.30); }
+  .project-select { margin-left: auto; padding: 7px 12px; border: 1px solid var(--color-border); border-radius: var(--rounded-md); font-size: 12.5px; background: #FFFFFF; }
+
+  /* ───────── レイアウト ───────── */
+  .inbox-layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; align-items: start; }
+
+  /* ───────── リスト ───────── */
+  .inbox-list { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); overflow: hidden; }
+  .inbox-section-head {
+    padding: 10px 18px;
+    background: var(--color-surface-variant);
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em;
+    color: var(--color-on-surface-variant);
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .inbox-section-head .count { background: #FFFFFF; padding: 1px 8px; border-radius: var(--rounded-full); font-size: 11px; }
+  .inbox-section-head.urgent { background: #FEE2E2; color: #991B1B; }
+  .inbox-section-head.urgent .count { background: #FFFFFF; color: var(--color-error); }
+
+  .inbox-item {
+    display: grid;
+    grid-template-columns: 20px 44px 1fr auto;
+    gap: 14px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--color-border);
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .inbox-item:hover { background: var(--color-surface-variant); }
+  .inbox-item:last-child { border-bottom: none; }
+  .inbox-item.selected { background: var(--color-primary-container); border-left: 3px solid var(--color-primary); padding-left: 15px; }
+  .inbox-item.urgent { border-left: 3px solid var(--color-error); padding-left: 15px; }
+  .inbox-item.urgent.selected { background: #FEE2E2; }
+
+  .inbox-checkbox { width: 18px; height: 18px; border: 1.5px solid var(--color-border); border-radius: 4px; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+  .inbox-item.selected .inbox-checkbox { background: var(--color-primary); border-color: var(--color-primary); color: #FFFFFF; }
+
+  .inbox-type {
+    width: 44px; height: 44px;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .inbox-type.t-task { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .inbox-type.t-phase { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .inbox-type.t-knowledge { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .inbox-type.t-scope { background: #FEE2E2; color: #991B1B; }
+  .inbox-type.t-comment { background: var(--color-surface-variant); color: var(--color-on-surface-variant); }
+
+  .inbox-meta-top {
+    font-size: 11.5px;
+    color: var(--color-on-surface-variant);
+    display: flex; gap: 10px; align-items: center;
+    margin-bottom: 4px;
+  }
+  .inbox-cat-tag {
+    padding: 2px 9px;
+    border-radius: var(--rounded-full);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .inbox-cat-tag.task { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .inbox-cat-tag.phase { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .inbox-cat-tag.knowledge { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .inbox-cat-tag.scope { background: #FEE2E2; color: #991B1B; }
+  .inbox-cat-tag.comment { background: var(--color-surface-variant); color: var(--color-on-surface-variant); }
+
+  .inbox-title { font-size: 14.5px; font-weight: 700; margin-bottom: 4px; line-height: 1.45; }
+  .inbox-preview {
+    font-size: 12.5px;
+    color: var(--color-on-surface-variant);
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .inbox-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .inbox-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .inbox-quick-actions { display: flex; gap: 4px; }
+  .btn-quick {
+    width: 30px; height: 30px;
+    border-radius: var(--rounded-md);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn-quick.approve { background: var(--color-tertiary); color: #FFFFFF; }
+  .btn-quick.approve:hover { filter: brightness(1.1); }
+  .btn-quick.reject { background: #FFFFFF; color: var(--color-on-surface-variant); border: 1px solid var(--color-border); }
+  .btn-quick.reject:hover { background: var(--color-surface-variant); }
+  .btn-quick.review {
+    padding: 0 14px; height: 30px; width: auto;
+    background: var(--color-primary); color: #FFFFFF; font-weight: 700; font-size: 12px;
+  }
+  .btn-quick.review:hover { filter: brightness(1.1); }
+  .score-badge { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: var(--rounded-full); }
+  .score-badge.mid { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .score-badge.high { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+
+  /* ───────── 詳細パネル ───────── */
+  .detail-pane {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 24px;
+    position: sticky;
+    top: 80px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+  .detail-pane.urgent { border-color: var(--color-error); }
+  .detail-head { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--color-border); }
+  .detail-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.45; margin-top: 8px; margin-bottom: 8px; }
+  .detail-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--color-on-surface-variant); }
+  .detail-section { margin-bottom: 18px; }
+  .detail-section-label {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--color-on-surface-variant);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .detail-text { font-size: 13px; line-height: 1.75; }
+
+  .impact-list {
+    background: var(--color-surface-variant);
+    border-radius: var(--rounded-md);
+    padding: 12px 16px;
+  }
+  .impact-row {
+    display: flex; justify-content: space-between;
+    padding: 7px 0;
+    font-size: 12.5px;
+    align-items: center;
+  }
+  .impact-row + .impact-row { border-top: 1px solid var(--color-border); }
+  .impact-row .label { color: var(--color-on-surface-variant); }
+  .impact-row .val { font-weight: 700; }
+  .impact-row .val.warn { color: var(--color-error); }
+
+  .stage-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stage-chip {
+    padding: 7px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+  }
+  .stage-chip.checked { background: var(--color-primary-container); color: var(--color-on-primary-container); border-color: var(--color-primary); }
+  .stage-chip.disabled { opacity: 0.55; cursor: not-allowed; }
+  .stage-chip input { margin: 0; }
+
+  .action-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 20px; }
+  .btn-action {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: var(--rounded-md);
+    font-size: 13.5px;
+    font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-action.primary { background: var(--color-primary); color: #FFFFFF; }
+  .btn-action.primary:hover { filter: brightness(1.1); }
+  .btn-action.approve { background: var(--color-tertiary); color: #FFFFFF; }
+  .btn-action.approve:hover { filter: brightness(1.1); }
+  .btn-action.outline { background: #FFFFFF; color: var(--color-on-surface); border: 1px solid var(--color-border); }
+  .btn-action.outline:hover { background: var(--color-surface-variant); }
+  .btn-action.ghost { background: transparent; color: var(--color-on-surface-variant); }
+  .btn-action.ghost:hover { background: var(--color-surface-variant); }
+
+  @media (max-width: 1100px) {
+    .role-points, .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .inbox-layout { grid-template-columns: 1fr; }
+    .detail-pane { position: static; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI 社員</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item active" href="#"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">7</span></a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-J01" data-bf-screen-name="approval_inbox" data-bf-category="verification" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb">
+    <span>ENGINE BASE</span>
+    <span class="breadcrumb-sep">/</span>
+    <strong>承認待ち</strong>
+  </div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<div class="content" style="max-width: 1400px;">
+
+  <!-- ━━━━━━ 1. 役割カード ━━━━━━ -->
+  <section class="role-card">
+    <div class="role-icon"><i data-icon="inbox" data-size="28"></i></div>
+    <div>
+      <div class="role-title">承認待ち — あなたの判断を待っている案件をまとめて処理する場所</div>
+      <div class="role-lead">AI 社員が自走している中で、人間の判断が必要になったものだけがここに集まります。上から順に処理すれば、迷子になりません。</div>
+      <div class="role-points">
+        <div class="role-point">
+          <div class="role-point-num">1</div>
+          <div class="role-point-label">緊急（赤枠）を先に</div>
+          <div class="role-point-desc">仕様変更の取り込み判断は他工程をブロックします</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">2</div>
+          <div class="role-point-label">通常の承認は素早く</div>
+          <div class="role-point-desc">スコアと要約だけ見て承認 / 差し戻しを即決</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">3</div>
+          <div class="role-point-label">提案系は判断を保留可</div>
+          <div class="role-point-desc">ナレッジ昇格や次工程進行は「後で判断」も OK</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 2. KPI ━━━━━━ -->
+  <section class="kpi-row">
+    <div class="kpi urgent">
+      <div class="kpi-label"><i data-icon="alert-triangle" data-size="12"></i>緊急（仕様変更）</div>
+      <div class="kpi-value urgent">2</div>
+      <div class="kpi-sub">他工程をブロック中</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label"><i data-icon="clock" data-size="12"></i>未処理</div>
+      <div class="kpi-value">7</div>
+      <div class="kpi-sub">2 時間以内に着信した分</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label"><i data-icon="check-circle" data-size="12"></i>今日 承認した</div>
+      <div class="kpi-value green">14</div>
+      <div class="kpi-sub">昨日比 +9 件</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label"><i data-icon="trending-up" data-size="12"></i>平均処理時間</div>
+      <div class="kpi-value">42<span style="font-size:14px;color:var(--color-on-surface-variant);"> 秒</span></div>
+      <div class="kpi-sub">承認 1 件あたり</div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 3. カテゴリチップ ━━━━━━ -->
+  <section class="category-bar">
+    <span class="category-label">種類で絞り込み</span>
+    <button class="cat-chip active">すべて<span class="num">7</span></button>
+    <button class="cat-chip urgent"><i data-icon="zap" data-size="12"></i>仕様変更の取り込み判断<span class="num">2</span></button>
+    <button class="cat-chip"><i data-icon="list-checks" data-size="12"></i>タスク承認<span class="num">3</span></button>
+    <button class="cat-chip"><i data-icon="git-branch" data-size="12"></i>工程進行の承認<span class="num">1</span></button>
+    <button class="cat-chip"><i data-icon="brain" data-size="12"></i>ナレッジ登録の承認<span class="num">1</span></button>
+    <button class="cat-chip"><i data-icon="message-square" data-size="12"></i>コメント返信<span class="num">0</span></button>
+    <select class="project-select">
+      <option>全プロジェクト</option>
+      <option selected>Atelier 自社開発</option>
+      <option>小松様 EC モール統合</option>
+    </select>
+  </section>
+
+  <!-- ━━━━━━ 4. リスト + 詳細 ━━━━━━ -->
+  <div class="inbox-layout">
+    <div class="inbox-list">
+
+      <!-- 緊急セクション -->
+      <div class="inbox-section-head urgent">
+        <i data-icon="alert-triangle" data-size="13"></i>
+        最優先 — 仕様変更の取り込み判断
+        <span class="count">2 件</span>
+      </div>
+
+      <div class="inbox-item urgent selected">
+        <div class="inbox-checkbox"><i data-icon="check" data-size="12"></i></div>
+        <div class="inbox-type t-scope"><i data-icon="zap"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag scope">仕様変更の取り込み</span>
+            <span>ジャービスが検知</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-jarvis">J</div></span>
+          </div>
+          <div class="inbox-title">越境同意 UI の仕様が更新されました</div>
+          <div class="inbox-preview">プライバシーポリシーに「Anthropic / Voyage / Whisper」の明示が追記されたため、サインアップ同意画面に影響します。7 タスクへの影響を検出、実装中の T-014 を一時停止しました。再実行する工程を選んでください。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">2 分前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick review">判断する</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inbox-item urgent">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-scope"><i data-icon="zap"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag scope">仕様変更の取り込み</span>
+            <span>スティーブが検知</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-steve">S</div></span>
+          </div>
+          <div class="inbox-title">議事録から新規要件 3 件が抽出されました</div>
+          <div class="inbox-preview">「クライアントポータルでも MCP 連携を使いたい」他 2 件。要件定義工程の再実行が必要かどうかを判断してください。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">45 分前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick review">判断する</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 通常セクション -->
+      <div class="inbox-section-head">
+        通常 — タスク・工程・ナレッジの承認
+        <span class="count">5 件</span>
+      </div>
+
+      <div class="inbox-item">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-task"><i data-icon="list-checks"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag task">タスク承認</span>
+            <span class="score-badge mid">スコア 0.87</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン</span>
+          </div>
+          <div class="inbox-title">T-016 退会フロー（30 日猶予）の検証が完了しました</div>
+          <div class="inbox-preview">受入条件 11 / 12 達成、自動テスト 6 / 6 合格、AI 評価 0.79（解約フローの体験を要改善）。スコアが 0.80〜0.94 帯のため、人間の最終承認が必要です。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">18 分前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick approve" title="承認"><i data-icon="check" data-size="14"></i></button>
+            <button class="btn-quick reject" title="差し戻し"><i data-icon="undo-2" data-size="13"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inbox-item">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-task"><i data-icon="list-checks"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag task">タスク承認</span>
+            <span class="score-badge mid">スコア 0.84</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン</span>
+          </div>
+          <div class="inbox-title">T-028 スレッド一覧の権限制御が検証完了</div>
+          <div class="inbox-preview">クライアント招待経路のポリシー動作確認 OK。ただし管理者権限の例外ルールの挙動を最終確認してください。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">1 時間前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick approve" title="承認"><i data-icon="check" data-size="14"></i></button>
+            <button class="btn-quick reject" title="差し戻し"><i data-icon="undo-2" data-size="13"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inbox-item">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-task"><i data-icon="list-checks"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag task">タスク承認</span>
+            <span class="score-badge high">スコア 0.91</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン</span>
+          </div>
+          <div class="inbox-title">T-027 逐次配信（リアルタイム応答）の検証が完了</div>
+          <div class="inbox-preview">受入条件 12 / 12、自動テスト 8 / 8、AI 評価 0.85。確認後、自動承認設定が ON なら自動完了します。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">3 時間前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick approve" title="承認"><i data-icon="check" data-size="14"></i></button>
+            <button class="btn-quick reject" title="差し戻し"><i data-icon="undo-2" data-size="13"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inbox-item">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-phase"><i data-icon="git-branch"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag phase">工程進行の承認</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-jarvis">J</div>ジャービス</span>
+          </div>
+          <div class="inbox-title">機能分解 → タスク分解 への工程進行を提案します</div>
+          <div class="inbox-preview">機能分解の成果物が 87% 確定しました。次工程「タスク分解」へ進める準備が整っています。想定期間：2026-06-23 〜 2026-07-13。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">12 分前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick approve" title="進行を承認"><i data-icon="check" data-size="14"></i></button>
+            <button class="btn-quick reject" title="差し戻し"><i data-icon="undo-2" data-size="13"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="inbox-item">
+        <div class="inbox-checkbox"></div>
+        <div class="inbox-type t-knowledge"><i data-icon="brain"></i></div>
+        <div>
+          <div class="inbox-meta-top">
+            <span class="inbox-cat-tag knowledge">ナレッジ登録の承認</span>
+            <span>横断パターン抽出</span>
+            <span class="flex items-center gap-1"><div class="avatar avatar-sm avatar-tchalla">T</div>ティチャラ</span>
+          </div>
+          <div class="inbox-title">3 つの案件から共通の認証フロー設計を抽出しました</div>
+          <div class="inbox-preview">Atelier 自社開発・小松様 EC・MoonJapan の 3 案件で繰り返し採用された認証 UX を、共通ナレッジに昇格してよいか判断してください。</div>
+        </div>
+        <div class="inbox-right">
+          <span class="inbox-time">2 時間前</span>
+          <div class="inbox-quick-actions">
+            <button class="btn-quick approve" title="承認"><i data-icon="check" data-size="14"></i></button>
+            <button class="btn-quick reject" title="差し戻し"><i data-icon="undo-2" data-size="13"></i></button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ━━━━━━ 5. 詳細パネル（選択中の案件） ━━━━━━ -->
+    <aside class="detail-pane urgent">
+      <div class="detail-head">
+        <div class="flex items-center gap-2">
+          <span class="inbox-cat-tag scope">仕様変更の取り込み</span>
+          <span class="text-muted text-sm">2 分前</span>
+        </div>
+        <h2 class="detail-title">越境同意 UI の仕様が更新されました</h2>
+        <div class="detail-meta">
+          <div class="avatar avatar-sm avatar-jarvis">J</div>
+          <span>ジャービス（COO）が検知</span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label"><i data-icon="info" data-size="12"></i>何が起きたか</div>
+        <p class="detail-text">プライバシーポリシーの章に「Anthropic」「Voyage」「Whisper」を明示する旨が <strong>要件定義書（v1.0）</strong> に追記されました。これによりサインアップ時の同意画面に影響があります。</p>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label"><i data-icon="git-branch" data-size="12"></i>影響範囲</div>
+        <div class="impact-list">
+          <div class="impact-row"><span class="label">影響を受ける機能</span><span class="val">認証 / 同意取得</span></div>
+          <div class="impact-row"><span class="label">影響タスクの数</span><span class="val">7 件</span></div>
+          <div class="impact-row"><span class="label">うち完了済みのタスク</span><span class="val warn">2 件 → リファクタを起票</span></div>
+          <div class="impact-row"><span class="label">実装中のタスク</span><span class="val warn">1 件（T-014）を一時停止</span></div>
+          <div class="impact-row"><span class="label">未着手のタスク</span><span class="val">4 件 → 自動で上書き</span></div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label"><i data-icon="check-square" data-size="12"></i>再実行する工程を選んでください</div>
+        <div class="stage-grid">
+          <label class="stage-chip checked"><input type="checkbox" checked>要件定義（差分のみ）</label>
+          <label class="stage-chip checked"><input type="checkbox" checked>機能分解（認証のみ）</label>
+          <label class="stage-chip disabled"><input type="checkbox" disabled>アーキ設計（影響なし）</label>
+          <label class="stage-chip"><input type="checkbox">デザイン（同意画面のみ）</label>
+          <label class="stage-chip checked"><input type="checkbox" checked>タスク分解（自動）</label>
+        </div>
+      </div>
+
+      <div class="action-stack">
+        <button class="btn-action primary"><i data-icon="check" data-size="16"></i>承認して再実行を開始</button>
+        <button class="btn-action outline"><i data-icon="x" data-size="14"></i>変更を反映しない（却下）</button>
+        <button class="btn-action ghost">あとで判断する</button>
+      </div>
+    </aside>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+<script>
+  // リストアイテムを選択 → 詳細パネル切替（モックなので URL のみ）
+  document.querySelectorAll('.inbox-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-quick')) return;
+      document.querySelectorAll('.inbox-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Atelier アーキテクチャ設計書 v1.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:"Noto Sans JP",sans-serif;background:#fafaf9;color:#1a1a1a;line-height:1.75;font-feature-settings:"palt";-webkit-font-smoothing:antialiased}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:240px;flex-shrink:0;background:#1a1a1a;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;color:#e5e5e5}
+.sidebar-logo{padding:24px 20px 18px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.sidebar-logo .doc-badge{font-size:9px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.45);display:block;margin-bottom:6px}
+.sidebar-logo .doc-title{font-size:18px;font-weight:700;color:#fff;line-height:1.3;letter-spacing:-0.02em}
+.sidebar-logo .doc-version{font-size:10px;color:rgba(255,255,255,0.4);margin-top:8px;font-family:'JetBrains Mono',monospace}
+.toc{padding:12px 0 40px}
+.toc-group-label{font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.35);padding:14px 20px 4px}
+.toc a{display:flex;align-items:center;gap:8px;padding:7px 20px;text-decoration:none;color:rgba(255,255,255,0.65);font-size:11.5px;transition:all 0.15s;border-left:2px solid transparent}
+.toc a:hover{color:#fff;background:rgba(255,255,255,0.05);border-left-color:rgba(255,255,255,0.3)}
+.toc-num{min-width:22px;font-size:10px;font-weight:600;color:rgba(255,255,255,0.35);font-family:'JetBrains Mono',monospace}
+.main{margin-left:240px;padding:40px 48px 100px;max-width:1080px}
+.doc-cover{background:#fff;border-radius:12px;padding:44px 48px;margin-bottom:24px;border:1px solid #e7e5e4}
+.cover-label{font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#a8a29e;margin-bottom:12px}
+.cover-title{font-size:32px;font-weight:700;color:#1a1a1a;line-height:1.2;margin-bottom:22px;padding-bottom:22px;border-bottom:1px solid #e7e5e4;letter-spacing:-0.02em}
+.cover-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.meta-item{display:flex;flex-direction:column;gap:3px}
+.meta-label{font-size:9.5px;font-weight:700;color:#a8a29e;letter-spacing:0.08em;text-transform:uppercase}
+.meta-value{font-size:13px;color:#1a1a1a;font-weight:500}
+.section-card{background:#fff;border-radius:12px;padding:36px 40px;margin-bottom:18px;border:1px solid #e7e5e4}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #e7e5e4}
+.section-num{width:32px;height:32px;background:#1a1a1a;color:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.section-title{font-size:20px;font-weight:700;color:#1a1a1a;letter-spacing:-0.01em}
+.subsection{margin-bottom:26px}
+.subsection:last-child{margin-bottom:0}
+.subsection-title{font-size:13px;font-weight:700;color:#525252;margin-bottom:12px;padding-left:12px;border-left:3px solid #1a1a1a;letter-spacing:0.02em}
+p{margin-bottom:12px;color:#404040}
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid #e7e5e4;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{background:#fafaf9;color:#1a1a1a;font-weight:700;padding:11px 14px;text-align:left;font-size:11.5px;letter-spacing:0.02em;border-bottom:1px solid #e7e5e4}
+tbody td{padding:10px 14px;border-top:1px solid #f5f5f4;vertical-align:top;color:#404040}
+tbody tr:hover td{background:#fafaf9}
+code{background:#f5f5f4;padding:2px 7px;border-radius:4px;font-size:12px;font-family:'JetBrains Mono',monospace;color:#1a1a1a}
+pre{background:#1a1a1a;color:#e5e5e5;padding:18px 22px;border-radius:8px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;margin:12px 0}
+pre code{background:none;color:inherit;padding:0;font-size:inherit}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.info-card{background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:14px 16px}
+.info-card-label{font-size:10px;font-weight:700;color:#a8a29e;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:5px}
+.info-card-value{font-size:13.5px;color:#1a1a1a;font-weight:500}
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:3px 9px;border-radius:4px;font-family:'JetBrains Mono',monospace}
+.badge-stack{background:#1a1a1a;color:#fff}
+.badge-phase{background:#f5f5f4;color:#1a1a1a;border:1px solid #d6d3d1}
+.badge-warn{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.badge-danger{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.diagram{background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:24px;font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.8;white-space:pre;overflow-x:auto;color:#1a1a1a;margin:12px 0}
+ul{padding-left:22px;margin:10px 0}
+li{margin-bottom:4px;color:#404040}
+.tradeoff-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px}
+.tradeoff-cell{background:#fafaf9;border:1px solid #e7e5e4;border-radius:8px;padding:14px 16px}
+.tradeoff-label{font-size:9.5px;font-weight:700;color:#a8a29e;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px}
+.tradeoff-value{font-size:12.5px;color:#1a1a1a}
+@media print{.sidebar{display:none}.main{margin-left:0;max-width:100%}.section-card{border:1px solid #d6d3d1;page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="doc-badge">Architecture</span>
+    <div class="doc-title">Atelier</div>
+    <div class="doc-version">v1.0 / 2026-05-18</div>
+  </div>
+  <nav class="toc">
+    <div class="toc-group-label">Foundation</div>
+    <a href="#sec-1"><span class="toc-num">01</span>全体方針</a>
+    <a href="#sec-2"><span class="toc-num">02</span>システム構成</a>
+    <a href="#sec-3"><span class="toc-num">03</span>技術スタック</a>
+    <div class="toc-group-label">Detail</div>
+    <a href="#sec-4"><span class="toc-num">04</span>DB設計方針</a>
+    <a href="#sec-5"><span class="toc-num">05</span>インフラ・デプロイ</a>
+    <a href="#sec-6"><span class="toc-num">06</span>セキュリティ</a>
+    <a href="#sec-7"><span class="toc-num">07</span>Foundation Gate</a>
+    <div class="toc-group-label">Strategy</div>
+    <a href="#sec-8"><span class="toc-num">08</span>並列開発戦略</a>
+    <a href="#sec-9"><span class="toc-num">09</span>コスト方針</a>
+    <a href="#sec-10"><span class="toc-num">10</span>トレードオフ</a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<div class="doc-cover">
+  <div class="cover-label">Architecture Specification</div>
+  <h1 class="cover-title">Atelier アーキテクチャ設計書</h1>
+  <div class="cover-meta">
+    <div class="meta-item"><span class="meta-label">Project</span><span class="meta-value">Atelier</span></div>
+    <div class="meta-item"><span class="meta-label">Owner</span><span class="meta-value">高本まさと</span></div>
+    <div class="meta-item"><span class="meta-label">Version</span><span class="meta-value">1.0</span></div>
+    <div class="meta-item"><span class="meta-label">Issue Date</span><span class="meta-value">2026-05-18</span></div>
+    <div class="meta-item"><span class="meta-label">Pattern</span><span class="meta-value">Modular Monolith × 2-tier</span></div>
+    <div class="meta-item"><span class="meta-label">Cost Target</span><span class="meta-value">月 $0-10（初期）</span></div>
+  </div>
+</div>
+
+<section class="section-card" id="sec-1">
+  <div class="section-header"><div class="section-num">01</div><div class="section-title">全体方針</div></div>
+  <p><strong>モジュラーモノリス × 2-tier</strong>：Next.js（フロント+BFF）と Python FastAPI（AI処理層）の 2 サービス構成。共通DBは Supabase Postgres（Tokyo region）。1人運用＋3ヶ月期限＋並列5-10AIタスクという制約に対する現実解。</p>
+  <p>マイクロサービス分割は1人運用で不可能、完全モノリスは AI 機能を犠牲にする。AI 処理層を独立させることで、Pythonエコシステム（Anthropic SDK / Agent SDK / LangGraph / LlamaIndex / Cognee）を100%活用しつつ、Next.js でエディトリアル品質の UI を実現する。</p>
+</section>
+
+<section class="section-card" id="sec-2">
+  <div class="section-header"><div class="section-num">02</div><div class="section-title">システム構成図</div></div>
+  <div class="diagram">[Browser]                            [Claude Desktop / MCP Client]
+    |                                              |
+    | HTTPS                                        | MCP Protocol
+    v                                              v
++------------------------+                  +---------------------------+
+| Next.js on Vercel      |  REST / SSE      | Python FastAPI on Fly.io  |
+| (Hobby Free -> Pro)    | <==============> | (Tokyo region, Free + 従量) |
+|                        |                  |                           |
+| - App Router (RSC)     |                  | - LLMClient abstraction   |
+| - Route Handlers (BFF) |                  | - Anthropic Agent SDK     |
+| - shadcn/ui            |                  | - LangGraph + Inngest     |
+| - assistant-ui         |                  | - LlamaIndex + Cognee     |
+| - tool-ui              |                  | - Voyage AI / Whisper API |
+| - Lucide React         |                  | - MCP Server              |
+| - Drizzle ORM          |                  | - /goal Bridge            |
+| - Zustand+TanStack Q   |                  |   -> Local Claude Code    |
++----------+-------------+                  +--------+------------------+
+           |                                         |
+           |   Supabase JS SDK    asyncpg / Supabase SDK
+           |                                         |
+           v                                         v
+       +-----------------------------------------------+
+       | Supabase (Tokyo region)                       |
+       |  - PostgreSQL 16 + pgvector + pg_cron         |
+       |  - Auth (Email / Magic Link / Google / GitHub)|
+       |  - Storage (議事録 / モック / 三層出力)         |
+       |  - Realtime (チャット / Inbox通知)             |
+       |  - Vault (BYOK API キー暗号化)                 |
+       +-----------------------------------------------+
+
+[Inngest] cron / 夜間ジョブ
+[Sentry / Langfuse / Better Stack] 観測層
+[Local Claude Code] WebSocket/SSE bridge, 初回CLIログイン</div>
+</section>
+
+<section class="section-card" id="sec-3">
+  <div class="section-header"><div class="section-num">03</div><div class="section-title">技術スタック</div></div>
+
+  <div class="subsection">
+    <div class="subsection-title">3-1. フロントエンド</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">Framework</div><div class="info-card-value">Next.js 15 App Router</div></div>
+      <div class="info-card"><div class="info-card-label">Language</div><div class="info-card-value">TypeScript strict</div></div>
+      <div class="info-card"><div class="info-card-label">UI Core</div><div class="info-card-value">shadcn/ui + Tailwind CSS</div></div>
+      <div class="info-card"><div class="info-card-label">AI Chat UI</div><div class="info-card-value">assistant-ui</div></div>
+      <div class="info-card"><div class="info-card-label">Tool Calls UI</div><div class="info-card-value">tool-ui</div></div>
+      <div class="info-card"><div class="info-card-label">Icons</div><div class="info-card-value">Lucide React（絵文字禁止）</div></div>
+      <div class="info-card"><div class="info-card-label">Client State</div><div class="info-card-value">Zustand</div></div>
+      <div class="info-card"><div class="info-card-label">Server State</div><div class="info-card-value">TanStack Query</div></div>
+      <div class="info-card"><div class="info-card-label">Form</div><div class="info-card-value">React Hook Form + Zod</div></div>
+      <div class="info-card"><div class="info-card-label">ORM</div><div class="info-card-value">Drizzle ORM</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">3-2. バックエンド（AI処理層）</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">Framework</div><div class="info-card-value">FastAPI</div></div>
+      <div class="info-card"><div class="info-card-label">Runtime</div><div class="info-card-value">Python 3.12</div></div>
+      <div class="info-card"><div class="info-card-label">Package</div><div class="info-card-value">uv (Astral)</div></div>
+      <div class="info-card"><div class="info-card-label">Linter</div><div class="info-card-value">ruff</div></div>
+      <div class="info-card"><div class="info-card-label">Type Check</div><div class="info-card-value">pyright strict</div></div>
+      <div class="info-card"><div class="info-card-label">AI SDK</div><div class="info-card-value">Anthropic + Claude Agent SDK</div></div>
+      <div class="info-card"><div class="info-card-label">Orchestration</div><div class="info-card-value">LangGraph + Inngest</div></div>
+      <div class="info-card"><div class="info-card-label">RAG</div><div class="info-card-value">LlamaIndex + Cognee</div></div>
+      <div class="info-card"><div class="info-card-label">Embedding</div><div class="info-card-value">Voyage AI</div></div>
+      <div class="info-card"><div class="info-card-label">STT</div><div class="info-card-value">Whisper API</div></div>
+      <div class="info-card"><div class="info-card-label">DB Driver</div><div class="info-card-value">asyncpg + SQLAlchemy 2.0 Core</div></div>
+      <div class="info-card"><div class="info-card-label">Validation</div><div class="info-card-value">Pydantic v2</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">3-3. データ層</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">DB</div><div class="info-card-value">PostgreSQL 16 + pgvector</div></div>
+      <div class="info-card"><div class="info-card-label">Host</div><div class="info-card-value">Supabase Tokyo</div></div>
+      <div class="info-card"><div class="info-card-label">Auth</div><div class="info-card-value">Supabase Auth + RLS</div></div>
+      <div class="info-card"><div class="info-card-label">Storage</div><div class="info-card-value">Supabase Storage</div></div>
+      <div class="info-card"><div class="info-card-label">Realtime</div><div class="info-card-value">Supabase Realtime</div></div>
+      <div class="info-card"><div class="info-card-label">Migration</div><div class="info-card-value">Supabase CLI</div></div>
+      <div class="info-card"><div class="info-card-label">Search Full</div><div class="info-card-value">Postgres FTS (pg_trgm)</div></div>
+      <div class="info-card"><div class="info-card-label">Vector</div><div class="info-card-value">pgvector + HNSW</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">3-4. インフラ / Observability</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">Frontend Host</div><div class="info-card-value">Vercel Hobby Free</div></div>
+      <div class="info-card"><div class="info-card-label">Backend Host</div><div class="info-card-value">Fly.io Tokyo Free</div></div>
+      <div class="info-card"><div class="info-card-label">CDN</div><div class="info-card-value">Vercel Edge</div></div>
+      <div class="info-card"><div class="info-card-label">DNS</div><div class="info-card-value">Cloudflare</div></div>
+      <div class="info-card"><div class="info-card-label">Email</div><div class="info-card-value">Resend Free</div></div>
+      <div class="info-card"><div class="info-card-label">Cron / Jobs</div><div class="info-card-value">Inngest Free</div></div>
+      <div class="info-card"><div class="info-card-label">Error</div><div class="info-card-value">Sentry Free</div></div>
+      <div class="info-card"><div class="info-card-label">LLM Trace</div><div class="info-card-value">Langfuse OSS / Free</div></div>
+      <div class="info-card"><div class="info-card-label">Uptime</div><div class="info-card-value">Better Stack Free</div></div>
+      <div class="info-card"><div class="info-card-label">Secrets</div><div class="info-card-value">Vercel env + Fly.io secrets</div></div>
+      <div class="info-card"><div class="info-card-label">CI/CD</div><div class="info-card-value">GitHub Actions Free</div></div>
+      <div class="info-card"><div class="info-card-label">Monorepo</div><div class="info-card-value">pnpm workspaces + Turborepo</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section-card" id="sec-4">
+  <div class="section-header"><div class="section-num">04</div><div class="section-title">DB設計方針</div></div>
+
+  <div class="subsection">
+    <div class="subsection-title">4-1. 設計原則</div>
+    <div class="info-grid">
+      <div class="info-card"><div class="info-card-label">Primary Key</div><div class="info-card-value">UUID v7（時系列ソート）</div></div>
+      <div class="info-card"><div class="info-card-label">Delete</div><div class="info-card-value">ソフトデリート + 30日後 hard</div></div>
+      <div class="info-card"><div class="info-card-label">Timestamp</div><div class="info-card-value">TIMESTAMPTZ 必須</div></div>
+      <div class="info-card"><div class="info-card-label">Naming</div><div class="info-card-value">snake_case_plural</div></div>
+      <div class="info-card"><div class="info-card-label">Tenant</div><div class="info-card-value">workspace_id + RLS</div></div>
+      <div class="info-card"><div class="info-card-label">JSON</div><div class="info-card-value">JSONB（インデックス可）</div></div>
+      <div class="info-card"><div class="info-card-label">Tables</div><div class="info-card-value">25 エンティティ</div></div>
+      <div class="info-card"><div class="info-card-label">ENUMs</div><div class="info-card-value">19 種</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <div class="subsection-title">4-2. Access Control (RLS)</div>
+    <p>致命級リスク R-T08（クライアント漏洩）対策として、通常ユーザー JWT とクライアント招待 JWT を <strong>完全分離</strong>。全25テーブルに per-entity policy を定義し、Foundation Gate #4 で網羅性を CI 検証。</p>
+    <pre><code>predicates_lib:
+  self_only         : user_id = auth.uid()
+  ws_member         : workspace_id IN (SELECT ... FROM workspace_memberships WHERE user_id = auth.uid())
+  ws_owner          : ws_member AND role = 'owner'
+  project_member    : project_id IN (SELECT id FROM projects WHERE ...)
+  client_via_invite : invitation_token_hash 一致 AND expires_at > now()
+  admin_only        : raw_app_meta_data->>'role' = 'admin'
+  service_role      : auth.role() = 'service_role'</code></pre>
+  </div>
+</section>
+
+<section class="section-card" id="sec-5">
+  <div class="section-header"><div class="section-num">05</div><div class="section-title">インフラ・デプロイ構成</div></div>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>環境</th><th>用途</th><th>ホスティング</th></tr></thead>
+    <tbody>
+      <tr><td>local</td><td>ローカル開発</td><td>Supabase CLI Docker</td></tr>
+      <tr><td>preview</td><td>PR ごと自動生成</td><td>Vercel Preview + Supabase preview branch + Fly.io review</td></tr>
+      <tr><td>staging</td><td>リリース前検証</td><td>Vercel staging + Supabase staging + Fly.io staging Tokyo</td></tr>
+      <tr><td>production</td><td>本番</td><td>Vercel + Supabase production + Fly.io Tokyo</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>環境間データ分離</strong>：staging と production は別 Supabase project（DB/Auth/Storage すべて別）。preview は staging 読取専用クローン or 空 DB。本番データは preview / staging に流入しない（個情法対応）。</p>
+</section>
+
+<section class="section-card" id="sec-6">
+  <div class="section-header"><div class="section-num">06</div><div class="section-title">セキュリティ方針</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>項目</th><th>対策</th></tr></thead>
+    <tbody>
+      <tr><td>通信</td><td>TLS 1.3、HSTS、Mixed Content 禁止</td></tr>
+      <tr><td>認証</td><td>Supabase Auth（Email / Magic Link / Google / GitHub OAuth）、MFA は Phase 5+</td></tr>
+      <tr><td>認可</td><td>Postgres RLS プライマリ + Application Layer 二重チェック</td></tr>
+      <tr><td>セッション</td><td>JWT HTTP-only Cookie + Secure + SameSite Lax</td></tr>
+      <tr><td>CSP</td><td>nonce-based、<code>unsafe-inline</code> 禁止</td></tr>
+      <tr><td>暗号化(at-rest)</td><td>AES-256（Supabase 標準）+ Vault（BYOK keys）</td></tr>
+      <tr><td>レートリミット</td><td>Vercel Edge Middleware + Upstash Ratelimit (Phase 4+) + FastAPI 自前</td></tr>
+      <tr><td>シークレットスキャン</td><td>GitHub Secret Scanning + gitleaks pre-commit</td></tr>
+      <tr><td>依存性</td><td>Dependabot + <code>pnpm audit</code> + <code>uv pip audit</code> 週次</td></tr>
+      <tr><td>監査ログ</td><td>個人情報閲覧時 1年保持（個情法対応）</td></tr>
+      <tr><td>招待リンク</td><td>JWT 署名 + 数日有効 + 使用後失効 + ハッシュ照合</td></tr>
+      <tr><td>越境同意</td><td>Supabase Tokyo / Anthropic US / Voyage US / Whisper US を同意UIで明示</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="sec-7">
+  <div class="section-header"><div class="section-num">07</div><div class="section-title">Foundation Phase Gate（8 merge gate）</div></div>
+  <p>並列5-10 開発で main を守るための CI Gate。<code>.github/workflows/v3-gate.yml</code> に実装。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Gate</th><th>script</th><th>Owner Task</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>mock lint</td><td><code>pnpm lint && uv run ruff check . && shellcheck</code></td><td>T-V3-INFRA-02</td></tr>
+      <tr><td>2</td><td>3-tier AC validator</td><td><code>pnpm tsx scripts/validate-ac.ts</code></td><td>T-V3-INFRA-06</td></tr>
+      <tr><td>3</td><td>audit MD validator</td><td><code>pnpm tsx scripts/validate-audit-md.ts</code></td><td>T-V3-INFRA-06</td></tr>
+      <tr><td>4</td><td>RLS coverage</td><td><code>pnpm tsx scripts/verify-rls.ts</code></td><td>T-V3-INFRA-04</td></tr>
+      <tr><td>5</td><td>unit test + coverage (≥80%)</td><td><code>pnpm test --coverage && uv run pytest --cov</code></td><td>T-V3-INFRA-08</td></tr>
+      <tr><td>6</td><td>type check backend</td><td><code>uv run pyright</code></td><td>T-V3-INFRA-07</td></tr>
+      <tr><td>7</td><td>type check frontend + lint</td><td><code>pnpm tsc --noEmit && pnpm eslint .</code></td><td>T-V3-INFRA-07</td></tr>
+      <tr><td>8</td><td>mock-impl diff (has-frontend label)</td><td><code>pnpm tsx scripts/mock-impl-diff.ts</code></td><td>T-V3-INFRA-03</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:14px;"><strong>Retry プロトコル</strong>：最大3回連続失敗で human エスカレーション。retry 時に前回ログを Claude Code に渡してコンテキスト引き継ぎ、別 worktree で起動。</p>
+</section>
+
+<section class="section-card" id="sec-8">
+  <div class="section-header"><div class="section-num">08</div><div class="section-title">並列開発戦略</div></div>
+  <pre><code>workflow         : trunk-based + worktree
+branch_naming    : &lt;agent&gt;/&lt;task_id&gt;   例: claude/T-042
+worktree_pattern : $REPO_ROOT/../worktrees/&lt;task_id&gt;
+merge_method     : squash + auto-merge (CI 全 gate pass 時)
+conflict_avoid   : task-decomposition の files_changed で事前回避
+parallel_capacity: small (5-10)</code></pre>
+</section>
+
+<section class="section-card" id="sec-9">
+  <div class="section-header"><div class="section-num">09</div><div class="section-title">コスト方針</div></div>
+  <p><strong>初期は Free tier 最大活用で月 $0-10 を目標</strong>。BYOK でユーザー負担に寄せる。</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>サービス</th><th>プラン</th><th>月コスト</th><th>移行タイミング</th></tr></thead>
+    <tbody>
+      <tr><td>Vercel</td><td>Hobby Free</td><td>$0</td><td>100GB帯域超過時 Pro</td></tr>
+      <tr><td>Fly.io</td><td>Free 3 VM</td><td>$0-5</td><td>常時稼働で $20+</td></tr>
+      <tr><td>Supabase</td><td>Free</td><td>$0</td><td>500MB DB / 50k MAU 超過で Pro $25</td></tr>
+      <tr><td>Anthropic API</td><td><strong>BYOK</strong></td><td>$0（運営）</td><td>運営APIキーモード提供時</td></tr>
+      <tr><td>Voyage AI</td><td>Free 200M tok/月</td><td>$0</td><td>100社到達まで持つ可能性</td></tr>
+      <tr><td>Sentry / Langfuse / Better Stack / Resend / Inngest / GitHub</td><td>すべて Free</td><td>$0</td><td>段階的に有料化</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="section-card" id="sec-10">
+  <div class="section-header"><div class="section-num">10</div><div class="section-title">設計トレードオフ</div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>採用判断</th><th>犠牲</th><th>妥当性</th></tr></thead>
+    <tbody>
+      <tr><td>TS + Python 2 言語運用</td><td>脳内コンテキストスイッチ</td><td>AI 機能品質を優先</td></tr>
+      <tr><td>Vercel + Fly.io 2 デプロイ</td><td>単一プラットフォーム簡潔さ</td><td>Tokyo region と長時間実行を両立</td></tr>
+      <tr><td>Inngest 採用</td><td>サービス数増</td><td>cron 安全性</td></tr>
+      <tr><td>自前 LLMClient 抽象化</td><td>外部 SDK 便利機能</td><td>プロバイダー切替の確実性</td></tr>
+      <tr><td>Drizzle ORM</td><td>Prisma 成熟エコシステム</td><td>Edge + Supabase + RLS 親和性</td></tr>
+      <tr><td>Supabase ロックイン</td><td>ベンダー独立性</td><td>RLS 価値が圧倒的</td></tr>
+      <tr><td>Free tier 中心運用</td><td>制限対応の工夫</td><td>コスト 0 優先</td></tr>
+      <tr><td>絵文字禁止・Lucide 統一</td><td>絵文字の表現力</td><td>エディトリアル品質維持</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

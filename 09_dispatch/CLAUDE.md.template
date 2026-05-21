@@ -1,0 +1,113 @@
+# 実装ブランチ: {{BRANCH}}
+
+> Atelier JIT パッケージ / 生成: {{NOW}} / source: 07_tasks/tickets.json#{{TASK_ID}}
+> {{BLOCKING_FLAG}}
+
+## 0. このブランチで「やること / やらないこと」
+
+### YES（このブランチで完了させる）
+- **{{TITLE}}** を完成させる
+- 3-tier AC 全 PASS（後述）
+- CI gate 10 / 10 PASS で auto-merge
+
+### NO（他ブランチの責務）
+- 関連 Wave {{WAVE}} の他タスク
+- v3-gate.yml の変更（→ T-F-07 専有）
+- スキーマ変更（→ Group D 専有）
+- 「良い感じに改善」「ついでにリファクタ」は禁止
+
+## 1. 上流参照パス
+
+| 種別 | パス |
+|---|---|
+| タスク本体 | `07_tasks/tickets.json` の `tasks[].id == "{{TASK_ID}}"` |
+| OpenAPI 契約 | `07_api_design/openapi.yaml` |
+| TS / Python 型 | `07_api_design/types.ts` |
+| エンティティ | `04_functional_breakdown/entities.json` |
+| 画面モック | {{SCREEN_MOCKS}} |
+| デザイントークン | `05_design/DESIGN-atelier.md` |
+| スケジュール | `08_schedule/schedule.json` → waves[{{WAVE}}] |
+
+## 2. タスク仕様
+
+| 項目 | 値 |
+|---|---|
+| ID | **{{TASK_ID}}** |
+| タイトル | {{TITLE}} |
+| Group / Phase / Wave | {{GROUP}} / {{PHASE}} / W{{WAVE}} |
+| 担当 AI 社員 | **{{ASSIGNED_EMPLOYEE}}** |
+| Deliverable Layer | {{DELIVERABLE_LAYER}} |
+| Category / Label | {{CATEGORY}} / {{LABEL}} |
+| Screens | {{SCREEN_IDS}} |
+| Entities | {{ENTITY_IDS}} |
+| Features | {{FEATURE_IDS}} |
+| Depends on | {{DEPENDS_ON}} |
+
+### 二軸時間
+
+| 軸 | 値 |
+|---|---:|
+| Human-baseline | **{{HUMAN_H}} h** |
+| AI compute | **{{AI_H}} h** |
+| Wall-clock（review 含） | {{WALL_H}} h |
+| 短縮率 | {{ACCEL_FACTOR}}× |
+| 人間 review | {{REVIEW_H}} h |
+
+## 3. ファイル境界（file mutex）
+
+### editable（このブランチで新規/編集 OK）
+{{FILES_NEW}}
+
+### shared_read（参照のみ・編集禁止）
+{{FILES_SHARED_READ}}
+
+### modify（既存ファイルへの追記 OK）
+{{FILES_MODIFY}}
+
+### forbidden（他タスク専有・絶対に触れない）
+{{FILES_FORBIDDEN}}
+
+## 4. 受入条件 3-tier（acceptance_criteria_inline 逐語）
+
+### Tier 1: structural
+{{TIER_1}}
+
+### Tier 2: functional (EARS 5 形式)
+{{TIER_2}}
+
+### Tier 3: regression（v3-gate.yml 10 種）
+{{TIER_3}}
+
+## 5. テストシナリオ（test_scenarios_inline）
+
+{{TEST_SCENARIOS}}
+
+## 6. 実装手順
+
+```bash
+# 1. ブランチ作成
+git checkout -b {{BRANCH}}
+
+# 2. 上流確認
+jq '.tasks[] | select(.id=="{{TASK_ID}}")' 07_tasks/tickets.json
+
+# 3. 実装（files_changed_predicted の new/modify のみ触る）
+
+# 4. local CI gate を試走（任意）
+./scripts/validate.sh
+pnpm ci-gate --task {{TASK_ID}}
+
+# 5. push → PR auto-create → 10 gate PASS → auto-merge
+git push -u origin {{BRANCH}}
+```
+
+## 7. 失敗時のフロー
+
+- CI gate 失敗 → auto retry 最大 3 回（10s / 30s / 60s）
+- 3 連続失敗 → S-E01 チャットに human-escalation 通知
+- blocking task の場合：経営者承認待ち（{{REVIEW_H}}h）
+
+---
+
+**この CLAUDE.md は JIT 生成されたものです。Git に commit しないでください。**
+**信頼源は `07_tasks/tickets.json` です。仕様変更はそちらを更新してください。**

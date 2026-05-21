@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atelier へようこそ — S-A01</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  body { background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-variant) 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+  .auth-wrap { max-width: 440px; width: 100%; }
+  .auth-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 32px; }
+  .auth-brand .brand-mark { width: 36px; height: 36px; font-size: 17px; }
+  .auth-brand .brand-name { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+  .auth-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 36px 32px; box-shadow: var(--shadow-sm); }
+  .auth-tabs { display: flex; gap: 4px; padding: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 24px; }
+  .auth-tab { flex: 1; padding: 8px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; text-align: center; }
+  .auth-tab.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .oauth-row { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+  .btn-oauth { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; border: 1px solid var(--color-border); border-radius: var(--rounded-md); font-size: 14px; font-weight: 600; background: #FFFFFF; transition: all 0.12s; }
+  .btn-oauth:hover { background: var(--color-surface-variant); }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--color-border); }
+  .divider span { font-size: 11px; color: var(--color-on-surface-variant); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+  .consent-row { display: flex; gap: 10px; align-items: flex-start; padding: 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin: 20px 0 16px; }
+  .consent-row input { margin-top: 2px; flex-shrink: 0; }
+  .consent-text { font-size: 12px; color: var(--color-on-surface-variant); line-height: 1.5; }
+  .consent-text a { font-weight: 600; }
+  .footer-note { text-align: center; margin-top: 24px; font-size: 12.5px; color: var(--color-on-surface-variant); }
+</style>
+</head>
+<body>
+<main data-bf-screen-id="S-A01" data-bf-screen-name="signin" data-bf-category="auth" data-bf-status="active" data-bf-version="1">
+  <div class="auth-wrap">
+    <div class="auth-brand">
+      <div class="brand-mark">A</div>
+      <div class="brand-name">Atelier</div>
+    </div>
+
+    <div class="auth-card">
+      <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px;">Atelier へようこそ</h1>
+      <p class="text-muted text-base mb-6">AI 社員と一緒に、複数案件を並行運用する作業環境へ。</p>
+
+      <div class="auth-tabs">
+        <div class="auth-tab active">サインイン</div>
+        <div class="auth-tab">サインアップ</div>
+      </div>
+
+      <div class="oauth-row">
+        <button class="btn-oauth"><i data-icon="github"></i>GitHub でサインイン</button>
+        <button class="btn-oauth"><i data-icon="globe"></i>Google でサインイン</button>
+      </div>
+
+      <div class="divider"><span>または</span></div>
+
+      <div class="form-group">
+        <label class="form-label">メールアドレス</label>
+        <input class="input" type="email" value="you@atelier.app" placeholder="you@example.com">
+        <div class="input-helper">入力後、Magic Link が届きます（パスワード不要）</div>
+      </div>
+
+      <div class="consent-row">
+        <input type="checkbox" id="agree" checked>
+        <label for="agree" class="consent-text">
+          <a href="../public/S-PUB01-terms.html">利用規約</a>、<a href="../public/S-PUB02-privacy.html">プライバシーポリシー</a>、およびデータの一部処理が海外サーバー（Anthropic / Voyage / Whisper）経由となる<strong>越境同意</strong>に同意します。
+        </label>
+      </div>
+
+      <button class="btn btn-primary btn-lg w-full" style="justify-content: center;">
+        <span>Magic Link を送る</span>
+        <i data-icon="arrow-right"></i>
+      </button>
+    </div>
+
+    <p class="footer-note">アカウント作成で <a href="../public/S-PUB03-tokushoho.html">特商法表記</a> も同意したとみなされます</p>
+  </div>
+</main>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

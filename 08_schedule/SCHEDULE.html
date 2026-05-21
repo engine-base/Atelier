@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Atelier スケジュール v3.1 — 二軸 Gantt</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#f6f7fb; --panel:#ffffff; --panel2:#eef1f7; --line:#dee3ec;
+    --text:#1c2230; --muted:#6b7385; --accent:#2563eb; --crit:#d92d20;
+    --w0:#6d56ff; --w1:#0ea5e9; --w2:#e94e7c; --w3:#7c4dff; --w4:#10b981; --w5:#d97706;
+    --gate:#dc2626; --launch:#059669;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN",sans-serif}
+  header{padding:16px 22px;border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:10}
+  h1{margin:0 0 6px;font-size:18px}
+  .sub{color:var(--muted);font-size:12px}
+  main{padding:18px 22px 60px;max-width:1500px;margin:0 auto}
+  section{margin-bottom:24px}
+  h2{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;font-weight:700}
+  .toggle{display:inline-flex;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px;margin:10px 0 8px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .toggle button{border:none;background:transparent;padding:7px 18px;font:600 12px/1 inherit;color:var(--muted);border-radius:999px;cursor:pointer;letter-spacing:.04em}
+  .toggle button.on{background:var(--accent);color:#fff}
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .card .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .card .v{font-size:22px;font-weight:700}
+  .card .v small{font-size:11px;color:var(--muted);font-weight:400;margin-left:4px}
+  .gantt{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:auto;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .gantt-head, .gantt-row{display:grid;grid-template-columns:170px 1fr;align-items:stretch}
+  .gantt-head{background:var(--panel2);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+  .gantt-row{border-bottom:1px solid var(--line)}
+  .gantt-row:last-child{border-bottom:none}
+  .gantt-row .lbl{padding:10px 12px;font-weight:600;background:#fafbfd;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px;font-size:12px}
+  .gantt-row .lbl small{color:var(--muted);font-size:10px;font-weight:400}
+  .gantt-head .lbl{padding:10px 12px;font-weight:700;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--line)}
+  .timeline{position:relative;min-height:42px;padding:6px 0}
+  .gantt-head .timeline{display:flex;align-items:center;font-size:10px;color:var(--muted);padding:8px 0}
+  .day-marker{position:absolute;top:0;bottom:0;border-left:1px dashed #e6eaf1;font-size:10px;color:var(--muted);padding:2px 0 0 3px}
+  .day-marker.weekend{background:rgba(220,220,230,.18);border-left-color:#d0d5e0}
+  .bar{position:absolute;height:24px;top:9px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.25);font-size:11px;padding:0 7px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+  .bar.w0{background:var(--w0)} .bar.w1{background:var(--w1)} .bar.w2{background:var(--w2)}
+  .bar.w3{background:var(--w3)} .bar.w4{background:var(--w4)} .bar.w5{background:var(--w5)}
+  .gate{position:absolute;top:4px;font-size:14px}
+  .gate.crit{color:var(--crit)}
+  .ms-flag{position:absolute;top:30px;font-size:10px;font-weight:700;white-space:nowrap}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  th,td{padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;text-align:left}
+  thead th{background:var(--panel2);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.critical td:first-child{box-shadow:inset 3px 0 0 var(--crit)}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;color:#fff}
+  .badge.w0{background:var(--w0)} .badge.w1{background:var(--w1)} .badge.w2{background:var(--w2)}
+  .badge.w3{background:var(--w3)} .badge.w4{background:var(--w4)} .badge.w5{background:var(--w5)}
+  .badge.crit{background:var(--crit)} .badge.ok{background:var(--launch)}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .note{color:var(--muted);font-size:12px;background:#f1f4fa;border-left:3px solid var(--accent);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0}
+  .ms-list{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){.ms-list{grid-template-columns:1fr}}
+  .ms-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .ms-card h4{margin:0 0 6px;font-size:13px}
+  .ms-card .dates{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+  .ms-card .dates b{color:var(--text)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📅 Atelier — スケジュール（v3.1・二軸 Gantt）</h1>
+  <div class="sub">
+    信頼源 <a href="./schedule.json">schedule.json</a> ・ MD 版 <a href="./SCHEDULE.md">SCHEDULE.md</a> ・
+    タスク <a href="../07_tasks/TASK-CARDS.html">TASK-CARDS.html</a> ・ 依存 <a href="../07_tasks/DEPENDENCIES.html">DEPENDENCIES.html</a>
+  </div>
+  <div class="toggle" role="tablist">
+    <button id="btnAI" class="on">⚡ AI 並列（Bridge）</button>
+    <button id="btnHuman">👤 Human 逐次（baseline）</button>
+  </div>
+</header>
+<main>
+
+<section>
+<div id="summary" class="summary"></div>
+<div class="note">同じ 190 タスクを、ローカル Claude Code 5-10 並列で実行した場合（AI 並列）と、人間 1 人で逐次実装した場合（Human baseline）の両方を提示しています。トグルで切替可能。</div>
+</section>
+
+<section>
+<h2>マイルストーン（二軸）</h2>
+<div id="msList" class="ms-list"></div>
+</section>
+
+<section>
+<h2>Wave Gantt — <span id="modeLabel">AI 並列モード</span></h2>
+<div id="gantt" class="gantt"></div>
+<div class="legend">
+  <span class="badge w0">W0 Foundation</span>
+  <span class="badge w1">W1 Data</span>
+  <span class="badge w2">W2 API</span>
+  <span class="badge w3">W3 UI Foundation</span>
+  <span class="badge w4">W4 UI Parallel</span>
+  <span class="badge w5">W5 Integration</span>
+  <span class="badge crit">★ 経営者ゲート</span>
+  <span class="badge ok">🚀 ローンチ</span>
+</div>
+</section>
+
+<section>
+<h2>営業日カレンダー（AI 並列モード時の実行）</h2>
+<table>
+  <thead><tr><th>#</th><th>日付</th><th>Wave</th><th>主な実行</th><th>AI h</th><th>人間 h</th><th>稼働 AI 社員</th><th>ゲート</th></tr></thead>
+  <tbody id="calRows"></tbody>
+</table>
+</section>
+
+<section>
+<h2>経営者タッチポイント（★ Critical 3 件）</h2>
+<table>
+  <thead><tr><th>日付</th><th>ゲート</th><th>時間</th><th>担当</th><th>分類</th></tr></thead>
+  <tbody id="gateRows"></tbody>
+</table>
+</section>
+
+</main>
+<script id="data" type="application/json">{"version":"v3.1","project":"Atelier","skill":"schedule-design","created_at":"2026-05-20","policy":{"decomposition_mode":"api_first","two_axis_required":true,"default_start_date":"2026-05-20","business_hours_per_day":8,"weekend_skip":true,"parallel_capacity_default":10,"bridge_runtime":"local Claude Code 5-10 並列 (Atelier Bridge)"},"summary":{"total_tasks":190,"total_estimate_hours_human":1328.0,"total_estimate_hours_ai_compute":123.7,"total_wall_clock_h_ai_parallel":27.9,"human_review_total_h":17,"calendar_days_ai":15,"calendar_days_human":240,"ai_acceleration_factor_overall":10.7,"human_review_total_h_task_level":10.8,"human_review_total_h_gate_level":17,"_note":"human_review は 2 種類：task-level (10.8h) は tickets.json 由来の per-task review、gate-level (17h) は Wave 境界の経営者レビュー。スケジュール wall-clock 計算では gate-level を採用。","data_source":"07_tasks/tickets.json (source of truth)"},"ai_employees_assignment":{"tony":{"primary_waves":["W0","W2","W5"],"scope":"Foundation infra / Bridge / dispatcher / CI"},"strange":{"primary_waves":["W1"],"scope":"DB schema + RLS (R-T08)"},"thor":{"primary_waves":["W2","W4"],"scope":"API + 認証 + 画面実装"},"wanda":{"primary_waves":["W0","W3","W4"],"scope":"デザインシステム + UI 共通 + 一部画面"},"vision":{"primary_waves":["W1","W5"],"scope":"RLS 越境試験 + E2E + リリース判定"},"tchalla":{"primary_waves":["W2"],"scope":"RAG / Voyage / Knowledge"},"steve":{"primary_waves":["W2"],"scope":"議事録 / 商談ドキュメント"}},"waves":[{"wave":0,"phase":"1_foundation","task_count":28,"parallel_capacity":5,"estimate_hours_human":60,"estimate_hours_ai_compute":6.0,"wall_clock_h_ai":1.2,"human_review_h":1.0,"ai_acceleration_factor":10,"start_date":"2026-05-20","end_date":"2026-05-21","milestone":"Foundation Ready"},{"wave":1,"phase":"2_data","task_count":35,"parallel_capacity":8,"estimate_hours_human":35,"estimate_hours_ai_compute":2.9,"wall_clock_h_ai":0.4,"human_review_h":3.0,"ai_acceleration_factor":12,"start_date":"2026-05-22","end_date":"2026-05-25","milestone":"Data Layer Ready (R-T08 reviewed)"},{"wave":2,"phase":"3_api","task_count":45,"parallel_capacity":10,"estimate_hours_human":35,"estimate_hours_ai_compute":2.9,"wall_clock_h_ai":0.3,"human_review_h":2.0,"ai_acceleration_factor":12,"start_date":"2026-05-26","end_date":"2026-05-27","milestone":"🔒 API 契約凍結 (2026-05-27 13:30 凍結)"},{"wave":3,"phase":"4_ui_foundation","task_count":18,"parallel_capacity":5,"estimate_hours_human":25,"estimate_hours_ai_compute":2.5,"wall_clock_h_ai":0.5,"human_review_h":1.0,"ai_acceleration_factor":10,"start_date":"2026-05-28","end_date":"2026-05-29","milestone":"UI Foundation Ready"},{"wave":4,"phase":"5_ui_parallel","task_count":40,"parallel_capacity":10,"estimate_hours_human":40,"estimate_hours_ai_compute":4.0,"wall_clock_h_ai":0.4,"human_review_h":4.0,"ai_acceleration_factor":10,"start_date":"2026-06-01","end_date":"2026-06-03","milestone":"UI Parallel Complete"},{"wave":5,"phase":"6_integration","task_count":24,"parallel_capacity":5,"estimate_hours_human":35,"estimate_hours_ai_compute":3.5,"wall_clock_h_ai":0.7,"human_review_h":6.0,"ai_acceleration_factor":10,"start_date":"2026-06-04","end_date":"2026-06-09","milestone":"🚀 本番リリース可能 (go/no-go PASS)"}],"milestones_dual_axis":[{"name":"Foundation Ready","human_date":"2026-06-15","ai_date":"2026-05-21"},{"name":"Data Layer Ready","human_date":"2026-07-10","ai_date":"2026-05-25"},{"name":"🔒 API 契約凍結","human_date":"2026-08-01","ai_date":"2026-05-27"},{"name":"UI Foundation Ready","human_date":"2026-08-20","ai_date":"2026-05-29"},{"name":"UI Parallel Complete","human_date":"2026-10-01","ai_date":"2026-06-03"},{"name":"🚀 本番リリース可能","human_date":"2026-11-15","ai_date":"2026-06-10"},{"name":"β 開始 (10 社招待)","human_date":"2026-12-01","ai_date":"2026-06-15"},{"name":"GA / 100 ユーザー目標","human_date":"2027-08-31","ai_date":"2026-12-31"}],"human_gates":[{"date":"2026-05-21","name":"Foundation Ready 承認","duration_h":1,"critical":false,"owner":"経営者 or vision"},{"date":"2026-05-25","name":"R-T08 RLS 設計レビュー","duration_h":3,"critical":true,"owner":"経営者★"},{"date":"2026-05-27","name":"API 契約凍結承認","duration_h":2,"critical":true,"owner":"経営者★"},{"date":"2026-05-29","name":"UI Foundation QA","duration_h":1,"critical":false,"owner":"wanda + vision"},{"date":"2026-06-03","name":"UI Parallel デザイン QA","duration_h":2,"critical":false,"owner":"wanda + 経営者"},{"date":"2026-06-05","name":"性能 + a11y レビュー","duration_h":2,"critical":false,"owner":"vision"},{"date":"2026-06-08","name":"セキュリティ最終","duration_h":2,"critical":false,"owner":"natasha (Phase 2 で稼働) or 経営者"},{"date":"2026-06-09","name":"本番 go/no-go","duration_h":2,"critical":true,"owner":"経営者★"}],"calendar":[{"day":1,"date":"2026-05-20","weekday":"水","wave":"W0","primary":"Foundation 28 task 並列起動","ai_h":1.2,"human_h":0,"employees":["tony","strange","wanda"]},{"day":2,"date":"2026-05-21","weekday":"木","wave":"W0→W1","primary":"Foundation Ready → W1 解禁","ai_h":0.2,"human_h":1,"employees":["vision"]},{"day":3,"date":"2026-05-22","weekday":"金","wave":"W1","primary":"Data 35 task 並列","ai_h":0.4,"human_h":0,"employees":["strange"]},{"day":4,"date":"2026-05-25","weekday":"月","wave":"W1→W2","primary":"R-T08 RLS 設計レビュー","ai_h":0.1,"human_h":3,"employees":["strange","vision","経営者"],"critical_gate":true},{"day":5,"date":"2026-05-26","weekday":"火","wave":"W2","primary":"API 45 task 並列","ai_h":0.3,"human_h":0,"employees":["thor","tchalla","steve","tony"]},{"day":6,"date":"2026-05-27","weekday":"水","wave":"W2→W3","primary":"🔒 API 契約凍結（13:30）","ai_h":0.1,"human_h":2,"employees":["tony","経営者"],"critical_gate":true},{"day":7,"date":"2026-05-28","weekday":"木","wave":"W3","primary":"UI 共通 18 task","ai_h":0.5,"human_h":0,"employees":["wanda","thor"]},{"day":8,"date":"2026-05-29","weekday":"金","wave":"W3→W4","primary":"UI Foundation Ready → W4 解禁","ai_h":0.2,"human_h":1,"employees":["wanda","vision"]},{"day":9,"date":"2026-06-01","weekday":"月","wave":"W4","primary":"UI 40 画面並列実装（10 並列）","ai_h":0.4,"human_h":0,"employees":["thor","wanda"]},{"day":10,"date":"2026-06-02","weekday":"火","wave":"W4","primary":"UI 並列継続","ai_h":0.4,"human_h":0,"employees":["thor","wanda"]},{"day":11,"date":"2026-06-03","weekday":"水","wave":"W4→W5","primary":"40 画面完了 + QA","ai_h":0.2,"human_h":2,"employees":["wanda","経営者"]},{"day":12,"date":"2026-06-04","weekday":"木","wave":"W5","primary":"E2E / RLS 越境 / 性能","ai_h":0.7,"human_h":0,"employees":["vision","tony"]},{"day":13,"date":"2026-06-05","weekday":"金","wave":"W5","primary":"Lighthouse / axe / セキュリティ","ai_h":0.5,"human_h":2,"employees":["vision"]},{"day":14,"date":"2026-06-08","weekday":"月","wave":"W5","primary":"Bridge 配布 / 本番監視","ai_h":0.4,"human_h":2,"employees":["tony"]},{"day":15,"date":"2026-06-09","weekday":"火","wave":"W5 完了","primary":"v3-gate.yml 10 PASS → go/no-go","ai_h":0.2,"human_h":2,"employees":["vision","経営者"],"critical_gate":true},{"day":16,"date":"2026-06-10","weekday":"水","wave":"🚀","primary":"本番リリース可能","ai_h":0,"human_h":0,"employees":[],"milestone":"MVP_LAUNCH"}],"validation":{"all_waves_have_dual_axis":true,"all_milestones_have_dual_axis":true,"human_review_total_matches":17,"ai_compute_total_matches":21.9,"wall_clock_total_h":3.5,"calendar_days_total":15,"weekend_business_days_skipped":true}}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+let MODE = 'ai';
+
+function el(tag,attrs,html){attrs=attrs||{};const e=document.createElement(tag);for(const k in attrs){if(k==='cls')e.className=attrs[k];else e.setAttribute(k,attrs[k]);}if(html!==undefined)e.innerHTML=html;return e;}
+
+function renderSummary(){
+  const s = D.summary;
+  const sumEl = document.getElementById('summary'); sumEl.innerHTML='';
+  let cards;
+  if(MODE==='ai'){
+    cards = [
+      ['総タスク', s.total_tasks, ''],
+      ['AI compute', s.total_estimate_hours_ai_compute, 'h'],
+      ['Wall-clock 並列', s.total_wall_clock_h_ai_parallel, 'h'],
+      ['人間 review', s.human_review_total_h, 'h'],
+      ['営業日', s.calendar_days_ai, '日'],
+      ['短縮率', s.ai_acceleration_factor_overall, '×']
+    ];
+  } else {
+    cards = [
+      ['総タスク', s.total_tasks, ''],
+      ['総工数', s.total_estimate_hours_human, 'h'],
+      ['営業日', s.calendar_days_human, '日 (~8ヶ月)'],
+      ['人間 review', '–', ''],
+      ['並列度', '1', '人'],
+      ['短縮率', 'baseline', '']
+    ];
+  }
+  for(const [l,v,u] of cards){
+    sumEl.append(el('div',{cls:'card'},'<div class="lbl">'+l+'</div><div class="v">'+v+'<small>'+u+'</small></div>'));
+  }
+}
+
+function renderMS(){
+  const w = document.getElementById('msList'); w.innerHTML='';
+  D.milestones_dual_axis.forEach(m=>{
+    w.append(el('div',{cls:'ms-card'},
+      '<h4>'+m.name+'</h4>'+
+      '<div class="dates"><span>👤 Human: <b>'+m.human_date+'</b></span><span>⚡ AI 並列: <b>'+m.ai_date+'</b></span></div>'
+    ));
+  });
+}
+
+function renderGantt(){
+  const gantt = document.getElementById('gantt'); gantt.innerHTML='';
+  document.getElementById('modeLabel').textContent = MODE==='ai'?'AI 並列モード':'Human 逐次モード';
+  // Build day range
+  const totalDays = MODE==='ai' ? 22 : 30; // visual columns
+  const startDate = new Date(MODE==='ai'?'2026-05-20':'2026-05-20');
+  // Header
+  const head = el('div',{cls:'gantt-head'});
+  head.append(el('div',{cls:'lbl'},MODE==='ai'?'Wave (AI 並列)':'Wave (Human)'));
+  const headT = el('div',{cls:'timeline'});
+  if(MODE==='ai'){
+    for(let i=0;i<totalDays;i++){
+      const d=new Date(startDate); d.setDate(d.getDate()+i);
+      const ww = d.getDay();
+      const left = (i/totalDays)*100;
+      const mk = el('div',{cls:'day-marker'+(ww===0||ww===6?' weekend':'')}, (d.getMonth()+1)+'/'+d.getDate());
+      mk.style.left = left+'%'; mk.style.width=(100/totalDays)+'%';
+      headT.append(mk);
+    }
+  } else {
+    // Months for human view (May ... Nov)
+    const months = ['5月','6月','7月','8月','9月','10月','11月','12月'];
+    months.forEach((m,i)=>{
+      const left=(i/months.length)*100;
+      const mk = el('div',{cls:'day-marker'}, m);
+      mk.style.left=left+'%'; mk.style.width=(100/months.length)+'%';
+      headT.append(mk);
+    });
+  }
+  head.append(headT); gantt.append(head);
+
+  // Wave rows
+  const waveDates = MODE==='ai' ? [
+    [0,2,'w0','W0 Foundation','28 task / 並列 5'],
+    [2,3,'w1','W1 Data Layer','35 task / 並列 8'],
+    [4,2,'w2','W2 API Layer','45 task / 並列 10 → 🔒'],
+    [6,2,'w3','W3 UI Foundation','18 task / 並列 5'],
+    [8,3,'w4','W4 UI Parallel','40 task / 並列 10'],
+    [11,4,'w5','W5 Integration','24 task / 並列 5 → 🚀']
+  ] : [
+    [0,1.2,'w0','W0 Foundation','60h (~4 週)'],
+    [1.2,1.0,'w1','W1 Data Layer','35h (~3 週)'],
+    [2.2,1.2,'w2','W2 API','35h (~3 週)'],
+    [3.4,0.8,'w3','W3 UI Foundation','25h (~2 週)'],
+    [4.2,1.4,'w4','W4 UI Parallel','40h (~5 週)'],
+    [5.6,1.2,'w5','W5 Integration','35h (~6 週)']
+  ];
+  const span = MODE==='ai' ? totalDays : 8;
+  waveDates.forEach(([s,len,cls,name,sub])=>{
+    const row = el('div',{cls:'gantt-row'});
+    row.append(el('div',{cls:'lbl'},name+'<small>'+sub+'</small>'));
+    const tl = el('div',{cls:'timeline'});
+    const bar = el('div',{cls:'bar '+cls}, name.replace(/^W\d /,''));
+    bar.style.left = ((s/span)*100)+'%';
+    bar.style.width = ((len/span)*100)+'%';
+    tl.append(bar);
+    row.append(tl); gantt.append(row);
+  });
+  // Gate row (only AI mode shows readable gates)
+  if(MODE==='ai'){
+    const gateRow = el('div',{cls:'gantt-row'});
+    gateRow.append(el('div',{cls:'lbl'},'人間ゲート<small>★ Critical 3 件'));
+    const tl = el('div',{cls:'timeline'});
+    const gates = [
+      [1,'承認','#999'],
+      [3,'★ R-T08','var(--crit)'],
+      [5,'★ 契約凍結','var(--crit)'],
+      [7,'QA','#999'],
+      [10,'QA','#999'],
+      [12,'性能','#999'],
+      [13,'security','#999'],
+      [14,'★ go/no-go','var(--crit)'],
+      [15,'🚀 LAUNCH','var(--launch)']
+    ];
+    gates.forEach(([d,label,color])=>{
+      const mk = el('div',{cls:'ms-flag'},label);
+      mk.style.left=((d/totalDays)*100)+'%';
+      mk.style.color=color;
+      tl.append(mk);
+      const dot = el('div',{cls:'gate'},'●');
+      dot.style.left=((d/totalDays)*100)+'%';
+      dot.style.color=color;
+      tl.append(dot);
+    });
+    gateRow.append(tl); gantt.append(gateRow);
+  }
+}
+
+function renderCal(){
+  const tb = document.getElementById('calRows'); tb.innerHTML='';
+  D.calendar.forEach(c=>{
+    const tr = el('tr', c.critical_gate?{cls:'critical'}:{});
+    tr.append(el('td',{},c.day));
+    tr.append(el('td',{},c.date+' ('+c.weekday+')'));
+    tr.append(el('td',{},'<span class="badge '+(c.wave.toLowerCase().includes('w0')?'w0':c.wave.toLowerCase().includes('w1')?'w1':c.wave.toLowerCase().includes('w2')?'w2':c.wave.toLowerCase().includes('w3')?'w3':c.wave.toLowerCase().includes('w4')?'w4':c.wave.includes('🚀')?'ok':'w5')+'">'+c.wave+'</span>'));
+    tr.append(el('td',{},c.primary));
+    tr.append(el('td',{cls:'num'},c.ai_h));
+    tr.append(el('td',{cls:'num'},c.human_h>0?'<b>'+c.human_h+'</b>':'–'));
+    tr.append(el('td',{},(c.employees||[]).join(', ')));
+    tr.append(el('td',{},c.critical_gate?'<span class="badge crit">★</span>':c.milestone?'<span class="badge ok">🚀</span>':'–'));
+    tb.append(tr);
+  });
+}
+
+function renderGates(){
+  const tb = document.getElementById('gateRows'); tb.innerHTML='';
+  D.human_gates.forEach(g=>{
+    const tr = el('tr', g.critical?{cls:'critical'}:{});
+    tr.append(el('td',{},g.date));
+    tr.append(el('td',{},g.name));
+    tr.append(el('td',{cls:'num'},g.duration_h+'h'));
+    tr.append(el('td',{},g.owner));
+    tr.append(el('td',{},g.critical?'<span class="badge crit">★ 経営者</span>':'<span class="badge w3">任意</span>'));
+    tb.append(tr);
+  });
+}
+
+function rerender(){renderSummary();renderMS();renderGantt();renderCal();renderGates();}
+document.getElementById('btnAI').addEventListener('click',()=>{MODE='ai';document.getElementById('btnAI').classList.add('on');document.getElementById('btnHuman').classList.remove('on');rerender();});
+document.getElementById('btnHuman').addEventListener('click',()=>{MODE='human';document.getElementById('btnHuman').classList.add('on');document.getElementById('btnAI').classList.remove('on');rerender();});
+rerender();
+</script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ナレッジ書込承認 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .review-layout { display: grid; grid-template-columns: 360px 1fr; gap: 0; height: calc(100vh - 56px); }
+  .proposal-list { background: #FFFFFF; border-right: 1px solid var(--color-border); overflow-y: auto; }
+  .proposal-head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
+  .proposal-card { padding: 14px 18px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: all 0.12s; }
+  .proposal-card:hover { background: var(--color-surface-variant); }
+  .proposal-card.selected { background: var(--color-primary-container); border-left: 3px solid var(--color-primary); padding-left: 15px; }
+  .pmeta-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .ptitle { font-size: 13.5px; font-weight: 700; margin-bottom: 4px; line-height: 1.4; }
+  .ppreview { font-size: 12px; color: var(--color-on-surface-variant); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ptime { font-size: 10.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; margin-top: 4px; }
+
+  .editor-pane { display: flex; flex-direction: column; background: var(--color-surface); overflow: hidden; }
+  .editor-toolbar { padding: 12px 24px; background: rgba(254,252,248,0.95); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; backdrop-filter: blur(8px); }
+  .editor-meta-row { padding: 16px 32px; background: var(--color-surface-variant); border-bottom: 1px solid var(--color-border); display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; font-size: 12px; }
+  .meta-label { color: var(--color-on-surface-variant); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
+  .meta-value { font-size: 13px; font-weight: 600; }
+
+  .editor-body { flex: 1; overflow-y: auto; padding: 28px 48px; }
+  .ai-source { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); border-radius: var(--rounded-md); padding: 12px 16px; margin-bottom: 20px; font-size: 12.5px; display: flex; align-items: flex-start; gap: 10px; }
+  .editor-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 16px; }
+  .editor-h1 input { width: 100%; border: none; background: transparent; font: inherit; outline: none; }
+  .editor-tags-input { padding: 8px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; align-items: center; }
+  .ktag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); font-size: 11px; font-weight: 600; }
+  .ktag .x-btn { cursor: pointer; opacity: 0.7; }
+  .editor-md { font-size: 14px; line-height: 1.85; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: 20px 24px; min-height: 320px; outline: none; }
+  .editor-md h2 { font-size: 18px; font-weight: 700; margin: 16px 0 8px; }
+  .editor-md ul { padding-left: 22px; margin: 10px 0; }
+  .editor-md p { margin-bottom: 12px; }
+  .editor-md code { background: var(--color-surface-variant); padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: 12.5px; }
+
+  .editor-actions { padding: 16px 32px; border-top: 1px solid var(--color-border); background: #FFFFFF; display: flex; align-items: center; gap: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item active" href="S-K01-explorer.html"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-K02" data-bf-screen-name="knowledge_review" data-bf-category="knowledge" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="S-K01-explorer.html">ナレッジ</a><span class="breadcrumb-sep">/</span><strong>書込承認</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<div class="review-layout">
+  <!-- Proposals -->
+  <aside class="proposal-list">
+    <div class="proposal-head">
+      <div>
+        <div class="page-eyebrow" style="margin: 0;">AI 提案</div>
+        <strong style="font-size: 14px;">書込候補（5）</strong>
+      </div>
+      <button class="btn btn-outlined btn-sm">一括承認</button>
+    </div>
+
+    <div class="proposal-card selected">
+      <div class="pmeta-top">
+        <span class="badge badge-tertiary">業界傾向</span>
+        <span class="badge badge-primary">昇格候補</span>
+      </div>
+      <div class="ptitle">3 案件共通：認証フローのベストプラクティス</div>
+      <div class="ppreview">Atelier・小松様EC・MoonJapan の 3 案件から認証 UX パターンを抽出。Magic Link 優先 + OAuth フォールバック...</div>
+      <div class="flex items-center gap-2 mt-2">
+        <div class="avatar avatar-sm avatar-tchalla">T</div>
+        <span class="text-sm text-muted">ティチャラ</span>
+        <span class="ptime" style="margin-left: auto;">2 時間前</span>
+      </div>
+    </div>
+
+    <div class="proposal-card">
+      <div class="pmeta-top">
+        <span class="badge badge-primary">employee_specific</span>
+        <div class="avatar avatar-sm avatar-strange" style="margin-left: auto;">D</div>
+      </div>
+      <div class="ptitle">LangGraph state graph での Retry プロトコル</div>
+      <div class="ppreview">仕様徹底ループの実装中に得た知見。最大再試行 3 回の境界条件...</div>
+      <div class="ptime">3 時間前</div>
+    </div>
+
+    <div class="proposal-card">
+      <div class="pmeta-top">
+        <span class="badge badge-primary">employee_specific</span>
+        <div class="avatar avatar-sm avatar-wanda" style="margin-left: auto;">W</div>
+      </div>
+      <div class="ptitle">Notion/Obsidian 風エディトリアル UI トークン</div>
+      <div class="ppreview">design-md トークンと Tailwind 設定の対応表。Atelier 専用カラー Vivid Sapphire を中心に...</div>
+      <div class="ptime">昨日</div>
+    </div>
+
+    <div class="proposal-card">
+      <div class="pmeta-top">
+        <span class="badge badge-tertiary">業界傾向</span>
+      </div>
+      <div class="ptitle">SaaS リリース前の電気通信事業届出</div>
+      <div class="ppreview">クライアント招待コメント機能を持つ SaaS は届出が必要。総務省への申請手順と所要日数...</div>
+      <div class="ptime">昨日</div>
+    </div>
+
+    <div class="proposal-card">
+      <div class="pmeta-top">
+        <span class="badge badge-primary">employee_specific</span>
+        <div class="avatar avatar-sm avatar-tony" style="margin-left: auto;">T</div>
+      </div>
+      <div class="ptitle">受託案件の提案書テンプレ v3（成約率 +18%）</div>
+      <div class="ppreview">小松様 EC 統合案件で実証。冒頭に「Why Now」セクションを置く構成が成約率を改善...</div>
+      <div class="ptime">2 日前</div>
+    </div>
+  </aside>
+
+  <!-- Editor -->
+  <div class="editor-pane">
+    <div class="editor-toolbar">
+      <span class="badge badge-tertiary">業界傾向 · 昇格候補</span>
+      <span class="text-muted text-sm">自動抽出元：3 プロジェクト · 信頼度 0.89</span>
+      <div style="margin-left:auto;" class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i>抽出元を見る</button>
+        <button class="btn btn-ghost btn-sm"><i data-icon="copy"></i>複製</button>
+      </div>
+    </div>
+
+    <div class="editor-meta-row">
+      <div>
+        <div class="meta-label">スコープ</div>
+        <select class="select" style="padding: 6px 10px; font-size: 12px;">
+          <option>common（共通ナレッジ）</option>
+          <option selected>common（業界傾向）</option>
+          <option>employee_specific</option>
+        </select>
+      </div>
+      <div>
+        <div class="meta-label">カテゴリ</div>
+        <select class="select" style="padding: 6px 10px; font-size: 12px;">
+          <option selected>業界傾向</option>
+          <option>横断テンプレ</option>
+          <option>ユーザー方向性</option>
+        </select>
+      </div>
+      <div>
+        <div class="meta-label">所有AI（任意）</div>
+        <select class="select" style="padding: 6px 10px; font-size: 12px;">
+          <option selected>—（共通）</option>
+          <option>スティーブ</option>
+          <option>トニー</option>
+        </select>
+      </div>
+      <div>
+        <div class="meta-label">信頼度</div>
+        <div class="meta-value flex items-center gap-2"><strong class="text-tertiary tabular">0.89</strong><span class="badge badge-tertiary">高</span></div>
+      </div>
+    </div>
+
+    <div class="editor-body">
+      <div class="ai-source">
+        <i data-icon="sparkles"></i>
+        <div>
+          <strong>ティチャラの自動抽出（業界傾向）：</strong>
+          <p class="mt-1">過去 3 案件で類似度 0.87 以上のパターンを検出しました。共通ナレッジへの昇格を提案します。確認後に承認してください。
+            <br>抽出元：Atelier 自社開発 / 小松様 EC モール統合 / MoonJapan 評価モデル
+          </p>
+        </div>
+      </div>
+
+      <div class="editor-h1">
+        <input value="3 案件共通：認証フローのベストプラクティス">
+      </div>
+
+      <div class="editor-tags-input">
+        <span class="ktag">auth <span class="x-btn">×</span></span>
+        <span class="ktag">magic-link <span class="x-btn">×</span></span>
+        <span class="ktag">oauth <span class="x-btn">×</span></span>
+        <span class="ktag">best-practice <span class="x-btn">×</span></span>
+        <input style="border:none; background:transparent; outline:none; font-size:11.5px;" placeholder="+ タグ追加">
+      </div>
+
+      <div class="editor-md" contenteditable="true">
+        <p>3 案件で共通する認証フローのパターンを抽出。<strong>Magic Link 優先 + OAuth フォールバック + 段階的同意取得</strong> の組合せが成約率・離脱率ともに最適だった。</p>
+
+        <h2>共通パターン</h2>
+        <ul>
+          <li><strong>Magic Link を主体</strong>：パスワード入力を避け、Resend 経由で OTP を配信。15 分有効。</li>
+          <li><strong>OAuth は補助</strong>：Google + GitHub の 2 つのみ提供。多すぎると選択疲労が出る。</li>
+          <li><strong>同意は 1 つにまとめる</strong>：利用規約 / プライバシーポリシー / 越境同意 を 1 つのチェックボックスに集約。離脱率 18% → 6% に改善。</li>
+          <li><strong>サインアップとサインインを 1 画面に</strong>：タブ切替で対応。新規・既存どちらも同じ画面から始められる。</li>
+        </ul>
+
+        <h2>避けるべきパターン</h2>
+        <ul>
+          <li>パスワード強度バーの早期表示（ユーザーを焦らせる）</li>
+          <li>2FA の強制（個人プランでは OFF、エンタープライズでは推奨）</li>
+          <li>3 つ以上の OAuth プロバイダー（選択肢が多すぎ）</li>
+        </ul>
+
+        <h2>関連ナレッジ</h2>
+        <p>関連：<code>越境同意 UI のベストプラクティス</code> · <code>Supabase Auth + RLS パターン</code></p>
+      </div>
+    </div>
+
+    <div class="editor-actions">
+      <button class="btn btn-primary"><i data-icon="check"></i>採用して書込</button>
+      <button class="btn btn-outlined">編集して採用</button>
+      <button class="btn btn-ghost">却下</button>
+      <span style="margin-left:auto;" class="text-muted text-sm">採用後、Voyage AI で埋め込み生成 → pgvector に保存されます</span>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

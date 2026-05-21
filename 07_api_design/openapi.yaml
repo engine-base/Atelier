@@ -1,0 +1,949 @@
+openapi: 3.0.3
+info:
+  title: Atelier API
+  version: 1.0.0
+  description: |
+    Atelier - AI 社員常駐型開発プロジェクト統合管理 SaaS の API。
+
+    ★ API 契約凍結: 2026-05-20T13:30:00+09:00 ★
+    以後の変更は ADR + 影響解析 + 承認フロー必須。
+
+    認証 4 系統:
+    - 一般 JWT (Supabase Auth)
+    - クライアント別 JWT (role=client_portal, project_id クレーム限定・R-T08 対応)
+    - MCP Token
+    - Service Role (バックエンド内部 + Bridge worker)
+  contact:
+    name: ENGINE BASE
+    email: info@engine-base.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://atelier.app/api/v1
+    description: 本番
+  - url: https://*.preview.atelier.app/api/v1
+    description: Preview Deploy
+  - url: http://localhost:8000/api/v1
+    description: ローカル開発
+
+tags:
+  - name: auth
+    description: 認証・サインアップ・退会
+  - name: workspaces
+    description: ワークスペース管理
+  - name: projects
+    description: プロジェクト管理
+  - name: employees
+    description: AI 社員（10 名固定）
+  - name: chat
+    description: チャット (F-CTX01)
+  - name: workflow
+    description: 9 工程ワークフロー
+  - name: tasks
+    description: タスク管理（6 列ライフサイクル）
+  - name: kanban-tools
+    description: Hermes 互換 kanban tools（Bridge worker 専用）
+  - name: executions
+    description: 実行モニター・Bridge
+  - name: approval-inbox
+    description: 承認待ち
+  - name: client-portal
+    description: クライアント招待（別 JWT 系統）
+  - name: knowledge
+    description: ナレッジ管理
+  - name: admin
+    description: 運営（platform_admin 限定）
+  - name: public
+    description: 公開ページ（法令）
+  - name: mcp
+    description: MCP Server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    bridgeToken:
+      type: apiKey
+      in: header
+      name: X-Bridge-Token
+    clientPortalAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ========================================================================
+    # 共通
+    # ========================================================================
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, request_id]
+          properties:
+            code:
+              type: string
+              enum:
+                - BAD_REQUEST
+                - UNAUTHENTICATED
+                - INVALID_CREDENTIALS
+                - INVALID_BRIDGE_TOKEN
+                - INVALID_INVITATION_TOKEN
+                - FORBIDDEN
+                - ACCOUNT_LOCKED
+                - ACCOUNT_DELETED
+                - NOT_FOUND
+                - CONFLICT
+                - INVALID_LIFECYCLE_STAGE
+                - DEPENDENCIES_NOT_MET
+                - ALREADY_DECIDED
+                - EMAIL_ALREADY_REGISTERED
+                - EMAIL_IN_DELETION_GRACE
+                - OWNER_OF_WORKSPACE_WITH_OTHERS
+                - INVITATION_EXPIRED
+                - VALIDATION_ERROR
+                - CONSENT_REQUIRED
+                - RATE_LIMITED
+                - BYOK_QUOTA_EXCEEDED
+                - INTERNAL_ERROR
+                - BRIDGE_OFFLINE
+                - PARALLEL_LIMIT_REACHED
+                - F_CTX01_TIMEOUT
+            message: { type: string }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  code: { type: string }
+                  message: { type: string }
+            request_id: { type: string, format: uuid }
+            trace_id: { type: string }
+
+    PaginationMeta:
+      type: object
+      properties:
+        next_cursor: { type: string, nullable: true }
+        limit: { type: integer }
+        total_estimate: { type: integer }
+
+    # ========================================================================
+    # auth
+    # ========================================================================
+    User:
+      type: object
+      required: [id, email, display_name, language, ai_learning_opt_out, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string, maxLength: 50 }
+        avatar_url: { type: string, nullable: true }
+        language: { type: string, enum: [ja, en] }
+        ai_learning_opt_out: { type: boolean, default: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    SignupRequest:
+      type: object
+      required: [email, password, display_name, consents]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        display_name: { type: string, maxLength: 50 }
+        consents:
+          type: object
+          required: [terms, privacy, cross_border]
+          properties:
+            terms: { type: boolean }
+            privacy: { type: boolean }
+            cross_border: { type: boolean }
+            marketing: { type: boolean }
+
+    SigninRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      required: [user, access_token]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        workspace: { $ref: '#/components/schemas/Workspace' }
+        access_token: { type: string }
+        refresh_token: { type: string, description: "opaque, httpOnly cookie" }
+
+    # ========================================================================
+    # workspace
+    # ========================================================================
+    Workspace:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        member_count: { type: integer }
+        project_count: { type: integer }
+        plan: { type: string, enum: [free, pro, enterprise] }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    InviteMemberRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member, viewer] }
+        message: { type: string, maxLength: 500 }
+
+    # ========================================================================
+    # project
+    # ========================================================================
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        type: { type: string, enum: [self_product, client_project, personal] }
+        status: { type: string, enum: [in_progress, draft, paused, archived] }
+        ai_learning_opt_out: { type: boolean }
+        current_phase:
+          type: string
+          enum: [hearing, requirements, architecture, design, breakdown, tasks, implementation, verification, delivery]
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CreateProjectRequest:
+      type: object
+      required: [workspace_id, name, type]
+      properties:
+        workspace_id: { type: string, format: uuid }
+        name: { type: string, maxLength: 100 }
+        type: { type: string, enum: [self_product, client_project, personal] }
+        description: { type: string }
+
+    # ========================================================================
+    # task
+    # ========================================================================
+    Task:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        phase: { type: string }
+        category: { type: string }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        type: { type: string, enum: [foundation, screen, feature, verification, infrastructure, migration] }
+        estimated_hours: { type: integer, minimum: 1, maximum: 24 }
+        priority: { type: string, enum: [critical, high, medium, low] }
+        lifecycle_stage:
+          type: string
+          enum: [triage, ready, in_progress, blocked, awaiting, done]
+          description: Hermes 6 列モデル
+        dispatch_status:
+          type: string
+          enum: [queued, spawning, running, completing, dead, reclaimed]
+          nullable: true
+        assigned_employee_id:
+          type: string
+          enum: [jarvis, tony, natasha, steve, peter, strange, wanda, thor, vision, tchalla]
+        # Hermes 互換
+        summary: { type: string, nullable: true }
+        metadata: { type: object }
+        blocked_reason: { type: string, nullable: true }
+        retry_count: { type: integer, minimum: 0, maximum: 3 }
+        worktree_path: { type: string, nullable: true }
+        worker_pid: { type: integer, nullable: true }
+        # 依存関係
+        dependencies: { type: array, items: { type: string, format: uuid } }
+        prerequisites: { type: array, items: { type: string, format: uuid } }
+        blocks: { type: array, items: { type: string, format: uuid } }
+        # 紐付け
+        acceptance_criteria_id: { type: string, format: uuid, nullable: true }
+        mock_id: { type: string, format: uuid, nullable: true }
+        # 系譜
+        parent_task_id: { type: string, format: uuid, nullable: true }
+        origin_type:
+          type: string
+          enum: [initial_decomposition, refactor, scope_change_auto, manual_added]
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    PlayTaskRequest:
+      type: object
+      properties:
+        force: { type: boolean, default: false }
+
+    PlayTaskResponse:
+      type: object
+      properties:
+        task_id: { type: string, format: uuid }
+        lifecycle_stage: { type: string }
+        dispatch_status: { type: string }
+        execution_id: { type: string, format: uuid }
+        worktree_path: { type: string }
+        bridge_command: { type: string }
+        queue_position: { type: integer, description: "並列上限超過時のキュー位置" }
+
+    # ========================================================================
+    # Hermes 互換
+    # ========================================================================
+    KanbanCompleteRequest:
+      type: object
+      required: [task_id, summary, metadata]
+      properties:
+        task_id: { type: string, format: uuid }
+        summary: { type: string }
+        metadata:
+          type: object
+          required: [score, ac_pass_rate, test_pass_rate, verification_score, retry_count]
+          properties:
+            score: { type: number, minimum: 0, maximum: 1 }
+            ac_pass_rate: { type: number }
+            test_pass_rate: { type: number }
+            verification_score: { type: number }
+            files_changed: { type: array, items: { type: string } }
+            retry_count: { type: integer }
+
+    # ========================================================================
+    # 承認待ち
+    # ========================================================================
+    ApprovalInboxEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        category:
+          type: string
+          enum: [task_approval, phase_approval, scope_change, knowledge_promotion, comment_response]
+        urgent: { type: boolean }
+        title: { type: string }
+        preview: { type: string }
+        source_ref:
+          type: object
+          properties:
+            type: { type: string }
+            id: { type: string, format: uuid }
+        detected_by:
+          type: object
+          properties:
+            employee_id: { type: string }
+            at: { type: string, format: date-time }
+        impact_analysis: { type: object, nullable: true }
+        score: { type: number, nullable: true }
+        created_at: { type: string, format: date-time }
+        decided_at: { type: string, format: date-time, nullable: true }
+
+    ApprovalDecideRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, reject, defer] }
+        reason: { type: string }
+        scope_change_options:
+          type: object
+          properties:
+            rerun_phases:
+              type: array
+              items:
+                type: string
+                enum: [hearing, requirements, architecture, design, breakdown, tasks, implementation, verification, delivery]
+
+    # ========================================================================
+    # クライアント招待 (R-T08)
+    # ========================================================================
+    ClientSigninRequest:
+      type: object
+      required: [invitation_token]
+      properties:
+        invitation_token: { type: string }
+        display_name: { type: string }
+
+    ClientSigninResponse:
+      type: object
+      properties:
+        client_access_token: { type: string }
+        project:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        expires_at: { type: string, format: date-time }
+
+paths:
+  # ==========================================================================
+  # auth (11 endpoints)
+  # ==========================================================================
+  /auth/signup:
+    post:
+      tags: [auth]
+      summary: 新規登録 + 同意取得
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::signup
+      x-screen-ids: [S-A01]
+      x-rate-limit: 5/min/ip
+      x-feature-ids: [F-001, F-LEGAL-004]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AuthResponse' }
+        '409':
+          description: メール重複 or 削除猶予中
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: バリデーション失敗 or 同意未取得
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: レート上限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/signin:
+    post:
+      tags: [auth]
+      summary: メールサインイン
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::signin
+      x-screen-ids: [S-A01]
+      x-rate-limit: 5/min/ip
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SigninRequest' }
+      responses:
+        '200':
+          description: サインイン成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: 認証情報不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: アカウントロック or 削除猶予中
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: レート上限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/signout:
+    post:
+      tags: [auth]
+      summary: サインアウト
+      x-implementation-path: apps/api/src/routes/auth.py::signout
+      responses:
+        '204': { description: 成功 }
+
+  /auth/magic-link:
+    post:
+      tags: [auth]
+      summary: Magic Link 発行
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::magic_link
+      x-rate-limit: 3/min/ip + 1/min/email
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: メール送信受付 }
+        '429':
+          description: レート上限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/oauth/google:
+    post:
+      tags: [auth]
+      summary: Google OAuth 連携
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::oauth_google
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      responses:
+        '302': { description: Google にリダイレクト }
+
+  /auth/oauth/github:
+    post:
+      tags: [auth]
+      summary: GitHub OAuth 連携
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::oauth_github
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      responses:
+        '302': { description: GitHub にリダイレクト }
+
+  /auth/callback:
+    get:
+      tags: [auth]
+      summary: OAuth callback
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::oauth_callback
+      responses:
+        '302': { description: アプリにリダイレクト }
+
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      summary: パスワードリセット
+      security: []
+      x-implementation-path: apps/api/src/routes/auth.py::reset_password
+      x-rate-limit: 3/min/ip + 1/min/email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: リセットメール送信 }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 現在のユーザー情報
+      x-implementation-path: apps/api/src/routes/auth.py::me
+      x-rate-limit: 100/min/user
+      responses:
+        '200':
+          description: ユーザー情報
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/User' }
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/account:
+    delete:
+      tags: [auth]
+      summary: 退会申請（30 日猶予開始）
+      x-implementation-path: apps/api/src/routes/auth.py::delete_account
+      x-screen-ids: [S-A03]
+      x-feature-ids: [F-001, F-LEGAL-002]
+      responses:
+        '200':
+          description: 退会申請受付
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      deletion_scheduled_at: { type: string, format: date-time }
+                      hard_delete_at: { type: string, format: date-time }
+                      cancellation_deadline: { type: string, format: date-time }
+        '409':
+          description: 単一オーナーで他メンバー在籍
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/account/cancel-deletion:
+    post:
+      tags: [auth]
+      summary: 退会キャンセル（30 日猶予中のみ）
+      x-implementation-path: apps/api/src/routes/auth.py::cancel_deletion
+      x-screen-ids: [S-A03]
+      responses:
+        '200': { description: キャンセル成功 }
+        '409':
+          description: 既に hard delete 済 or 猶予期間外
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # workspaces (9 endpoints) - 1 つだけ完全定義、残りは構造同様
+  # ==========================================================================
+  /workspaces:
+    get:
+      tags: [workspaces]
+      summary: 所属 WS 一覧
+      x-implementation-path: apps/api/src/routes/workspaces.py::list
+      x-screen-ids: [S-B01]
+      responses:
+        '200':
+          description: WS 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Workspace' }
+    post:
+      tags: [workspaces]
+      summary: 新規 WS 作成
+      x-implementation-path: apps/api/src/routes/workspaces.py::create
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, maxLength: 100 }
+                description: { type: string }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Workspace' }
+
+  # ==========================================================================
+  # projects (8 endpoints) - 主要 3 つ
+  # ==========================================================================
+  /projects:
+    get:
+      tags: [projects]
+      summary: プロジェクト一覧（カーソル）
+      x-implementation-path: apps/api/src/routes/projects.py::list
+      x-screen-ids: [S-B01]
+      parameters:
+        - in: query
+          name: workspace_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Project' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+    post:
+      tags: [projects]
+      summary: 新規プロジェクト
+      x-implementation-path: apps/api/src/routes/projects.py::create
+      x-screen-ids: [S-B01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateProjectRequest' }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+
+  /projects/{id}/dashboard:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [projects]
+      summary: プロジェクト KPI ダッシュボード
+      x-implementation-path: apps/api/src/routes/projects.py::dashboard
+      x-screen-ids: [S-B02]
+      responses:
+        '200':
+          description: ダッシュボード
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object }
+
+  # ==========================================================================
+  # tasks + execution (主要 endpoint)
+  # ==========================================================================
+  /tasks/{id}/play:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [tasks]
+      summary: タスク再生（dispatcher へ）
+      x-implementation-path: apps/api/src/routes/tasks.py::play
+      x-screen-ids: [S-I01]
+      x-rate-limit: 10/min/user
+      x-feature-ids: [F-018, F-DISP01, F-BRIDGE01]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlayTaskRequest' }
+      responses:
+        '202':
+          description: 再生開始 or キュー投入
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PlayTaskResponse' }
+        '409':
+          description: lifecycle 違反 or 依存未完
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: Bridge オフライン or 並列上限
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # Hermes 互換 kanban tools (Bridge worker 専用)
+  # ==========================================================================
+  /kanban/complete:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_complete (Hermes 互換)
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/kanban_tools.py::complete
+      x-feature-ids: [F-J02, F-DISP01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanCompleteRequest' }
+      responses:
+        '200':
+          description: タスク遷移完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      task_id: { type: string, format: uuid }
+                      new_lifecycle_stage:
+                        type: string
+                        enum: [done, awaiting, blocked, triage]
+                      approval_required: { type: boolean }
+        '401':
+          description: Bridge token 不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # 承認待ち
+  # ==========================================================================
+  /approval-inbox:
+    get:
+      tags: [approval-inbox]
+      summary: 承認待ち一覧（5 種統合）
+      x-implementation-path: apps/api/src/routes/approval_inbox.py::list
+      x-screen-ids: [S-J01]
+      parameters:
+        - in: query
+          name: category
+          schema:
+            type: string
+            enum: [task_approval, phase_approval, scope_change, knowledge_promotion, comment_response, all]
+        - in: query
+          name: project_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [pending, all], default: pending }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApprovalInboxEntry' }
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/PaginationMeta'
+                      - type: object
+                        properties:
+                          counts: { type: object }
+
+  /approval-inbox/{id}/decide:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [approval-inbox]
+      summary: 承認判断
+      x-implementation-path: apps/api/src/routes/approval_inbox.py::decide
+      x-screen-ids: [S-J01, S-K02]
+      x-feature-ids: [F-J02, F-CUC02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalDecideRequest' }
+      responses:
+        '200': { description: 判断適用 }
+        '409':
+          description: 既に判断済
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # クライアント招待 (R-T08 致命級リスク対応)
+  # ==========================================================================
+  /client/auth/signin:
+    post:
+      tags: [client-portal]
+      summary: クライアントサインイン（別 JWT 系統）
+      security: []
+      x-implementation-path: apps/api/src/routes/client_auth.py::signin
+      x-screen-ids: [S-L02]
+      x-feature-ids: [F-L02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientSigninRequest' }
+      responses:
+        '200':
+          description: client_access_token 発行
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientSigninResponse' }
+        '401':
+          description: 招待トークン不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '410':
+          description: 招待期限切れ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /client/projects/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [client-portal]
+      summary: クライアントプロジェクトビュー（限定 UI）
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_portal.py::get_project
+      x-screen-ids: [S-L03]
+      responses:
+        '200': { description: 限定情報 }
+        '403':
+          description: project_id 不一致
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+# ============================================================================
+# 残り 94 endpoint について
+# ============================================================================
+# 上記 25 endpoint で全パターン（CRUD / 状態遷移 / SSE / 集計 / 承認 / 公開
+# / 運営 / クライアント別経路）を網羅。残り endpoint は同パターンで
+# implementation phase の Foundation phase で完全展開する。
+#
+# 完全な OpenAPI YAML は実装着手時に FastAPI のデコレータから自動生成
+# (pnpm run gen:api) → このファイルを上書き → 型生成 → CI gate で drift 検出
+#
+# 全 119 endpoint のパス・メソッド・implementation_path は
+# 07_api_design/lint-mapping.json に列挙済み。

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>プロジェクト設定 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .toggle { position: relative; width: 40px; height: 22px; background: var(--color-surface-variant); border-radius: 11px; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+  .toggle::after { content: ''; position: absolute; left: 2px; top: 2px; width: 18px; height: 18px; background: #FFFFFF; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.15s; }
+  .toggle.on { background: var(--color-primary); }
+  .toggle.on::after { left: 20px; }
+  .danger-zone { border: 1px solid #FECACA; background: #FEF2F2; border-radius: var(--rounded-lg); padding: 20px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="../workspace/S-A03-settings.html"><i data-icon="settings"></i>WS設定</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item active" href="#"><i data-icon="settings"></i>設定</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-B03" data-bf-screen-name="project_settings" data-bf-category="project" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><span>Atelier 自社開発</span><span class="breadcrumb-sep">/</span><strong>設定</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 800px;">
+  <div class="page-header">
+    <h1 class="page-title">プロジェクト設定</h1>
+    <p class="page-subtitle">基本情報・AI学習設定・クライアント招待・削除など。</p>
+  </div>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">基本情報</h2>
+    <div class="form-group">
+      <label class="form-label">プロジェクト名</label>
+      <input class="input" value="Atelier 自社開発">
+    </div>
+    <div class="form-group">
+      <label class="form-label">クライアント名</label>
+      <input class="input" value="ENGINE BASE（内製）">
+    </div>
+    <div class="grid grid-2 gap-4">
+      <div class="form-group">
+        <label class="form-label">種別</label>
+        <select class="select">
+          <option value="internal_product" selected>自社プロダクト</option>
+          <option value="client_work">クライアント案件</option>
+          <option value="personal">個人開発</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        <select class="select">
+          <option value="active" selected>進行中</option>
+          <option value="draft">下書き</option>
+          <option value="paused">一時停止</option>
+          <option value="archived">アーカイブ</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary mt-2">保存</button>
+  </section>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">AI 学習設定</h2>
+    <div class="notice notice-primary mb-4">
+      <i data-icon="shield-check"></i>
+      <div><strong>デフォルト OFF（学習しない）</strong> · 個人情報保護法対応 · このプロジェクトのデータは Anthropic / Voyage の学習データに含めません。</div>
+    </div>
+    <div class="flex items-center justify-between py-3">
+      <div>
+        <div class="font-semibold">AI 学習への利用を許可</div>
+        <div class="text-sm text-muted">ONにすると、改善のためのモデル学習に匿名データが提供されます。</div>
+      </div>
+      <div class="toggle"></div>
+    </div>
+    <div class="flex items-center justify-between py-3 mt-2" style="border-top:1px solid var(--color-border);">
+      <div>
+        <div class="font-semibold">プロジェクト跨ぎナレッジ参照</div>
+        <div class="text-sm text-muted">同アカウント内の他プロジェクトのナレッジを参照可能にする。</div>
+      </div>
+      <div class="toggle on"></div>
+    </div>
+  </section>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">クライアント招待</h2>
+    <p class="text-sm text-muted mb-4">クライアントを別経路で招待し、限定UIで成果物・モックを閲覧・コメント可能にします。</p>
+    <a class="btn btn-outlined" href="../client/S-L01-invite-mgmt.html"><i data-icon="users"></i>招待管理を開く</a>
+  </section>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">エクスポート</h2>
+    <p class="text-sm text-muted mb-3">各工程の成果物は HTML / JSON / MD で個別ダウンロードできます。一括エクスポートはありません。</p>
+    <div class="flex gap-2 flex-wrap">
+      <a class="btn btn-ghost btn-sm" href="#"><i data-icon="download"></i>ヒアリング</a>
+      <a class="btn btn-ghost btn-sm" href="#"><i data-icon="download"></i>要件定義</a>
+      <a class="btn btn-ghost btn-sm" href="#"><i data-icon="download"></i>アーキ設計</a>
+      <a class="btn btn-ghost btn-sm" href="#"><i data-icon="download"></i>デザイン</a>
+      <a class="btn btn-ghost btn-sm" href="#"><i data-icon="download"></i>機能分解</a>
+    </div>
+  </section>
+
+  <section class="danger-zone">
+    <h2 class="section-title mb-2" style="color:#991B1B;">危険な操作</h2>
+    <p class="text-sm mb-4" style="color:#991B1B;">プロジェクト削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。</p>
+    <button class="btn btn-danger">プロジェクトを削除</button>
+  </section>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

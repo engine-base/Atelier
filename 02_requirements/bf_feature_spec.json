@@ -1,0 +1,125 @@
+{
+  "schema_version": "bf-v1.0",
+  "project": "Atelier",
+  "generated_at": "2026-05-18",
+  "downstream_consumers": ["task-decomposition", "acceptance-criteria", "functional-breakdown", "architecture-design"],
+  "phases": [
+    {"phase": 0, "label": "基盤", "period": "2026-05下旬〜06上旬", "feature_ids": ["F-A01", "F-A02", "F-B01", "F-S01", "F-LEGAL-004", "F-LEGAL-011", "F-LEGAL-013"]},
+    {"phase": 1, "label": "AI組織+チャット+MCP", "period": "2026-06", "feature_ids": ["F-B02", "F-B03", "F-C01", "F-C02", "F-D01", "F-D02", "F-E01", "F-E02", "F-E03", "F-G01", "F-P01", "F-T02", "F-T03"]},
+    {"phase": 2, "label": "工程ワークフロー", "period": "2026-06下旬〜07前半", "feature_ids": ["F-F01", "F-F02", "F-H01", "F-H02", "F-L01", "F-L02"]},
+    {"phase": 3, "label": "タスク実行+仕様徹底+継続的更新サイクル", "period": "2026-07", "feature_ids": ["F-I01", "F-I02", "F-I03", "F-I04", "F-I05", "F-J01", "F-J02", "F-J03", "F-IMP01", "F-CUC01", "F-CUC02", "F-CUC03", "F-CUC04"]},
+    {"phase": 4, "label": "ナレッジ+商談周辺", "period": "2026-07下旬〜08初旬", "feature_ids": ["F-K01", "F-K02", "F-K03", "F-K04", "F-K05", "F-K06", "F-M01", "F-N01", "F-O01"]},
+    {"phase": 5, "label": "本格リリース", "period": "2026-08", "feature_ids": ["F-I06", "F-Q01", "F-R01", "F-R02", "F-T01", "F-T04", "F-U01", "F-U02", "F-U03", "F-LEGAL-001", "F-LEGAL-014", "F-LEGAL-015"]}
+  ],
+  "ai_organization": {
+    "total_default_employees": 10,
+    "structure": [
+      {"id": "coo-jarvis", "name": "ジャービス", "en": "Jarvis", "department": "経営", "role": "COO", "default_skills": ["task-management", "weekly-review", "decision-framework", "council", "strategic-compact"]},
+      {"id": "sales-tony", "name": "トニー", "en": "Tony Stark", "department": "営業・契約部", "role": "部長", "default_skills": ["sales-email", "lead-design", "proposal", "estimate", "pricing-design"]},
+      {"id": "sales-natasha", "name": "ナターシャ", "en": "Black Widow", "department": "営業・契約部", "role": "メンバー", "default_skills": ["business-contract", "nda-review", "contract-review", "invoice-create", "meeting-minutes"]},
+      {"id": "product-steve", "name": "スティーブ", "en": "Captain America", "department": "プロダクト企画部", "role": "部長", "default_skills": ["hearing", "requirements-definition", "product-strategy", "functional-breakdown", "feature-decomposition"]},
+      {"id": "product-peter", "name": "ピーター", "en": "Spider-Man", "department": "プロダクト企画部", "role": "メンバー", "default_skills": ["task-decomposition", "acceptance-criteria", "sprint-planning"]},
+      {"id": "arch-strange", "name": "ストレンジ", "en": "Doctor Strange", "department": "設計部", "role": "部長", "default_skills": ["architecture-design", "api-design", "database-migrations", "security-review", "tech-stack"]},
+      {"id": "design-wanda", "name": "ワンダ", "en": "Scarlet Witch", "department": "デザイン部", "role": "部長", "default_skills": ["brand-voice", "design-md", "ui-mockup", "frontend-design"]},
+      {"id": "dev-thor", "name": "ソー", "en": "Thor", "department": "開発・検証部", "role": "部長", "default_skills": ["distributed-dev", "tdd-workflow", "e2e-testing", "build-fix", "deployment-patterns"]},
+      {"id": "qa-vision", "name": "ヴィジョン", "en": "Vision", "department": "開発・検証部", "role": "メンバー", "default_skills": ["verification-loop", "test-verification", "quality-gate", "pr-test-analyzer", "ai-regression-testing"]},
+      {"id": "knowledge-tchalla", "name": "ティチャラ", "en": "Black Panther", "department": "全社横断", "role": "ナレッジ統括", "default_skills": ["knowledge-ops", "knowledge-base", "continuous-learning", "iterative-retrieval"]}
+    ],
+    "customization": {
+      "user_editable": ["name", "display_name", "icon", "tone_preset", "custom_tone_text"],
+      "admin_only": ["system_prompt", "specialty", "attached_skills", "role", "department"],
+      "tone_presets": ["敬語・丁寧（デフォルト）", "ですます調・親しみ", "タメ口・フランク", "ビジネス簡潔", "コーチング・前向き"]
+    }
+  },
+  "workflow": {
+    "stages": [
+      {"order": 1, "name": "ヒアリング", "responsible": "product-steve", "skill": "hearing", "outputs": ["hearing_summary.html", "hearing_summary.md", "project_brief.json"]},
+      {"order": 2, "name": "要件定義", "responsible": "product-steve", "skill": "requirements-definition", "outputs": ["requirements-v{n}.html", "features.json", "decision_log.json"]},
+      {"order": 3, "name": "アーキ設計", "responsible": "arch-strange", "skill": "architecture-design", "outputs": ["architecture.html", "architecture.json", "adrs.json"]},
+      {"order": 4, "name": "デザイン", "responsible": "design-wanda", "skill": "design-md→ui-mockup", "outputs": ["design.md", "design-tokens.json", "mocks/*.html"]},
+      {"order": 5, "name": "機能分解", "responsible": "product-steve", "skill": "functional-breakdown", "outputs": ["screens.json", "features.json", "roles.json", "entities.json"]},
+      {"order": 6, "name": "タスク分解", "responsible": "product-peter", "skill": "task-decomposition", "outputs": ["tasks.json", "dag.md", "ac/*.html"]},
+      {"order": 7, "name": "実装", "responsible": "dev-thor", "skill": "/goal駆動", "outputs": ["コード+テスト+差分"]},
+      {"order": 8, "name": "検証", "responsible": "qa-vision", "skill": "verification-loop", "outputs": ["test-reports", "score-reports"]},
+      {"order": 9, "name": "納品", "responsible": "coo-jarvis", "skill": "delivery", "outputs": ["delivery-package"]}
+    ],
+    "future_prefix": [
+      {"order": -2, "name": "提案", "responsible": "sales-tony", "skill": "proposal", "outputs": ["proposal.html", "proposal.pdf"]},
+      {"order": -1, "name": "見積", "responsible": "sales-tony", "skill": "estimate", "outputs": ["estimate.html", "estimate.pdf"]}
+    ],
+    "handoff": {
+      "type": "summary_with_links",
+      "includes": ["handoff_summary", "three_layer_output_links", "unresolved_items", "recommended_actions"]
+    }
+  },
+  "task_card_schema": {
+    "required_fields": ["id", "title", "description", "category", "type", "estimated_hours", "dependencies[]", "prerequisites[]", "blocks[]", "acceptance_criteria_html_id", "mock_id_or_null", "spec_id", "assigned_employee", "status", "priority", "auto_advance_allowed"],
+    "estimated_hours_range": [8, 16],
+    "type_enum": ["foundation", "screen", "feature", "verification", "infrastructure"],
+    "status_enum": ["pending", "in_progress", "in_verification", "completed", "blocked", "awaiting_approval"]
+  },
+  "verification_loop": {
+    "score_formula": "AC達成率 × 0.6 + テスト成功率 × 0.3 + 検証AI評価 × 0.1",
+    "thresholds": {
+      "auto_approve": 0.95,
+      "human_approval_lower": 0.80,
+      "force_intervention_lower": 0.0
+    },
+    "max_retries": 3,
+    "skills_used_in_claude_code": ["verification-loop", "acceptance-criteria", "test-verification", "quality-gate"]
+  },
+  "parallel_execution": {
+    "max_parallel_tasks": 10,
+    "default_parallel_tasks": 5,
+    "bridge": "local_claude_code",
+    "auth_method": "first_cli_login_then_auto",
+    "oauth_evaluation_phase": 5,
+    "streaming_default": "off_background",
+    "streaming_optional_mode": "monitor"
+  },
+  "knowledge_structure": {
+    "scope": "account",
+    "layers": ["common", "employee_specific"],
+    "write_policy": "user_approval_required",
+    "organize_policy": "ai_auto_categorize",
+    "industry_extraction": "auto_when_3_or_more_similar_projects",
+    "employee_categories": {
+      "design-wanda": ["参考デザイン", "カラー傾向", "フォント選好"],
+      "sales-tony": ["過去提案テンプレ", "成約パターン", "価格戦略"],
+      "arch-strange": ["採用アーキテクチャ", "失敗パターン"],
+      "qa-vision": ["仕様逸脱例", "検証チェックリスト"],
+      "knowledge-tchalla": ["全社員ナレッジ統括・整理"]
+    }
+  },
+  "tech_stack": {
+    "frontend": "Next.js (App Router) + TypeScript",
+    "bff": "Next.js Route Handlers",
+    "ai_layer": "Python FastAPI",
+    "ai_sdk": ["Anthropic SDK", "Claude Agent SDK"],
+    "orchestration": ["LangGraph", "Inngest"],
+    "rag": ["LlamaIndex", "Cognee", "Voyage AI", "Supabase pgvector"],
+    "document_parsing": ["Whisper API", "Unstructured.io"],
+    "observability": "Langfuse OSS",
+    "cost_optimization": ["LLMLingua", "Anthropic Prompt Caching", "Batch API"],
+    "abstraction": "自前LLMClient（chat/stream/tool/search/embed/count）",
+    "db_auth": "Supabase（Tokyo region推奨）",
+    "billing": "Stripe（Phase 8）",
+    "execution_bridge": {
+      "desktop_client": "Atelier Bridge = Vibeyard fork (MIT, elirantutia/vibeyard)",
+      "client_stack": ["Electron", "node-pty", "xterm.js", "TypeScript"],
+      "dispatcher": "Hermes Agent kanban port (MIT, NousResearch/hermes-agent) on FastAPI",
+      "dispatcher_features": ["HERMES_KANBAN_TASK env worker spawn", "git worktree 自動作成", "サーキットブレーカ", "構造化ハンドオフ(summary+metadata)", "kanban_show/complete/block/unblock 7ツール"],
+      "lifecycle": "6 列モデル (Triage→Ready→In Progress→Blocked→Awaiting→Done)",
+      "transport": "Bridge→クラウド: SSE / クラウド→Bridge: WebSocket",
+      "auth": "ユーザーの claude CLI ログイン状態を共有 (Claude プラン枠で実行)"
+    },
+    "mcp": "Python MCP SDK"
+  },
+  "data_entities": [
+    "users", "workspaces", "workspace_memberships", "projects", "phases", "workflow_outputs",
+    "ai_employees", "ai_employee_templates", "skills", "chat_threads", "chat_messages",
+    "tasks", "task_executions", "acceptance_criteria", "mocks", "comments",
+    "client_invitations", "knowledge_nodes", "approval_inbox", "audit_logs",
+    "mcp_tokens", "byok_api_keys", "cron_schedules", "external_uploads", "consents"
+  ]
+}

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>個人データ削除要求 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .pub-header { background: #FFFFFF; border-bottom: 1px solid var(--color-border); padding: 14px 24px; }
+  .pub-header-inner { max-width: 760px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+  .danger-card { background: #FEF2F2; border: 1px solid #FECACA; border-radius: var(--rounded-lg); padding: 24px; margin-bottom: 24px; }
+  .checklist { background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 16px 20px; margin: 16px 0; font-size: 13.5px; }
+  .checklist li { margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px; }
+  .checklist li::before { content: '•'; color: var(--color-on-surface-variant); flex-shrink: 0; }
+  .schedule-card { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); border-radius: var(--rounded-lg); padding: 20px; margin: 16px 0; display: flex; gap: 14px; align-items: flex-start; }
+</style>
+</head>
+<body>
+<main data-bf-screen-id="S-PUB04" data-bf-screen-name="data_deletion" data-bf-category="legal" data-bf-status="active" data-bf-version="1">
+<header class="pub-header">
+  <div class="pub-header-inner">
+    <a class="flex items-center gap-2" href="../auth/S-A01-signin.html"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></a>
+    <a class="text-sm text-muted" href="S-PUB02-privacy.html"><i data-icon="arrow-left" data-size="12"></i> プライバシーポリシー</a>
+  </div>
+</header>
+
+<div class="public-wrap" style="max-width: 680px;">
+  <div class="public-meta">個人情報保護法 第 32〜35 条 対応</div>
+  <h1 class="public-h1">個人データ削除要求</h1>
+  <p>個人情報保護法に基づき、ご自身の保有個人情報の削除・利用停止を請求できます。</p>
+
+  <div class="danger-card">
+    <h2 class="text-lg font-bold mb-2" style="color:#991B1B;">削除される内容</h2>
+    <p class="text-sm mb-3" style="color:#7F1D1D;">以下のデータが完全削除されます。30 日以内であればキャンセル可能です。</p>
+    <ul class="checklist" style="background:#FFFFFF;">
+      <li>アカウント情報（メール・名前・アバター）</li>
+      <li>所属する全ワークスペース・プロジェクト</li>
+      <li>チャット履歴・成果物・モック</li>
+      <li>議事録アップロード・添付ファイル</li>
+      <li>BYOK API キー（Supabase Vault）</li>
+      <li>承認 Inbox 履歴</li>
+    </ul>
+    <p class="text-sm mt-3" style="color:#7F1D1D;"><strong>残存するデータ：</strong>ナレッジは氏名・案件特定情報を除去した形で匿名保持されます（匿名化処理）。法定保管義務のあるログ（監査ログ 1 年）は保管期間後に削除します。</p>
+  </div>
+
+  <div class="schedule-card">
+    <i data-icon="clock" data-size="20"></i>
+    <div>
+      <div class="font-bold mb-1">削除スケジュール</div>
+      <div class="text-sm" style="line-height:1.7;">
+        申請当日：データ削除予約<br>
+        申請から 30 日後：ナレッジ匿名化＋個人情報ハード削除<br>
+        申請から 30 日以内：再ログインでキャンセル可能
+      </div>
+    </div>
+  </div>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">削除要求フォーム</h2>
+    <div class="form-group">
+      <label class="form-label">メールアドレス（ログイン中のアカウント）</label>
+      <input class="input" value="you@atelier.app" disabled>
+    </div>
+    <div class="form-group">
+      <label class="form-label">削除を希望する理由（任意）</label>
+      <textarea class="textarea" rows="3" placeholder="例：サービス利用を終了したため"></textarea>
+      <div class="input-helper">理由は任意ですが、サービス改善のために頂けると助かります。</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">確認のため <code>削除する</code> と入力してください</label>
+      <input class="input" placeholder="削除する">
+    </div>
+    <div class="form-group">
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox">
+        <span class="text-sm">上記の削除内容を理解し、申請から 30 日後に個人データが完全削除されることに同意します。</span>
+      </label>
+    </div>
+    <div class="flex gap-3 mt-4">
+      <button class="btn btn-danger">削除を申請する</button>
+      <a class="btn btn-ghost" href="S-PUB02-privacy.html">キャンセル</a>
+    </div>
+  </section>
+
+  <section class="card" style="background:var(--color-secondary-container);color:var(--color-on-secondary-container);border:none;">
+    <h2 class="section-title mb-2" style="font-size:14px;">他の請求も可能です</h2>
+    <p class="text-sm mb-3">保有個人情報の<strong>開示・訂正・利用停止</strong>もご請求いただけます。メールでお問い合わせください。</p>
+    <a class="btn btn-outlined btn-sm" href="mailto:privacy@atelier.app"><i data-icon="mail"></i>privacy@atelier.app</a>
+  </section>
+</div>
+</main>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

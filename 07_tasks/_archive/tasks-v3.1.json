@@ -1,0 +1,39 @@
+{
+  "version": "v3.1",
+  "project": "Atelier",
+  "created_at": "2026-05-20",
+  "decomposition_mode": "api_first",
+  "api_design_ref": {
+    "openapi_path": "07_api_design/openapi.yaml",
+    "screen_api_coverage_path": "07_api_design/screen-api-coverage.json",
+    "contract_frozen_at": "2026-05-20T13:30:00+09:00"
+  },
+  "summary": {
+    "total_tasks": 190,
+    "by_group": {"F": 28, "D": 35, "A": 45, "U-shared": 18, "U-screen": 40, "I": 24},
+    "by_category": {"infra": 64, "backend": 80, "frontend": 40, "db": 35, "test": 18, "cleanup": 13},
+    "by_label": {"NEW": 137, "REFACTOR": 51, "REUSE": 2},
+    "by_deliverable_layer": {"foundation": 63, "backend": 45, "ui": 58, "polish": 24},
+    "by_phase": {"1_foundation": 28, "2_data": 35, "3_api": 45, "4_ui_foundation": 18, "5_ui_parallel": 40, "6_integration": 24},
+    "by_screen_coverage": {"covered_screens": 33, "total_screens": 33, "uncovered_screens": []},
+    "total_estimate_hours": 1367,
+    "total_estimate_sessions": 342
+  },
+  "waves": [
+    {"wave": 0, "phase": "1_foundation", "groups": ["F"], "parallel_capacity": 5, "estimated_duration_h": 60},
+    {"wave": 1, "phase": "2_data", "groups": ["D"], "parallel_capacity": 8, "estimated_duration_h": 35},
+    {"wave": 2, "phase": "3_api", "groups": ["A"], "parallel_capacity": 10, "estimated_duration_h": 35},
+    {"wave": 3, "phase": "4_ui_foundation", "groups": ["U-shared"], "parallel_capacity": 5, "estimated_duration_h": 25},
+    {"wave": 4, "phase": "5_ui_parallel", "groups": ["U-screen"], "parallel_capacity": 10, "estimated_duration_h": 40},
+    {"wave": 5, "phase": "6_integration", "groups": ["I"], "parallel_capacity": 5, "estimated_duration_h": 35}
+  ],
+  "milestones": [
+    {"phase_completion": "1_foundation", "name": "Foundation Ready", "criteria": ["全 28 F タスク done", "v3-gate.yml 10 gate 稼働", "Bridge 開発基盤起動可"]},
+    {"phase_completion": "2_data", "name": "Data Layer Ready", "criteria": ["全 25 entity migration", "RLS 越境試験 PASS"]},
+    {"phase_completion": "3_api", "name": "🔒 API 契約凍結", "criteria": ["全 119 endpoint 動作", "OpenAPI 完成", "TS 型自動生成", "Schemathesis PASS", "screen-api-coverage 100%"]},
+    {"phase_completion": "4_ui_foundation", "name": "UI Foundation Ready", "criteria": ["共通レイアウト完成", "型安全 API クライアント完成"]},
+    {"phase_completion": "5_ui_parallel", "name": "UI Parallel Complete", "criteria": ["33 画面 mock-impl-diff PASS", "全 40 画面タスク done"]},
+    {"phase_completion": "6_integration", "name": "🚀 本番リリース可能", "criteria": ["v3-gate.yml 10 gate 緑", "E2E PASS", "RLS 越境 PASS", "性能 / a11y PASS"]}
+  ],
+  "tasks": []
+}

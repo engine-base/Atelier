@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AI社員テンプレ管理 — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .admin-badge { background: var(--color-error); color: #FFFFFF; padding: 2px 8px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .tpl-layout { display: grid; grid-template-columns: 320px 1fr; gap: 0; height: calc(100vh - 56px); }
+  .tpl-list-pane { background: #FFFFFF; border-right: 1px solid var(--color-border); overflow-y: auto; }
+  .tpl-list-head { padding: 14px 18px; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; }
+  .tpl-card { display: flex; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--color-border); cursor: pointer; transition: all 0.12s; align-items: center; }
+  .tpl-card:hover { background: var(--color-surface-variant); }
+  .tpl-card.selected { background: var(--color-primary-container); border-left: 3px solid var(--color-primary); padding-left: 15px; }
+  .tpl-info { flex: 1; }
+  .tpl-name { font-weight: 700; font-size: 14px; }
+  .tpl-en { font-size: 11px; color: var(--color-on-surface-variant); }
+  .tpl-dept-role { font-size: 11px; color: var(--color-primary); font-weight: 600; margin-top: 2px; }
+
+  .editor-pane { background: var(--color-surface); overflow-y: auto; }
+  .editor-header { padding: 20px 28px; background: linear-gradient(135deg, var(--color-primary-container), var(--color-tertiary-container)); border-bottom: 1px solid var(--color-border); display: flex; gap: 18px; align-items: center; }
+  .editor-meta-line { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; font-size: 12.5px; }
+  .editor-content { padding: 24px 28px; max-width: 920px; }
+  .editor-section { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 20px 22px; margin-bottom: 16px; }
+  .editor-h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .editor-h3 .lock-badge { background: var(--color-error); color: #FFFFFF; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: var(--rounded-sm); letter-spacing: 0.06em; text-transform: uppercase; }
+  .skill-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); font-size: 11px; font-weight: 600; margin: 2px; font-family: monospace; }
+  .skill-pill .x-btn { cursor: pointer; opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" style="background:#0F172A;border-right:1px solid #1E293B;">
+  <div class="sidebar-brand" style="border-bottom-color:#1E293B;">
+    <div class="brand-mark" style="background:var(--color-error);">A</div>
+    <div><div class="brand-name" style="color:#FFFFFF;">Atelier Admin</div></div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label" style="color:#475569;">PLATFORM</div>
+    <a class="nav-item" href="S-T01-dashboard.html" style="color:#94A3B8;"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="S-T02-skills.html" style="color:#94A3B8;"><i data-icon="zap"></i>スキル管理</a>
+    <a class="nav-item active" href="#" style="color:#93C5FD;background:rgba(37,99,235,0.15);border-left-color:var(--color-primary);"><i data-icon="bot"></i>AI社員テンプレ</a>
+    <a class="nav-item" href="S-T04-users.html" style="color:#94A3B8;"><i data-icon="users"></i>ユーザー管理</a>
+    <a class="nav-item" href="S-T05-audit.html" style="color:#94A3B8;"><i data-icon="file-text"></i>監査ログ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-T03" data-bf-screen-name="admin_templates" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="flex items-center gap-3"><span class="admin-badge">ADMIN</span><div class="breadcrumb"><strong>AI社員テンプレート</strong></div></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+
+<div class="tpl-layout">
+  <aside class="tpl-list-pane">
+    <div class="tpl-list-head">
+      <div>
+        <div class="page-eyebrow" style="margin: 0;">Default Templates</div>
+        <strong style="font-size: 14px;">10 名のテンプレ</strong>
+      </div>
+      <button class="btn btn-outlined btn-sm"><i data-icon="plus"></i>追加</button>
+    </div>
+
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-jarvis">J</div>
+      <div class="tpl-info">
+        <div class="tpl-name">ジャービス</div>
+        <div class="tpl-en">Jarvis</div>
+        <div class="tpl-dept-role">経営 · COO</div>
+      </div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+
+    <div class="tpl-card selected">
+      <div class="avatar avatar-lg avatar-tony">T</div>
+      <div class="tpl-info">
+        <div class="tpl-name">トニー</div>
+        <div class="tpl-en">Tony Stark</div>
+        <div class="tpl-dept-role">営業・契約部 · 部長</div>
+      </div>
+      <span class="badge badge-tertiary">v1.2</span>
+    </div>
+
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-natasha">N</div>
+      <div class="tpl-info"><div class="tpl-name">ナターシャ</div><div class="tpl-en">Black Widow</div><div class="tpl-dept-role">営業・契約部 · メンバー</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-steve">S</div>
+      <div class="tpl-info"><div class="tpl-name">スティーブ</div><div class="tpl-en">Captain America</div><div class="tpl-dept-role">プロダクト企画部 · 部長</div></div>
+      <span class="badge badge-tertiary">v1.1</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-peter">P</div>
+      <div class="tpl-info"><div class="tpl-name">ピーター</div><div class="tpl-en">Spider-Man</div><div class="tpl-dept-role">プロダクト企画部 · メンバー</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-strange">D</div>
+      <div class="tpl-info"><div class="tpl-name">ストレンジ</div><div class="tpl-en">Doctor Strange</div><div class="tpl-dept-role">設計部 · 部長</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-wanda">W</div>
+      <div class="tpl-info"><div class="tpl-name">ワンダ</div><div class="tpl-en">Scarlet Witch</div><div class="tpl-dept-role">デザイン部 · 部長</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-thor">T</div>
+      <div class="tpl-info"><div class="tpl-name">ソー</div><div class="tpl-en">Thor</div><div class="tpl-dept-role">開発・検証部 · 部長</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-vision">V</div>
+      <div class="tpl-info"><div class="tpl-name">ヴィジョン</div><div class="tpl-en">Vision</div><div class="tpl-dept-role">開発・検証部 · メンバー</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+    <div class="tpl-card">
+      <div class="avatar avatar-lg avatar-tchalla">T</div>
+      <div class="tpl-info"><div class="tpl-name">ティチャラ</div><div class="tpl-en">Black Panther</div><div class="tpl-dept-role">全社横断 · ナレッジ統括</div></div>
+      <span class="badge badge-tertiary">v1.0</span>
+    </div>
+  </aside>
+
+  <div class="editor-pane">
+    <div class="editor-header">
+      <div class="avatar avatar-xl avatar-tony">T</div>
+      <div style="flex: 1;">
+        <h1 style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em;">トニー（Tony Stark）</h1>
+        <div class="editor-meta-line">
+          <span class="badge badge-primary">v1.2</span>
+          <span class="text-sm" style="color: var(--color-on-primary-container);">営業・契約部 · 部長</span>
+          <span class="text-sm" style="color: var(--color-on-primary-container);">展開先：9 WS（自動同期）</span>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-outlined btn-sm" style="color: var(--color-primary); border-color: var(--color-primary);"><i data-icon="copy"></i>複製</button>
+        <button class="btn btn-primary btn-sm">保存して全 WS 反映</button>
+      </div>
+    </div>
+
+    <div class="editor-content">
+      <div class="notice notice-secondary mb-4" style="background: var(--color-secondary-container); color: var(--color-on-secondary-container);">
+        <i data-icon="zap"></i>
+        <div><strong>注意：</strong>テンプレを保存すると、9 ワークスペースの 9 体のトニーに次回利用時から適用されます。ユーザーが個別カスタムしている表示名・アイコン・口調は保持されます。</div>
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">基本情報 <span class="text-muted text-sm" style="font-weight: 400; margin-left: auto;">ユーザーは編集不可</span></h3>
+        <div class="grid grid-2 gap-4">
+          <div class="form-group">
+            <label class="form-label">内部名</label>
+            <input class="input" value="tony" style="font-family: monospace;">
+          </div>
+          <div class="form-group">
+            <label class="form-label">デフォルト表示名</label>
+            <input class="input" value="トニー">
+          </div>
+          <div class="form-group">
+            <label class="form-label">部署</label>
+            <select class="select"><option selected>営業・契約部</option><option>プロダクト企画部</option></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">役職</label>
+            <select class="select"><option selected>部長（lead）</option><option>メンバー（member）</option><option>COO</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">System Prompt <span class="lock-badge">ADMIN ONLY</span></h3>
+        <textarea class="textarea" rows="7" style="font-family: monospace; font-size: 12px; line-height: 1.7;">あなたは Atelier の営業・契約部 部長「トニー」です。Tony Stark のような自信と頭の回転の速さを持ちつつ、誠実で実務的な提案を行います。
+
+主な責務：
+- 提案書・見積書・契約書のドラフト生成
+- 過去類似案件のナレッジを引用して説得力を高める
+- 価格戦略は WS 内のナレッジから過去成約パターンを参照
+- ナターシャ（メンバー）と連携してリーガル面を確認
+
+避けるべきこと：
+- 誇張表現・根拠のない数字提示
+- クライアントへの値引き約束（ユーザー承認なし）</textarea>
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">専門領域（specialty） <span class="lock-badge">ADMIN ONLY</span></h3>
+        <input class="input" value="提案 / 見積 / 商談 / 価格戦略 / 成約パターン分析">
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">デフォルト装着スキル（5） <span class="lock-badge">ADMIN ONLY</span></h3>
+        <div class="flex flex-wrap gap-1 mb-3">
+          <span class="skill-pill">sales-email v1.0 <span class="x-btn">×</span></span>
+          <span class="skill-pill">lead-design v1.0 <span class="x-btn">×</span></span>
+          <span class="skill-pill">proposal v1.3 <span class="x-btn">×</span></span>
+          <span class="skill-pill">estimate v1.0 <span class="x-btn">×</span></span>
+          <span class="skill-pill">pricing-design v1.0 <span class="x-btn">×</span></span>
+        </div>
+        <button class="btn btn-outlined btn-sm"><i data-icon="plus"></i>スキル追加</button>
+        <p class="text-muted text-sm mt-3">ユーザーはここから「装着するスキルを複数選択」できます。許可されていないスキルは表示されません。</p>
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">デフォルトナレッジカテゴリ <span class="lock-badge">ADMIN ONLY</span></h3>
+        <div class="flex flex-wrap gap-1 mb-3">
+          <span class="skill-pill" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);">過去提案テンプレ <span class="x-btn">×</span></span>
+          <span class="skill-pill" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);">成約パターン <span class="x-btn">×</span></span>
+          <span class="skill-pill" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);">価格戦略 <span class="x-btn">×</span></span>
+        </div>
+        <button class="btn btn-outlined btn-sm"><i data-icon="plus"></i>カテゴリ追加</button>
+      </div>
+
+      <div class="editor-section">
+        <h3 class="editor-h3">バージョン履歴</h3>
+        <div class="text-sm">
+          <div class="flex items-center justify-between py-2 border-b" style="border-color: var(--color-border);">
+            <span><strong>v1.2</strong> 2026-05-15 · proposal v1.3 に更新</span>
+            <button class="btn btn-ghost btn-sm">復元</button>
+          </div>
+          <div class="flex items-center justify-between py-2 border-b" style="border-color: var(--color-border);">
+            <span><strong>v1.1</strong> 2026-04-20 · system_prompt 微調整</span>
+            <button class="btn btn-ghost btn-sm">復元</button>
+          </div>
+          <div class="flex items-center justify-between py-2">
+            <span><strong>v1.0</strong> 2026-04-01 · 初版</span>
+            <button class="btn btn-ghost btn-sm">復元</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atelier — Design System Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --color-primary: #2563EB;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #DBEAFE;
+  --color-on-primary-container: #1E3A8A;
+  --color-secondary: #C7A04A;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #FAEDC4;
+  --color-on-secondary-container: #5C4A1E;
+  --color-tertiary: #14B8A6;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #CCFBF1;
+  --color-on-tertiary-container: #134E4A;
+  --color-surface: #FEFCF8;
+  --color-on-surface: #0F172A;
+  --color-surface-variant: #F4F1EC;
+  --color-on-surface-variant: #475569;
+  --color-neutral: #94A3B8;
+  --color-on-neutral: #0F172A;
+  --color-error: #DC2626;
+  --color-on-error: #FFFFFF;
+
+  --font-headline: 'Noto Sans JP', sans-serif;
+  --font-body: 'Noto Sans JP', sans-serif;
+  --font-label: 'Noto Sans JP', sans-serif;
+
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 48px;
+  --space-2xl: 96px;
+
+  --rounded-none: 0px;
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 16px;
+  --rounded-xl: 24px;
+  --rounded-full: 9999px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  font-feature-settings: "palt", "tnum";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* HEADER */
+.ds-header {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  padding: var(--space-xl) var(--space-2xl);
+}
+.ds-header h1 {
+  font-family: var(--font-headline);
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin-bottom: var(--space-sm);
+}
+.ds-header p {
+  font-family: var(--font-body);
+  font-size: 18px;
+  opacity: 0.92;
+  max-width: 720px;
+}
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-on-primary);
+  color: var(--color-primary);
+  padding: 6px 12px;
+  border-radius: var(--rounded-full);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+}
+
+/* SECTIONS */
+.ds-section {
+  padding: var(--space-xl) var(--space-2xl);
+  border-bottom: 1px solid var(--color-surface-variant);
+}
+.ds-section-title {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  margin-bottom: var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.ds-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--color-surface-variant);
+}
+
+/* COLOR PALETTE */
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+.color-card {
+  border-radius: var(--rounded-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-surface-variant);
+}
+.color-swatch-main {
+  height: 140px;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--space-md);
+}
+.color-swatch-main span {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+}
+.color-swatch-row { display: flex; }
+.color-swatch-sm { flex: 1; height: 44px; }
+.color-card-meta {
+  padding: var(--space-md);
+  background: var(--color-surface);
+}
+.color-name {
+  font-family: var(--font-headline);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+.color-hex {
+  font-family: var(--font-label);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* TYPOGRAPHY */
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+.type-card {
+  background: var(--color-surface-variant);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-xl) var(--space-lg);
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.type-sample {
+  color: var(--color-on-surface);
+  line-height: 1.1;
+  margin-bottom: var(--space-md);
+}
+.type-meta {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.type-scale-name {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-sm);
+}
+
+/* COMPONENTS */
+.component-section { margin-bottom: var(--space-xl); }
+.component-label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+}
+.button-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-xl);
+}
+
+/* BUTTONS */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: all 0.15s ease;
+  border-radius: var(--rounded-md);
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: var(--color-primary); color: var(--color-on-primary); }
+.btn-secondary { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+.btn-outlined {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
+}
+.btn-inverted { background: var(--color-on-primary); color: var(--color-primary); }
+.btn-ghost { background: transparent; color: var(--color-primary); }
+.btn-tertiary { background: var(--color-tertiary); color: var(--color-on-tertiary); }
+
+.icon {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* CARDS */
+.cards-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.demo-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-lg);
+}
+.demo-card-primary {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border: none;
+}
+.demo-card-secondary {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  border: none;
+}
+.demo-card-tertiary {
+  background: var(--color-tertiary-container);
+  color: var(--color-on-tertiary-container);
+  border: none;
+}
+.demo-card h3 {
+  font-family: var(--font-headline);
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  letter-spacing: -0.01em;
+}
+.demo-card p {
+  font-size: 14px;
+  opacity: 0.85;
+  line-height: 1.55;
+}
+
+/* SPACING VISUAL */
+.spacing-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-xl);
+  margin-bottom: var(--space-md);
+}
+.space-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.space-visual {
+  background: var(--color-primary);
+  opacity: 0.75;
+  border-radius: var(--rounded-sm);
+  width: 44px;
+}
+.space-label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+/* SHAPES */
+.shapes-row {
+  display: flex;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--space-xl);
+}
+.shape-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.shape-box {
+  width: 80px;
+  height: 80px;
+  background: var(--color-primary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-on-primary-container);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* INPUT DEMO */
+.input-demo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 420px;
+  margin-bottom: var(--space-xl);
+}
+.input-label {
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.input-field {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+  border: none;
+  border-radius: var(--rounded-md);
+  padding: 14px 16px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  width: 100%;
+  transition: outline 0.15s;
+}
+.input-field:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 0;
+}
+
+/* STATUS PILLS */
+.pill-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; margin-bottom: var(--space-md); }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--rounded-full);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; }
+.pill-pending { background: var(--color-surface-variant); color: var(--color-on-surface-variant); }
+.pill-pending .pill-dot { background: var(--color-on-surface-variant); }
+.pill-in-progress { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+.pill-in-progress .pill-dot { background: var(--color-tertiary); }
+.pill-verifying { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+.pill-verifying .pill-dot { background: var(--color-primary); }
+.pill-awaiting { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+.pill-awaiting .pill-dot { background: var(--color-secondary); }
+.pill-completed { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+.pill-completed .pill-dot { background: var(--color-tertiary); }
+.pill-blocked { background: #FEE2E2; color: #991B1B; }
+.pill-blocked .pill-dot { background: var(--color-error); }
+
+/* AI CHAT MOCKUP */
+.chat-mock {
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-lg);
+  max-width: 520px;
+  margin-bottom: var(--space-xl);
+}
+.chat-employee {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--color-surface-variant);
+  margin-bottom: var(--space-md);
+}
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--rounded-full);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 700;
+}
+.chat-name {
+  font-family: var(--font-headline);
+  font-size: 14px;
+  font-weight: 600;
+}
+.chat-role {
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.04em;
+}
+.chat-status {
+  margin-left: auto;
+  font-family: var(--font-label);
+  font-size: 11px;
+  color: var(--color-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chat-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-tertiary);
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.chat-message {
+  background: var(--color-surface-variant);
+  padding: var(--space-md);
+  border-radius: var(--rounded-md);
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: var(--space-sm);
+}
+.chat-tool-call {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  padding: 10px 14px;
+  border-radius: var(--rounded-md);
+  font-family: var(--font-label);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* WCAG */
+.wcag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+.wcag-card {
+  border-radius: var(--rounded-md);
+  padding: var(--space-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.wcag-info { font-family: var(--font-label); font-size: 12px; font-weight: 500; line-height: 1.5; }
+.wcag-info-sub { opacity: 0.75; font-size: 11px; margin-top: 2px; }
+.wcag-ratio { font-family: var(--font-headline); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* SCORE BAR (F-J02 example) */
+.score-demo {
+  background: var(--color-surface);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--rounded-lg);
+  padding: var(--space-lg);
+  max-width: 480px;
+  margin-bottom: var(--space-xl);
+}
+.score-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+.score-title {
+  font-family: var(--font-headline);
+  font-size: 16px;
+  font-weight: 600;
+}
+.score-value {
+  font-family: var(--font-headline);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.score-bar {
+  height: 6px;
+  background: var(--color-surface-variant);
+  border-radius: var(--rounded-full);
+  overflow: hidden;
+  margin-bottom: var(--space-md);
+}
+.score-bar-fill {
+  height: 100%;
+  background: var(--color-tertiary);
+  width: 96%;
+  border-radius: var(--rounded-full);
+}
+.score-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.score-item { display: flex; flex-direction: column; gap: 2px; }
+.score-item-label {
+  color: var(--color-on-surface-variant);
+  letter-spacing: 0.04em;
+}
+.score-item-value {
+  font-family: var(--font-headline);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+/* DESIGN.MD SOURCE */
+.source-block {
+  background: #0F172A;
+  color: #E2E8F0;
+  border-radius: var(--rounded-lg);
+  padding: var(--space-xl);
+  font-family: 'Noto Sans JP', monospace;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.85;
+  white-space: pre;
+  overflow-x: auto;
+  max-height: 480px;
+  overflow-y: auto;
+  letter-spacing: 0.01em;
+}
+
+/* FOOTER */
+.ds-footer {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  padding: var(--space-xl) var(--space-2xl);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-label);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+@media (max-width: 1024px) {
+  .color-grid, .type-grid, .cards-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .color-grid, .type-grid, .cards-row { grid-template-columns: 1fr; }
+  .ds-header, .ds-section, .ds-footer { padding: var(--space-xl) var(--space-lg); }
+  .ds-header h1 { font-size: 40px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="ds-header">
+  <div class="ds-badge">
+    <svg class="icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    design.md · Google Labs Format · v1.0
+  </div>
+  <h1>Atelier</h1>
+  <p style="font-weight: 400;">「工房の静謐 × 編集者の精密」— エディトリアル品質のAIプロジェクト管理ツール。AI 社員が常駐し、1 人で複数案件を並行運用するための作業環境。</p>
+</header>
+
+<!-- COLOR PALETTE -->
+<section class="ds-section">
+  <div class="ds-section-title">Colors</div>
+  <div class="color-grid">
+    <div class="color-card">
+      <div class="color-swatch-main" style="background:#2563EB;"><span style="color:#FFFFFF;">#2563EB</span></div>
+      <div class="color-swatch-row">
+        <div class="color-swatch-sm" style="background:#DBEAFE;"></div>
+        <div class="color-swatch-sm" style="background:#1E3A8A;"></div>
+        <div class="color-swatch-sm" style="background:#FFFFFF; border-right: 1px solid #F4F1EC;"></div>
+      </div>
+      <div class="color-card-meta">
+        <div class="color-name">Primary</div>
+        <div class="color-hex">#2563EB · Vivid Sapphire</div>
+      </div>
+    </div>
+
+    <div class="color-card">
+      <div class="color-swatch-main" style="background:#C7A04A;"><span style="color:#FFFFFF;">#C7A04A</span></div>
+      <div class="color-swatch-row">
+        <div class="color-swatch-sm" style="background:#FAEDC4;"></div>
+        <div class="color-swatch-sm" style="background:#5C4A1E;"></div>
+        <div class="color-swatch-sm" style="background:#FFFFFF; border-right: 1px solid #F4F1EC;"></div>
+      </div>
+      <div class="color-card-meta">
+        <div class="color-name">Secondary</div>
+        <div class="color-hex">#C7A04A · Warm Brass</div>
+      </div>
+    </div>
+
+    <div class="color-card">
+      <div class="color-swatch-main" style="background:#14B8A6;"><span style="color:#FFFFFF;">#14B8A6</span></div>
+      <div class="color-swatch-row">
+        <div class="color-swatch-sm" style="background:#CCFBF1;"></div>
+        <div class="color-swatch-sm" style="background:#134E4A;"></div>
+        <div class="color-swatch-sm" style="background:#FFFFFF; border-right: 1px solid #F4F1EC;"></div>
+      </div>
+      <div class="color-card-meta">
+        <div class="color-name">Tertiary</div>
+        <div class="color-hex">#14B8A6 · Fresh Teal</div>
+      </div>
+    </div>
+
+    <div class="color-card">
+      <div class="color-swatch-main" style="background:#FEFCF8; border-bottom: 1px solid #F4F1EC;"><span style="color:#0F172A;">#FEFCF8</span></div>
+      <div class="color-swatch-row">
+        <div class="color-swatch-sm" style="background:#F4F1EC;"></div>
+        <div class="color-swatch-sm" style="background:#94A3B8;"></div>
+        <div class="color-swatch-sm" style="background:#0F172A;"></div>
+      </div>
+      <div class="color-card-meta">
+        <div class="color-name">Surface / Neutral</div>
+        <div class="color-hex">#FEFCF8 · Warm Paper</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WCAG -->
+  <div style="margin-top: var(--space-xl);">
+    <div class="component-label">WCAG Contrast</div>
+    <div class="wcag-grid">
+      <div class="wcag-card" style="background:#2563EB; color:#FFFFFF;">
+        <div class="wcag-info">Primary / On-Primary<div class="wcag-info-sub">AA Normal ✓ · AAA Large ✓</div></div>
+        <div class="wcag-ratio">5.17:1</div>
+      </div>
+      <div class="wcag-card" style="background:#FEFCF8; color:#0F172A; border: 1px solid #F4F1EC;">
+        <div class="wcag-info">Surface / On-Surface<div class="wcag-info-sub">AAA ✓</div></div>
+        <div class="wcag-ratio">17.5:1</div>
+      </div>
+      <div class="wcag-card" style="background:#FAEDC4; color:#5C4A1E;">
+        <div class="wcag-info">Secondary Container<div class="wcag-info-sub">AAA ✓</div></div>
+        <div class="wcag-ratio">8.4:1</div>
+      </div>
+      <div class="wcag-card" style="background:#CCFBF1; color:#134E4A;">
+        <div class="wcag-info">Tertiary Container<div class="wcag-info-sub">AAA ✓</div></div>
+        <div class="wcag-ratio">11.8:1</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TYPOGRAPHY -->
+<section class="ds-section">
+  <div class="ds-section-title">Typography · Noto Sans JP（単一フォント統一）</div>
+  <div class="type-grid">
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Headline Display</div>
+        <div class="type-sample" style="font-family: var(--font-headline); font-size: 64px; font-weight: 900; letter-spacing: -0.025em;">Aa</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 72px · 900<br>line-height 1.1 · −0.02em</div>
+    </div>
+
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Headline LG</div>
+        <div class="type-sample" style="font-family: var(--font-headline); font-size: 48px; font-weight: 600; letter-spacing: -0.01em;">Aa</div>
+        <div style="font-family: var(--font-headline); font-size: 20px; font-weight: 500; margin-top: 4px; opacity: 0.7;">Atelier Design</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 48px · 700</div>
+    </div>
+
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Headline MD</div>
+        <div class="type-sample" style="font-family: var(--font-headline); font-size: 36px; font-weight: 600;">Aa</div>
+        <div style="font-family: var(--font-headline); font-size: 16px; font-weight: 500; margin-top: 4px; opacity: 0.7;">セクションタイトル</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 36px · 700</div>
+    </div>
+
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Body LG</div>
+        <div class="type-sample" style="font-family: var(--font-body); font-size: 36px; font-weight: 400;">Aa</div>
+        <div style="font-family: var(--font-body); font-size: 18px; line-height: 1.7; margin-top: 8px; opacity: 0.75;">読みやすい本文。長時間作業を支える可読性。</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 18px · 400<br>line-height 1.7</div>
+    </div>
+
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Body SM</div>
+        <div class="type-sample" style="font-family: var(--font-body); font-size: 28px; font-weight: 400;">Aa</div>
+        <div style="font-family: var(--font-body); font-size: 14px; line-height: 1.5; margin-top: 8px; opacity: 0.75;">Secondary text, captions, metadata.</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 14px · 400</div>
+    </div>
+
+    <div class="type-card">
+      <div>
+        <div class="type-scale-name">Label</div>
+        <div class="type-sample" style="font-family: var(--font-label); font-size: 28px; font-weight: 600; letter-spacing: 0.02em;">Aa</div>
+        <div style="font-family: var(--font-label); font-size: 14px; font-weight: 600; letter-spacing: 0.04em; margin-top: 8px; opacity: 0.75; text-transform: uppercase;">BUTTON LABEL · 1234567890</div>
+      </div>
+      <div class="type-meta">Noto Sans JP · 14px · 600 · +0.04em<br>tabular-nums for numbers</div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPONENTS: BUTTONS -->
+<section class="ds-section">
+  <div class="ds-section-title">Components · Buttons</div>
+  <div class="component-section">
+    <div class="component-label">5 Variants</div>
+    <div class="button-row">
+      <button class="btn btn-primary"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>Primary</button>
+      <button class="btn btn-secondary"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Secondary</button>
+      <button class="btn btn-outlined">Outlined</button>
+      <button class="btn btn-inverted" style="box-shadow: inset 0 0 0 1px #DBEAFE;">Inverted</button>
+      <button class="btn btn-ghost">Ghost</button>
+      <button class="btn btn-tertiary">Tertiary</button>
+    </div>
+
+    <div style="background: var(--color-primary); padding: var(--space-lg); border-radius: var(--rounded-lg); margin-bottom: var(--space-lg);">
+      <div style="font-family: var(--font-label); font-size: 11px; color: var(--color-on-primary); opacity: 0.75; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: var(--space-md);">On Primary Background</div>
+      <div class="button-row" style="margin-bottom: 0;">
+        <button class="btn btn-inverted">Inverted</button>
+        <button class="btn btn-outlined" style="color: var(--color-on-primary); border-color: var(--color-on-primary);">Outlined</button>
+        <button class="btn btn-ghost" style="color: var(--color-on-primary);">Ghost</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Pills -->
+  <div class="component-section">
+    <div class="component-label">Status Pills · タスク状態（F-CUC02 連動）</div>
+    <div class="pill-row">
+      <span class="pill pill-pending"><span class="pill-dot"></span>未着手</span>
+      <span class="pill pill-in-progress"><span class="pill-dot"></span>実装中</span>
+      <span class="pill pill-verifying"><span class="pill-dot"></span>検証中</span>
+      <span class="pill pill-awaiting"><span class="pill-dot"></span>承認待ち</span>
+      <span class="pill pill-completed"><span class="pill-dot"></span>完了</span>
+      <span class="pill pill-blocked"><span class="pill-dot"></span>ブロック</span>
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <div class="component-section">
+    <div class="component-label">Cards</div>
+    <div class="cards-row">
+      <div class="demo-card">
+        <h3>Surface Card</h3>
+        <p>通常カード。surface 背景に surface-variant ボーダーで控えめに浮かせる。</p>
+        <div style="margin-top: var(--space-md);">
+          <button class="btn btn-primary" style="padding: 8px 16px; font-size: 12px;">Action</button>
+        </div>
+      </div>
+      <div class="demo-card demo-card-primary">
+        <h3>Primary Container</h3>
+        <p>重要強調カード。AI 提案・新着通知・重要KPIに使用。</p>
+        <div style="margin-top: var(--space-md);">
+          <button class="btn" style="background: var(--color-primary); color: var(--color-on-primary); padding: 8px 16px; font-size: 12px;">Action</button>
+        </div>
+      </div>
+      <div class="demo-card demo-card-tertiary">
+        <h3>Tertiary Container</h3>
+        <p>成功状態・新規追加・進行中の補助カード。フレッシュなアクセント。</p>
+        <div style="margin-top: var(--space-md);">
+          <button class="btn" style="background: var(--color-tertiary); color: var(--color-on-tertiary); padding: 8px 16px; font-size: 12px;">View</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chat Mockup -->
+  <div class="component-section">
+    <div class="component-label">AI Chat · assistant-ui Status Display</div>
+    <div class="chat-mock">
+      <div class="chat-employee">
+        <div class="chat-avatar">J</div>
+        <div>
+          <div class="chat-name">ジャービス</div>
+          <div class="chat-role">COO · Atelier 経営層</div>
+        </div>
+        <div class="chat-status">
+          <span class="chat-status-dot"></span>Analyzing context
+        </div>
+      </div>
+      <div class="chat-message">プロジェクトの依存関係を確認しています。タスク T-042 の影響範囲を解析中です。</div>
+      <div class="chat-tool-call">
+        <svg class="icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="8"/></svg>
+        Tool · NetworkX.descendants() · 7 affected tasks found
+      </div>
+      <div class="chat-tool-call" style="background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);">
+        <svg class="icon" viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M4 12h16M4 6h16M4 18h16"/></svg>
+        Knowledge · 過去類似案件 3 件参照
+      </div>
+    </div>
+  </div>
+
+  <!-- Score Demo -->
+  <div class="component-section">
+    <div class="component-label">Score Indicator · 仕様徹底ループ（F-J02）</div>
+    <div class="score-demo">
+      <div class="score-header">
+        <div class="score-title">T-042 ログイン画面 検証スコア</div>
+        <div class="score-value">0.96</div>
+      </div>
+      <div class="score-bar"><div class="score-bar-fill"></div></div>
+      <div class="score-breakdown">
+        <div class="score-item">
+          <div class="score-item-label">AC PASS</div>
+          <div class="score-item-value">12 / 12</div>
+        </div>
+        <div class="score-item">
+          <div class="score-item-label">TEST PASS</div>
+          <div class="score-item-value">8 / 8</div>
+        </div>
+        <div class="score-item">
+          <div class="score-item-label">AI EVAL</div>
+          <div class="score-item-value">0.93</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div class="component-section">
+    <div class="component-label">Form Inputs</div>
+    <div class="input-demo">
+      <label class="input-label">プロジェクト名</label>
+      <input class="input-field" type="text" placeholder="例: Atelier MVP" />
+      <label class="input-label">クライアント名</label>
+      <input class="input-field" type="text" placeholder="例: 株式会社XYZ" />
+    </div>
+  </div>
+</section>
+
+<!-- SPACING -->
+<section class="ds-section">
+  <div class="ds-section-title">Spacing Scale · 8px Baseline</div>
+  <div class="spacing-row">
+    <div class="space-block"><div class="space-visual" style="height: 4px;"></div><div class="space-label">xs<br>4px</div></div>
+    <div class="space-block"><div class="space-visual" style="height: 8px;"></div><div class="space-label">sm<br>8px</div></div>
+    <div class="space-block"><div class="space-visual" style="height: 16px;"></div><div class="space-label">md<br>16px</div></div>
+    <div class="space-block"><div class="space-visual" style="height: 24px;"></div><div class="space-label">lg<br>24px</div></div>
+    <div class="space-block"><div class="space-visual" style="height: 48px;"></div><div class="space-label">xl<br>48px</div></div>
+    <div class="space-block"><div class="space-visual" style="height: 96px;"></div><div class="space-label">2xl<br>96px</div></div>
+  </div>
+</section>
+
+<!-- SHAPES -->
+<section class="ds-section">
+  <div class="ds-section-title">Shapes · Border Radius</div>
+  <div class="shapes-row">
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 0px;">none</div><span class="space-label">none · 0px</span></div>
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 4px;">sm</div><span class="space-label">sm · 4px</span></div>
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 8px;">md</div><span class="space-label">md · 8px</span></div>
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 16px;">lg</div><span class="space-label">lg · 16px</span></div>
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 24px;">xl</div><span class="space-label">xl · 24px</span></div>
+    <div class="shape-demo"><div class="shape-box" style="border-radius: 9999px;">full</div><span class="space-label">full · pill</span></div>
+  </div>
+</section>
+
+<!-- DESIGN.MD SOURCE -->
+<section class="ds-section">
+  <div class="ds-section-title">DESIGN.md Source · YAML Frontmatter</div>
+  <div class="source-block">---
+name: Atelier
+colors:
+  primary: "#2563EB"
+  on-primary: "#FFFFFF"
+  primary-container: "#DBEAFE"
+  on-primary-container: "#1E3A8A"
+  secondary: "#C7A04A"
+  on-secondary: "#FFFFFF"
+  secondary-container: "#FAEDC4"
+  on-secondary-container: "#5C4A1E"
+  tertiary: "#14B8A6"
+  on-tertiary: "#FFFFFF"
+  tertiary-container: "#CCFBF1"
+  on-tertiary-container: "#134E4A"
+  surface: "#FEFCF8"
+  on-surface: "#0F172A"
+  surface-variant: "#F4F1EC"
+  on-surface-variant: "#475569"
+  error: "#DC2626"
+  on-error: "#FFFFFF"
+  neutral: "#94A3B8"
+typography:
+  headline-display:
+    fontFamily: "Noto Sans JP"
+    fontSize: 72px
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: -0.02em
+  body-md:
+    fontFamily: "Noto Sans JP"
+    fontSize: 16px
+    fontWeight: 400
+    lineHeight: 1.6
+  label-lg:
+    fontFamily: "Noto Sans JP"
+    fontSize: 14px
+    fontWeight: 600
+    letterSpacing: 0.04em
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 48px
+  2xl: 96px
+rounded:
+  none: 0px
+  sm: 4px
+  md: 8px
+  lg: 16px
+  xl: 24px
+  full: 9999px
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    typography: "{typography.label-lg}"
+    rounded: "{rounded.md}"
+    padding: "12px 24px"
+---</div>
+</section>
+
+<!-- FOOTER -->
+<footer class="ds-footer">
+  <span>Atelier Design System · design.md format by Google Labs</span>
+  <span>Generated 2026-05-18 · v1.0</span>
+</footer>
+
+</body>
+</html>

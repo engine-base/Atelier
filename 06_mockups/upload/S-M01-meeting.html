@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>議事録アップロード — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .dropzone { background: #FFFFFF; border: 2px dashed var(--color-border); border-radius: var(--rounded-lg); padding: 48px 32px; text-align: center; transition: all 0.15s; cursor: pointer; margin-bottom: 24px; }
+  .dropzone:hover { border-color: var(--color-primary); background: var(--color-primary-container); }
+  .dz-icon { width: 56px; height: 56px; margin: 0 auto 12px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); display: flex; align-items: center; justify-content: center; }
+  .formats-row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .format-chip { padding: 4px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-sm); font-size: 11px; font-weight: 600; color: var(--color-on-surface-variant); }
+
+  .upload-row { display: grid; grid-template-columns: 36px 1fr auto auto; gap: 12px; align-items: center; padding: 16px 20px; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); margin-bottom: 10px; }
+  .file-icon { width: 36px; height: 36px; background: var(--color-surface-variant); border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .file-icon.audio { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .file-icon.video { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .file-icon.text { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .file-name { font-weight: 700; font-size: 13px; }
+  .file-meta { font-size: 11.5px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .progress-bar { width: 200px; height: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--rounded-full); }
+  .progress-fill.success { background: var(--color-tertiary); }
+
+  .result-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-lg); padding: 24px; }
+  .result-section { padding: 14px 0; border-bottom: 1px solid var(--color-border); }
+  .result-section:last-child { border-bottom: none; }
+  .result-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-on-surface-variant); margin-bottom: 6px; }
+  .extracted-req { display: flex; gap: 10px; padding: 10px 12px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 6px; }
+  .req-icon { width: 22px; height: 22px; background: var(--color-tertiary); color: var(--color-on-tertiary); border-radius: var(--rounded-full); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 700; }
+  .speaker-row { display: flex; gap: 12px; padding: 10px 0; align-items: flex-start; font-size: 13px; }
+  .speaker-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 48px; padding-top: 2px; }
+  .speaker-name { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="upload"></i>議事録</a>
+    <a class="nav-item" href="../sales/S-N01-drafts.html"><i data-icon="file-text"></i>提案/見積</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-M01" data-bf-screen-name="meeting_upload" data-bf-category="ingestion" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>議事録</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1100px;">
+  <div class="page-header">
+    <div class="page-eyebrow">Meeting Ingestion</div>
+    <h1 class="page-title">議事録 / 商談アップロード</h1>
+    <p class="page-subtitle">音声・動画・テキストをアップロードすると Whisper + ナターシャが構造化し、要件抽出を提案します。</p>
+  </div>
+
+  <div class="dropzone">
+    <div class="dz-icon"><i data-icon="upload" data-size="24"></i></div>
+    <div class="text-xl font-bold mb-2">ここにファイルをドロップ</div>
+    <p class="text-muted text-base mb-3">または <a href="#" class="text-primary font-semibold">クリックして選択</a></p>
+    <div class="formats-row">
+      <span class="format-chip">.mp3</span>
+      <span class="format-chip">.m4a</span>
+      <span class="format-chip">.wav</span>
+      <span class="format-chip">.mp4</span>
+      <span class="format-chip">.txt</span>
+      <span class="format-chip">.docx</span>
+      <span class="format-chip">Zoom / Meet 議事録</span>
+    </div>
+    <p class="text-muted text-sm mt-3">最大 500MB · 解析は Whisper API（クラウド）経由</p>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 1fr 1.2fr; gap: 20px;">
+    <section>
+      <h2 class="section-title mb-3">アップロード履歴</h2>
+
+      <div class="upload-row">
+        <div class="file-icon audio"><i data-icon="upload" data-size="14"></i></div>
+        <div>
+          <div class="file-name">2026-05-18_kickoff_call.m4a</div>
+          <div class="file-meta">42 MB · 36 分 · Whisper 解析中...</div>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width: 68%;"></div></div>
+        <span class="badge badge-primary">68%</span>
+      </div>
+
+      <div class="upload-row">
+        <div class="file-icon video"><i data-icon="play-circle" data-size="14"></i></div>
+        <div>
+          <div class="file-name">2026-05-17_komatsu_meeting.mp4</div>
+          <div class="file-meta">218 MB · 51 分 · 解析完了</div>
+        </div>
+        <span class="pill pill-completed"><span class="pill-dot"></span>完了</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i></button>
+      </div>
+
+      <div class="upload-row">
+        <div class="file-icon text"><i data-icon="file-text" data-size="14"></i></div>
+        <div>
+          <div class="file-name">Zoom_chat_transcript_0516.txt</div>
+          <div class="file-meta">28 KB · テキスト · スティーブ対話完了</div>
+        </div>
+        <span class="pill pill-completed"><span class="pill-dot"></span>完了</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i></button>
+      </div>
+
+      <div class="upload-row">
+        <div class="file-icon audio"><i data-icon="upload" data-size="14"></i></div>
+        <div>
+          <div class="file-name">2026-05-15_team_sync.mp3</div>
+          <div class="file-meta">18 MB · 22 分 · 解析失敗</div>
+        </div>
+        <span class="pill pill-blocked"><span class="pill-dot"></span>エラー</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="section-title">解析結果プレビュー</h2>
+        <span class="badge badge-tertiary">2026-05-17 小松様</span>
+      </div>
+
+      <div class="result-card">
+        <div class="result-section">
+          <div class="result-eyebrow">サマリー（ナターシャ生成）</div>
+          <p class="text-sm" style="line-height: 1.75;">
+            小松様 EC モール統合プロジェクトのキックオフ。決済フローの優先順位とクライアント招待モードの導入時期について合意。
+            次回 5/24 にデザインモックレビュー予定。
+          </p>
+        </div>
+
+        <div class="result-section">
+          <div class="result-eyebrow">話者（3 人）</div>
+          <div class="speaker-row">
+            <div class="speaker-time">00:14</div>
+            <div class="avatar avatar-sm">M</div>
+            <div>
+              <div class="speaker-name">高本まさと</div>
+              <div>では今日のアジェンダから始めます。決済フロー周りと Atelier の招待モード...</div>
+            </div>
+          </div>
+          <div class="speaker-row">
+            <div class="speaker-time">02:48</div>
+            <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+            <div>
+              <div class="speaker-name">小松様</div>
+              <div>決済は Stripe ではなく、すでに導入している KOMOJU と連携できるとありがたい...</div>
+            </div>
+          </div>
+          <div class="speaker-row">
+            <div class="speaker-time">05:32</div>
+            <div class="avatar avatar-sm" style="background:#7C3AED;">T</div>
+            <div>
+              <div class="speaker-name">高本聖斗</div>
+              <div>クライアント招待モードはモック確認の段階から使えると便利です...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-eyebrow flex items-center gap-2">スティーブが抽出した新規要件（3 件）<span class="badge badge-tertiary" style="margin-left:auto;">仕様変更の候補</span></div>
+          <div class="extracted-req">
+            <div class="req-icon">1</div>
+            <div>
+              <div class="font-semibold text-sm">KOMOJU 決済連携</div>
+              <div class="text-muted text-sm">既存決済基盤を活用したい（Stripe からの切替）</div>
+            </div>
+          </div>
+          <div class="extracted-req">
+            <div class="req-icon">2</div>
+            <div>
+              <div class="font-semibold text-sm">クライアント招待モード 第 3 段階 で導入</div>
+              <div class="text-muted text-sm">モック確認の段階で必要 → 元 第 3 段階 配置と一致</div>
+            </div>
+          </div>
+          <div class="extracted-req">
+            <div class="req-icon">3</div>
+            <div>
+              <div class="font-semibold text-sm">月次レポート自動生成</div>
+              <div class="text-muted text-sm">クライアント向け進捗レポートを月初に自動配信</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-section">
+          <div class="result-eyebrow">アクションアイテム</div>
+          <ul style="font-size:13px;line-height:1.85;padding-left:20px;">
+            <li>5/24 までにデザインモック v3 を準備（ワンダ担当）</li>
+            <li>KOMOJU 連携の技術調査（ストレンジ担当）</li>
+            <li>次回 MTG は 5/24 14:00 〜 / Zoom</li>
+          </ul>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button class="btn btn-primary"><i data-icon="message-square"></i>スティーブで深掘り</button>
+          <button class="btn btn-outlined btn-sm"><i data-icon="check"></i>要件として承認</button>
+          <button class="btn btn-ghost btn-sm"><i data-icon="download"></i>MD 保存</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

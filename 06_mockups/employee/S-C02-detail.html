@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ジャービス · COO — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .profile-header { display: flex; gap: 24px; align-items: center; padding: 28px; background: linear-gradient(135deg, var(--color-primary-container) 0%, var(--color-tertiary-container) 100%); border-radius: var(--rounded-lg); margin-bottom: 24px; }
+  .profile-meta { flex: 1; }
+  .tabs-row { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); margin-bottom: 24px; }
+  .tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+
+  .grid-detail { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+
+  .ability-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); font-size: 12.5px; font-weight: 600; margin: 3px; }
+  .ability-chip-icon { width: 14px; height: 14px; }
+
+  .tone-option { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: var(--rounded-md); cursor: pointer; transition: all 0.12s; margin-bottom: 6px; }
+  .tone-option:hover { border-color: var(--color-primary); }
+  .tone-option.selected { border-color: var(--color-primary); background: var(--color-primary-container); }
+  .tone-option input { margin: 0; flex-shrink: 0; }
+  .tone-label { font-weight: 600; font-size: 13px; }
+  .tone-sample { font-size: 11.5px; color: var(--color-on-surface-variant); margin-top: 2px; font-style: italic; }
+  .tone-option.selected .tone-sample { color: var(--color-on-primary-container); opacity: 0.75; }
+
+  .activity-row { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); align-items: flex-start; font-size: 12.5px; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-time { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; min-width: 60px; flex-shrink: 0; }
+
+  .save-bar { position: sticky; bottom: 0; background: rgba(254,252,248,0.95); backdrop-filter: blur(8px); border-top: 1px solid var(--color-border); padding: 16px 32px; display: flex; align-items: center; gap: 12px; margin: 32px -32px -32px; }
+  .save-status { font-size: 12.5px; color: var(--color-on-surface-variant); }
+  .save-status.dirty { color: var(--color-secondary); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item active" href="S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-C02" data-bf-screen-name="ai_detail" data-bf-category="ai_employee" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb"><a href="S-C01-org.html">AI社員</a><span class="breadcrumb-sep">/</span><strong>ジャービス</strong></div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-outlined btn-sm"><i data-icon="message-square"></i>チャット開始</button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+<div class="content">
+  <div class="profile-header">
+    <div class="avatar avatar-xl avatar-jarvis">J</div>
+    <div class="profile-meta">
+      <div class="flex items-center gap-2 mb-1">
+        <h1 style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em;">ジャービス</h1>
+        <span class="badge badge-primary">COO</span>
+      </div>
+      <div class="text-muted text-base mb-2">Jarvis · 全社統括 · 経営層</div>
+      <p class="text-sm">プロジェクト全体を俯瞰し、フェーズ提案・優先順位調整・週次レビューを担う。各部署リーダーへの指示と、ユーザーへの状況サマリーが主な仕事。</p>
+    </div>
+  </div>
+
+  <div class="tabs-row">
+    <div class="tab active">プロフィール</div>
+    <div class="tab">ナレッジ <span class="text-muted">12</span></div>
+    <div class="tab">活動履歴</div>
+  </div>
+
+  <div class="grid-detail">
+    <!-- 左：編集可能項目 -->
+    <section>
+      <div class="card mb-4">
+        <h2 class="section-title mb-4">表示</h2>
+        <div class="form-group">
+          <label class="form-label">表示名</label>
+          <input class="input" value="ジャービス">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">アイコン</label>
+          <div class="flex items-center gap-3">
+            <div class="avatar avatar-lg avatar-jarvis">J</div>
+            <button class="btn btn-outlined btn-sm">画像アップロード</button>
+            <button class="btn btn-ghost btn-sm">Lucide から選ぶ</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <h2 class="section-title mb-4">口調</h2>
+        <label class="tone-option selected">
+          <input type="radio" name="tone" checked>
+          <div><div class="tone-label">敬語・丁寧（デフォルト）</div><div class="tone-sample">「ご確認をお願いいたします」</div></div>
+        </label>
+        <label class="tone-option">
+          <input type="radio" name="tone">
+          <div><div class="tone-label">ですます調・親しみ</div><div class="tone-sample">「確認お願いしますね」</div></div>
+        </label>
+        <label class="tone-option">
+          <input type="radio" name="tone">
+          <div><div class="tone-label">タメ口・フランク</div><div class="tone-sample">「確認しといて」</div></div>
+        </label>
+        <label class="tone-option">
+          <input type="radio" name="tone">
+          <div><div class="tone-label">ビジネス簡潔</div><div class="tone-sample">「確認願います」</div></div>
+        </label>
+        <label class="tone-option">
+          <input type="radio" name="tone">
+          <div><div class="tone-label">コーチング・前向き</div><div class="tone-sample">「次の一手を一緒に考えましょう」</div></div>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-4">カスタム文章（任意）</h2>
+        <textarea class="textarea" rows="4" placeholder="特定のキャラクター性を加える文章を入力（最大500字）">落ち着いた執事のような口調で、丁寧かつ簡潔に話す。重要事項は冒頭に要約を提示する。</textarea>
+        <div class="input-helper">プロンプトに追加される指示文。空欄でも構いません。</div>
+      </div>
+    </section>
+
+    <!-- 右：参照のみ -->
+    <aside>
+      <div class="card mb-4">
+        <h2 class="section-title mb-3">できること</h2>
+        <p class="text-sm text-muted mb-3">この AI 社員が担当する業務領域です。運営側で整えられているため変更できません。</p>
+        <div class="flex flex-wrap" style="gap: 2px;">
+          <span class="ability-chip"><i data-icon="list-checks" class="ability-chip-icon"></i>タスク優先順位管理</span>
+          <span class="ability-chip"><i data-icon="layout-dashboard" class="ability-chip-icon"></i>週次レビュー</span>
+          <span class="ability-chip"><i data-icon="git-branch" class="ability-chip-icon"></i>フェーズ提案</span>
+          <span class="ability-chip"><i data-icon="brain" class="ability-chip-icon"></i>意思決定支援</span>
+          <span class="ability-chip"><i data-icon="users" class="ability-chip-icon"></i>部署横断調整</span>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <h2 class="section-title mb-3" style="font-size:14px;">担当範囲</h2>
+        <div class="flex flex-col gap-2 text-sm">
+          <div class="flex items-center justify-between py-1"><span class="text-muted">役職</span><strong>COO</strong></div>
+          <div class="flex items-center justify-between py-1"><span class="text-muted">所属</span><strong>経営層</strong></div>
+          <div class="flex items-center justify-between py-1"><span class="text-muted">レポート対象</span><strong>あなた（オーナー）</strong></div>
+          <div class="flex items-center justify-between py-1"><span class="text-muted">直属の部下</span><strong>部署リーダー 5 名</strong></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title mb-3" style="font-size:14px;">最近の活動</h2>
+        <div class="activity-row">
+          <span class="activity-time">14:32</span>
+          <div>タスク T-042 を完了承認</div>
+        </div>
+        <div class="activity-row">
+          <span class="activity-time">12:40</span>
+          <div>第 5 段階 への移行を提案</div>
+        </div>
+        <div class="activity-row">
+          <span class="activity-time">10:18</span>
+          <div>週次サマリーをメールで配信</div>
+        </div>
+        <div class="activity-row">
+          <span class="activity-time">昨日</span>
+          <div>4 タスクの優先順位を再評価</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 固定保存バー（下部） -->
+  <div class="save-bar">
+    <span class="save-status dirty"><i data-icon="zap"></i> 未保存の変更があります</span>
+    <div style="margin-left: auto;" class="flex gap-2">
+      <button class="btn btn-ghost">キャンセル</button>
+      <button class="btn btn-primary"><i data-icon="check"></i>変更を保存</button>
+    </div>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

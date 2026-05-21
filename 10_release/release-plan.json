@@ -1,0 +1,140 @@
+{
+  "version": "v3.1-dual",
+  "project": "Atelier",
+  "skill": "release-planning",
+  "created_at": "2026-05-20",
+  "product": {
+    "name": "Atelier",
+    "tagline": "AI 社員 10 名常駐型プロジェクト管理 SaaS",
+    "delivery": "Web SaaS + Atelier Bridge (macOS .dmg / Linux / Windows)",
+    "pricing_model_hypothesis": "月額 ¥30,000-50,000 / WS（pricing-design で確定予定）",
+    "billing": "BYOK + Claude プラン枠（API 課金なし）",
+    "ai_learning_default": "OFF"
+  },
+  "stages": [
+    {
+      "id": "mvp",
+      "name": "🚀 MVP (α)",
+      "version": "v0.1.0-mvp",
+      "date_ai": "2026-06-10",
+      "date_human": "2026-11-15",
+      "weekday": "水",
+      "scope": "内部 + 親しい数社 (5-10 社)",
+      "goal": "動作確認 / フィードバック収集 / 重大バグの検出",
+      "gates": [
+        "v3-gate.yml 10/10 PASS",
+        "T-I-24 本番リリース判定 AC 全 PASS",
+        "経営者 go/no-go (2h・06-09 火)",
+        "監視ダッシュボード稼働 (Better Stack / Sentry / Langfuse)",
+        "ロールバック手順書 (T-I-23) 整備",
+        "Bridge 配布パッケージ (.dmg / npm) 準備"
+      ],
+      "deploy_time": "06:00 JST",
+      "kpi_targets": {
+        "重大障害P0_P1": 0,
+        "招待企業数": "5-10",
+        "smoke_test_pass": "100%"
+      }
+    },
+    {
+      "id": "beta",
+      "name": "β (10 社招待)",
+      "version": "v0.5.0-beta",
+      "date_ai": "2026-06-15",
+      "date_human": "2026-12-01",
+      "weekday": "月",
+      "scope": "招待制 10 社",
+      "goal": "価格検証 / オンボーディング検証 / NPS 計測",
+      "gates": [
+        "MVP 5 営業日運用で重大障害ゼロ",
+        "10 社招待リスト確定 + 利用規約締結",
+        "価格表案 + 請求書発行 SOP 整備",
+        "オンボーディング動画 3 本 + ヘルプ記事 20 本",
+        "Sentry エラー集約 + プライバシー設計レビュー"
+      ],
+      "kpi_targets": {
+        "継続利用_10社中": "≥ 8 社",
+        "重大障害": 0,
+        "完走率": "≥ 70%",
+        "NPS": "≥ 40",
+        "工数削減実感": "≥ 5×"
+      },
+      "pricing_beta": "月額 ¥10,000 / WS (半額) or 無料",
+      "duration_weeks": 24
+    },
+    {
+      "id": "ga",
+      "name": "GA / 100 ユーザー目標",
+      "version": "v1.0.0",
+      "date_ai": "2026-12-31",
+      "date_human": "2027-08-31",
+      "weekday": "木",
+      "scope": "一般公開",
+      "goal": "100 ユーザー / ¥3M MRR / 売却査定 ¥1B",
+      "gates": [
+        "β 期間で 80% 以上継続",
+        "P0/P1 = 0、P2 ≤ 5 件",
+        "SOC2 Type1 監査開始 or 取得",
+        "AI 社員 10 名完全稼働 (natasha / peter / jarvis Phase 2 起動)",
+        "営業 + CS 自動化 (Atelier 自身が運用)"
+      ],
+      "kpi_targets_m90": {
+        "ユーザー数": "100 名 / 30 社",
+        "MRR": "¥3,000,000",
+        "Churn_monthly": "< 5%",
+        "NPS": "≥ 50",
+        "売却査定": "¥1B (10-15× ARR)"
+      },
+      "marketing_countdown": [
+        {"days_before": 30, "action": "LP 公開 (atelier.dev) + β 体験談 5 本"},
+        {"days_before": 21, "action": "note / Zenn 開発記事連載 (週 2 本)"},
+        {"days_before": 14, "action": "Twitter/X 告知開始"},
+        {"days_before": 7,  "action": "Product Hunt ティザー"},
+        {"days_before": 3,  "action": "PH 投稿予告 + メーカー枠確保"},
+        {"days_before": 1,  "action": "ローンチメール (β 顧客 + ウェイトリスト)"},
+        {"days_before": 0,  "action": "Product Hunt 投稿 00:01 PST + 全チャネル告知"}
+      ]
+    }
+  ],
+  "rollback_auto_conditions": [
+    {"metric": "error_rate", "threshold": "> 5%", "window_min": 5},
+    {"metric": "p95_latency", "threshold": "> 5s", "window_min": 10},
+    {"metric": "auth_success_rate", "threshold": "< 95%", "window_min": 10},
+    {"metric": "db_connection_errors", "threshold": "> 10/min", "window_min": 1}
+  ],
+  "rollback_target": "Vercel + Fly.io 直前 deploy に自動 revert + S-E01 通知",
+  "incident_sop": [
+    {"severity": "P0", "detection": "監視自動 → S-E01 + SMS(経営者)", "initial": "即時ロールバック", "rto_min": 30},
+    {"severity": "P1", "detection": "監視自動 → S-E01", "initial": "feature flag OFF", "rto_h": 2},
+    {"severity": "P2", "detection": "ユーザー報告 → S-E01", "initial": "hotfix branch", "rto_h": 24},
+    {"severity": "P3", "detection": "起票 → 次 Wave", "initial": "通常タスク化", "rto_week": 1}
+  ],
+  "security_compliance_checklist": {
+    "mvp": ["TLS 1.3 / HSTS","Supabase Vault BYOK 暗号化","監査ログ全 mutating API","RLS 越境試験 PASS (R-T08)","個人情報保護法対応","特商法表記","AI 学習 OFF"],
+    "beta": ["Sentry エラー集約","プライバシー設計レビュー","データ削除請求フロー (F-LEGAL-002)","退会 30 日猶予フロー"],
+    "ga": ["SOC2 Type1 監査開始 or 取得","ISO 27001 検討","ペネトレーションテスト 1 回","脆弱性開示プログラム"]
+  },
+  "channels": {
+    "direct_invite":   {"mvp": "5-10 社", "beta": "10 社", "ga": "30 社"},
+    "twitter_x":       {"mvp": "–", "beta": "一部", "ga": "公開"},
+    "lp":              {"mvp": "–", "beta": "β 募集", "ga": "GA + 課金"},
+    "product_hunt":    {"mvp": "–", "beta": "–", "ga": "GA 当日 (12-31)"},
+    "blog_note_zenn":  {"mvp": "開発記事のみ", "beta": "体験談", "ga": "連載"}
+  },
+  "changelog_workflow": {
+    "commit_format": "conventional commits",
+    "automation": "release-please bot → AI 社員 jarvis ドラフト → S-E01 1 クリック承認 → git tag → GitHub Release",
+    "versioning": "Semantic Versioning"
+  },
+  "schedule_ref": "08_schedule/schedule.json",
+  "tickets_ref": "07_tasks/tickets.json",
+  "dispatcher_ref": "09_dispatch/dispatcher.json",
+  "summary": {
+    "total_stages": 3,
+    "calendar_days_ai_to_ga": 225,
+    "calendar_days_human_to_ga": 469,
+    "ga_target_ai_date": "2026-12-31",
+    "ga_target_human_date": "2027-08-31",
+    "two_axis_applied": true
+  }
+}

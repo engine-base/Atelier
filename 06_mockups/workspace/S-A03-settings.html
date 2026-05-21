@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ワークスペース設定 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .settings-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--color-border); margin-bottom: 28px; }
+  .settings-tab { padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--color-on-surface-variant); border-bottom: 2px solid transparent; cursor: pointer; }
+  .settings-tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .member-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+  .member-row:last-child { border-bottom: none; }
+  .token-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--color-border); font-size: 13px; }
+  .token-row:last-child { border-bottom: none; }
+  .danger-zone { border: 1px solid #FECACA; background: #FEF2F2; border-radius: var(--rounded-lg); padding: 20px; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
+    <a class="nav-item active" href="#"><i data-icon="settings"></i>設定</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-A03" data-bf-screen-name="workspace_settings" data-bf-category="workspace" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="breadcrumb"><span>ENGINE BASE</span><span class="breadcrumb-sep">/</span><strong>設定</strong></div>
+  </div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content">
+  <div class="page-header">
+    <h1 class="page-title">ワークスペース設定</h1>
+    <p class="page-subtitle">ENGINE BASE の基本情報・メンバー・MCPトークン・退会設定。</p>
+  </div>
+
+  <div class="settings-tabs">
+    <div class="settings-tab active">基本情報</div>
+    <div class="settings-tab">メンバー</div>
+    <div class="settings-tab">招待管理</div>
+    <div class="settings-tab">MCPトークン</div>
+    <div class="settings-tab">AI学習</div>
+    <div class="settings-tab">プラン</div>
+    <div class="settings-tab">退会</div>
+  </div>
+
+  <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 24px;">
+    <section class="card">
+      <h2 class="section-title mb-4">基本情報</h2>
+      <div class="form-group">
+        <label class="form-label">ワークスペース名</label>
+        <input class="input" value="ENGINE BASE">
+      </div>
+      <div class="form-group">
+        <label class="form-label">アイコン</label>
+        <div class="flex items-center gap-3">
+          <div class="ws-icon" style="width:48px;height:48px;background:var(--color-primary-container);color:var(--color-on-primary-container);border-radius:var(--rounded-md);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">E</div>
+          <button class="btn btn-outlined btn-sm">変更</button>
+        </div>
+      </div>
+      <button class="btn btn-primary">保存</button>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title mb-4">メンバー（3）</h2>
+      <div class="member-row">
+        <div class="avatar">M</div>
+        <div style="flex:1;">
+          <div class="font-semibold">高本まさと</div>
+          <div class="text-muted text-sm">masato@engine-base.com</div>
+        </div>
+        <span class="badge badge-primary">オーナー</span>
+      </div>
+      <div class="member-row">
+        <div class="avatar" style="background:#7C3AED;">T</div>
+        <div style="flex:1;">
+          <div class="font-semibold">高本聖斗</div>
+          <div class="text-muted text-sm">takamoto@engine-base.com</div>
+        </div>
+        <span class="badge badge-neutral">メンバー</span>
+      </div>
+      <div class="member-row">
+        <div class="avatar" style="background:#0891B2;">S</div>
+        <div style="flex:1;">
+          <div class="font-semibold">佐藤花子</div>
+          <div class="text-muted text-sm">sato@engine-base.com</div>
+        </div>
+        <span class="badge badge-neutral">閲覧者</span>
+      </div>
+      <button class="btn btn-outlined btn-sm mt-4"><i data-icon="plus"></i>メンバー招待</button>
+    </section>
+
+    <section class="card" style="grid-column: span 2;">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="section-title">MCPトークン</h2>
+        <button class="btn btn-primary btn-sm"><i data-icon="plus"></i>発行</button>
+      </div>
+      <p class="text-muted text-sm mb-4">Claude デスクトップ等の MCP クライアントからこのワークスペースの AI 社員を呼び出すためのトークン。</p>
+      <div class="token-row">
+        <div>
+          <div class="font-semibold">Claude Desktop (Mac)</div>
+          <div class="text-muted text-sm tabular">atelier_pat_••••••••••••3a9f · 最終使用 2 時間前</div>
+        </div>
+        <span class="badge badge-tertiary">active</span>
+        <span class="text-muted text-sm">read, write</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="trash"></i></button>
+      </div>
+      <div class="token-row">
+        <div>
+          <div class="font-semibold">CI/CD Pipeline</div>
+          <div class="text-muted text-sm tabular">atelier_pat_••••••••••••f81e · 未使用</div>
+        </div>
+        <span class="badge badge-neutral">revoked</span>
+        <span class="text-muted text-sm">read</span>
+        <button class="btn btn-ghost btn-sm"><i data-icon="trash"></i></button>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column: span 2;">
+      <h2 class="section-title mb-4">AI 学習設定</h2>
+      <div class="notice notice-primary mb-4">
+        <i data-icon="shield-check"></i>
+        <div><strong>デフォルト OFF。</strong> このワークスペースのデータは Anthropic / Voyage の AI 学習に使用されません。ON にすると、改善のためのモデル学習に匿名データが利用されます。</div>
+      </div>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox">
+        <span class="font-semibold">AI 学習への利用を許可する（推奨：OFF）</span>
+      </label>
+    </section>
+
+    <section class="danger-zone" style="grid-column: span 2;">
+      <h2 class="section-title mb-2" style="color:#991B1B;">危険な操作</h2>
+      <p class="text-sm mb-4" style="color:#991B1B;">ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。</p>
+      <button class="btn btn-danger">ワークスペースを削除</button>
+    </section>
+  </div>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

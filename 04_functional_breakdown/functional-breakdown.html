@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Atelier 機能分解 v1.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:"Noto Sans JP",sans-serif;background:#fafaf9;color:#1a1a1a;line-height:1.8;font-feature-settings:"palt";-webkit-font-smoothing:antialiased}
+.wrap{max-width:880px;margin:0 auto;padding:60px 24px 100px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:#a8a29e;margin-bottom:14px}
+h1{font-size:36px;font-weight:700;letter-spacing:-0.02em;margin-bottom:14px;line-height:1.2}
+.meta{display:flex;gap:24px;flex-wrap:wrap;font-size:12.5px;color:#737373;padding-bottom:24px;margin-bottom:48px;border-bottom:1px solid #e7e5e4}
+.meta span{display:flex;align-items:center;gap:6px}
+.meta strong{color:#1a1a1a;font-weight:500}
+h2{font-size:22px;font-weight:700;letter-spacing:-0.01em;margin:56px 0 16px;padding-bottom:8px;border-bottom:2px solid #1a1a1a}
+h3{font-size:16px;font-weight:700;margin:28px 0 12px;color:#1a1a1a}
+p{margin-bottom:14px;color:#404040;font-size:14.5px}
+.lead{font-size:17px;line-height:1.7;color:#262626;margin-bottom:24px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin:20px 0 28px}
+.stat-card{background:#fff;border:1px solid #e7e5e4;border-radius:10px;padding:16px 18px}
+.stat-num{font-size:28px;font-weight:700;font-family:'JetBrains Mono',monospace;color:#1a1a1a;line-height:1.1}
+.stat-label{font-size:11px;color:#737373;margin-top:6px;letter-spacing:0.02em}
+table{width:100%;border-collapse:collapse;font-size:12.5px;margin:14px 0 24px}
+thead th{background:#fafaf9;color:#1a1a1a;font-weight:700;padding:10px 12px;text-align:left;font-size:11.5px;border-bottom:1px solid #e7e5e4}
+tbody td{padding:9px 12px;border-top:1px solid #f5f5f4;color:#404040;vertical-align:top}
+tbody tr:hover td{background:#fafaf9}
+code{background:#f5f5f4;padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#1a1a1a}
+ul{padding-left:22px;margin:10px 0 18px}
+li{margin-bottom:5px;color:#404040}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:2.5px 9px;border-radius:4px;font-family:'JetBrains Mono',monospace;margin-right:4px}
+.tag-decided{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+.tag-draft{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.tag-blocked{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
+.tag-phase{background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff}
+.card{background:#fff;border:1px solid #e7e5e4;border-radius:10px;padding:22px 26px;margin-bottom:16px}
+.card-title{font-size:15px;font-weight:700;margin-bottom:8px;color:#1a1a1a}
+.card-id{font-family:'JetBrains Mono',monospace;font-size:11px;color:#737373;background:#fafaf9;padding:2px 8px;border-radius:4px;display:inline-block;margin-right:8px}
+.muted{color:#737373;font-size:12.5px}
+.alert{background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 16px;margin:18px 0;color:#92400e;font-size:13px}
+.alert-strong{background:#fee2e2;border-left-color:#dc2626;color:#991b1b}
+hr{border:0;border-top:1px solid #e7e5e4;margin:48px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="eyebrow">Functional Breakdown</div>
+<h1>Atelier 機能分解 v1.0</h1>
+<div class="meta">
+  <span><strong>Project</strong> Atelier</span>
+  <span><strong>Owner</strong> 高本まさと</span>
+  <span><strong>Version</strong> 1.0</span>
+  <span><strong>Date</strong> 2026-05-18</span>
+  <span><strong>Schema</strong> v3</span>
+  <span><strong>Mode</strong> 新規構築（drift検知無効）</span>
+</div>
+
+<p class="lead">
+このドキュメントは Atelier の機能を 4 軸（エンティティ / 機能 / ロール / 画面）に分解し、各項目に v3 拡張フィールド（table_name / api_endpoints / access_control_policies / ears_ac_seed / mock_path / meta_tags）を付与した結果のサマリーです。下流の <code>task-decomposition</code> スキルへの入力として、また Foundation Gate の各 lint（entity-table-naming / access-control-verifier / EARS validator / mock-impl-diff）への入力として機械検証可能な形式で提供します。
+</p>
+
+<div class="stat-grid">
+  <div class="stat-card"><div class="stat-num">25</div><div class="stat-label">エンティティ</div></div>
+  <div class="stat-card"><div class="stat-num">39</div><div class="stat-label">機能</div></div>
+  <div class="stat-card"><div class="stat-num">6</div><div class="stat-label">ロール</div></div>
+  <div class="stat-card"><div class="stat-num">33</div><div class="stat-label">画面</div></div>
+  <div class="stat-card"><div class="stat-num">152</div><div class="stat-label">APIエンドポイント</div></div>
+  <div class="stat-card"><div class="stat-num">85</div><div class="stat-label">RLSポリシー</div></div>
+  <div class="stat-card"><div class="stat-num">10</div><div class="stat-label">オブジェクト制約</div></div>
+  <div class="stat-card"><div class="stat-num">19</div><div class="stat-label">ENUM型</div></div>
+</div>
+
+<div class="alert">
+<strong>更新 2026-05-19：</strong> AI 社員 10 名は <strong>運営側で完全固定</strong>（ユーザーは追加・削除・雇用不可）。スキル概念はユーザーに見せず「できること（能力）」として変換表示。S-A02（WS一覧）はサイドバー WS Picker に統合し独立画面廃止。S-C03（AI社員雇用）廃止。35 → 33 画面。
+</div>
+
+<div class="alert">
+<strong>継続的更新サイクル（CUC: F-CUC01〜04 + F-IMP01）：</strong> 初期一気通貫後の追加要望・仕様変更を完全自動化。タスク状態別の更新ポリシー（pending=自動上書き / in_progress=3択判断 / completed=リファクタタスク自動起票）+ 成果物版管理 + 日次整合性チェック（cron）。
+</div>
+
+<div class="alert alert-strong">
+<strong>致命級リスク R-T08 対策：</strong> クライアント招待モード（R-005 ClientGuest）は別 JWT 経路（<code>role = 'client_portal'</code>）で完全分離。25テーブル全てに per-entity RLS policy を定義し、Foundation Gate #4 で網羅性を CI 検証する。
+</div>
+
+<hr>
+
+<h2>1. エンティティ (Entities)</h2>
+<p>25 テーブル、合計 85 の RLS ポリシー定義。命名規約 <code>PascalCase Entity → snake_case_plural table</code>。全テーブルで UUID v7 + ソフトデリート + TIMESTAMPTZ を採用。</p>
+
+<h3>tenant_isolation 種別</h3>
+<table>
+  <thead><tr><th>分離タイプ</th><th>件数</th><th>対象</th></tr></thead>
+  <tbody>
+    <tr><td>workspace_scoped</td><td>17</td><td>projects / phases / tasks / chat_threads / chat_messages 等</td></tr>
+    <tr><td>user_scoped</td><td>4</td><td>approval_inbox / byok_api_keys / consents</td></tr>
+    <tr><td>account_scoped</td><td>1</td><td>knowledge_nodes（workspace or user）</td></tr>
+    <tr><td>none (global)</td><td>3</td><td>users / ai_employee_templates / skills</td></tr>
+  </tbody>
+</table>
+
+<h3>主要エンティティ抜粋</h3>
+<div class="card">
+  <span class="card-id">E-007</span><span class="tag tag-decided">decided</span>
+  <div class="card-title">AiEmployee (table: ai_employees)</div>
+  <p class="muted">三階層組織のAI社員。デフォルト10名 + ユーザー雇用可。ユーザー編集可項目（display_name/icon/tone_preset/custom_tone_text）と管理側編集項目（system_prompt/attached_skills/role/department）を分離。</p>
+</div>
+<div class="card">
+  <span class="card-id">E-012</span><span class="tag tag-decided">decided</span>
+  <div class="card-title">Task (table: tasks)</div>
+  <p class="muted">1-2日粒度。<code>dependencies/prerequisites/blocks</code> 必須属性。<code>acceptance_criteria_id/mock_id/spec_html_path</code> 必須リンク。<code>files_changed</code> で衝突回避。</p>
+</div>
+<div class="card">
+  <span class="card-id">E-018</span><span class="tag tag-decided">decided</span>
+  <div class="card-title">KnowledgeNode (table: knowledge_nodes)</div>
+  <p class="muted">アカウント単位（workspace or user）の2層ナレッジ。<code>scope = common</code> または <code>employee_specific</code>。Voyage AI 1024次元 embedding + HNSW + FTS + tags GIN。</p>
+</div>
+
+<hr>
+
+<h2>2. 機能 (Features)</h2>
+<p>合計 35 機能。decided 32 / draft 2 / blocked 1（F-LEGAL-014 電気通信事業届出は法務確認待ち）。すべて EARS 5 形式の AC seed を持つ。</p>
+
+<h3>注目機能</h3>
+<div class="card">
+  <span class="card-id">F-CTX01</span><span class="tag tag-decided">decided</span>
+  <div class="card-title">Hybrid Context Construction Layer</div>
+  <p class="muted">7層コンテキスト構築：ペルソナ → 直近メッセージ → DB現在状態（DB-as-truth）→ セマンティック関連メッセージ → RAGナレッジ → mem0長期記憶 → 言及エンティティ → 必要時LLMLingua圧縮。OSS活用で自前は100行未満。</p>
+</div>
+<div class="card">
+  <span class="card-id">F-IMP01</span><span class="tag tag-decided">decided</span><span class="tag tag-phase">Phase 3</span>
+  <div class="card-title">Impact Analyzer（影響範囲解析）</div>
+  <p class="muted">NetworkX で <code>tasks.dependencies</code> DiGraph を構築、descendants() で影響タスク抽出、LangGraph で解析フロー。フェーズ移動/追加/仕様変更時に自動起動 + 日次cron。</p>
+</div>
+<div class="card">
+  <span class="card-id">F-018</span><span class="tag tag-decided">decided</span><span class="tag tag-phase">Phase 3</span>
+  <div class="card-title">並列実行エンジン（5-10並列）</div>
+  <p class="muted">ローカル Claude Code WebSocket/SSE ブリッジ。初回CLIログイン、BG継続、ストリーミングはオプション。スコア評価（F-021）+ 人間承認ゲート（F-022）と連携。</p>
+</div>
+
+<h3>カテゴリ別件数</h3>
+<table>
+  <thead><tr><th>カテゴリ</th><th>件数</th></tr></thead>
+  <tbody>
+    <tr><td>auth / workspace / project / ai_employee</td><td>9</td></tr>
+    <tr><td>chat / output / workflow / design</td><td>6</td></tr>
+    <tr><td>task / execution / verification</td><td>7</td></tr>
+    <tr><td>knowledge / ai_infra</td><td>3</td></tr>
+    <tr><td>collaboration / client_portal / integration</td><td>4</td></tr>
+    <tr><td>ingestion / sales / admin</td><td>3</td></tr>
+    <tr><td>legal</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>3. ロール (Roles)</h2>
+<p>6 ロール + 10 オブジェクト制約。Postgres RLS + Application Layer 二重チェック。<strong>R-005 ClientGuest</strong> は別 JWT 経路で完全分離（致命級リスク対策）。</p>
+
+<table>
+  <thead><tr><th>ID</th><th>ロール</th><th>表現方法</th><th>主な権限</th></tr></thead>
+  <tbody>
+    <tr><td>R-001</td><td>Guest</td><td><code>auth.role()='anon'</code></td><td>公開ページ閲覧のみ</td></tr>
+    <tr><td>R-002</td><td>WorkspaceOwner</td><td><code>memberships.role='owner'</code></td><td>WS設定/招待/プラン/MCP/全編集</td></tr>
+    <tr><td>R-003</td><td>WorkspaceMember</td><td><code>memberships.role='member'</code></td><td>プロジェクト・チャット・タスク</td></tr>
+    <tr><td>R-004</td><td>WorkspaceViewer</td><td><code>memberships.role='viewer'</code></td><td>閲覧 + コメント</td></tr>
+    <tr><td>R-005</td><td>ClientGuest</td><td><code>jwt.role='client_portal'</code></td><td>1招待=1プロジェクト閲覧 + 自分のコメント</td></tr>
+    <tr><td>R-006</td><td>PlatformAdmin</td><td><code>raw_app_meta_data.role='admin'</code></td><td>スキル/テンプレ/監査ログ</td></tr>
+  </tbody>
+</table>
+
+<h3>RLS Helper Functions</h3>
+<ul>
+  <li><code>fn_is_workspace_member(ws_id)</code></li>
+  <li><code>fn_is_workspace_owner(ws_id)</code></li>
+  <li><code>fn_is_client_invitation_valid(invitation_id)</code></li>
+  <li><code>fn_is_admin()</code></li>
+</ul>
+
+<hr>
+
+<h2>4. 画面 (Screens)</h2>
+<p>合計 35 画面。すべて <code>mock_path</code> / <code>meta_tags</code> / <code>h1_text</code> を持つ（mock-impl-diff lint 対象）。3 画面で KPI ラベル定義（ダッシュボード系）。</p>
+
+<h3>ロールスコープ別</h3>
+<table>
+  <thead><tr><th>スコープ</th><th>件数</th><th>例</th></tr></thead>
+  <tbody>
+    <tr><td>guest_public（規約・PP・特商法・サインアップ）</td><td>5</td><td>S-A01, S-PUB01-04</td></tr>
+    <tr><td>workspace_app（オーナー/メンバー/閲覧者）</td><td>23</td><td>S-A02-S-O01</td></tr>
+    <tr><td>client_portal（招待クライアント専用）</td><td>3</td><td>S-L02, S-L03</td></tr>
+    <tr><td>admin_only（運営管理者）</td><td>5</td><td>S-T01-T05</td></tr>
+  </tbody>
+</table>
+
+<h3>主要ユーザーフロー</h3>
+<ul>
+  <li><strong>UF-1 オンボーディング:</strong> S-A01 → S-A02 → S-B01 → S-B02</li>
+  <li><strong>UF-2 ヒアリング〜タスク実行:</strong> S-F01 → S-E01 → S-I01 → S-I02 → S-J01</li>
+  <li><strong>UF-3 クライアント招待:</strong> S-L01 → メール → S-L02 → S-L03 → S-G01（限定UI）</li>
+  <li><strong>UF-4 ナレッジ自動蓄積:</strong> S-E01 → S-K02 → S-K01</li>
+  <li><strong>UF-5 MCP連携:</strong> S-A03 → Claude Desktop → MCP Protocol</li>
+</ul>
+
+<hr>
+
+<h2>5. アーキテクチャ設計への引き継ぎ</h2>
+<ul>
+  <li><strong>DB スキーマ:</strong> 25 テーブル / 19 ENUM / 52 インデックス / 85 RLS policy → <code>supabase/migrations/</code></li>
+  <li><strong>API:</strong> 142 エンドポイント → FastAPI route + Next.js Route Handlers</li>
+  <li><strong>OSS依存:</strong> assistant-ui / tool-ui / Lucide / Drizzle / LlamaIndex / Cognee / mem0 / NetworkX / LangGraph / Voyage</li>
+  <li><strong>外部統合:</strong> Anthropic API / Voyage AI / Whisper API / Local Claude Code / Inngest / Resend / Supabase / GitHub (Phase 5+)</li>
+</ul>
+
+<h2>6. task-decomposition への引き継ぎ</h2>
+<ul>
+  <li><code>entities.table_name</code> → entity-table-naming validator</li>
+  <li><code>entities.access_control_policies</code> → タスクの <code>access_control_required</code> + Tier 2 functional AC</li>
+  <li><code>features.api_endpoints</code> → タスクの <code>files_changed</code>（backend router 配下）+ Tier 2 functional AC</li>
+  <li><code>features.ears_ac_seed</code> → タスクの <code>acceptance_criteria.functional</code> に直接コピー</li>
+  <li><code>screens.meta_tags / mock_path / h1_text / kpi_labels</code> → タスクの <code>screen_ids</code> + Tier 1 structural AC</li>
+</ul>
+
+<h2>7. CI Gate 連携</h2>
+<table>
+  <thead><tr><th>Gate</th><th>使用フィールド</th></tr></thead>
+  <tbody>
+    <tr><td>mock-impl-diff</td><td><code>screens.h1_text</code> / <code>kpi_labels</code> / <code>section_h2_texts</code> / <code>mock_path</code></td></tr>
+    <tr><td>screens-API lint</td><td><code>features.api_endpoints</code></td></tr>
+    <tr><td>entity-table-naming lint</td><td><code>entities.table_name</code></td></tr>
+    <tr><td>access-control verifier</td><td><code>entities.access_control_policies</code></td></tr>
+    <tr><td>EARS validator</td><td><code>features.ears_ac_seed</code></td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<h2>関連ファイル</h2>
+<ul>
+  <li><code>entities.json</code> — 25エンティティ完全定義</li>
+  <li><code>features.json</code> — 35機能 + 142APIエンドポイント + EARS AC</li>
+  <li><code>roles.json</code> — 6ロール + 24×6アクセスマトリクス + 10制約</li>
+  <li><code>screens.json</code> — 35画面 + mock_path + meta_tags + KPI</li>
+</ul>
+
+<h2>次のスキル</h2>
+<p><code>feature-decomposition</code> または直接 <code>task-decomposition</code> へ。本ファイルの 4 JSON が下流スキルへの完全な入力となる。</p>
+
+</div>
+</body>
+</html>

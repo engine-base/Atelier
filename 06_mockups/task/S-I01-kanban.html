@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>タスクボード — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── 役割カード ───────── */
+  .role-card {
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--color-primary-container) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 20px 24px;
+    margin: 20px 20px 16px;
+    display: grid; grid-template-columns: 56px 1fr; gap: 18px; align-items: start;
+  }
+  .role-icon { width: 56px; height: 56px; background: var(--color-primary); color: #FFFFFF; border-radius: var(--rounded-md); display: flex; align-items: center; justify-content: center; }
+  .role-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .role-lead { font-size: 13px; color: var(--color-on-surface-variant); margin-bottom: 14px; }
+  .role-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .role-point { background: rgba(255,255,255,0.7); border-radius: var(--rounded-md); padding: 10px 12px; }
+  .role-point-num { width: 22px; height: 22px; border-radius: 50%; background: var(--color-primary); color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .role-point-label { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .role-point-desc { font-size: 11.5px; color: var(--color-on-surface-variant); line-height: 1.55; }
+
+  /* ───────── 再生バー（最重要） ───────── */
+  .play-bar {
+    margin: 0 20px 16px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 20px;
+    align-items: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .play-bar.has-selection {
+    background: linear-gradient(90deg, var(--color-primary-container) 0%, #FFFFFF 60%);
+    border-color: var(--color-primary);
+    box-shadow: 0 4px 16px rgba(37,99,235,0.15);
+  }
+  .play-summary { display: flex; align-items: center; gap: 14px; }
+  .play-icon { width: 44px; height: 44px; border-radius: var(--rounded-md); background: var(--color-primary-container); color: var(--color-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .play-bar.has-selection .play-icon { background: var(--color-primary); color: #FFFFFF; }
+  .play-title { font-size: 14.5px; font-weight: 700; margin-bottom: 2px; }
+  .play-desc { font-size: 12px; color: var(--color-on-surface-variant); }
+  .capacity { display: flex; flex-direction: column; gap: 4px; min-width: 220px; }
+  .capacity-head { display: flex; justify-content: space-between; font-size: 11px; }
+  .capacity-label { font-weight: 700; color: var(--color-on-surface); }
+  .capacity-detail { color: var(--color-on-surface-variant); }
+  .capacity-bar { height: 8px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; }
+  .capacity-fill { height: 100%; background: linear-gradient(90deg, var(--color-tertiary), var(--color-primary)); border-radius: var(--rounded-full); }
+  .play-btn {
+    padding: 12px 24px;
+    background: var(--color-primary);
+    color: #FFFFFF;
+    border-radius: var(--rounded-md);
+    font-weight: 700;
+    font-size: 14px;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.15s;
+  }
+  .play-btn:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .play-btn:disabled { background: var(--color-surface-variant); color: var(--color-on-surface-variant); cursor: not-allowed; }
+  .play-btn .play-count { background: rgba(255,255,255,0.25); padding: 2px 9px; border-radius: var(--rounded-full); font-size: 12.5px; }
+
+  /* ───────── ツールバー ───────── */
+  .toolbar {
+    margin: 0 20px 16px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    padding: 10px 14px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .toolbar-section { display: flex; align-items: center; gap: 8px; }
+  .toolbar-label { font-size: 11px; font-weight: 700; color: var(--color-on-surface-variant); letter-spacing: 0.06em; }
+  .seg { display: flex; gap: 2px; padding: 3px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .seg button { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; }
+  .seg button.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: var(--shadow-sm); }
+  .toolbar-sep { width: 1px; height: 22px; background: var(--color-border); }
+  .toolbar-meta { margin-left: auto; display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--color-on-surface-variant); }
+
+  /* ───────── ボード ───────── */
+  .board { padding: 0 20px 32px; }
+  .group {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .group-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
+  .group-name { font-size: 14px; font-weight: 700; }
+  .group-count { font-size: 11px; color: var(--color-on-surface-variant); background: var(--color-surface-variant); padding: 2px 9px; border-radius: var(--rounded-full); font-weight: 600; }
+  .group-progress { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--color-on-surface-variant); }
+  .group-progress-bar { width: 120px; height: 6px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; }
+  .group-progress-fill { height: 100%; background: var(--color-tertiary); border-radius: var(--rounded-full); }
+
+  .lanes { display: grid; grid-template-columns: repeat(6, minmax(170px, 1fr)); gap: 8px; }
+  .lane { background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 10px; min-height: 100px; }
+  .lane-head { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 8px; }
+  .lane-title { font-size: 11.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+  .lane-title .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .lane-title .dot.triage { background: #94A3B8; }
+  .lane-title .dot.ready { background: var(--color-on-surface-variant); }
+  .lane-title .dot.impl { background: var(--color-primary); }
+  .lane-title .dot.blocked { background: var(--color-error, #DC2626); }
+  .lane-title .dot.wait { background: var(--color-secondary); }
+  .lane-title .dot.done { background: var(--color-tertiary); }
+  .lane-count { font-size: 11px; color: var(--color-on-surface-variant); font-weight: 600; }
+
+  /* ───────── カード ───────── */
+  .card-task {
+    position: relative;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .card-task:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+  .card-task.selected { background: var(--color-primary-container); border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
+  .card-check {
+    position: absolute; top: 8px; left: 8px;
+    width: 18px; height: 18px; border-radius: 4px;
+    border: 1.5px solid var(--color-border); background: #FFFFFF;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .card-task:hover .card-check { opacity: 1; }
+  .card-task.selected .card-check { opacity: 1; background: var(--color-primary); border-color: var(--color-primary); color: #FFFFFF; }
+  .card-task .card-body { padding-left: 22px; }
+  .card-task .card-title { font-size: 12.5px; font-weight: 600; line-height: 1.5; margin-bottom: 6px; }
+  .card-task .card-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--color-on-surface-variant); }
+  .card-task .card-id { font-family: monospace; font-size: 10px; }
+  .card-task .card-spacer { flex: 1; }
+  .card-task .card-est { font-size: 10.5px; color: var(--color-on-surface-variant); }
+
+  /* 個別再生ボタン */
+  .card-play {
+    position: absolute; top: 8px; right: 8px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #FFFFFF;
+    display: none;
+    align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(37,99,235,0.3);
+    z-index: 2;
+  }
+  .card-task:hover .card-play { display: inline-flex; }
+  .card-play:hover { transform: scale(1.1); }
+
+  /* 実装中：走査バー */
+  .card-task.running { border-color: var(--color-primary); }
+  .running-bar { height: 3px; background: var(--color-surface-variant); border-radius: var(--rounded-full); margin-top: 8px; position: relative; overflow: hidden; }
+  .running-bar::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--color-primary), transparent); animation: sweep 1.4s infinite; }
+  @keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+  .running-text { display: flex; align-items: center; gap: 4px; font-size: 10.5px; color: var(--color-primary); font-weight: 600; margin-top: 4px; }
+
+  .score-pill { font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 1px 6px; border-radius: var(--rounded-full); }
+  .score-pill.high { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+  .score-pill.mid { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+
+  .more-link { display: block; text-align: center; padding: 6px; font-size: 11px; color: var(--color-on-surface-variant); }
+  .more-link:hover { color: var(--color-primary); }
+
+  /* 凡例フッター */
+  .legend {
+    margin: 0 20px 20px;
+    display: flex; gap: 18px; flex-wrap: wrap;
+    padding: 12px 16px;
+    background: var(--color-surface-variant);
+    border-radius: var(--rounded-md);
+    font-size: 12px;
+    color: var(--color-on-surface-variant);
+  }
+  .legend strong { color: var(--color-on-surface); margin-right: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  @media (max-width: 1100px) {
+    .role-points { grid-template-columns: 1fr; }
+    .lanes { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="kanban"></i>タスク<span style="margin-left:auto;font-size:11px;">87</span></a>
+    <a class="nav-item" href="S-I03-monitor.html"><i data-icon="cpu"></i>実行モニター</a>
+    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">3</span></a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-I01" data-bf-screen-name="kanban" data-bf-category="task" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb"><a href="../project/S-B02-dashboard.html">Atelier 自社開発</a><span class="breadcrumb-sep">/</span><strong>タスクボード</strong></div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<!-- ━━━━━━ 1. 役割カード ━━━━━━ -->
+<section class="role-card">
+  <div class="role-icon"><i data-icon="play-circle" data-size="28"></i></div>
+  <div>
+    <div class="role-title">タスクボード — AI 社員に作業を任せる場所</div>
+    <div class="role-lead">タスクを選んで「再生」を押すと、Atelier Bridge があなたの PC でローカル Claude Code を並列起動し、AI 社員が自動で実装・自己検証を進めます。タスクは <strong>準備中 → 着手可 → 実装中 → （要対応） → 承認待ち → 完了</strong> の流れで進みます。</div>
+    <div class="role-points">
+      <div class="role-point">
+        <div class="role-point-num">1</div>
+        <div class="role-point-label">タスクを選ぶ</div>
+        <div class="role-point-desc">カードをクリックして 1 件、またはまとめて複数選択します</div>
+      </div>
+      <div class="role-point">
+        <div class="role-point-num">2</div>
+        <div class="role-point-label">再生する</div>
+        <div class="role-point-desc">画面上部の青いボタンで AI 社員に作業を開始させます</div>
+      </div>
+      <div class="role-point">
+        <div class="role-point-num">3</div>
+        <div class="role-point-label">承認待ちに進むのを待つ</div>
+        <div class="role-point-desc">自動で実装 → 検証 → 承認待ちまで進みます</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ━━━━━━ 2. 再生バー（最重要） ━━━━━━ -->
+<section class="play-bar has-selection">
+  <div class="play-summary">
+    <div class="play-icon"><i data-icon="play" data-size="22"></i></div>
+    <div>
+      <div class="play-title">1 件のタスクを選択中 · 合計見積 14 時間</div>
+      <div class="play-desc">「再生」を押すと、選んだタスクが AI 社員にディスパッチされます。停止はいつでも可能です。</div>
+    </div>
+  </div>
+  <div class="capacity">
+    <div class="capacity-head">
+      <span class="capacity-label">並列実行枠</span>
+      <span class="capacity-detail">いま 4 件 動作中 / 最大 10 件まで同時実行</span>
+    </div>
+    <div class="capacity-bar"><div class="capacity-fill" style="width: 40%;"></div></div>
+  </div>
+  <button class="play-btn">
+    <i data-icon="play" data-size="18"></i>
+    選択を再生する
+    <span class="play-count">1 件</span>
+  </button>
+</section>
+
+<!-- ━━━━━━ 3. ツールバー ━━━━━━ -->
+<section class="toolbar">
+  <div class="toolbar-section">
+    <span class="toolbar-label">表示</span>
+    <div class="seg">
+      <button class="active"><i data-icon="kanban" data-size="14"></i>かんばん</button>
+      <button><i data-icon="list" data-size="14"></i>リスト</button>
+      <button><i data-icon="git-branch" data-size="14"></i>依存グラフ</button>
+    </div>
+  </div>
+  <div class="toolbar-sep"></div>
+  <div class="toolbar-section">
+    <span class="toolbar-label">分類</span>
+    <div class="seg">
+      <button class="active">機能別</button>
+      <button>画面別</button>
+      <button>担当 AI 別</button>
+      <button>フェーズ別</button>
+    </div>
+  </div>
+  <div class="toolbar-sep"></div>
+  <button class="btn btn-ghost btn-sm"><i data-icon="filter"></i>絞り込み</button>
+  <div class="toolbar-meta">
+    <span>全 <strong style="color:var(--color-on-surface);">87</strong> 件のタスク</span>
+    <button class="btn btn-outlined btn-sm"><i data-icon="plus"></i>タスクを追加</button>
+  </div>
+</section>
+
+<!-- ━━━━━━ 4. 凡例 ━━━━━━ -->
+<section class="legend">
+  <span><strong>レーンの意味</strong></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#94A3B8;"></span>準備中（仕様未確定）</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--color-on-surface-variant);"></span>着手可（再生待ち）</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--color-primary);"></span>実装中（AI が稼働中）</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#DC2626;"></span>要対応（再試行 / 判断必要）</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--color-secondary);"></span>承認待ち（人間判断）</span>
+  <span class="legend-item"><span class="legend-dot" style="background:var(--color-tertiary);"></span>完了</span>
+</section>
+
+<!-- ━━━━━━ 5. ボード ━━━━━━ -->
+<div class="board">
+
+  <!-- カテゴリ：基盤・共通 -->
+  <div class="group">
+    <div class="group-head">
+      <span class="group-name">基盤・共通</span>
+      <span class="group-count">12 件</span>
+      <div class="group-progress">
+        <span>第 0 段階</span>
+        <div class="group-progress-bar"><div class="group-progress-fill" style="width:100%;"></div></div>
+        <span><strong style="color:var(--color-tertiary);">完了 100%</strong></span>
+      </div>
+    </div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot triage"></span>準備中</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot ready"></span>着手可</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot impl"></span>実装中</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot blocked"></span>要対応</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot wait"></span>承認待ち</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot done"></span>完了</span><span class="lane-count">12</span></div>
+        <div class="card-task">
+          <div class="card-body">
+            <div class="card-title">データベース権限設計</div>
+            <div class="card-meta"><span class="card-id">T-001</span><div class="avatar avatar-sm avatar-strange">D</div><span class="card-spacer"></span><span class="score-pill high">0.96</span></div>
+          </div>
+        </div>
+        <div class="card-task">
+          <div class="card-body">
+            <div class="card-title">CI/CD パイプライン</div>
+            <div class="card-meta"><span class="card-id">T-002</span><div class="avatar avatar-sm avatar-thor">T</div><span class="card-spacer"></span><span class="score-pill high">0.94</span></div>
+          </div>
+        </div>
+        <a class="more-link" href="#">他 10 件 →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- カテゴリ：認証機能 -->
+  <div class="group">
+    <div class="group-head">
+      <span class="group-name">認証機能</span>
+      <span class="group-count">8 件</span>
+      <div class="group-progress">
+        <span>第 1 段階</span>
+        <div class="group-progress-bar"><div class="group-progress-fill" style="width:50%;"></div></div>
+        <span><strong>完了 50%</strong></span>
+      </div>
+    </div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot triage"></span>準備中</span><span class="lane-count">1</span></div>
+        <div class="card-task" style="opacity:.75;">
+          <div class="card-body">
+            <div class="card-title">パスワード強度ポリシー（仕様未確定）</div>
+            <div class="card-meta"><span class="card-id">T-018</span><span class="card-spacer"></span><span class="card-est">未見積</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot ready"></span>着手可</span><span class="lane-count">1</span></div>
+        <div class="card-task selected">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play" title="このタスクだけ再生"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">外部サービス連携の解除フロー</div>
+            <div class="card-meta"><span class="card-id">T-013</span><span class="card-spacer"></span><span class="card-est">見積 8 時間</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot impl"></span>実装中</span><span class="lane-count">2</span></div>
+        <div class="card-task running">
+          <div class="card-body">
+            <div class="card-title">ログイン画面の実装</div>
+            <div class="card-meta"><span class="card-id">T-014</span><div class="avatar avatar-sm avatar-thor">T</div><span class="card-spacer"></span><span class="card-est">14 時間</span></div>
+            <div class="running-bar"></div>
+            <div class="running-text"><i data-icon="loader" data-size="11"></i>ソーが実装中 · 10 / 14 時間</div>
+          </div>
+        </div>
+        <div class="card-task running">
+          <div class="card-body">
+            <div class="card-title">メールリンク発行</div>
+            <div class="card-meta"><span class="card-id">T-015</span><div class="avatar avatar-sm avatar-thor">T</div><span class="card-spacer"></span><span class="card-est">12 時間</span></div>
+            <div class="running-bar"></div>
+            <div class="running-text"><i data-icon="loader" data-size="11"></i>ソーが実装中 · 4 / 12 時間</div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot blocked"></span>要対応</span><span class="lane-count">1</span></div>
+        <div class="card-task" style="border-color:var(--color-error,#DC2626);background:#FEF2F2;">
+          <div class="card-body">
+            <div class="card-title">退会フロー（30 日猶予）</div>
+            <div class="card-meta"><span class="card-id">T-016</span><div class="avatar avatar-sm avatar-vision">V</div><span class="card-spacer"></span><span class="score-pill mid">0.87</span></div>
+            <div class="running-text" style="color:var(--color-error,#DC2626);"><i data-icon="alert-circle" data-size="11"></i>再試行 2 / 3 · 条件 6 未達</div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot wait"></span>承認待ち</span><span class="lane-count">1</span></div>
+        <div class="card-task">
+          <div class="card-body">
+            <div class="card-title">同意ログの保存</div>
+            <div class="card-meta"><span class="card-id">T-017</span><div class="avatar avatar-sm avatar-vision">V</div><span class="card-spacer"></span><span class="score-pill mid">0.87</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot done"></span>完了</span><span class="lane-count">3</span></div>
+        <div class="card-task"><div class="card-body"><div class="card-title">認証基盤セットアップ</div><div class="card-meta"><span class="card-id">T-010</span><span class="card-spacer"></span><span class="score-pill high">0.98</span></div></div></div>
+        <div class="card-task"><div class="card-body"><div class="card-title">セッション維持の設定</div><div class="card-meta"><span class="card-id">T-011</span><span class="card-spacer"></span><span class="score-pill high">0.95</span></div></div></div>
+        <div class="card-task"><div class="card-body"><div class="card-title">Google 連携</div><div class="card-meta"><span class="card-id">T-012</span><span class="card-spacer"></span><span class="score-pill high">0.92</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- カテゴリ：チャット機能 -->
+  <div class="group">
+    <div class="group-head">
+      <span class="group-name">チャット機能</span>
+      <span class="group-count">10 件</span>
+      <div class="group-progress">
+        <span>第 1 段階</span>
+        <div class="group-progress-bar"><div class="group-progress-fill" style="width:30%;"></div></div>
+        <span><strong>完了 30%</strong></span>
+      </div>
+    </div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot triage"></span>準備中</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot ready"></span>着手可</span><span class="lane-count">2</span></div>
+        <div class="card-task">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">ファイル添付機能</div>
+            <div class="card-meta"><span class="card-id">T-024</span><span class="card-spacer"></span><span class="card-est">10 時間</span></div>
+          </div>
+        </div>
+        <div class="card-task">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">メンション機能</div>
+            <div class="card-meta"><span class="card-id">T-025</span><span class="card-spacer"></span><span class="card-est">8 時間</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot impl"></span>実装中</span><span class="lane-count">2</span></div>
+        <div class="card-task running">
+          <div class="card-body">
+            <div class="card-title">文脈構築レイヤ</div>
+            <div class="card-meta"><span class="card-id">T-026</span><div class="avatar avatar-sm avatar-thor">T</div><span class="card-spacer"></span><span class="card-est">18 時間</span></div>
+            <div class="running-bar"></div>
+            <div class="running-text"><i data-icon="loader" data-size="11"></i>ソーが実装中 · 11 / 18 時間</div>
+          </div>
+        </div>
+        <div class="card-task running">
+          <div class="card-body">
+            <div class="card-title">逐次配信（リアルタイム応答）</div>
+            <div class="card-meta"><span class="card-id">T-027</span><div class="avatar avatar-sm avatar-vision">V</div><span class="card-spacer"></span><span class="card-est">10 時間</span></div>
+            <div class="running-bar"></div>
+            <div class="running-text"><i data-icon="loader" data-size="11"></i>ヴィジョンが検証中</div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot blocked"></span>要対応</span><span class="lane-count">0</span></div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot wait"></span>承認待ち</span><span class="lane-count">1</span></div>
+        <div class="card-task">
+          <div class="card-body">
+            <div class="card-title">スレッド一覧の権限制御</div>
+            <div class="card-meta"><span class="card-id">T-028</span><span class="card-spacer"></span><span class="score-pill mid">0.84</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot done"></span>完了</span><span class="lane-count">3</span></div>
+        <div class="card-task"><div class="card-body"><div class="card-title">チャット UI 導入</div><div class="card-meta"><span class="card-id">T-020</span><span class="card-spacer"></span><span class="score-pill high">0.96</span></div></div></div>
+        <div class="card-task"><div class="card-body"><div class="card-title">道具連携 UI 統合</div><div class="card-meta"><span class="card-id">T-021</span><span class="card-spacer"></span><span class="score-pill high">0.95</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- カテゴリ：AI 社員機能 -->
+  <div class="group">
+    <div class="group-head">
+      <span class="group-name">AI 社員機能</span>
+      <span class="group-count">6 件</span>
+      <div class="group-progress">
+        <span>第 1 段階</span>
+        <div class="group-progress-bar"><div class="group-progress-fill" style="width:0%;"></div></div>
+        <span><strong>完了 0%</strong></span>
+      </div>
+    </div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot triage"></span>準備中</span><span class="lane-count">3</span></div>
+        <div class="card-task" style="opacity:.75;">
+          <div class="card-body">
+            <div class="card-title">音声モードの仕様（未確定）</div>
+            <div class="card-meta"><span class="card-id">T-034</span><span class="card-spacer"></span><span class="card-est">未見積</span></div>
+          </div>
+        </div>
+        <div class="card-task" style="opacity:.75;">
+          <div class="card-body">
+            <div class="card-title">外部 MCP 連携の許可制御（未確定）</div>
+            <div class="card-meta"><span class="card-id">T-035</span><span class="card-spacer"></span><span class="card-est">未見積</span></div>
+          </div>
+        </div>
+        <div class="card-task" style="opacity:.75;">
+          <div class="card-body">
+            <div class="card-title">AI 社員のアバター画像変更（未確定）</div>
+            <div class="card-meta"><span class="card-id">T-036</span><span class="card-spacer"></span><span class="card-est">未見積</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane">
+        <div class="lane-head"><span class="lane-title"><span class="dot ready"></span>着手可</span><span class="lane-count">3</span></div>
+        <div class="card-task">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">AI 社員の表示名カスタマイズ</div>
+            <div class="card-meta"><span class="card-id">T-031</span><span class="card-spacer"></span><span class="card-est">6 時間</span></div>
+          </div>
+        </div>
+        <div class="card-task">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">人格カスタマイズ画面</div>
+            <div class="card-meta"><span class="card-id">T-032</span><span class="card-spacer"></span><span class="card-est">12 時間</span></div>
+          </div>
+        </div>
+        <div class="card-task">
+          <div class="card-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="card-play"><i data-icon="play" data-size="12"></i></div>
+          <div class="card-body">
+            <div class="card-title">能力（できること）の装着</div>
+            <div class="card-meta"><span class="card-id">T-033</span><span class="card-spacer"></span><span class="card-est">10 時間</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="lane"><div class="lane-head"><span class="lane-title"><span class="dot impl"></span>実装中</span><span class="lane-count">0</span></div></div>
+      <div class="lane"><div class="lane-head"><span class="lane-title"><span class="dot blocked"></span>要対応</span><span class="lane-count">0</span></div></div>
+      <div class="lane"><div class="lane-head"><span class="lane-title"><span class="dot wait"></span>承認待ち</span><span class="lane-count">0</span></div></div>
+      <div class="lane"><div class="lane-head"><span class="lane-title"><span class="dot done"></span>完了</span><span class="lane-count">0</span></div></div>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+<script>
+  // カードクリックで選択トグル → 再生バーに件数反映
+  const cards = document.querySelectorAll('.card-task');
+  const playBar = document.querySelector('.play-bar');
+  const playBtn = document.querySelector('.play-btn');
+  const playTitle = document.querySelector('.play-title');
+  const playCount = document.querySelector('.play-count');
+  function refresh() {
+    const selected = document.querySelectorAll('.card-task.selected');
+    const count = selected.length;
+    let totalHours = 0;
+    selected.forEach(c => {
+      const txt = c.querySelector('.card-est')?.textContent || '';
+      const m = txt.match(/(\d+)\s*時間/);
+      if (m) totalHours += parseInt(m[1], 10);
+    });
+    if (count > 0) {
+      playBar.classList.add('has-selection');
+      playTitle.textContent = `${count} 件のタスクを選択中 · 合計見積 ${totalHours} 時間`;
+      playCount.textContent = `${count} 件`;
+      playBtn.disabled = false;
+    } else {
+      playBar.classList.remove('has-selection');
+      playTitle.textContent = 'タスクを選んでから再生してください';
+      playCount.textContent = '0 件';
+      playBtn.disabled = true;
+    }
+  }
+  cards.forEach(card => {
+    // 実装中・完了カードは選択不可（再生済 or 完了済）
+    if (card.classList.contains('running')) return;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.card-play')) {
+        // 個別再生ボタン：このカードだけを選択して再生扱い
+        e.stopPropagation();
+        document.querySelectorAll('.card-task.selected').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        refresh();
+        return;
+      }
+      card.classList.toggle('selected');
+      refresh();
+    });
+  });
+  refresh();
+</script>
+</body>
+</html>

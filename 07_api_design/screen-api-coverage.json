@@ -1,0 +1,428 @@
+{
+  "version": "v3.1",
+  "skill": "api-design",
+  "project": "Atelier",
+  "frozen_at": "2026-05-20T13:30:00+09:00",
+  "summary": {
+    "total_screens": 33,
+    "total_apis": 119,
+    "coverage_rate": 1.0,
+    "uncovered_screens": [],
+    "frozen_status": "FROZEN"
+  },
+  "screens": [
+    {
+      "screen_id": "S-A01",
+      "screen_name": "サインイン / サインアップ",
+      "mock_path": "06_mockups/auth/S-A01-signin.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/public/legal/terms", "feature_id": "F-LEGAL-001"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/public/legal/privacy", "feature_id": "F-LEGAL-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/signup", "feature_id": "F-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/signin", "feature_id": "F-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/magic-link", "feature_id": "F-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/oauth/google", "feature_id": "F-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/oauth/github", "feature_id": "F-001"},
+        {"role": "action", "endpoint": "POST /api/v1/auth/reset-password", "feature_id": "F-001"},
+        {"role": "transition", "endpoint": "→ S-B01", "feature_id": "F-001"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-A03",
+      "screen_name": "ワークスペース設定",
+      "mock_path": "06_mockups/workspace/S-A03-settings.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workspaces/:id", "feature_id": "F-003"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workspaces/:id/members", "feature_id": "F-003"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workspaces/:id/byok-keys", "feature_id": "F-T05"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workspaces/:id/mcp-tokens", "feature_id": "F-003"},
+        {"role": "action", "endpoint": "PATCH /api/v1/workspaces/:id", "feature_id": "F-003"},
+        {"role": "action", "endpoint": "POST /api/v1/workspaces/:id/members/invite", "feature_id": "F-003"},
+        {"role": "action", "endpoint": "PATCH /api/v1/workspaces/:id/members/:uid", "feature_id": "F-003"},
+        {"role": "action", "endpoint": "DELETE /api/v1/workspaces/:id/members/:uid", "feature_id": "F-003"},
+        {"role": "action", "endpoint": "POST /api/v1/workspaces/:id/byok-keys", "feature_id": "F-T05"},
+        {"role": "action", "endpoint": "DELETE /api/v1/workspaces/:id/byok-keys/:id", "feature_id": "F-T05"},
+        {"role": "action", "endpoint": "DELETE /api/v1/auth/account", "feature_id": "F-LEGAL-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-B01",
+      "screen_name": "プロジェクト一覧",
+      "mock_path": "06_mockups/project/S-B01-list.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workspaces", "feature_id": "F-003"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects", "feature_id": "F-002"},
+        {"role": "action", "endpoint": "POST /api/v1/projects", "feature_id": "F-002"},
+        {"role": "transition", "endpoint": "→ S-B02", "feature_id": "F-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-B02",
+      "screen_name": "プロジェクトダッシュボード",
+      "mock_path": "06_mockups/project/S-B02-dashboard.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id", "feature_id": "F-002"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/dashboard", "feature_id": "F-002"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/activities", "feature_id": "F-002"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/workflow", "feature_id": "F-CUC01"},
+        {"role": "transition", "endpoint": "→ S-F01, S-I01, S-J01", "feature_id": "F-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-B03",
+      "screen_name": "プロジェクト設定",
+      "mock_path": "06_mockups/project/S-B03-settings.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id", "feature_id": "F-002"},
+        {"role": "action", "endpoint": "PATCH /api/v1/projects/:id", "feature_id": "F-002"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/archive", "feature_id": "F-002"},
+        {"role": "action", "endpoint": "DELETE /api/v1/projects/:id", "feature_id": "F-LEGAL-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-C01",
+      "screen_name": "AI 社員組織図",
+      "mock_path": "06_mockups/employee/S-C01-org.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/employees", "feature_id": "F-006"},
+        {"role": "transition", "endpoint": "→ S-C02", "feature_id": "F-006"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-C02",
+      "screen_name": "AI 社員詳細・編集",
+      "mock_path": "06_mockups/employee/S-C02-detail.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/employees/:emp_id", "feature_id": "F-007"},
+        {"role": "action", "endpoint": "PATCH /api/v1/projects/:id/employees/:emp_id", "feature_id": "F-007"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-E01",
+      "screen_name": "チャット",
+      "mock_path": "06_mockups/chat/S-E01-thread.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/chat-threads", "feature_id": "F-CTX01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/chat-threads/:id/messages", "feature_id": "F-CTX01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/chat-threads/:id/context", "feature_id": "F-CTX01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/chat-threads", "feature_id": "F-CTX01"},
+        {"role": "action", "endpoint": "POST /api/v1/chat-threads/:id/messages", "feature_id": "F-CTX01"},
+        {"role": "action", "endpoint": "POST /api/v1/chat-threads/:id/messages/stream (SSE)", "feature_id": "F-CTX01"},
+        {"role": "action", "endpoint": "POST /api/v1/chat-threads/:id/branch", "feature_id": "F-CTX01"},
+        {"role": "action", "endpoint": "POST /api/v1/chat-messages/:id/feedback", "feature_id": "F-CTX01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-F01",
+      "screen_name": "工程ワークフロー",
+      "mock_path": "06_mockups/workflow/S-F01-flow.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/workflow", "feature_id": "F-CUC01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/workflow-outputs", "feature_id": "F-CUC01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/workflow/:phase/transition", "feature_id": "F-CUC01"},
+        {"role": "transition", "endpoint": "→ S-G01", "feature_id": "F-CUC01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-F02",
+      "screen_name": "フェーズ管理",
+      "mock_path": "06_mockups/workflow/S-F02-phases.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/workflow", "feature_id": "F-CUC01"},
+        {"role": "action", "endpoint": "PATCH /api/v1/projects/:id/workflow/:phase", "feature_id": "F-CUC01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-G01",
+      "screen_name": "成果物ビューア",
+      "mock_path": "06_mockups/output/S-G01-viewer.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workflow-outputs/:id", "feature_id": "F-CUC01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/workflow-outputs/:id/comments", "feature_id": "F-G01"},
+        {"role": "action", "endpoint": "POST /api/v1/workflow-outputs/:id/comments", "feature_id": "F-G01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-H01",
+      "screen_name": "モックビューア",
+      "mock_path": "06_mockups/mock/S-H01-viewer.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/mocks/:id", "feature_id": "F-H01"},
+        {"role": "action", "endpoint": "POST /api/v1/mocks/:id/comments", "feature_id": "F-H01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-I01",
+      "screen_name": "タスクボード（6 列）",
+      "mock_path": "06_mockups/task/S-I01-kanban.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/tasks", "feature_id": "F-018"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/bridge/status", "feature_id": "F-BRIDGE01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/tasks", "feature_id": "F-I01"},
+        {"role": "action", "endpoint": "POST /api/v1/tasks/:id/play", "feature_id": "F-DISP01"},
+        {"role": "action", "endpoint": "POST /api/v1/tasks/bulk/play", "feature_id": "F-DISP01"},
+        {"role": "transition", "endpoint": "→ S-I02, S-I03", "feature_id": "F-018"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-I02",
+      "screen_name": "タスク詳細",
+      "mock_path": "06_mockups/task/S-I02-detail.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/tasks/:id", "feature_id": "F-018"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/tasks/:id/executions", "feature_id": "F-018"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/tasks/:id/acceptance-criteria", "feature_id": "F-J02"},
+        {"role": "action", "endpoint": "PATCH /api/v1/tasks/:id", "feature_id": "F-018"},
+        {"role": "action", "endpoint": "POST /api/v1/tasks/:id/approve", "feature_id": "F-J02"},
+        {"role": "action", "endpoint": "POST /api/v1/tasks/:id/reject", "feature_id": "F-J02"},
+        {"role": "action", "endpoint": "POST /api/v1/tasks/:id/retry", "feature_id": "F-J02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-I03",
+      "screen_name": "実行モニター",
+      "mock_path": "06_mockups/task/S-I03-monitor.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/executions", "feature_id": "F-018"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/bridge/status", "feature_id": "F-BRIDGE01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/executions/:id/logs (SSE)", "feature_id": "F-018"},
+        {"role": "action", "endpoint": "POST /api/v1/executions/:id/stop", "feature_id": "F-018"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/bridge/connect", "feature_id": "F-BRIDGE01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-J01",
+      "screen_name": "承認待ち",
+      "mock_path": "06_mockups/inbox/S-J01-list.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/approval-inbox", "feature_id": "F-J02"},
+        {"role": "action", "endpoint": "POST /api/v1/approval-inbox/:id/decide", "feature_id": "F-J02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-K01",
+      "screen_name": "ナレッジ",
+      "mock_path": "06_mockups/knowledge/S-K01-explorer.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/knowledge", "feature_id": "F-K01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/knowledge/search", "feature_id": "F-K01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/knowledge/:id", "feature_id": "F-K01"},
+        {"role": "action", "endpoint": "POST /api/v1/knowledge", "feature_id": "F-K01"},
+        {"role": "action", "endpoint": "PATCH /api/v1/knowledge/:id", "feature_id": "F-K01"},
+        {"role": "action", "endpoint": "DELETE /api/v1/knowledge/:id", "feature_id": "F-K01"},
+        {"role": "action", "endpoint": "POST /api/v1/knowledge/:id/promote", "feature_id": "F-K02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-K02",
+      "screen_name": "ナレッジ昇格レビュー",
+      "mock_path": "06_mockups/knowledge/S-K02-review.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/knowledge?status=pending_promotion", "feature_id": "F-K02"},
+        {"role": "action", "endpoint": "POST /api/v1/knowledge/:id/promote", "feature_id": "F-K02"},
+        {"role": "action", "endpoint": "POST /api/v1/approval-inbox/:id/decide", "feature_id": "F-K02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-L01",
+      "screen_name": "クライアント招待管理",
+      "mock_path": "06_mockups/client/S-L01-invite-mgmt.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/client-invitations", "feature_id": "F-L01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/client-invitations", "feature_id": "F-L01"},
+        {"role": "action", "endpoint": "DELETE /api/v1/client-invitations/:id", "feature_id": "F-L01"},
+        {"role": "action", "endpoint": "POST /api/v1/client-invitations/:id/resend", "feature_id": "F-L01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-L02",
+      "screen_name": "クライアントサインイン",
+      "mock_path": "06_mockups/client/S-L02-signin.html",
+      "required_apis": [
+        {"role": "action", "endpoint": "POST /api/v1/client/auth/signin", "feature_id": "F-L02"},
+        {"role": "transition", "endpoint": "→ S-L03", "feature_id": "F-L02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-L03",
+      "screen_name": "クライアントプロジェクトビュー",
+      "mock_path": "06_mockups/client/S-L03-project.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/client/projects/:id", "feature_id": "F-L03"},
+        {"role": "action", "endpoint": "POST /api/v1/workflow-outputs/:id/comments", "feature_id": "F-L03"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-M01",
+      "screen_name": "議事録",
+      "mock_path": "06_mockups/upload/S-M01-meeting.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/meetings/:id", "feature_id": "F-M01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/meetings/:id/transcript", "feature_id": "F-M01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/meetings/upload", "feature_id": "F-M01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-N01",
+      "screen_name": "商談ドラフト",
+      "mock_path": "06_mockups/sales/S-N01-drafts.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/sales-documents", "feature_id": "F-N01"},
+        {"role": "data_fetch", "endpoint": "GET /api/v1/sales-documents/:id", "feature_id": "F-N01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/sales-documents", "feature_id": "F-N01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-O01",
+      "screen_name": "自動スケジュール",
+      "mock_path": "06_mockups/cron/S-O01-schedule.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/cron-schedules", "feature_id": "F-O01"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/cron-schedules", "feature_id": "F-O01"},
+        {"role": "action", "endpoint": "PATCH /api/v1/cron-schedules/:id", "feature_id": "F-O01"},
+        {"role": "action", "endpoint": "DELETE /api/v1/cron-schedules/:id", "feature_id": "F-O01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-PUB01",
+      "screen_name": "利用規約",
+      "mock_path": "06_mockups/public/S-PUB01-terms.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/public/legal/terms", "feature_id": "F-LEGAL-001"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-PUB02",
+      "screen_name": "プライバシーポリシー",
+      "mock_path": "06_mockups/public/S-PUB02-privacy.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/public/legal/privacy", "feature_id": "F-LEGAL-001"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-PUB03",
+      "screen_name": "特商法表記",
+      "mock_path": "06_mockups/public/S-PUB03-tokushoho.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/public/legal/tokushoho", "feature_id": "F-LEGAL-001"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-PUB04",
+      "screen_name": "データ削除請求",
+      "mock_path": "06_mockups/public/S-PUB04-data-deletion.html",
+      "required_apis": [
+        {"role": "action", "endpoint": "POST /api/v1/public/data-deletion-request", "feature_id": "F-LEGAL-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T01",
+      "screen_name": "運営ダッシュボード",
+      "mock_path": "06_mockups/admin/S-T01-dashboard.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/admin/dashboard", "feature_id": "F-T01"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T02",
+      "screen_name": "スキル管理",
+      "mock_path": "06_mockups/admin/S-T02-skills.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/admin/skills", "feature_id": "F-T02"},
+        {"role": "action", "endpoint": "POST /api/v1/admin/skills", "feature_id": "F-T02"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T03",
+      "screen_name": "AI 社員テンプレ",
+      "mock_path": "06_mockups/admin/S-T03-templates.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/admin/employee-templates", "feature_id": "F-T03"},
+        {"role": "action", "endpoint": "POST /api/v1/admin/employee-templates", "feature_id": "F-T03"},
+        {"role": "action", "endpoint": "PATCH /api/v1/admin/employee-templates/:id", "feature_id": "F-T03"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T04",
+      "screen_name": "ユーザー管理",
+      "mock_path": "06_mockups/admin/S-T04-users.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/admin/users", "feature_id": "F-T04"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T05",
+      "screen_name": "監査ログ",
+      "mock_path": "06_mockups/admin/S-T05-audit.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/admin/audit-logs", "feature_id": "F-T05"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    }
+  ]
+}

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>S-E01 チャット画面 — モックビューア</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .viewer-layout { display: grid; grid-template-columns: 1fr 320px; height: calc(100vh - 56px); }
+  .viewer-main { display: flex; flex-direction: column; background: var(--color-surface-variant); }
+  .viewer-toolbar { padding: 12px 24px; background: #FFFFFF; border-bottom: 1px solid var(--color-border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .device-toggle { display: flex; gap: 4px; padding: 4px; background: var(--color-surface-variant); border-radius: var(--rounded-md); }
+  .device-btn { padding: 6px 12px; font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .device-btn.active { background: #FFFFFF; color: var(--color-on-surface); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .version-pill { padding: 4px 10px; background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); border-radius: var(--rounded-full); font-size: 11px; font-weight: 600; }
+
+  .iframe-wrap { flex: 1; overflow: auto; padding: 32px; display: flex; justify-content: center; align-items: flex-start; }
+  .device-frame { background: #FFFFFF; border-radius: var(--rounded-lg); box-shadow: var(--shadow-lg); overflow: hidden; transition: width 0.3s; width: 100%; max-width: 1280px; min-height: 720px; position: relative; }
+  .device-frame.tablet { max-width: 768px; }
+  .device-frame.mobile { max-width: 375px; }
+  .iframe-placeholder { width: 100%; min-height: 720px; background: linear-gradient(180deg, var(--color-surface) 0%, #FFFFFF 100%); padding: 40px; display: flex; flex-direction: column; gap: 24px; font-family: 'Noto Sans JP', sans-serif; }
+  .ph-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--color-border); }
+  .ph-h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .ph-tone { display: flex; gap: 8px; }
+  .ph-chip { padding: 4px 10px; background: var(--color-primary-container); color: var(--color-on-primary-container); border-radius: var(--rounded-full); font-size: 11px; font-weight: 600; }
+  .ph-section { background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 16px; }
+  .ph-bar { height: 8px; background: var(--color-border); border-radius: 4px; margin-bottom: 8px; }
+  .ph-bar.short { width: 40%; }
+  .ph-bar.medium { width: 70%; }
+  .ph-bar.full { width: 100%; }
+  .ph-bar.primary { background: var(--color-primary); }
+  .ph-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .ph-card { background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); padding: 16px; }
+
+  .version-panel { background: #FFFFFF; border-left: 1px solid var(--color-border); display: flex; flex-direction: column; }
+  .panel-header { padding: 14px 18px; border-bottom: 1px solid var(--color-border); }
+  .version-list { padding: 8px; flex: 1; overflow-y: auto; }
+  .version-card { padding: 12px 14px; border-radius: var(--rounded-md); margin: 4px 0; cursor: pointer; transition: all 0.12s; }
+  .version-card:hover { background: var(--color-surface-variant); }
+  .version-card.current { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .v-head { display: flex; align-items: center; gap: 8px; }
+  .v-name { font-size: 13px; font-weight: 700; }
+  .v-meta { font-size: 11px; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .v-author { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 11.5px; }
+  .v-diff { padding: 8px 12px; background: var(--color-secondary-container); color: var(--color-on-secondary-container); border-radius: var(--rounded-md); font-size: 11px; margin: 8px 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="#"><i data-icon="palette"></i>モック</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">モック一覧（35）</div>
+    <a class="nav-item active" href="#"><i data-icon="message-square"></i>S-E01 チャット</a>
+    <a class="nav-item" href="#"><i data-icon="kanban"></i>S-I01 かんばん</a>
+    <a class="nav-item" href="#"><i data-icon="brain"></i>S-K01 ナレッジ</a>
+    <a class="nav-item" href="#"><i data-icon="bot"></i>S-C01 AI社員</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-H01" data-bf-screen-name="mock_viewer" data-bf-category="design" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><a href="#">モック</a><span class="breadcrumb-sep">/</span><strong>S-E01 チャット画面</strong></div>
+  <div class="flex items-center gap-3">
+    <span class="version-pill">v3 · 最新</span>
+    <button class="btn btn-outlined btn-sm"><i data-icon="message-square"></i>修正依頼</button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<div class="viewer-layout">
+  <div class="viewer-main">
+    <div class="viewer-toolbar">
+      <div class="device-toggle">
+        <button class="device-btn active"><i data-icon="layout" data-size="12"></i> Desktop</button>
+        <button class="device-btn">Tablet</button>
+        <button class="device-btn">Mobile</button>
+      </div>
+      <div class="flex items-center gap-2 tabular text-sm text-muted">1280 × 720</div>
+      <div style="margin-left:auto;" class="flex items-center gap-2">
+        <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i>新規タブ</button>
+        <button class="btn btn-ghost btn-sm"><i data-icon="download"></i>HTML</button>
+        <button class="btn btn-outlined btn-sm"><i data-icon="edit"></i>編集</button>
+      </div>
+    </div>
+
+    <div class="iframe-wrap">
+      <div class="device-frame">
+        <div class="iframe-placeholder">
+          <div class="ph-header">
+            <div class="ph-h1">チャット</div>
+            <div class="ph-tone">
+              <span class="ph-chip">assistant-ui</span>
+              <span class="ph-chip" style="background:var(--color-tertiary-container);color:var(--color-on-tertiary-container);">Analyzing</span>
+            </div>
+          </div>
+          <div class="ph-section">
+            <div class="ph-bar primary medium"></div>
+            <div class="ph-bar full"></div>
+            <div class="ph-bar medium"></div>
+            <div class="ph-bar short"></div>
+          </div>
+          <div class="ph-grid">
+            <div class="ph-card">
+              <div class="ph-bar primary short" style="margin-bottom:12px;"></div>
+              <div class="ph-bar full"></div>
+              <div class="ph-bar medium"></div>
+            </div>
+            <div class="ph-card">
+              <div class="ph-bar primary short" style="margin-bottom:12px;"></div>
+              <div class="ph-bar full"></div>
+              <div class="ph-bar medium"></div>
+            </div>
+            <div class="ph-card">
+              <div class="ph-bar primary short" style="margin-bottom:12px;"></div>
+              <div class="ph-bar full"></div>
+              <div class="ph-bar medium"></div>
+            </div>
+          </div>
+          <div class="ph-section" style="background:var(--color-primary-container);color:var(--color-on-primary-container);">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px;">Tool Call</div>
+            <div class="ph-bar full" style="background:rgba(255,255,255,0.5);"></div>
+            <div class="ph-bar medium" style="background:rgba(255,255,255,0.5);"></div>
+          </div>
+          <div style="margin-top:auto;padding-top:16px;border-top:1px solid var(--color-border);">
+            <div class="ph-bar full" style="height:40px;background:var(--color-surface-variant);"></div>
+          </div>
+          <p style="text-align:center;color:var(--color-on-surface-variant);font-size:12px;">— 実モック表示エリア（このプレビューはダミー）—</p>
+          <p style="text-align:center;color:var(--color-on-surface-variant);font-size:12px;">実際は <a href="../chat/S-E01-thread.html" class="text-primary font-semibold">S-E01-thread.html</a> が iframe で読み込まれます</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="version-panel">
+    <div class="panel-header">
+      <div class="flex items-center justify-between mb-2">
+        <strong>バージョン履歴（3）</strong>
+        <button class="btn btn-ghost btn-sm" style="padding:6px;"><i data-icon="more-horizontal"></i></button>
+      </div>
+      <span class="text-muted text-sm">version chain · 最新が v3</span>
+    </div>
+    <div class="version-list">
+      <div class="version-card current">
+        <div class="v-head">
+          <div class="v-name">v3</div>
+          <span class="badge badge-tertiary" style="margin-left:auto;">current</span>
+        </div>
+        <div class="v-meta">2026-05-18 16:48</div>
+        <div class="v-author"><div class="avatar avatar-sm avatar-wanda">W</div>ワンダ（更新）</div>
+        <div class="v-diff">+ Context Panel（F-CTX01）追加 / + Tool Call カード（tool-ui）</div>
+      </div>
+
+      <div class="version-card">
+        <div class="v-head">
+          <div class="v-name">v2</div>
+        </div>
+        <div class="v-meta">2026-05-18 14:22</div>
+        <div class="v-author"><div class="avatar avatar-sm avatar-wanda">W</div>ワンダ</div>
+        <div class="v-diff">+ Status pill（Analyzing 等）追加</div>
+      </div>
+
+      <div class="version-card">
+        <div class="v-head">
+          <div class="v-name">v1</div>
+        </div>
+        <div class="v-meta">2026-05-18 11:05</div>
+        <div class="v-author"><div class="avatar avatar-sm avatar-wanda">W</div>ワンダ（初版）</div>
+      </div>
+    </div>
+
+    <div class="panel-header" style="border-top: 1px solid var(--color-border); border-bottom: none;">
+      <strong style="font-size: 12px;">コメント（2）</strong>
+    </div>
+    <div style="padding: 8px 12px 16px;">
+      <div class="comment-card" style="background: var(--color-surface-variant); border-radius: var(--rounded-md); padding: 12px;">
+        <div class="flex items-center gap-2 mb-1">
+          <div class="avatar avatar-sm" style="background:#0891B2;">K</div>
+          <strong class="text-sm">小松様</strong>
+          <span class="text-muted text-sm" style="margin-left:auto;">2時間前</span>
+        </div>
+        <div class="text-sm">サイドパネルの幅をもう少し狭くしてほしい</div>
+      </div>
+    </div>
+  </aside>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

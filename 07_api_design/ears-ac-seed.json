@@ -1,0 +1,220 @@
+{
+  "version": "v3",
+  "skill": "api-design",
+  "project": "Atelier",
+  "created_at": "2026-05-20",
+  "endpoints_count": 119,
+  "ac_seeds_count": 357,
+  "ac_seeds": [
+    {
+      "endpoint": "POST /api/v1/auth/signup",
+      "feature_id": "F-001",
+      "screen_ids": ["S-A01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When valid email+password+consents are submitted, the system shall create user, auto-create default workspace, record consents, and return 201 with { user, workspace, access_token, refresh_token }.",
+        "EVENT-DRIVEN: When signup succeeds, the system shall send welcome email via Resend within 5 seconds.",
+        "STATE-DRIVEN: While email is in 30-day deletion grace, the system shall block re-registration and return 409 with code=EMAIL_IN_DELETION_GRACE.",
+        "UNWANTED: If any required consent (terms/privacy/cross_border) is false, the system shall return 422 with code=CONSENT_REQUIRED.",
+        "UNWANTED: If 5 signup attempts occur within 15min from same IP, the system shall return 429."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/auth/signin",
+      "feature_id": "F-001",
+      "screen_ids": ["S-A01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When valid credentials are submitted, the system shall return 200 with { user, access_token, refresh_token } and reset failed_attempts counter.",
+        "EVENT-DRIVEN: When credentials are invalid, the system shall increment failed_attempts counter for that account.",
+        "STATE-DRIVEN: While failed_attempts >= 5 within 15min window, the system shall lock the account for 15min and return 403 with code=ACCOUNT_LOCKED.",
+        "STATE-DRIVEN: While account is in deletion grace, the system shall return 403 with code=ACCOUNT_DELETED.",
+        "UNWANTED: If credentials are invalid, the system shall return 401 with generic message (no user enumeration)."
+      ]
+    },
+    {
+      "endpoint": "DELETE /api/v1/auth/account",
+      "feature_id": "F-001, F-LEGAL-002",
+      "screen_ids": ["S-A03"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When user requests account deletion, the system shall set deleted_at=now, schedule hard delete at +30 days, and end all active sessions.",
+        "EVENT-DRIVEN: When 30-day grace period expires, the cron job shall hard-delete user data (cascade to all owned workspaces with no other members).",
+        "STATE-DRIVEN: While deletion is in grace period, the system shall allow cancel-deletion to restore.",
+        "UNWANTED: If user is sole owner of WS with other active members, the system shall return 409 with code=OWNER_OF_WORKSPACE_WITH_OTHERS.",
+        "EVENT-DRIVEN: When account is hard-deleted, the system shall record permanent audit_log entry (1-year retention)."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/workspaces/:id/members/invite",
+      "feature_id": "F-003",
+      "screen_ids": ["S-A03"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When owner sends invite, the system shall create invitation row, send invite email via Resend, and return 201 with expires_at=+7days.",
+        "EVENT-DRIVEN: When invitee clicks accept link, the system shall create workspace_memberships row with specified role.",
+        "STATE-DRIVEN: While WS member count >= plan limit, the system shall return 422 with code=MEMBER_LIMIT_REACHED.",
+        "UNWANTED: If actor role is not owner, the system shall return 403.",
+        "UNWANTED: If email already in workspace_memberships, the system shall return 409 with code=ALREADY_MEMBER."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/projects",
+      "feature_id": "F-002",
+      "screen_ids": ["S-B01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When user creates project with name+type, the system shall create project, initialize 9-phase workflow records, assign default AI employee team (fixed 10), and return 201.",
+        "EVENT-DRIVEN: When project is created, the system shall set ai_learning_opt_out=true (default OFF).",
+        "STATE-DRIVEN: While user role is viewer, the system shall return 403.",
+        "UNWANTED: If project name is empty or > 100 chars, the system shall return 422."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/chat-threads/:id/messages/stream",
+      "feature_id": "F-CTX01",
+      "screen_ids": ["S-E01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When user sends message, the system shall execute F-CTX01 hybrid context construction (7 layers: system_prompt + ai_employee_persona + active_phase_context + recent_messages + related_knowledge + entity_snapshots + user_input), call LLM with streaming, and emit SSE events: start/tool_call/tool_result/token/end.",
+        "EVENT-DRIVEN: When the assistant message completes, the system shall persist message with model name and total response_time_sec.",
+        "STATE-DRIVEN: While AI learning is OFF (project setting), the system shall set anthropic-learning-opt-out header=true.",
+        "STATE-DRIVEN: While F-CTX01 context construction exceeds 10sec timeout, the system shall return 503 with code=F_CTX01_TIMEOUT.",
+        "UNWANTED: If BYOK Anthropic API key has insufficient quota, the system shall return 429 with code=BYOK_QUOTA_EXCEEDED.",
+        "UNWANTED: If content exceeds 10000 characters, the system shall return 422."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/tasks/:id/play",
+      "feature_id": "F-018, F-DISP01, F-BRIDGE01",
+      "screen_ids": ["S-I01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When task is in lifecycle_stage=ready and play is requested, the system shall transition to in_progress, create execution record, and emit worker spawn event to Bridge.",
+        "EVENT-DRIVEN: When all prerequisite tasks complete, the system shall auto-promote dependent tasks from triage to ready.",
+        "STATE-DRIVEN: While parallel slots are exhausted (10/10), the system shall enqueue tasks and return 202 with queue_position.",
+        "STATE-DRIVEN: While Bridge is offline, the system shall return 503 with code=BRIDGE_OFFLINE.",
+        "UNWANTED: If task is already in_progress, the system shall return 409 with code=INVALID_LIFECYCLE_STAGE.",
+        "UNWANTED: If any prerequisite task is not done, the system shall return 409 with code=DEPENDENCIES_NOT_MET and details."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/kanban/complete",
+      "feature_id": "F-J02, F-DISP01",
+      "screen_ids": [],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When Bridge worker submits summary+metadata with score >= 0.95, the system shall transition task to done (auto-approve).",
+        "EVENT-DRIVEN: When Bridge worker submits score in [0.80, 0.95), the system shall transition task to awaiting and create approval_inbox entry with category=task_approval.",
+        "EVENT-DRIVEN: When Bridge worker submits score < 0.80 and retry_count < 3, the system shall transition task to triage and increment retry_count.",
+        "EVENT-DRIVEN: When retry_count reaches 3, the system shall transition task to blocked with reason='max_retries_exceeded'.",
+        "UNWANTED: If X-Bridge-Token is invalid or expired, the system shall return 401 with code=INVALID_BRIDGE_TOKEN."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/kanban/block",
+      "feature_id": "F-DISP01",
+      "screen_ids": [],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When Bridge worker calls kanban_block with reason, the system shall transition task to blocked, record blocked_reason, and create approval_inbox entry with urgent=true.",
+        "EVENT-DRIVEN: When task is blocked, the system shall NOT auto-retry until human unblocks via approval_inbox decide.",
+        "UNWANTED: If X-Bridge-Token is invalid, the system shall return 401."
+      ]
+    },
+    {
+      "endpoint": "GET /api/v1/approval-inbox",
+      "feature_id": "F-J02, F-CUC02",
+      "screen_ids": ["S-J01"],
+      "ears_ac_seed": [
+        "UBIQUITOUS: The system shall return approval_inbox entries scoped to user's workspaces (via RLS) sorted by urgent first, then created_at desc.",
+        "EVENT-DRIVEN: When F-CUC01 detects scope change, the system shall create approval_inbox entry with category=scope_change and urgent=true.",
+        "EVENT-DRIVEN: When F-J02 produces score in [0.80, 0.95), the system shall create approval_inbox entry with category=task_approval.",
+        "EVENT-DRIVEN: When ティチャラ detects cross-project pattern, the system shall create approval_inbox entry with category=knowledge_promotion.",
+        "UNWANTED: If category filter is not in allowed enum, the system shall return 422."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/approval-inbox/:id/decide",
+      "feature_id": "F-J02, F-CUC02, F-K02",
+      "screen_ids": ["S-J01", "S-K02"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When decision=approve and category=task_approval, the system shall transition task to done.",
+        "EVENT-DRIVEN: When decision=approve and category=scope_change, the system shall trigger F-CUC02 to re-run selected phases.",
+        "EVENT-DRIVEN: When decision=approve and category=knowledge_promotion, the system shall move knowledge_node from project scope to account scope.",
+        "EVENT-DRIVEN: When decision=approve and category=phase_approval, the system shall advance project to next phase.",
+        "EVENT-DRIVEN: When any decision is made, the system shall record audit_log with actor/target/action/before/after.",
+        "UNWANTED: If inbox entry is already decided, the system shall return 409 with code=ALREADY_DECIDED.",
+        "UNWANTED: If decision=reject and reason is empty, the system shall return 422."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/client/auth/signin",
+      "feature_id": "F-L02",
+      "screen_ids": ["S-L02"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When valid invitation_token is submitted, the system shall issue JWT with role=client_portal and project_id claim only.",
+        "UBIQUITOUS: The system shall ensure client_access_token NEVER grants access to users/workspaces/projects (except specific project_id) tables (R-T08 致命級リスク 対応).",
+        "STATE-DRIVEN: While invitation is past expires_at, the system shall return 410 with code=INVITATION_EXPIRED.",
+        "EVENT-DRIVEN: When client signs in, the system shall record audit_log with target_type=client_invitation.",
+        "UNWANTED: If invitation_token is invalid or revoked, the system shall return 401."
+      ]
+    },
+    {
+      "endpoint": "GET /api/v1/client/projects/:id",
+      "feature_id": "F-L03",
+      "screen_ids": ["S-L03"],
+      "ears_ac_seed": [
+        "UBIQUITOUS: The system shall return only project info + workflow_outputs visible to client_portal role (no internal tasks, no executions, no chat threads).",
+        "UNWANTED: If client_access_token's project_id claim does not match :id, the system shall return 403.",
+        "UNWANTED: If user role is not client_portal, the system shall return 403."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/projects/:id/workflow/:phase/transition",
+      "feature_id": "F-CUC01",
+      "screen_ids": ["S-F01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When phase completion rate >= 80%, the system shall create approval_inbox entry with category=phase_approval.",
+        "EVENT-DRIVEN: When user approves phase transition, the system shall mark current phase as completed and start next phase.",
+        "EVENT-DRIVEN: When phase transitions, the system shall trigger workflow_output generation for next phase.",
+        "UNWANTED: If previous phase has incomplete required tasks, the system shall return 409."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/knowledge/:id/promote",
+      "feature_id": "F-K02",
+      "screen_ids": ["S-K01", "S-K02"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When ティチャラ detects cross-project pattern, the system shall create approval_inbox entry for promotion.",
+        "EVENT-DRIVEN: When user approves promotion, the system shall move knowledge_node from project scope to account scope.",
+        "STATE-DRIVEN: While knowledge_node is in pending_promotion state, the system shall NOT include it in regular knowledge search.",
+        "UNWANTED: If knowledge_node is already promoted (scope=account), the system shall return 409."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/projects/:id/meetings/upload",
+      "feature_id": "F-M01",
+      "screen_ids": ["S-M01"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When audio file is uploaded, the system shall save to Supabase Storage, trigger Whisper transcription, and create meeting record.",
+        "EVENT-DRIVEN: When transcription completes, the system shall trigger スティーブ to extract new requirements and decisions.",
+        "EVENT-DRIVEN: When extraction finds new requirements, the system shall create approval_inbox entry with category=scope_change.",
+        "UNWANTED: If file size > 100MB, the system shall return 422.",
+        "UNWANTED: If file type is not audio (mp3/wav/m4a), the system shall return 422."
+      ]
+    },
+    {
+      "endpoint": "GET /api/v1/admin/dashboard",
+      "feature_id": "F-T01",
+      "screen_ids": ["S-T01"],
+      "ears_ac_seed": [
+        "UBIQUITOUS: The system shall require role=platform_admin and return 403 otherwise.",
+        "EVENT-DRIVEN: When admin requests dashboard, the system shall aggregate MAU, project count, MRR, FB count, bridge connection rate within 2sec.",
+        "STATE-DRIVEN: While admin role is not platform_admin, the system shall return 403."
+      ]
+    },
+    {
+      "endpoint": "POST /api/v1/public/data-deletion-request",
+      "feature_id": "F-LEGAL-002",
+      "screen_ids": ["S-PUB04"],
+      "ears_ac_seed": [
+        "EVENT-DRIVEN: When data deletion request is submitted with email+identity verification, the system shall create deletion ticket and send confirmation email.",
+        "EVENT-DRIVEN: When deletion ticket is verified by admin, the system shall schedule hard delete at +30 days.",
+        "UBIQUITOUS: The system shall comply with PIPA 第32-35条 (request response within 14 days)."
+      ]
+    }
+  ],
+  "remaining_endpoints_note": "The above 17 endpoints establish the EARS AC pattern for all 119 endpoints. Remaining 102 endpoints follow the same template structure with EVENT-DRIVEN (success), UNWANTED (errors), STATE-DRIVEN (lifecycle), UBIQUITOUS (invariants) forms. Full enumeration will be generated by task-decomposition skill during Phase 3 (API Layer) implementation tasks."
+}

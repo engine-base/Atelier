@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>タスク詳細 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  /* ───────── 画面の役割カード ───────── */
+  .role-card {
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--color-primary-container) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    display: grid;
+    grid-template-columns: 56px 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  .role-icon {
+    width: 56px; height: 56px;
+    background: var(--color-primary);
+    color: #FFFFFF;
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .role-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--color-on-surface); margin-bottom: 4px; }
+  .role-lead { font-size: 13px; color: var(--color-on-surface-variant); margin-bottom: 14px; }
+  .role-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .role-point { background: rgba(255,255,255,0.7); border-radius: var(--rounded-md); padding: 10px 12px; }
+  .role-point-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--color-primary); color: #FFFFFF;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; margin-bottom: 6px;
+  }
+  .role-point-label { font-size: 12px; font-weight: 700; color: var(--color-on-surface); margin-bottom: 2px; }
+  .role-point-desc { font-size: 11.5px; color: var(--color-on-surface-variant); line-height: 1.55; }
+
+  /* ───────── タスクヘッダー ───────── */
+  .task-hero {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    padding: 22px 26px;
+    margin-bottom: 16px;
+  }
+  .task-id-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .task-id { font-family: monospace; font-size: 12px; font-weight: 700; color: var(--color-on-surface-variant); background: var(--color-surface-variant); padding: 3px 10px; border-radius: var(--rounded-sm); }
+  .task-tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: var(--rounded-full); }
+  .task-tag.tag-screen { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .task-tag.tag-priority { background: var(--color-secondary-container); color: var(--color-on-secondary-container); }
+  .task-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-on-surface); margin-bottom: 6px; line-height: 1.4; }
+  .task-summary { font-size: 13px; color: var(--color-on-surface-variant); line-height: 1.7; margin-bottom: 18px; }
+
+  /* ステッパー */
+  .stepper { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin-bottom: 20px; position: relative; }
+  .step { position: relative; padding: 0 8px; text-align: center; }
+  .step-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #FFFFFF; border: 2px solid var(--color-border);
+    color: var(--color-on-surface-variant);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 6px;
+    font-size: 12px; font-weight: 700;
+    position: relative; z-index: 2;
+  }
+  .step.done .step-dot { background: var(--color-tertiary); border-color: var(--color-tertiary); color: #FFFFFF; }
+  .step.current .step-dot { background: var(--color-primary); border-color: var(--color-primary); color: #FFFFFF; box-shadow: 0 0 0 4px rgba(37,99,235,0.18); }
+  .step-label { font-size: 11.5px; font-weight: 600; color: var(--color-on-surface-variant); }
+  .step.current .step-label { color: var(--color-primary); font-weight: 700; }
+  .step.done .step-label { color: var(--color-on-surface); }
+  .step::after {
+    content: ''; position: absolute; top: 13px; left: 50%; right: -50%;
+    height: 2px; background: var(--color-border); z-index: 1;
+  }
+  .step:last-child::after { display: none; }
+  .step.done::after { background: var(--color-tertiary); }
+
+  /* メタ情報行 */
+  .meta-row { display: flex; gap: 24px; padding-top: 16px; border-top: 1px solid var(--color-border); flex-wrap: wrap; }
+  .meta-item { display: flex; flex-direction: column; gap: 2px; }
+  .meta-label { font-size: 10.5px; color: var(--color-on-surface-variant); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700; }
+  .meta-value { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .meta-value .avatar { width: 22px; height: 22px; font-size: 11px; }
+
+  /* ───────── あなたへの確認 ───────── */
+  .alert-card {
+    background: #FFFCF5;
+    border: 1px solid var(--color-secondary);
+    border-left: 4px solid var(--color-secondary);
+    border-radius: var(--rounded-lg);
+    padding: 18px 22px;
+    margin-bottom: 16px;
+  }
+  .alert-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .alert-head strong { font-size: 14.5px; color: var(--color-on-surface); }
+  .alert-icon { width: 28px; height: 28px; background: var(--color-secondary); color: #FFFFFF; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .alert-text { font-size: 13px; color: var(--color-on-surface-variant); margin-bottom: 14px; line-height: 1.7; }
+  .alert-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .alert-choice {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .alert-choice:hover { border-color: var(--color-primary); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .alert-choice-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .alert-choice-desc { font-size: 11.5px; color: var(--color-on-surface-variant); line-height: 1.55; }
+
+  /* ───────── タブ ───────── */
+  .tab-bar {
+    display: flex;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg) var(--rounded-lg) 0 0;
+    padding: 6px 6px 0;
+    overflow-x: auto;
+    border-bottom: none;
+  }
+  .tab {
+    flex-shrink: 0;
+    padding: 12px 18px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-on-surface-variant);
+    border-bottom: 3px solid transparent;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    border-radius: var(--rounded-md) var(--rounded-md) 0 0;
+  }
+  .tab:hover { color: var(--color-on-surface); background: var(--color-surface-variant); }
+  .tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); background: var(--color-primary-container); }
+  .tab-count {
+    background: var(--color-surface-variant);
+    color: var(--color-on-surface-variant);
+    padding: 1px 8px;
+    border-radius: var(--rounded-full);
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+  .tab.active .tab-count { background: var(--color-primary); color: #FFFFFF; }
+
+  .tab-body {
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--rounded-lg) var(--rounded-lg);
+    padding: 24px 28px 28px;
+    min-height: 480px;
+  }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  .pane-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; }
+  .pane-lead { font-size: 12.5px; color: var(--color-on-surface-variant); margin-bottom: 18px; }
+
+  /* ─ 受入条件タブ ─ */
+  .ac-tier { margin-bottom: 22px; }
+  .ac-tier:last-child { margin-bottom: 0; }
+  .ac-tier-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .ac-tier-num { width: 24px; height: 24px; background: var(--color-on-surface); color: #FFFFFF; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+  .ac-tier-title { font-size: 14px; font-weight: 700; }
+  .ac-tier-desc { font-size: 11.5px; color: var(--color-on-surface-variant); margin-left: auto; }
+  .ac-item {
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    margin-bottom: 6px;
+    font-size: 13.5px;
+    align-items: center;
+    background: #FFFFFF;
+  }
+  .ac-item.done { background: var(--color-tertiary-container); border-color: var(--color-tertiary); }
+  .ac-item.done .ac-text { color: var(--color-on-tertiary-container); }
+  .ac-check {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--color-border);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .ac-item.done .ac-check { background: var(--color-tertiary); border-color: var(--color-tertiary); color: #FFFFFF; }
+  .ac-text { line-height: 1.6; }
+  .ac-num { font-family: monospace; font-size: 11px; color: var(--color-on-surface-variant); }
+
+  /* ─ 進捗タブ ─ */
+  .score-hero {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 28px;
+    padding: 24px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    margin-bottom: 18px;
+  }
+  .score-circle-wrap { text-align: center; }
+  .score-circle {
+    width: 180px; height: 180px; margin: 0 auto;
+    border-radius: 50%;
+    background: conic-gradient(var(--color-secondary) 0% 83%, var(--color-surface-variant) 83% 100%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .score-circle::before {
+    content: ''; position: absolute; inset: 14px; background: #FFFFFF; border-radius: 50%;
+  }
+  .score-circle-inner { position: relative; text-align: center; }
+  .score-circle-value { font-size: 44px; font-weight: 900; letter-spacing: -0.03em; line-height: 1; color: var(--color-secondary); font-variant-numeric: tabular-nums; }
+  .score-circle-unit { font-size: 12px; color: var(--color-on-surface-variant); font-weight: 600; margin-top: 4px; }
+  .score-status { margin-top: 12px; font-size: 13px; font-weight: 700; color: var(--color-secondary); }
+  .score-breakdown { display: flex; flex-direction: column; gap: 14px; justify-content: center; }
+  .score-row { display: grid; grid-template-columns: 110px 1fr 80px; gap: 12px; align-items: center; }
+  .score-row-label { font-size: 12.5px; font-weight: 600; }
+  .score-row-weight { font-size: 11px; color: var(--color-on-surface-variant); }
+  .score-row-bar { height: 8px; background: var(--color-surface-variant); border-radius: var(--rounded-full); overflow: hidden; }
+  .score-row-bar-fill { height: 100%; border-radius: var(--rounded-full); }
+  .score-row-value { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .threshold-note {
+    padding: 12px 16px; background: var(--color-primary-container); color: var(--color-on-primary-container);
+    border-radius: var(--rounded-md); font-size: 12.5px; display: flex; align-items: center; gap: 10px;
+  }
+
+  /* ─ 依存タブ ─ */
+  .dep-block { margin-bottom: 22px; }
+  .dep-block-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .dep-block-title { font-size: 13.5px; font-weight: 700; }
+  .dep-block-desc { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .dep-flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 14px 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); }
+  .dep-chip {
+    padding: 8px 14px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    font-size: 12.5px;
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .dep-chip.done { background: var(--color-tertiary-container); border-color: var(--color-tertiary); color: var(--color-on-tertiary-container); }
+  .dep-chip.current { background: var(--color-primary); border-color: var(--color-primary); color: #FFFFFF; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+  .dep-chip.waiting { background: var(--color-secondary-container); border-color: var(--color-secondary); color: var(--color-on-secondary-container); }
+  .dep-arrow { color: var(--color-on-surface-variant); font-size: 16px; }
+  .dep-id { font-family: monospace; font-size: 11px; opacity: 0.7; }
+
+  /* ─ テストタブ ─ */
+  .test-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-bottom: 18px;
+  }
+  .test-stat { padding: 14px 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--rounded-md); }
+  .test-stat-label { font-size: 11px; color: var(--color-on-surface-variant); font-weight: 600; letter-spacing: 0.06em; }
+  .test-stat-value { font-size: 24px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .test-stat-value.ok { color: var(--color-tertiary); }
+  .test-row {
+    display: grid; grid-template-columns: 28px 1fr 90px 60px; gap: 12px;
+    padding: 11px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    margin-bottom: 6px;
+    align-items: center;
+    font-size: 13px;
+  }
+  .test-row.pass { background: var(--color-tertiary-container); border-color: var(--color-tertiary); }
+  .test-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--color-tertiary); color: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+  .test-name { font-weight: 600; }
+  .test-file { font-family: monospace; font-size: 11px; color: var(--color-on-surface-variant); }
+  .test-time { font-family: monospace; font-size: 11.5px; color: var(--color-on-surface-variant); text-align: right; }
+
+  /* ─ ログタブ ─ */
+  .log-block {
+    background: #0F172A;
+    color: #E2E8F0;
+    padding: 16px 20px;
+    border-radius: var(--rounded-md);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.75;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .log-time { color: #64748B; }
+  .log-info { color: #93C5FD; }
+  .log-ok { color: #6EE7B7; }
+  .log-warn { color: #FCD34D; }
+
+  /* ─ 関連資料タブ ─ */
+  .resource-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .resource-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 16px 18px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-md);
+    background: #FFFFFF;
+    transition: all 0.15s;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--color-on-surface);
+  }
+  .resource-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-sm); text-decoration: none; transform: translateY(-1px); }
+  .resource-icon {
+    width: 40px; height: 40px;
+    background: var(--color-primary-container); color: var(--color-on-primary-container);
+    border-radius: var(--rounded-md);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .resource-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .resource-meta { font-size: 11.5px; color: var(--color-on-surface-variant); }
+
+  /* ───────── 操作バー ───────── */
+  .action-bar {
+    position: sticky; bottom: 20px;
+    margin-top: 24px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 20px;
+    background: #FFFFFF;
+    border: 1px solid var(--color-border);
+    border-radius: var(--rounded-lg);
+    box-shadow: var(--shadow-md);
+  }
+  .action-bar-label { font-size: 12.5px; font-weight: 700; }
+  .action-bar-sub { font-size: 11.5px; color: var(--color-on-surface-variant); }
+  .action-buttons { margin-left: auto; display: flex; gap: 8px; }
+  .btn-approve { background: var(--color-tertiary); color: #FFFFFF; padding: 10px 22px; border-radius: var(--rounded-md); font-weight: 700; font-size: 13.5px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-approve:hover { filter: brightness(1.08); }
+  .btn-reject { background: #FFFFFF; color: var(--color-on-surface); border: 1px solid var(--color-border); padding: 10px 18px; border-radius: var(--rounded-md); font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-reject:hover { background: var(--color-surface-variant); }
+  .btn-retry { background: var(--color-primary-container); color: var(--color-on-primary-container); padding: 10px 18px; border-radius: var(--rounded-md); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-retry:hover { background: var(--color-primary); color: #FFFFFF; }
+
+  @media (max-width: 1100px) {
+    .role-points, .alert-choices, .test-summary, .resource-grid { grid-template-columns: 1fr; }
+    .score-hero { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
+    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
+    <a class="nav-item active" href="S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="S-I03-monitor.html"><i data-icon="cpu"></i>実行モニター</a>
+    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-I02" data-bf-screen-name="task_detail" data-bf-category="task" data-bf-status="active" data-bf-version="2">
+<header class="topbar">
+  <div class="breadcrumb">
+    <a href="S-I01-kanban.html">タスク一覧</a>
+    <span class="breadcrumb-sep">/</span>
+    <strong>T-014 ログイン画面の実装</strong>
+  </div>
+  <div class="flex items-center gap-3">
+    <button class="btn btn-ghost btn-sm"><i data-icon="bell"></i></button>
+    <div class="avatar avatar-sm">M</div>
+  </div>
+</header>
+
+<div class="content" style="max-width: 1180px;">
+
+  <!-- ━━━━━━ 1. 画面の役割 ━━━━━━ -->
+  <section class="role-card">
+    <div class="role-icon"><i data-icon="clipboard-check" data-size="28"></i></div>
+    <div>
+      <div class="role-title">タスク詳細</div>
+      <div class="role-lead">1 つのタスクの「達成条件・進捗・あなたが下すべき判断」を 1 画面で確認・操作する場所です。</div>
+      <div class="role-points">
+        <div class="role-point">
+          <div class="role-point-num">1</div>
+          <div class="role-point-label">何が完成すれば終わりか</div>
+          <div class="role-point-desc">受入条件の達成状況を見ます</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">2</div>
+          <div class="role-point-label">いま、どこまで進んだか</div>
+          <div class="role-point-desc">進捗・スコア・実行ログを見ます</div>
+        </div>
+        <div class="role-point">
+          <div class="role-point-num">3</div>
+          <div class="role-point-label">あなたが判断すべきこと</div>
+          <div class="role-point-desc">承認・差し戻し・再試行を行います</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 2. タスクヘッダー ━━━━━━ -->
+  <section class="task-hero">
+    <div class="task-id-row">
+      <span class="task-id">T-014</span>
+      <span class="task-tag tag-screen">画面実装</span>
+      <span class="task-tag tag-priority">優先度：高</span>
+    </div>
+    <h1 class="task-title">ログイン画面（S-A01）の実装</h1>
+    <p class="task-summary">
+      メールでのサインインと外部サービス連携、利用規約・プライバシーポリシー・越境同意の取得まで含めたログイン画面を実装します。AI チャット画面との連携を前提とした構成です。
+    </p>
+
+    <!-- ステッパー（6 列ライフサイクル：要対応は例外状態なのでステッパーから除外） -->
+    <div class="stepper">
+      <div class="step done">
+        <div class="step-dot"><i data-icon="check" data-size="14"></i></div>
+        <div class="step-label">準備中</div>
+      </div>
+      <div class="step done">
+        <div class="step-dot"><i data-icon="check" data-size="14"></i></div>
+        <div class="step-label">着手可</div>
+      </div>
+      <div class="step current">
+        <div class="step-dot">3</div>
+        <div class="step-label">実装中</div>
+      </div>
+      <div class="step">
+        <div class="step-dot">4</div>
+        <div class="step-label">承認待ち</div>
+      </div>
+      <div class="step">
+        <div class="step-dot">5</div>
+        <div class="step-label">完了</div>
+      </div>
+    </div>
+
+    <div class="meta-row">
+      <div class="meta-item">
+        <span class="meta-label">実装担当</span>
+        <span class="meta-value"><div class="avatar avatar-sm avatar-thor">T</div>ソー</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">検証担当</span>
+        <span class="meta-value"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">見積 / 経過</span>
+        <span class="meta-value">14 時間 / <span style="color: var(--color-primary);">10 時間</span></span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">いまの達成スコア</span>
+        <span class="meta-value" style="color: var(--color-secondary);">0.83</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">変更ファイル数</span>
+        <span class="meta-value">5 件</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 3. あなたへの確認 ━━━━━━ -->
+  <section class="alert-card">
+    <div class="alert-head">
+      <div class="alert-icon"><i data-icon="alert-triangle" data-size="14"></i></div>
+      <strong>あなたへの確認：仕様変更が検知されました</strong>
+    </div>
+    <p class="alert-text">
+      実装中に関連要件「越境同意 UI」が更新されました。このタスクへの取り込み方を 3 択から選んでください。
+    </p>
+    <div class="alert-choices">
+      <button class="alert-choice">
+        <div class="alert-choice-title">最新仕様で実装し直す</div>
+        <div class="alert-choice-desc">所要 +4 時間。最新仕様で品質を担保します（推奨）。</div>
+      </button>
+      <button class="alert-choice">
+        <div class="alert-choice-title">現状の実装で完了にする</div>
+        <div class="alert-choice-desc">追加対応は別タスクとして起票します。</div>
+      </button>
+      <button class="alert-choice">
+        <div class="alert-choice-title">破棄して分解からやり直す</div>
+        <div class="alert-choice-desc">作業を破棄し、ピーターに再分解を依頼します。</div>
+      </button>
+    </div>
+  </section>
+
+  <!-- ━━━━━━ 4. タブ ━━━━━━ -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab active" data-tab="ac" role="tab">
+      <i data-icon="list-checks" data-size="16"></i>受入条件
+      <span class="tab-count">10 / 12</span>
+    </button>
+    <button class="tab" data-tab="progress" role="tab">
+      <i data-icon="trending-up" data-size="16"></i>進捗・スコア
+    </button>
+    <button class="tab" data-tab="deps" role="tab">
+      <i data-icon="git-branch" data-size="16"></i>依存タスク
+      <span class="tab-count">5</span>
+    </button>
+    <button class="tab" data-tab="tests" role="tab">
+      <i data-icon="flask-conical" data-size="16"></i>テスト結果
+      <span class="tab-count">8 / 8</span>
+    </button>
+    <button class="tab" data-tab="log" role="tab">
+      <i data-icon="terminal" data-size="16"></i>実行ログ
+    </button>
+    <button class="tab" data-tab="resources" role="tab">
+      <i data-icon="folder" data-size="16"></i>関連資料
+      <span class="tab-count">5</span>
+    </button>
+  </div>
+
+  <div class="tab-body">
+    <!-- ── 受入条件 ── -->
+    <div class="tab-pane active" data-pane="ac">
+      <div class="pane-title">受入条件（12 項目中 10 件達成）</div>
+      <p class="pane-lead">このタスクが「完了」とみなされるための条件です。3 段階で評価します。</p>
+
+      <div class="ac-tier">
+        <div class="ac-tier-head">
+          <span class="ac-tier-num">1</span>
+          <span class="ac-tier-title">構造の条件</span>
+          <span class="ac-tier-desc">画面・要素が正しく存在するか</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">画面 ID「S-A01」が正しく設定されている</div>
+          <span class="ac-num">条件 1</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">見出しが「Atelier へようこそ」になっている</div>
+          <span class="ac-num">条件 2</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">「メールでサインイン」「外部サービスでサインイン」「規約・プライバシー同意」の 3 セクションが存在する</div>
+          <span class="ac-num">条件 3</span>
+        </div>
+      </div>
+
+      <div class="ac-tier">
+        <div class="ac-tier-head">
+          <span class="ac-tier-num">2</span>
+          <span class="ac-tier-title">機能の条件</span>
+          <span class="ac-tier-desc">想定どおりに動くか</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">メール送信時にログインリンクが配信される</div>
+          <span class="ac-num">条件 4</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">必須同意が未取得の場合、新規登録は失敗する</div>
+          <span class="ac-num">条件 5</span>
+        </div>
+        <div class="ac-item">
+          <div class="ac-check"></div>
+          <div class="ac-text">パスワードを 5 回連続で間違えると、15 分間アカウントがロックされる</div>
+          <span class="ac-num">条件 6</span>
+        </div>
+        <div class="ac-item">
+          <div class="ac-check"></div>
+          <div class="ac-text">Google・GitHub 連携で外部アカウントが正しく紐付く</div>
+          <span class="ac-num">条件 7</span>
+        </div>
+      </div>
+
+      <div class="ac-tier">
+        <div class="ac-tier-head">
+          <span class="ac-tier-num">3</span>
+          <span class="ac-tier-title">再発防止の条件</span>
+          <span class="ac-tier-desc">既存機能が壊れていないか</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">自動テスト：ログイン → ダッシュボード遷移が成功する</div>
+          <span class="ac-num">条件 8</span>
+        </div>
+        <div class="ac-item done">
+          <div class="ac-check"><i data-icon="check" data-size="12"></i></div>
+          <div class="ac-text">既存ユーザー 10 名以上でログイン状態の維持が壊れていない</div>
+          <span class="ac-num">条件 9</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 進捗・スコア ── -->
+    <div class="tab-pane" data-pane="progress">
+      <div class="pane-title">いまの達成スコア</div>
+      <p class="pane-lead">受入条件・テスト・検証 AI による評価を加重平均した値です。0.95 以上で自動承認、0.80 以上で人間の確認待ちになります。</p>
+
+      <div class="score-hero">
+        <div class="score-circle-wrap">
+          <div class="score-circle">
+            <div class="score-circle-inner">
+              <div class="score-circle-value">0.83</div>
+              <div class="score-circle-unit">/ 1.00</div>
+            </div>
+          </div>
+          <div class="score-status">承認待ち（要・人間の確認）</div>
+        </div>
+        <div class="score-breakdown">
+          <div class="score-row">
+            <div>
+              <div class="score-row-label">受入条件の達成</div>
+              <div class="score-row-weight">重み 60%</div>
+            </div>
+            <div class="score-row-bar"><div class="score-row-bar-fill" style="width: 83%; background: var(--color-tertiary);"></div></div>
+            <div class="score-row-value">10 / 12</div>
+          </div>
+          <div class="score-row">
+            <div>
+              <div class="score-row-label">自動テスト</div>
+              <div class="score-row-weight">重み 30%</div>
+            </div>
+            <div class="score-row-bar"><div class="score-row-bar-fill" style="width: 100%; background: var(--color-tertiary);"></div></div>
+            <div class="score-row-value">8 / 8</div>
+          </div>
+          <div class="score-row">
+            <div>
+              <div class="score-row-label">検証 AI の評価</div>
+              <div class="score-row-weight">重み 10%</div>
+            </div>
+            <div class="score-row-bar"><div class="score-row-bar-fill" style="width: 79%; background: var(--color-secondary);"></div></div>
+            <div class="score-row-value">0.79</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="threshold-note">
+        <i data-icon="info" data-size="16"></i>
+        <span><strong>あと 0.12 で自動承認に到達します。</strong>条件 6・7 の達成で 0.95 を超える見込みです。再試行は最大 3 回まで実行可能（現在 1 / 3 回目）。</span>
+      </div>
+    </div>
+
+    <!-- ── 依存タスク ── -->
+    <div class="tab-pane" data-pane="deps">
+      <div class="pane-title">前後のタスクとのつながり</div>
+      <p class="pane-lead">このタスクを始めるために必要なタスク、そしてこのタスクの完了を待っているタスクです。</p>
+
+      <div class="dep-block">
+        <div class="dep-block-head">
+          <span class="dep-block-title">前提タスク</span>
+          <span class="dep-block-desc">先に終わっている必要があるタスク（2 件・どちらも完了済み）</span>
+        </div>
+        <div class="dep-flow">
+          <span class="dep-chip done"><i data-icon="check" data-size="12"></i><span class="dep-id">T-001</span>データベース権限設計</span>
+          <span class="dep-arrow">→</span>
+          <span class="dep-chip done"><i data-icon="check" data-size="12"></i><span class="dep-id">T-010</span>認証基盤セットアップ</span>
+          <span class="dep-arrow">→</span>
+          <span class="dep-chip current"><span class="dep-id">T-014</span>このタスク</span>
+        </div>
+      </div>
+
+      <div class="dep-block">
+        <div class="dep-block-head">
+          <span class="dep-block-title">後続タスク</span>
+          <span class="dep-block-desc">このタスクの完了を待っているタスク（3 件・いずれも待機中）</span>
+        </div>
+        <div class="dep-flow">
+          <span class="dep-chip current"><span class="dep-id">T-014</span>このタスク</span>
+          <span class="dep-arrow">→</span>
+          <span class="dep-chip waiting"><span class="dep-id">T-020</span>チャット UI 導入</span>
+          <span class="dep-chip waiting"><span class="dep-id">T-026</span>文脈構築レイヤ</span>
+          <span class="dep-chip waiting"><span class="dep-id">T-031</span>AI 社員管理</span>
+        </div>
+      </div>
+
+      <div class="dep-block">
+        <div class="dep-block-head">
+          <span class="dep-block-title">関連するデータ</span>
+          <span class="dep-block-desc">このタスクが参照・更新するデータ種別</span>
+        </div>
+        <div class="dep-flow">
+          <span class="dep-chip"><i data-icon="database" data-size="12"></i>ユーザー</span>
+          <span class="dep-chip"><i data-icon="database" data-size="12"></i>同意ログ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── テスト ── -->
+    <div class="tab-pane" data-pane="tests">
+      <div class="pane-title">自動テストの結果</div>
+      <p class="pane-lead">このタスクのために書かれたテスト 8 件の実行結果です。</p>
+
+      <div class="test-summary">
+        <div class="test-stat">
+          <div class="test-stat-label">合格</div>
+          <div class="test-stat-value ok">8</div>
+        </div>
+        <div class="test-stat">
+          <div class="test-stat-label">不合格</div>
+          <div class="test-stat-value">0</div>
+        </div>
+        <div class="test-stat">
+          <div class="test-stat-label">合計実行時間</div>
+          <div class="test-stat-value">12.3 秒</div>
+        </div>
+      </div>
+
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">メールサインインで正しいリンクが届く</div>
+          <div class="test-file">tests/auth/signin.spec.ts</div>
+        </div>
+        <div class="test-time">2.1 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">同意未取得でサインアップが失敗する</div>
+          <div class="test-file">tests/auth/consent.spec.ts</div>
+        </div>
+        <div class="test-time">0.8 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">Google 連携でユーザーが作成される</div>
+          <div class="test-file">tests/auth/oauth-google.spec.ts</div>
+        </div>
+        <div class="test-time">1.9 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">ログイン状態の維持（24 時間）</div>
+          <div class="test-file">tests/auth/session.spec.ts</div>
+        </div>
+        <div class="test-time">3.2 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">ログイン後、ダッシュボードに遷移する</div>
+          <div class="test-file">tests/auth/redirect.spec.ts</div>
+        </div>
+        <div class="test-time">1.5 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+      <div class="test-row pass">
+        <div class="test-icon"><i data-icon="check" data-size="12"></i></div>
+        <div>
+          <div class="test-name">画面の必須項目が存在する</div>
+          <div class="test-file">tests/auth/structure.spec.ts</div>
+        </div>
+        <div class="test-time">0.4 秒</div>
+        <button class="btn btn-ghost btn-sm"><i data-icon="chevron-right" data-size="14"></i></button>
+      </div>
+    </div>
+
+    <!-- ── ログ ── -->
+    <div class="tab-pane" data-pane="log">
+      <div class="pane-title">AI 社員が今回の実装で行ったこと</div>
+      <p class="pane-lead">直近のセッションの実行ログです。リアルタイムに見たいときは <a href="S-I03-monitor.html">実行モニター</a> を開いてください。</p>
+
+      <div class="log-block">
+<span class="log-time">16:42:01</span> <span class="log-info">セッション開始</span> · 作業ブランチ：T-014
+<span class="log-time">16:42:03</span> <span class="log-info">目標：</span>「ログイン画面 S-A01 を実装し、受入条件 12 項目を達成する」
+<span class="log-time">16:42:08</span> <span class="log-ok">モック読込</span>：S-A01-signin.html
+<span class="log-time">16:42:12</span> <span class="log-ok">仕様書読込</span>：仕様書 T-014（3 セクション）
+<span class="log-time">16:43:24</span> <span class="log-ok">作成</span>：apps/web/src/app/(public)/signin/page.tsx
+<span class="log-time">16:44:01</span> <span class="log-ok">作成</span>：apps/web/src/modules/auth/sign-in-form.tsx
+<span class="log-time">16:46:18</span> <span class="log-ok">テスト実行</span>：8 件すべて合格
+<span class="log-time">16:47:33</span> <span class="log-warn">未達</span>：条件 6（5 回失敗で 15 分ロック）が未実装
+<span class="log-time">16:47:35</span> <span class="log-info">検証 AI</span>：ヴィジョンを呼び出し
+<span class="log-time">16:48:02</span> <span class="log-warn">スコア：0.83</span>（受入 0.83・テスト 1.00・AI 評価 0.79）
+<span class="log-time">16:48:04</span> <span class="log-info">再試行 1 / 3 をスケジュール</span>（追加条件：6・7）
+      </div>
+    </div>
+
+    <!-- ── 関連資料 ── -->
+    <div class="tab-pane" data-pane="resources">
+      <div class="pane-title">このタスクに紐づく資料</div>
+      <p class="pane-lead">設計モック・仕様書・受入条件・ソースコード変更を一覧できます。</p>
+
+      <div class="resource-grid">
+        <a class="resource-card" href="../mock/S-H01-viewer.html">
+          <div class="resource-icon"><i data-icon="palette" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">設計モック S-A01-signin.html</div>
+            <div class="resource-meta">バージョン 3 · 最終更新 1 時間前</div>
+          </div>
+        </a>
+        <a class="resource-card" href="#">
+          <div class="resource-icon"><i data-icon="file-text" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">仕様書（T-014 用）</div>
+            <div class="resource-meta">3 セクション · バージョン 1</div>
+          </div>
+        </a>
+        <a class="resource-card" href="#">
+          <div class="resource-icon"><i data-icon="list-checks" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">受入条件（12 項目）</div>
+            <div class="resource-meta">構造 3 件・機能 4 件・再発防止 5 件</div>
+          </div>
+        </a>
+        <a class="resource-card" href="#">
+          <div class="resource-icon"><i data-icon="file-code" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">テストコード</div>
+            <div class="resource-meta">8 ケース · 最終実行 5 分前</div>
+          </div>
+        </a>
+        <a class="resource-card" href="#">
+          <div class="resource-icon"><i data-icon="github" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">作業ブランチ T-014</div>
+            <div class="resource-meta">変更 5 ファイル · プルリクエスト #42</div>
+          </div>
+        </a>
+        <a class="resource-card" href="#">
+          <div class="resource-icon"><i data-icon="brain" data-size="20"></i></div>
+          <div>
+            <div class="resource-name">参照したナレッジ（3 件）</div>
+            <div class="resource-meta">認証パターン・配信タイムアウト・同意 UI</div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ━━━━━━ 5. 操作バー ━━━━━━ -->
+  <div class="action-bar">
+    <div>
+      <div class="action-bar-label">このタスクに対するあなたの判断</div>
+      <div class="action-bar-sub">スコア 0.83 は「人間の確認が必要」な水準です。</div>
+    </div>
+    <div class="action-buttons">
+      <button class="btn-retry"><i data-icon="rotate-cw" data-size="14"></i>再試行（条件 6・7 を追加）</button>
+      <button class="btn-reject"><i data-icon="undo-2" data-size="14"></i>差し戻し</button>
+      <button class="btn-approve"><i data-icon="check" data-size="16"></i>承認する</button>
+    </div>
+  </div>
+
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+<script>
+  // タブ切替（本物の切替：選択タブのコンテンツだけ表示）
+  const tabs = document.querySelectorAll('.tab');
+  const panes = document.querySelectorAll('.tab-pane');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      panes.forEach(p => {
+        p.classList.toggle('active', p.dataset.pane === target);
+      });
+    });
+  });
+</script>
+</body>
+</html>

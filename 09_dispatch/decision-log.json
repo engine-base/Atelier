@@ -1,0 +1,78 @@
+{
+  "version": "v3.1-dual",
+  "project": "Atelier",
+  "skill": "distributed-dev",
+  "created_at": "2026-05-20",
+  "decisions": [
+    {
+      "id": "DD-DEC-01",
+      "title": "ブランチ規則 <prefix>/<task_id_lower>-<slug> で確定",
+      "rationale": "task_id を含むことで grep / ジャンプが容易、prefix で変更種別を分類。"
+    },
+    {
+      "id": "DD-DEC-02",
+      "title": "1 タスク = 1 ブランチ = 1 PR",
+      "rationale": "並列度を最大化、CI gate の評価単位を最小化、auto-merge が安全。"
+    },
+    {
+      "id": "DD-DEC-03",
+      "title": "配送先パス = 09_dispatch/packages/<TASK_ID>/CLAUDE.md",
+      "rationale": "Bridge がローカル展開時に 1 ディレクトリ = 1 タスクで隔離。"
+    },
+    {
+      "id": "DD-DEC-04",
+      "title": "retry 3 回 → S-E01 human-escalation",
+      "rationale": "AI 自走を最大化しつつ、安定しない場合は早めに人間に渡す。10s/30s/60s backoff で flaky test を吸収。"
+    },
+    {
+      "id": "DD-DEC-05",
+      "title": "Wave 5 (Integration) のみ sequential 実行",
+      "rationale": "Wave 5 は E2E / 性能 / セキュリティ最終で順序依存が強い。並列は他 Wave のみ。"
+    },
+    {
+      "id": "DD-DEC-06",
+      "title": "audit MD は scripts/gen-audit.sh で template 生成、手動執筆必須",
+      "rationale": "generic 文言（'shall implement T-XXX as specified'）を validator で reject、minimum_chars 800。"
+    },
+    {
+      "id": "DD-DEC-07",
+      "title": "CI gate 10 種を v3-gate.yml に集約（並列実行で約 3 分）",
+      "rationale": "標準 8 + Atelier 固有 2（screen-API coverage 100% / RLS isolation matrix）。"
+    },
+    {
+      "id": "DD-DEC-08",
+      "title": "file-level mutex を Wave スコープで実施",
+      "rationale": "tickets.json files_changed_predicted を信頼源、first-claim-wins、衝突は queue 待機。"
+    },
+    {
+      "id": "DD-DEC-09",
+      "title": "stale SHA 凍結 + drift reject",
+      "rationale": "branch 作成時の upstream SHA を凍結、上流変更が入ったら CI で reject。"
+    },
+    {
+      "id": "DD-DEC-10",
+      "title": "sample CLAUDE.md は 8 件（致命級 + 代表）、残りは on-demand 生成",
+      "rationale": "190 件を事前生成すると stale 化リスク。Wave 着手時に Bridge が gen-package.sh で都度生成、最新 tickets.json を反映。"
+    },
+    {
+      "id": "DD-DEC-11",
+      "title": "三層出力 HTML/JSON/MD + 二軸トグル",
+      "rationale": "dispatcher.json (信頼源) / PACKAGES.md (人間レビュー) / PACKAGES.html (検索・フィルタ + AI⇄Human モード)。Atelier 確定方針。"
+    },
+    {
+      "id": "DD-DEC-12",
+      "title": "BYOK / Claude プラン枠で実行",
+      "rationale": "実装系 AI 社員はユーザーローカル Claude Code を Bridge 経由起動、API 課金なし。"
+    }
+  ],
+  "validation": {
+    "packages_in_manifest": 190,
+    "sample_claude_md_generated": 8,
+    "ci_gates_defined": 10,
+    "wave_dispatch_defined": 6,
+    "two_axis_applied": true,
+    "schedule_consistency": "all numbers match 08_schedule/schedule.json",
+    "tickets_consistency": "all 190 packages mapped to tickets.json IDs"
+  },
+  "next_skill": "sprint-planning / release-planning / test-verification / integration から選択可"
+}
