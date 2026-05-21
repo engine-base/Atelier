@@ -122,8 +122,13 @@ jobs:
         run: pnpm -r --if-present run type-check
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
-      - name: Install pyright
-        run: pip install pyright==1.1.391
+      - name: Install pyright + apps/api deps
+        if: needs.detect-changes.outputs.py_changed != ''
+        run: |
+          pip install pyright==1.1.391
+          if [ -f apps/api/pyproject.toml ]; then
+            pip install -e "apps/api[dev]" || pip install -e apps/api
+          fi
       - name: pyright (Python)
         if: needs.detect-changes.outputs.py_changed != ''
         run: pyright
