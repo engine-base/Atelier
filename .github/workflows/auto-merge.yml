@@ -1,0 +1,36 @@
+name: auto-merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  check_suite:
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-merge when v3-gate passes
+    runs-on: ubuntu-latest
+    if: |
+      github.event.pull_request.draft == false &&
+      !contains(github.event.pull_request.labels.*.name, 'do-not-merge') &&
+      !contains(github.event.pull_request.labels.*.name, 'wip')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for v3-gate aggregate
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          check-name: "v3-gate / all 10 gates"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 20
+          allowed-conclusions: success
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge --squash --auto "${{ github.event.pull_request.number }}" \
+            || echo "::warning::auto-merge could not be enabled (likely insufficient permissions or branch protection not configured yet)"
