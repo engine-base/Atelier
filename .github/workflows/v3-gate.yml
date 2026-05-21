@@ -339,7 +339,18 @@ jobs:
                           full = "/" + full
                       implemented.add((method, full))
 
-          drift = sorted(implemented - declared)
+          # infrastructure endpoints は API 契約外として exempt
+          # (liveness probe / readiness probe / metrics は LB・監視専用)
+          INFRA_EXEMPT = {
+              ("GET", "/health"),
+              ("GET", "/healthz"),
+              ("GET", "/ready"),
+              ("GET", "/readyz"),
+              ("GET", "/live"),
+              ("GET", "/livez"),
+              ("GET", "/metrics"),
+          }
+          drift = sorted((implemented - declared) - INFRA_EXEMPT)
           missing = sorted(declared - implemented)
           print(f"  declared:    {len(declared)}")
           print(f"  implemented: {len(implemented)}")
