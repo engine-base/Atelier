@@ -1,0 +1,15 @@
+[project]
+name = "atelier-api"
+version = "0.1.0"
+description = "Atelier バックエンド（FastAPI）— T-F-04 で実装"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["atelier_api"]
+
+# 詳細設定（ruff / pyright / pytest）は T-F-02 で追加

@@ -1,0 +1,14 @@
+{
+  "name": "@atelier/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier フロントエンド（Next.js 15 App Router）— T-F-03 で実装",
+  "scripts": {
+    "dev": "echo 'placeholder — T-F-03 で next dev に置き換え' && exit 0",
+    "build": "echo 'placeholder — T-F-03 で next build に置き換え' && exit 0",
+    "lint": "echo 'placeholder — T-F-03 で next lint に置き換え' && exit 0",
+    "type-check": "echo 'placeholder — T-F-03 で tsc に置き換え' && exit 0",
+    "test": "echo 'placeholder — T-F-24 で vitest に置き換え' && exit 0",
+    "clean": "rm -rf .next dist"
+  }
+}
