@@ -75,10 +75,7 @@ class AnthropicClient:
             input_tokens=usage_obj.input_tokens,
             output_tokens=usage_obj.output_tokens,
             cache_read_tokens=getattr(usage_obj, "cache_read_input_tokens", 0) or 0,
-            cache_creation_tokens=getattr(
-                usage_obj, "cache_creation_input_tokens", 0
-            )
-            or 0,
+            cache_creation_tokens=getattr(usage_obj, "cache_creation_input_tokens", 0) or 0,
         )
 
         return LLMResponse(

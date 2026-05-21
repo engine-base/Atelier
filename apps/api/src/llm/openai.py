@@ -27,6 +27,4 @@ class OpenAIClient:
         stop_sequences: list[str] | None = None,
     ) -> LLMResponse:
         del model, messages, system, max_tokens, temperature, stop_sequences
-        raise NotImplementedError(
-            "OpenAIClient is reserved for v2. Phase 0-4 uses Anthropic only."
-        )
+        raise NotImplementedError("OpenAIClient is reserved for v2. Phase 0-4 uses Anthropic only.")
