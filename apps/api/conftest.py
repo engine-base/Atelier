@@ -37,7 +37,7 @@ def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
 @pytest.fixture
 async def api_client() -> AsyncIterator[AsyncClient]:
     """FastAPI app を ASGI 経由で叩く AsyncClient。"""
-    from main import app  # noqa: PLC0415
+    from main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
