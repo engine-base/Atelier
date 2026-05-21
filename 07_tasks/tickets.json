@@ -9,9 +9,9 @@
     "contract_frozen_at": "2026-05-20T13:30:00+09:00"
   },
   "summary": {
-    "total_tasks": 190,
+    "total_tasks": 191,
     "by_group": {
-      "F": 28,
+      "F": 29,
       "D": 35,
       "A": 45,
       "U-shared": 18,
@@ -23,11 +23,11 @@
       "backend": 80,
       "frontend": 40,
       "db": 35,
-      "test": 18,
+      "test": 19,
       "cleanup": 13
     },
     "by_label": {
-      "NEW": 137,
+      "NEW": 138,
       "REFACTOR": 51,
       "REUSE": 2
     },
@@ -52,8 +52,8 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1328.0,
-    "total_estimate_hours_ai_compute": 123.7,
+    "total_estimate_hours_human": 1336.0,
+    "total_estimate_hours_ai_compute": 125.3,
     "human_review_total_h": 10.8,
     "total_wall_clock_h_ai_parallel": 27.9,
     "ai_acceleration_factor_overall": 10.7,
@@ -2577,6 +2577,143 @@
             "pnpm/python で import or run"
           ],
           "expected": "エラー無し"
+        }
+      ]
+    },
+    {
+      "id": "T-F-29",
+      "title": "Phase 0 既存モジュール unit test 補完",
+      "group": "F",
+      "category": "test",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 8,
+      "assigned_employee": "vision",
+      "depends_on": [
+        "T-F-09",
+        "T-F-11",
+        "T-F-12",
+        "T-F-17",
+        "T-F-23",
+        "T-F-24",
+        "T-F-27"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-29.md",
+      "blocking": true,
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 1.6,
+      "wall_clock_h_ai": 2.0,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.5,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_db_base.py",
+          "apps/api/tests/test_db_session.py",
+          "apps/api/tests/test_llm_client.py",
+          "apps/api/tests/test_llm_anthropic.py",
+          "apps/api/tests/test_llm_openai.py",
+          "apps/api/tests/test_email_sender.py",
+          "apps/api/tests/test_email_templates.py",
+          "packages/design-tokens/__tests__/tokens.test.ts",
+          "packages/shared/__tests__/index.test.ts",
+          "apps/bridge/__tests__/dispatcher.test.ts",
+          "apps/bridge/__tests__/pty.test.ts",
+          "apps/bridge/__tests__/main.test.ts"
+        ],
+        "modify": [],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-29.md",
+          "07_api_design/openapi.yaml",
+          "07_api_design/types.ts",
+          "04_functional_breakdown/entities.json",
+          "05_design/DESIGN-atelier.md",
+          "apps/api/src/db/base.py",
+          "apps/api/src/db/session.py",
+          "apps/api/src/llm/client.py",
+          "apps/api/src/llm/anthropic.py",
+          "apps/api/src/llm/openai.py",
+          "apps/api/src/email/sender.py",
+          "apps/api/src/email/templates/__init__.py",
+          "packages/design-tokens/src/index.ts",
+          "packages/shared/src/index.ts",
+          "apps/bridge/src/dispatcher.ts",
+          "apps/bridge/src/pty.ts",
+          "apps/bridge/src/main.ts"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 12 件の test ファイルが配置され、pytest / vitest で discover 可能"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "The test suite shall achieve >=80% line coverage on each touched source module"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When pytest tests are run, all apps/api/src/{db,llm,email} modules shall be covered >=80%"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When vitest is run, packages/design-tokens / packages/shared / apps/bridge/src shall be covered >=80%"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While AnthropicClient is initialised without ANTHROPIC_API_KEY, no live HTTP request shall be made"
+          },
+          {
+            "type": "OPTIONAL",
+            "text": "Where async fixtures are required, pytest-asyncio auto-mode shall be applied"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "pytest discovery",
+          "steps": [
+            "cd apps/api && pytest tests --collect-only -q"
+          ],
+          "expected": "全 test ファイルが収集される"
+        },
+        {
+          "name": "vitest discovery",
+          "steps": [
+            "pnpm vitest list"
+          ],
+          "expected": "全 .test.ts が収集される"
+        },
+        {
+          "name": "coverage threshold",
+          "steps": [
+            "cd apps/api && pytest tests --cov=src",
+            "pnpm vitest run --coverage"
+          ],
+          "expected": "対象モジュール各 80% 以上"
         }
       ]
     },
