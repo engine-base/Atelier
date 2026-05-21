@@ -8,8 +8,8 @@ OpenAPI 契約 (07_api_design/openapi.yaml) との drift は T-F-25 / T-F-26
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from fastapi import FastAPI
 
