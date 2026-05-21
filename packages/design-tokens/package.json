@@ -1,0 +1,23 @@
+{
+  "name": "@atelier/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier デザイントークン — 05_design/DESIGN-atelier.md を TS / CSS で reflect",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./css": "./src/tokens.css"
+  },
+  "scripts": {
+    "build": "echo 'tokens は TS / CSS をそのまま consume されるため build 不要' && exit 0",
+    "lint": "echo 'placeholder' && exit 0",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'placeholder — T-F-24 で vitest に置き換え' && exit 0",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

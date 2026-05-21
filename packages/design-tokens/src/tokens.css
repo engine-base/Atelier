@@ -1,0 +1,119 @@
+/**
+ * Atelier デザイントークン (CSS Custom Properties)
+ *
+ * 信頼源: 05_design/DESIGN-atelier.md
+ * TS 側 (./index.ts) と並走する。両者の drift は CI gate でカバーする予定。
+ */
+
+:root {
+  /* Colors — Primary */
+  --color-primary: #2563EB;
+  --color-on-primary: #FFFFFF;
+  --color-primary-container: #DBEAFE;
+  --color-on-primary-container: #1E3A8A;
+
+  /* Colors — Secondary (Antique Gold) */
+  --color-secondary: #C7A04A;
+  --color-on-secondary: #FFFFFF;
+  --color-secondary-container: #FAEDC4;
+  --color-on-secondary-container: #5C4A1E;
+
+  /* Colors — Tertiary (Mint Teal) */
+  --color-tertiary: #14B8A6;
+  --color-on-tertiary: #FFFFFF;
+  --color-tertiary-container: #CCFBF1;
+  --color-on-tertiary-container: #134E4A;
+
+  /* Colors — Surface (Warm Paper White) */
+  --color-surface: #FEFCF8;
+  --color-on-surface: #0F172A;
+  --color-surface-variant: #F4F1EC;
+  --color-on-surface-variant: #475569;
+
+  /* Colors — Error */
+  --color-error: #DC2626;
+  --color-on-error: #FFFFFF;
+
+  /* Colors — Neutral */
+  --color-neutral: #94A3B8;
+  --color-on-neutral: #0F172A;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 48px;
+  --space-2xl: 96px;
+
+  /* Rounded */
+  --rounded-none: 0px;
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --rounded-lg: 16px;
+  --rounded-xl: 24px;
+  --rounded-full: 9999px;
+
+  /* Font Families */
+  --font-sans: "Noto Sans JP", system-ui, -apple-system, "Helvetica Neue",
+    sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Typography — Headline */
+  --text-headline-display-size: 72px;
+  --text-headline-display-weight: 900;
+  --text-headline-display-line-height: 1.1;
+  --text-headline-display-letter-spacing: -0.02em;
+
+  --text-headline-lg-size: 48px;
+  --text-headline-lg-weight: 700;
+  --text-headline-lg-line-height: 1.2;
+  --text-headline-lg-letter-spacing: -0.01em;
+
+  --text-headline-md-size: 36px;
+  --text-headline-md-weight: 700;
+  --text-headline-md-line-height: 1.25;
+
+  /* Typography — Body */
+  --text-body-lg-size: 18px;
+  --text-body-lg-weight: 400;
+  --text-body-lg-line-height: 1.7;
+  --text-body-lg-letter-spacing: 0.01em;
+
+  --text-body-md-size: 16px;
+  --text-body-md-weight: 400;
+  --text-body-md-line-height: 1.6;
+
+  --text-body-sm-size: 14px;
+  --text-body-sm-weight: 400;
+  --text-body-sm-line-height: 1.5;
+
+  /* Typography — Label */
+  --text-label-lg-size: 14px;
+  --text-label-lg-weight: 600;
+  --text-label-lg-letter-spacing: 0.04em;
+
+  --text-label-md-size: 12px;
+  --text-label-md-weight: 500;
+  --text-label-md-letter-spacing: 0.05em;
+
+  --text-label-sm-size: 11px;
+  --text-label-sm-weight: 500;
+  --text-label-sm-letter-spacing: 0.06em;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-normal: 240ms;
+  --duration-slow: 480ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+  }
+}

@@ -1,0 +1,53 @@
+@import "@atelier/design-tokens/css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-on-surface);
+    background-color: var(--color-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--rounded-sm);
+  }
+
+  ::selection {
+    background-color: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+  }
+}
+
+@layer components {
+  .editorial-h1 {
+    font-size: var(--text-headline-display-size);
+    font-weight: var(--text-headline-display-weight);
+    line-height: var(--text-headline-display-line-height);
+    letter-spacing: var(--text-headline-display-letter-spacing);
+  }
+
+  .editorial-h2 {
+    font-size: var(--text-headline-lg-size);
+    font-weight: var(--text-headline-lg-weight);
+    line-height: var(--text-headline-lg-line-height);
+    letter-spacing: var(--text-headline-lg-letter-spacing);
+  }
+
+  .surface-card {
+    background-color: var(--color-surface);
+    color: var(--color-on-surface);
+    border-radius: var(--rounded-lg);
+    padding: var(--space-lg);
+  }
+}
