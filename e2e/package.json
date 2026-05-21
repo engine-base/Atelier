@@ -1,0 +1,22 @@
+{
+  "name": "@atelier/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier E2E test suite (Playwright)",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen http://127.0.0.1:3000",
+    "lint": "echo 'placeholder' && exit 0",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf playwright-report test-results"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}
