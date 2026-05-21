@@ -24,11 +24,9 @@ class EmailSettings(BaseSettings):
     api_key: str = Field(default="", description="Resend API key")
     from_address: str = Field(
         default="Atelier <noreply@atelier.local>",
-        description='RFC 5322 形式の From アドレス',
+        description="RFC 5322 形式の From アドレス",
     )
-    dry_run: bool = Field(
-        default=False, description="True で API を呼ばずに結果を擬似的に返す"
-    )
+    dry_run: bool = Field(default=False, description="True で API を呼ばずに結果を擬似的に返す")
     request_timeout_seconds: float = Field(default=10.0, gt=0)
 
 
@@ -74,13 +72,9 @@ class ResendSender:
         if message.reply_to is not None:
             payload["reply_to"] = message.reply_to
         if message.tags:
-            payload["tags"] = [
-                {"name": k, "value": v} for k, v in message.tags
-            ]
+            payload["tags"] = [{"name": k, "value": v} for k, v in message.tags]
 
-        async with httpx.AsyncClient(
-            timeout=self._settings.request_timeout_seconds
-        ) as http:
+        async with httpx.AsyncClient(timeout=self._settings.request_timeout_seconds) as http:
             response = await http.post(
                 f"{RESEND_API_BASE}/emails",
                 headers={

@@ -8,12 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_TEMPLATE_DIR = (
-    Path(__file__).resolve().parents[4]
-    / "packages"
-    / "email"
-    / "dist"
-)
+_TEMPLATE_DIR = Path(__file__).resolve().parents[4] / "packages" / "email" / "dist"
 
 
 def resolve_template_html(name: str) -> str:
