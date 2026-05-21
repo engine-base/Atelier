@@ -92,7 +92,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
       - name: ESLint (TS/JS)
         if: needs.detect-changes.outputs.ts_changed != ''
-        run: pnpm -r run lint --if-present
+        run: pnpm -r --if-present run lint
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
       - name: Install ruff
@@ -119,7 +119,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: tsc (workspaces)
         if: needs.detect-changes.outputs.ts_changed != ''
-        run: pnpm -r run type-check --if-present
+        run: pnpm -r --if-present run type-check
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
       - name: Install pyright
@@ -148,7 +148,7 @@ jobs:
         if: needs.detect-changes.outputs.ts_changed != ''
         run: |
           if [ -f "vitest.config.ts" ] || ls apps/*/vitest.config.* 2>/dev/null | grep -q .; then
-            pnpm -r run test --if-present
+            pnpm -r --if-present run test
           else
             echo "::notice::Vitest not configured yet (pending T-F-24). Gate #4 TS portion skipped."
           fi
