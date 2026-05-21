@@ -1,0 +1,325 @@
+name: v3-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: v3-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20.18.1"
+  PYTHON_VERSION: "3.12.7"
+  PNPM_VERSION: "9.12.0"
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #2 — 3-tier AC validator (validate.sh) ・ tickets.json 信頼源を最初に検証
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-2-ac-validator:
+    name: "Gate #2 — 3-tier AC validator"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run validate.sh
+        run: |
+          chmod +x ./09_dispatch/scripts/validate.sh
+          ./09_dispatch/scripts/validate.sh
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 変更ファイルの検出 (gate #3/#4/#5/#6/#9 が利用)
+  # ─────────────────────────────────────────────────────────────────────────
+  detect-changes:
+    name: "detect-changes"
+    runs-on: ubuntu-latest
+    outputs:
+      ts_changed: ${{ steps.changes.outputs.ts_changed }}
+      py_changed: ${{ steps.changes.outputs.py_changed }}
+      openapi_changed: ${{ steps.changes.outputs.openapi_changed }}
+      mock_changed: ${{ steps.changes.outputs.mock_changed }}
+      schema_changed: ${{ steps.changes.outputs.schema_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changes
+        name: Detect changed paths
+        run: |
+          base="${{ github.event.pull_request.base.sha || 'origin/main' }}"
+          if ! git rev-parse --verify "$base" > /dev/null 2>&1; then
+            base=$(git rev-list --max-parents=0 HEAD | tail -1)
+          fi
+          diff_files=$(git diff --name-only "$base"...HEAD || true)
+          echo "Changed files:"
+          echo "$diff_files"
+          ts_changed=$(echo "$diff_files" | grep -E '\.(ts|tsx|js|jsx)$' || true)
+          py_changed=$(echo "$diff_files" | grep -E '\.py$' || true)
+          openapi_changed=$(echo "$diff_files" | grep -E '07_api_design/openapi\.yaml$' || true)
+          mock_changed=$(echo "$diff_files" | grep -E '06_mockups/' || true)
+          schema_changed=$(echo "$diff_files" | grep -E '(migrations/|schema\.sql$)' || true)
+          {
+            echo "ts_changed<<EOF"; echo "$ts_changed"; echo "EOF";
+            echo "py_changed<<EOF"; echo "$py_changed"; echo "EOF";
+            echo "openapi_changed<<EOF"; echo "$openapi_changed"; echo "EOF";
+            echo "mock_changed<<EOF"; echo "$mock_changed"; echo "EOF";
+            echo "schema_changed<<EOF"; echo "$schema_changed"; echo "EOF";
+          } >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #1 — lint (ESLint/Prettier for TS, ruff for Python)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-1-lint:
+    name: "Gate #1 — lint (ESLint/ruff)"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: ESLint (TS/JS)
+        if: needs.detect-changes.outputs.ts_changed != ''
+        run: pnpm -r run lint --if-present
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Install ruff
+        run: pip install ruff==0.8.4
+      - name: Ruff (Python)
+        if: needs.detect-changes.outputs.py_changed != ''
+        run: ruff check . && ruff format --check .
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #3 — type check (tsc / pyright)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-3-type-check:
+    name: "Gate #3 — type check (tsc/pyright)"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: tsc (workspaces)
+        if: needs.detect-changes.outputs.ts_changed != ''
+        run: pnpm -r run type-check --if-present
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Install pyright
+        run: pip install pyright==1.1.391
+      - name: pyright (Python)
+        if: needs.detect-changes.outputs.py_changed != ''
+        run: pyright
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #4 — coverage >= 80%（テスト基盤未配線時は skip）
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-4-coverage:
+    name: "Gate #4 — coverage >= 80%"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Vitest coverage (TS) — skip if not configured
+        if: needs.detect-changes.outputs.ts_changed != ''
+        run: |
+          if [ -f "vitest.config.ts" ] || ls apps/*/vitest.config.* 2>/dev/null | grep -q .; then
+            pnpm -r run test --if-present
+          else
+            echo "::notice::Vitest not configured yet (pending T-F-24). Gate #4 TS portion skipped."
+          fi
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: pytest coverage (Python) — skip if no tests
+        if: needs.detect-changes.outputs.py_changed != ''
+        run: |
+          if find apps/api -type d -name tests 2>/dev/null | grep -q .; then
+            pip install -e "apps/api[dev]"
+            pytest apps/api --cov=apps/api --cov-fail-under=80
+          else
+            echo "::notice::pytest tests not configured yet (pending T-F-24). Gate #4 Python portion skipped."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #5 — endpoint-existence (OpenAPI で宣言された endpoint の実装が存在)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-5-endpoint-existence:
+    name: "Gate #5 — endpoint-existence"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Run endpoint-existence check
+        run: |
+          if [ -x "./09_dispatch/scripts/endpoint-existence.sh" ]; then
+            ./09_dispatch/scripts/endpoint-existence.sh
+          else
+            echo "::notice::endpoint-existence checker not yet implemented (pending T-F-25)."
+            if [ -f "07_api_design/openapi.yaml" ]; then
+              endpoints=$(grep -E '^\s{2}/[a-zA-Z0-9_{}/-]+:' 07_api_design/openapi.yaml | wc -l | tr -d ' ')
+              echo "Declared endpoints (approx): $endpoints"
+            fi
+            echo "Implementations not yet wired — soft check passes"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #6 — mock-impl diff (mock の契約と実装の差分)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-6-mock-impl-diff:
+    name: "Gate #6 — mock-impl diff"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run mock-impl diff
+        run: |
+          if [ -x "./09_dispatch/scripts/mock-impl-diff.sh" ]; then
+            ./09_dispatch/scripts/mock-impl-diff.sh
+          else
+            echo "::notice::mock-impl-diff checker not yet implemented (pending T-F-25)."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #7 — type drift (OpenAPI ↔ TS / Pydantic)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-7-type-drift:
+    name: "Gate #7 — type drift"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check type drift
+        run: |
+          if [ -x "./09_dispatch/scripts/type-drift.sh" ]; then
+            ./09_dispatch/scripts/type-drift.sh
+          else
+            echo "::notice::type-drift checker pending T-F-25."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #8 — Schemathesis contract test
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-8-schemathesis:
+    name: "Gate #8 — Schemathesis contract test"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Schemathesis
+        run: |
+          if [ -f "07_api_design/openapi.yaml" ] && find apps/api -name "main.py" 2>/dev/null | grep -q .; then
+            if [ -x "./09_dispatch/scripts/schemathesis.sh" ]; then
+              ./09_dispatch/scripts/schemathesis.sh
+            else
+              echo "::notice::Schemathesis runner pending T-F-26."
+            fi
+          else
+            echo "::notice::Schemathesis: openapi.yaml or api/main.py not ready"
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #9 — screen-API coverage 100% (画面 ↔ API 逆引きカバレッジ)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-9-screen-api-coverage:
+    name: "Gate #9 — screen-API coverage 100%"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Screen-API coverage
+        run: |
+          if [ -x "./09_dispatch/scripts/screen-api-coverage.sh" ]; then
+            ./09_dispatch/scripts/screen-api-coverage.sh
+          else
+            echo "::notice::screen-API coverage checker pending (mock-contract-hints.json + endpoints)."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #10 — RLS isolation matrix (R-T08 致命級)
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-10-rls-isolation:
+    name: "Gate #10 — RLS isolation matrix"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: RLS isolation matrix
+        run: |
+          if [ -x "./09_dispatch/scripts/rls-isolation.sh" ]; then
+            ./09_dispatch/scripts/rls-isolation.sh
+          else
+            echo "::notice::RLS isolation matrix pending T-D-22 (致命級 / 経営者承認必須)."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # 全 gate 集約。auto-merge.yml はこの aggregate-status job を required check に指定
+  # ─────────────────────────────────────────────────────────────────────────
+  aggregate-status:
+    name: "v3-gate / all 10 gates"
+    if: always()
+    needs:
+      - gate-1-lint
+      - gate-2-ac-validator
+      - gate-3-type-check
+      - gate-4-coverage
+      - gate-5-endpoint-existence
+      - gate-6-mock-impl-diff
+      - gate-7-type-drift
+      - gate-8-schemathesis
+      - gate-9-screen-api-coverage
+      - gate-10-rls-isolation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all gates passed
+        run: |
+          declare -A results=(
+            [gate-1-lint]="${{ needs.gate-1-lint.result }}"
+            [gate-2-ac-validator]="${{ needs.gate-2-ac-validator.result }}"
+            [gate-3-type-check]="${{ needs.gate-3-type-check.result }}"
+            [gate-4-coverage]="${{ needs.gate-4-coverage.result }}"
+            [gate-5-endpoint-existence]="${{ needs.gate-5-endpoint-existence.result }}"
+            [gate-6-mock-impl-diff]="${{ needs.gate-6-mock-impl-diff.result }}"
+            [gate-7-type-drift]="${{ needs.gate-7-type-drift.result }}"
+            [gate-8-schemathesis]="${{ needs.gate-8-schemathesis.result }}"
+            [gate-9-screen-api-coverage]="${{ needs.gate-9-screen-api-coverage.result }}"
+            [gate-10-rls-isolation]="${{ needs.gate-10-rls-isolation.result }}"
+          )
+          failed=0
+          for gate in "${!results[@]}"; do
+            status="${results[$gate]}"
+            if [ "$status" = "failure" ] || [ "$status" = "cancelled" ]; then
+              echo "::error::$gate = $status"
+              failed=1
+            else
+              echo "::notice::$gate = $status"
+            fi
+          done
+          exit $failed
