@@ -181,17 +181,12 @@ jobs:
             ./09_dispatch/scripts/endpoint-existence.sh
           else
             echo "::notice::endpoint-existence checker not yet implemented (pending T-F-25)."
-            python3 -c "
-          import yaml, sys, pathlib
-          p = pathlib.Path('07_api_design/openapi.yaml')
-          if not p.exists():
-              print('openapi.yaml missing — skipping')
-              sys.exit(0)
-          spec = yaml.safe_load(p.read_text())
-          paths = spec.get('paths', {})
-          print(f'Declared endpoints: {len(paths)}')
-          print('Implementations not yet wired — soft check passes')
-          "
+            if [ -f "07_api_design/openapi.yaml" ]; then
+              endpoints=$(grep -E '^\s{2}/[a-zA-Z0-9_{}/-]+:' 07_api_design/openapi.yaml | wc -l | tr -d ' ')
+              echo "Declared endpoints (approx): $endpoints"
+            fi
+            echo "Implementations not yet wired — soft check passes"
+          fi
 
   # ─────────────────────────────────────────────────────────────────────────
   # Gate #6 — mock-impl diff (mock の契約と実装の差分)
