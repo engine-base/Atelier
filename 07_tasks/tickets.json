@@ -1490,7 +1490,9 @@
           "apps/web/package.json",
           "apps/web/tsconfig.json",
           "apps/web/app/globals.css",
-          "packages/shared/src/index.ts"
+          "packages/shared/src/index.ts",
+          "packages/shared/package.json",
+          "packages/shared/tsconfig.json"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
