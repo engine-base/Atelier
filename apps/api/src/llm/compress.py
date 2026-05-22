@@ -93,7 +93,9 @@ class LLMLinguaCompressor:
     呼び出し側は try/except でフォールバック (SimpleCompressor) に切り替える。
     """
 
-    def __init__(self, *, model_name: str = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank") -> None:
+    def __init__(
+        self, *, model_name: str = "microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank"
+    ) -> None:
         try:
             from llmlingua import PromptCompressor  # type: ignore[import-not-found]
         except ImportError as exc:
@@ -120,7 +122,9 @@ class LLMLinguaCompressor:
             text,
             rate=target_ratio,
         )
-        compressed_text: str = getattr(result, "get", lambda *_: None)("compressed_prompt") or str(result)
+        compressed_text: str = getattr(result, "get", lambda *_: None)("compressed_prompt") or str(
+            result
+        )
         return CompressionResult.build(text, compressed_text)
 
 

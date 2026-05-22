@@ -149,9 +149,7 @@ def _parse_result_entry(entry: Any) -> BatchResultItem:
     if result_type == "succeeded":
         message = result.message
         text_blocks = [
-            getattr(b, "text", "")
-            for b in message.content
-            if getattr(b, "type", None) == "text"
+            getattr(b, "text", "") for b in message.content if getattr(b, "type", None) == "text"
         ]
         return BatchResultItem(
             custom_id=custom_id,

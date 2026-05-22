@@ -75,7 +75,8 @@ class TestSimpleCompressor:
 @pytest.mark.unit
 class TestLLMLinguaCompressor:
     def test_import_error_when_not_installed(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         real_import = builtins.__import__
 
@@ -98,7 +99,8 @@ class TestLLMLinguaCompressor:
 @pytest.mark.unit
 class TestSelectCompressor:
     def test_falls_back_to_simple_when_llmlingua_missing(
-        self, monkeypatch: pytest.MonkeyPatch,
+        self,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         real_import = builtins.__import__
 

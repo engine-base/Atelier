@@ -165,7 +165,8 @@ class TestAnthropicBatchClient:
 
     @pytest.mark.asyncio
     async def test_status_returns_processing_status(
-        self, client: AnthropicBatchClient,
+        self,
+        client: AnthropicBatchClient,
     ) -> None:
         sdk_retrieve: Any = client._sdk.messages.batches.retrieve  # type: ignore[attr-defined]
         sdk_retrieve.return_value = SimpleNamespace(processing_status="in_progress")
@@ -174,7 +175,8 @@ class TestAnthropicBatchClient:
 
     @pytest.mark.asyncio
     async def test_status_unknown_raises(
-        self, client: AnthropicBatchClient,
+        self,
+        client: AnthropicBatchClient,
     ) -> None:
         sdk_retrieve: Any = client._sdk.messages.batches.retrieve  # type: ignore[attr-defined]
         sdk_retrieve.return_value = SimpleNamespace(processing_status="weird")
@@ -183,7 +185,8 @@ class TestAnthropicBatchClient:
 
     @pytest.mark.asyncio
     async def test_results_yields_parsed_items(
-        self, client: AnthropicBatchClient,
+        self,
+        client: AnthropicBatchClient,
     ) -> None:
         # results() は async iterator を返すので、Mock で async iter を作る
         async def fake_iter() -> Any:
