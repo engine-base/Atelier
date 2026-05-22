@@ -89,6 +89,9 @@ source = ["apps/api"]
 omit = [
   "**/tests/**",
   "**/__init__.py",
+  # OpenAPI 由来の generated 型は信頼源 (07_api_design/openapi.yaml) で
+  # 整合性が CI gate #7 でテストされるため unit coverage 対象外
+  "**/_generated/**",
 ]
 
 [tool.coverage.report]
