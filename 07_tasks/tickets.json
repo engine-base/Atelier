@@ -3289,7 +3289,8 @@
         "modify": [
           "pyproject.toml",
           "apps/api/src/llm/anthropic.py",
-          "apps/api/src/db/session.py"
+          "apps/api/src/db/session.py",
+          "apps/api/main.py"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
