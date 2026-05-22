@@ -25,9 +25,9 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'html', 'json-summary'],
       include: [
         'apps/**/src/**/*.{ts,tsx}',
-        'apps/web/app/**/*.{ts,tsx}',
         'packages/**/src/**/*.{ts,tsx}',
       ],
+      // apps/web は Playwright E2E (T-F-23) で検証する。Vitest coverage 対象外。
       exclude: [
         '**/*.d.ts',
         '**/*.config.{ts,js,mjs}',
@@ -35,13 +35,14 @@ export default defineConfig({
         '**/.next/**',
         '**/node_modules/**',
         '**/index.ts',
+        'apps/web/**',
       ],
-      // Phase 0 placeholder 期は閾値 0。実装が乗ったら 80% (web/testing.md) に戻す
+      // web/testing.md 規定: lines/functions/statements 80%, branches 75%
       thresholds: {
-        lines: 0,
-        functions: 0,
-        branches: 0,
-        statements: 0,
+        lines: 80,
+        functions: 80,
+        branches: 75,
+        statements: 80,
       },
     },
     reporters: ['default'],
