@@ -259,8 +259,12 @@ jobs:
           if [ -f apps/api/pyproject.toml ]; then
             pip install -e "apps/api[dev]"
           fi
-          if ! find apps/api -type d -name tests -mindepth 2 | grep -q .; then
-            echo "::error::No pytest tests directory exists. Touched .py files require tests."
+          if ! [ -d apps/api/tests ]; then
+            echo "::error::apps/api/tests/ missing. Touched .py files require accompanying tests."
+            exit 1
+          fi
+          if ! find apps/api/tests -name 'test_*.py' -type f | grep -q .; then
+            echo "::error::apps/api/tests/ contains no test_*.py. Touched .py files require accompanying tests."
             exit 1
           fi
           (cd apps/api && pytest tests --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing)
