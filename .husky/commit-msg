@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# conventional commits 形式の最低限チェック
+# 詳細な commitlint config は将来 task で追加
+msg_file="$1"
+first_line=$(head -n1 "$msg_file")
+if ! echo "$first_line" | grep -qE '^(feat|fix|chore|docs|refactor|test|perf|ci|build|style|revert|merge)(\([^)]+\))?: .+'; then
+  echo "❌ commit message must match: <type>(<scope>)?: <subject>" >&2
+  echo "   types: feat|fix|chore|docs|refactor|test|perf|ci|build|style|revert|merge" >&2
+  echo "   got:   $first_line" >&2
+  exit 1
+fi
