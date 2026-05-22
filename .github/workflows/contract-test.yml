@@ -1,0 +1,106 @@
+name: contract-test
+
+# 07_api_design/openapi.yaml を契約として apps/api 実装の契約遵守を
+# Schemathesis で property-based 検証する独立 workflow。
+#
+# v3-gate.yml の Gate #8 (PR 同期 contract test) より長い examples (200) で実行。
+# nightly + on-demand + relevant PR で起動。
+
+on:
+  pull_request:
+    paths:
+      - "07_api_design/openapi.yaml"
+      - "apps/api/**"
+      - "scripts/run-schemathesis.sh"
+      - ".github/workflows/contract-test.yml"
+  schedule:
+    # 毎日 18:00 UTC = 03:00 JST
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      examples:
+        description: "Hypothesis max examples"
+        required: false
+        default: "200"
+      include_regex:
+        description: "Path include regex"
+        required: false
+        default: "^/health$"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: contract-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12.7"
+  UV_VERSION: "0.11.16"
+
+jobs:
+  schemathesis:
+    name: Schemathesis (openapi.yaml ↔ apps/api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - uses: astral-sh/setup-uv@v3
+        with: { version: "${{ env.UV_VERSION }}" }
+      - name: Run Schemathesis
+        env:
+          EXAMPLES: ${{ github.event.inputs.examples || '200' }}
+          INCLUDE_REGEX: ${{ github.event.inputs.include_regex || '^/health$' }}
+          PORT: "8765"
+        run: |
+          chmod +x scripts/run-schemathesis.sh
+          ./scripts/run-schemathesis.sh
+
+      - name: Upload uvicorn log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uvicorn-log-${{ github.run_id }}
+          path: /tmp/uvicorn.log
+          if-no-files-found: ignore
+
+      - name: Open issue on schedule failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="[contract-test] Schemathesis nightly FAIL — $(date -u +%Y-%m-%d)"
+          body=$(cat <<EOF
+          Nightly Schemathesis run failed against openapi.yaml.
+
+          - Workflow: ${{ github.workflow }}
+          - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ## Triage
+          1. Run 確認: 失敗した endpoint と check (status_code / content_type / schema / negative_data) を特定
+          2. openapi.yaml と apps/api 実装の drift か、テストの flaky か判定
+          3. drift → tickets.json で該当 endpoint owner の修正 PR を起票
+          4. flaky → --hypothesis-seed を固定して再現確認
+
+          ## CLAUDE.md
+          contract-test 失敗は production 出荷ブロッカー。即時 triage 必須。
+          EOF
+          )
+          existing=$(gh issue list --label contract-test-fail --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --body "$body" --label "contract-test-fail,blocking,human-required" \
+              || gh issue create --title "$title" --body "$body"
+          fi
+
+      - name: Comment on PR failure
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body "🚨 contract-test FAIL — openapi.yaml と apps/api 実装の drift を検出。[Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            || true
