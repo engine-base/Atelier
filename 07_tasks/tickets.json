@@ -2293,7 +2293,11 @@
           "packages/api-types/",
           "apps/api/src/_generated/"
         ],
-        "modify": [],
+        "modify": [
+          "pyproject.toml",
+          "vitest.config.ts",
+          ".github/workflows/v3-gate.yml"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-25.md",
@@ -2302,9 +2306,7 @@
           "04_functional_breakdown/entities.json",
           "05_design/DESIGN-atelier.md"
         ],
-        "forbidden": [
-          ".github/workflows/v3-gate.yml"
-        ]
+        "forbidden": []
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
