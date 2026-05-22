@@ -13,10 +13,11 @@ export default defineConfig({
       'packages/**/*.{test,spec}.{ts,tsx}',
     ],
     exclude: [
-      'node_modules',
-      'dist',
-      '.next',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.next/**',
       'apps/web/tests/e2e/**',
+      'e2e/**',
       'apps/bridge/dist/**',
     ],
     coverage: {
