@@ -20,9 +20,7 @@ class TestInngestConfig:
 
         assert inngest_config.APP_ID == "atelier"
 
-    def test_get_client_returns_inngest_instance(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_client_returns_inngest_instance(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("INNGEST_DEV", "1")
         import inngest_config
 
@@ -31,9 +29,7 @@ class TestInngestConfig:
         client = inngest_config.get_client()
         assert client.app_id == "atelier"
 
-    def test_get_client_is_cached(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_client_is_cached(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("INNGEST_DEV", "1")
         import inngest_config
 
@@ -42,9 +38,7 @@ class TestInngestConfig:
         c2 = inngest_config.get_client()
         assert c1 is c2
 
-    def test_get_client_respects_dev_env(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_client_respects_dev_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("INNGEST_DEV", "true")
         monkeypatch.delenv("INNGEST_SIGNING_KEY", raising=False)
         import inngest_config
