@@ -1,0 +1,10 @@
+{
+  "apps/web/**/*.{ts,tsx,js,jsx}": [
+    "pnpm --filter @atelier/web exec next lint --fix --file"
+  ],
+  "*.py": [
+    "uv tool run ruff check --fix",
+    "uv tool run ruff format"
+  ],
+  "*.{json,md,yml,yaml}": []
+}
