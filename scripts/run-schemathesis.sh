@@ -63,8 +63,7 @@ uv run schemathesis run \
   --url "http://127.0.0.1:${PORT}" \
   --include-path-regex "$INCLUDE_REGEX" \
   --checks not_a_server_error,status_code_conformance,content_type_conformance,response_schema_conformance,negative_data_rejection \
-  --hypothesis-max-examples "$EXAMPLES" \
-  --hypothesis-deadline 5000 \
+  --max-examples "$EXAMPLES" \
   --workers 2
 
 echo "✓ Schemathesis PASS"
