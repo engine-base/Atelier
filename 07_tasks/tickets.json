@@ -9,9 +9,9 @@
     "contract_frozen_at": "2026-05-20T13:30:00+09:00"
   },
   "summary": {
-    "total_tasks": 191,
+    "total_tasks": 199,
     "by_group": {
-      "F": 29,
+      "F": 37,
       "D": 35,
       "A": 45,
       "U-shared": 18,
@@ -19,7 +19,7 @@
       "I": 24
     },
     "by_category": {
-      "infra": 64,
+      "infra": 38,
       "backend": 80,
       "frontend": 40,
       "db": 35,
@@ -27,7 +27,7 @@
       "cleanup": 13
     },
     "by_label": {
-      "NEW": 138,
+      "NEW": 199,
       "REFACTOR": 51,
       "REUSE": 2
     },
@@ -52,8 +52,8 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1336.0,
-    "total_estimate_hours_ai_compute": 125.3,
+    "total_estimate_hours_human": 1363,
+    "total_estimate_hours_ai_compute": 130.75,
     "human_review_total_h": 10.8,
     "total_wall_clock_h_ai_parallel": 27.9,
     "ai_acceleration_factor_overall": 10.7,
@@ -870,7 +870,11 @@
           "packages/design-tokens/",
           "tailwind.config.ts"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/package.json",
+          "apps/web/postcss.config.mjs",
+          "apps/web/app/layout.tsx"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-09.md",
@@ -1041,7 +1045,9 @@
           "apps/api/src/db/base.py",
           "apps/api/src/db/session.py"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/pyproject.toml"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-11.md",
@@ -1129,7 +1135,9 @@
           "apps/api/src/llm/anthropic.py",
           "apps/api/src/llm/openai.py"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/pyproject.toml"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-12.md",
@@ -1557,7 +1565,9 @@
           "apps/api/src/email/templates/",
           "packages/email/"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/pyproject.toml"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-17.md",
@@ -2173,7 +2183,13 @@
           "apps/api/pytest.ini",
           "apps/api/conftest.py"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/vitest.config.ts",
+          "apps/web/tests/smoke.test.ts",
+          "apps/web/package.json",
+          "apps/api/main.py",
+          "package.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-24.md",
@@ -2718,6 +2734,674 @@
             "pnpm vitest run --coverage"
           ],
           "expected": "対象モジュール各 80% 以上"
+        }
+      ]
+    },
+    {
+      "id": "T-F-30",
+      "title": "CI Gate #11 — PR scope guard (files_changed_predicted 自動検証)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 6,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-07"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-30.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 1.2,
+      "wall_clock_h_ai": 1.5,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.5,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-30.md"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-30.md"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: v3-gate.yml に gate-11-scope-guard job が追加され、PR の git diff が tickets.json の files_changed_predicted.new ∪ modify の部分集合か検証する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "PR の touched files が new ∪ modify に含まれない場合、Gate #11 は FAIL する"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When PR branch 名が feat/t-x-y-... のパターンに合致する時、x-y からタスク ID を抽出して該当 task の boundary をチェックする"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While ブランチ名から task ID が抽出できない場合、Gate #11 は warning のみで pass する"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS",
+          "CI gate #11 PR scope guard PASS (本タスクで導入)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "scope 内 PR",
+          "steps": [
+            "files_changed_predicted.new に含まれる file のみを touch した PR"
+          ],
+          "expected": "Gate #11 PASS"
+        },
+        {
+          "name": "scope 外 PR",
+          "steps": [
+            "files_changed_predicted に無い file を 1 件 touch した PR"
+          ],
+          "expected": "Gate #11 FAIL + 違反 file 一覧を error 出力"
+        }
+      ]
+    },
+    {
+      "id": "T-F-31",
+      "title": "CI Gate #12 — selected-stack カバレッジ検証",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 4,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-07"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-31.md",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 1.0,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.3,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-31.md"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-31.md",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: v3-gate.yml に gate-12-selected-stack-coverage job が追加され、selected-stack.json の各 selection に対応する実装 (package.json deps / pyproject.toml deps / .github/workflows 等) の存在を検証する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "selected-stack.json の各 chosen 値が package.json / pyproject.toml / config 等で検出される"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "selected-stack で chosen された技術が実装側で見つからない場合、Gate #12 は FAIL する"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS",
+          "CI gate #12 selected-stack coverage PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "全 selected-stack 配線済",
+          "steps": [
+            "main の状態で gate #12 を実行"
+          ],
+          "expected": "PASS (全 chosen が deps / config に存在)"
+        },
+        {
+          "name": "selected-stack 未配線",
+          "steps": [
+            "selected-stack.json に新規 chosen を追加して PR"
+          ],
+          "expected": "Gate #12 FAIL + 未配線項目を error 出力"
+        }
+      ]
+    },
+    {
+      "id": "T-F-32",
+      "title": "CI Gate #13 — gap tracker (_TRACK: 検出 + Issue 起票)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 4,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-07"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-32.md",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 1.0,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.3,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-32.md"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-32.md"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: v3-gate.yml に gate-13-gap-tracker job が追加され、PR description / commit messages の _TRACK: または TODO / FIXME / placeholder 言及を検出して GitHub Issue 自動起票する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When PR の description または commit に _TRACK: 接頭辞が含まれる時、対応する GitHub Issue を自動起票する"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When code に TODO / FIXME / placeholder 言及が新規追加された時、Gate #13 は warning を出して tracker Issue を起票する"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS",
+          "CI gate #13 gap tracker PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "_TRACK: 接頭辞検出",
+          "steps": [
+            "PR description に '_TRACK: ESLint config を後続 PR で' と書く"
+          ],
+          "expected": "対応する GitHub Issue が自動起票される"
+        },
+        {
+          "name": "TODO 新規追加検出",
+          "steps": [
+            "code に // TODO: ... を新規追加した PR"
+          ],
+          "expected": "Gate #13 が warning + tracker Issue 起票"
+        }
+      ]
+    },
+    {
+      "id": "T-F-33",
+      "title": "uv (Astral) Python パッケージマネージャ本配線",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 3,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-02"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-33.md",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.8,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "uv.lock"
+        ],
+        "modify": [
+          "pyproject.toml",
+          "apps/api/pyproject.toml",
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-33.md",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: uv が installed + uv sync で apps/api の deps が解決される + uv.lock が commit される"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "uv run pytest が動作する"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When CI で gate #4 が pytest を実行する時、uv pip install ではなく uv sync を経由する"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "pip / poetry / pip-tools 等の代替パッケージマネージャを使わない"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "uv sync",
+          "steps": [
+            "uv sync を実行"
+          ],
+          "expected": "uv.lock 生成 + deps install"
+        },
+        {
+          "name": "uv run pytest",
+          "steps": [
+            "uv run pytest apps/api/tests"
+          ],
+          "expected": "テスト全 PASS"
+        }
+      ]
+    },
+    {
+      "id": "T-F-34",
+      "title": "Husky + lint-staged 配線",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 3,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-01",
+        "T-F-02"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-34.md",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.8,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          ".husky/pre-commit",
+          ".husky/commit-msg",
+          ".lintstagedrc.json"
+        ],
+        "modify": [
+          "package.json"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-34.md",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: .husky/pre-commit と .lintstagedrc.json が配置され、commit 前に staged file の lint / format / type-check が自動実行される"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When git commit が実行される時、.husky/pre-commit が staged file に対して lint-staged を実行する"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "lint / format で fail した変更は commit されない"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "lint fail で commit blocked",
+          "steps": [
+            "lint error のある TS ファイルを stage して commit"
+          ],
+          "expected": "Husky pre-commit が fail で commit blocked"
+        },
+        {
+          "name": "通常 commit",
+          "steps": [
+            "lint pass の変更を commit"
+          ],
+          "expected": "lint-staged が pass して commit 成功"
+        }
+      ]
+    },
+    {
+      "id": "T-F-35",
+      "title": "shellcheck CI 統合",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 2,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-07"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-35.md",
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-35.md"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-35.md",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: gate #1 lint に shellcheck (09_dispatch/scripts/*.sh + .husky/*) を追加"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "shellcheck error 0 件が必須"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "warning も 0 件にする (--severity=warning)"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff/shellcheck) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "shellcheck 正常",
+          "steps": [
+            "shellcheck 09_dispatch/scripts/*.sh"
+          ],
+          "expected": "0 error 0 warning"
+        },
+        {
+          "name": "shellcheck error 検出",
+          "steps": [
+            "bug のある .sh を追加して PR"
+          ],
+          "expected": "Gate #1 FAIL"
+        }
+      ]
+    },
+    {
+      "id": "T-F-36",
+      "title": "pyright reportUnknown* を個別 ignore に置換",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 4,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-02",
+        "T-F-12"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-36.md",
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 1.0,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.3,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-36.md"
+        ],
+        "modify": [
+          "pyproject.toml",
+          "apps/api/src/llm/anthropic.py",
+          "apps/api/src/db/session.py"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-36.md",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: pyproject.toml の pyright config から reportUnknownArgumentType / ParameterType / MemberType / VariableType / UntypedFunctionDecorator / UntypedBaseClass の false suppress を削除 (= 真の strict)"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "外部 SDK の unknown 由来の error は # pyright: ignore[reportXxx] を narrow に該当行に付与して対処"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "pyright を global config で suppress する箇所が無い"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff/shellcheck) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "pyright 真の strict",
+          "steps": [
+            "pyright apps/api"
+          ],
+          "expected": "0 error on touched (個別 ignore で対処)"
+        }
+      ]
+    },
+    {
+      "id": "T-F-37",
+      "title": "validate.sh hardcoded 表示文字列の修正 (N/N 動的化)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 1,
+      "assigned_employee": "tony",
+      "depends_on": [],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-37.md",
+      "estimate_hours_human": 1,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 5,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "07_tasks/acceptance-criteria/T-F-37.md"
+        ],
+        "modify": [
+          "09_dispatch/scripts/validate.sh"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "07_tasks/acceptance-criteria/T-F-37.md"
+        ],
+        "forbidden": []
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: validate.sh の '(190/190)' hardcoded を動的に len(tasks) を表示する形に修正"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "tickets.json の tasks 数が変化しても表示が常に正しい N/N になる"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff/shellcheck) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "validate.sh 実行",
+          "steps": [
+            "./09_dispatch/scripts/validate.sh"
+          ],
+          "expected": "✓ PASS: tickets.json is JIT-ready (199/199) のような動的表示"
         }
       ]
     },

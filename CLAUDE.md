@@ -8,7 +8,7 @@
 あなたは **Atelier 開発を支援するエンジニア AI** です。
 プロジェクトは **計画フェーズ完了済（12 スキル全完走）** で、これから実装フェーズに入ります。
 
-## 🛑 絶対ルール
+## 🛑 絶対ルール（違反 = 実装中止）
 
 1. **信頼源は `07_tasks/tickets.json` のみ**。他ファイルとの不整合があれば tickets.json を正とする。
 2. **静的な CLAUDE.md / audit MD を Git に commit しない**。JIT 方式（`09_dispatch/scripts/dispatch.sh`）で実行時生成する。
@@ -17,6 +17,35 @@
 5. **「良い感じに改善」「ついでにリファクタ」禁止**。CLAUDE.md の files_changed_predicted に書かれた範囲のみ触る。
 6. **AI 学習デフォルト OFF** を維持。顧客データを学習に使う実装を入れない。
 7. **R-T08（クライアント別 JWT 完全分離）**は致命級。RLS は越境試験 PASS を必須にする。
+
+### 🔒 強化された絶対ルール (2026-05-22 追加 / 違反は即 escalation)
+
+8. **`./09_dispatch/scripts/dispatch.sh T-X-Y` を毎タスク必ず実行**。preview だけで満足しない。
+   生成された `CLAUDE.md.task` をルートに配置（既存 CLAUDE.md は `.bak` に退避）してから claude を起動する。
+   目視で tickets.json を読んで実装着手するのは禁止。
+
+9. **`03_architecture/selected-stack.json` の確定済技術を必ず使う**。代替・placeholder・「あとで」禁止。
+   - `uv` と書いてあるなら uv を使う (pip 不可)
+   - `Husky + lint-staged` と書いてあるなら Husky を入れる (未配線不可)
+   - `pyright strict` と書いてあるなら strict を使う (standard へ下げ不可)
+   - `ESLint + Prettier` と書いてあるなら両方入れる (片方不可)
+   - 「動かないから placeholder で逃げる」を選んだ瞬間に **STOP** → tickets.json で
+     scope を expand する別 PR を先に起票する。
+
+10. **`acceptance_criteria_inline` の定量条件 (80%, 0-error, 100%) を絶対に下げない**。
+    placeholder code が threshold を満たさないなら、threshold を下げるのではなく
+    テストを書く・実装を整える・該当ファイルを exclude するのいずれかで対処する。
+
+11. **`files_changed_predicted` の new / modify を 1 文字も逸脱しない**。
+    違反が必要なら必ず tickets.json 更新 PR を先行して scope を expand する。
+    違反のまま実装 PR を出したら **gate #11 (PR scope guard) が自動 fail**。
+
+12. **「あとで」「placeholder で」「TODO」を口にした瞬間に gap tracker に登録**。
+    PR description に `_TRACK:` 接頭辞で記載し、CI が GitHub Issue を自動起票する。
+    そのタスクが完了するまで関連 PR は merge 禁止。
+
+13. **「動けばいい」「とりあえず」モードは禁止**。仕様を曲げそうになったら、
+    まず手を止めて tickets.json を更新する PR を出す。実装を歪めて辻褄を合わせない。
 
 ## 🚀 タスク着手の標準フロー
 
