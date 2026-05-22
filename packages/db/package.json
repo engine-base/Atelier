@@ -1,0 +1,24 @@
+{
+  "name": "@atelier/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier DB スキーマ + Drizzle ORM (apps/web から参照、migration は Supabase CLI 一本化)",
+  "type": "module",
+  "scripts": {
+    "studio": "drizzle-kit studio --config=./drizzle.config.ts",
+    "generate": "drizzle-kit generate --config=./drizzle.config.ts",
+    "lint": "echo 'placeholder' && exit 0",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist drizzle"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.38.3",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.1",
+    "typescript": "^5.7.2"
+  }
+}
