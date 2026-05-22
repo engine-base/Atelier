@@ -2296,7 +2296,8 @@
         "modify": [
           "pyproject.toml",
           "vitest.config.ts",
-          ".github/workflows/v3-gate.yml"
+          ".github/workflows/v3-gate.yml",
+          "apps/api/pyproject.toml"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
