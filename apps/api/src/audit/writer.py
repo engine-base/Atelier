@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +42,7 @@ class AuditEvent:
     user_agent: str | None = None
     status_code: int | None = None
 
-    created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 class AuditWriter:
