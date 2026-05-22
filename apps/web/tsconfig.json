@@ -9,7 +9,11 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./*"],
-      "@atelier/shared": ["../../packages/shared/src/index.ts"]
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@atelier/shared": ["../../packages/shared/src/index.ts"],
+      "@atelier/design-tokens": ["../../packages/design-tokens/src/index.ts"]
     },
     "verbatimModuleSyntax": false
   },

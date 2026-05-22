@@ -12,8 +12,14 @@
   "scripts": {
     "build": "echo 'placeholder — T-F-25 で OpenAPI → TS 型生成パイプライン投入' && exit 0",
     "lint": "echo 'placeholder' && exit 0",
-    "type-check": "echo 'placeholder — T-F-02 で tsc に置き換え' && exit 0",
-    "test": "echo 'placeholder' && exit 0",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
   }
 }

@@ -2,3 +2,5 @@
 // T-F-25 (OpenAPI → TS 型生成パイプライン) で types.ts が再 export される
 
 export const ATELIER_VERSION = '0.1.0' as const;
+
+export * from './schema.js';
