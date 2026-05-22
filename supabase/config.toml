@@ -36,9 +36,9 @@ port = 54322
 shadow_port = 54320
 # Maximum amount of time to wait for health check when starting the local database.
 health_timeout = "2m"
-# Atelier remote DB は Postgres 15 (2026-05 時点の Supabase デフォルト)。
-# `SHOW server_version;` で確認した値と一致させること。
-major_version = 15
+# Atelier remote DB は Postgres 17 (実 cloud で `SHOW server_version` → 17.6 を確認済)。
+# Supabase CLI のローカルプロビジョン時もこれに揃える (major_version 不一致は CLI が拒否)。
+major_version = 17
 
 [db.pooler]
 enabled = false
