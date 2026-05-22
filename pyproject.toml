@@ -61,17 +61,12 @@ exclude = [
   "**/node_modules",
 ]
 pythonVersion = "3.12"
-# selected-stack.json#type_checker_backend = "pyright strict"
+# selected-stack.json#type_checker_backend = "pyright strict" (真の strict)
 typeCheckingMode = "strict"
-# 外部 SDK (anthropic, sqlalchemy 等) は型 stub 未提供のものがあるため
-# 該当カテゴリは緩和。本コード由来の型エラーは strict で検出する。
+# Type stub 未提供の外部 SDK の missing stub のみ許容 (これは package 側の問題)。
+# それ以外の reportUnknown* / reportUntyped* は本物の strict として有効化し、
+# 外部 SDK 由来の Any は該当行に # pyright: ignore[reportXxx] で narrow 抑制する。
 reportMissingTypeStubs = false
-reportUnknownMemberType = false
-reportUnknownVariableType = false
-reportUnknownArgumentType = false
-reportUnknownParameterType = false
-reportUntypedFunctionDecorator = false
-reportUntypedBaseClass = false
 
 [tool.pytest.ini_options]
 minversion = "8.0"

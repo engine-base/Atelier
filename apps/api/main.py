@@ -8,7 +8,7 @@ OpenAPI 契約 (07_api_design/openapi.yaml) との drift は T-F-25 / T-F-26
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,7 +18,7 @@ from src.health import router as health_router
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # DB pool / LLM client 等の初期化は T-F-11 / T-F-12 で追加
     yield
 

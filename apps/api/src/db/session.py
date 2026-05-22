@@ -10,7 +10,7 @@ T-D-22 (R-T08 RLS) で具体的な claim 注入ヘルパを追加する。
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 
@@ -80,7 +80,7 @@ def create_session_factory(
 @asynccontextmanager
 async def get_session(
     factory: async_sessionmaker[AsyncSession],
-) -> AsyncIterator[AsyncSession]:
+) -> AsyncGenerator[AsyncSession, None]:
     """リクエストスコープの AsyncSession。例外時は rollback、正常時は commit。"""
     async with factory() as session:
         try:
