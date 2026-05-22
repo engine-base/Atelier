@@ -756,6 +756,89 @@ jobs:
           PY
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Gate #12 — selected-stack カバレッジ検証 (T-F-31)
+  # selected-stack.json の確定済技術が実装側で配線されているか検証。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-12-selected-stack-coverage:
+    name: "Gate #12 — selected-stack coverage"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: selected-stack coverage check
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+
+          stack_path = Path("03_architecture/selected-stack.json")
+          if not stack_path.exists():
+              print("::notice::selected-stack.json not found. Gate #12 skipped.")
+              sys.exit(0)
+
+          stack = json.loads(stack_path.read_text(encoding="utf-8"))
+          selections = stack.get("selections", {})
+          deferred = {d.get("category") for d in stack.get("deferred_decisions", [])}
+
+          def ft(p: str) -> str:
+              path = Path(p)
+              return path.read_text(encoding="utf-8") if path.exists() else ""
+
+          pkg_root = ft("package.json")
+          pkg_web = ft("apps/web/package.json")
+          pkg_e2e = ft("e2e/package.json")
+          pkg_email = ft("packages/email/package.json")
+          py_root = ft("pyproject.toml")
+          py_api = ft("apps/api/pyproject.toml")
+          tsconfig = ft("tsconfig.base.json")
+
+          CHECKS = {
+              "package_manager_ts": lambda c: "pnpm" in pkg_root,
+              "package_manager_py": lambda c: "[tool.uv" in py_root or Path("uv.lock").exists(),
+              "linter_backend": lambda c: "[tool.ruff]" in py_root or "ruff" in py_api,
+              "linter_frontend": lambda c: Path("apps/web/.eslintrc.json").exists()
+                  or Path("apps/web/eslint.config.mjs").exists() or "eslint" in pkg_web,
+              "type_checker_backend": lambda c: 'typeCheckingMode = "strict"' in py_root,
+              "type_checker_frontend": lambda c: '"strict": true' in tsconfig,
+              "test_runner_backend": lambda c: "pytest" in py_api,
+              "test_runner_frontend": lambda c: "vitest" in pkg_root or "vitest" in pkg_web,
+              "e2e": lambda c: "@playwright/test" in pkg_e2e,
+              "git_hooks": lambda c: Path(".husky/pre-commit").exists(),
+              "monorepo_tool": lambda c: Path("turbo.json").exists(),
+              "validation_ts": lambda c: "zod" in pkg_web or "zod" in pkg_root,
+              "validation_py": lambda c: "pydantic" in py_api,
+              "ui_core": lambda c: "tailwindcss" in pkg_web,
+              "email": lambda c: "resend" in pkg_email or "@react-email/components" in pkg_email,
+              "shellcheck": lambda c: "shellcheck" in ft(".github/workflows/v3-gate.yml"),
+          }
+
+          missing = []
+          checked = 0
+          for cat, info in selections.items():
+              if cat in deferred:
+                  continue
+              if cat not in CHECKS:
+                  continue
+              checked += 1
+              chosen = info.get("chosen", "")
+              if not CHECKS[cat](chosen):
+                  missing.append((cat, chosen))
+
+          print(f"  selected-stack total: {len(selections)}")
+          print(f"  checked: {checked}")
+          print(f"  missing: {len(missing)}")
+
+          if missing:
+              print("::error::Gate #12 FAIL — 以下の selected-stack 項目が未配線:")
+              for cat, chosen in missing:
+                  print(f"  - {cat}: chosen='{chosen}'")
+              print("対処: 該当 task を起票 → JIT で配線、または deferred_decisions[] に追加")
+              sys.exit(1)
+          print(f"Gate #12 PASS — all {checked} selected-stack items wired.")
+          PY
+
+  # ─────────────────────────────────────────────────────────────────────────
   # 全 gate 集約
   # ─────────────────────────────────────────────────────────────────────────
   aggregate-status:
@@ -773,6 +856,7 @@ jobs:
       - gate-9-screen-api-coverage
       - gate-10-rls-isolation
       - gate-11-scope-guard
+      - gate-12-selected-stack-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -789,6 +873,7 @@ jobs:
             [gate-9-screen-api-coverage]="${{ needs.gate-9-screen-api-coverage.result }}"
             [gate-10-rls-isolation]="${{ needs.gate-10-rls-isolation.result }}"
             [gate-11-scope-guard]="${{ needs.gate-11-scope-guard.result }}"
+            [gate-12-selected-stack-coverage]="${{ needs.gate-12-selected-stack-coverage.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
