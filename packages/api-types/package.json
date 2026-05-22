@@ -1,0 +1,21 @@
+{
+  "name": "@atelier/api-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Atelier API 型 (openapi-typescript 自動生成、信頼源は 07_api_design/openapi.yaml)",
+  "type": "module",
+  "main": "./src/openapi.ts",
+  "types": "./src/openapi.ts",
+  "exports": {
+    ".": "./src/openapi.ts"
+  },
+  "scripts": {
+    "lint": "echo 'placeholder' && exit 0",
+    "type-check": "tsc --noEmit",
+    "test": "echo 'no runtime — generated types only' && exit 0",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
