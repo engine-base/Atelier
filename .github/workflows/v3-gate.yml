@@ -246,6 +246,11 @@ jobs:
               # apps/web は Playwright E2E (T-F-23) でカバーする方針のため
               # vitest unit coverage 計測対象外。touched files 80% gate も skip。
               and not t.startswith('apps/web/')
+              # **/index.ts は vitest coverage exclude に合わせて gate からも除外
+              # (barrel re-export のみで実装 statement を持たないため)
+              and not t.endswith('/index.ts') and t != 'index.ts'
+              # React Email テンプレも coverage 対象外
+              and not t.startswith('packages/email/src/templates/')
           ]
           if not src_files:
               print("No source TS files touched (only tests/configs). Skipping.")
