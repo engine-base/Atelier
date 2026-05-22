@@ -114,6 +114,22 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: shellcheck on *.sh files
+        run: |
+          SH_FILES=$(find . -name '*.sh' -not -path './node_modules/*' \
+            -not -path './.git/*' -not -path './.venv/*' -not -path './.next/*')
+          if [ -z "$SH_FILES" ]; then
+            echo "No .sh files found. shellcheck skipped."
+            exit 0
+          fi
+          echo "Checking:" && echo "$SH_FILES"
+          # .husky/* (POSIX sh, no shebang) は明示的に sh shell として lint
+          # その他 (09_dispatch/scripts/*.sh) は shebang から検出
+          # shellcheck -e SC1091 で source されるファイル不在を許容
+          # shellcheck で warning 以上を fail
+          shellcheck --severity=warning --exclude=SC1091 $SH_FILES
 
   # ─────────────────────────────────────────────────────────────────────────
   # Gate #3 — type check (tsc + pyright)。touched files 0-error。
