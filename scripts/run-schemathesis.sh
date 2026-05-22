@@ -35,10 +35,11 @@ uv sync --all-packages --all-extras
 uv pip install schemathesis==4.0.0
 
 # uvicorn を background で boot
+# subshell 全体を & で background 化することで $! が正しく PID を取得できる
 echo "→ booting uvicorn on 127.0.0.1:${PORT}"
-(cd apps/api && uv run uvicorn main:app --host 127.0.0.1 --port "$PORT" >/tmp/uvicorn.log 2>&1 &)
-UVICORN_PID=$!
-trap 'kill $UVICORN_PID 2>/dev/null || true' EXIT
+( cd apps/api && uv run uvicorn main:app --host 127.0.0.1 --port "$PORT" ) >/tmp/uvicorn.log 2>&1 &
+UVICORN_PID="$!"
+trap 'kill "${UVICORN_PID}" 2>/dev/null || true' EXIT
 
 # health check
 echo "→ waiting for health endpoint"
