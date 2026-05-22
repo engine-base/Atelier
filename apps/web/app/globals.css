@@ -3,6 +3,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* shadcn/ui theme bridge — design-tokens の M3 ロールを shadcn の semantic 名に橋渡し */
+@layer base {
+  :root {
+    --background: var(--color-surface);
+    --foreground: var(--color-on-surface);
+    --card: var(--color-surface);
+    --card-foreground: var(--color-on-surface);
+    --popover: var(--color-surface);
+    --popover-foreground: var(--color-on-surface);
+    --primary: var(--color-primary);
+    --primary-foreground: var(--color-on-primary);
+    --secondary: var(--color-secondary-container);
+    --secondary-foreground: var(--color-on-secondary-container);
+    --muted: var(--color-surface-variant);
+    --muted-foreground: var(--color-on-surface-variant);
+    --accent: var(--color-tertiary-container);
+    --accent-foreground: var(--color-on-tertiary-container);
+    --destructive: var(--color-error);
+    --destructive-foreground: var(--color-on-error);
+    --border: var(--color-surface-variant);
+    --input: var(--color-surface-variant);
+    --ring: var(--color-primary);
+    --radius: var(--rounded-md);
+  }
+}
+
 @layer base {
   html {
     font-family: var(--font-sans);
