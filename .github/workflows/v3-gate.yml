@@ -104,8 +104,11 @@ jobs:
         run: pnpm -r --if-present run lint
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
-      - name: Install ruff
-        run: pip install ruff==0.8.4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
+      - name: Install ruff via uv
+        run: uv tool install ruff==0.8.4
       - name: Ruff check + format check
         if: needs.detect-changes.outputs.py_changed == 'true'
         run: |
@@ -133,13 +136,15 @@ jobs:
         run: pnpm -r --if-present run type-check
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Install uv
+        if: needs.detect-changes.outputs.py_changed == 'true'
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
       - name: pyright on touched files
         if: needs.detect-changes.outputs.py_changed == 'true'
         run: |
-          pip install pyright==1.1.391
-          if [ -f apps/api/pyproject.toml ]; then
-            pip install -e "apps/api[dev]" || pip install -e apps/api
-          fi
+          uv sync --all-extras
+          uv pip install pyright==1.1.391
           mapfile -t TOUCHED < <(printf '%s\n' "${{ needs.detect-changes.outputs.py_files }}" | grep -v '^$' || true)
           if [ "${#TOUCHED[@]}" -eq 0 ]; then
             echo "No touched .py files. Skipping pyright."
@@ -147,7 +152,7 @@ jobs:
           fi
           echo "Touched .py files (${#TOUCHED[@]}):"
           printf '  %s\n' "${TOUCHED[@]}"
-          pyright --outputjson > /tmp/pyright.json || true
+          uv run pyright --outputjson > /tmp/pyright.json || true
           python3 - <<'PY'
           import json, sys, os
           touched = [
@@ -252,13 +257,15 @@ jobs:
         env:
           TOUCHED_FILES: ${{ needs.detect-changes.outputs.ts_files }}
 
+      - name: Install uv (gate-4)
+        if: needs.detect-changes.outputs.py_changed == 'true'
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
       - name: pytest coverage on touched Python files
         if: needs.detect-changes.outputs.py_changed == 'true'
         run: |
-          pip install diff-cover==9.2.1
-          if [ -f apps/api/pyproject.toml ]; then
-            pip install -e "apps/api[dev]"
-          fi
+          uv sync --all-extras
+          uv pip install diff-cover==9.2.1
           if ! [ -d apps/api/tests ]; then
             echo "::error::apps/api/tests/ missing. Touched .py files require accompanying tests."
             exit 1
@@ -267,8 +274,8 @@ jobs:
             echo "::error::apps/api/tests/ contains no test_*.py. Touched .py files require accompanying tests."
             exit 1
           fi
-          (cd apps/api && pytest tests --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing)
-          diff-cover apps/api/coverage.xml \
+          (cd apps/api && uv run pytest tests --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing)
+          uv run diff-cover apps/api/coverage.xml \
             --compare-branch=origin/main \
             --fail-under=80 \
             --src-roots apps/api \
@@ -295,7 +302,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
-      - run: pip install pyyaml==6.0.2
+      - run: pip install pyyaml==6.0.2  # stdlib heredoc helper; uv 不要
       - name: Check endpoint existence
         run: |
           python3 - <<'PY'
@@ -475,6 +482,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
       - name: Boot API and run schemathesis
         run: |
           if ! [ -f apps/api/main.py ]; then
@@ -485,9 +494,9 @@ jobs:
             echo "::error::openapi.yaml missing"
             exit 1
           fi
-          pip install -e "apps/api[dev]"
-          pip install schemathesis==4.0.0
-          (cd apps/api && uvicorn main:app --host 127.0.0.1 --port 8765 &)
+          uv sync --all-extras
+          uv pip install schemathesis==4.0.0
+          (cd apps/api && uv run uvicorn main:app --host 127.0.0.1 --port 8765 &)
           # wait for server
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8765/health >/dev/null 2>&1; then
@@ -498,7 +507,7 @@ jobs:
           # 実装済 endpoint のみテスト。schemathesis は openapi 全 path を試行するが、
           # 未実装は 404 になる。Phase 0 ではフィルタで /health のみ。
           # 本来は ENVTAR `--include-path-regex` で実装済 path のみ。
-          schemathesis run \
+          uv run schemathesis run \
             07_api_design/openapi.yaml \
             --url http://127.0.0.1:8765 \
             --include-path-regex '^/health$' \
@@ -522,7 +531,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
-      - run: pip install pyyaml==6.0.2
+      - run: pip install pyyaml==6.0.2  # stdlib heredoc helper; uv 不要
       - name: Screen-API coverage
         run: |
           python3 - <<'PY'
