@@ -958,7 +958,8 @@
         "new": [
           "packages/db/drizzle.config.ts",
           "packages/db/src/schema/.gitkeep",
-          "packages/db/package.json"
+          "packages/db/package.json",
+          "packages/db/tsconfig.json"
         ],
         "modify": [],
         "shared_read": [
