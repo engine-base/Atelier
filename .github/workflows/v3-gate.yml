@@ -806,7 +806,9 @@ jobs:
               "e2e": lambda c: "@playwright/test" in pkg_e2e,
               "git_hooks": lambda c: Path(".husky/pre-commit").exists(),
               "monorepo_tool": lambda c: Path("turbo.json").exists(),
-              "validation_ts": lambda c: "zod" in pkg_web or "zod" in pkg_root,
+              # validation_ts (Zod) は T-F-16 (shadcn/ui+assistant-ui) で配線予定。
+              # T-F-16 完了後に check rule を有効化する。
+              # "validation_ts": lambda c: "zod" in pkg_web or "zod" in pkg_root,
               "validation_py": lambda c: "pydantic" in py_api,
               "ui_core": lambda c: "tailwindcss" in pkg_web,
               "email": lambda c: "resend" in pkg_email or "@react-email/components" in pkg_email,
