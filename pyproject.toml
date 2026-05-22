@@ -61,7 +61,10 @@ exclude = [
   "**/node_modules",
 ]
 pythonVersion = "3.12"
-typeCheckingMode = "standard"
+# selected-stack.json#type_checker_backend = "pyright strict"
+typeCheckingMode = "strict"
+# 外部 SDK (anthropic, sqlalchemy 等) は型 stub 未提供のものがあるため
+# 該当カテゴリは緩和。本コード由来の型エラーは strict で検出する。
 reportMissingTypeStubs = false
 reportUnknownMemberType = false
 reportUnknownVariableType = false
