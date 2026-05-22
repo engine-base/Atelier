@@ -28,6 +28,7 @@ export default defineConfig({
         'packages/**/src/**/*.{ts,tsx}',
       ],
       // apps/web は Playwright E2E (T-F-23) で検証する。Vitest coverage 対象外。
+      // packages/email/src/templates/* は React Email build 入力で unit test 対象外。
       exclude: [
         '**/*.d.ts',
         '**/*.config.{ts,js,mjs}',
@@ -36,6 +37,7 @@ export default defineConfig({
         '**/node_modules/**',
         '**/index.ts',
         'apps/web/**',
+        'packages/email/src/templates/**',
       ],
       // web/testing.md 規定: lines/functions/statements 80%, branches 75%
       thresholds: {
