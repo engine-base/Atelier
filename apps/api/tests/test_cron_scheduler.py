@@ -1,6 +1,6 @@
 """Unit tests for apps/api/src/cron/scheduler.py + inngest_handlers.py."""
 
-# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportPrivateUsage=false
 from __future__ import annotations
 
 import inngest
