@@ -1,4 +1,9 @@
-"""Unit tests for apps/api/src/audit/middleware.py."""
+# pyright: reportUnusedFunction=false
+"""Unit tests for apps/api/src/audit/middleware.py.
+
+FastAPI の @app.get decorator は内部で参照するため pyright の reportUnusedFunction
+を file-level で抑制する。
+"""
 
 from __future__ import annotations
 
@@ -19,9 +24,11 @@ def _build_app(executions: list[Any], *, exempt: set[str] | None = None) -> Fast
     app = FastAPI()
 
     session = MagicMock(spec=AsyncSession)
-    session.execute = AsyncMock(
-        side_effect=lambda *args, **kwargs: executions.append((args, kwargs))
-    )
+
+    def _capture(*args: Any, **kwargs: Any) -> None:
+        executions.append((args, kwargs))
+
+    session.execute = AsyncMock(side_effect=_capture)
 
     @asynccontextmanager
     async def factory():
@@ -62,7 +69,6 @@ class TestAuditMiddleware:
             response = await client.get("/projects")
         assert response.status_code == 200
         assert len(executions) == 1
-        _args, kwargs = executions[0]
         # 何らかの形で metadata に method/path が入る (SQL params)
         # SQLAlchemy text() は positional args で渡る場合があるので
         # 単に呼ばれたことだけを確認
