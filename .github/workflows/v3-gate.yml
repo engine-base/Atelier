@@ -644,6 +644,93 @@ jobs:
           PY
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Gate #11 — PR scope guard (T-F-30)
+  # ブランチ名から task ID を抽出 → tickets.json#T-X-Y.files_changed_predicted
+  # の new ∪ modify に含まれないファイルを touch していたら FAIL。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-11-scope-guard:
+    name: "Gate #11 — PR scope guard"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Scope guard
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_SHA: ${{ needs.detect-changes.outputs.base_sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, sys
+          from pathlib import Path
+
+          branch = os.environ.get("BRANCH", "")
+          base = os.environ.get("BASE_SHA", "")
+
+          # ブランチ名から task ID 抽出 (例: feat/t-f-30-... → T-F-30)
+          m = re.match(r"^(?:feat|fix|chore|docs|refactor|test)/(t-[a-z]-[0-9]+)", branch, re.IGNORECASE)
+          if not m:
+              print(f"::notice::Branch '{branch}' does not match feat/t-x-y-... pattern. Scope guard skipped (fix/chore/etc OK).")
+              sys.exit(0)
+          task_id = m.group(1).upper()
+          print(f"  branch task ID: {task_id}")
+
+          tickets = json.loads(Path("07_tasks/tickets.json").read_text(encoding="utf-8"))
+          task = next((t for t in tickets.get("tasks", []) if t.get("id") == task_id), None)
+          if not task:
+              print(f"::error::Task {task_id} not found in tickets.json")
+              sys.exit(1)
+
+          fcp = task.get("files_changed_predicted", {})
+          allowed = set((fcp.get("new") or []) + (fcp.get("modify") or []))
+          # exemption: 自タスクの AC document + lockfiles
+          ac_path = task.get("ac_path", "")
+          if ac_path:
+              allowed.add(ac_path)
+          EXEMPT = {"pnpm-lock.yaml", "package-lock.json", "yarn.lock", "uv.lock"}
+          allowed |= EXEMPT
+
+          # git diff で touched files
+          if not base:
+              base = subprocess.run(
+                  ["git", "rev-list", "--max-parents=0", "HEAD"],
+                  capture_output=True, text=True, check=True,
+              ).stdout.strip().splitlines()[-1]
+          diff_out = subprocess.run(
+              ["git", "diff", "--name-only", f"{base}...HEAD"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          touched = [p.strip() for p in diff_out.splitlines() if p.strip()]
+          print(f"  touched files: {len(touched)}")
+          print(f"  allowed (new + modify + ac + lock): {len(allowed)}")
+
+          # ディレクトリ prefix match を許容
+          # (files_changed_predicted に 'apps/web/' のような末尾 / の dir 指定があるため)
+          dir_prefixes = {a for a in allowed if a.endswith("/")}
+          file_allowed = allowed - dir_prefixes
+
+          violations = []
+          for t in touched:
+              if t in file_allowed:
+                  continue
+              if any(t.startswith(p) for p in dir_prefixes):
+                  continue
+              violations.append(t)
+
+          if violations:
+              print(f"::error::Gate #11 FAIL — {len(violations)} file(s) outside {task_id}.files_changed_predicted:")
+              for v in violations:
+                  print(f"  - {v}")
+              print("")
+              print("対処: tickets.json で当該 task の files_changed_predicted を expand する別 PR を先行してください。")
+              sys.exit(1)
+          print(f"Gate #11 PASS — all {len(touched)} touched file(s) within {task_id} scope.")
+          PY
+
+  # ─────────────────────────────────────────────────────────────────────────
   # 全 gate 集約
   # ─────────────────────────────────────────────────────────────────────────
   aggregate-status:
@@ -660,6 +747,7 @@ jobs:
       - gate-8-schemathesis
       - gate-9-screen-api-coverage
       - gate-10-rls-isolation
+      - gate-11-scope-guard
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -675,6 +763,7 @@ jobs:
             [gate-8-schemathesis]="${{ needs.gate-8-schemathesis.result }}"
             [gate-9-screen-api-coverage]="${{ needs.gate-9-screen-api-coverage.result }}"
             [gate-10-rls-isolation]="${{ needs.gate-10-rls-isolation.result }}"
+            [gate-11-scope-guard]="${{ needs.gate-11-scope-guard.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
