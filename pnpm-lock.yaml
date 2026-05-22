@@ -134,6 +134,12 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/api-types:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/db:
     dependencies:
       drizzle-orm:

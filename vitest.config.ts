@@ -38,6 +38,10 @@ export default defineConfig({
         '**/index.ts',
         'apps/web/**',
         'packages/email/src/templates/**',
+        // OpenAPI 由来の generated 型 (T-F-25) は Gate #7 で drift 検証されるため
+        // unit coverage 対象外
+        'packages/api-types/**',
+        '**/_generated/**',
       ],
       // web/testing.md 規定: lines/functions/statements 80%, branches 75%
       thresholds: {

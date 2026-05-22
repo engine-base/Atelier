@@ -251,6 +251,10 @@ jobs:
               and not t.endswith('/index.ts') and t != 'index.ts'
               # React Email テンプレも coverage 対象外
               and not t.startswith('packages/email/src/templates/')
+              # OpenAPI 由来の generated 型 (T-F-25) は Gate #7 で drift 検証されるため
+              # touched files 80% gate 対象外
+              and not t.startswith('packages/api-types/')
+              and '/_generated/' not in t
           ]
           if not src_files:
               print("No source TS files touched (only tests/configs). Skipping.")
@@ -471,29 +475,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: "${{ env.NODE_VERSION }}" }
-      - name: openapi-typescript drift
+      - uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
+      - name: type drift (TS + Pydantic via sync-types.sh)
         run: |
           if ! [ -f 07_api_design/openapi.yaml ]; then
             echo "::error::07_api_design/openapi.yaml missing"
             exit 1
           fi
-          if ! [ -f 07_api_design/types.ts ]; then
-            echo "::notice::types.ts missing — drift check skipped (Phase 0 pre T-F-25)."
+          if ! [ -x scripts/sync-types.sh ]; then
+            echo "::notice::scripts/sync-types.sh missing — Gate #7 skipped (pre T-F-25)."
             exit 0
           fi
-          npx --yes openapi-typescript@7.4.4 07_api_design/openapi.yaml -o /tmp/types-generated.ts
-          # 正規化して比較 (空行/コメント除去)
-          normalize() { grep -vE '^\s*(//|/\*|\*|$)' "$1" | tr -d '[:space:]'; }
-          gen_hash=$(normalize /tmp/types-generated.ts | shasum -a 256 | cut -d' ' -f1)
-          ref_hash=$(normalize 07_api_design/types.ts | shasum -a 256 | cut -d' ' -f1)
-          echo "  generated: $gen_hash"
-          echo "  reference: $ref_hash"
-          if [ "$gen_hash" = "$ref_hash" ]; then
-            echo "Gate #7 PASS — types.ts is in sync with openapi.yaml."
-          else
-            echo "::warning::types.ts drift detected vs openapi.yaml. T-F-25 (auto-regen pipeline) will keep these in sync."
-            # Phase 0: warning only. T-F-25 完成後は exit 1 にする。
+          # 生成パイプラインを実行 → git diff で drift 検出
+          ./scripts/sync-types.sh
+          if [ -n "$(git status --porcelain packages/api-types apps/api/src/_generated)" ]; then
+            echo "::error::Gate #7 FAIL — generated artifacts drift from openapi.yaml:"
+            git diff --stat packages/api-types apps/api/src/_generated
+            git diff packages/api-types apps/api/src/_generated | head -50
+            echo ""
+            echo "対処: ローカルで ./scripts/sync-types.sh を実行して commit してください。"
+            exit 1
           fi
+          echo "Gate #7 PASS — generated artifacts in sync with openapi.yaml."
 
   # ─────────────────────────────────────────────────────────────────────────
   # Gate #8 — Schemathesis contract test (server boot → openapi.yaml で stateful test)
