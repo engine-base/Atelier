@@ -27,7 +27,7 @@ from src.db.session import (
 class TestDatabaseSettings:
     def test_defaults_when_url_provided_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ATELIER_DB_URL", "postgresql+asyncpg://u:p@h:5432/db")
-        cfg = DatabaseSettings()
+        cfg = DatabaseSettings()  # type: ignore[call-arg]
         assert cfg.url == "postgresql+asyncpg://u:p@h:5432/db"
         assert cfg.pool_size == 10
         assert cfg.max_overflow == 5
@@ -42,7 +42,7 @@ class TestDatabaseSettings:
         monkeypatch.setenv("ATELIER_DB_POOL_TIMEOUT", "5.0")
         monkeypatch.setenv("ATELIER_DB_POOL_RECYCLE_SECONDS", "120")
         monkeypatch.setenv("ATELIER_DB_ECHO_SQL", "true")
-        cfg = DatabaseSettings()
+        cfg = DatabaseSettings()  # type: ignore[call-arg]
         assert cfg.pool_size == 3
         assert cfg.max_overflow == 1
         assert cfg.pool_timeout == 5.0
@@ -53,7 +53,7 @@ class TestDatabaseSettings:
         monkeypatch.setenv("ATELIER_DB_URL", "postgresql+asyncpg://u:p@h/db")
         monkeypatch.setenv("ATELIER_DB_POOL_SIZE", "0")
         with pytest.raises(Exception):  # noqa: B017 - pydantic v2 ValidationError
-            DatabaseSettings()
+            DatabaseSettings()  # type: ignore[call-arg]
 
 
 @pytest.mark.unit
