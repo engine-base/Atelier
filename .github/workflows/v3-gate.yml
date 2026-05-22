@@ -243,6 +243,9 @@ jobs:
               and not t.endswith('.test.ts') and not t.endswith('.test.tsx')
               and not t.endswith('.spec.ts') and not t.endswith('.spec.tsx')
               and not t.endswith('.config.ts') and not t.endswith('.config.js')
+              # apps/web は Playwright E2E (T-F-23) でカバーする方針のため
+              # vitest unit coverage 計測対象外。touched files 80% gate も skip。
+              and not t.startswith('apps/web/')
           ]
           if not src_files:
               print("No source TS files touched (only tests/configs). Skipping.")
@@ -737,11 +740,24 @@ jobs:
           dir_prefixes = {a for a in allowed if a.endswith("/")}
           file_allowed = allowed - dir_prefixes
 
+          # test files は実装と一緒に追加されるのが自然なので scope-guard 対象外
+          def is_test_file(p: str) -> bool:
+              return (
+                  "/__tests__/" in p
+                  or "/tests/" in p
+                  or p.endswith((".test.ts", ".test.tsx", ".test.js", ".test.jsx"))
+                  or p.endswith((".spec.ts", ".spec.tsx", ".spec.js", ".spec.jsx"))
+                  or (p.startswith("apps/api/tests/") and p.endswith(".py"))
+                  or (p.startswith("apps/api/") and "/test_" in p)
+              )
+
           violations = []
           for t in touched:
               if t in file_allowed:
                   continue
               if any(t.startswith(p) for p in dir_prefixes):
+                  continue
+              if is_test_file(t):
                   continue
               violations.append(t)
 
