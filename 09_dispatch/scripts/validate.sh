@@ -123,5 +123,5 @@ if warn:
 if fail:
     print("\n→ exit 1: tickets.json は JIT スキーマを満たしていません")
     sys.exit(1)
-print("\n✓ PASS: tickets.json is JIT-ready (190/190)")
+print(f"\n✓ PASS: tickets.json is JIT-ready ({len(tasks)}/{len(tasks)})")
 PY
