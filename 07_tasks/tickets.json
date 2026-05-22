@@ -346,9 +346,13 @@
           "apps/web/next.config.ts",
           "apps/web/app/layout.tsx",
           "apps/web/app/page.tsx",
-          "apps/web/tsconfig.json"
+          "apps/web/tsconfig.json",
+          "apps/web/.eslintrc.json",
+          "apps/web/.eslintignore"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/package.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-03.md",
