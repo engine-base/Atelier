@@ -1222,7 +1222,9 @@
           "apps/api/src/graph/workflows.py",
           "apps/api/inngest_config.py"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/pyproject.toml"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-13.md",
