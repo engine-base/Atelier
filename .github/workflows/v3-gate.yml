@@ -159,7 +159,7 @@ jobs:
       - name: pyright on touched files
         if: needs.detect-changes.outputs.py_changed == 'true'
         run: |
-          uv sync --all-extras
+          uv sync --all-packages --all-extras
           uv pip install pyright==1.1.391
           mapfile -t TOUCHED < <(printf '%s\n' "${{ needs.detect-changes.outputs.py_files }}" | grep -v '^$' || true)
           if [ "${#TOUCHED[@]}" -eq 0 ]; then
@@ -280,7 +280,7 @@ jobs:
       - name: pytest coverage on touched Python files
         if: needs.detect-changes.outputs.py_changed == 'true'
         run: |
-          uv sync --all-extras
+          uv sync --all-packages --all-extras
           uv pip install diff-cover==9.2.1
           if ! [ -d apps/api/tests ]; then
             echo "::error::apps/api/tests/ missing. Touched .py files require accompanying tests."
@@ -510,7 +510,7 @@ jobs:
             echo "::error::openapi.yaml missing"
             exit 1
           fi
-          uv sync --all-extras
+          uv sync --all-packages --all-extras
           uv pip install schemathesis==4.0.0
           (cd apps/api && uv run uvicorn main:app --host 127.0.0.1 --port 8765 &)
           # wait for server
