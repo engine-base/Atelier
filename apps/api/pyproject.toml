@@ -12,6 +12,8 @@ dependencies = [
   "sqlalchemy[asyncio]>=2.0.36",
   "asyncpg>=0.30.0",
   "anthropic>=0.40.0",
+  "langgraph>=0.2.60",
+  "inngest>=0.4.19",
 ]
 
 [project.optional-dependencies]
