@@ -841,6 +841,75 @@ jobs:
           PY
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Gate #13 — gap tracker (T-F-32)
+  # PR description / commit / diff の _TRACK: / TODO / FIXME を検出して
+  # GitHub Issue を自動起票。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-13-gap-tracker:
+    name: "Gate #13 — gap tracker"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Detect gap markers and create issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ needs.detect-changes.outputs.base_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          # 1) PR body / title から _TRACK: 検出
+          gap_lines=()
+          while IFS= read -r line; do
+            gap_lines+=("$line")
+          done < <(printf '%s\n%s' "${PR_TITLE:-}" "${PR_BODY:-}" | grep -E '_TRACK:' || true)
+          # 2) diff 内の新規 TODO / FIXME / XXX
+          while IFS= read -r line; do
+            gap_lines+=("$line")
+          done < <(git diff "${BASE_SHA}...HEAD" --unified=0 -- \
+            ':(exclude).github/**' ':(exclude)07_tasks/**' \
+            ':(exclude)09_dispatch/**' ':(exclude)*.md' \
+            2>/dev/null | grep -E '^\+.*(TODO|FIXME|XXX)' | grep -v '^+++' || true)
+
+          if [ "${#gap_lines[@]}" -eq 0 ]; then
+            echo "Gate #13 PASS — no _TRACK / TODO / FIXME / XXX detected."
+            exit 0
+          fi
+
+          echo "::warning::Gate #13 detected ${#gap_lines[@]} gap marker(s):"
+          for l in "${gap_lines[@]}"; do echo "  - $l"; done
+
+          # Issue 起票 (重複防止のため既存 search)
+          for l in "${gap_lines[@]}"; do
+            title="[gap-tracker] PR #${PR_NUMBER}: $(echo "$l" | head -c 80)"
+            # 既存 issue check
+            existing=$(gh issue list --search "$title in:title" --state open --json number --jq '.[0].number // empty')
+            if [ -n "$existing" ]; then
+              echo "  existing issue #$existing for: $title"
+              continue
+            fi
+            gh issue create \
+              --title "$title" \
+              --body "Gap detected in PR #${PR_NUMBER}:\n\n\`\`\`\n${l}\n\`\`\`\n\nResolve before PR merges to main, or document why deferred." \
+              --label "gap-tracker,follow-up" 2>&1 \
+              || gh issue create --title "$title" --body "Gap from PR #${PR_NUMBER}: ${l}"
+          done
+
+          # PR comment
+          gh pr comment "$PR_NUMBER" --body "📌 Gate #13 gap-tracker registered ${#gap_lines[@]} marker(s). See linked issues." || true
+
+          echo "Gate #13 PASS (warning-only). ${#gap_lines[@]} gap(s) tracked."
+
+  # ─────────────────────────────────────────────────────────────────────────
   # 全 gate 集約
   # ─────────────────────────────────────────────────────────────────────────
   aggregate-status:
@@ -859,6 +928,7 @@ jobs:
       - gate-10-rls-isolation
       - gate-11-scope-guard
       - gate-12-selected-stack-coverage
+      - gate-13-gap-tracker
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -876,6 +946,7 @@ jobs:
             [gate-10-rls-isolation]="${{ needs.gate-10-rls-isolation.result }}"
             [gate-11-scope-guard]="${{ needs.gate-11-scope-guard.result }}"
             [gate-12-selected-stack-coverage]="${{ needs.gate-12-selected-stack-coverage.result }}"
+            [gate-13-gap-tracker]="${{ needs.gate-13-gap-tracker.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
