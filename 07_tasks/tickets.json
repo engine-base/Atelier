@@ -1478,9 +1478,20 @@
         "new": [
           "apps/web/components.json",
           "apps/web/components/ui/.gitkeep",
-          "apps/web/lib/utils.ts"
+          "apps/web/lib/utils.ts",
+          "apps/web/lib/cn.ts",
+          "apps/web/components/ui/button.tsx",
+          "apps/web/components/ui/card.tsx",
+          "apps/web/components/ai/thread.tsx",
+          "apps/web/components/ai/tool-card.tsx",
+          "packages/shared/src/schema.ts"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/package.json",
+          "apps/web/tsconfig.json",
+          "apps/web/app/globals.css",
+          "packages/shared/src/index.ts"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-F-16.md",
