@@ -32,3 +32,26 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
+
+# pytest-cov 設定 (apps/api 配下で実行される pytest が読み込む)
+# OpenAPI 由来の generated 型 (T-F-25) は Gate #7 で drift 検証されるため
+# unit coverage 計測対象外。
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+  "**/tests/**",
+  "**/__init__.py",
+  "**/_generated/**",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_covered = false
+fail_under = 80
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
