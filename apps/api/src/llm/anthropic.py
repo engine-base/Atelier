@@ -1,9 +1,13 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownParameterType=false
 """Anthropic Claude client。
 
 公式 anthropic SDK + Claude Agent SDK を直叩き。
 - Prompt Caching / Batch API / web_search / Tool Use は T-F-15 / T-F-21 で配線。
 - AI 学習デフォルト OFF を BYOK 経由で維持。
 - BYOK 秘匿情報は Supabase Vault 経由 (T-F-19)。ここでは環境変数を読むだけ。
+
+NOTE: file-level pyright directive で anthropic SDK 由来の unknown 型を narrow に
+許容している。SDK 側の typing が整ったら撤回する。
 """
 
 from __future__ import annotations
