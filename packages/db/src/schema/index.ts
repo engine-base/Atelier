@@ -441,3 +441,167 @@ export const aiEmployees = pgTable(
 
 export type AiEmployee = typeof aiEmployees.$inferSelect;
 export type NewAiEmployee = typeof aiEmployees.$inferInsert;
+
+// =============================================================================
+// Task 系 enums — T-D-05 (E-012, Hermes v3.1 互換)
+// =============================================================================
+export const taskTypeEnum = pgEnum('task_type_enum', [
+  'foundation',
+  'screen',
+  'feature',
+  'verification',
+  'infrastructure',
+]);
+export type TaskType = (typeof taskTypeEnum.enumValues)[number];
+
+export const taskStatusEnum = pgEnum('task_status_enum', [
+  'pending',
+  'in_progress',
+  'completed',
+  'cancelled',
+]);
+export type TaskStatusValue = (typeof taskStatusEnum.enumValues)[number];
+
+export const taskPriorityEnum = pgEnum('task_priority_enum', [
+  'low',
+  'medium',
+  'high',
+  'urgent',
+]);
+export type TaskPriority = (typeof taskPriorityEnum.enumValues)[number];
+
+export const taskLifecycleEnum = pgEnum('task_lifecycle_enum', [
+  'triage',
+  'ready',
+  'in_progress',
+  'blocked',
+  'awaiting',
+  'done',
+]);
+export type TaskLifecycle = (typeof taskLifecycleEnum.enumValues)[number];
+
+export const taskDispatchEnum = pgEnum('task_dispatch_enum', [
+  'queued',
+  'spawning',
+  'running',
+  'completing',
+  'dead',
+  'reclaimed',
+]);
+export type TaskDispatch = (typeof taskDispatchEnum.enumValues)[number];
+
+// =============================================================================
+// E-012 Task — T-D-05 (Hermes v3.1 互換 31 フィールド)
+// workspace_scoped via project_id、soft_delete、kanban 6 列モデル。
+// acceptance_criteria_id / mock_id は forward ref (T-D-06 / T-D-07 で ALTER FK 追加予定)。
+// =============================================================================
+export const tasks = pgTable(
+  'tasks',
+  {
+    // 識別 & 階層
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    phaseId: uuid('phase_id').references(() => phases.id, {
+      onDelete: 'set null',
+    }),
+    // parent_task_id は self-reference (FK は SQL で配置済、Drizzle は型のみ)
+    parentTaskId: uuid('parent_task_id'),
+
+    // 表示
+    category: text('category').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+
+    // 分類
+    type: taskTypeEnum('type').notNull(),
+    estimatedHours: integer('estimated_hours').notNull(),
+
+    // 依存関係 (アプリ層で整合性)
+    dependencies: uuid('dependencies')
+      .array()
+      .notNull()
+      .default(sql`array[]::uuid[]`),
+    prerequisites: uuid('prerequisites')
+      .array()
+      .notNull()
+      .default(sql`array[]::uuid[]`),
+    blocks: uuid('blocks').array().notNull().default(sql`array[]::uuid[]`),
+
+    // 関連 entity (forward ref: FK は T-D-06 / T-D-07 で ALTER 追加)
+    acceptanceCriteriaId: uuid('acceptance_criteria_id'),
+    mockId: uuid('mock_id'),
+    specHtmlPath: text('spec_html_path'),
+    assignedEmployeeId: uuid('assigned_employee_id').references(
+      () => aiEmployees.id,
+      { onDelete: 'set null' },
+    ),
+
+    // 状態 (coarse / fine 2 軸)
+    status: taskStatusEnum('status').notNull().default('pending'),
+    priority: taskPriorityEnum('priority').notNull().default('medium'),
+    lifecycleStage: taskLifecycleEnum('lifecycle_stage')
+      .notNull()
+      .default('triage'),
+    autoAdvanceAllowed: boolean('auto_advance_allowed').notNull().default(true),
+
+    // ファイル mutex
+    filesChanged: text('files_changed')
+      .array()
+      .notNull()
+      .default(sql`array[]::text[]`),
+
+    // 履歴
+    originType: text('origin_type').notNull().default('initial_decomposition'),
+
+    // Hermes 互換 (kanban_complete / kanban_block で記録)
+    summary: text('summary'),
+    metadata: jsonb('metadata').notNull().default({}),
+    blockedReason: text('blocked_reason'),
+    retryCount: integer('retry_count').notNull().default(0),
+
+    // Bridge worker 状態
+    worktreePath: text('worktree_path'),
+    dispatchStatus: taskDispatchEnum('dispatch_status'),
+    workerPid: integer('worker_pid'),
+    workerStartedAt: timestamp('worker_started_at', { withTimezone: true }),
+    workerLastHeartbeatAt: timestamp('worker_last_heartbeat_at', {
+      withTimezone: true,
+    }),
+
+    // timestamps + soft delete
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    estimatedHoursRange: check(
+      'tasks_estimated_hours_range',
+      sql`${table.estimatedHours} between 1 and 24`,
+    ),
+    retryCountRange: check(
+      'tasks_retry_count_range',
+      sql`${table.retryCount} between 0 and 3`,
+    ),
+    originTypeValid: check(
+      'tasks_origin_type_valid',
+      sql`${table.originType} in ('initial_decomposition', 'refactor', 'scope_change_auto', 'manual_added')`,
+    ),
+    noSelfDependency: check(
+      'tasks_no_self_dependency',
+      sql`${table.parentTaskId} is null or ${table.parentTaskId} <> ${table.id}`,
+    ),
+    titleLength: check(
+      'tasks_title_length',
+      sql`char_length(${table.title}) between 1 and 200`,
+    ),
+  }),
+);
+
+export type Task = typeof tasks.$inferSelect;
+export type NewTask = typeof tasks.$inferInsert;
