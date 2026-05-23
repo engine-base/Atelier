@@ -15,8 +15,9 @@
 name: deploy
 
 on:
-  push:
-    branches: [main]
+  # 開発期は manual-only。Dockerfile / Fly app 健全化が完了するまで自動 deploy
+  # は走らせない (毎 push で失敗するのを防ぐ)。T-F-26 のリリース判定で
+  # `push: branches: [main]` を再有効化する。
   workflow_dispatch:
     inputs:
       app:
