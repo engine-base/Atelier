@@ -15,9 +15,14 @@
 name: deploy
 
 on:
-  # 開発期は manual-only。Dockerfile / Fly app 健全化が完了するまで自動 deploy
-  # は走らせない (毎 push で失敗するのを防ぐ)。T-F-26 のリリース判定で
-  # `push: branches: [main]` を再有効化する。
+  # main merge 時に Fly.io production deploy を自動実行。
+  # 初回 deploy は workflow_dispatch で実機検証済 (https://atelier-api-eb.fly.dev/health 200 OK)。
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "fly.toml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
       app:
