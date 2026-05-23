@@ -1,37 +1,40 @@
 #!/usr/bin/env python3
+# pyright: reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownMemberType=false
 """R-T08 RLS Cross-Workspace Isolation Verification Script
 
-JIT Rule 7 完全準拠: T-D-14/15/16/17 で配置した RLS policies が実 runtime で
-正しく cross-workspace isolation を enforce しているかを Supabase PostgREST 経由で
-検証する。
+JIT Rule 7 完全準拠: T-D-14/15/16/17/18/19/21 で配置した RLS policies が実 runtime
+で正しく cross-workspace / cross-user isolation を enforce しているかを Supabase
+PostgREST 経由で検証する。
 
 仕組み:
   1. service_role key (admin) で fixture を seed:
-     - 2 users (auth.users + public.users)
-     - 2 workspaces (workspace A, workspace B)
-     - 2 workspace_memberships
+     - 2 users / 2 workspaces / 2 memberships / 2 projects
+     - 2 ai_employees / 2 phases / 2 workflow_outputs (T-D-21)
+     - 2 tasks / 2 task_executions / 2 acceptance_criteria (T-D-16)
+     - 2 chat_threads / 2 chat_messages / 2 mocks / 2 comments / 2 approval_inbox (T-D-17)
+     - 2 knowledge_nodes (T-D-18)
+     - 2 audit_logs / 2 consents / 2 external_uploads (T-D-19)
   2. legacy JWT secret で各 user の authenticated JWT を mint (HS256, sub claim)
   3. mint した JWT を Authorization: Bearer <token> で PostgREST に投げる
-  4. user A の JWT で各 table を SELECT し、user B の workspace のデータが
-     0 件しか返らないことを確認 (R-T08 致命級要件)
+  4. user A の JWT で各 table を SELECT し、user B のデータが 0 件しか
+     返らないことを確認 (R-T08 致命級要件)
   5. cleanup (service_role で fixture 削除)
 
 実行:
   uv run --directory apps/api python ../../scripts/verify_rls_isolation.py
 
 env vars:
-  SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_JWT_SECRET, SUPABASE_PROJECT_REF
+  SUPABASE_URL, SUPABASE_SECRET_KEY, SUPABASE_JWT_SECRET
 
-検証対象 (T-D-14/15/16/17 の policy):
-  - users (E-001)
-  - workspaces (E-002)
-  - workspace_memberships (E-003)
-  - projects (E-004)
-  - tasks (E-012)
-  - chat_threads (E-010)
-  - mocks (E-015)
-  - comments (E-016)
-  - approval_inbox (E-019)
+検証対象 (T-D-14〜21 の全 RLS policy):
+  T-D-14: users (E-001), workspace_memberships (E-003)
+  T-D-15: workspaces (E-002), projects (E-004)
+  T-D-16: tasks (E-012), task_executions (E-013), acceptance_criteria (E-014)
+  T-D-17: chat_threads (E-010), chat_messages (E-011), mocks (E-015),
+          comments (E-016), approval_inbox (E-019)
+  T-D-18: knowledge_nodes (E-018)
+  T-D-19: audit_logs (E-020), consents (E-025), external_uploads (E-024)
+  T-D-21: ai_employees (E-007), phases (E-005), workflow_outputs (E-006)
 """
 
 from __future__ import annotations
@@ -145,12 +148,48 @@ async def auth_get(
 
 @dataclass
 class Fixture:
+    # T-D-14/15 base
     user_a_id: str
     user_b_id: str
     workspace_a_id: str
     workspace_b_id: str
     project_a_id: str
     project_b_id: str
+    # T-D-21 (ai_employees / phases / workflow_outputs)
+    ai_employee_a_id: str
+    ai_employee_b_id: str
+    phase_a_id: str
+    phase_b_id: str
+    workflow_output_a_id: str
+    workflow_output_b_id: str
+    # T-D-16 (tasks / task_executions / acceptance_criteria)
+    task_a_id: str
+    task_b_id: str
+    task_execution_a_id: str
+    task_execution_b_id: str
+    acceptance_criteria_a_id: str
+    acceptance_criteria_b_id: str
+    # T-D-17 (chat / mocks / comments / approval_inbox)
+    chat_thread_a_id: str
+    chat_thread_b_id: str
+    chat_message_a_id: str
+    chat_message_b_id: str
+    mock_a_id: str
+    mock_b_id: str
+    comment_a_id: str
+    comment_b_id: str
+    approval_inbox_a_id: str
+    approval_inbox_b_id: str
+    # T-D-18 (knowledge_nodes)
+    knowledge_node_a_id: str
+    knowledge_node_b_id: str
+    # T-D-19 (audit_logs / consents / external_uploads)
+    audit_log_a_id: str
+    audit_log_b_id: str
+    consent_a_id: str
+    consent_b_id: str
+    external_upload_a_id: str
+    external_upload_b_id: str
 
 
 async def seed_fixture(client: httpx.AsyncClient, cfg: TestConfig) -> Fixture:
@@ -244,6 +283,363 @@ async def seed_fixture(client: httpx.AsyncClient, cfg: TestConfig) -> Fixture:
     )
     r.raise_for_status()
 
+    # T-D-21: ai_employees / phases / workflow_outputs
+    ai_employee_a_id = str(uuid.uuid4())
+    ai_employee_b_id = str(uuid.uuid4())
+    phase_a_id = str(uuid.uuid4())
+    phase_b_id = str(uuid.uuid4())
+    workflow_output_a_id = str(uuid.uuid4())
+    workflow_output_b_id = str(uuid.uuid4())
+
+    r = await admin_post(
+        client,
+        cfg,
+        "ai_employees",
+        [
+            {
+                "id": ai_employee_a_id,
+                "workspace_id": workspace_a_id,
+                "name": "jarvis-a",
+                "display_name": "Jarvis A",
+                "role": "member",
+                "department": "product",
+            },
+            {
+                "id": ai_employee_b_id,
+                "workspace_id": workspace_b_id,
+                "name": "jarvis-b",
+                "display_name": "Jarvis B",
+                "role": "member",
+                "department": "product",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "phases",
+        [
+            {"id": phase_a_id, "project_id": project_a_id, "order": 1, "name": "phase A"},
+            {"id": phase_b_id, "project_id": project_b_id, "order": 1, "name": "phase B"},
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "workflow_outputs",
+        [
+            {"id": workflow_output_a_id, "project_id": project_a_id, "stage": "proposal"},
+            {"id": workflow_output_b_id, "project_id": project_b_id, "stage": "proposal"},
+        ],
+    )
+    r.raise_for_status()
+
+    # T-D-16: tasks / task_executions / acceptance_criteria
+    task_a_id = str(uuid.uuid4())
+    task_b_id = str(uuid.uuid4())
+    task_execution_a_id = str(uuid.uuid4())
+    task_execution_b_id = str(uuid.uuid4())
+    acceptance_criteria_a_id = str(uuid.uuid4())
+    acceptance_criteria_b_id = str(uuid.uuid4())
+
+    r = await admin_post(
+        client,
+        cfg,
+        "tasks",
+        [
+            {
+                "id": task_a_id,
+                "project_id": project_a_id,
+                "category": "test",
+                "title": "Task A",
+                "type": "feature",
+                "estimated_hours": 1,
+            },
+            {
+                "id": task_b_id,
+                "project_id": project_b_id,
+                "category": "test",
+                "title": "Task B",
+                "type": "feature",
+                "estimated_hours": 1,
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    now_iso = "2026-05-23T00:00:00Z"
+    r = await admin_post(
+        client,
+        cfg,
+        "task_executions",
+        [
+            {
+                "id": task_execution_a_id,
+                "task_id": task_a_id,
+                "started_at": now_iso,
+                "status": "running",
+            },
+            {
+                "id": task_execution_b_id,
+                "task_id": task_b_id,
+                "started_at": now_iso,
+                "status": "running",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "acceptance_criteria",
+        [
+            {"id": acceptance_criteria_a_id, "task_id": task_a_id, "html_path": "a/x.html"},
+            {"id": acceptance_criteria_b_id, "task_id": task_b_id, "html_path": "b/x.html"},
+        ],
+    )
+    r.raise_for_status()
+
+    # T-D-17: chat_threads / chat_messages / mocks / comments / approval_inbox
+    chat_thread_a_id = str(uuid.uuid4())
+    chat_thread_b_id = str(uuid.uuid4())
+    chat_message_a_id = str(uuid.uuid4())
+    chat_message_b_id = str(uuid.uuid4())
+    mock_a_id = str(uuid.uuid4())
+    mock_b_id = str(uuid.uuid4())
+    comment_a_id = str(uuid.uuid4())
+    comment_b_id = str(uuid.uuid4())
+    approval_inbox_a_id = str(uuid.uuid4())
+    approval_inbox_b_id = str(uuid.uuid4())
+
+    r = await admin_post(
+        client,
+        cfg,
+        "chat_threads",
+        [
+            {
+                "id": chat_thread_a_id,
+                "project_id": project_a_id,
+                "ai_employee_id": ai_employee_a_id,
+            },
+            {
+                "id": chat_thread_b_id,
+                "project_id": project_b_id,
+                "ai_employee_id": ai_employee_b_id,
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "chat_messages",
+        [
+            {
+                "id": chat_message_a_id,
+                "thread_id": chat_thread_a_id,
+                "role": "user",
+                "content": "hello A",
+            },
+            {
+                "id": chat_message_b_id,
+                "thread_id": chat_thread_b_id,
+                "role": "user",
+                "content": "hello B",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "mocks",
+        [
+            {
+                "id": mock_a_id,
+                "project_id": project_a_id,
+                "screen_name": "ScreenA",
+                "html_storage_path": "mocks/a.html",
+            },
+            {
+                "id": mock_b_id,
+                "project_id": project_b_id,
+                "screen_name": "ScreenB",
+                "html_storage_path": "mocks/b.html",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "comments",
+        [
+            {
+                "id": comment_a_id,
+                "target_type": "task",
+                "target_id": task_a_id,
+                "author_user_id": user_a_id,
+                "content": "comment A",
+            },
+            {
+                "id": comment_b_id,
+                "target_type": "task",
+                "target_id": task_b_id,
+                "author_user_id": user_b_id,
+                "content": "comment B",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "approval_inbox",
+        [
+            {
+                "id": approval_inbox_a_id,
+                "user_id": user_a_id,
+                "type": "task_approval",
+                "target_type": "task",
+                "target_id": task_a_id,
+                "title": "approve A",
+            },
+            {
+                "id": approval_inbox_b_id,
+                "user_id": user_b_id,
+                "type": "task_approval",
+                "target_type": "task",
+                "target_id": task_b_id,
+                "title": "approve B",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    # T-D-18: knowledge_nodes (polymorphic: workspace-scoped)
+    knowledge_node_a_id = str(uuid.uuid4())
+    knowledge_node_b_id = str(uuid.uuid4())
+    r = await admin_post(
+        client,
+        cfg,
+        "knowledge_nodes",
+        [
+            {
+                "id": knowledge_node_a_id,
+                "account_id": workspace_a_id,
+                "account_type": "workspace",
+                "scope": "common",
+                "category": "test",
+                "title": "knowledge A",
+                "content_md": "x",
+            },
+            {
+                "id": knowledge_node_b_id,
+                "account_id": workspace_b_id,
+                "account_type": "workspace",
+                "scope": "common",
+                "category": "test",
+                "title": "knowledge B",
+                "content_md": "x",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    # T-D-19: audit_logs / consents / external_uploads
+    audit_log_a_id = str(uuid.uuid4())
+    audit_log_b_id = str(uuid.uuid4())
+    consent_a_id = str(uuid.uuid4())
+    consent_b_id = str(uuid.uuid4())
+    external_upload_a_id = str(uuid.uuid4())
+    external_upload_b_id = str(uuid.uuid4())
+
+    r = await admin_post(
+        client,
+        cfg,
+        "audit_logs",
+        [
+            {
+                "id": audit_log_a_id,
+                "workspace_id": workspace_a_id,
+                "actor_type": "user",
+                "actor_id": user_a_id,
+                "action": "test.event",
+                "target_type": "test",
+            },
+            {
+                "id": audit_log_b_id,
+                "workspace_id": workspace_b_id,
+                "actor_type": "user",
+                "actor_id": user_b_id,
+                "action": "test.event",
+                "target_type": "test",
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "consents",
+        [
+            {
+                "id": consent_a_id,
+                "user_id": user_a_id,
+                "type": "terms_of_service",
+                "version": "1.0.0",
+                "accepted": True,
+            },
+            {
+                "id": consent_b_id,
+                "user_id": user_b_id,
+                "type": "terms_of_service",
+                "version": "1.0.0",
+                "accepted": True,
+            },
+        ],
+    )
+    r.raise_for_status()
+
+    r = await admin_post(
+        client,
+        cfg,
+        "external_uploads",
+        [
+            {
+                "id": external_upload_a_id,
+                "project_id": project_a_id,
+                "uploaded_by_user_id": user_a_id,
+                "type": "document",
+                "storage_path": "a/x.pdf",
+                "file_name": "a.pdf",
+                "file_size_bytes": 1024,
+                "mime_type": "application/pdf",
+            },
+            {
+                "id": external_upload_b_id,
+                "project_id": project_b_id,
+                "uploaded_by_user_id": user_b_id,
+                "type": "document",
+                "storage_path": "b/x.pdf",
+                "file_name": "b.pdf",
+                "file_size_bytes": 1024,
+                "mime_type": "application/pdf",
+            },
+        ],
+    )
+    r.raise_for_status()
+
     return Fixture(
         user_a_id=user_a_id,
         user_b_id=user_b_id,
@@ -251,30 +647,82 @@ async def seed_fixture(client: httpx.AsyncClient, cfg: TestConfig) -> Fixture:
         workspace_b_id=workspace_b_id,
         project_a_id=project_a_id,
         project_b_id=project_b_id,
+        ai_employee_a_id=ai_employee_a_id,
+        ai_employee_b_id=ai_employee_b_id,
+        phase_a_id=phase_a_id,
+        phase_b_id=phase_b_id,
+        workflow_output_a_id=workflow_output_a_id,
+        workflow_output_b_id=workflow_output_b_id,
+        task_a_id=task_a_id,
+        task_b_id=task_b_id,
+        task_execution_a_id=task_execution_a_id,
+        task_execution_b_id=task_execution_b_id,
+        acceptance_criteria_a_id=acceptance_criteria_a_id,
+        acceptance_criteria_b_id=acceptance_criteria_b_id,
+        chat_thread_a_id=chat_thread_a_id,
+        chat_thread_b_id=chat_thread_b_id,
+        chat_message_a_id=chat_message_a_id,
+        chat_message_b_id=chat_message_b_id,
+        mock_a_id=mock_a_id,
+        mock_b_id=mock_b_id,
+        comment_a_id=comment_a_id,
+        comment_b_id=comment_b_id,
+        approval_inbox_a_id=approval_inbox_a_id,
+        approval_inbox_b_id=approval_inbox_b_id,
+        knowledge_node_a_id=knowledge_node_a_id,
+        knowledge_node_b_id=knowledge_node_b_id,
+        audit_log_a_id=audit_log_a_id,
+        audit_log_b_id=audit_log_b_id,
+        consent_a_id=consent_a_id,
+        consent_b_id=consent_b_id,
+        external_upload_a_id=external_upload_a_id,
+        external_upload_b_id=external_upload_b_id,
     )
 
 
 async def cleanup_fixture(client: httpx.AsyncClient, cfg: TestConfig, fx: Fixture) -> None:
-    """service_role で fixture を削除する。"""
-    # projects → workspace_memberships → workspaces → public.users → auth.users
-    await admin_delete(client, cfg, f"projects?id=in.({fx.project_a_id},{fx.project_b_id})")
-    await admin_delete(
-        client,
-        cfg,
+    """service_role で fixture を削除する (FK dependency 順)。"""
+    # leaf entities first (FK 子側)
+    deletes: list[str] = [
+        f"external_uploads?id=in.({fx.external_upload_a_id},{fx.external_upload_b_id})",
+        f"consents?id=in.({fx.consent_a_id},{fx.consent_b_id})",
+        f"audit_logs?id=in.({fx.audit_log_a_id},{fx.audit_log_b_id})",
+        f"knowledge_nodes?id=in.({fx.knowledge_node_a_id},{fx.knowledge_node_b_id})",
+        f"approval_inbox?id=in.({fx.approval_inbox_a_id},{fx.approval_inbox_b_id})",
+        f"comments?id=in.({fx.comment_a_id},{fx.comment_b_id})",
+        f"mocks?id=in.({fx.mock_a_id},{fx.mock_b_id})",
+        f"chat_messages?id=in.({fx.chat_message_a_id},{fx.chat_message_b_id})",
+        f"chat_threads?id=in.({fx.chat_thread_a_id},{fx.chat_thread_b_id})",
+        f"acceptance_criteria?id=in.({fx.acceptance_criteria_a_id},{fx.acceptance_criteria_b_id})",
+        f"task_executions?id=in.({fx.task_execution_a_id},{fx.task_execution_b_id})",
+        f"tasks?id=in.({fx.task_a_id},{fx.task_b_id})",
+        f"workflow_outputs?id=in.({fx.workflow_output_a_id},{fx.workflow_output_b_id})",
+        f"phases?id=in.({fx.phase_a_id},{fx.phase_b_id})",
+        f"ai_employees?id=in.({fx.ai_employee_a_id},{fx.ai_employee_b_id})",
+        f"projects?id=in.({fx.project_a_id},{fx.project_b_id})",
         f"workspace_memberships?workspace_id=in.({fx.workspace_a_id},{fx.workspace_b_id})",
-    )
-    await admin_delete(client, cfg, f"workspaces?id=in.({fx.workspace_a_id},{fx.workspace_b_id})")
-    await admin_delete(client, cfg, f"users?id=in.({fx.user_a_id},{fx.user_b_id})")
+        f"workspaces?id=in.({fx.workspace_a_id},{fx.workspace_b_id})",
+        f"users?id=in.({fx.user_a_id},{fx.user_b_id})",
+    ]
+    for path in deletes:
+        # cleanup は best-effort (一部失敗しても次の削除を続行)
+        try:
+            await admin_delete(client, cfg, path)
+        except Exception as exc:
+            print(f"  ⚠ cleanup {path[:50]}... failed: {exc}", file=sys.stderr)
 
     # auth.users (Admin API で個別 DELETE)
     for uid in (fx.user_a_id, fx.user_b_id):
-        await client.delete(
-            f"{cfg.supabase_url}/auth/v1/admin/users/{uid}",
-            headers={
-                "apikey": cfg.service_key,
-                "Authorization": f"Bearer {cfg.service_key}",
-            },
-        )
+        try:
+            await client.delete(
+                f"{cfg.supabase_url}/auth/v1/admin/users/{uid}",
+                headers={
+                    "apikey": cfg.service_key,
+                    "Authorization": f"Bearer {cfg.service_key}",
+                },
+            )
+        except Exception as exc:
+            print(f"  ⚠ cleanup auth user {uid[:8]} failed: {exc}", file=sys.stderr)
 
 
 async def verify_isolation(
@@ -339,6 +787,106 @@ async def verify_isolation(
         f"id=in.({fx.project_a_id},{fx.project_b_id})",
         expected_count=1,
         leaked_id=fx.project_b_id,
+    )
+
+    # ─── T-D-21: ai_employees / phases / workflow_outputs ─────────────
+    await assert_isolation(
+        "ai_employees",
+        f"id=in.({fx.ai_employee_a_id},{fx.ai_employee_b_id})",
+        expected_count=1,
+        leaked_id=fx.ai_employee_b_id,
+    )
+    await assert_isolation(
+        "phases",
+        f"id=in.({fx.phase_a_id},{fx.phase_b_id})",
+        expected_count=1,
+        leaked_id=fx.phase_b_id,
+    )
+    await assert_isolation(
+        "workflow_outputs",
+        f"id=in.({fx.workflow_output_a_id},{fx.workflow_output_b_id})",
+        expected_count=1,
+        leaked_id=fx.workflow_output_b_id,
+    )
+
+    # ─── T-D-16: tasks / task_executions / acceptance_criteria ─────
+    await assert_isolation(
+        "tasks",
+        f"id=in.({fx.task_a_id},{fx.task_b_id})",
+        expected_count=1,
+        leaked_id=fx.task_b_id,
+    )
+    await assert_isolation(
+        "task_executions",
+        f"id=in.({fx.task_execution_a_id},{fx.task_execution_b_id})",
+        expected_count=1,
+        leaked_id=fx.task_execution_b_id,
+    )
+    await assert_isolation(
+        "acceptance_criteria",
+        f"id=in.({fx.acceptance_criteria_a_id},{fx.acceptance_criteria_b_id})",
+        expected_count=1,
+        leaked_id=fx.acceptance_criteria_b_id,
+    )
+
+    # ─── T-D-17: chat / mocks / comments / approval_inbox ──────────
+    await assert_isolation(
+        "chat_threads",
+        f"id=in.({fx.chat_thread_a_id},{fx.chat_thread_b_id})",
+        expected_count=1,
+        leaked_id=fx.chat_thread_b_id,
+    )
+    await assert_isolation(
+        "chat_messages",
+        f"id=in.({fx.chat_message_a_id},{fx.chat_message_b_id})",
+        expected_count=1,
+        leaked_id=fx.chat_message_b_id,
+    )
+    await assert_isolation(
+        "mocks",
+        f"id=in.({fx.mock_a_id},{fx.mock_b_id})",
+        expected_count=1,
+        leaked_id=fx.mock_b_id,
+    )
+    await assert_isolation(
+        "comments",
+        f"id=in.({fx.comment_a_id},{fx.comment_b_id})",
+        expected_count=1,
+        leaked_id=fx.comment_b_id,
+    )
+    await assert_isolation(
+        "approval_inbox",
+        f"id=in.({fx.approval_inbox_a_id},{fx.approval_inbox_b_id})",
+        expected_count=1,
+        leaked_id=fx.approval_inbox_b_id,
+    )
+
+    # ─── T-D-18: knowledge_nodes (polymorphic, workspace-scoped) ──
+    await assert_isolation(
+        "knowledge_nodes",
+        f"id=in.({fx.knowledge_node_a_id},{fx.knowledge_node_b_id})",
+        expected_count=1,
+        leaked_id=fx.knowledge_node_b_id,
+    )
+
+    # ─── T-D-19: audit_logs / consents / external_uploads ──────────
+    await assert_isolation(
+        "audit_logs",
+        f"id=in.({fx.audit_log_a_id},{fx.audit_log_b_id})",
+        expected_count=1,
+        leaked_id=fx.audit_log_b_id,
+    )
+    await assert_isolation(
+        "consents",
+        f"id=in.({fx.consent_a_id},{fx.consent_b_id})",
+        expected_count=1,
+        leaked_id=fx.consent_b_id,
+    )
+    await assert_isolation(
+        "external_uploads",
+        f"id=in.({fx.external_upload_a_id},{fx.external_upload_b_id})",
+        expected_count=1,
+        leaked_id=fx.external_upload_b_id,
     )
 
     return violations
