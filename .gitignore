@@ -47,7 +47,12 @@ test-results/
 
 # JIT 一時 CLAUDE.md（dispatch.sh が /tmp に生成。ルートに置かれた一時ファイルも除外）
 /CLAUDE.md.tmp
+/CLAUDE.md.task
+/CLAUDE.md.bak
 /tmp/
+
+# JIT skill state (begin-task.sh が書く - 仕様 enforce 用、commit 不要)
+/.jit/
 
 # Atelier 専有
 .atelier-cache/

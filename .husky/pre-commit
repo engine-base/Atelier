@@ -1,1 +1,19 @@
+# JIT skill enforce: feat/t-x-y-* ブランチで CLAUDE.md.task が存在しない場合は
+# scripts/begin-task.sh が省略された証拠 → commit を拒否。
+branch="$(git branch --show-current 2>/dev/null || echo)"
+if echo "$branch" | grep -qE '^feat/t-[a-z]-[0-9]+'; then
+  if [ ! -f CLAUDE.md.task ]; then
+    echo "❌ JIT skill skipped: branch '$branch' has no CLAUDE.md.task" >&2
+    echo "" >&2
+    echo "  原因: ./scripts/begin-task.sh <task-id> を実行せずブランチを作った可能性" >&2
+    echo "  対処: タスク ID を抽出して以下を実行:" >&2
+    task_id="$(echo "$branch" | grep -oE 't-[a-z]-[0-9]+' | tr '[:lower:]' '[:upper:]')"
+    echo "        ./scripts/begin-task.sh $task_id" >&2
+    echo "" >&2
+    echo "  どうしても skip したい (fix/chore/refactor 系) なら branch 名を" >&2
+    echo "  'chore/...' / 'fix/...' に変更 (task ID パターンを含めない)。" >&2
+    exit 1
+  fi
+fi
+
 pnpm exec lint-staged
