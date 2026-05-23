@@ -1,0 +1,73 @@
+# Atelier — Production Deploy (T-F-06)
+#
+# トリガー:
+#   - push to main: Fly.io production deploy
+#   - workflow_dispatch: 手動 trigger 可
+#
+# Vercel deploy は Vercel GitHub Integration が自動実行する (vercel.json を
+# 認識して preview / production を仕分け)。本 workflow は Fly.io 専用。
+#
+# 必要な GitHub Secrets:
+#   - FLY_API_TOKEN / FLY_APP_NAME
+#
+# v3-gate.yml が PASS している前提 (deploy は merge 後にのみ動く)。
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Fly.io app to deploy"
+        required: false
+        default: ""
+
+# concurrency: 同一ブランチで重複 deploy を抑止する。
+concurrency:
+  group: deploy-fly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  fly:
+    name: "Fly.io (production)"
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP_NAME: ${{ inputs.app || secrets.FLY_APP_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Verify required secrets
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::FLY_API_TOKEN secret is not set"
+            exit 1
+          fi
+          if [ -z "$FLY_APP_NAME" ]; then
+            echo "::error::FLY_APP_NAME secret is not set"
+            exit 1
+          fi
+          echo "::notice::deploying to app=$FLY_APP_NAME"
+      - name: Deploy
+        run: |
+          flyctl deploy \
+            --app "$FLY_APP_NAME" \
+            --remote-only \
+            --strategy rolling \
+            --wait-timeout 300
+      - name: Smoke test /health
+        run: |
+          sleep 5
+          status=$(curl -s -o /dev/null -w "%{http_code}" "https://${FLY_APP_NAME}.fly.dev/health" || echo "000")
+          if [ "$status" != "200" ]; then
+            echo "::error::Fly.io /health returned $status (expected 200)"
+            exit 1
+          fi
+          echo "::notice::Fly.io /health OK (200)"
