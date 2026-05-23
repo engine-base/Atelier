@@ -1,0 +1,111 @@
+# Atelier — Production Deploy (T-F-06)
+#
+# トリガー:
+#   - push to main: Vercel production + Fly.io production deploy 並列実行
+#   - PR: Vercel preview のみ (Fly.io は production しか触らない)
+#
+# 必要な GitHub Secrets:
+#   - VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID
+#   - FLY_API_TOKEN / FLY_APP_NAME
+#
+# v3-gate.yml が PASS している前提 (deploy は merge 後にのみ動く)。
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "deploy target"
+        required: true
+        default: "both"
+        type: choice
+        options: [both, vercel-only, fly-only]
+
+# concurrency: 同一ブランチで重複 deploy を抑止する。
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  # ───────────────────────────────────────────────────────
+  # Vercel preview (PR) / production (main)
+  # ───────────────────────────────────────────────────────
+  vercel:
+    name: "Vercel (${{ github.event_name == 'pull_request' && 'preview' || 'production' }})"
+    if: github.event_name != 'workflow_dispatch' || inputs.target != 'fly-only'
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull Vercel environment
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          else
+            vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          fi
+      - name: Build (Vercel runtime)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            vercel build --token="$VERCEL_TOKEN"
+          else
+            vercel build --prod --token="$VERCEL_TOKEN"
+          fi
+      - name: Deploy
+        id: deploy
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+          else
+            url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "::notice::Vercel deployed: $url"
+
+  # ───────────────────────────────────────────────────────
+  # Fly.io production deploy (main branch のみ)
+  # PR では走らない (preview コスト + Fly.io は 1 production app のみ)
+  # ───────────────────────────────────────────────────────
+  fly:
+    name: "Fly.io (production)"
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.target != 'vercel-only')
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP_NAME: ${{ secrets.FLY_APP_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        run: |
+          flyctl deploy \
+            --app "$FLY_APP_NAME" \
+            --remote-only \
+            --strategy rolling \
+            --wait-timeout 300
+      - name: Smoke test /health
+        run: |
+          sleep 5
+          status=$(curl -s -o /dev/null -w "%{http_code}" "https://${FLY_APP_NAME}.fly.dev/health" || echo "000")
+          if [ "$status" != "200" ]; then
+            echo "::error::Fly.io /health returned $status (expected 200)"
+            exit 1
+          fi
+          echo "::notice::Fly.io /health OK"
