@@ -16,6 +16,7 @@ import {
   check,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -605,3 +606,116 @@ export const tasks = pgTable(
 
 export type Task = typeof tasks.$inferSelect;
 export type NewTask = typeof tasks.$inferInsert;
+
+// =============================================================================
+// Task execution enum — T-D-06
+// =============================================================================
+export const taskExecutionStatusEnum = pgEnum('task_execution_status_enum', [
+  'running',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'timeout',
+]);
+export type TaskExecutionStatus =
+  (typeof taskExecutionStatusEnum.enumValues)[number];
+
+// =============================================================================
+// E-014 AcceptanceCriteria — T-D-06
+// task ごとの 3-tier AC (structural/functional/regression)。
+// task_id UNIQUE で 1:1 関係。items は jsonb array。
+// =============================================================================
+export const acceptanceCriteria = pgTable(
+  'acceptance_criteria',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    taskId: uuid('task_id')
+      .notNull()
+      .unique()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    htmlPath: text('html_path').notNull(),
+    items: jsonb('items').notNull().default([]),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    versionPositive: check(
+      'acceptance_criteria_version_positive',
+      sql`${table.version} >= 1`,
+    ),
+    itemsArray: check(
+      'acceptance_criteria_items_array',
+      sql`jsonb_typeof(${table.items}) = 'array'`,
+    ),
+  }),
+);
+
+export type AcceptanceCriteria = typeof acceptanceCriteria.$inferSelect;
+export type NewAcceptanceCriteria = typeof acceptanceCriteria.$inferInsert;
+
+// =============================================================================
+// E-013 TaskExecution — T-D-06
+// task の各実行履歴。1 task : N executions (retry / re-run 含む)。
+// score / pass_rate は numeric(4,3) (0.000-1.000)。
+// Drizzle pg-core では numeric(p,s) は `numeric(...)` で表現。
+// =============================================================================
+export const taskExecutions = pgTable(
+  'task_executions',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    score: numeric('score', { precision: 4, scale: 3 }),
+    acPassRate: numeric('ac_pass_rate', { precision: 4, scale: 3 }),
+    testPassRate: numeric('test_pass_rate', { precision: 4, scale: 3 }),
+    verificationScore: numeric('verification_score', {
+      precision: 4,
+      scale: 3,
+    }),
+    retryCount: integer('retry_count').notNull().default(0),
+    claudeCodeSessionId: text('claude_code_session_id'),
+    status: taskExecutionStatusEnum('status').notNull(),
+    logsStoragePath: text('logs_storage_path'),
+    errorSummary: text('error_summary'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    retryCountRange: check(
+      'task_executions_retry_count_range',
+      sql`${table.retryCount} between 0 and 3`,
+    ),
+    scoreRange: check(
+      'task_executions_score_range',
+      sql`${table.score} is null or (${table.score} >= 0 and ${table.score} <= 1)`,
+    ),
+    acPassRateRange: check(
+      'task_executions_ac_pass_rate_range',
+      sql`${table.acPassRate} is null or (${table.acPassRate} >= 0 and ${table.acPassRate} <= 1)`,
+    ),
+    testPassRateRange: check(
+      'task_executions_test_pass_rate_range',
+      sql`${table.testPassRate} is null or (${table.testPassRate} >= 0 and ${table.testPassRate} <= 1)`,
+    ),
+    verificationScoreRange: check(
+      'task_executions_verification_score_range',
+      sql`${table.verificationScore} is null or (${table.verificationScore} >= 0 and ${table.verificationScore} <= 1)`,
+    ),
+    completedAfterStarted: check(
+      'task_executions_completed_after_started',
+      sql`${table.completedAt} is null or ${table.completedAt} >= ${table.startedAt}`,
+    ),
+  }),
+);
+
+export type TaskExecution = typeof taskExecutions.$inferSelect;
+export type NewTaskExecution = typeof taskExecutions.$inferInsert;
