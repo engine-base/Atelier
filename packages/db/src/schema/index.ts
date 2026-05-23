@@ -888,3 +888,166 @@ export const clientInvitations = pgTable(
 
 export type ClientInvitation = typeof clientInvitations.$inferSelect;
 export type NewClientInvitation = typeof clientInvitations.$inferInsert;
+
+// =============================================================================
+// Legal / audit enums — T-D-11
+// =============================================================================
+export const consentTypeEnum = pgEnum('consent_type_enum', [
+  'terms_of_service',
+  'privacy_policy',
+  'data_residency',
+  'ai_training_optin',
+]);
+export type ConsentType = (typeof consentTypeEnum.enumValues)[number];
+
+// ⚠️ entities.json に values 未定義のため defensive default
+export const externalUploadTypeEnum = pgEnum('external_upload_type_enum', [
+  'document',
+  'image',
+  'audio',
+  'video',
+  'spreadsheet',
+  'archive',
+  'other',
+]);
+export type ExternalUploadType =
+  (typeof externalUploadTypeEnum.enumValues)[number];
+
+// =============================================================================
+// E-020 AuditLog — T-D-11
+// workspace_scoped (NULL 許容で system / pre-auth 用)、append-only。
+// ⚠️ T-F-18 writer.py は `audit_log` (単数) + 旧 column 名を期待しており
+// drift がある。本 schema は entities.json (信頼源) に準拠。
+// =============================================================================
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    workspaceId: uuid('workspace_id').references(() => workspaces.id, {
+      onDelete: 'set null',
+    }),
+    actorType: text('actor_type').notNull(),
+    actorId: text('actor_id').notNull(),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id'),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    // ip_address: postgres `inet` 型は Drizzle に専用 helper がないため text 扱い
+    // (実 DB では inet 型として動作、TS 側は string で受ける)
+    ipAddress: text('ip_address'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    actorTypeValid: check(
+      'audit_logs_actor_type_valid',
+      sql`${table.actorType} in ('ai', 'user', 'system', 'anonymous')`,
+    ),
+    beforeObject: check(
+      'audit_logs_before_object',
+      sql`${table.before} is null or jsonb_typeof(${table.before}) in ('object', 'null')`,
+    ),
+    afterObject: check(
+      'audit_logs_after_object',
+      sql`${table.after} is null or jsonb_typeof(${table.after}) in ('object', 'null')`,
+    ),
+    actionFormat: check(
+      'audit_logs_action_format',
+      sql`${table.action} ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'`,
+    ),
+  }),
+);
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type NewAuditLog = typeof auditLogs.$inferInsert;
+
+// =============================================================================
+// E-025 Consent — T-D-11
+// F-LEGAL-004 同意取得履歴 (append-only)。
+// =============================================================================
+export const consents = pgTable(
+  'consents',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: consentTypeEnum('type').notNull(),
+    version: text('version').notNull(),
+    accepted: boolean('accepted').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    versionFormat: check(
+      'consents_version_semver_or_date',
+      sql`${table.version} ~ '^[0-9]+(\.[0-9]+)*$' or ${table.version} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`,
+    ),
+    userAgentLength: check(
+      'consents_user_agent_length',
+      sql`${table.userAgent} is null or char_length(${table.userAgent}) <= 1000`,
+    ),
+  }),
+);
+
+export type Consent = typeof consents.$inferSelect;
+export type NewConsent = typeof consents.$inferInsert;
+
+// =============================================================================
+// E-024 ExternalUpload — T-D-11
+// project への外部ファイル投入 (Supabase Storage 連携)、soft_delete。
+// file_size_bytes 上限 1 GiB、超過時はアプリ層 chunk upload に分岐。
+// =============================================================================
+export const externalUploads = pgTable(
+  'external_uploads',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    uploadedByUserId: uuid('uploaded_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    type: externalUploadTypeEnum('type').notNull(),
+    storagePath: text('storage_path').notNull(),
+    fileName: text('file_name').notNull(),
+    // bigint は Drizzle pg-core の `bigint` で BIGSERIAL 互換、numeric 表現
+    fileSizeBytes: integer('file_size_bytes').notNull(),
+    mimeType: text('mime_type').notNull(),
+    parsedAt: timestamp('parsed_at', { withTimezone: true }),
+    parseResultPath: text('parse_result_path'),
+    parseError: text('parse_error'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    fileSizeRange: check(
+      'external_uploads_file_size_range',
+      sql`${table.fileSizeBytes} >= 0 and ${table.fileSizeBytes} <= 1073741824`,
+    ),
+    fileNameLength: check(
+      'external_uploads_file_name_length',
+      sql`char_length(${table.fileName}) between 1 and 255`,
+    ),
+    mimeFormat: check(
+      'external_uploads_mime_format',
+      sql`${table.mimeType} ~ '^[a-zA-Z0-9!#$&^_.+-]+/[a-zA-Z0-9!#$&^_.+-]+(;\s*[a-zA-Z0-9!#$&^_.+-]+=.*)?$'`,
+    ),
+  }),
+);
+
+export type ExternalUpload = typeof externalUploads.$inferSelect;
+export type NewExternalUpload = typeof externalUploads.$inferInsert;
