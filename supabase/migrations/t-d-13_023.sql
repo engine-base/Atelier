@@ -1,18 +1,11 @@
--- T-D-13: cron_schedules schema + seed data (E-023)
+-- T-D-13: cron_schedules schema (E-023)
 --
 -- 信頼源: 04_functional_breakdown/entities.json#E-023
 -- 関連: F-O01 (Cron / 自動化スケジューラ), T-F-20 (Inngest cron 基盤)
 -- 依存: T-D-02 (projects)
 --
--- ⚠️ 設計メモ:
---   ticket title は "cron_schedules + シードデータ" だが files_changed_predicted は
---   `supabase/seed/t-d-13.sql` 1 ファイルのみ。Postgres は 1 トランザクション内で
---   DDL + DML を扱えるため、本ファイルで CREATE TABLE + INSERT 両方を行う。
---   通常 schema は migrations/、seed は seed/ で分けるが、本タスクは title が
---   両方を含むため scope に従い同一ファイルで扱う。
---
---   _TRACK: 将来 schema 移行ツール (Drizzle migrate / supabase db push) との
---   整合のため、Wave 2 で migrations/ と seed/ を分離する follow-up を起票予定。
+-- 配置: supabase/migrations/ (`supabase db push` で apply される正しい位置)。
+-- 実 seed data (project ごとの template 複製) は T-A-40 (cron CRUD) で実装。
 
 begin;
 
