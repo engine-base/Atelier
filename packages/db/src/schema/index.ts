@@ -719,3 +719,111 @@ export const taskExecutions = pgTable(
 
 export type TaskExecution = typeof taskExecutions.$inferSelect;
 export type NewTaskExecution = typeof taskExecutions.$inferInsert;
+
+// =============================================================================
+// Comment polymorphic target enum — T-D-07
+// =============================================================================
+export const commentTargetTypeEnum = pgEnum('comment_target_type_enum', [
+  'workflow_output',
+  'mock',
+  'task',
+  'acceptance_criteria',
+]);
+export type CommentTargetType =
+  (typeof commentTargetTypeEnum.enumValues)[number];
+
+// =============================================================================
+// E-015 Mock — T-D-07
+// HTML モック (Supabase Storage 連携)。version chain で履歴管理。
+// =============================================================================
+export const mocks = pgTable(
+  'mocks',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    screenName: text('screen_name').notNull(),
+    htmlStoragePath: text('html_storage_path').notNull(),
+    version: integer('version').notNull().default(1),
+    // self-reference は Drizzle 型のみ宣言 (FK は SQL で配置済)
+    parentMockId: uuid('parent_mock_id'),
+    metaTags: jsonb('meta_tags'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    versionPositive: check(
+      'mocks_version_positive',
+      sql`${table.version} >= 1`,
+    ),
+    noSelfParent: check(
+      'mocks_no_self_parent',
+      sql`${table.parentMockId} is null or ${table.parentMockId} <> ${table.id}`,
+    ),
+    metaTagsObject: check(
+      'mocks_meta_tags_object',
+      sql`${table.metaTags} is null or jsonb_typeof(${table.metaTags}) = 'object'`,
+    ),
+  }),
+);
+
+export type Mock = typeof mocks.$inferSelect;
+export type NewMock = typeof mocks.$inferInsert;
+
+// =============================================================================
+// E-016 Comment — T-D-07
+// polymorphic target (workflow_output/mock/task/acceptance_criteria)。
+// author は user か client_invitation のどちらか (T-D-08 で invitation FK 後付け)。
+// =============================================================================
+export const comments = pgTable(
+  'comments',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    targetType: commentTargetTypeEnum('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    targetElementId: text('target_element_id'),
+    authorUserId: uuid('author_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    // author_invitation_id: T-D-08 で FK 後付け (client_invitations 未作成)
+    authorInvitationId: uuid('author_invitation_id'),
+    content: text('content').notNull(),
+    status: text('status').notNull().default('open'),
+    // self-reference: FK は SQL で配置済
+    parentCommentId: uuid('parent_comment_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    statusValid: check(
+      'comments_status_valid',
+      sql`${table.status} in ('open', 'resolved', 'deleted')`,
+    ),
+    contentLength: check(
+      'comments_content_length',
+      sql`char_length(${table.content}) between 1 and 10000`,
+    ),
+    noSelfParent: check(
+      'comments_no_self_parent',
+      sql`${table.parentCommentId} is null or ${table.parentCommentId} <> ${table.id}`,
+    ),
+    authorExclusive: check(
+      'comments_author_exclusive',
+      sql`${table.authorUserId} is null or ${table.authorInvitationId} is null`,
+    ),
+  }),
+);
+
+export type Comment = typeof comments.$inferSelect;
+export type NewComment = typeof comments.$inferInsert;
