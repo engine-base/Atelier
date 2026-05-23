@@ -1051,3 +1051,96 @@ export const externalUploads = pgTable(
 
 export type ExternalUpload = typeof externalUploads.$inferSelect;
 export type NewExternalUpload = typeof externalUploads.$inferInsert;
+
+// =============================================================================
+// Knowledge 系 enums — T-D-09
+// =============================================================================
+export const knowledgeAccountTypeEnum = pgEnum('knowledge_account_type_enum', [
+  'workspace',
+  'user',
+]);
+export type KnowledgeAccountType =
+  (typeof knowledgeAccountTypeEnum.enumValues)[number];
+
+export const knowledgeScopeEnum = pgEnum('knowledge_scope_enum', [
+  'common',
+  'employee_specific',
+]);
+export type KnowledgeScope = (typeof knowledgeScopeEnum.enumValues)[number];
+
+// =============================================================================
+// E-018 KnowledgeNode — T-D-09 (pgvector 統合)
+// polymorphic account (account_type=workspace|user)、soft_delete。
+// embedding は T-F-14 で配置済 voyage_embedding domain (vector(1024))。
+// =============================================================================
+//
+// 注意: Drizzle 0.38 時点では domain type (voyage_embedding) を直接表現する
+// helper がない。embedding 列は SQL 側で domain として扱われ、Drizzle 側は
+// text として表現する (insert/select 時はアプリ層で float[] ↔ string 変換)。
+export const knowledgeNodes = pgTable(
+  'knowledge_nodes',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    accountId: uuid('account_id').notNull(),
+    accountType: knowledgeAccountTypeEnum('account_type').notNull(),
+    scope: knowledgeScopeEnum('scope').notNull(),
+    ownerEmployeeId: uuid('owner_employee_id').references(
+      () => aiEmployees.id,
+      { onDelete: 'set null' },
+    ),
+    category: text('category').notNull(),
+    tags: text('tags').array().notNull().default(sql`array[]::text[]`),
+    title: text('title').notNull(),
+    contentMd: text('content_md').notNull(),
+    // embedding: voyage_embedding (vector(1024)) — Drizzle では text 表現
+    embedding: text('embedding'),
+    sourceType: text('source_type').notNull().default('manual'),
+    sourceProjectId: uuid('source_project_id').references(() => projects.id, {
+      onDelete: 'set null',
+    }),
+    confidenceScore: numeric('confidence_score', { precision: 3, scale: 2 })
+      .notNull()
+      .default('0.5'),
+    usageCount: integer('usage_count').notNull().default(0),
+    isAnonymized: boolean('is_anonymized').notNull().default(false),
+    approvedByUserId: uuid('approved_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    confidenceRange: check(
+      'knowledge_nodes_confidence_range',
+      sql`${table.confidenceScore} >= 0 and ${table.confidenceScore} <= 1`,
+    ),
+    usageCountNonNegative: check(
+      'knowledge_nodes_usage_count_non_negative',
+      sql`${table.usageCount} >= 0`,
+    ),
+    sourceTypeValid: check(
+      'knowledge_nodes_source_type_valid',
+      sql`${table.sourceType} in ('manual', 'ai_extracted', 'import', 'mem0')`,
+    ),
+    scopeOwnerConsistency: check(
+      'knowledge_nodes_scope_owner_consistency',
+      sql`(${table.scope} = 'employee_specific' and ${table.ownerEmployeeId} is not null) or (${table.scope} = 'common' and ${table.ownerEmployeeId} is null)`,
+    ),
+    titleLength: check(
+      'knowledge_nodes_title_length',
+      sql`char_length(${table.title}) between 1 and 500`,
+    ),
+    categoryLength: check(
+      'knowledge_nodes_category_length',
+      sql`char_length(${table.category}) between 1 and 100`,
+    ),
+  }),
+);
+
+export type KnowledgeNode = typeof knowledgeNodes.$inferSelect;
+export type NewKnowledgeNode = typeof knowledgeNodes.$inferInsert;
