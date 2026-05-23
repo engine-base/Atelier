@@ -1144,3 +1144,108 @@ export const knowledgeNodes = pgTable(
 
 export type KnowledgeNode = typeof knowledgeNodes.$inferSelect;
 export type NewKnowledgeNode = typeof knowledgeNodes.$inferInsert;
+
+// =============================================================================
+// Chat message role enum — T-D-04
+// =============================================================================
+export const chatMessageRoleEnum = pgEnum('chat_message_role_enum', [
+  'user',
+  'assistant',
+  'system',
+  'tool',
+]);
+export type ChatMessageRole = (typeof chatMessageRoleEnum.enumValues)[number];
+
+// =============================================================================
+// E-010 ChatThread — T-D-04
+// project × AI 社員ごとのチャットスレッド。soft_delete + archived (independent)。
+// =============================================================================
+export const chatThreads = pgTable(
+  'chat_threads',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    aiEmployeeId: uuid('ai_employee_id')
+      .notNull()
+      .references(() => aiEmployees.id, { onDelete: 'restrict' }),
+    title: text('title'),
+    archived: boolean('archived').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    titleLength: check(
+      'chat_threads_title_length',
+      sql`${table.title} is null or char_length(${table.title}) between 1 and 200`,
+    ),
+  }),
+);
+
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type NewChatThread = typeof chatThreads.$inferInsert;
+
+// =============================================================================
+// E-011 ChatMessage — T-D-04
+// chat_threads 配下のメッセージ。FTS (content_tsv) + embedding 両対応。
+// content_tsv は SQL trigger で自動更新 (Drizzle 側は読み取りのみ前提)。
+// embedding は extensions.vector(1024) を SQL 側で扱い、Drizzle 側は text 表現。
+// =============================================================================
+export const chatMessages = pgTable(
+  'chat_messages',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: 'cascade' }),
+    role: chatMessageRoleEnum('role').notNull(),
+    content: text('content').notNull(),
+    // content_tsv: tsvector (trigger 自動更新)。Drizzle 0.38 には tsvector
+    // 専用 helper がないため text として表現 (DB 内は tsvector)。
+    contentTsv: text('content_tsv'),
+    // embedding: extensions.vector(1024) — Drizzle では text 表現
+    embedding: text('embedding'),
+    toolCalls: jsonb('tool_calls').default([]),
+    attachments: jsonb('attachments').default([]),
+    parentMessageId: uuid('parent_message_id'),
+    tokenCount: integer('token_count'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => ({
+    contentLength: check(
+      'chat_messages_content_length',
+      sql`char_length(${table.content}) between 1 and 100000`,
+    ),
+    tokenCountNonNegative: check(
+      'chat_messages_token_count_non_negative',
+      sql`${table.tokenCount} is null or ${table.tokenCount} >= 0`,
+    ),
+    toolCallsArray: check(
+      'chat_messages_tool_calls_array',
+      sql`${table.toolCalls} is null or jsonb_typeof(${table.toolCalls}) = 'array'`,
+    ),
+    attachmentsArray: check(
+      'chat_messages_attachments_array',
+      sql`${table.attachments} is null or jsonb_typeof(${table.attachments}) = 'array'`,
+    ),
+    noSelfParent: check(
+      'chat_messages_no_self_parent',
+      sql`${table.parentMessageId} is null or ${table.parentMessageId} <> ${table.id}`,
+    ),
+  }),
+);
+
+export type ChatMessage = typeof chatMessages.$inferSelect;
+export type NewChatMessage = typeof chatMessages.$inferInsert;
