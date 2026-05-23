@@ -1249,3 +1249,79 @@ export const chatMessages = pgTable(
 
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type NewChatMessage = typeof chatMessages.$inferInsert;
+
+// =============================================================================
+// Approval inbox enum — T-D-10
+// =============================================================================
+export const approvalInboxTypeEnum = pgEnum('approval_inbox_type_enum', [
+  'task_approval',
+  'phase_approval',
+  'knowledge_write',
+  'comment_response',
+  'scope_change',
+]);
+export type ApprovalInboxType =
+  (typeof approvalInboxTypeEnum.enumValues)[number];
+
+// =============================================================================
+// E-019 ApprovalInbox — T-D-10
+// user_scoped 受信トレイ (F-J02 承認 / F-CUC02 スコープ変更確認)。
+// polymorphic target (target_type で task / phase / knowledge_node / comment /
+// scope_change のどれかを参照)。status と resolved_at の整合性を CHECK で担保。
+// =============================================================================
+export const approvalInbox = pgTable(
+  'approval_inbox',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: approvalInboxTypeEnum('type').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    title: text('title').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    status: text('status').notNull().default('pending'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolutionNote: text('resolution_note'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    statusValid: check(
+      'approval_inbox_status_valid',
+      sql`${table.status} in ('pending', 'approved', 'rejected')`,
+    ),
+    resolutionConsistency: check(
+      'approval_inbox_resolution_consistency',
+      sql`(${table.status} = 'pending' and ${table.resolvedAt} is null) or (${table.status} in ('approved', 'rejected') and ${table.resolvedAt} is not null)`,
+    ),
+    resolvedAfterCreated: check(
+      'approval_inbox_resolved_after_created',
+      sql`${table.resolvedAt} is null or ${table.resolvedAt} >= ${table.createdAt}`,
+    ),
+    targetTypeValid: check(
+      'approval_inbox_target_type_valid',
+      sql`${table.targetType} in ('task', 'phase', 'knowledge_node', 'comment', 'scope_change')`,
+    ),
+    titleLength: check(
+      'approval_inbox_title_length',
+      sql`char_length(${table.title}) between 1 and 200`,
+    ),
+    payloadObject: check(
+      'approval_inbox_payload_object',
+      sql`jsonb_typeof(${table.payload}) = 'object'`,
+    ),
+    resolutionNoteLength: check(
+      'approval_inbox_resolution_note_length',
+      sql`${table.resolutionNote} is null or char_length(${table.resolutionNote}) <= 2000`,
+    ),
+  }),
+);
+
+export type ApprovalInbox = typeof approvalInbox.$inferSelect;
+export type NewApprovalInbox = typeof approvalInbox.$inferInsert;
