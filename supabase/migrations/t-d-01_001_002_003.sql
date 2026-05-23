@@ -123,10 +123,62 @@ begin
 end $$;
 
 -- =============================================================================
--- RLS enable (policy は T-D-14 / T-D-15 で配置)
+-- RLS enable + 明示的 default-deny policy
+--
+-- 設計意図:
+--   T-D-14 / T-D-15 で実 policy (self-scoped / workspace-scoped) を配置するが、
+--   それまでの間は「全 role 拒否」を明示する。RLS 有効化のみだと
+--   policy=0 件で fail-safe ではあるが、Gate #10 (R-T08 致命級) は policy
+--   の明示存在を要求するため、本 migration で default-deny を置く。
+--   T-D-14 / T-D-15 はこの policy を DROP してから実 policy を CREATE する。
 -- =============================================================================
 alter table public.users                  enable row level security;
 alter table public.workspaces             enable row level security;
 alter table public.workspace_memberships  enable row level security;
+
+-- users: T-D-14 で自分の row のみ可視に置換予定。それまでは全 deny。
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'users' and policyname = 'users_default_deny'
+  ) then
+    create policy users_default_deny on public.users
+      as restrictive
+      for all
+      to public
+      using (false);
+  end if;
+end $$;
+
+-- workspaces: T-D-15 でメンバーのみ可視に置換予定。それまでは全 deny。
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'workspaces' and policyname = 'workspaces_default_deny'
+  ) then
+    create policy workspaces_default_deny on public.workspaces
+      as restrictive
+      for all
+      to public
+      using (false);
+  end if;
+end $$;
+
+-- workspace_memberships: T-D-14 で自分の所属のみ可視に置換予定。
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'workspace_memberships' and policyname = 'workspace_memberships_default_deny'
+  ) then
+    create policy workspace_memberships_default_deny on public.workspace_memberships
+      as restrictive
+      for all
+      to public
+      using (false);
+  end if;
+end $$;
 
 commit;
