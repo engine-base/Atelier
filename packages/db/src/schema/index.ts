@@ -263,3 +263,181 @@ export const workflowOutputs = pgTable(
 
 export type WorkflowOutput = typeof workflowOutputs.$inferSelect;
 export type NewWorkflowOutput = typeof workflowOutputs.$inferInsert;
+
+// =============================================================================
+// AI 社員系 enums — T-D-03 (E-007/008/009 で共有)
+// =============================================================================
+export const aiEmployeeRoleEnum = pgEnum('ai_employee_role_enum', [
+  'coo',
+  'lead',
+  'member',
+]);
+export type AiEmployeeRole = (typeof aiEmployeeRoleEnum.enumValues)[number];
+
+export const aiEmployeeDepartmentEnum = pgEnum('ai_employee_department_enum', [
+  'executive',
+  'sales',
+  'product',
+  'architecture',
+  'design',
+  'dev_qa',
+  'cross_functional',
+]);
+export type AiEmployeeDepartment =
+  (typeof aiEmployeeDepartmentEnum.enumValues)[number];
+
+export const tonePresetEnum = pgEnum('tone_preset_enum', [
+  'polite',
+  'friendly',
+  'casual',
+  'concise',
+  'coaching',
+]);
+export type TonePreset = (typeof tonePresetEnum.enumValues)[number];
+
+// =============================================================================
+// E-009 Skill — T-D-03
+// global なスキル定義 (Anthropic Skills 互換 markdown ベース)。
+// (name, version) UNIQUE。version は semver。
+// =============================================================================
+export const skills = pgTable(
+  'skills',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    name: text('name').notNull(),
+    version: text('version').notNull(),
+    description: text('description'),
+    contentMd: text('content_md').notNull(),
+    assetsStoragePath: text('assets_storage_path'),
+    allowedEmployeeRoles: text('allowed_employee_roles')
+      .array()
+      .notNull()
+      .default(sql`array[]::text[]`),
+    allowedEmployeeIds: uuid('allowed_employee_ids')
+      .array()
+      .notNull()
+      .default(sql`array[]::uuid[]`),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    versionSemver: check(
+      'skills_version_semver',
+      sql`${table.version} ~ '^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$'`,
+    ),
+    nameVersionUnique: unique('skills_name_version_key').on(
+      table.name,
+      table.version,
+    ),
+  }),
+);
+
+export type Skill = typeof skills.$inferSelect;
+export type NewSkill = typeof skills.$inferInsert;
+
+// =============================================================================
+// E-008 AiEmployeeTemplate — T-D-03
+// AI 社員テンプレ (jarvis / tony 等)。global admin only。
+// =============================================================================
+export const aiEmployeeTemplates = pgTable(
+  'ai_employee_templates',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    defaultName: text('default_name').notNull(),
+    defaultDisplayName: text('default_display_name').notNull(),
+    defaultIcon: text('default_icon'),
+    department: aiEmployeeDepartmentEnum('department').notNull(),
+    role: aiEmployeeRoleEnum('role').notNull(),
+    defaultSkills: uuid('default_skills')
+      .array()
+      .notNull()
+      .default(sql`array[]::uuid[]`),
+    defaultKnowledgeCats: text('default_knowledge_cats')
+      .array()
+      .notNull()
+      .default(sql`array[]::text[]`),
+    systemPrompt: text('system_prompt').notNull(),
+    specialty: text('specialty').notNull(),
+    version: integer('version').notNull().default(1),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    versionPositive: check(
+      'ai_employee_templates_version_positive',
+      sql`${table.version} >= 1`,
+    ),
+    nameVersionUnique: unique('ai_employee_templates_name_version_key').on(
+      table.defaultName,
+      table.version,
+    ),
+  }),
+);
+
+export type AiEmployeeTemplate = typeof aiEmployeeTemplates.$inferSelect;
+export type NewAiEmployeeTemplate = typeof aiEmployeeTemplates.$inferInsert;
+
+// =============================================================================
+// E-007 AiEmployee — T-D-03
+// workspace 配下の AI 社員インスタンス。template_id は SET NULL で履歴保持。
+// custom_tone_text は最大 500 文字。
+// =============================================================================
+export const aiEmployees = pgTable(
+  'ai_employees',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    templateId: uuid('template_id').references(() => aiEmployeeTemplates.id, {
+      onDelete: 'set null',
+    }),
+    name: text('name').notNull(),
+    displayName: text('display_name').notNull(),
+    icon: text('icon'),
+    role: aiEmployeeRoleEnum('role').notNull(),
+    department: aiEmployeeDepartmentEnum('department').notNull(),
+    tonePreset: tonePresetEnum('tone_preset').notNull().default('polite'),
+    customToneText: text('custom_tone_text'),
+    attachedSkills: uuid('attached_skills')
+      .array()
+      .notNull()
+      .default(sql`array[]::uuid[]`),
+    attachedKnowledgeCats: text('attached_knowledge_cats')
+      .array()
+      .notNull()
+      .default(sql`array[]::text[]`),
+    systemPromptOverride: text('system_prompt_override'),
+    isDefault: boolean('is_default').notNull().default(false),
+    archived: boolean('archived').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    customToneLength: check(
+      'ai_employees_custom_tone_length',
+      sql`${table.customToneText} is null or char_length(${table.customToneText}) <= 500`,
+    ),
+    workspaceNameUnique: unique('ai_employees_workspace_name_key').on(
+      table.workspaceId,
+      table.name,
+    ),
+  }),
+);
+
+export type AiEmployee = typeof aiEmployees.$inferSelect;
+export type NewAiEmployee = typeof aiEmployees.$inferInsert;
