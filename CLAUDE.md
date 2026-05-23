@@ -49,37 +49,47 @@
 
 ## 🚀 タスク着手の標準フロー
 
+### ⚠️ 必須: タスク着手は **必ず begin-task.sh で atomic 実行する**
+
+JIT skill の STEP 0/2/3 (validate → preview → dispatch → branch → CLAUDE.md.task
+配置 → /goal 生成) を 1 コマンドで完結させる。**個別 step を手で叩いて省略するのは禁止**
+(.husky/pre-commit hook で feat/t-x-y-* ブランチに CLAUDE.md.task が無い commit を
+拒否するように enforce 済)。
+
 ```bash
-# 1. validate（毎回）
-./09_dispatch/scripts/validate.sh
+# タスク着手 (これ 1 行で STEP 0/2/3 すべて atomic 実行)
+./scripts/begin-task.sh T-F-01
 
-# 2. やるタスクを決める（schedule.json の wave/start_date 順）
-jq -r '.tasks[] | select(.wave==0) | .id + " " + .title' 07_tasks/tickets.json
+# 結果:
+#   - 新ブランチ feat/t-f-01-<slug> に switch 済
+#   - ./CLAUDE.md.task に仕様配置 (READ THIS BEFORE CODING)
+#   - .jit/preview-T-F-01.log  (8 セクション全文)
+#   - .jit/goal-T-F-01.txt     (/goal 用テキスト)
 
-# 3. JIT 生成して内容確認
-./09_dispatch/scripts/dispatch.sh --preview T-F-01 | less
+# 実装中の遵守事項:
+#   - files_changed_predicted.new / modify のみ touch
+#   - shared_read は読むだけ、編集禁止
+#   - forbidden は絶対に触らない (他タスク専有)
+#   - 3-tier AC (structural / functional EARS / regression) を全 PASS
 
-# 4. 実装開始
-./09_dispatch/scripts/dispatch.sh T-F-01
-# → 案内に従って branch 作成 → CLAUDE.md をルートに配置 → 進めて
-
-# 5. 実装中
-#    - files_changed_predicted の new / modify のみ触る
-#    - shared_read は読むだけ、編集禁止
-#    - forbidden は絶対に触らない（他タスク専有）
-
-# 6. 3-tier AC 全 PASS を確認
-#    - Tier 1 structural: mock / spec / OpenAPI と一致
-#    - Tier 2 functional: EARS 5 形式（UNWANTED 句は access policy）
-#    - Tier 3 regression: CI gate 10 種 PASS
-
-# 7. push
+# push
 git push -u origin <branch>
-# → PR auto-create → 10 gate PASS → auto-merge
+# → PR auto-create → 13 gate PASS → auto-merge
 
-# 8. 一時 CLAUDE.md を削除
-rm CLAUDE.md  # ルートに置いた一時ファイルのみ
+# 完了後 (オプション)
+rm CLAUDE.md.task .jit/preview-*.log .jit/goal-*.txt
 ```
+
+### Skill skip 時の動作
+
+`./scripts/begin-task.sh` を経由せず手動で `feat/t-x-y-*` branch を切って
+commit しようとすると、`.husky/pre-commit` が以下で拒否する:
+
+```
+❌ JIT skill skipped: branch 'feat/t-d-22-...' has no CLAUDE.md.task
+```
+
+→ サボれない構造。begin-task.sh 実行を強制される。
 
 ## 🧪 CI gate 10 種（v3-gate.yml）
 
