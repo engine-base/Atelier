@@ -827,3 +827,64 @@ export const comments = pgTable(
 
 export type Comment = typeof comments.$inferSelect;
 export type NewComment = typeof comments.$inferInsert;
+
+// =============================================================================
+// E-017 ClientInvitation — T-D-08
+// クライアント外部レビュー用招待 (token-based, TTL)。F-L01。
+//
+// セキュリティ:
+//   - token_hash は SHA-256 hex (アプリ層で生成、生 token は DB に保存しない)
+//   - expires_at は最大 30 日 (アプリ層は default 7 日)
+//   - scopes は jsonb array (デフォルト ["view","comment"])
+// =============================================================================
+export const clientInvitations = pgTable(
+  'client_invitations',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scopes: jsonb('scopes').notNull().default(['view', 'comment']),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    clientDisplayName: text('client_display_name'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    emailFormat: check(
+      'client_invitations_email_format',
+      sql`${table.email} ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'`,
+    ),
+    tokenHashSha256: check(
+      'client_invitations_token_hash_sha256',
+      sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    scopesArray: check(
+      'client_invitations_scopes_array',
+      sql`jsonb_typeof(${table.scopes}) = 'array'`,
+    ),
+    usedAfterCreation: check(
+      'client_invitations_used_after_creation',
+      sql`${table.usedAt} is null or ${table.usedAt} >= ${table.createdAt}`,
+    ),
+    revokedAfterCreation: check(
+      'client_invitations_revoked_after_creation',
+      sql`${table.revokedAt} is null or ${table.revokedAt} >= ${table.createdAt}`,
+    ),
+    expiryReasonable: check(
+      'client_invitations_expiry_reasonable',
+      sql`${table.expiresAt} > ${table.createdAt} and ${table.expiresAt} <= ${table.createdAt} + interval '30 days'`,
+    ),
+  }),
+);
+
+export type ClientInvitation = typeof clientInvitations.$inferSelect;
+export type NewClientInvitation = typeof clientInvitations.$inferInsert;
