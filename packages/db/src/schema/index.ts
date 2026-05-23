@@ -1325,3 +1325,55 @@ export const approvalInbox = pgTable(
 
 export type ApprovalInbox = typeof approvalInbox.$inferSelect;
 export type NewApprovalInbox = typeof approvalInbox.$inferInsert;
+
+// =============================================================================
+// E-023 CronSchedule — T-D-13
+// F-O01 自動化スケジュール (T-F-20 Inngest worker と連携)。
+// project_id × name UNIQUE で重複防止。target_action は 6 種 enum (text + CHECK)。
+// =============================================================================
+export const cronSchedules = pgTable(
+  'cron_schedules',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    cronExpression: text('cron_expression').notNull(),
+    targetAction: text('target_action').notNull(),
+    targetPayload: jsonb('target_payload').notNull().default({}),
+    enabled: boolean('enabled').notNull().default(true),
+    nextRunAt: timestamp('next_run_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    expressionFormat: check(
+      'cron_schedules_expression_format',
+      sql`char_length(${table.cronExpression}) between 1 and 100`,
+    ),
+    nameLength: check(
+      'cron_schedules_name_length',
+      sql`char_length(${table.name}) between 1 and 100`,
+    ),
+    targetActionValid: check(
+      'cron_schedules_target_action_valid',
+      sql`${table.targetAction} in ('task_replay', 'knowledge_organize', 'industry_extract', 'report_summary', 'daily_digest', 'weekly_burndown')`,
+    ),
+    targetPayloadObject: check(
+      'cron_schedules_target_payload_object',
+      sql`jsonb_typeof(${table.targetPayload}) = 'object'`,
+    ),
+    projectNameUnique: unique('cron_schedules_project_id_name_key').on(
+      table.projectId,
+      table.name,
+    ),
+  }),
+);
+
+export type CronSchedule = typeof cronSchedules.$inferSelect;
+export type NewCronSchedule = typeof cronSchedules.$inferInsert;
