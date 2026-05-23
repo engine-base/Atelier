@@ -13,16 +13,11 @@ kill_signal = "SIGINT"
 kill_timeout = "30s"
 
 # ─────────────────────────────────────────────────────────
-# Build — Paketo Cloud Native Buildpacks 経由で Python ビルド
-# (Dockerfile 不要、pyproject.toml + uv lock を Fly.io が自動検知)
+# Build — apps/api/Dockerfile (uv ベースの multi-stage build)
+# (旧 Paketo CNB は remote build で unauthorized エラーになるため Dockerfile に変更)
 # ─────────────────────────────────────────────────────────
 [build]
-  builder = "paketobuildpacks/builder-jammy-base"
-  buildpacks = ["gcr.io/paketo-buildpacks/python"]
-
-[build.args]
-  BP_CPYTHON_VERSION = "3.12"
-  BP_POETRY_INSTALL_GROUPS = "main"
+  dockerfile = "apps/api/Dockerfile"
 
 # ─────────────────────────────────────────────────────────
 # Environment — non-secret env vars (secrets は flyctl secrets で投入済)
