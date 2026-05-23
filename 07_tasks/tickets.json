@@ -21439,6 +21439,182 @@
           "expected": "LCP < 2.5s / CLS < 0.1 / INP < 200ms"
         }
       ]
+    },
+    {
+      "id": "T-F-38",
+      "title": "Langfuse LLM トレース統合 (T-F-08 follow-up)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 3,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-08",
+        "T-F-12"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-38.md",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 7,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/observability/langfuse.py",
+          "07_tasks/acceptance-criteria/T-F-38.md"
+        ],
+        "modify": [
+          "apps/api/src/observability/__init__.py"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "apps/api/src/observability/sentry.py",
+          "apps/api/src/llm/client.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: apps/api/src/observability/langfuse.py が importable で LangfuseClient を提供する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "LangfuseClient is type-safe and passes pyright strict 0-error"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When LANGFUSE_PUBLIC_KEY is missing, the client shall gracefully no-op without raising"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "import確認",
+          "steps": [
+            "python -c \"from src.observability import LangfuseClient\""
+          ],
+          "expected": "エラー無し"
+        },
+        {
+          "name": "no-op fallback",
+          "steps": [
+            "LANGFUSE_PUBLIC_KEY 未設定で init"
+          ],
+          "expected": "warning ログ + False return"
+        }
+      ]
+    },
+    {
+      "id": "T-F-39",
+      "title": "Better Stack ログ集約統合 (T-F-08 follow-up)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "estimate_hours": 3,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-F-08"
+      ],
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-39.md",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 7,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/observability/betterstack.py",
+          "apps/web/lib/logger.ts",
+          "07_tasks/acceptance-criteria/T-F-39.md"
+        ],
+        "modify": [
+          "apps/api/src/observability/__init__.py"
+        ],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "apps/api/src/observability/sentry.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: apps/api/src/observability/betterstack.py が importable で structured logger handler を提供する",
+          "UBIQUITOUS: apps/web/lib/logger.ts が importable で fetch ベースの送信関数を提供する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "Both modules are type-safe and pass tsc/pyright strict 0-error"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When BETTERSTACK_SOURCE_TOKEN is missing, log handlers shall fall back to local logging without raising"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "Python import",
+          "steps": [
+            "from src.observability import BetterStackHandler"
+          ],
+          "expected": "エラー無し"
+        },
+        {
+          "name": "TS import",
+          "steps": [
+            "import { sendLog } from \"@/lib/logger\""
+          ],
+          "expected": "エラー無し"
+        }
+      ]
     }
   ],
   "two_axis_policy": {
