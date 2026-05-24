@@ -5199,6 +5199,15 @@
           ],
           "expected": "0 行を返す（漏れゼロ）"
         }
+      ],
+      "design_decisions_inline": [
+        {
+          "topic": "scope=employee_specific の RLS 細粒度制限",
+          "decision": "workspace member 全員可視 (owner_employee_id による絞り込みは RLS で行わない)",
+          "rationale": "ai_employee は workspace 内の存在で member が対話する。RLS では workspace 境界を enforce し、employee_specific の細粒度フィルタはアプリ層 (T-A-XX) で実装する。",
+          "alternative_considered": "owner_employee_id に紐づくユーザーのみ可視 → ai_employee は user ではないため判定基準が不明確になり棄却",
+          "follow_up_task": "T-F-40 (将来 owner_employee 限定が必要になった場合)"
+        }
       ]
     },
     {
@@ -21613,6 +21622,89 @@
             "import { sendLog } from \"@/lib/logger\""
           ],
           "expected": "エラー無し"
+        }
+      ]
+    },
+    {
+      "id": "T-F-40",
+      "title": "knowledge_nodes scope=employee_specific 細粒度 RLS (将来用)",
+      "group": "F",
+      "category": "infra",
+      "label": "FUTURE",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 2,
+      "estimate_hours": 3,
+      "assigned_employee": "strange",
+      "depends_on": [
+        "T-D-18",
+        "T-D-22"
+      ],
+      "screen_ids": [],
+      "entity_ids": [
+        "E-018"
+      ],
+      "feature_ids": [
+        "F-K01"
+      ],
+      "legacy_task_id": null,
+      "ac_path": "07_tasks/acceptance-criteria/T-F-40.md",
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 7,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "files_changed_predicted": {
+        "new": [
+          "supabase/migrations/t-f-40_rls.sql",
+          "07_tasks/acceptance-criteria/T-F-40.md"
+        ],
+        "modify": [],
+        "shared_read": [
+          "07_tasks/tickets.json",
+          "04_functional_breakdown/entities.json"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: knowledge_nodes RLS が scope=employee_specific の場合 owner_employee_id に紐づくユーザーのみ可視に絞られる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "The migration shall be idempotent"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If a workspace member who is NOT the owner_employee queries employee_specific knowledge, the system shall return zero rows for that node"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "owner_employee 限定",
+          "steps": [
+            "scope=employee_specific の knowledge_node を seed",
+            "owner_employee に紐づかない user で query"
+          ],
+          "expected": "0 rows"
         }
       ]
     }
