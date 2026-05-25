@@ -5685,7 +5685,8 @@
       "files_changed_predicted": {
         "new": [
           "supabase/migrations/t-d-23_service_role.sql",
-          "apps/api/src/auth/bridge_token.py"
+          "apps/api/src/auth/bridge_token.py",
+          "apps/api/tests/test_bridge_token.py"
         ],
         "modify": [],
         "shared_read": [
