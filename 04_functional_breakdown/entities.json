@@ -907,12 +907,44 @@
         {"name": "consents_admin_select", "operation": "SELECT", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM auth.users WHERE id = auth.uid() AND raw_app_meta_data->>'role' = 'admin')", "rationale": "管理者監査"}
       ],
       "checklist_status": "decided"
+    },
+    {
+      "id": "E-026",
+      "name": "LegalDocument",
+      "table_name": "legal_documents",
+      "description": "F-LEGAL 法令ページ本文（terms/privacy/特商法）。版管理・公開閲覧可。consents.version の参照先。T-D-25 で追加。",
+      "status": "decided",
+      "tenant_isolation": {"type": "none_global"},
+      "soft_delete": false,
+      "timestamps": ["created_at", "updated_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"]},
+        {"name": "doc_type", "type": "text", "constraints": ["NN"], "values": ["terms_of_service", "privacy_policy", "tokushoho"]},
+        {"name": "version", "type": "text", "constraints": ["NN"]},
+        {"name": "locale", "type": "text", "constraints": ["NN"], "default": "'ja'"},
+        {"name": "title", "type": "text", "constraints": ["NN"]},
+        {"name": "body_md", "type": "text", "constraints": ["NN"]},
+        {"name": "effective_date", "type": "date", "constraints": ["NN"]},
+        {"name": "is_current", "type": "boolean", "constraints": ["NN"], "default": "false"},
+        {"name": "created_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "updated_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"}
+      ],
+      "relations": [],
+      "indexes": [
+        {"name": "legal_documents_doc_type_version_locale_key", "columns": ["doc_type", "version", "locale"], "type": "unique"},
+        {"name": "legal_documents_current_idx", "columns": ["doc_type", "locale"], "type": "btree"}
+      ],
+      "access_control_policies": [
+        {"name": "legal_documents_public_read", "operation": "SELECT", "role": "anon,authenticated", "predicate": "true", "rationale": "法令ページは公開コンテンツ"},
+        {"name": "legal_documents_no_write", "operation": "INSERT,UPDATE,DELETE", "role": "authenticated", "predicate": "false", "rationale": "更新は service_role/admin のみ"}
+      ],
+      "checklist_status": "decided"
     }
   ],
   "summary": {
-    "total_entities": 25,
-    "total_access_control_policies": 85,
-    "tenant_isolation_breakdown": {"workspace_scoped": 17, "user_scoped": 4, "account_scoped": 1, "none_global": 3},
+    "total_entities": 26,
+    "total_access_control_policies": 87,
+    "tenant_isolation_breakdown": {"workspace_scoped": 17, "user_scoped": 4, "account_scoped": 1, "none_global": 4},
     "soft_delete_enabled": 14,
     "vector_indexed": 2,
     "fts_indexed": 3

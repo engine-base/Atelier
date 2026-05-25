@@ -5856,7 +5856,8 @@
         "S-PUB03"
       ],
       "entity_ids": [
-        "E-006"
+        "E-006",
+        "E-026"
       ],
       "feature_ids": [
         "F-LEGAL-001"
@@ -5872,9 +5873,12 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
+          "supabase/migrations/t-d-25_026.sql",
           "supabase/seed/t-d-25.sql"
         ],
-        "modify": [],
+        "modify": [
+          "packages/db/src/schema/index.ts"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-D-25.md",
