@@ -1377,3 +1377,88 @@ export const cronSchedules = pgTable(
 
 export type CronSchedule = typeof cronSchedules.$inferSelect;
 export type NewCronSchedule = typeof cronSchedules.$inferInsert;
+
+// =============================================================================
+// E-021 McpToken — T-D-12
+// MCP サーバアクセストークン (F-P01)。workspace_scoped。token_hash は SHA-256 hex。
+// =============================================================================
+export const mcpTokens = pgTable(
+  'mcp_tokens',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    name: text('name').notNull(),
+    scopes: text('scopes').array().notNull().default(sql`array[]::text[]`),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    tokenHashSha256: check(
+      'mcp_tokens_token_hash_sha256',
+      sql`${table.tokenHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    nameLength: check(
+      'mcp_tokens_name_length',
+      sql`char_length(${table.name}) between 1 and 100`,
+    ),
+    revokedAfterCreation: check(
+      'mcp_tokens_revoked_after_creation',
+      sql`${table.revokedAt} is null or ${table.revokedAt} >= ${table.createdAt}`,
+    ),
+    expiryAfterCreation: check(
+      'mcp_tokens_expiry_after_creation',
+      sql`${table.expiresAt} is null or ${table.expiresAt} > ${table.createdAt}`,
+    ),
+  }),
+);
+
+export type McpToken = typeof mcpTokens.$inferSelect;
+export type NewMcpToken = typeof mcpTokens.$inferInsert;
+
+// =============================================================================
+// E-022 ByokApiKey — T-D-12
+// ユーザー API キー (Supabase Vault 暗号化保管、T-F-19)。user_scoped。
+// encrypted_key は Vault secret の id (uuid text)。平文は vault.secrets に保管。
+// =============================================================================
+export const byokApiKeys = pgTable(
+  'byok_api_keys',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    encryptedKey: text('encrypted_key').notNull(),
+    keyLabel: text('key_label'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    providerValid: check(
+      'byok_api_keys_provider_valid',
+      sql`${table.provider} in ('claude', 'openai', 'gemini')`,
+    ),
+    keyLabelLength: check(
+      'byok_api_keys_key_label_length',
+      sql`${table.keyLabel} is null or char_length(${table.keyLabel}) between 1 and 100`,
+    ),
+  }),
+);
+
+export type ByokApiKey = typeof byokApiKeys.$inferSelect;
+export type NewByokApiKey = typeof byokApiKeys.$inferInsert;
