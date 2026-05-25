@@ -1761,7 +1761,8 @@
       "files_changed_predicted": {
         "new": [
           "apps/api/src/vault/__init__.py",
-          "apps/api/src/vault/byok.py"
+          "apps/api/src/vault/byok.py",
+          "apps/api/tests/test_vault_byok.py"
         ],
         "modify": [],
         "shared_read": [
