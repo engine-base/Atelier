@@ -115,11 +115,11 @@ def sync_engine() -> Iterator[sqlalchemy.Engine]:
 
 @pytest.fixture()
 def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
-    u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
+    u_a, u_b, u_v = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
     proj_a, emp_a = str(uuid.uuid4()), str(uuid.uuid4())
     with sync_engine.begin() as c:
-        for uid in (u_a, u_b):
+        for uid in (u_a, u_b, u_v):
             em = f"ta16-{uid[:8]}@t.invalid"
             c.execute(text("insert into auth.users (id,email) values (:i,:e)"), {"i": uid, "e": em})
             c.execute(
@@ -130,6 +130,14 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
                 text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
                 {"i": ws, "o": owner, "n": f"ws-{ws[:6]}"},
             )
+        # u_v を ws_a の viewer として追加 (閲覧可・投稿不可の検証用)
+        c.execute(
+            text(
+                "insert into public.workspace_memberships (workspace_id,user_id,role) "
+                "values (cast(:w as uuid),cast(:u as uuid),'viewer')"
+            ),
+            {"w": ws_a, "u": u_v},
+        )
         c.execute(
             text(
                 "insert into public.projects (id,workspace_id,name,project_type) values (:i,:w,:n,'internal_product')"
@@ -143,11 +151,24 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
             ),
             {"i": emp_a, "w": ws_a},
         )
-    yield {"u_a": u_a, "u_b": u_b, "ws_a": ws_a, "proj_a": proj_a, "emp_a": emp_a}
+    yield {
+        "u_a": u_a,
+        "u_b": u_b,
+        "u_v": u_v,
+        "ws_a": ws_a,
+        "proj_a": proj_a,
+        "emp_a": emp_a,
+    }
     with sync_engine.begin() as c:
         c.execute(text("delete from public.workspaces where id in (:a,:b)"), {"a": ws_a, "b": ws_b})
-        c.execute(text("delete from public.users where id in (:a,:b)"), {"a": u_a, "b": u_b})
-        c.execute(text("delete from auth.users where id in (:a,:b)"), {"a": u_a, "b": u_b})
+        c.execute(
+            text("delete from public.users where id in (:a,:b,:v)"),
+            {"a": u_a, "b": u_b, "v": u_v},
+        )
+        c.execute(
+            text("delete from auth.users where id in (:a,:b,:v)"),
+            {"a": u_a, "b": u_b, "v": u_v},
+        )
 
 
 def _h(uid: str) -> dict[str, str]:
@@ -215,4 +236,68 @@ class TestChatThreads:
                 headers=ha,
             ).json()["data"]["id"]
             assert client.get(f"/chat/threads/{tid}", headers=hb).status_code == 404
+            client.delete(f"/chat/threads/{tid}", headers=ha)
+
+
+@pytest.mark.integration
+class TestChatMessages:
+    def _thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        return client.post(
+            "/chat/threads",
+            json={"project_id": seeded["proj_a"], "ai_employee_id": seeded["emp_a"]},
+            headers=_h(seeded["u_a"]),
+        ).json()["data"]["id"]
+
+    def test_messages_unauthenticated_401(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            assert client.get(f"/chat/threads/{tid}/messages").status_code == 401
+            assert (
+                client.post(f"/chat/threads/{tid}/messages", json={"content": "x"}).status_code
+                == 401
+            )
+            client.delete(f"/chat/threads/{tid}", headers=_h(seeded["u_a"]))
+
+    def test_send_and_list(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            r = client.post(f"/chat/threads/{tid}/messages", json={"content": "hello"}, headers=h)
+            assert r.status_code == 201, r.text
+            msg = r.json()["data"]
+            assert msg["role"] == "user"
+            assert msg["content"] == "hello"
+            assert msg["thread_id"] == tid
+
+            lst = client.get(f"/chat/threads/{tid}/messages", headers=h)
+            assert lst.status_code == 200
+            assert any(m["id"] == msg["id"] for m in lst.json()["data"])
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_viewer_cannot_post_403(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        ha, hv = _h(seeded["u_a"]), _h(seeded["u_v"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            # viewer はスレッドを閲覧できる
+            assert client.get(f"/chat/threads/{tid}/messages", headers=hv).status_code == 200
+            # が、投稿はできない (403)
+            assert (
+                client.post(
+                    f"/chat/threads/{tid}/messages", json={"content": "nope"}, headers=hv
+                ).status_code
+                == 403
+            )
+            client.delete(f"/chat/threads/{tid}", headers=ha)
+
+    def test_cross_workspace_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            assert client.get(f"/chat/threads/{tid}/messages", headers=hb).status_code == 404
+            assert (
+                client.post(
+                    f"/chat/threads/{tid}/messages", json={"content": "x"}, headers=hb
+                ).status_code
+                == 404
+            )
             client.delete(f"/chat/threads/{tid}", headers=ha)

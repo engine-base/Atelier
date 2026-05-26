@@ -407,6 +407,18 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        thread_id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system, tool] }
+        content: { type: string }
+        parent_message_id: { type: string, format: uuid, nullable: true }
+        token_count: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     Phase:
       type: object
       properties:
@@ -2059,6 +2071,50 @@ paths:
       responses:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/messages:
+    parameters:
+      - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [chat]
+      summary: チャットメッセージ一覧
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::list_messages
+      x-screen-ids: [S-D01]
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ChatMessage' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [chat]
+      summary: チャットメッセージ送信（即時 / ユーザー発話）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_message
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 100000 }
+      responses:
+        '201':
+          description: 送信成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatMessage' }
+        '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

@@ -13,9 +13,30 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
-from src.schemas.chat import ThreadCreate, ThreadResponse, ThreadUpdate
+from src.schemas.chat import (
+    MessageCreate,
+    MessageResponse,
+    ThreadCreate,
+    ThreadResponse,
+    ThreadUpdate,
+)
 
 _COLS = "id, project_id, ai_employee_id, title, archived, created_at, updated_at, deleted_at"
+
+_MSG_COLS = "id, thread_id, role, content, parent_message_id, token_count, created_at, updated_at"
+
+
+def _msg_to_response(row: Any) -> MessageResponse:
+    return MessageResponse(
+        id=str(row.id),
+        thread_id=str(row.thread_id),
+        role=str(row.role),
+        content=str(row.content),
+        parent_message_id=(None if row.parent_message_id is None else str(row.parent_message_id)),
+        token_count=(None if row.token_count is None else int(row.token_count)),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
 
 
 def _row_to_response(row: Any) -> ThreadResponse:
@@ -142,3 +163,68 @@ async def delete_thread(session: AsyncSession, *, actor_id: str, thread_id: str)
         )
     )
     return True
+
+
+async def list_messages(session: AsyncSession, *, thread_id: str) -> list[MessageResponse]:
+    """スレッド内メッセージを古い順に。可視性は RLS (chat_messages_select_member)。"""
+    res = await session.execute(
+        text(
+            f"select {_MSG_COLS} from public.chat_messages "
+            "where thread_id = cast(:tid as uuid) and deleted_at is null "
+            "order by created_at, id"
+        ),
+        {"tid": thread_id},
+    )
+    return [_msg_to_response(r) for r in res.all()]
+
+
+async def can_post_to_thread(session: AsyncSession, *, thread_id: str) -> bool:
+    """ログインユーザーが当該スレッドに投稿可能 (owner/member) か。
+
+    viewer ロールは閲覧のみで投稿不可。RLS insert ポリシーと同条件を事前判定し、
+    403 を返せるようにする (RLS 違反による 500 を避ける)。
+    """
+    res = await session.execute(
+        text(
+            "select exists("
+            " select 1 from public.chat_threads t "
+            " join public.projects p on p.id = t.project_id "
+            " join public.workspace_memberships m on m.workspace_id = p.workspace_id "
+            " where t.id = cast(:tid as uuid) and m.user_id = auth.uid() "
+            " and m.role in ('owner','member'))"
+        ),
+        {"tid": thread_id},
+    )
+    return bool(res.scalar_one())
+
+
+async def create_message(
+    session: AsyncSession, *, actor_id: str, thread_id: str, data: MessageCreate
+) -> MessageResponse:
+    """ユーザー発話を即時に永続化 (role='user')。AI 応答生成は T-A-18 (SSE)。"""
+    new_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "insert into public.chat_messages (id, thread_id, role, content) "
+            "values (cast(:id as uuid), cast(:tid as uuid), 'user', :content)"
+        ),
+        {"id": new_id, "tid": thread_id, "content": data.content},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="chat_message.create",
+            target_type="chat_message",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=new_id,
+            after={"thread_id": thread_id, "role": "user"},
+        )
+    )
+    res = await session.execute(
+        text(f"select {_MSG_COLS} from public.chat_messages where id = cast(:id as uuid)"),
+        {"id": new_id},
+    )
+    row = res.first()
+    if row is None:  # pragma: no cover - 直前に作成済
+        raise RuntimeError("created message not visible after insert")
+    return _msg_to_response(row)
