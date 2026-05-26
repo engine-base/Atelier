@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from src.routes.admin import router as admin_router
 from src.routes.ai_employees import router as ai_employees_router
 from src.routes.mocks import router as mocks_router
 from src.routes.projects import router as projects_router
@@ -19,5 +20,6 @@ api_router.include_router(projects_router)
 api_router.include_router(tasks_router)
 api_router.include_router(mocks_router)
 api_router.include_router(ai_employees_router)
+api_router.include_router(admin_router)
 
 __all__ = ["api_router"]

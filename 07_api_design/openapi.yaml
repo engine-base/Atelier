@@ -331,6 +331,21 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid, nullable: true }
+        actor_type: { type: string, enum: [ai, user, system, anonymous] }
+        actor_id: { type: string }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string, format: uuid, nullable: true }
+        before: { type: object, nullable: true }
+        after: { type: object, nullable: true }
+        ip_address: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1309,6 +1324,31 @@ paths:
                   data: { $ref: '#/components/schemas/AiEmployee' }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # admin (運営)
+  # ==========================================================================
+  /admin/audit-logs:
+    get:
+      tags: [admin]
+      summary: 監査ログ閲覧（運営 admin）
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_audit_logs
+      x-screen-ids: [S-AD01]
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: actor_type, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        '200':
+          description: 監査ログ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # 承認待ち
