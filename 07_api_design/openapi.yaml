@@ -311,6 +311,26 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AiEmployee:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        template_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        display_name: { type: string }
+        icon: { type: string, nullable: true }
+        role: { type: string, enum: [coo, lead, member] }
+        department: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] }
+        tone_preset: { type: string, enum: [polite, friendly, casual, concise, coaching] }
+        custom_tone_text: { type: string, nullable: true }
+        attached_skills: { type: array, items: { type: string, format: uuid } }
+        attached_knowledge_cats: { type: array, items: { type: string } }
+        is_default: { type: boolean }
+        archived: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1221,6 +1241,73 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # ai-employees (一覧・詳細・編集、固定 10 名)
+  # ==========================================================================
+  /ai-employees:
+    get:
+      tags: [ai-employees]
+      summary: AI 社員一覧
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::list_ai_employees
+      x-screen-ids: [S-C01]
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AiEmployee' } }
+
+  /ai-employees/{employee_id}:
+    parameters:
+      - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [ai-employees]
+      summary: AI 社員詳細
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::get_ai_employee
+      x-screen-ids: [S-C02]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployee' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [ai-employees]
+      summary: AI 社員編集（display_name / icon / tone_preset / custom_tone_text）
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::update_ai_employee
+      x-screen-ids: [S-C02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name: { type: string, maxLength: 100 }
+                icon: { type: string }
+                tone_preset: { type: string, enum: [polite, friendly, casual, concise, coaching] }
+                custom_tone_text: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployee' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
