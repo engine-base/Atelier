@@ -113,11 +113,15 @@ async def list_projects(
     status: str | None = None,
     cursor: str | None = None,
     limit: int = 20,
+    include_deleted: bool = False,
 ) -> tuple[list[ProjectResponse], PaginationMeta]:
-    """RLS 可視な project 一覧 (keyset cursor: created_at, id 昇順)。"""
+    """RLS 可視な project 一覧 (keyset cursor: created_at, id 昇順)。
+
+    include_deleted=True で論理削除済 (ゴミ箱) も含める (T-A-12 / 30 日猶予内の復元向け)。
+    """
     limit = max(1, min(limit, 100))
     params: dict[str, object] = {"lim": limit + 1}
-    where = ["p.deleted_at is null"]
+    where = ["1=1"] if include_deleted else ["p.deleted_at is null"]
     if workspace_id is not None:
         where.append("p.workspace_id = cast(:wid as uuid)")
         params["wid"] = workspace_id
@@ -143,7 +147,7 @@ async def list_projects(
     items = [_row_to_response(r) for r in page]
     next_cursor = _encode_cursor(page[-1].created_at, page[-1].id) if has_more and page else None
 
-    count_where = ["p.deleted_at is null"]
+    count_where = ["1=1"] if include_deleted else ["p.deleted_at is null"]
     count_params: dict[str, object] = {}
     if workspace_id is not None:
         count_where.append("p.workspace_id = cast(:wid as uuid)")
@@ -270,6 +274,36 @@ async def delete_project(session: AsyncSession, *, actor_id: str, project_id: st
         )
     )
     return True
+
+
+async def restore_project(
+    session: AsyncSession, *, actor_id: str, project_id: str
+) -> ProjectResponse | None:
+    """論理削除の取消 (deleted_at クリア)。削除から 30 日の猶予内のみ復元可能。
+
+    猶予超過分は cron (T-F-20/T-A-40) が物理パージするが、未パージでも本層で
+    30 日境界を強制し、対象外 (未削除 / 不在 / 猶予超過 / 権限なし) は None を返す。
+    """
+    res = await session.execute(
+        text(
+            "update public.projects set deleted_at = null "
+            "where id = cast(:id as uuid) and deleted_at is not null "
+            "and deleted_at > now() - interval '30 days' returning id"
+        ),
+        {"id": project_id},
+    )
+    if res.scalar_one_or_none() is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="project.restore",
+            target_type="project",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=project_id,
+        )
+    )
+    return await get_project(session, project_id)
 
 
 async def get_dashboard(session: AsyncSession, project_id: str) -> ProjectDashboard | None:

@@ -191,6 +191,50 @@ class TestProjectsCrud:
             assert client.delete(f"/projects/{pid}", headers=h).status_code == 204
             assert client.get(f"/projects/{pid}", headers=h).status_code == 404
 
+    def test_archive_delete_restore_lifecycle(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """T-A-12: archive (status) + 30 日論理削除 + ゴミ箱表示 + 復元。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            pid = client.post(
+                "/projects",
+                json={"workspace_id": seeded["ws_a"], "name": "lifecycle", "type": "personal"},
+                headers=h,
+            ).json()["data"]["id"]
+
+            # archive (status=archived)
+            ar = client.patch(f"/projects/{pid}", json={"status": "archived"}, headers=h)
+            assert ar.status_code == 200
+            assert ar.json()["data"]["status"] == "archived"
+
+            # 論理削除 → 通常一覧/詳細から消える
+            assert client.delete(f"/projects/{pid}", headers=h).status_code == 204
+            assert client.get(f"/projects/{pid}", headers=h).status_code == 404
+            normal = client.get(f"/projects?workspace_id={seeded['ws_a']}", headers=h).json()
+            assert all(p["id"] != pid for p in normal["data"])
+
+            # include_deleted=true でゴミ箱に出る
+            trash = client.get(
+                f"/projects?workspace_id={seeded['ws_a']}&include_deleted=true", headers=h
+            ).json()
+            trashed = next(p for p in trash["data"] if p["id"] == pid)
+            assert trashed["deleted_at"] is not None
+
+            # 復元 → 再び可視・deleted_at が null
+            rr = client.post(f"/projects/{pid}/restore", headers=h)
+            assert rr.status_code == 200, rr.text
+            assert rr.json()["data"]["deleted_at"] is None
+            assert client.get(f"/projects/{pid}", headers=h).status_code == 200
+
+            # 未削除の project を復元しようとすると 404 (対象外)
+            assert client.post(f"/projects/{pid}/restore", headers=h).status_code == 404
+
+            client.delete(f"/projects/{pid}", headers=h)
+
+    def test_restore_nonexistent_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            assert client.post(f"/projects/{uuid.uuid4()}/restore", headers=h).status_code == 404
+
     def test_dashboard(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:

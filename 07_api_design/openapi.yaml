@@ -982,6 +982,10 @@ paths:
         - in: query
           name: limit
           schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: include_deleted
+          description: true で論理削除済 (ゴミ箱) も含める (T-A-12)
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: 一覧
@@ -1071,6 +1075,25 @@ paths:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/restore:
+    post:
+      tags: [projects]
+      summary: プロジェクト復元（論理削除を取消 / 30 日猶予内）
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::restore_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 復元成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '404': { description: 不在 / 未削除 / 猶予超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /projects/{project_id}/dashboard:
     parameters:
