@@ -49,3 +49,25 @@ class PaginationMeta(BaseModel):
     next_cursor: str | None
     limit: int
     total_estimate: int
+
+
+class ActivityItem(BaseModel):
+    """project dashboard の activity (audit_logs 由来、T-A-11)。"""
+
+    action: str
+    actor_type: str
+    actor_id: str
+    target_type: str
+    target_id: str | None
+    created_at: datetime
+
+
+class ProjectDashboard(BaseModel):
+    """project KPI ダッシュボード (T-A-11)。"""
+
+    project_id: str
+    name: str
+    status: ProjectStatus
+    current_phase: str
+    task_counts: dict[str, int]
+    recent_activities: list[ActivityItem]

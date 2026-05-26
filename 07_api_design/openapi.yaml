@@ -887,16 +887,16 @@ paths:
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
-  /projects/{id}/dashboard:
+  /projects/{project_id}/dashboard:
     parameters:
       - in: path
-        name: id
+        name: project_id
         required: true
         schema: { type: string, format: uuid }
     get:
       tags: [projects]
       summary: プロジェクト KPI ダッシュボード
-      x-implementation-path: apps/api/src/routes/projects.py::dashboard
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::project_dashboard
       x-screen-ids: [S-B02]
       responses:
         '200':

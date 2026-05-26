@@ -191,6 +191,37 @@ class TestProjectsCrud:
             assert client.delete(f"/projects/{pid}", headers=h).status_code == 204
             assert client.get(f"/projects/{pid}", headers=h).status_code == 404
 
+    def test_dashboard(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            pid = client.post(
+                "/projects",
+                json={"workspace_id": seeded["ws_a"], "name": "Dash", "type": "personal"},
+                headers=h,
+            ).json()["data"]["id"]
+            # task を 2 件作成 (lifecycle 既定 triage)
+            for title in ("t1", "t2"):
+                client.post(
+                    "/tasks",
+                    json={
+                        "project_id": pid,
+                        "category": "x",
+                        "title": title,
+                        "type": "feature",
+                        "estimated_hours": 1,
+                    },
+                    headers=h,
+                )
+            r = client.get(f"/projects/{pid}/dashboard", headers=h)
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["project_id"] == pid
+            assert d["task_counts"]["total"] == 2
+            assert d["task_counts"]["triage"] == 2
+            # project.create / task.create が activity に含まれる
+            assert any(a["action"] == "task.create" for a in d["recent_activities"])
+            client.delete(f"/projects/{pid}", headers=h)
+
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
         with TestClient(app) as client:

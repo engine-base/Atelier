@@ -15,6 +15,7 @@ from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.projects import (
     PaginationMeta,
     ProjectCreate,
+    ProjectDashboard,
     ProjectResponse,
     ProjectUpdate,
 )
@@ -81,3 +82,13 @@ async def delete_project(project_id: str, session: SessionDep, user: UserDep) ->
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     if not await svc.delete_project(session, actor_id=user.id, project_id=project_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete project")
+
+
+@router.get("/projects/{project_id}/dashboard", summary="プロジェクト KPI ダッシュボード")
+async def project_dashboard(
+    project_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, ProjectDashboard]:
+    dash = await svc.get_dashboard(session, project_id)
+    if dash is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    return {"data": dash}

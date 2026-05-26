@@ -21,8 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.projects import (
+    ActivityItem,
     PaginationMeta,
     ProjectCreate,
+    ProjectDashboard,
     ProjectResponse,
     ProjectStatus,
     ProjectType,
@@ -267,3 +269,67 @@ async def delete_project(session: AsyncSession, *, actor_id: str, project_id: st
         )
     )
     return True
+
+
+async def get_dashboard(session: AsyncSession, project_id: str) -> ProjectDashboard | None:
+    """project KPI ダッシュボード (T-A-11)。project が不可視なら RLS で None。
+
+    - task_counts: lifecycle_stage 別 + total
+    - recent_activities: project / その task に関する audit_logs (新しい順 10 件)
+    """
+    proj = await get_project(session, project_id)
+    if proj is None:
+        return None
+
+    counts: dict[str, int] = {
+        "triage": 0,
+        "ready": 0,
+        "in_progress": 0,
+        "blocked": 0,
+        "awaiting": 0,
+        "done": 0,
+    }
+    cres = await session.execute(
+        text(
+            "select lifecycle_stage, count(*) as n from public.tasks "
+            "where project_id = cast(:pid as uuid) and deleted_at is null "
+            "group by lifecycle_stage"
+        ),
+        {"pid": project_id},
+    )
+    total = 0
+    for row in cres.all():
+        counts[str(row.lifecycle_stage)] = int(row.n)
+        total += int(row.n)
+    counts["total"] = total
+
+    ares = await session.execute(
+        text(
+            "select action, actor_type, actor_id, target_type, target_id, created_at "
+            "from public.audit_logs "
+            "where target_id = cast(:pid as uuid) "
+            "   or target_id in (select id from public.tasks where project_id = cast(:pid as uuid)) "
+            "order by created_at desc limit 10"
+        ),
+        {"pid": project_id},
+    )
+    activities = [
+        ActivityItem(
+            action=str(r.action),
+            actor_type=str(r.actor_type),
+            actor_id=str(r.actor_id),
+            target_type=str(r.target_type),
+            target_id=(None if r.target_id is None else str(r.target_id)),
+            created_at=r.created_at,
+        )
+        for r in ares.all()
+    ]
+
+    return ProjectDashboard(
+        project_id=proj.id,
+        name=proj.name,
+        status=proj.status,
+        current_phase=proj.current_phase,
+        task_counts=counts,
+        recent_activities=activities,
+    )
