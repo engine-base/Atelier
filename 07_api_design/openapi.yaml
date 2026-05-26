@@ -297,6 +297,20 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    Mock:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        screen_name: { type: string }
+        html_storage_path: { type: string }
+        version: { type: integer }
+        parent_mock_id: { type: string, format: uuid, nullable: true }
+        meta_tags: { type: object, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1062,6 +1076,152 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # mocks (CRUD + バージョン管理)
+  # ==========================================================================
+  /mocks:
+    get:
+      tags: [mocks]
+      summary: モック一覧
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::list_mocks
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: screen_name, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Mock' } }
+    post:
+      tags: [mocks]
+      summary: モック作成
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::create_mock
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, screen_name, html_storage_path]
+              properties:
+                project_id: { type: string, format: uuid }
+                screen_name: { type: string, maxLength: 200 }
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+
+  /mocks/{mock_id}:
+    parameters:
+      - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: モック詳細
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::get_mock
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [mocks]
+      summary: モック更新
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::update_mock
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [mocks]
+      summary: モック削除（論理）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::delete_mock
+      x-screen-ids: [S-H01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mocks/{mock_id}/versions:
+    parameters:
+      - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: モックのバージョン履歴
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::list_versions
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: バージョン履歴
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Mock' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [mocks]
+      summary: モックの新バージョン作成
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::create_version
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [html_storage_path]
+              properties:
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '201':
+          description: 新バージョン作成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # 承認待ち
