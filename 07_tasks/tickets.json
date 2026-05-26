@@ -9623,10 +9623,10 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/src/routes/outputs/__init__.py",
-          "apps/api/src/services/outputs/__init__.py",
-          "apps/api/src/schemas/outputs.py",
-          "apps/api/tests/routes/test_outputs.py"
+          "apps/api/src/routes/comments/__init__.py",
+          "apps/api/src/services/comments/__init__.py",
+          "apps/api/src/schemas/comments.py",
+          "apps/api/tests/routes/test_comments.py"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
