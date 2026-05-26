@@ -222,6 +222,25 @@ class TestProjectsCrud:
             assert any(a["action"] == "task.create" for a in d["recent_activities"])
             client.delete(f"/projects/{pid}", headers=h)
 
+    def test_ai_learning_toggle(self, app, seeded):
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            pid = client.post(
+                "/projects",
+                json={"workspace_id": seeded["ws_a"], "name": "AIL", "type": "personal"},
+                headers=h,
+            ).json()["data"]["id"]
+            # 既定 opt_out=true → false に
+            pr = client.post(f"/projects/{pid}/ai-learning", json={"opt_out": False}, headers=h)
+            assert pr.status_code == 200, pr.text
+            assert pr.json()["data"]["ai_learning_opt_out"] is False
+            # アカウント単位
+            ar = client.post("/account/ai-learning", json={"opt_out": False}, headers=h)
+            assert ar.status_code == 200, ar.text
+            assert ar.json()["data"]["ai_learning_opt_out"] is False
+            assert ar.json()["data"]["user_id"] == seeded["u_a"]
+            client.delete(f"/projects/{pid}", headers=h)
+
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
         with TestClient(app) as client:

@@ -13,6 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.projects import (
+    AccountAiLearning,
+    AiLearningRequest,
     PaginationMeta,
     ProjectCreate,
     ProjectDashboard,
@@ -92,3 +94,27 @@ async def project_dashboard(
     if dash is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     return {"data": dash}
+
+
+@router.post("/projects/{project_id}/ai-learning", summary="プロジェクト単位 AI 学習 OFF")
+async def set_project_ai_learning(
+    project_id: str, body: AiLearningRequest, session: SessionDep, user: UserDep
+) -> dict[str, ProjectResponse]:
+    if await svc.get_project(session, project_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    updated = await svc.set_project_ai_learning(
+        session, actor_id=user.id, project_id=project_id, opt_out=body.opt_out
+    )
+    if updated is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to change ai-learning")
+    return {"data": updated}
+
+
+@router.post("/account/ai-learning", summary="アカウント単位 AI 学習 OFF")
+async def set_account_ai_learning(
+    body: AiLearningRequest, session: SessionDep, user: UserDep
+) -> dict[str, AccountAiLearning]:
+    result = await svc.set_account_ai_learning(session, actor_id=user.id, opt_out=body.opt_out)
+    if result is None:  # pragma: no cover - 認証済 user は users 行を持つ
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+    return {"data": result}

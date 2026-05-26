@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.projects import (
+    AccountAiLearning,
     ActivityItem,
     PaginationMeta,
     ProjectCreate,
@@ -333,3 +334,56 @@ async def get_dashboard(session: AsyncSession, project_id: str) -> ProjectDashbo
         task_counts=counts,
         recent_activities=activities,
     )
+
+
+async def set_project_ai_learning(
+    session: AsyncSession, *, actor_id: str, project_id: str, opt_out: bool
+) -> ProjectResponse | None:
+    """project 単位の AI 学習オプトアウト (ai_training_optout) を更新 (T-A-13)。"""
+    res = await session.execute(
+        text(
+            "update public.projects set ai_training_optout = :v "
+            "where id = cast(:id as uuid) and deleted_at is null returning id"
+        ),
+        {"v": opt_out, "id": project_id},
+    )
+    if res.scalar_one_or_none() is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="project.ai_learning_set",
+            target_type="project",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=project_id,
+            after={"ai_training_optout": opt_out},
+        )
+    )
+    return await get_project(session, project_id)
+
+
+async def set_account_ai_learning(
+    session: AsyncSession, *, actor_id: str, opt_out: bool
+) -> AccountAiLearning | None:
+    """アカウント単位の AI 学習オプトアウト (users.ai_learning_opt_out) を self 更新 (T-A-13)。"""
+    res = await session.execute(
+        text(
+            "update public.users set ai_learning_opt_out = :v "
+            "where id = auth.uid() returning id, ai_learning_opt_out"
+        ),
+        {"v": opt_out},
+    )
+    row = res.first()
+    if row is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="account.ai_learning_set",
+            target_type="user",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=str(row.id),
+            after={"ai_learning_opt_out": opt_out},
+        )
+    )
+    return AccountAiLearning(user_id=str(row.id), ai_learning_opt_out=bool(row.ai_learning_opt_out))

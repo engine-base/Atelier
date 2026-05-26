@@ -1031,6 +1031,64 @@ paths:
                 properties:
                   data: { type: object }
 
+  /projects/{project_id}/ai-learning:
+    post:
+      tags: [projects]
+      summary: プロジェクト単位 AI 学習 OFF (F-LEGAL-011)
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::set_project_ai_learning
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [opt_out]
+              properties:
+                opt_out: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /account/ai-learning:
+    post:
+      tags: [projects]
+      summary: アカウント単位 AI 学習 OFF (F-LEGAL-011)
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::set_account_ai_learning
+      x-screen-ids: [S-A04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [opt_out]
+              properties:
+                opt_out: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      ai_learning_opt_out: { type: boolean }
+
   # ==========================================================================
   # tasks + execution (主要 endpoint)
   # ==========================================================================

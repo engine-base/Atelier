@@ -8478,7 +8478,8 @@
           "apps/api/src/routes/projects/__init__.py",
           "apps/api/src/services/projects/__init__.py",
           "apps/api/src/schemas/projects.py",
-          "apps/api/tests/routes/test_projects.py"
+          "apps/api/tests/routes/test_projects.py",
+          "supabase/migrations/t-a-13_users_ai_learning_optout.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",

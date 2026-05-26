@@ -51,6 +51,17 @@ class PaginationMeta(BaseModel):
     total_estimate: int
 
 
+class AiLearningRequest(BaseModel):
+    """AI 学習オプトアウト切替 (T-A-13)。opt_out=true で学習に使わない。"""
+
+    opt_out: bool
+
+
+class AccountAiLearning(BaseModel):
+    user_id: str
+    ai_learning_opt_out: bool
+
+
 class ActivityItem(BaseModel):
     """project dashboard の activity (audit_logs 由来、T-A-11)。"""
 
