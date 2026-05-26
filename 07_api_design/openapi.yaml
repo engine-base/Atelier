@@ -377,6 +377,18 @@ components:
         role: { type: string, enum: [owner, member, viewer] }
         joined_at: { type: string, format: date-time }
 
+    ChatThread:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        ai_employee_id: { type: string, format: uuid }
+        title: { type: string, nullable: true }
+        archived: { type: boolean }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1522,6 +1534,106 @@ paths:
                   data: { $ref: '#/components/schemas/ClientInvitation' }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 既に失効済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # chat (スレッド CRUD)
+  # ==========================================================================
+  /chat/threads:
+    get:
+      tags: [chat]
+      summary: チャットスレッド一覧
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::list_threads
+      x-screen-ids: [S-D01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: include_archived, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ChatThread' } }
+    post:
+      tags: [chat]
+      summary: チャットスレッド作成
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_thread
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, ai_employee_id]
+              properties:
+                project_id: { type: string, format: uuid }
+                ai_employee_id: { type: string, format: uuid }
+                title: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+
+  /chat/threads/{thread_id}:
+    parameters:
+      - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [chat]
+      summary: チャットスレッド詳細
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::get_thread
+      x-screen-ids: [S-D01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [chat]
+      summary: チャットスレッド更新
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::update_thread
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 200 }
+                archived: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [chat]
+      summary: チャットスレッド削除（論理）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::delete_thread
+      x-screen-ids: [S-D01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # admin (運営)
