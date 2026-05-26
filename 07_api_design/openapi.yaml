@@ -769,6 +769,64 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Project' }
 
+  /projects/{project_id}:
+    get:
+      tags: [projects]
+      summary: プロジェクト詳細
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::get_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [projects]
+      summary: プロジェクト更新
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::update_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string }
+                status: { type: string, enum: [in_progress, draft, paused, archived] }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [projects]
+      summary: プロジェクト削除（論理）
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::delete_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /projects/{id}/dashboard:
     parameters:
       - in: path
