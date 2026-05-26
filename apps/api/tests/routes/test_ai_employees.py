@@ -118,6 +118,7 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
     emp_a = str(uuid.uuid4())
+    tpl_a = str(uuid.uuid4())
     with sync_engine.begin() as c:
         for uid in (u_a, u_b):
             em = f"ta14-{uid[:8]}@t.invalid"
@@ -138,8 +139,28 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
             ),
             {"i": emp_a, "w": ws_a},
         )
-    yield {"u_a": u_a, "u_b": u_b, "ws_a": ws_a, "ws_b": ws_b, "emp_a": emp_a}
+        # ai_employee_templates は運営側固定 (RLS で authenticated は書込不可)。
+        # superuser 接続でのみ seed 可能。一意な version で衝突回避。
+        c.execute(
+            text(
+                "insert into public.ai_employee_templates "
+                "(id, default_name, default_display_name, department, role, "
+                " system_prompt, specialty, version) "
+                "values (cast(:i as uuid), :n, :dn, 'product', 'member', "
+                " 'sp', 'spec', 9999)"
+            ),
+            {"i": tpl_a, "n": f"tpl-{tpl_a[:8]}", "dn": "テンプレA"},
+        )
+    yield {
+        "u_a": u_a,
+        "u_b": u_b,
+        "ws_a": ws_a,
+        "ws_b": ws_b,
+        "emp_a": emp_a,
+        "tpl_a": tpl_a,
+    }
     with sync_engine.begin() as c:
+        c.execute(text("delete from public.ai_employee_templates where id = :i"), {"i": tpl_a})
         c.execute(text("delete from public.workspaces where id in (:a,:b)"), {"a": ws_a, "b": ws_b})
         c.execute(text("delete from public.users where id in (:a,:b)"), {"a": u_a, "b": u_b})
         c.execute(text("delete from auth.users where id in (:a,:b)"), {"a": u_a, "b": u_b})
@@ -207,3 +228,35 @@ class TestAiEmployees:
                     {"t": seeded["emp_a"]},
                 ).scalar_one()
             assert n >= 1
+
+
+@pytest.mark.integration
+class TestAiEmployeeTemplates:
+    def test_templates_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.get("/ai-employees/templates").status_code == 401
+
+    def test_templates_list_and_get(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            lst = client.get("/ai-employees/templates", headers=h)
+            assert lst.status_code == 200
+            assert any(t["id"] == seeded["tpl_a"] for t in lst.json()["data"])
+            # department filter
+            assert any(
+                t["id"] == seeded["tpl_a"]
+                for t in client.get("/ai-employees/templates?department=product", headers=h).json()[
+                    "data"
+                ]
+            )
+            g = client.get(f"/ai-employees/templates/{seeded['tpl_a']}", headers=h)
+            assert g.status_code == 200
+            assert g.json()["data"]["department"] == "product"
+            assert g.json()["data"]["role"] == "member"
+
+    def test_template_not_found_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            assert (
+                client.get(f"/ai-employees/templates/{uuid.uuid4()}", headers=h).status_code == 404
+            )

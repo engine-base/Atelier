@@ -13,13 +13,42 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
-from src.schemas.ai_employees import AiEmployeeResponse, AiEmployeeUpdate
+from src.schemas.ai_employees import (
+    AiEmployeeResponse,
+    AiEmployeeTemplateResponse,
+    AiEmployeeUpdate,
+)
 
 _COLS = (
     "id, workspace_id, template_id, name, display_name, icon, role, department, "
     "tone_preset, custom_tone_text, attached_skills, attached_knowledge_cats, "
     "is_default, archived, created_at, updated_at"
 )
+
+_TPL_COLS = (
+    "id, default_name, default_display_name, default_icon, department, role, "
+    "default_skills, default_knowledge_cats, system_prompt, specialty, version, "
+    "is_active, created_at, updated_at"
+)
+
+
+def _tpl_to_response(row: Any) -> AiEmployeeTemplateResponse:
+    return AiEmployeeTemplateResponse(
+        id=str(row.id),
+        default_name=str(row.default_name),
+        default_display_name=str(row.default_display_name),
+        default_icon=(None if row.default_icon is None else str(row.default_icon)),
+        department=str(row.department),
+        role=str(row.role),
+        default_skills=[str(x) for x in (row.default_skills or [])],
+        default_knowledge_cats=[str(x) for x in (row.default_knowledge_cats or [])],
+        system_prompt=str(row.system_prompt),
+        specialty=str(row.specialty),
+        version=int(row.version),
+        is_active=bool(row.is_active),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
 
 
 def _row_to_response(row: Any) -> AiEmployeeResponse:
@@ -108,3 +137,35 @@ async def update_ai_employee(
         )
     )
     return await get_ai_employee(session, employee_id)
+
+
+async def list_templates(
+    session: AsyncSession, *, department: str | None = None, active_only: bool = True
+) -> list[AiEmployeeTemplateResponse]:
+    """AI 社員テンプレ一覧 (運営側固定 / read-only)。RLS で全 authenticated が閲覧可。"""
+    where: list[str] = ["1=1"]
+    params: dict[str, object] = {}
+    if active_only:
+        where.append("is_active = true")
+    if department is not None:
+        where.append("department = cast(:dep as ai_employee_department_enum)")
+        params["dep"] = department
+    res = await session.execute(
+        text(
+            f"select {_TPL_COLS} from public.ai_employee_templates "
+            f"where {' and '.join(where)} order by department, default_name"
+        ),
+        params,
+    )
+    return [_tpl_to_response(r) for r in res.all()]
+
+
+async def get_template(
+    session: AsyncSession, template_id: str
+) -> AiEmployeeTemplateResponse | None:
+    res = await session.execute(
+        text(f"select {_TPL_COLS} from public.ai_employee_templates where id = cast(:id as uuid)"),
+        {"id": template_id},
+    )
+    row = res.first()
+    return None if row is None else _tpl_to_response(row)

@@ -331,6 +331,24 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AiEmployeeTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        default_name: { type: string }
+        default_display_name: { type: string }
+        default_icon: { type: string, nullable: true }
+        department: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] }
+        role: { type: string, enum: [coo, lead, member] }
+        default_skills: { type: array, items: { type: string, format: uuid } }
+        default_knowledge_cats: { type: array, items: { type: string } }
+        system_prompt: { type: string }
+        specialty: { type: string }
+        version: { type: integer }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     AuditLog:
       type: object
       properties:
@@ -1503,6 +1521,46 @@ paths:
                 type: object
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/AiEmployee' } }
+
+  # NOTE: /ai-employees/templates は /ai-employees/{employee_id} より前に宣言する
+  # (path 衝突回避。FastAPI も同順で登録)。
+  /ai-employees/templates:
+    get:
+      tags: [ai-employees]
+      summary: AI 社員テンプレ一覧（運営側固定 / read-only）
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::list_templates
+      x-screen-ids: [S-C01]
+      parameters:
+        - { name: department, in: query, schema: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] } }
+        - { name: active_only, in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AiEmployeeTemplate' } }
+
+  /ai-employees/templates/{template_id}:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [ai-employees]
+      summary: AI 社員テンプレ詳細
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::get_template
+      x-screen-ids: [S-C01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployeeTemplate' }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /ai-employees/{employee_id}:
     parameters:
