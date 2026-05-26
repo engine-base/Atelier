@@ -7588,7 +7588,8 @@
           "apps/api/src/services/workspaces/__init__.py",
           "apps/api/src/schemas/workspaces.py",
           "apps/api/tests/routes/test_workspaces.py",
-          "apps/api/src/dependencies.py"
+          "apps/api/src/dependencies.py",
+          "supabase/migrations/t-a-06_workspace_owner_bootstrap.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
