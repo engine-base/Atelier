@@ -23,7 +23,7 @@ PG_ASYNC = os.environ.get(
     "ATELIER_TEST_PG_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
 )
 PG_SYNC = PG_ASYNC.replace("+asyncpg", "+psycopg")
-JWT_SECRET = "test-aiemp-secret"
+JWT_SECRET = "test-jwt-secret"
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", JWT_SECRET)
 
 import sqlalchemy  # noqa: E402
