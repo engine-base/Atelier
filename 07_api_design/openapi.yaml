@@ -286,6 +286,17 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AcceptanceCriteria:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        html_path: { type: string }
+        items: { type: array, items: { type: object } }
+        version: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -851,6 +862,132 @@ paths:
   # ==========================================================================
   # tasks + execution (主要 endpoint)
   # ==========================================================================
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: タスク一覧
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::list_tasks
+      x-screen-ids: [S-I01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: lifecycle_stage, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+    post:
+      tags: [tasks]
+      summary: タスク作成
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::create_task
+      x-screen-ids: [S-I01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, category, title, type, estimated_hours]
+              properties:
+                project_id: { type: string, format: uuid }
+                category: { type: string, maxLength: 100 }
+                title: { type: string, maxLength: 200 }
+                type: { type: string, enum: [foundation, screen, feature, verification, infrastructure, migration] }
+                estimated_hours: { type: integer, minimum: 1, maximum: 24 }
+                description: { type: string }
+                priority: { type: string, enum: [critical, high, medium, low] }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+
+  /tasks/{task_id}:
+    parameters:
+      - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [tasks]
+      summary: タスク詳細
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_task
+      x-screen-ids: [S-I02]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [tasks]
+      summary: タスク更新
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::update_task
+      x-screen-ids: [S-I02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string }
+                type: { type: string, enum: [foundation, screen, feature, verification, infrastructure, migration] }
+                estimated_hours: { type: integer, minimum: 1, maximum: 24 }
+                priority: { type: string, enum: [critical, high, medium, low] }
+                lifecycle_stage: { type: string, enum: [triage, ready, in_progress, blocked, awaiting, done] }
+                blocked_reason: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [tasks]
+      summary: タスク削除（論理）
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::delete_task
+      x-screen-ids: [S-I02]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/acceptance-criteria:
+    get:
+      tags: [tasks]
+      summary: 受入条件取得
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_acceptance_criteria
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 受入条件
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AcceptanceCriteria' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /tasks/{id}/play:
     parameters:
       - in: path
