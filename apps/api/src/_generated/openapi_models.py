@@ -409,6 +409,24 @@ class ChatThread(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Role4(StrEnum):
+    user = "user"
+    assistant = "assistant"
+    system = "system"
+    tool = "tool"
+
+
+class ChatMessage(BaseModel):
+    id: UUID | None = None
+    thread_id: UUID | None = None
+    role: Role4 | None = None
+    content: str | None = None
+    parent_message_id: UUID | None = None
+    token_count: int | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class Status1(StrEnum):
     pending = "pending"
     in_progress = "in_progress"

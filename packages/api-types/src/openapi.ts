@@ -3169,6 +3169,105 @@ export interface paths {
         };
         trace?: never;
     };
+    "/chat/threads/{thread_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thread_id: string;
+            };
+            cookie?: never;
+        };
+        /** チャットメッセージ一覧 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatMessage"][];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** チャットメッセージ送信（即時 / ユーザー発話） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        content: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 送信成功 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatMessage"];
+                        };
+                    };
+                };
+                /** @description 投稿権限なし (viewer 等) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/audit-logs": {
         parameters: {
             query?: never;
@@ -3732,6 +3831,22 @@ export interface components {
             archived?: boolean;
             /** Format: date-time */
             deleted_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        ChatMessage: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            thread_id?: string;
+            /** @enum {string} */
+            role?: "user" | "assistant" | "system" | "tool";
+            content?: string;
+            /** Format: uuid */
+            parent_message_id?: string | null;
+            token_count?: number | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
