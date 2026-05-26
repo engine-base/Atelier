@@ -918,6 +918,8 @@ export interface paths {
                     status?: string;
                     cursor?: string;
                     limit?: number;
+                    /** @description true で論理削除済 (ゴミ箱) も含める (T-A-12) */
+                    include_deleted?: boolean;
                 };
                 header?: never;
                 path?: never;
@@ -1109,6 +1111,55 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/projects/{project_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** プロジェクト復元（論理削除を取消 / 30 日猶予内） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 復元成功 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Project"];
+                        };
+                    };
+                };
+                /** @description 不在 / 未削除 / 猶予超過 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{project_id}/dashboard": {
