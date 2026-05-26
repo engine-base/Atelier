@@ -658,6 +658,63 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Workspace' }
 
+  /workspaces/{workspace_id}:
+    get:
+      tags: [workspaces]
+      summary: WS 詳細
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::get_workspace
+      x-screen-ids: [S-B01]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: WS 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Workspace' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [workspaces]
+      summary: WS 更新
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::update_workspace
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 50 }
+                description: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Workspace' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workspaces]
+      summary: WS 削除（論理）
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::delete_workspace
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # projects (8 endpoints) - 主要 3 つ
   # ==========================================================================
