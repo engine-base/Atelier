@@ -13,10 +13,12 @@ from src.routes.client_invitations import router as client_invitations_router
 from src.routes.mocks import router as mocks_router
 from src.routes.projects import router as projects_router
 from src.routes.tasks import router as tasks_router
+from src.routes.workspace_members import router as workspace_members_router
 from src.routes.workspaces import router as workspaces_router
 
 api_router = APIRouter()
 api_router.include_router(workspaces_router)
+api_router.include_router(workspace_members_router)
 api_router.include_router(projects_router)
 api_router.include_router(tasks_router)
 api_router.include_router(mocks_router)

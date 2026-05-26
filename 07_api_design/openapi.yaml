@@ -367,6 +367,16 @@ components:
           properties:
             token: { type: string, description: 生成時のみ返る raw token (招待 URL 用) }
 
+    WorkspaceMember:
+      type: object
+      properties:
+        workspace_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string, nullable: true }
+        role: { type: string, enum: [owner, member, viewer] }
+        joined_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -795,6 +805,86 @@ paths:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # workspace-members (招待・ロール・削除)
+  # ==========================================================================
+  /workspaces/{workspace_id}/members:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workspace-members]
+      summary: WS メンバー一覧
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::list_members
+      x-screen-ids: [S-A03]
+      responses:
+        '200':
+          description: メンバー一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WorkspaceMember' } }
+    post:
+      tags: [workspace-members]
+      summary: WS メンバー招待
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::invite_member
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InviteMemberRequest' }
+      responses:
+        '201':
+          description: 招待成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkspaceMember' }
+        '403': { description: owner でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 既にメンバー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: メール未登録, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/members/{user_id}:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [workspace-members]
+      summary: WS メンバーのロール変更
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::update_role
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [owner, member, viewer] }
+      responses:
+        '200':
+          description: 変更成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkspaceMember' }
+        '403': { description: 不在 or 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workspace-members]
+      summary: WS メンバー削除
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::remove_member
+      x-screen-ids: [S-A03]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 不在 or 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # projects (8 endpoints) - 主要 3 つ
