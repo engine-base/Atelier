@@ -74,3 +74,22 @@ class AcceptanceCriteriaResponse(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class TaskExecutionResponse(BaseModel):
+    """タスク実行履歴・スコア (E-013 task_executions、T-A-27)。read-only。"""
+
+    id: str
+    task_id: str
+    started_at: datetime
+    completed_at: datetime | None
+    score: float | None
+    ac_pass_rate: float | None
+    test_pass_rate: float | None
+    verification_score: float | None
+    retry_count: int
+    status: str
+    claude_code_session_id: str | None
+    logs_storage_path: str | None
+    error_summary: str | None
+    created_at: datetime

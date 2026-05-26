@@ -297,6 +297,24 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    TaskExecution:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        score: { type: number, nullable: true }
+        ac_pass_rate: { type: number, nullable: true }
+        test_pass_rate: { type: number, nullable: true }
+        verification_score: { type: number, nullable: true }
+        retry_count: { type: integer }
+        status: { type: string }
+        claude_code_session_id: { type: string, nullable: true }
+        logs_storage_path: { type: string, nullable: true }
+        error_summary: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
     Mock:
       type: object
       properties:
@@ -1313,6 +1331,45 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/AcceptanceCriteria' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/executions:
+    get:
+      tags: [tasks]
+      summary: タスク実行履歴
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::list_executions
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行履歴
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TaskExecution' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/executions/{execution_id}:
+    get:
+      tags: [tasks]
+      summary: タスク実行詳細・スコア
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_execution
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TaskExecution' }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /tasks/{id}/play:

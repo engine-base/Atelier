@@ -17,6 +17,7 @@ from src.audit import AuditEvent, AuditWriter
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
     TaskCreate,
+    TaskExecutionResponse,
     TaskPriority,
     TaskResponse,
     TaskUpdate,
@@ -259,3 +260,60 @@ async def get_acceptance_criteria(
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
+
+
+_EXEC_COLS = (
+    "id, task_id, started_at, completed_at, score, ac_pass_rate, test_pass_rate, "
+    "verification_score, retry_count, status, claude_code_session_id, "
+    "logs_storage_path, error_summary, created_at"
+)
+
+
+def _exec_to_response(row: Any) -> TaskExecutionResponse:
+    def _f(v: object) -> float | None:
+        return None if v is None else float(v)  # type: ignore[arg-type]
+
+    return TaskExecutionResponse(
+        id=str(row.id),
+        task_id=str(row.task_id),
+        started_at=row.started_at,
+        completed_at=row.completed_at,
+        score=_f(row.score),
+        ac_pass_rate=_f(row.ac_pass_rate),
+        test_pass_rate=_f(row.test_pass_rate),
+        verification_score=_f(row.verification_score),
+        retry_count=int(row.retry_count),
+        status=str(row.status),
+        claude_code_session_id=(
+            None if row.claude_code_session_id is None else str(row.claude_code_session_id)
+        ),
+        logs_storage_path=(None if row.logs_storage_path is None else str(row.logs_storage_path)),
+        error_summary=(None if row.error_summary is None else str(row.error_summary)),
+        created_at=row.created_at,
+    )
+
+
+async def list_executions(session: AsyncSession, *, task_id: str) -> list[TaskExecutionResponse]:
+    """task の実行履歴を新しい順に。可視性は RLS (task_executions_select_member)。"""
+    res = await session.execute(
+        text(
+            f"select {_EXEC_COLS} from public.task_executions "
+            "where task_id = cast(:tid as uuid) order by started_at desc, id"
+        ),
+        {"tid": task_id},
+    )
+    return [_exec_to_response(r) for r in res.all()]
+
+
+async def get_execution(
+    session: AsyncSession, *, task_id: str, execution_id: str
+) -> TaskExecutionResponse | None:
+    res = await session.execute(
+        text(
+            f"select {_EXEC_COLS} from public.task_executions "
+            "where id = cast(:eid as uuid) and task_id = cast(:tid as uuid)"
+        ),
+        {"eid": execution_id, "tid": task_id},
+    )
+    row = res.first()
+    return None if row is None else _exec_to_response(row)

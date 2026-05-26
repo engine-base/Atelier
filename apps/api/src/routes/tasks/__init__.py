@@ -15,6 +15,7 @@ from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
     TaskCreate,
+    TaskExecutionResponse,
     TaskResponse,
     TaskUpdate,
 )
@@ -88,3 +89,24 @@ async def get_acceptance_criteria(
     if ac is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "acceptance criteria not found")
     return {"data": ac}
+
+
+@router.get("/tasks/{task_id}/executions", summary="タスク実行履歴")
+async def list_executions(
+    task_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[TaskExecutionResponse]]:
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": await svc.list_executions(session, task_id=task_id)}
+
+
+@router.get("/tasks/{task_id}/executions/{execution_id}", summary="タスク実行詳細・スコア")
+async def get_execution(
+    task_id: str, execution_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, TaskExecutionResponse]:
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    ex = await svc.get_execution(session, task_id=task_id, execution_id=execution_id)
+    if ex is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task execution not found")
+    return {"data": ex}

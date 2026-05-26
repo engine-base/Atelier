@@ -296,3 +296,87 @@ class TestTasksCrud:
                 ).scalar_one()
             assert n == 1
             client.delete(f"/tasks/{tid}", headers=h)
+
+
+@pytest.mark.integration
+class TestTaskExecutions:
+    """T-A-27: タスク実行履歴・スコア取得 (read-only)。"""
+
+    def _task(self, client: TestClient, seeded: dict[str, str]) -> str:
+        return client.post(
+            "/tasks",
+            json={
+                "project_id": seeded["proj_a"],
+                "category": "backend",
+                "title": "exec task",
+                "type": "feature",
+                "estimated_hours": 1,
+            },
+            headers=_h(seeded["u_a"]),
+        ).json()["data"]["id"]
+
+    def _seed_execution(self, sync_engine: sqlalchemy.Engine, task_id: str) -> str:
+        """task_executions は dispatcher (service_role) が作るため superuser で seed。"""
+        eid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.task_executions "
+                    "(id, task_id, started_at, completed_at, status, score, "
+                    " ac_pass_rate, test_pass_rate, verification_score, retry_count) "
+                    "values (cast(:i as uuid), cast(:t as uuid), now() - interval '5 min', "
+                    " now(), 'succeeded', 0.95, 1.0, 0.9, 0.92, 1)"
+                ),
+                {"i": eid, "t": task_id},
+            )
+        return eid
+
+    def test_executions_unauthenticated_401(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            tid = self._task(client, seeded)
+            assert client.get(f"/tasks/{tid}/executions").status_code == 401
+            client.delete(f"/tasks/{tid}", headers=_h(seeded["u_a"]))
+
+    def test_list_and_get_execution_with_scores(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._task(client, seeded)
+            eid = self._seed_execution(sync_engine, tid)
+
+            lst = client.get(f"/tasks/{tid}/executions", headers=h)
+            assert lst.status_code == 200, lst.text
+            rows = lst.json()["data"]
+            assert any(e["id"] == eid for e in rows)
+
+            g = client.get(f"/tasks/{tid}/executions/{eid}", headers=h)
+            assert g.status_code == 200
+            d = g.json()["data"]
+            assert d["status"] == "succeeded"
+            assert d["score"] == 0.95
+            assert d["ac_pass_rate"] == 1.0
+            assert d["retry_count"] == 1
+            client.delete(f"/tasks/{tid}", headers=h)
+
+    def test_execution_not_found_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._task(client, seeded)
+            assert (
+                client.get(f"/tasks/{tid}/executions/{uuid.uuid4()}", headers=h).status_code == 404
+            )
+            # 不可視タスクの実行履歴は 404
+            assert client.get(f"/tasks/{uuid.uuid4()}/executions", headers=h).status_code == 404
+            client.delete(f"/tasks/{tid}", headers=h)
+
+    def test_cross_workspace_executions_404(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        with TestClient(app) as client:
+            tid = self._task(client, seeded)
+            self._seed_execution(sync_engine, tid)
+            # 別 WS の user からはタスク自体が不可視 → 404
+            assert client.get(f"/tasks/{tid}/executions", headers=hb).status_code == 404
+            client.delete(f"/tasks/{tid}", headers=ha)
