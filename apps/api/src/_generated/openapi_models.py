@@ -331,6 +331,23 @@ class AiEmployee(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class AiEmployeeTemplate(BaseModel):
+    id: UUID | None = None
+    default_name: str | None = None
+    default_display_name: str | None = None
+    default_icon: str | None = None
+    department: Department | None = None
+    role: Role1 | None = None
+    default_skills: list[UUID] | None = None
+    default_knowledge_cats: list[str] | None = None
+    system_prompt: str | None = None
+    specialty: str | None = None
+    version: int | None = None
+    is_active: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class ActorType(StrEnum):
     ai = "ai"
     user = "user"

@@ -2003,6 +2003,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-employees/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI 社員テンプレ一覧（運営側固定 / read-only） */
+        get: {
+            parameters: {
+                query?: {
+                    department?: "executive" | "sales" | "product" | "architecture" | "design" | "dev_qa" | "cross_functional";
+                    active_only?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AiEmployeeTemplate"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-employees/templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        /** AI 社員テンプレ詳細 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    template_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AiEmployeeTemplate"];
+                        };
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-employees/{employee_id}": {
         parameters: {
             query?: never;
@@ -3497,6 +3589,27 @@ export interface components {
             attached_knowledge_cats?: string[];
             is_default?: boolean;
             archived?: boolean;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        AiEmployeeTemplate: {
+            /** Format: uuid */
+            id?: string;
+            default_name?: string;
+            default_display_name?: string;
+            default_icon?: string | null;
+            /** @enum {string} */
+            department?: "executive" | "sales" | "product" | "architecture" | "design" | "dev_qa" | "cross_functional";
+            /** @enum {string} */
+            role?: "coo" | "lead" | "member";
+            default_skills?: string[];
+            default_knowledge_cats?: string[];
+            system_prompt?: string;
+            specialty?: string;
+            version?: number;
+            is_active?: boolean;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
