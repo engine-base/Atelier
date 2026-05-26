@@ -346,6 +346,27 @@ components:
         ip_address: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
+    ClientInvitation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: string, format: date-time }
+        used_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        client_display_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ClientInvitationWithToken:
+      allOf:
+        - { $ref: '#/components/schemas/ClientInvitation' }
+        - type: object
+          properties:
+            token: { type: string, description: 生成時のみ返る raw token (招待 URL 用) }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1324,6 +1345,93 @@ paths:
                   data: { $ref: '#/components/schemas/AiEmployee' }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # client-invitations (クライアント招待管理)
+  # ==========================================================================
+  /client-invitations:
+    get:
+      tags: [client-invitations]
+      summary: クライアント招待一覧
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::list_invitations
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ClientInvitation' } }
+    post:
+      tags: [client-invitations]
+      summary: クライアント招待作成
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::create_invitation
+      x-screen-ids: [S-L01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, email]
+              properties:
+                project_id: { type: string, format: uuid }
+                email: { type: string, format: email }
+                scopes: { type: array, items: { type: string } }
+                client_display_name: { type: string, maxLength: 100 }
+                ttl_days: { type: integer, minimum: 1, maximum: 30, default: 7 }
+      responses:
+        '201':
+          description: 作成成功（raw token を含む）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitationWithToken' }
+
+  /client-invitations/{invitation_id}:
+    get:
+      tags: [client-invitations]
+      summary: クライアント招待詳細
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::get_invitation
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitation' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client-invitations/{invitation_id}/revoke:
+    post:
+      tags: [client-invitations]
+      summary: クライアント招待失効
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::revoke_invitation
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 失効成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitation' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 既に失効済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # admin (運営)
