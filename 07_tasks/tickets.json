@@ -7587,7 +7587,8 @@
           "apps/api/src/routes/workspaces/__init__.py",
           "apps/api/src/services/workspaces/__init__.py",
           "apps/api/src/schemas/workspaces.py",
-          "apps/api/tests/routes/test_workspaces.py"
+          "apps/api/tests/routes/test_workspaces.py",
+          "apps/api/src/dependencies.py"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
