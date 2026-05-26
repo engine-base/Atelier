@@ -1,0 +1,45 @@
+"""成果物 (workflow_outputs) ルータ (T-A-21)。
+
+/outputs[/{id}]。認証 (401) + RLS (T-D-21) + 404。read のみ。
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.schemas.outputs import OutputResponse
+from src.services import outputs as svc
+
+router = APIRouter(tags=["outputs"])
+
+SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
+UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+@router.get("/outputs", summary="成果物一覧")
+async def list_outputs(
+    session: SessionDep,
+    _user: UserDep,
+    project_id: Annotated[str | None, Query()] = None,
+    phase_id: Annotated[str | None, Query()] = None,
+    stage: Annotated[str | None, Query()] = None,
+) -> dict[str, list[OutputResponse]]:
+    return {
+        "data": await svc.list_outputs(
+            session, project_id=project_id, phase_id=phase_id, stage=stage
+        )
+    }
+
+
+@router.get("/outputs/{output_id}", summary="成果物取得")
+async def get_output(
+    output_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, OutputResponse]:
+    out = await svc.get_output(session, output_id)
+    if out is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    return {"data": out}

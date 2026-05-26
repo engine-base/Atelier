@@ -389,6 +389,35 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    Phase:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        order: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string, enum: [pending, in_progress, completed, skipped] }
+        started_at: { type: string, format: date-time, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    WorkflowOutput:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        phase_id: { type: string, format: uuid, nullable: true }
+        stage: { type: string }
+        html_path: { type: string, nullable: true }
+        json_path: { type: string, nullable: true }
+        md_path: { type: string, nullable: true }
+        summary: { type: string, nullable: true }
+        version: { type: integer }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -1592,6 +1621,146 @@ paths:
                   data: { $ref: '#/components/schemas/ClientInvitation' }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 既に失効済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # workflow (工程一覧・遷移) / outputs (成果物)
+  # ==========================================================================
+  /workflow/phases:
+    get:
+      tags: [workflow]
+      summary: 工程一覧
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::list_phases
+      x-screen-ids: [S-G01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Phase' } }
+    post:
+      tags: [workflow]
+      summary: 工程作成
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::create_phase
+      x-screen-ids: [S-G01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, order, name]
+              properties:
+                project_id: { type: string, format: uuid }
+                order: { type: integer, minimum: 0 }
+                name: { type: string, maxLength: 200 }
+                description: { type: string }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+
+  /workflow/phases/{phase_id}:
+    parameters:
+      - { name: phase_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workflow]
+      summary: 工程詳細
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::get_phase
+      x-screen-ids: [S-G01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [workflow]
+      summary: 工程遷移・更新
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::update_phase
+      x-screen-ids: [S-G01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 200 }
+                description: { type: string }
+                status: { type: string, enum: [pending, in_progress, completed, skipped] }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workflow]
+      summary: 工程削除
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::delete_phase
+      x-screen-ids: [S-G01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /outputs:
+    get:
+      tags: [outputs]
+      summary: 成果物一覧
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_outputs
+      x-screen-ids: [S-G02]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: phase_id, in: query, schema: { type: string, format: uuid } }
+        - { name: stage, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WorkflowOutput' } }
+
+  /outputs/{output_id}:
+    get:
+      tags: [outputs]
+      summary: 成果物取得
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_output
+      x-screen-ids: [S-G02]
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkflowOutput' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # chat (スレッド CRUD)
