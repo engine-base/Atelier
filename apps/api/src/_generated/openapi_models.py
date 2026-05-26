@@ -275,6 +275,23 @@ class AcceptanceCriteria(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class TaskExecution(BaseModel):
+    id: UUID | None = None
+    task_id: UUID | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
+    score: float | None = None
+    ac_pass_rate: float | None = None
+    test_pass_rate: float | None = None
+    verification_score: float | None = None
+    retry_count: int | None = None
+    status: str | None = None
+    claude_code_session_id: str | None = None
+    logs_storage_path: str | None = None
+    error_summary: str | None = None
+    created_at: AwareDatetime | None = None
+
+
 class Mock(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
