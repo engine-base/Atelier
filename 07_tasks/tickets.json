@@ -7716,7 +7716,8 @@
           "apps/api/src/routes/workspace_members/__init__.py",
           "apps/api/src/services/workspace_members/__init__.py",
           "apps/api/src/schemas/workspace_members.py",
-          "apps/api/tests/routes/test_workspace_members.py"
+          "apps/api/tests/routes/test_workspace_members.py",
+          "supabase/migrations/t-a-07_resolve_user_by_email.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
@@ -11152,7 +11153,8 @@
           "apps/api/src/routes/client_invitations/__init__.py",
           "apps/api/src/services/client_invitations/__init__.py",
           "apps/api/src/schemas/client_invitations.py",
-          "apps/api/tests/routes/test_client_invitations.py"
+          "apps/api/tests/routes/test_client_invitations.py",
+          "supabase/migrations/t-a-34_client_invitations_rls.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
