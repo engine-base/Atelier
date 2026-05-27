@@ -15,6 +15,7 @@ from src.routes.comments import router as comments_router
 from src.routes.mocks import router as mocks_router
 from src.routes.outputs import router as outputs_router
 from src.routes.projects import router as projects_router
+from src.routes.public import router as public_router
 from src.routes.tasks import router as tasks_router
 from src.routes.workflow import router as workflow_router
 from src.routes.workspace_members import router as workspace_members_router
@@ -33,5 +34,6 @@ api_router.include_router(chat_router)
 api_router.include_router(workflow_router)
 api_router.include_router(outputs_router)
 api_router.include_router(comments_router)
+api_router.include_router(public_router)
 
 __all__ = ["api_router"]
