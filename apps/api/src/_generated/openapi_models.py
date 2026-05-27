@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
@@ -503,6 +504,31 @@ class Comment(BaseModel):
     parent_comment_id: UUID | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
+
+
+class DocType(StrEnum):
+    terms_of_service = "terms_of_service"
+    privacy_policy = "privacy_policy"
+    tokushoho = "tokushoho"
+
+
+class LegalDocument(BaseModel):
+    id: UUID | None = None
+    doc_type: DocType | None = None
+    version: str | None = None
+    locale: str | None = None
+    title: str | None = None
+    body_md: str | None = None
+    effective_date: date | None = None
+    is_current: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class DataDeletionRequestResponse(BaseModel):
+    request_id: UUID | None = None
+    status: str | None = None
+    requested_at: AwareDatetime | None = None
 
 
 class PlayTaskRequest(BaseModel):
