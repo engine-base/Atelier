@@ -7591,7 +7591,9 @@
           "apps/api/src/routes/workspaces/__init__.py",
           "apps/api/src/services/workspaces/__init__.py",
           "apps/api/src/schemas/workspaces.py",
-          "apps/api/tests/routes/test_workspaces.py"
+          "apps/api/tests/routes/test_workspaces.py",
+          "apps/api/src/dependencies.py",
+          "supabase/migrations/t-d-90_ta06_workspace_owner_bootstrap.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
@@ -7718,7 +7720,8 @@
           "apps/api/src/routes/workspace_members/__init__.py",
           "apps/api/src/services/workspace_members/__init__.py",
           "apps/api/src/schemas/workspace_members.py",
-          "apps/api/tests/routes/test_workspace_members.py"
+          "apps/api/tests/routes/test_workspace_members.py",
+          "supabase/migrations/t-d-91_ta07_resolve_user_by_email.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
@@ -8479,7 +8482,8 @@
           "apps/api/src/routes/projects/__init__.py",
           "apps/api/src/services/projects/__init__.py",
           "apps/api/src/schemas/projects.py",
-          "apps/api/tests/routes/test_projects.py"
+          "apps/api/tests/routes/test_projects.py",
+          "supabase/migrations/t-d-92_ta13_users_ai_learning_optout.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
@@ -9623,10 +9627,10 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/src/routes/outputs/__init__.py",
-          "apps/api/src/services/outputs/__init__.py",
-          "apps/api/src/schemas/outputs.py",
-          "apps/api/tests/routes/test_outputs.py"
+          "apps/api/src/routes/comments/__init__.py",
+          "apps/api/src/services/comments/__init__.py",
+          "apps/api/src/schemas/comments.py",
+          "apps/api/tests/routes/test_comments.py"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
@@ -11154,7 +11158,8 @@
           "apps/api/src/routes/client_invitations/__init__.py",
           "apps/api/src/services/client_invitations/__init__.py",
           "apps/api/src/schemas/client_invitations.py",
-          "apps/api/tests/routes/test_client_invitations.py"
+          "apps/api/tests/routes/test_client_invitations.py",
+          "supabase/migrations/t-d-93_ta34_client_invitations_rls.sql"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",

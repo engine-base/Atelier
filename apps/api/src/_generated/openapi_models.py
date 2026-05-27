@@ -265,6 +265,246 @@ class Task(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class AcceptanceCriteria(BaseModel):
+    id: UUID | None = None
+    task_id: UUID | None = None
+    html_path: str | None = None
+    items: list[dict[str, Any]] | None = None
+    version: int | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class TaskExecution(BaseModel):
+    id: UUID | None = None
+    task_id: UUID | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
+    score: float | None = None
+    ac_pass_rate: float | None = None
+    test_pass_rate: float | None = None
+    verification_score: float | None = None
+    retry_count: int | None = None
+    status: str | None = None
+    claude_code_session_id: str | None = None
+    logs_storage_path: str | None = None
+    error_summary: str | None = None
+    created_at: AwareDatetime | None = None
+
+
+class Mock(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    screen_name: str | None = None
+    html_storage_path: str | None = None
+    version: int | None = None
+    parent_mock_id: UUID | None = None
+    meta_tags: dict[str, Any] | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class Role1(StrEnum):
+    coo = "coo"
+    lead = "lead"
+    member = "member"
+
+
+class Department(StrEnum):
+    executive = "executive"
+    sales = "sales"
+    product = "product"
+    architecture = "architecture"
+    design = "design"
+    dev_qa = "dev_qa"
+    cross_functional = "cross_functional"
+
+
+class TonePreset(StrEnum):
+    polite = "polite"
+    friendly = "friendly"
+    casual = "casual"
+    concise = "concise"
+    coaching = "coaching"
+
+
+class AiEmployee(BaseModel):
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    template_id: UUID | None = None
+    name: str | None = None
+    display_name: str | None = None
+    icon: str | None = None
+    role: Role1 | None = None
+    department: Department | None = None
+    tone_preset: TonePreset | None = None
+    custom_tone_text: str | None = None
+    attached_skills: list[UUID] | None = None
+    attached_knowledge_cats: list[str] | None = None
+    is_default: bool | None = None
+    archived: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class AiEmployeeTemplate(BaseModel):
+    id: UUID | None = None
+    default_name: str | None = None
+    default_display_name: str | None = None
+    default_icon: str | None = None
+    department: Department | None = None
+    role: Role1 | None = None
+    default_skills: list[UUID] | None = None
+    default_knowledge_cats: list[str] | None = None
+    system_prompt: str | None = None
+    specialty: str | None = None
+    version: int | None = None
+    is_active: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class ActorType(StrEnum):
+    ai = "ai"
+    user = "user"
+    system = "system"
+    anonymous = "anonymous"
+
+
+class AuditLog(BaseModel):
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    actor_type: ActorType | None = None
+    actor_id: str | None = None
+    action: str | None = None
+    target_type: str | None = None
+    target_id: UUID | None = None
+    before: dict[str, Any] | None = None
+    after: dict[str, Any] | None = None
+    ip_address: str | None = None
+    created_at: AwareDatetime | None = None
+
+
+class ClientInvitation(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    email: EmailStr | None = None
+    scopes: list[str] | None = None
+    expires_at: AwareDatetime | None = None
+    used_at: AwareDatetime | None = None
+    revoked_at: AwareDatetime | None = None
+    client_display_name: str | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class ClientInvitationWithToken(ClientInvitation):
+    token: str | None = None
+    """
+    生成時のみ返る raw token (招待 URL 用)
+    """
+
+
+class WorkspaceMember(BaseModel):
+    workspace_id: UUID | None = None
+    user_id: UUID | None = None
+    email: EmailStr | None = None
+    display_name: str | None = None
+    role: Role | None = None
+    joined_at: AwareDatetime | None = None
+
+
+class ChatThread(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    ai_employee_id: UUID | None = None
+    title: str | None = None
+    archived: bool | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class Role4(StrEnum):
+    user = "user"
+    assistant = "assistant"
+    system = "system"
+    tool = "tool"
+
+
+class ChatMessage(BaseModel):
+    id: UUID | None = None
+    thread_id: UUID | None = None
+    role: Role4 | None = None
+    content: str | None = None
+    parent_message_id: UUID | None = None
+    token_count: int | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class Status1(StrEnum):
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    skipped = "skipped"
+
+
+class Phase(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    order: int | None = None
+    name: str | None = None
+    description: str | None = None
+    status: Status1 | None = None
+    started_at: AwareDatetime | None = None
+    completed_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+
+
+class WorkflowOutput(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    phase_id: UUID | None = None
+    stage: str | None = None
+    html_path: str | None = None
+    json_path: str | None = None
+    md_path: str | None = None
+    summary: str | None = None
+    version: int | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class TargetType(StrEnum):
+    workflow_output = "workflow_output"
+    mock = "mock"
+    task = "task"
+    acceptance_criteria = "acceptance_criteria"
+
+
+class Status2(StrEnum):
+    open = "open"
+    resolved = "resolved"
+    deleted = "deleted"
+
+
+class Comment(BaseModel):
+    id: UUID | None = None
+    target_type: TargetType | None = None
+    target_id: UUID | None = None
+    target_element_id: str | None = None
+    author_user_id: UUID | None = None
+    author_invitation_id: UUID | None = None
+    content: str | None = None
+    status: Status2 | None = None
+    parent_comment_id: UUID | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class PlayTaskRequest(BaseModel):
     force: bool | None = False
 

@@ -286,6 +286,201 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AcceptanceCriteria:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        html_path: { type: string }
+        items: { type: array, items: { type: object } }
+        version: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    TaskExecution:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        score: { type: number, nullable: true }
+        ac_pass_rate: { type: number, nullable: true }
+        test_pass_rate: { type: number, nullable: true }
+        verification_score: { type: number, nullable: true }
+        retry_count: { type: integer }
+        status: { type: string }
+        claude_code_session_id: { type: string, nullable: true }
+        logs_storage_path: { type: string, nullable: true }
+        error_summary: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    Mock:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        screen_name: { type: string }
+        html_storage_path: { type: string }
+        version: { type: integer }
+        parent_mock_id: { type: string, format: uuid, nullable: true }
+        meta_tags: { type: object, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AiEmployee:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        template_id: { type: string, format: uuid, nullable: true }
+        name: { type: string }
+        display_name: { type: string }
+        icon: { type: string, nullable: true }
+        role: { type: string, enum: [coo, lead, member] }
+        department: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] }
+        tone_preset: { type: string, enum: [polite, friendly, casual, concise, coaching] }
+        custom_tone_text: { type: string, nullable: true }
+        attached_skills: { type: array, items: { type: string, format: uuid } }
+        attached_knowledge_cats: { type: array, items: { type: string } }
+        is_default: { type: boolean }
+        archived: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AiEmployeeTemplate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        default_name: { type: string }
+        default_display_name: { type: string }
+        default_icon: { type: string, nullable: true }
+        department: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] }
+        role: { type: string, enum: [coo, lead, member] }
+        default_skills: { type: array, items: { type: string, format: uuid } }
+        default_knowledge_cats: { type: array, items: { type: string } }
+        system_prompt: { type: string }
+        specialty: { type: string }
+        version: { type: integer }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid, nullable: true }
+        actor_type: { type: string, enum: [ai, user, system, anonymous] }
+        actor_id: { type: string }
+        action: { type: string }
+        target_type: { type: string }
+        target_id: { type: string, format: uuid, nullable: true }
+        before: { type: object, nullable: true }
+        after: { type: object, nullable: true }
+        ip_address: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    ClientInvitation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: string, format: date-time }
+        used_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        client_display_name: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ClientInvitationWithToken:
+      allOf:
+        - { $ref: '#/components/schemas/ClientInvitation' }
+        - type: object
+          properties:
+            token: { type: string, description: 生成時のみ返る raw token (招待 URL 用) }
+
+    WorkspaceMember:
+      type: object
+      properties:
+        workspace_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string, nullable: true }
+        role: { type: string, enum: [owner, member, viewer] }
+        joined_at: { type: string, format: date-time }
+
+    ChatThread:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        ai_employee_id: { type: string, format: uuid }
+        title: { type: string, nullable: true }
+        archived: { type: boolean }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ChatMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        thread_id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system, tool] }
+        content: { type: string }
+        parent_message_id: { type: string, format: uuid, nullable: true }
+        token_count: { type: integer, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Phase:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        order: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { type: string, enum: [pending, in_progress, completed, skipped] }
+        started_at: { type: string, format: date-time, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    WorkflowOutput:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        phase_id: { type: string, format: uuid, nullable: true }
+        stage: { type: string }
+        html_path: { type: string, nullable: true }
+        json_path: { type: string, nullable: true }
+        md_path: { type: string, nullable: true }
+        summary: { type: string, nullable: true }
+        version: { type: integer }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Comment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        target_type: { type: string, enum: [workflow_output, mock, task, acceptance_criteria] }
+        target_id: { type: string, format: uuid }
+        target_element_id: { type: string, nullable: true }
+        author_user_id: { type: string, format: uuid, nullable: true }
+        author_invitation_id: { type: string, format: uuid, nullable: true }
+        content: { type: string }
+        status: { type: string, enum: [open, resolved, deleted] }
+        parent_comment_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -658,6 +853,143 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Workspace' }
 
+  /workspaces/{workspace_id}:
+    get:
+      tags: [workspaces]
+      summary: WS 詳細
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::get_workspace
+      x-screen-ids: [S-B01]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: WS 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Workspace' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [workspaces]
+      summary: WS 更新
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::update_workspace
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 50 }
+                description: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Workspace' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workspaces]
+      summary: WS 削除（論理）
+      x-implementation-path: apps/api/src/routes/workspaces/__init__.py::delete_workspace
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # workspace-members (招待・ロール・削除)
+  # ==========================================================================
+  /workspaces/{workspace_id}/members:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workspace-members]
+      summary: WS メンバー一覧
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::list_members
+      x-screen-ids: [S-A03]
+      responses:
+        '200':
+          description: メンバー一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WorkspaceMember' } }
+    post:
+      tags: [workspace-members]
+      summary: WS メンバー招待
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::invite_member
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InviteMemberRequest' }
+      responses:
+        '201':
+          description: 招待成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkspaceMember' }
+        '403': { description: owner でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 既にメンバー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: メール未登録, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/members/{user_id}:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [workspace-members]
+      summary: WS メンバーのロール変更
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::update_role
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [owner, member, viewer] }
+      responses:
+        '200':
+          description: 変更成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkspaceMember' }
+        '403': { description: 不在 or 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workspace-members]
+      summary: WS メンバー削除
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::remove_member
+      x-screen-ids: [S-A03]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 不在 or 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # projects (8 endpoints) - 主要 3 つ
   # ==========================================================================
@@ -680,6 +1012,10 @@ paths:
         - in: query
           name: limit
           schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: include_deleted
+          description: true で論理削除済 (ゴミ箱) も含める (T-A-12)
+          schema: { type: boolean, default: false }
       responses:
         '200':
           description: 一覧
@@ -712,16 +1048,93 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Project' }
 
-  /projects/{id}/dashboard:
+  /projects/{project_id}:
+    get:
+      tags: [projects]
+      summary: プロジェクト詳細
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::get_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [projects]
+      summary: プロジェクト更新
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::update_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string }
+                status: { type: string, enum: [in_progress, draft, paused, archived] }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [projects]
+      summary: プロジェクト削除（論理）
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::delete_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/restore:
+    post:
+      tags: [projects]
+      summary: プロジェクト復元（論理削除を取消 / 30 日猶予内）
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::restore_project
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 復元成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '404': { description: 不在 / 未削除 / 猶予超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/dashboard:
     parameters:
       - in: path
-        name: id
+        name: project_id
         required: true
         schema: { type: string, format: uuid }
     get:
       tags: [projects]
       summary: プロジェクト KPI ダッシュボード
-      x-implementation-path: apps/api/src/routes/projects.py::dashboard
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::project_dashboard
       x-screen-ids: [S-B02]
       responses:
         '200':
@@ -733,9 +1146,232 @@ paths:
                 properties:
                   data: { type: object }
 
+  /projects/{project_id}/ai-learning:
+    post:
+      tags: [projects]
+      summary: プロジェクト単位 AI 学習 OFF (F-LEGAL-011)
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::set_project_ai_learning
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [opt_out]
+              properties:
+                opt_out: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Project' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /account/ai-learning:
+    post:
+      tags: [projects]
+      summary: アカウント単位 AI 学習 OFF (F-LEGAL-011)
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::set_account_ai_learning
+      x-screen-ids: [S-A04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [opt_out]
+              properties:
+                opt_out: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user_id: { type: string, format: uuid }
+                      ai_learning_opt_out: { type: boolean }
+
   # ==========================================================================
   # tasks + execution (主要 endpoint)
   # ==========================================================================
+  /tasks:
+    get:
+      tags: [tasks]
+      summary: タスク一覧
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::list_tasks
+      x-screen-ids: [S-I01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: lifecycle_stage, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+    post:
+      tags: [tasks]
+      summary: タスク作成
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::create_task
+      x-screen-ids: [S-I01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, category, title, type, estimated_hours]
+              properties:
+                project_id: { type: string, format: uuid }
+                category: { type: string, maxLength: 100 }
+                title: { type: string, maxLength: 200 }
+                type: { type: string, enum: [foundation, screen, feature, verification, infrastructure, migration] }
+                estimated_hours: { type: integer, minimum: 1, maximum: 24 }
+                description: { type: string }
+                priority: { type: string, enum: [critical, high, medium, low] }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+
+  /tasks/{task_id}:
+    parameters:
+      - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [tasks]
+      summary: タスク詳細
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_task
+      x-screen-ids: [S-I02]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [tasks]
+      summary: タスク更新
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::update_task
+      x-screen-ids: [S-I02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 200 }
+                description: { type: string }
+                type: { type: string, enum: [foundation, screen, feature, verification, infrastructure, migration] }
+                estimated_hours: { type: integer, minimum: 1, maximum: 24 }
+                priority: { type: string, enum: [critical, high, medium, low] }
+                lifecycle_stage: { type: string, enum: [triage, ready, in_progress, blocked, awaiting, done] }
+                blocked_reason: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [tasks]
+      summary: タスク削除（論理）
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::delete_task
+      x-screen-ids: [S-I02]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/acceptance-criteria:
+    get:
+      tags: [tasks]
+      summary: 受入条件取得
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_acceptance_criteria
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 受入条件
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AcceptanceCriteria' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/executions:
+    get:
+      tags: [tasks]
+      summary: タスク実行履歴
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::list_executions
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行履歴
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TaskExecution' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/executions/{execution_id}:
+    get:
+      tags: [tasks]
+      summary: タスク実行詳細・スコア
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_execution
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TaskExecution' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /tasks/{id}/play:
     parameters:
       - in: path
@@ -810,6 +1446,758 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
+  # mocks (CRUD + バージョン管理)
+  # ==========================================================================
+  /mocks:
+    get:
+      tags: [mocks]
+      summary: モック一覧
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::list_mocks
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: screen_name, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Mock' } }
+    post:
+      tags: [mocks]
+      summary: モック作成
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::create_mock
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, screen_name, html_storage_path]
+              properties:
+                project_id: { type: string, format: uuid }
+                screen_name: { type: string, maxLength: 200 }
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+
+  /mocks/{mock_id}:
+    parameters:
+      - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: モック詳細
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::get_mock
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [mocks]
+      summary: モック更新
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::update_mock
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [mocks]
+      summary: モック削除（論理）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::delete_mock
+      x-screen-ids: [S-H01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mocks/{mock_id}/versions:
+    parameters:
+      - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: モックのバージョン履歴
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::list_versions
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: バージョン履歴
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Mock' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [mocks]
+      summary: モックの新バージョン作成
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::create_version
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [html_storage_path]
+              properties:
+                html_storage_path: { type: string }
+                meta_tags: { type: object }
+      responses:
+        '201':
+          description: 新バージョン作成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # ai-employees (一覧・詳細・編集、固定 10 名)
+  # ==========================================================================
+  /ai-employees:
+    get:
+      tags: [ai-employees]
+      summary: AI 社員一覧
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::list_ai_employees
+      x-screen-ids: [S-C01]
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AiEmployee' } }
+
+  # NOTE: /ai-employees/templates は /ai-employees/{employee_id} より前に宣言する
+  # (path 衝突回避。FastAPI も同順で登録)。
+  /ai-employees/templates:
+    get:
+      tags: [ai-employees]
+      summary: AI 社員テンプレ一覧（運営側固定 / read-only）
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::list_templates
+      x-screen-ids: [S-C01]
+      parameters:
+        - { name: department, in: query, schema: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] } }
+        - { name: active_only, in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AiEmployeeTemplate' } }
+
+  /ai-employees/templates/{template_id}:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [ai-employees]
+      summary: AI 社員テンプレ詳細
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::get_template
+      x-screen-ids: [S-C01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployeeTemplate' }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /ai-employees/{employee_id}:
+    parameters:
+      - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [ai-employees]
+      summary: AI 社員詳細
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::get_ai_employee
+      x-screen-ids: [S-C02]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployee' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [ai-employees]
+      summary: AI 社員編集（display_name / icon / tone_preset / custom_tone_text）
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::update_ai_employee
+      x-screen-ids: [S-C02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name: { type: string, maxLength: 100 }
+                icon: { type: string }
+                tone_preset: { type: string, enum: [polite, friendly, casual, concise, coaching] }
+                custom_tone_text: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AiEmployee' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # client-invitations (クライアント招待管理)
+  # ==========================================================================
+  /client-invitations:
+    get:
+      tags: [client-invitations]
+      summary: クライアント招待一覧
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::list_invitations
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ClientInvitation' } }
+    post:
+      tags: [client-invitations]
+      summary: クライアント招待作成
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::create_invitation
+      x-screen-ids: [S-L01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, email]
+              properties:
+                project_id: { type: string, format: uuid }
+                email: { type: string, format: email }
+                scopes: { type: array, items: { type: string } }
+                client_display_name: { type: string, maxLength: 100 }
+                ttl_days: { type: integer, minimum: 1, maximum: 30, default: 7 }
+      responses:
+        '201':
+          description: 作成成功（raw token を含む）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitationWithToken' }
+
+  /client-invitations/{invitation_id}:
+    get:
+      tags: [client-invitations]
+      summary: クライアント招待詳細
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::get_invitation
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitation' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client-invitations/{invitation_id}/revoke:
+    post:
+      tags: [client-invitations]
+      summary: クライアント招待失効
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::revoke_invitation
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 失効成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitation' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 既に失効済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # workflow (工程一覧・遷移) / outputs (成果物)
+  # ==========================================================================
+  /workflow/phases:
+    get:
+      tags: [workflow]
+      summary: 工程一覧
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::list_phases
+      x-screen-ids: [S-G01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Phase' } }
+    post:
+      tags: [workflow]
+      summary: 工程作成
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::create_phase
+      x-screen-ids: [S-G01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, order, name]
+              properties:
+                project_id: { type: string, format: uuid }
+                order: { type: integer, minimum: 0 }
+                name: { type: string, maxLength: 200 }
+                description: { type: string }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+
+  /workflow/phases/{phase_id}:
+    parameters:
+      - { name: phase_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workflow]
+      summary: 工程詳細
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::get_phase
+      x-screen-ids: [S-G01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [workflow]
+      summary: 工程遷移・更新
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::update_phase
+      x-screen-ids: [S-G01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 200 }
+                description: { type: string }
+                status: { type: string, enum: [pending, in_progress, completed, skipped] }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Phase' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [workflow]
+      summary: 工程削除
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::delete_phase
+      x-screen-ids: [S-G01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /outputs:
+    get:
+      tags: [outputs]
+      summary: 成果物一覧
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_outputs
+      x-screen-ids: [S-G02]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: phase_id, in: query, schema: { type: string, format: uuid } }
+        - { name: stage, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WorkflowOutput' } }
+
+  /outputs/{output_id}:
+    get:
+      tags: [outputs]
+      summary: 成果物取得
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_output
+      x-screen-ids: [S-G02]
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkflowOutput' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # comments (成果物 / モック / タスク / 受入条件へのスレッド型コメント)
+  # ==========================================================================
+  /comments:
+    get:
+      tags: [comments]
+      summary: コメント一覧（対象指定）
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::list_comments
+      x-screen-ids: [S-G01, S-H01, S-L03]
+      parameters:
+        - { name: target_type, in: query, required: true, schema: { type: string, enum: [workflow_output, mock, task, acceptance_criteria] } }
+        - { name: target_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Comment' } }
+    post:
+      tags: [comments]
+      summary: コメント作成
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::create_comment
+      x-screen-ids: [S-G01, S-H01, S-L03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_type, target_id, content]
+              properties:
+                target_type: { type: string, enum: [workflow_output, mock, task, acceptance_criteria] }
+                target_id: { type: string, format: uuid }
+                content: { type: string, minLength: 1, maxLength: 10000 }
+                target_element_id: { type: string, maxLength: 200 }
+                parent_comment_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+        '403': { description: 対象に対する権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /comments/{comment_id}:
+    parameters:
+      - { name: comment_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [comments]
+      summary: コメント詳細
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::get_comment
+      x-screen-ids: [S-G01, S-H01, S-L03]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [comments]
+      summary: コメント編集・解決
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::update_comment
+      x-screen-ids: [S-G01, S-H01, S-L03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content: { type: string, minLength: 1, maxLength: 10000 }
+                status: { type: string, enum: [open, resolved] }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Comment' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [comments]
+      summary: コメント削除（論理）
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::delete_comment
+      x-screen-ids: [S-G01, S-H01, S-L03]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # chat (スレッド CRUD)
+  # ==========================================================================
+  /chat/threads:
+    get:
+      tags: [chat]
+      summary: チャットスレッド一覧
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::list_threads
+      x-screen-ids: [S-D01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: include_archived, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ChatThread' } }
+    post:
+      tags: [chat]
+      summary: チャットスレッド作成
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_thread
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, ai_employee_id]
+              properties:
+                project_id: { type: string, format: uuid }
+                ai_employee_id: { type: string, format: uuid }
+                title: { type: string, maxLength: 200 }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+
+  /chat/threads/{thread_id}:
+    parameters:
+      - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [chat]
+      summary: チャットスレッド詳細
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::get_thread
+      x-screen-ids: [S-D01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [chat]
+      summary: チャットスレッド更新
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::update_thread
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 200 }
+                archived: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [chat]
+      summary: チャットスレッド削除（論理）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::delete_thread
+      x-screen-ids: [S-D01]
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/messages:
+    parameters:
+      - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [chat]
+      summary: チャットメッセージ一覧
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::list_messages
+      x-screen-ids: [S-D01]
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ChatMessage' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [chat]
+      summary: チャットメッセージ送信（即時 / ユーザー発話）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_message
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 100000 }
+      responses:
+        '201':
+          description: 送信成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatMessage' }
+        '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # admin (運営)
+  # ==========================================================================
+  /admin/audit-logs:
+    get:
+      tags: [admin]
+      summary: 監査ログ閲覧（運営 admin）
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_audit_logs
+      x-screen-ids: [S-AD01]
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: actor_type, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, maximum: 500 } }
+      responses:
+        '200':
+          description: 監査ログ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # 承認待ち
