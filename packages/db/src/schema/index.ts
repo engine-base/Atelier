@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  date,
   integer,
   jsonb,
   numeric,
@@ -1377,3 +1378,49 @@ export const cronSchedules = pgTable(
 
 export type CronSchedule = typeof cronSchedules.$inferSelect;
 export type NewCronSchedule = typeof cronSchedules.$inferInsert;
+
+// =============================================================================
+// E-026 LegalDocument — T-D-25
+// 法令ページ本文 (terms/privacy/特商法)。公開閲覧可 (none_global)、版管理。
+// =============================================================================
+export const legalDocuments = pgTable(
+  'legal_documents',
+  {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    docType: text('doc_type').notNull(),
+    version: text('version').notNull(),
+    locale: text('locale').notNull().default('ja'),
+    title: text('title').notNull(),
+    bodyMd: text('body_md').notNull(),
+    effectiveDate: date('effective_date').notNull(),
+    isCurrent: boolean('is_current').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    docTypeValid: check(
+      'legal_documents_doc_type_valid',
+      sql`${table.docType} in ('terms_of_service', 'privacy_policy', 'tokushoho')`,
+    ),
+    titleLength: check(
+      'legal_documents_title_length',
+      sql`char_length(${table.title}) between 1 and 200`,
+    ),
+    bodyNotEmpty: check(
+      'legal_documents_body_not_empty',
+      sql`char_length(${table.bodyMd}) >= 1`,
+    ),
+    docTypeVersionLocale: unique('legal_documents_doc_type_version_locale_key').on(
+      table.docType,
+      table.version,
+      table.locale,
+    ),
+  }),
+);
+
+export type LegalDocument = typeof legalDocuments.$inferSelect;
+export type NewLegalDocument = typeof legalDocuments.$inferInsert;
