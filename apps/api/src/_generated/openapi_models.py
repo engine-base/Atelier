@@ -426,6 +426,31 @@ class AdminTemplate(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class AdminDashboard(BaseModel):
+    """
+    運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。
+    """
+
+    workspace_count: int | None = None
+    project_count: int | None = None
+    ai_employee_count: int | None = None
+    audit_log_count_24h: int | None = None
+    generated_at: AwareDatetime | None = None
+
+
+class AdminUser(BaseModel):
+    """
+    運営 admin 用メンバー詳細 (T-A-41 / workspace_member_details definer 経由)。
+    """
+
+    user_id: UUID | None = None
+    email: str | None = None
+    display_name: str | None = None
+    role: str | None = None
+    joined_at: AwareDatetime | None = None
+    workspace_id: UUID | None = None
+
+
 class ClientInvitation(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None

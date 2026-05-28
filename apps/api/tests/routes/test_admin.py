@@ -215,6 +215,74 @@ def seeded_admin_skills(
         )
 
 
+@pytest.fixture()
+def seeded_dashboard(
+    sync_engine: sqlalchemy.Engine,
+) -> Iterator[dict[str, str]]:
+    """T-A-41: u_admin が ws を 1 件保有・project 2 件・ai_employee 1 件、
+    他人 (u_other) が別 ws を保有 (越境集計が含まれないことを検証する)。"""
+    u_admin = str(uuid.uuid4())
+    u_other = str(uuid.uuid4())
+    ws_admin = str(uuid.uuid4())
+    ws_other = str(uuid.uuid4())
+    proj1, proj2, emp1 = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    proj_other = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        for uid in (u_admin, u_other):
+            em = f"ta41-{uid[:8]}@t.invalid"
+            c.execute(text("insert into auth.users (id,email) values (:i,:e)"), {"i": uid, "e": em})
+            c.execute(
+                text("insert into public.users (id,email) values (:i,:e)"), {"i": uid, "e": em}
+            )
+        for ws, owner in ((ws_admin, u_admin), (ws_other, u_other)):
+            c.execute(
+                text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
+                {"i": ws, "o": owner, "n": f"ws-{ws[:6]}"},
+            )
+        for pid, name in ((proj1, "p1"), (proj2, "p2")):
+            c.execute(
+                text(
+                    "insert into public.projects (id,workspace_id,name,project_type) "
+                    "values (:i,:w,:n,'internal_product')"
+                ),
+                {"i": pid, "w": ws_admin, "n": name},
+            )
+        c.execute(
+            text(
+                "insert into public.ai_employees "
+                "(id,workspace_id,name,display_name,role,department) "
+                "values (cast(:i as uuid),cast(:w as uuid),'tony','トニー','lead','sales')"
+            ),
+            {"i": emp1, "w": ws_admin},
+        )
+        c.execute(
+            text(
+                "insert into public.projects (id,workspace_id,name,project_type) "
+                "values (:i,:w,'other','internal_product')"
+            ),
+            {"i": proj_other, "w": ws_other},
+        )
+    yield {
+        "u_admin": u_admin,
+        "u_other": u_other,
+        "ws_admin": ws_admin,
+        "ws_other": ws_other,
+    }
+    with sync_engine.begin() as c:
+        c.execute(
+            text("delete from public.workspaces where id in (:a,:b)"),
+            {"a": ws_admin, "b": ws_other},
+        )
+        c.execute(
+            text("delete from public.users where id in (:a,:b)"),
+            {"a": u_admin, "b": u_other},
+        )
+        c.execute(
+            text("delete from auth.users where id in (:a,:b)"),
+            {"a": u_admin, "b": u_other},
+        )
+
+
 @pytest.mark.integration
 class TestAdminSkillsAndTemplates:
     """T-A-42: 運営 admin スキル + AI 社員テンプレ管理 (read-only)。"""
@@ -284,3 +352,62 @@ class TestAdminSkillsAndTemplates:
                 == 404
             )
             assert client.get(f"/admin/skills/{uuid.uuid4()}", headers=h).status_code == 404
+
+
+@pytest.mark.integration
+class TestAdminDashboard:
+    """T-A-41 dashboard / users: admin 所属 workspaces scope の集計とメンバー一覧。"""
+
+    def test_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.get("/admin/dashboard").status_code == 401
+            assert client.get("/admin/users").status_code == 401
+
+    def test_non_admin_forbidden_403(self, app: FastAPI, seeded_dashboard: dict[str, str]) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'])}"}
+        with TestClient(app) as client:
+            assert client.get("/admin/dashboard", headers=h).status_code == 403
+            assert client.get("/admin/users", headers=h).status_code == 403
+
+    def test_admin_dashboard_scope_counts(
+        self, app: FastAPI, seeded_dashboard: dict[str, str]
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            r = client.get("/admin/dashboard", headers=h)
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["workspace_count"] == 1
+            assert d["project_count"] == 2
+            assert d["ai_employee_count"] == 1
+            assert isinstance(d["audit_log_count_24h"], int)
+
+    def test_admin_users_lists_own_ws_members_and_excludes_cross(
+        self, app: FastAPI, seeded_dashboard: dict[str, str]
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            r = client.get("/admin/users", headers=h)
+            assert r.status_code == 200
+            users = r.json()["data"]
+            assert any(
+                u["user_id"] == seeded_dashboard["u_admin"]
+                and u["workspace_id"] == seeded_dashboard["ws_admin"]
+                and u["role"] == "owner"
+                for u in users
+            )
+            assert all(u["user_id"] != seeded_dashboard["u_other"] for u in users)
+
+    def test_admin_users_filter_by_workspace(
+        self, app: FastAPI, seeded_dashboard: dict[str, str]
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            r = client.get(
+                f"/admin/users?workspace_id={seeded_dashboard['ws_admin']}",
+                headers=h,
+            )
+            assert r.status_code == 200
+            users = r.json()["data"]
+            assert len(users) >= 1
+            assert all(u["workspace_id"] == seeded_dashboard["ws_admin"] for u in users)

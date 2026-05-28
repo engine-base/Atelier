@@ -1,8 +1,10 @@
-"""Admin API スキーマ (T-A-43 / T-A-42)。
+"""Admin API スキーマ (T-A-43 / T-A-42 / T-A-41)。
 
 T-A-43: AuditLogResponse — E-020 audit_logs。
-T-A-42: AdminSkillResponse / AdminTemplateResponse — 運営 admin が全 skills /
+T-A-42: AdminSkillResponse / AdminTemplateResponse — admin が全 skills /
         AI 社員テンプレを横断管理 (read-only 閲覧)。
+T-A-41: AdminDashboardResponse / AdminUserResponse — admin dashboard 集計と
+        所属 workspace 横断のメンバー一覧 (workspace_member_details definer 経由)。
 """
 
 from __future__ import annotations
@@ -68,3 +70,29 @@ class AdminTemplateResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class AdminDashboardResponse(BaseModel):
+    """T-A-41: 運営 admin dashboard 集計 (admin 所属 workspaces scope 内)。
+
+    cluster-wide な platform 全体集計は cross-workspace definer migration が
+    必要なため別途とし、本タスクでは admin が所属する workspace 群の合算を
+    返す (current_user_workspaces() を RLS 経由で利用)。
+    """
+
+    workspace_count: int
+    project_count: int
+    ai_employee_count: int
+    audit_log_count_24h: int
+    generated_at: datetime
+
+
+class AdminUserResponse(BaseModel):
+    """T-A-41: admin scope 内 member 詳細 (workspace_member_details definer 経由)。"""
+
+    user_id: str
+    email: str
+    display_name: str | None
+    role: str
+    joined_at: datetime
+    workspace_id: str
