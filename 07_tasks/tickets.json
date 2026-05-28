@@ -12177,17 +12177,19 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/src/routes/ai_employees/__init__.py",
-          "apps/api/src/services/ai_employees/__init__.py",
-          "apps/api/src/schemas/ai_employees.py",
-          "apps/api/tests/routes/test_ai_employees.py"
+          "apps/api/tests/routes/test_admin.py::TestAdminSkillsAndTemplates"
         ],
         "modify": [
-          "apps/api/src/routes/__init__.py",
-          "07_api_design/openapi.yaml"
+          "apps/api/src/routes/admin/__init__.py",
+          "apps/api/src/services/admin/__init__.py",
+          "apps/api/src/schemas/admin.py",
+          "apps/api/tests/routes/test_admin.py",
+          "07_api_design/openapi.yaml",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
-          "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-A-42.md",
           "07_api_design/openapi.yaml",
           "07_api_design/types.ts",

@@ -382,6 +382,41 @@ components:
         ip_address: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
+    AdminSkill:
+      type: object
+      description: 運営 admin 向け skill 詳細 (T-A-42)。
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: string }
+        description: { type: string, nullable: true }
+        content_md: { type: string }
+        assets_storage_path: { type: string, nullable: true }
+        allowed_employee_roles: { type: array, items: { type: string } }
+        allowed_employee_ids: { type: array, items: { type: string, format: uuid } }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AdminTemplate:
+      type: object
+      description: 運営 admin 向け AI 社員テンプレ詳細 (T-A-42)。
+      properties:
+        id: { type: string, format: uuid }
+        default_name: { type: string }
+        default_display_name: { type: string }
+        default_icon: { type: string, nullable: true }
+        department: { type: string }
+        role: { type: string }
+        default_skills: { type: array, items: { type: string, format: uuid } }
+        default_knowledge_cats: { type: array, items: { type: string } }
+        system_prompt: { type: string }
+        specialty: { type: string }
+        version: { type: integer }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     ClientInvitation:
       type: object
       properties:
@@ -2285,6 +2320,86 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/skills:
+    get:
+      tags: [admin]
+      summary: 運営 admin スキル一覧（全件 / read-only）
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_skills
+      x-screen-ids: [S-AD02]
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean, default: true } }
+        - { name: name, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: スキル一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminSkill' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/skills/{skill_id}:
+    parameters:
+      - { name: skill_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [admin]
+      summary: 運営 admin スキル詳細
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_skill
+      x-screen-ids: [S-AD02]
+      responses:
+        '200':
+          description: スキル詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminSkill' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/ai-employee-templates:
+    get:
+      tags: [admin]
+      summary: 運営 admin AI 社員テンプレ一覧（全件 / read-only）
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_templates
+      x-screen-ids: [S-AD02]
+      parameters:
+        - { name: include_inactive, in: query, schema: { type: boolean, default: true } }
+        - { name: department, in: query, schema: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] } }
+      responses:
+        '200':
+          description: テンプレ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminTemplate' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/ai-employee-templates/{template_id}:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [admin]
+      summary: 運営 admin AI 社員テンプレ詳細
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_template
+      x-screen-ids: [S-AD02]
+      responses:
+        '200':
+          description: テンプレ詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTemplate' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # 承認待ち

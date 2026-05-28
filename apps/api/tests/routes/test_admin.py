@@ -176,3 +176,111 @@ class TestAdminAuditLogs:
             r = client.get("/admin/audit-logs?action=nonexistent.action", headers=h)
             assert r.status_code == 200
             assert r.json()["data"] == []
+
+
+@pytest.fixture()
+def seeded_admin_skills(
+    sync_engine: sqlalchemy.Engine,
+) -> Iterator[dict[str, str]]:
+    """T-A-42: テスト専用 skill + template を seed (superuser でのみ可)。"""
+    sk_id = str(uuid.uuid4())
+    tpl_id = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.skills "
+                "(id, name, version, description, content_md, allowed_employee_roles, "
+                " allowed_employee_ids, is_active) "
+                "values (cast(:i as uuid), :n, '0.0.1', 'test desc', '# body', "
+                " ARRAY['lead']::text[], ARRAY[]::uuid[], true)"
+            ),
+            {"i": sk_id, "n": f"sk-test-{sk_id[:8]}"},
+        )
+        c.execute(
+            text(
+                "insert into public.ai_employee_templates "
+                "(id, default_name, default_display_name, department, role, "
+                " system_prompt, specialty, version, is_active) "
+                "values (cast(:i as uuid), :n, 'admin テンプレ', 'product', 'member', "
+                " 'sp', 'spec', 8888, false)"
+            ),
+            {"i": tpl_id, "n": f"tpl-admin-{tpl_id[:8]}"},
+        )
+    yield {"skill_id": sk_id, "template_id": tpl_id}
+    with sync_engine.begin() as c:
+        c.execute(text("delete from public.skills where id = cast(:i as uuid)"), {"i": sk_id})
+        c.execute(
+            text("delete from public.ai_employee_templates where id = cast(:i as uuid)"),
+            {"i": tpl_id},
+        )
+
+
+@pytest.mark.integration
+class TestAdminSkillsAndTemplates:
+    """T-A-42: 運営 admin スキル + AI 社員テンプレ管理 (read-only)。"""
+
+    def test_skills_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.get("/admin/skills").status_code == 401
+            assert client.get("/admin/ai-employee-templates").status_code == 401
+
+    def test_skills_non_admin_forbidden_403(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'])}"}  # 通常 user
+        with TestClient(app) as client:
+            assert client.get("/admin/skills", headers=h).status_code == 403
+            assert client.get("/admin/ai-employee-templates", headers=h).status_code == 403
+
+    def test_admin_lists_skills(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            r = client.get("/admin/skills", headers=h)
+            assert r.status_code == 200
+            ids = {x["id"] for x in r.json()["data"]}
+            assert seeded_admin_skills["skill_id"] in ids
+            g = client.get(f"/admin/skills/{seeded_admin_skills['skill_id']}", headers=h)
+            assert g.status_code == 200
+            assert g.json()["data"]["is_active"] is True
+
+    def test_admin_lists_templates_includes_inactive(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            # 既定で inactive 含む (admin 横断)
+            r = client.get("/admin/ai-employee-templates", headers=h)
+            assert r.status_code == 200
+            ids = {x["id"] for x in r.json()["data"]}
+            assert seeded_admin_skills["template_id"] in ids
+            # include_inactive=false で除外
+            r2 = client.get("/admin/ai-employee-templates?include_inactive=false", headers=h)
+            ids2 = {x["id"] for x in r2.json()["data"]}
+            assert seeded_admin_skills["template_id"] not in ids2
+
+    def test_admin_template_detail_and_not_found(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+    ) -> None:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'], admin=True)}"}
+        with TestClient(app) as client:
+            g = client.get(
+                f"/admin/ai-employee-templates/{seeded_admin_skills['template_id']}",
+                headers=h,
+            )
+            assert g.status_code == 200
+            assert g.json()["data"]["version"] == 8888
+            # 不在 → 404
+            assert (
+                client.get(f"/admin/ai-employee-templates/{uuid.uuid4()}", headers=h).status_code
+                == 404
+            )
+            assert client.get(f"/admin/skills/{uuid.uuid4()}", headers=h).status_code == 404
