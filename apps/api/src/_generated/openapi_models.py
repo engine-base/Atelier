@@ -647,52 +647,47 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Category(StrEnum):
+class Type3(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
-    scope_change = "scope_change"
-    knowledge_promotion = "knowledge_promotion"
+    knowledge_write = "knowledge_write"
     comment_response = "comment_response"
+    scope_change = "scope_change"
 
 
-class SourceRef(BaseModel):
-    type: str | None = None
-    id: UUID | None = None
-
-
-class DetectedBy(BaseModel):
-    employee_id: str | None = None
-    at: AwareDatetime | None = None
+class Status3(StrEnum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
 
 
 class ApprovalInboxEntry(BaseModel):
+    """
+    承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。
+    """
+
     id: UUID | None = None
-    category: Category | None = None
-    urgent: bool | None = None
+    user_id: UUID | None = None
+    type: Type3 | None = None
+    target_type: str | None = None
+    target_id: UUID | None = None
     title: str | None = None
-    preview: str | None = None
-    source_ref: SourceRef | None = None
-    detected_by: DetectedBy | None = None
-    impact_analysis: dict[str, Any] | None = None
-    score: float | None = None
+    payload: dict[str, Any] | None = None
+    status: Status3 | None = None
+    resolved_at: AwareDatetime | None = None
+    resolution_note: str | None = None
     created_at: AwareDatetime | None = None
-    decided_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
 
 
 class Decision(StrEnum):
     approve = "approve"
     reject = "reject"
-    defer = "defer"
-
-
-class ScopeChangeOptions(BaseModel):
-    rerun_phases: list[CurrentPhase] | None = None
 
 
 class ApprovalDecideRequest(BaseModel):
     decision: Decision
-    reason: str | None = None
-    scope_change_options: ScopeChangeOptions | None = None
+    note: Annotated[str | None, Field(max_length=2000)] = None
 
 
 class ClientSigninRequest(BaseModel):

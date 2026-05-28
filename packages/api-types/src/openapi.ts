@@ -4183,14 +4183,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 承認待ち一覧（5 種統合） */
+        /** 承認待ち一覧（本人 / 5 種統合） */
         get: {
             parameters: {
                 query?: {
-                    category?: "task_approval" | "phase_approval" | "scope_change" | "knowledge_promotion" | "comment_response" | "all";
-                    project_id?: string;
-                    status?: "pending" | "all";
-                    cursor?: string;
+                    status?: "pending" | "approved" | "rejected";
+                    type?: "task_approval" | "phase_approval" | "knowledge_write" | "comment_response" | "scope_change";
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -4206,9 +4205,6 @@ export interface paths {
                     content: {
                         "application/json": {
                             data?: components["schemas"]["ApprovalInboxEntry"][];
-                            meta?: components["schemas"]["PaginationMeta"] & {
-                                counts?: Record<string, never>;
-                            };
                         };
                     };
                 };
@@ -4222,24 +4218,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/approval-inbox/{id}/decide": {
+    "/approval-inbox/{approval_id}": {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                id: string;
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        /** 承認待ち詳細（本人） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    approval_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ApprovalInboxEntry"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/approval-inbox/{approval_id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                approval_id: string;
             };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** 承認判断 */
+        /** 承認判断 (approve / reject) */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    approval_id: string;
                 };
                 cookie?: never;
             };
@@ -4254,9 +4301,22 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ApprovalInboxEntry"];
+                        };
+                    };
                 };
-                /** @description 既に判断済 */
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 既に判断済 (status != pending) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -4910,38 +4970,33 @@ export interface components {
                 retry_count: number;
             };
         };
+        /** @description 承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。 */
         ApprovalInboxEntry: {
             /** Format: uuid */
             id?: string;
+            /** Format: uuid */
+            user_id?: string;
             /** @enum {string} */
-            category?: "task_approval" | "phase_approval" | "scope_change" | "knowledge_promotion" | "comment_response";
-            urgent?: boolean;
+            type?: "task_approval" | "phase_approval" | "knowledge_write" | "comment_response" | "scope_change";
+            target_type?: string;
+            /** Format: uuid */
+            target_id?: string;
             title?: string;
-            preview?: string;
-            source_ref?: {
-                type?: string;
-                /** Format: uuid */
-                id?: string;
-            };
-            detected_by?: {
-                employee_id?: string;
-                /** Format: date-time */
-                at?: string;
-            };
-            impact_analysis?: Record<string, never>;
-            score?: number | null;
+            payload?: Record<string, never>;
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected";
+            /** Format: date-time */
+            resolved_at?: string | null;
+            resolution_note?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
-            decided_at?: string | null;
+            updated_at?: string;
         };
         ApprovalDecideRequest: {
             /** @enum {string} */
-            decision: "approve" | "reject" | "defer";
-            reason?: string;
-            scope_change_options?: {
-                rerun_phases?: ("hearing" | "requirements" | "architecture" | "design" | "breakdown" | "tasks" | "implementation" | "verification" | "delivery")[];
-            };
+            decision: "approve" | "reject";
+            note?: string;
         };
         ClientSigninRequest: {
             invitation_token: string;
