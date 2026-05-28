@@ -481,6 +481,27 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    LegalDocument:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        doc_type: { type: string, enum: [terms_of_service, privacy_policy, tokushoho] }
+        version: { type: string }
+        locale: { type: string }
+        title: { type: string }
+        body_md: { type: string }
+        effective_date: { type: string, format: date }
+        is_current: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DataDeletionRequestResponse:
+      type: object
+      properties:
+        request_id: { type: string, format: uuid }
+        status: { type: string }
+        requested_at: { type: string, format: date-time }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -582,6 +603,72 @@ components:
         expires_at: { type: string, format: date-time }
 
 paths:
+  # ==========================================================================
+  # public (法令ページ + データ削除請求 / 未認証アクセス可)
+  # ==========================================================================
+  /public/legal-documents:
+    get:
+      tags: [public]
+      summary: 法令ページ一覧（公開・未認証可）
+      x-implementation-path: apps/api/src/routes/public/__init__.py::list_legal_documents
+      x-screen-ids: [S-PUB01, S-PUB02, S-PUB03]
+      parameters:
+        - { name: locale, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/LegalDocument' } }
+
+  /public/legal-documents/{doc_type}:
+    get:
+      tags: [public]
+      summary: 法令ページ取得（公開・未認証可）
+      x-implementation-path: apps/api/src/routes/public/__init__.py::get_legal_document
+      x-screen-ids: [S-PUB01, S-PUB02, S-PUB03]
+      parameters:
+        - { name: doc_type, in: path, required: true, schema: { type: string, enum: [terms_of_service, privacy_policy, tokushoho] } }
+        - { name: locale, in: query, schema: { type: string, default: ja } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/LegalDocument' }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /public/data-deletion-requests:
+    post:
+      tags: [public]
+      summary: データ削除請求（本人・要認証 / F-LEGAL-002）
+      x-implementation-path: apps/api/src/routes/public/__init__.py::create_data_deletion_request
+      x-screen-ids: [S-PUB04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 2000 }
+      responses:
+        '201':
+          description: 受付
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DataDeletionRequestResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # auth (11 endpoints)
   # ==========================================================================
