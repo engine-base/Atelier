@@ -4,6 +4,55 @@
  */
 
 export interface paths {
+    "/impact/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** タスク影響範囲解析（下流 task 群 / read-only） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 解析結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ImpactAnalysisResponse"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/legal-documents": {
         parameters: {
             query?: never;
@@ -4198,6 +4247,12 @@ export interface components {
             status?: string;
             /** Format: date-time */
             requested_at?: string;
+        };
+        ImpactAnalysisResponse: {
+            /** Format: uuid */
+            root_task_id?: string;
+            affected_task_ids?: string[];
+            affected_count?: number;
         };
         PlayTaskRequest: {
             /** @default false */

@@ -502,6 +502,13 @@ components:
         status: { type: string }
         requested_at: { type: string, format: date-time }
 
+    ImpactAnalysisResponse:
+      type: object
+      properties:
+        root_task_id: { type: string, format: uuid }
+        affected_task_ids: { type: array, items: { type: string, format: uuid } }
+        affected_count: { type: integer }
+
     PlayTaskRequest:
       type: object
       properties:
@@ -603,6 +610,28 @@ components:
         expires_at: { type: string, format: date-time }
 
 paths:
+  # ==========================================================================
+  # impact (F-IMP01 影響範囲解析 / NetworkX)
+  # ==========================================================================
+  /impact/tasks/{task_id}:
+    get:
+      tags: [impact]
+      summary: タスク影響範囲解析（下流 task 群 / read-only）
+      x-implementation-path: apps/api/src/routes/impact/__init__.py::analyze_task_impact
+      x-screen-ids: []
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 解析結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ImpactAnalysisResponse' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # public (法令ページ + データ削除請求 / 未認証アクセス可)
   # ==========================================================================

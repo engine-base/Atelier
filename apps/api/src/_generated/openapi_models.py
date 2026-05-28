@@ -531,6 +531,12 @@ class DataDeletionRequestResponse(BaseModel):
     requested_at: AwareDatetime | None = None
 
 
+class ImpactAnalysisResponse(BaseModel):
+    root_task_id: UUID | None = None
+    affected_task_ids: list[UUID] | None = None
+    affected_count: int | None = None
+
+
 class PlayTaskRequest(BaseModel):
     force: bool | None = False
 
