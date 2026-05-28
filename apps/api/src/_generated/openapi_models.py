@@ -647,6 +647,25 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
+class McpToken(BaseModel):
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    name: str | None = None
+    scopes: list[str] | None = None
+    expires_at: AwareDatetime | None = None
+    revoked_at: AwareDatetime | None = None
+    last_used_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class McpTokenCreateResponse(McpToken):
+    token: str
+    """
+    plaintext token (作成直後の 1 度のみ返す。以降は再表示不可)
+    """
+
+
 class Type3(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
