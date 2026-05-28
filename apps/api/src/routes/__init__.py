@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from src.routes.admin import router as admin_router
 from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
+from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
 from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
@@ -41,5 +42,6 @@ api_router.include_router(public_router)
 api_router.include_router(impact_router)
 api_router.include_router(approvals_router)
 api_router.include_router(mcp_tokens_router)
+api_router.include_router(byok_keys_router)
 
 __all__ = ["api_router"]
