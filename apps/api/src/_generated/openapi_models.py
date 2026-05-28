@@ -583,6 +583,32 @@ class Comment(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class TargetAction(StrEnum):
+    task_replay = "task_replay"
+    knowledge_organize = "knowledge_organize"
+    industry_extract = "industry_extract"
+    report_summary = "report_summary"
+    daily_digest = "daily_digest"
+    weekly_burndown = "weekly_burndown"
+
+
+class CronSchedule(BaseModel):
+    """
+    cron スケジュール (T-A-40)。project-scoped。Inngest 連動は別途。
+    """
+
+    id: UUID | None = None
+    project_id: UUID | None = None
+    name: str | None = None
+    cron_expression: str | None = None
+    target_action: TargetAction | None = None
+    target_payload: dict[str, Any] | None = None
+    enabled: bool | None = None
+    next_run_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class DocType(StrEnum):
     terms_of_service = "terms_of_service"
     privacy_policy = "privacy_policy"

@@ -3299,6 +3299,234 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cron-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** cron スケジュール一覧 */
+        get: {
+            parameters: {
+                query?: {
+                    project_id?: string;
+                    enabled?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CronSchedule"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** cron スケジュール作成 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                        name: string;
+                        cron_expression: string;
+                        /** @enum {string} */
+                        target_action: "task_replay" | "knowledge_organize" | "industry_extract" | "report_summary" | "daily_digest" | "weekly_burndown";
+                        target_payload?: Record<string, never>;
+                        /** @default true */
+                        enabled?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description 作成成功 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CronSchedule"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cron-schedules/{schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                schedule_id: string;
+            };
+            cookie?: never;
+        };
+        /** cron スケジュール詳細 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    schedule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CronSchedule"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** cron スケジュール削除 (owner のみ) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    schedule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除成功 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description owner 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** cron スケジュール更新 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    schedule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name?: string;
+                        cron_expression?: string;
+                        /** @enum {string} */
+                        target_action?: "task_replay" | "knowledge_organize" | "industry_extract" | "report_summary" | "daily_digest" | "weekly_burndown";
+                        target_payload?: Record<string, never>;
+                        enabled?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description 更新成功 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CronSchedule"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -5399,6 +5627,25 @@ export interface components {
             status?: "open" | "resolved" | "deleted";
             /** Format: uuid */
             parent_comment_id?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        /** @description cron スケジュール (T-A-40)。project-scoped。Inngest 連動は別途。 */
+        CronSchedule: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            project_id?: string;
+            name?: string;
+            cron_expression?: string;
+            /** @enum {string} */
+            target_action?: "task_replay" | "knowledge_organize" | "industry_extract" | "report_summary" | "daily_digest" | "weekly_burndown";
+            target_payload?: Record<string, never>;
+            enabled?: boolean;
+            /** Format: date-time */
+            next_run_at?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
