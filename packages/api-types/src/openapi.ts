@@ -4348,6 +4348,225 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/byok/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** BYOK キー一覧（本人） */
+        get: {
+            parameters: {
+                query?: {
+                    provider?: "claude" | "openai" | "gemini";
+                    include_inactive?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ByokKey"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** BYOK キー登録（plaintext を暗号化保存・応答に含めない） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        provider: "claude" | "openai" | "gemini";
+                        key: string;
+                        label?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 登録成功 (plaintext は含めない) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ByokKey"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/byok/keys/{key_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key_id: string;
+            };
+            cookie?: never;
+        };
+        /** BYOK キー詳細（本人） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ByokKey"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** BYOK キー削除（本人） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除成功 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** BYOK キー更新（label / is_active） */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        label?: string;
+                        is_active?: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description 更新成功 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ByokKey"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/approval-inbox": {
         parameters: {
             query?: never;
@@ -5163,6 +5382,21 @@ export interface components {
         McpTokenCreateResponse: components["schemas"]["McpToken"] & {
             /** @description plaintext token (作成直後の 1 度のみ返す。以降は再表示不可) */
             token: string;
+        };
+        /** @description BYOK (Bring Your Own Key) API キー。plaintext / encrypted_key は応答に含めない。 */
+        ByokKey: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            user_id?: string;
+            /** @enum {string} */
+            provider?: "claude" | "openai" | "gemini";
+            label?: string | null;
+            is_active?: boolean;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
         };
         /** @description 承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。 */
         ApprovalInboxEntry: {

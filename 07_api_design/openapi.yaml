@@ -648,6 +648,21 @@ components:
               description: "plaintext token (作成直後の 1 度のみ返す。以降は再表示不可)"
 
     # ========================================================================
+    # BYOK API キー (T-A-09)
+    # ========================================================================
+    ByokKey:
+      type: object
+      description: BYOK (Bring Your Own Key) API キー。plaintext / encrypted_key は応答に含めない。
+      properties:
+        id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        provider: { type: string, enum: [claude, openai, gemini] }
+        label: { type: string, nullable: true }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ========================================================================
     # 承認待ち
     # ========================================================================
     ApprovalInboxEntry:
@@ -2691,6 +2706,107 @@ paths:
       responses:
         '204': { description: 取消成功 }
         '403': { description: owner 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # BYOK API キー管理 (T-A-09)
+  # ==========================================================================
+  /byok/keys:
+    get:
+      tags: [byok-keys]
+      summary: BYOK キー一覧（本人）
+      x-implementation-path: apps/api/src/routes/byok_keys/__init__.py::list_keys
+      x-screen-ids: []
+      parameters:
+        - { name: provider, in: query, schema: { type: string, enum: [claude, openai, gemini] } }
+        - { name: include_inactive, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ByokKey' } }
+    post:
+      tags: [byok-keys]
+      summary: BYOK キー登録（plaintext を暗号化保存・応答に含めない）
+      x-implementation-path: apps/api/src/routes/byok_keys/__init__.py::create_key
+      x-screen-ids: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, key]
+              properties:
+                provider: { type: string, enum: [claude, openai, gemini] }
+                key: { type: string, minLength: 1, maxLength: 10000 }
+                label: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '201':
+          description: 登録成功 (plaintext は含めない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ByokKey' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /byok/keys/{key_id}:
+    parameters:
+      - { name: key_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [byok-keys]
+      summary: BYOK キー詳細（本人）
+      x-implementation-path: apps/api/src/routes/byok_keys/__init__.py::get_key
+      x-screen-ids: []
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ByokKey' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [byok-keys]
+      summary: BYOK キー更新（label / is_active）
+      x-implementation-path: apps/api/src/routes/byok_keys/__init__.py::update_key
+      x-screen-ids: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string, minLength: 1, maxLength: 100 }
+                is_active: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ByokKey' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [byok-keys]
+      summary: BYOK キー削除（本人）
+      x-implementation-path: apps/api/src/routes/byok_keys/__init__.py::delete_key
+      x-screen-ids: []
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

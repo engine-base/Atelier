@@ -666,6 +666,26 @@ class McpTokenCreateResponse(McpToken):
     """
 
 
+class Provider(StrEnum):
+    claude = "claude"
+    openai = "openai"
+    gemini = "gemini"
+
+
+class ByokKey(BaseModel):
+    """
+    BYOK (Bring Your Own Key) API キー。plaintext / encrypted_key は応答に含めない。
+    """
+
+    id: UUID | None = None
+    user_id: UUID | None = None
+    provider: Provider | None = None
+    label: str | None = None
+    is_active: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class Type3(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
