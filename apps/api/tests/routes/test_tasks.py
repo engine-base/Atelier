@@ -380,3 +380,169 @@ class TestTaskExecutions:
             # 別 WS の user からはタスク自体が不可視 → 404
             assert client.get(f"/tasks/{tid}/executions", headers=hb).status_code == 404
             client.delete(f"/tasks/{tid}", headers=ha)
+
+
+@pytest.mark.integration
+class TestTaskBulkAndDecision:
+    """T-A-25: タスク一括再生 + 承認/差戻/再試行。"""
+
+    def _create_task(
+        self,
+        client: TestClient,
+        h: dict[str, str],
+        proj_id: str,
+        title: str,
+    ) -> str:
+        return client.post(
+            "/tasks",
+            json={
+                "project_id": proj_id,
+                "category": "backend",
+                "title": title,
+                "type": "feature",
+                "estimated_hours": 1,
+            },
+            headers=h,
+        ).json()["data"]["id"]
+
+    def test_bulk_lifecycle_transitions_multiple_and_audit(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            t1 = self._create_task(client, h, seeded["proj_a"], "bulk-1")
+            t2 = self._create_task(client, h, seeded["proj_a"], "bulk-2")
+            r = client.post(
+                "/tasks/bulk/lifecycle",
+                json={
+                    "task_ids": [t1, t2],
+                    "target_stage": "in_progress",
+                    "note": "kick off",
+                },
+                headers=h,
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["requested"] == 2
+            assert d["updated"] == 2
+            assert set(d["updated_task_ids"]) == {t1, t2}
+            assert d["skipped_task_ids"] == []
+            # 個別 task の lifecycle が反映
+            assert (
+                client.get(f"/tasks/{t1}", headers=h).json()["data"]["lifecycle_stage"]
+                == "in_progress"
+            )
+        # audit_logs に 2 件 (task.bulk_lifecycle、各 task ごと)
+        with sync_engine.connect() as c:
+            n = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action='task.bulk_lifecycle' and target_id in "
+                    "(cast(:t1 as uuid), cast(:t2 as uuid))"
+                ),
+                {"t1": t1, "t2": t2},
+            ).scalar_one()
+        assert n == 2
+
+    def test_bulk_lifecycle_cross_workspace_skipped(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        with TestClient(app) as client:
+            t_visible = self._create_task(client, ha, seeded["proj_a"], "visible")
+            fake_other = str(uuid.uuid4())
+            # u_b (別 WS) が呼ぶ → t_visible は不可視で skipped、fake_other も skipped
+            r = client.post(
+                "/tasks/bulk/lifecycle",
+                json={
+                    "task_ids": [t_visible, fake_other],
+                    "target_stage": "ready",
+                },
+                headers=hb,
+            )
+            assert r.status_code == 200
+            d = r.json()["data"]
+            assert d["updated"] == 0
+            assert set(d["skipped_task_ids"]) == {t_visible, fake_other}
+
+    def test_bulk_lifecycle_empty_422(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/tasks/bulk/lifecycle",
+                json={"task_ids": [], "target_stage": "ready"},
+                headers=h,
+            )
+            assert r.status_code == 422
+
+    def test_approve_awaiting_to_done(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._create_task(client, h, seeded["proj_a"], "approve-me")
+            # まず awaiting へ
+            client.patch(f"/tasks/{tid}", json={"lifecycle_stage": "awaiting"}, headers=h)
+            r = client.post(f"/tasks/{tid}/approve", json={"note": "ok"}, headers=h)
+            assert r.status_code == 200
+            assert r.json()["data"]["lifecycle_stage"] == "done"
+
+    def test_approve_non_awaiting_409(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._create_task(client, h, seeded["proj_a"], "triage-only")
+            # 既定は triage → approve できない
+            assert client.post(f"/tasks/{tid}/approve", json={}, headers=h).status_code == 409
+
+    def test_reject_awaiting_to_blocked_with_reason(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._create_task(client, h, seeded["proj_a"], "reject-me")
+            client.patch(f"/tasks/{tid}", json={"lifecycle_stage": "awaiting"}, headers=h)
+            r = client.post(
+                f"/tasks/{tid}/reject",
+                json={"note": "missing requirements"},
+                headers=h,
+            )
+            assert r.status_code == 200
+            d = r.json()["data"]
+            assert d["lifecycle_stage"] == "blocked"
+            assert d["blocked_reason"] == "missing requirements"
+
+    def test_retry_blocked_increments_count(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._create_task(client, h, seeded["proj_a"], "retry-me")
+            client.patch(f"/tasks/{tid}", json={"lifecycle_stage": "blocked"}, headers=h)
+            r = client.post(f"/tasks/{tid}/retry", json={"note": "try again"}, headers=h)
+            assert r.status_code == 200
+            d = r.json()["data"]
+            assert d["lifecycle_stage"] == "ready"
+            assert d["retry_count"] == 1
+            assert d["blocked_reason"] is None
+
+    def test_retry_non_blocked_409(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._create_task(client, h, seeded["proj_a"], "no-retry")
+            # 既定 triage → retry できない
+            assert client.post(f"/tasks/{tid}/retry", json={}, headers=h).status_code == 409
+
+    def test_decision_not_found_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            fake = uuid.uuid4()
+            assert client.post(f"/tasks/{fake}/approve", json={}, headers=h).status_code == 404
+            assert client.post(f"/tasks/{fake}/reject", json={}, headers=h).status_code == 404
+            assert client.post(f"/tasks/{fake}/retry", json={}, headers=h).status_code == 404
+
+    def test_decision_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            fake = uuid.uuid4()
+            assert client.post(f"/tasks/{fake}/approve", json={}).status_code == 401
+            assert (
+                client.post(
+                    "/tasks/bulk/lifecycle", json={"task_ids": [str(fake)], "target_stage": "ready"}
+                ).status_code
+                == 401
+            )

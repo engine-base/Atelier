@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
+    TaskBulkLifecycleRequest,
+    TaskBulkLifecycleResponse,
     TaskCreate,
+    TaskDecisionRequest,
     TaskExecutionResponse,
     TaskResponse,
     TaskUpdate,
@@ -110,3 +113,64 @@ async def get_execution(
     if ex is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task execution not found")
     return {"data": ex}
+
+
+# --------------------------------------------------------------------------- #
+# T-A-25: タスク一括再生 + 承認/差戻/再試行
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/tasks/bulk/lifecycle",
+    summary="タスク lifecycle 一括遷移（再生 / 承認等の bulk 操作）",
+)
+async def bulk_lifecycle(
+    body: TaskBulkLifecycleRequest, session: SessionDep, user: UserDep
+) -> dict[str, TaskBulkLifecycleResponse]:
+    return {"data": await svc.bulk_lifecycle(session, actor_id=user.id, data=body)}
+
+
+@router.post("/tasks/{task_id}/approve", summary="タスク承認 (awaiting → done)")
+async def approve_task(
+    task_id: str,
+    body: TaskDecisionRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, TaskResponse]:
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    updated = await svc.approve_task(session, actor_id=user.id, task_id=task_id, data=body)
+    if updated is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "task is not awaiting (cannot approve)")
+    return {"data": updated}
+
+
+@router.post("/tasks/{task_id}/reject", summary="タスク差戻 (awaiting → blocked)")
+async def reject_task(
+    task_id: str,
+    body: TaskDecisionRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, TaskResponse]:
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    updated = await svc.reject_task(session, actor_id=user.id, task_id=task_id, data=body)
+    if updated is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "task is not awaiting (cannot reject)")
+    return {"data": updated}
+
+
+@router.post(
+    "/tasks/{task_id}/retry",
+    summary="タスク再試行 (blocked → ready, retry_count += 1)",
+)
+async def retry_task(
+    task_id: str,
+    body: TaskDecisionRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, TaskResponse]:
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    updated = await svc.retry_task(session, actor_id=user.id, task_id=task_id, data=body)
+    if updated is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "task is not blocked (cannot retry)")
+    return {"data": updated}

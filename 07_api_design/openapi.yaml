@@ -518,6 +518,38 @@ components:
         bridge_command: { type: string }
         queue_position: { type: integer, description: "並列上限超過時のキュー位置" }
 
+    TaskBulkLifecycleRequest:
+      type: object
+      required: [task_ids, target_stage]
+      properties:
+        task_ids:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { type: string, format: uuid }
+        target_stage:
+          type: string
+          enum: [triage, ready, in_progress, blocked, awaiting, done]
+        note: { type: string, maxLength: 2000, nullable: true }
+
+    TaskBulkLifecycleResponse:
+      type: object
+      required: [requested, updated, updated_task_ids, skipped_task_ids]
+      properties:
+        requested: { type: integer, minimum: 0 }
+        updated: { type: integer, minimum: 0 }
+        updated_task_ids:
+          type: array
+          items: { type: string, format: uuid }
+        skipped_task_ids:
+          type: array
+          items: { type: string, format: uuid }
+
+    TaskDecisionRequest:
+      type: object
+      properties:
+        note: { type: string, maxLength: 2000, nullable: true }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -1495,6 +1527,108 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /tasks/bulk/lifecycle:
+    post:
+      tags: [tasks]
+      summary: タスク lifecycle 一括遷移
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::bulk_lifecycle
+      x-screen-ids: [S-I01]
+      x-feature-ids: [F-J02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskBulkLifecycleRequest' }
+      responses:
+        '200':
+          description: 個別の遷移結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/TaskBulkLifecycleResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/approve:
+    post:
+      tags: [tasks]
+      summary: タスク承認 (awaiting → done)
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::approve_task
+      x-screen-ids: [S-I02]
+      x-feature-ids: [F-J02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskDecisionRequest' }
+      responses:
+        '200':
+          description: 承認後の Task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: awaiting でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/reject:
+    post:
+      tags: [tasks]
+      summary: タスク差戻 (awaiting → blocked)
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::reject_task
+      x-screen-ids: [S-I02]
+      x-feature-ids: [F-J02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskDecisionRequest' }
+      responses:
+        '200':
+          description: 差戻後の Task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: awaiting でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/retry:
+    post:
+      tags: [tasks]
+      summary: タスク再試行 (blocked → ready, retry_count += 1)
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::retry_task
+      x-screen-ids: [S-I01, S-I02]
+      x-feature-ids: [F-J02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskDecisionRequest' }
+      responses:
+        '200':
+          description: 再試行準備後の Task
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Task' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: blocked でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # Hermes 互換 kanban tools (Bridge worker 専用)
