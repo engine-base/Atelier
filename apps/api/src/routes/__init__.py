@@ -21,6 +21,7 @@ from src.routes.mocks import router as mocks_router
 from src.routes.outputs import router as outputs_router
 from src.routes.projects import router as projects_router
 from src.routes.public import router as public_router
+from src.routes.sales_docs import router as sales_docs_router
 from src.routes.tasks import router as tasks_router
 from src.routes.workflow import router as workflow_router
 from src.routes.workspace_members import router as workspace_members_router
@@ -45,5 +46,6 @@ api_router.include_router(approvals_router)
 api_router.include_router(mcp_tokens_router)
 api_router.include_router(byok_keys_router)
 api_router.include_router(cron_router)
+api_router.include_router(sales_docs_router)
 
 __all__ = ["api_router"]

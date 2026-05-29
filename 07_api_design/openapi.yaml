@@ -637,6 +637,42 @@ components:
       properties:
         note: { type: string, maxLength: 2000, nullable: true }
 
+    SalesDocCreate:
+      type: object
+      required: [project_id, doc_type]
+      properties:
+        project_id: { type: string, format: uuid }
+        doc_type: { type: string, enum: [proposal, estimate] }
+        summary: { type: string, maxLength: 4000, nullable: true }
+        html_path: { type: string, maxLength: 500, nullable: true }
+        json_path: { type: string, maxLength: 500, nullable: true }
+        md_path: { type: string, maxLength: 500, nullable: true }
+
+    SalesDocUpdate:
+      type: object
+      properties:
+        summary: { type: string, maxLength: 4000, nullable: true }
+        html_path: { type: string, maxLength: 500, nullable: true }
+        json_path: { type: string, maxLength: 500, nullable: true }
+        md_path: { type: string, maxLength: 500, nullable: true }
+
+    SalesDoc:
+      type: object
+      required: [id, project_id, doc_type, version, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        phase_id: { type: string, format: uuid, nullable: true }
+        doc_type: { type: string, enum: [proposal, estimate] }
+        html_path: { type: string, nullable: true }
+        json_path: { type: string, nullable: true }
+        md_path: { type: string, nullable: true }
+        summary: { type: string, nullable: true }
+        version: { type: integer, minimum: 1 }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -2389,6 +2425,109 @@ paths:
       responses:
         '204': { description: 削除成功 }
         '403': { description: owner 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # sales-docs (商談ドキュメント: 提案 / 見積 — T-A-39)
+  # workflow_outputs を stage in (proposal, estimate) でフィルタした専用 API
+  # ==========================================================================
+  /sales-docs:
+    get:
+      tags: [sales-docs]
+      summary: 商談ドキュメント一覧（提案 / 見積）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::list_sales_docs
+      x-screen-ids: [S-N01]
+      x-feature-ids: [F-N01]
+      parameters:
+        - { name: project_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: doc_type, in: query, required: false, schema: { type: string, enum: [proposal, estimate] } }
+      responses:
+        '200':
+          description: 商談ドキュメント一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/SalesDoc' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [sales-docs]
+      summary: 商談ドキュメント作成（新規ドラフト）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::create_sales_doc
+      x-screen-ids: [S-N01]
+      x-feature-ids: [F-N01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SalesDocCreate' }
+      responses:
+        '201':
+          description: 作成完了（version 自動採番）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SalesDoc' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /sales-docs/{doc_id}:
+    get:
+      tags: [sales-docs]
+      summary: 商談ドキュメント取得
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::get_sales_doc
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SalesDoc' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [sales-docs]
+      summary: 商談ドキュメント更新
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::update_sales_doc
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SalesDocUpdate' }
+      responses:
+        '200':
+          description: 更新完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SalesDoc' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [sales-docs]
+      summary: 商談ドキュメント削除（論理）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::delete_sales_doc
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除完了 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

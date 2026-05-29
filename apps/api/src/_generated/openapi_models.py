@@ -683,6 +683,42 @@ class TaskDecisionRequest(BaseModel):
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 
+class DocType1(StrEnum):
+    proposal = "proposal"
+    estimate = "estimate"
+
+
+class SalesDocCreate(BaseModel):
+    project_id: UUID
+    doc_type: DocType1
+    summary: Annotated[str | None, Field(max_length=4000)] = None
+    html_path: Annotated[str | None, Field(max_length=500)] = None
+    json_path: Annotated[str | None, Field(max_length=500)] = None
+    md_path: Annotated[str | None, Field(max_length=500)] = None
+
+
+class SalesDocUpdate(BaseModel):
+    summary: Annotated[str | None, Field(max_length=4000)] = None
+    html_path: Annotated[str | None, Field(max_length=500)] = None
+    json_path: Annotated[str | None, Field(max_length=500)] = None
+    md_path: Annotated[str | None, Field(max_length=500)] = None
+
+
+class SalesDoc(BaseModel):
+    id: UUID
+    project_id: UUID
+    phase_id: UUID | None = None
+    doc_type: DocType1
+    html_path: str | None = None
+    json_path: str | None = None
+    md_path: str | None = None
+    summary: str | None = None
+    version: Annotated[int, Field(ge=1)]
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float

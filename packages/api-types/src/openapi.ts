@@ -3527,6 +3527,260 @@ export interface paths {
         };
         trace?: never;
     };
+    "/sales-docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 商談ドキュメント一覧（提案 / 見積） */
+        get: {
+            parameters: {
+                query?: {
+                    project_id?: string;
+                    doc_type?: "proposal" | "estimate";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 商談ドキュメント一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDoc"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 商談ドキュメント作成（新規ドラフト） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SalesDocCreate"];
+                };
+            };
+            responses: {
+                /** @description 作成完了（version 自動採番） */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDoc"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sales-docs/{doc_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 商談ドキュメント取得 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取得 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDoc"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** 商談ドキュメント削除（論理） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除完了 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 商談ドキュメント更新 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SalesDocUpdate"];
+                };
+            };
+            responses: {
+                /** @description 更新完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDoc"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -5711,6 +5965,43 @@ export interface components {
         };
         TaskDecisionRequest: {
             note?: string | null;
+        };
+        SalesDocCreate: {
+            /** Format: uuid */
+            project_id: string;
+            /** @enum {string} */
+            doc_type: "proposal" | "estimate";
+            summary?: string | null;
+            html_path?: string | null;
+            json_path?: string | null;
+            md_path?: string | null;
+        };
+        SalesDocUpdate: {
+            summary?: string | null;
+            html_path?: string | null;
+            json_path?: string | null;
+            md_path?: string | null;
+        };
+        SalesDoc: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            project_id: string;
+            /** Format: uuid */
+            phase_id?: string | null;
+            /** @enum {string} */
+            doc_type: "proposal" | "estimate";
+            html_path?: string | null;
+            json_path?: string | null;
+            md_path?: string | null;
+            summary?: string | null;
+            version: number;
+            /** Format: date-time */
+            deleted_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         KanbanCompleteRequest: {
             /** Format: uuid */
