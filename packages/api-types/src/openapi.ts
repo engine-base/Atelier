@@ -3956,6 +3956,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin dashboard 集計（所属 workspaces scope） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 集計 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminDashboard"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: メンバー横断一覧（所属 workspace scope） */
+        get: {
+            parameters: {
+                query?: {
+                    workspace_id?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description メンバー一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminUser"][];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/skills": {
         parameters: {
             query?: never;
@@ -5147,6 +5243,27 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description 運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。 */
+        AdminDashboard: {
+            workspace_count?: number;
+            project_count?: number;
+            ai_employee_count?: number;
+            audit_log_count_24h?: number;
+            /** Format: date-time */
+            generated_at?: string;
+        };
+        /** @description 運営 admin 用メンバー詳細 (T-A-41 / workspace_member_details definer 経由)。 */
+        AdminUser: {
+            /** Format: uuid */
+            user_id?: string;
+            email?: string;
+            display_name?: string | null;
+            role?: string;
+            /** Format: date-time */
+            joined_at?: string;
+            /** Format: uuid */
+            workspace_id?: string;
         };
         ClientInvitation: {
             /** Format: uuid */

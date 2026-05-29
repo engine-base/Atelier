@@ -417,6 +417,27 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AdminDashboard:
+      type: object
+      description: 運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。
+      properties:
+        workspace_count: { type: integer }
+        project_count: { type: integer }
+        ai_employee_count: { type: integer }
+        audit_log_count_24h: { type: integer }
+        generated_at: { type: string, format: date-time }
+
+    AdminUser:
+      type: object
+      description: 運営 admin 用メンバー詳細 (T-A-41 / workspace_member_details definer 経由)。
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string }
+        display_name: { type: string, nullable: true }
+        role: { type: string }
+        joined_at: { type: string, format: date-time }
+        workspace_id: { type: string, format: uuid }
+
     ClientInvitation:
       type: object
       properties:
@@ -2549,6 +2570,42 @@ paths:
                 type: object
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/dashboard:
+    get:
+      tags: [admin]
+      summary: 運営 admin dashboard 集計（所属 workspaces scope）
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_dashboard
+      x-screen-ids: [S-AD01]
+      responses:
+        '200':
+          description: 集計
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminDashboard' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/users:
+    get:
+      tags: [admin]
+      summary: "運営 admin: メンバー横断一覧（所属 workspace scope）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_users
+      x-screen-ids: [S-AD01]
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: メンバー一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/skills:

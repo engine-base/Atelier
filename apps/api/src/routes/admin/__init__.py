@@ -1,9 +1,10 @@
-"""運営 admin ルータ (T-A-43 / T-A-42)。
+"""運営 admin ルータ (T-A-43 / T-A-42 / T-A-41)。
 
-T-A-43: GET /admin/audit-logs (監査ログ)。
-T-A-42: GET /admin/skills[/{id}] + /admin/ai-employee-templates[/{id}]
-        (運営 admin がスキル / AI 社員テンプレを横断管理 read-only)。
-認証 (401) に加え admin (app_metadata.role=admin) でなければ 403。
+T-A-43: GET /admin/audit-logs (監査ログ閲覧)。
+T-A-42: GET /admin/skills[/{id}] + /admin/ai-employee-templates[/{id}] (read-only)。
+T-A-41: GET /admin/dashboard (集計) + GET /admin/users (所属 workspace 横断メンバー)。
+認証 (401) に加え、admin (app_metadata.role=admin) でなければ 403。
+閲覧範囲は RLS (T-D-19 / current_user_workspaces()) で scope される。
 """
 
 from __future__ import annotations
@@ -15,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.admin import (
+    AdminDashboardResponse,
     AdminSkillResponse,
     AdminTemplateResponse,
+    AdminUserResponse,
     AuditLogResponse,
 )
 from src.services import admin as svc
@@ -109,3 +112,30 @@ async def get_template(
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
     return {"data": item}
+
+
+# --------------------------------------------------------------------------- #
+# T-A-41: 運営 admin dashboard / users
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/admin/dashboard",
+    summary="運営 admin: dashboard 集計（admin 所属 workspaces scope）",
+)
+async def get_dashboard(session: SessionDep, user: UserDep) -> dict[str, AdminDashboardResponse]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    return {"data": await svc.admin_dashboard(session)}
+
+
+@router.get(
+    "/admin/users",
+    summary="運営 admin: メンバー横断一覧（所属 workspace scope）",
+)
+async def list_users(
+    session: SessionDep,
+    user: UserDep,
+    workspace_id: Annotated[str | None, Query()] = None,
+) -> dict[str, list[AdminUserResponse]]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    return {"data": await svc.list_users_admin(session, workspace_id=workspace_id)}

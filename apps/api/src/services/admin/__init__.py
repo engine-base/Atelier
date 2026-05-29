@@ -1,22 +1,29 @@
-"""運営 admin サービス層 (T-A-43 / T-A-42)。
+"""運営 admin サービス層 (T-A-43 / T-A-42 / T-A-41)。
 
 T-A-43: audit_logs 閲覧 (RLS T-D-19 で admin 所属 workspace scope)。
-T-A-42: 全 skills + ai_employee_templates 横断管理 (read-only)。RLS は
-        skills_select_all / ai_employee_templates_select_all (TO authenticated
-        USING true) を信頼源で、is_admin チェックでアクセス制御。
+T-A-42: 全 skills + ai_employee_templates 横断管理 (read-only)。
+T-A-41: dashboard 集計と所属 workspace 横断のメンバー一覧
+        (workspace_member_details definer 経由)。
 状態変更は無い (read-only)。
 """
 
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser
-from src.schemas.admin import AdminSkillResponse, AdminTemplateResponse, AuditLogResponse
+from src.schemas.admin import (
+    AdminDashboardResponse,
+    AdminSkillResponse,
+    AdminTemplateResponse,
+    AdminUserResponse,
+    AuditLogResponse,
+)
 
 _COLS = (
     "id, workspace_id, actor_type, actor_id, action, target_type, target_id, "
@@ -203,3 +210,78 @@ async def list_audit_logs(
         params,
     )
     return [_row_to_response(r) for r in res.all()]
+
+
+# --------------------------------------------------------------------------- #
+# T-A-41: 運営 admin dashboard / users
+# --------------------------------------------------------------------------- #
+async def admin_dashboard(session: AsyncSession) -> AdminDashboardResponse:
+    """admin scope (= 自分が属する workspaces) の集計。
+
+    cluster-wide platform 全集計は cross-workspace definer migration が必要なため
+    別途。本層では current_user_workspaces() を介して admin の workspaces を scope
+    し、RLS が効いた状態で count(*) を返す。
+    """
+    res = await session.execute(
+        text(
+            "select "
+            "  (select count(*) from public.workspaces "
+            "    where id in (select current_user_workspaces())) as workspace_count, "
+            "  (select count(*) from public.projects "
+            "    where workspace_id in (select current_user_workspaces()) "
+            "      and deleted_at is null) as project_count, "
+            "  (select count(*) from public.ai_employees "
+            "    where workspace_id in (select current_user_workspaces()) "
+            "      and archived = false) as ai_employee_count, "
+            "  (select count(*) from public.audit_logs "
+            "    where workspace_id in (select current_user_workspaces()) "
+            "      and created_at > now() - interval '24 hours') as audit_log_count_24h"
+        )
+    )
+    row = res.first()
+    return AdminDashboardResponse(
+        workspace_count=int(row.workspace_count) if row else 0,
+        project_count=int(row.project_count) if row else 0,
+        ai_employee_count=int(row.ai_employee_count) if row else 0,
+        audit_log_count_24h=int(row.audit_log_count_24h) if row else 0,
+        generated_at=datetime.now(tz=UTC),
+    )
+
+
+async def list_users_admin(
+    session: AsyncSession, *, workspace_id: str | None = None
+) -> list[AdminUserResponse]:
+    """admin が属する workspace(s) のメンバー横断一覧。
+
+    workspace_id を指定すれば当該 workspace のみ、未指定なら admin の所属
+    workspaces 全件を集約。workspace_member_details(p_workspace_id) SECURITY
+    DEFINER 関数を使い、users RLS の self-only 制約を回避する (admin が所属
+    する範囲に限定)。
+    """
+    if workspace_id is not None:
+        scope = "select cast(:wid as uuid) as id"
+        params: dict[str, object] = {"wid": workspace_id}
+    else:
+        scope = "select id from public.workspaces where id in (select current_user_workspaces())"
+        params = {}
+    res = await session.execute(
+        text(
+            "select w.id as workspace_id, m.user_id, m.email, m.display_name, "
+            "  m.role::text as role, m.joined_at "
+            f"from ({scope}) w "
+            "cross join lateral public.workspace_member_details(w.id) m "
+            "order by w.id, m.joined_at"
+        ),
+        params,
+    )
+    return [
+        AdminUserResponse(
+            user_id=str(r.user_id),
+            email=str(r.email),
+            display_name=(None if r.display_name is None else str(r.display_name)),
+            role=str(r.role),
+            joined_at=r.joined_at,
+            workspace_id=str(r.workspace_id),
+        )
+        for r in res.all()
+    ]
