@@ -80,20 +80,6 @@ class User(BaseModel):
     updated_at: AwareDatetime
 
 
-class Consents(BaseModel):
-    terms: bool
-    privacy: bool
-    cross_border: bool
-    marketing: bool | None = None
-
-
-class SignupRequest(BaseModel):
-    email: Annotated[EmailStr, Field(max_length=254)]
-    password: Annotated[str, Field(max_length=128, min_length=8)]
-    display_name: Annotated[str, Field(max_length=50)]
-    consents: Consents
-
-
 class SigninRequest(BaseModel):
     email: EmailStr
     password: str
@@ -942,6 +928,34 @@ class ExecLogEvent(BaseModel):
     timestamp: AwareDatetime
 
 
+class Type6(StrEnum):
+    terms_of_service = "terms_of_service"
+    privacy_policy = "privacy_policy"
+    data_residency = "data_residency"
+    ai_training_optin = "ai_training_optin"
+
+
+class ConsentEntry(BaseModel):
+    type: Type6
+    version: Annotated[str, Field(max_length=50, min_length=1)]
+    accepted: bool
+
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: Annotated[str, Field(max_length=128, min_length=8)]
+    display_name: Annotated[str, Field(max_length=100, min_length=1)]
+    consents: Annotated[list[ConsentEntry], Field(max_length=4, min_length=2)]
+
+
+class SignupResponse(BaseModel):
+    user_id: UUID
+    email: EmailStr
+    display_name: str
+    consents_recorded: Annotated[int, Field(ge=2, le=4)]
+    created_at: AwareDatetime
+
+
 class ChatStreamRequest(BaseModel):
     user_message: Annotated[str, Field(max_length=20000, min_length=1)]
     use_knowledge_rag: bool | None = True
@@ -1137,7 +1151,7 @@ class ByokKey(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Type6(StrEnum):
+class Type7(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
     knowledge_write = "knowledge_write"
@@ -1158,7 +1172,7 @@ class ApprovalInboxEntry(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    type: Type6 | None = None
+    type: Type7 | None = None
     target_type: str | None = None
     target_id: UUID | None = None
     title: str | None = None

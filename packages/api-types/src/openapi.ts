@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ユーザー登録 + 同意取得（F-001 / F-LEGAL-004） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SignupRequest"];
+                };
+            };
+            responses: {
+                /** @description 登録成功（JWT は含まない、signin で発行） */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SignupResponse"];
+                        };
+                    };
+                };
+                /** @description email 重複 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 / 必須 consent 不足 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/impact/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -182,75 +242,6 @@ export interface paths {
                 };
                 /** @description 未認証 */
                 401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/signup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 新規登録 + 同意取得 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["SignupRequest"];
-                };
-            };
-            responses: {
-                /** @description 登録成功 */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            data?: components["schemas"]["AuthResponse"];
-                        };
-                    };
-                };
-                /** @description メール重複 or 削除猶予中 */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description バリデーション失敗 or 同意未取得 */
-                422: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description レート上限 */
-                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7171,18 +7162,6 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        SignupRequest: {
-            /** Format: email */
-            email: string;
-            password: string;
-            display_name: string;
-            consents: {
-                terms: boolean;
-                privacy: boolean;
-                cross_border: boolean;
-                marketing?: boolean;
-            };
-        };
         SigninRequest: {
             /** Format: email */
             email: string;
@@ -7940,6 +7919,29 @@ export interface components {
             logs_storage_path?: string | null;
             /** Format: date-time */
             timestamp: string;
+        };
+        ConsentEntry: {
+            /** @enum {string} */
+            type: "terms_of_service" | "privacy_policy" | "data_residency" | "ai_training_optin";
+            version: string;
+            accepted: boolean;
+        };
+        SignupRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+            display_name: string;
+            consents: components["schemas"]["ConsentEntry"][];
+        };
+        SignupResponse: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string;
+            display_name: string;
+            consents_recorded: number;
+            /** Format: date-time */
+            created_at: string;
         };
         ChatStreamRequest: {
             user_message: string;

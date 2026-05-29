@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from src.routes.admin import router as admin_router
 from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
+from src.routes.auth import router as auth_router
 from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
 from src.routes.chat_sse import router as chat_sse_router
@@ -61,5 +62,6 @@ api_router.include_router(dispatcher_router)
 api_router.include_router(circuit_breaker_router)
 api_router.include_router(executions_router)
 api_router.include_router(exec_logs_router)
+api_router.include_router(auth_router)
 
 __all__ = ["api_router"]
