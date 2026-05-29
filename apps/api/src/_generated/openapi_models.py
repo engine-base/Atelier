@@ -866,6 +866,51 @@ class ChatContextPreviewResponse(BaseModel):
     rag_hit_ids: list[UUID]
 
 
+class State(StrEnum):
+    closed = "closed"
+    open = "open"
+    half_open = "half_open"
+
+
+class CircuitBreakerState(BaseModel):
+    state: State
+    failure_rate: Annotated[float, Field(ge=0.0, le=1.0)]
+    total_executions: Annotated[int, Field(ge=0)]
+    failed_executions: Annotated[int, Field(ge=0)]
+    window_minutes: Annotated[int, Field(ge=1, le=60)]
+    threshold: Annotated[float, Field(ge=0.0, le=1.0)]
+    next_retry_at: AwareDatetime | None = None
+    evaluated_at: AwareDatetime
+
+
+class CircuitResetRequest(BaseModel):
+    reason: Annotated[str, Field(max_length=2000, min_length=1)]
+
+
+class PidPollRequest(BaseModel):
+    heartbeat_threshold_seconds: Annotated[int | None, Field(ge=10, le=600)] = 60
+    dry_run: bool | None = False
+
+
+class Action(StrEnum):
+    reclaimed = "reclaimed"
+    dry_run_would_reclaim = "dry_run_would_reclaim"
+
+
+class PidPollResult(BaseModel):
+    task_id: UUID
+    worker_pid: int | None = None
+    last_heartbeat_at: AwareDatetime | None = None
+    action: Action
+
+
+class PidPollResponse(BaseModel):
+    polled_at: AwareDatetime
+    threshold_seconds: int
+    stale_task_count: Annotated[int, Field(ge=0)]
+    results: list[PidPollResult]
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float
@@ -940,7 +985,7 @@ class KanbanKillRequest(BaseModel):
     reason: Annotated[str, Field(max_length=2000, min_length=1)]
 
 
-class Action(StrEnum):
+class Action1(StrEnum):
     picked = "picked"
     started = "started"
     completed = "completed"
@@ -955,7 +1000,7 @@ class KanbanResponse(BaseModel):
     lifecycle_stage: str
     dispatch_status: str | None = None
     execution_status: str | None = None
-    action: Action
+    action: Action1
 
 
 class McpToken(BaseModel):

@@ -5503,6 +5503,194 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/circuit-breaker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** サーキットブレーカ現在状態 */
+        get: {
+            parameters: {
+                query?: {
+                    window_minutes?: number;
+                    threshold?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 現在状態 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CircuitBreakerState"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description admin only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/circuit-breaker/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** サーキットブレーカリセット (audit 記録) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CircuitResetRequest"];
+                };
+            };
+            responses: {
+                /** @description リセット完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CircuitBreakerState"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description admin only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/circuit-breaker/poll-pids": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PID ポーリング — stale running task を reclaim */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PidPollRequest"];
+                };
+            };
+            responses: {
+                /** @description ポーリング結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PidPollResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description admin only */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description threshold 範囲外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/audit-logs": {
         parameters: {
             query?: never;
@@ -7264,6 +7452,44 @@ export interface components {
             system_prompt: string;
             history_count: number;
             rag_hit_ids: string[];
+        };
+        CircuitBreakerState: {
+            /** @enum {string} */
+            state: "closed" | "open" | "half_open";
+            failure_rate: number;
+            total_executions: number;
+            failed_executions: number;
+            window_minutes: number;
+            threshold: number;
+            /** Format: date-time */
+            next_retry_at?: string | null;
+            /** Format: date-time */
+            evaluated_at: string;
+        };
+        CircuitResetRequest: {
+            reason: string;
+        };
+        PidPollRequest: {
+            /** @default 60 */
+            heartbeat_threshold_seconds: number;
+            /** @default false */
+            dry_run: boolean;
+        };
+        PidPollResult: {
+            /** Format: uuid */
+            task_id: string;
+            worker_pid?: number | null;
+            /** Format: date-time */
+            last_heartbeat_at?: string | null;
+            /** @enum {string} */
+            action: "reclaimed" | "dry_run_would_reclaim";
+        };
+        PidPollResponse: {
+            /** Format: date-time */
+            polled_at: string;
+            threshold_seconds: number;
+            stale_task_count: number;
+            results: components["schemas"]["PidPollResult"][];
         };
         KanbanCompleteRequest: {
             /** Format: uuid */

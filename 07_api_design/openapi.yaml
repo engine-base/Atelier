@@ -838,6 +838,49 @@ components:
           type: array
           items: { type: string, format: uuid }
 
+    CircuitBreakerState:
+      type: object
+      required: [state, failure_rate, total_executions, failed_executions, window_minutes, threshold, evaluated_at]
+      properties:
+        state: { type: string, enum: [closed, open, half_open] }
+        failure_rate: { type: number, minimum: 0, maximum: 1 }
+        total_executions: { type: integer, minimum: 0 }
+        failed_executions: { type: integer, minimum: 0 }
+        window_minutes: { type: integer, minimum: 1, maximum: 60 }
+        threshold: { type: number, minimum: 0, maximum: 1 }
+        next_retry_at: { type: string, format: date-time, nullable: true }
+        evaluated_at: { type: string, format: date-time }
+
+    CircuitResetRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    PidPollRequest:
+      type: object
+      properties:
+        heartbeat_threshold_seconds: { type: integer, minimum: 10, maximum: 600, default: 60 }
+        dry_run: { type: boolean, default: false }
+
+    PidPollResult:
+      type: object
+      required: [task_id, action]
+      properties:
+        task_id: { type: string, format: uuid }
+        worker_pid: { type: integer, nullable: true }
+        last_heartbeat_at: { type: string, format: date-time, nullable: true }
+        action: { type: string, enum: [reclaimed, dry_run_would_reclaim] }
+
+    PidPollResponse:
+      type: object
+      required: [polled_at, threshold_seconds, stale_task_count, results]
+      properties:
+        polled_at: { type: string, format: date-time }
+        threshold_seconds: { type: integer }
+        stale_task_count: { type: integer, minimum: 0 }
+        results: { type: array, items: { $ref: '#/components/schemas/PidPollResult' } }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -3496,6 +3539,78 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # circuit-breaker (サーキットブレーカ + PID ポーリング — T-A-29)
+  # admin 限定 (F-DISP01 信頼性運用)
+  # ==========================================================================
+  /admin/circuit-breaker:
+    get:
+      tags: [circuit-breaker]
+      summary: サーキットブレーカ現在状態
+      x-implementation-path: apps/api/src/routes/circuit_breaker/__init__.py::get_circuit_breaker
+      x-feature-ids: [F-DISP01]
+      parameters:
+        - { name: window_minutes, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 60, default: 15 } }
+        - { name: threshold, in: query, required: false, schema: { type: number, minimum: 0, maximum: 1, default: 0.5 } }
+      responses:
+        '200':
+          description: 現在状態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CircuitBreakerState' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/circuit-breaker/reset:
+    post:
+      tags: [circuit-breaker]
+      summary: サーキットブレーカリセット (audit 記録)
+      x-implementation-path: apps/api/src/routes/circuit_breaker/__init__.py::reset_circuit_breaker
+      x-feature-ids: [F-DISP01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CircuitResetRequest' }
+      responses:
+        '200':
+          description: リセット完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CircuitBreakerState' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/circuit-breaker/poll-pids:
+    post:
+      tags: [circuit-breaker]
+      summary: PID ポーリング — stale running task を reclaim
+      x-implementation-path: apps/api/src/routes/circuit_breaker/__init__.py::poll_pids
+      x-feature-ids: [F-DISP01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PidPollRequest' }
+      responses:
+        '200':
+          description: ポーリング結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PidPollResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin only, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: threshold 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # admin (運営)
