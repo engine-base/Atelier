@@ -5056,6 +5056,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/executions/{execution_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 実行ログメタデータ取得（non-streaming） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    execution_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行ログメタデータ */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ExecLogMeta"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/executions/{execution_id}/logs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 実行ログ SSE ストリーミング（status 変化を polling 配信） */
+        get: {
+            parameters: {
+                query?: {
+                    poll_interval_seconds?: number;
+                    max_duration_seconds?: number;
+                };
+                header?: never;
+                path: {
+                    execution_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream (text/event-stream)。各 event は ExecLogEvent JSON。 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description poll_interval / max_duration 範囲外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -7795,6 +7912,34 @@ export interface components {
             active_worker_pids: number[];
             /** Format: date-time */
             evaluated_at: string;
+        };
+        ExecLogMeta: {
+            /** Format: uuid */
+            execution_id: string;
+            /** Format: uuid */
+            task_id: string;
+            /** @enum {string} */
+            status: "running" | "succeeded" | "failed" | "cancelled" | "timeout";
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            completed_at?: string | null;
+            logs_storage_path?: string | null;
+            error_summary?: string | null;
+            retry_count: number;
+        };
+        ExecLogEvent: {
+            /** @enum {string} */
+            type: "snapshot" | "status_change" | "end" | "error";
+            /** Format: uuid */
+            execution_id: string;
+            status?: string | null;
+            /** Format: date-time */
+            completed_at?: string | null;
+            error_summary?: string | null;
+            logs_storage_path?: string | null;
+            /** Format: date-time */
+            timestamp: string;
         };
         ChatStreamRequest: {
             user_message: string;
