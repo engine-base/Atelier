@@ -16,7 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
+    TaskBulkLifecycleRequest,
+    TaskBulkLifecycleResponse,
     TaskCreate,
+    TaskDecisionRequest,
     TaskExecutionResponse,
     TaskPriority,
     TaskResponse,
@@ -317,3 +320,134 @@ async def get_execution(
     )
     row = res.first()
     return None if row is None else _exec_to_response(row)
+
+
+# --------------------------------------------------------------------------- #
+# T-A-25: タスク一括再生 + 承認/差戻/再試行
+# --------------------------------------------------------------------------- #
+async def bulk_lifecycle(
+    session: AsyncSession, *, actor_id: str, data: TaskBulkLifecycleRequest
+) -> TaskBulkLifecycleResponse:
+    """task_ids の lifecycle_stage を target_stage へ一括遷移。
+
+    RLS tasks_update_member が enforce するため、可視/編集権限が無い task は
+    自動的に 0 行 update となり skipped_task_ids に分類される。状態変更分
+    (updated) は audit_logs に各 task ごとに記録する。
+    """
+    res = await session.execute(
+        text(
+            "update public.tasks set lifecycle_stage = cast(:st as task_lifecycle_enum) "
+            "where id = any(cast(:ids as uuid[])) and deleted_at is null returning id"
+        ),
+        {"st": data.target_stage, "ids": list(data.task_ids)},
+    )
+    updated_rows = [str(r.id) for r in res.all()]
+    updated_set = set(updated_rows)
+    skipped = [tid for tid in data.task_ids if tid not in updated_set]
+    writer = AuditWriter(session)
+    for tid in updated_rows:
+        await writer.write(
+            AuditEvent(
+                action="task.bulk_lifecycle",
+                target_type="task",
+                actor_type="user",
+                actor_id=actor_id,
+                target_id=tid,
+                after={"target_stage": data.target_stage, "note": data.note},
+            )
+        )
+    return TaskBulkLifecycleResponse(
+        requested=len(data.task_ids),
+        updated=len(updated_rows),
+        updated_task_ids=updated_rows,
+        skipped_task_ids=skipped,
+    )
+
+
+async def approve_task(
+    session: AsyncSession, *, actor_id: str, task_id: str, data: TaskDecisionRequest
+) -> TaskResponse | None:
+    """承認: awaiting → done。それ以外の lifecycle_stage では None (409 でルータ処理)。"""
+    res = await session.execute(
+        text(
+            "update public.tasks set lifecycle_stage = 'done' "
+            "where id = cast(:id as uuid) and deleted_at is null "
+            "and lifecycle_stage = 'awaiting' returning id"
+        ),
+        {"id": task_id},
+    )
+    if res.scalar_one_or_none() is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="task.approve",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+            after={"decision": "approve", "note": data.note},
+        )
+    )
+    return await get_task(session, task_id)
+
+
+async def reject_task(
+    session: AsyncSession, *, actor_id: str, task_id: str, data: TaskDecisionRequest
+) -> TaskResponse | None:
+    """差戻: awaiting → blocked (blocked_reason に note を保持)。awaiting でなければ None。"""
+    res = await session.execute(
+        text(
+            "update public.tasks "
+            "set lifecycle_stage = 'blocked', "
+            "    blocked_reason = coalesce(:note, blocked_reason) "
+            "where id = cast(:id as uuid) and deleted_at is null "
+            "and lifecycle_stage = 'awaiting' returning id"
+        ),
+        {"id": task_id, "note": data.note},
+    )
+    if res.scalar_one_or_none() is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="task.reject",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+            after={"decision": "reject", "note": data.note},
+        )
+    )
+    return await get_task(session, task_id)
+
+
+async def retry_task(
+    session: AsyncSession, *, actor_id: str, task_id: str, data: TaskDecisionRequest
+) -> TaskResponse | None:
+    """再試行: blocked → ready、retry_count += 1。
+
+    DB CHECK (retry_count <= 3) で頭打ち。blocked 以外の lifecycle では None。
+    """
+    res = await session.execute(
+        text(
+            "update public.tasks "
+            "set lifecycle_stage = 'ready', "
+            "    retry_count = retry_count + 1, "
+            "    blocked_reason = null "
+            "where id = cast(:id as uuid) and deleted_at is null "
+            "and lifecycle_stage = 'blocked' returning id"
+        ),
+        {"id": task_id},
+    )
+    if res.scalar_one_or_none() is None:
+        return None
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="task.retry",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+            after={"note": data.note},
+        )
+    )
+    return await get_task(session, task_id)

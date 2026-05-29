@@ -548,6 +548,32 @@ class PlayTaskResponse(BaseModel):
     """
 
 
+class TargetStage(StrEnum):
+    triage = "triage"
+    ready = "ready"
+    in_progress = "in_progress"
+    blocked = "blocked"
+    awaiting = "awaiting"
+    done = "done"
+
+
+class TaskBulkLifecycleRequest(BaseModel):
+    task_ids: Annotated[list[UUID], Field(max_length=200, min_length=1)]
+    target_stage: TargetStage
+    note: Annotated[str | None, Field(max_length=2000)] = None
+
+
+class TaskBulkLifecycleResponse(BaseModel):
+    requested: Annotated[int, Field(ge=0)]
+    updated: Annotated[int, Field(ge=0)]
+    updated_task_ids: list[UUID]
+    skipped_task_ids: list[UUID]
+
+
+class TaskDecisionRequest(BaseModel):
+    note: Annotated[str | None, Field(max_length=2000)] = None
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float

@@ -93,3 +93,33 @@ class TaskExecutionResponse(BaseModel):
     logs_storage_path: str | None
     error_summary: str | None
     created_at: datetime
+
+
+# --------------------------------------------------------------------------- #
+# T-A-25: タスク一括再生 + 承認/差戻/再試行
+# --------------------------------------------------------------------------- #
+class TaskBulkLifecycleRequest(BaseModel):
+    """複数 task の lifecycle_stage を一括遷移する。
+
+    target_stage は task_lifecycle_enum (triage / ready / in_progress /
+    blocked / awaiting / done) のいずれか。空 task_ids は 422 で拒否。
+    """
+
+    task_ids: list[str] = Field(min_length=1, max_length=200)
+    target_stage: TaskLifecycle
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class TaskBulkLifecycleResponse(BaseModel):
+    """個別の遷移結果。updated は実際に状態が変化した task の数。"""
+
+    requested: int
+    updated: int
+    updated_task_ids: list[str]
+    skipped_task_ids: list[str]
+
+
+class TaskDecisionRequest(BaseModel):
+    """承認 / 差戻 / 再試行の追加ノート (任意)。"""
+
+    note: str | None = Field(default=None, max_length=2000)
