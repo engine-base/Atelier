@@ -64,3 +64,29 @@ class ConsentRecord(BaseModel):
     accepted_at: datetime
     ip_address: str | None
     user_agent: str | None
+
+
+# --------------------------------------------------------------------------- #
+# T-A-02: signin + 5 回失敗ロック
+# --------------------------------------------------------------------------- #
+class SigninRequest(BaseModel):
+    """signin リクエスト。Supabase Auth の grant_type=password と互換。"""
+
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
+class SigninResponse(BaseModel):
+    """signin 成功時の JWT セット。
+
+    access_token: HS256 JWT (sub=user.id, exp, aud='authenticated')。
+    token_type: 'bearer' 固定。
+    expires_at: access_token の有効期限 (UTC)。
+    """
+
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_at: datetime
+    user_id: str
+    email: str
+    display_name: str | None

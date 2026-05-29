@@ -6,6 +6,7 @@ F-LEGAL-004: terms_of_service / privacy_policy 必須 / 任意 consent も記録
 
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from collections.abc import Iterator
@@ -366,3 +367,191 @@ class TestAuthSignup:
             # inet として不正なため normalize_ip が None に落とす。
             # 実プロダクションでは正しい IP が記録される。
             assert row.ip is None
+
+
+# --------------------------------------------------------------------------- #
+# T-A-02: signin + 5 回失敗ロック
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def signin_user(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
+    """signin 用に encrypted_password 付きユーザーを seed。
+
+    stub auth.users に encrypted_password 列を足す (本番 Supabase auth.users
+    は元々この列を持つ。ここでは test stub に mirror する)。
+    """
+    uid = str(uuid.uuid4())
+    em = f"ta02-{uuid.uuid4().hex[:10]}@example.com"
+    pw = "correct-horse-battery"
+    pw_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+    with sync_engine.begin() as c:
+        c.execute(text("alter table auth.users add column if not exists encrypted_password text"))
+        c.execute(
+            text(
+                "insert into auth.users (id, email, encrypted_password) "
+                "values (cast(:i as uuid), :e, :p)"
+            ),
+            {"i": uid, "e": em, "p": pw_hash},
+        )
+        c.execute(
+            text(
+                "insert into public.users (id, email, display_name) "
+                "values (cast(:i as uuid), :e, 'SigninUser')"
+            ),
+            {"i": uid, "e": em},
+        )
+    yield {"user_id": uid, "email": em, "password": pw}
+    with sync_engine.begin() as c:
+        c.execute(text("delete from public.audit_logs where actor_id = :e"), {"e": em})
+        c.execute(text("delete from public.users where id = cast(:i as uuid)"), {"i": uid})
+        c.execute(text("delete from auth.users where id = cast(:i as uuid)"), {"i": uid})
+
+
+@pytest.mark.integration
+class TestAuthSignin:
+    def test_signin_success_returns_jwt(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        signin_user: dict[str, str],
+    ) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": signin_user["password"]},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["token_type"] == "bearer"
+            assert d["user_id"] == signin_user["user_id"]
+            assert d["email"] == signin_user["email"]
+            assert d["display_name"] == "SigninUser"
+            assert len(d["access_token"].split(".")) == 3
+        # audit: auth.signin 記録
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'auth.signin' and target_id = cast(:i as uuid)"
+                ),
+                {"i": signin_user["user_id"]},
+            ).scalar_one()
+            assert cnt == 1
+
+    def test_signin_jwt_is_decodable_by_dependency(
+        self, app: FastAPI, signin_user: dict[str, str]
+    ) -> None:
+        """発行 JWT が get_current_user で復号できる (保護 endpoint で使える)。"""
+        from src.dependencies import decode_supabase_jwt
+
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": signin_user["password"]},
+            )
+            token = r.json()["data"]["access_token"]
+        secret = os.environ["ATELIER_AUTH_JWT_SECRET"]
+        cu = decode_supabase_jwt(token, secret)
+        assert cu.id == signin_user["user_id"]
+        assert cu.role == "authenticated"
+
+    def test_signin_wrong_password_401_and_audits_failure(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        signin_user: dict[str, str],
+    ) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": "wrong-pw"},
+            )
+            assert r.status_code == 401
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'auth.signin_failed' and actor_id = :e"
+                ),
+                {"e": signin_user["email"]},
+            ).scalar_one()
+            assert cnt == 1
+
+    def test_signin_unknown_email_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signin",
+                json={"email": "nobody@example.com", "password": "whatever-pw"},
+            )
+            assert r.status_code == 401
+
+    def test_signin_locks_after_5_failures(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        signin_user: dict[str, str],
+    ) -> None:
+        with TestClient(app) as client:
+            # 5 回失敗
+            for _ in range(5):
+                r = client.post(
+                    "/auth/signin",
+                    json={"email": signin_user["email"], "password": "wrong-pw"},
+                )
+                assert r.status_code == 401
+            # 6 回目は正しい password でも 429 ロック
+            r6 = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": signin_user["password"]},
+            )
+            assert r6.status_code == 429
+        with sync_engine.begin() as c:
+            locked = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'auth.signin_locked' and actor_id = :e"
+                ),
+                {"e": signin_user["email"]},
+            ).scalar_one()
+            assert locked >= 1
+
+    def test_signin_lock_blocks_correct_password(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        signin_user: dict[str, str],
+    ) -> None:
+        """ロック後は正しい credential でも入れない (5 回失敗 → lock 維持)。"""
+        with TestClient(app) as client:
+            for _ in range(5):
+                client.post(
+                    "/auth/signin",
+                    json={"email": signin_user["email"], "password": "x"},
+                )
+            r = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": signin_user["password"]},
+            )
+            assert r.status_code == 429
+
+    def test_signin_validates_email_format(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/signin", json={"email": "bad", "password": "whatever"})
+            assert r.status_code == 422
+
+    def test_signin_soft_deleted_user_401(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        signin_user: dict[str, str],
+    ) -> None:
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set deleted_at = now() where id = cast(:i as uuid)"),
+                {"i": signin_user["user_id"]},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": signin_user["password"]},
+            )
+            assert r.status_code == 401

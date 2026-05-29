@@ -169,6 +169,17 @@ components:
         access_token: { type: string }
         refresh_token: { type: string, description: "opaque, httpOnly cookie" }
 
+    SigninResponse:
+      type: object
+      required: [access_token, token_type, expires_at, user_id, email]
+      properties:
+        access_token: { type: string, description: "HS256 JWT (sub=user.id)" }
+        token_type: { type: string, enum: [bearer] }
+        expires_at: { type: string, format: date-time }
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string, nullable: true }
+
     # ========================================================================
     # workspace
     # ========================================================================
@@ -1341,9 +1352,9 @@ paths:
   /auth/signin:
     post:
       tags: [auth]
-      summary: メールサインイン
+      summary: ログイン + 5 回失敗ロック (F-001)
       security: []
-      x-implementation-path: apps/api/src/routes/auth.py::signin
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::signin
       x-screen-ids: [S-A01]
       x-rate-limit: 5/min/ip
       x-feature-ids: [F-001]
@@ -1354,25 +1365,20 @@ paths:
             schema: { $ref: '#/components/schemas/SigninRequest' }
       responses:
         '200':
-          description: サインイン成功
+          description: サインイン成功 (HS256 JWT 発行)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/AuthResponse' }
+                  data: { $ref: '#/components/schemas/SigninResponse' }
         '401':
           description: 認証情報不正
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '403':
-          description: アカウントロック or 削除猶予中
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: レート上限
+          description: 5 回失敗で一時ロック or レート上限
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

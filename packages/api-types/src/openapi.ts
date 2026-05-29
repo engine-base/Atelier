@@ -266,7 +266,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** メールサインイン */
+        /** ログイン + 5 回失敗ロック (F-001) */
         post: {
             parameters: {
                 query?: never;
@@ -280,14 +280,14 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description サインイン成功 */
+                /** @description サインイン成功 (HS256 JWT 発行) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data?: components["schemas"]["AuthResponse"];
+                            data?: components["schemas"]["SigninResponse"];
                         };
                     };
                 };
@@ -300,16 +300,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description アカウントロック or 削除猶予中 */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Error"];
-                    };
-                };
-                /** @description レート上限 */
+                /** @description 5 回失敗で一時ロック or レート上限 */
                 429: {
                     headers: {
                         [name: string]: unknown;
@@ -7173,6 +7164,19 @@ export interface components {
             access_token: string;
             /** @description opaque, httpOnly cookie */
             refresh_token?: string;
+        };
+        SigninResponse: {
+            /** @description HS256 JWT (sub=user.id) */
+            access_token: string;
+            /** @enum {string} */
+            token_type: "bearer";
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string;
+            display_name?: string | null;
         };
         Workspace: {
             /** Format: uuid */
