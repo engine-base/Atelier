@@ -719,6 +719,52 @@ class SalesDoc(BaseModel):
     updated_at: AwareDatetime
 
 
+class Type3(StrEnum):
+    audio = "audio"
+    video = "video"
+    document = "document"
+
+
+class MeetingCreate(BaseModel):
+    project_id: UUID
+    type: Type3
+    storage_path: Annotated[str, Field(max_length=500, min_length=1)]
+    file_name: Annotated[str, Field(max_length=255, min_length=1)]
+    file_size_bytes: Annotated[int, Field(ge=0)]
+    mime_type: Annotated[str, Field(max_length=200, min_length=1)]
+
+
+class Meeting(BaseModel):
+    id: UUID
+    project_id: UUID
+    uploaded_by_user_id: UUID
+    type: Type3
+    storage_path: str
+    file_name: str
+    file_size_bytes: int
+    mime_type: str
+    parsed_at: AwareDatetime | None = None
+    parse_result_path: str | None = None
+    parse_error: str | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime
+
+
+class MeetingTranscribeRequest(PlayTaskRequest):
+    pass
+
+
+class Status3(StrEnum):
+    queued = "queued"
+    already_parsed = "already_parsed"
+
+
+class MeetingTranscribeResponse(BaseModel):
+    id: UUID
+    status: Status3
+    queued_at: AwareDatetime
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float
@@ -773,7 +819,7 @@ class ByokKey(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Type3(StrEnum):
+class Type5(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
     knowledge_write = "knowledge_write"
@@ -781,7 +827,7 @@ class Type3(StrEnum):
     scope_change = "scope_change"
 
 
-class Status3(StrEnum):
+class Status4(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -794,12 +840,12 @@ class ApprovalInboxEntry(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    type: Type3 | None = None
+    type: Type5 | None = None
     target_type: str | None = None
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status3 | None = None
+    status: Status4 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
