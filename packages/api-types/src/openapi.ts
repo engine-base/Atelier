@@ -4898,6 +4898,164 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/executions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 実行履歴一覧（実行モニタ） */
+        get: {
+            parameters: {
+                query?: {
+                    project_id?: string;
+                    task_id?: string;
+                    status?: "running" | "succeeded" | "failed" | "cancelled" | "timeout";
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行履歴一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Execution"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/executions/{execution_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 実行詳細 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    execution_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Execution"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bridge/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bridge worker 集約状態 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Bridge 状態（RLS scoped 集計） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BridgeStatus"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -7595,6 +7753,48 @@ export interface components {
         KnowledgePatternResponse: {
             total: number;
             patterns: components["schemas"]["KnowledgePattern"][];
+        };
+        Execution: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            task_id: string;
+            task_title: string;
+            /** Format: uuid */
+            project_id: string;
+            /** Format: date-time */
+            started_at: string;
+            /** Format: date-time */
+            completed_at?: string | null;
+            duration_seconds?: number | null;
+            /** @enum {string} */
+            status: "running" | "succeeded" | "failed" | "cancelled" | "timeout";
+            score?: number | null;
+            ac_pass_rate?: number | null;
+            test_pass_rate?: number | null;
+            verification_score?: number | null;
+            retry_count: number;
+            claude_code_session_id?: string | null;
+            logs_storage_path?: string | null;
+            error_summary?: string | null;
+            worker_pid?: number | null;
+            dispatch_status?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        BridgeStatus: {
+            running_count: number;
+            queued_count: number;
+            completing_count: number;
+            spawning_count: number;
+            dead_count_24h: number;
+            parallel_limit: number;
+            available_slots: number;
+            /** Format: date-time */
+            oldest_running_started_at?: string | null;
+            active_worker_pids: number[];
+            /** Format: date-time */
+            evaluated_at: string;
         };
         ChatStreamRequest: {
             user_message: string;

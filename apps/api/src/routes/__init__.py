@@ -18,6 +18,7 @@ from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
 from src.routes.cron import router as cron_router
 from src.routes.dispatcher import router as dispatcher_router
+from src.routes.executions import router as executions_router
 from src.routes.impact import router as impact_router
 from src.routes.knowledge import router as knowledge_router
 from src.routes.mcp_tokens import router as mcp_tokens_router
@@ -57,5 +58,6 @@ api_router.include_router(knowledge_router)
 api_router.include_router(chat_sse_router)
 api_router.include_router(dispatcher_router)
 api_router.include_router(circuit_breaker_router)
+api_router.include_router(executions_router)
 
 __all__ = ["api_router"]
