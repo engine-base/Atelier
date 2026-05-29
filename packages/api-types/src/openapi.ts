@@ -7298,7 +7298,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** クライアントサインイン（別 JWT 系統） */
+        /** クライアントサインイン（別 JWT 系統 / R-T08） */
         post: {
             parameters: {
                 query?: never;
@@ -7312,7 +7312,7 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description client_access_token 発行 */
+                /** @description client_access_token 発行 (project_id 限定 JWT) */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -7323,7 +7323,7 @@ export interface paths {
                         };
                     };
                 };
-                /** @description 招待トークン不正 */
+                /** @description 招待トークン不正 / revoked */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -7349,36 +7349,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/client/projects/{id}": {
+    "/client/projects/{project_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                id: string;
-            };
+            path?: never;
             cookie?: never;
         };
-        /** クライアントプロジェクトビュー（限定 UI） */
+        /** クライアントプロジェクトビュー（限定 / R-T08 越境 403） */
         get: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
-                    id: string;
+                    project_id: string;
                 };
                 cookie?: never;
             };
             requestBody?: never;
             responses: {
-                /** @description 限定情報 */
+                /** @description 限定 project ビュー */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientProjectView"];
+                        };
+                    };
                 };
-                /** @description project_id 不一致 */
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08 越境拒否) */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -8554,17 +8574,30 @@ export interface components {
         };
         ClientSigninRequest: {
             invitation_token: string;
-            display_name?: string;
+            display_name?: string | null;
+        };
+        ClientProjectRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
         };
         ClientSigninResponse: {
-            client_access_token?: string;
-            project?: {
-                /** Format: uuid */
-                id?: string;
-                name?: string;
-            };
+            /** @description client_portal HS256 JWT (project_id 限定) */
+            client_access_token: string;
+            /** @enum {string} */
+            token_type: "bearer";
             /** Format: date-time */
-            expires_at?: string;
+            expires_at: string;
+            project: components["schemas"]["ClientProjectRef"];
+            scopes: string[];
+        };
+        ClientProjectView: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            description?: string | null;
+            scopes: string[];
+            viewed_as_client_display_name?: string | null;
         };
     };
     responses: never;
