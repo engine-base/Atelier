@@ -16,6 +16,7 @@ from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
 from src.routes.cron import router as cron_router
 from src.routes.impact import router as impact_router
+from src.routes.knowledge import router as knowledge_router
 from src.routes.mcp_tokens import router as mcp_tokens_router
 from src.routes.meetings import router as meetings_router
 from src.routes.mocks import router as mocks_router
@@ -49,5 +50,6 @@ api_router.include_router(byok_keys_router)
 api_router.include_router(cron_router)
 api_router.include_router(sales_docs_router)
 api_router.include_router(meetings_router)
+api_router.include_router(knowledge_router)
 
 __all__ = ["api_router"]

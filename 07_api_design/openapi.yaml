@@ -724,6 +724,93 @@ components:
         status: { type: string, enum: [queued, already_parsed] }
         queued_at: { type: string, format: date-time }
 
+    KnowledgeCreate:
+      type: object
+      required: [account_id, account_type, scope, category, title, content_md]
+      properties:
+        account_id: { type: string, format: uuid }
+        account_type: { type: string, enum: [workspace, user] }
+        scope: { type: string, enum: [common, employee_specific] }
+        category: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        content_md: { type: string, minLength: 1 }
+        tags: { type: array, items: { type: string }, maxItems: 50 }
+        owner_employee_id: { type: string, format: uuid, nullable: true }
+        source_type: { type: string, enum: [manual, ai_extracted, import, mem0], default: manual }
+        source_project_id: { type: string, format: uuid, nullable: true }
+        confidence_score: { type: number, minimum: 0, maximum: 1, default: 0.5 }
+        is_anonymized: { type: boolean, default: false }
+
+    KnowledgeUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200, nullable: true }
+        content_md: { type: string, minLength: 1, nullable: true }
+        category: { type: string, minLength: 1, maxLength: 100, nullable: true }
+        tags: { type: array, items: { type: string }, maxItems: 50, nullable: true }
+        confidence_score: { type: number, minimum: 0, maximum: 1, nullable: true }
+        is_anonymized: { type: boolean, nullable: true }
+
+    Knowledge:
+      type: object
+      required:
+        - id
+        - account_id
+        - account_type
+        - scope
+        - category
+        - title
+        - content_md
+        - tags
+        - source_type
+        - confidence_score
+        - usage_count
+        - is_anonymized
+        - created_at
+        - updated_at
+      properties:
+        id: { type: string, format: uuid }
+        account_id: { type: string, format: uuid }
+        account_type: { type: string, enum: [workspace, user] }
+        scope: { type: string, enum: [common, employee_specific] }
+        owner_employee_id: { type: string, format: uuid, nullable: true }
+        category: { type: string }
+        title: { type: string }
+        content_md: { type: string }
+        tags: { type: array, items: { type: string } }
+        source_type: { type: string }
+        source_project_id: { type: string, format: uuid, nullable: true }
+        confidence_score: { type: number }
+        usage_count: { type: integer }
+        is_anonymized: { type: boolean }
+        approved_by_user_id: { type: string, format: uuid, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    KnowledgeSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string, minLength: 1 }
+        limit: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        account_id: { type: string, format: uuid, nullable: true }
+
+    KnowledgeSearchHit:
+      type: object
+      required: [knowledge, score]
+      properties:
+        knowledge: { $ref: '#/components/schemas/Knowledge' }
+        score: { type: number, description: "cosine similarity (0..1)" }
+
+    KnowledgeSearchResponse:
+      type: object
+      required: [query, hits, total]
+      properties:
+        query: { type: string }
+        hits: { type: array, items: { $ref: '#/components/schemas/KnowledgeSearchHit' } }
+        total: { type: integer }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -2682,6 +2769,137 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/MeetingTranscribeResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # knowledge (ナレッジ CRUD + Voyage semantic 検索 — T-A-36 / R-T08)
+  # E-018 knowledge_nodes (polymorphic account, soft_delete)
+  # ==========================================================================
+  /knowledge:
+    get:
+      tags: [knowledge]
+      summary: ナレッジ一覧
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::list_knowledge
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-K01]
+      parameters:
+        - { name: account_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: account_type, in: query, required: false, schema: { type: string, enum: [workspace, user] } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [common, employee_specific] } }
+        - { name: category, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: ナレッジ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Knowledge' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [knowledge]
+      summary: ナレッジ作成（embedding 自動生成）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::create_knowledge
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-K01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeCreate' }
+      responses:
+        '201':
+          description: 作成完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Knowledge' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗（scope と owner_employee_id 整合性等）, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/search:
+    post:
+      tags: [knowledge]
+      summary: ナレッジ semantic 検索（Voyage embedding + cosine similarity）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::search_knowledge
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-K01]
+      x-rate-limit: 60/min/user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeSearchRequest' }
+      responses:
+        '200':
+          description: 検索結果（cosine 類似度降順）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KnowledgeSearchResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: query 空 / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/{knowledge_id}:
+    get:
+      tags: [knowledge]
+      summary: ナレッジ取得
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::get_knowledge
+      x-screen-ids: [S-K01]
+      parameters:
+        - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Knowledge' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [knowledge]
+      summary: ナレッジ更新（content_md 変更時は embedding 再生成）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::update_knowledge
+      x-screen-ids: [S-K01]
+      parameters:
+        - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeUpdate' }
+      responses:
+        '200':
+          description: 更新完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Knowledge' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [knowledge]
+      summary: ナレッジ削除（論理）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::delete_knowledge
+      x-screen-ids: [S-K01]
+      parameters:
+        - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除完了 }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
