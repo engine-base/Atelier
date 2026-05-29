@@ -1364,19 +1364,39 @@ components:
       type: object
       required: [invitation_token]
       properties:
-        invitation_token: { type: string }
-        display_name: { type: string }
+        invitation_token: { type: string, minLength: 10, maxLength: 200 }
+        display_name: { type: string, maxLength: 100, nullable: true }
+
+    ClientProjectRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
 
     ClientSigninResponse:
       type: object
+      required: [client_access_token, token_type, expires_at, project, scopes]
       properties:
-        client_access_token: { type: string }
-        project:
-          type: object
-          properties:
-            id: { type: string, format: uuid }
-            name: { type: string }
+        client_access_token: { type: string, description: "client_portal HS256 JWT (project_id 限定)" }
+        token_type: { type: string, enum: [bearer] }
         expires_at: { type: string, format: date-time }
+        project: { $ref: '#/components/schemas/ClientProjectRef' }
+        scopes:
+          type: array
+          items: { type: string }
+
+    ClientProjectView:
+      type: object
+      required: [id, name, scopes]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        scopes:
+          type: array
+          items: { type: string }
+        viewed_as_client_display_name: { type: string, nullable: true }
 
 paths:
   # ==========================================================================
@@ -4651,9 +4671,9 @@ paths:
   /client/auth/signin:
     post:
       tags: [client-portal]
-      summary: クライアントサインイン（別 JWT 系統）
+      summary: クライアントサインイン（別 JWT 系統 / R-T08）
       security: []
-      x-implementation-path: apps/api/src/routes/client_auth.py::signin
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_signin
       x-screen-ids: [S-L02]
       x-feature-ids: [F-L02]
       requestBody:
@@ -4663,7 +4683,7 @@ paths:
             schema: { $ref: '#/components/schemas/ClientSigninRequest' }
       responses:
         '200':
-          description: client_access_token 発行
+          description: client_access_token 発行 (project_id 限定 JWT)
           content:
             application/json:
               schema:
@@ -4671,7 +4691,7 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/ClientSigninResponse' }
         '401':
-          description: 招待トークン不正
+          description: 招待トークン不正 / revoked
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -4681,23 +4701,37 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /client/projects/{id}:
-    parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string, format: uuid }
+  /client/projects/{project_id}:
     get:
       tags: [client-portal]
-      summary: クライアントプロジェクトビュー（限定 UI）
+      summary: クライアントプロジェクトビュー（限定 / R-T08 越境 403）
       security:
         - clientPortalAuth: []
-      x-implementation-path: apps/api/src/routes/client_portal.py::get_project
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_view
       x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
-        '200': { description: 限定情報 }
+        '200':
+          description: 限定 project ビュー
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientProjectView' }
+        '401':
+          description: client JWT 不正 / 期限切れ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '403':
-          description: project_id 不一致
+          description: project_id claim 不一致 (R-T08 越境拒否)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: project 不在
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

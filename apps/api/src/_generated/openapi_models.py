@@ -1329,19 +1329,32 @@ class ApprovalDecideRequest(BaseModel):
 
 
 class ClientSigninRequest(BaseModel):
-    invitation_token: str
-    display_name: str | None = None
+    invitation_token: Annotated[str, Field(max_length=200, min_length=10)]
+    display_name: Annotated[str | None, Field(max_length=100)] = None
 
 
-class Project1(BaseModel):
-    id: UUID | None = None
-    name: str | None = None
+class ClientProjectRef(BaseModel):
+    id: UUID
+    name: str
 
 
 class ClientSigninResponse(BaseModel):
-    client_access_token: str | None = None
-    project: Project1 | None = None
-    expires_at: AwareDatetime | None = None
+    client_access_token: str
+    """
+    client_portal HS256 JWT (project_id 限定)
+    """
+    token_type: TokenType
+    expires_at: AwareDatetime
+    project: ClientProjectRef
+    scopes: list[str]
+
+
+class ClientProjectView(BaseModel):
+    id: UUID
+    name: str
+    description: str | None = None
+    scopes: list[str]
+    viewed_as_client_display_name: str | None = None
 
 
 class AuthResponse(BaseModel):
