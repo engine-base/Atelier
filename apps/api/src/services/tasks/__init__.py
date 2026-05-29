@@ -16,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
+    PlayTaskRequest,
+    PlayTaskResponse,
     TaskBulkLifecycleRequest,
     TaskBulkLifecycleResponse,
     TaskCreate,
@@ -451,3 +453,144 @@ async def retry_task(
         )
     )
     return await get_task(session, task_id)
+
+
+# --------------------------------------------------------------------------- #
+# T-A-24: タスク再生 (dispatcher 連動)
+# --------------------------------------------------------------------------- #
+
+# 同時に走れる task_executions の上限。並列上限超過時は queue_position を返す。
+_PARALLEL_LIMIT = 5
+
+
+class PlayResult:
+    """play_task の結果を表す軽量タプル相当。
+
+    success: 成功 (202 相当)
+    not_found: タスク不可視 (404)
+    invalid_state: lifecycle_stage が ready / blocked 以外 (409)
+    deps_unmet: 依存先 task の lifecycle が done でない (409)
+    """
+
+    SUCCESS = "success"
+    NOT_FOUND = "not_found"
+    INVALID_STATE = "invalid_state"
+    DEPS_UNMET = "deps_unmet"
+
+
+async def _running_execution_count(session: AsyncSession) -> int:
+    res = await session.execute(
+        text("select count(*) from public.task_executions where status = 'running'")
+    )
+    return int(res.scalar_one())
+
+
+async def _all_deps_done(session: AsyncSession, *, task_id: str) -> bool:
+    """task.dependencies に列挙された全 task が lifecycle_stage='done' か。"""
+    res = await session.execute(
+        text("select t.dependencies from public.tasks t where t.id = cast(:tid as uuid)"),
+        {"tid": task_id},
+    )
+    row = res.first()
+    if row is None or not row.dependencies:
+        return True
+    deps = list(row.dependencies)
+    if not deps:
+        return True
+    res2 = await session.execute(
+        text(
+            "select count(*) from public.tasks "
+            "where id = any(cast(:ids as uuid[])) and lifecycle_stage = 'done' "
+            "and deleted_at is null"
+        ),
+        {"ids": [str(d) for d in deps]},
+    )
+    done_cnt = int(res2.scalar_one())
+    return done_cnt >= len(deps)
+
+
+async def play_task(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    task_id: str,
+    data: PlayTaskRequest,
+) -> tuple[str, PlayTaskResponse | None]:
+    """task を dispatcher に投入する。
+
+    1. visibility 確認 (RLS): 不可視なら NOT_FOUND
+    2. lifecycle_stage が ready / blocked のみ受理 (それ以外は INVALID_STATE)
+    3. force=False かつ依存未完なら DEPS_UNMET
+    4. 並列上限超過なら queue_position を返す (queued)
+    5. それ以外は task を in_progress + dispatch_status=spawning に遷移、
+       task_executions に running 行を作成して PlayTaskResponse を返す
+    6. 全分岐で audit_logs に記録 (state-changing audit)
+    """
+    cur = await session.execute(
+        text(
+            "select id, lifecycle_stage, retry_count, worktree_path "
+            "from public.tasks where id = cast(:id as uuid) and deleted_at is null"
+        ),
+        {"id": task_id},
+    )
+    row = cur.first()
+    if row is None:
+        return PlayResult.NOT_FOUND, None
+    stage = str(row.lifecycle_stage)
+    if stage not in ("ready", "blocked"):
+        return PlayResult.INVALID_STATE, None
+    if not data.force and not await _all_deps_done(session, task_id=task_id):
+        return PlayResult.DEPS_UNMET, None
+
+    running = await _running_execution_count(session)
+    queue_position = max(0, running + 1 - _PARALLEL_LIMIT)
+
+    # task を in_progress + queued/spawning に遷移
+    new_dispatch = "queued" if queue_position > 0 else "spawning"
+    await session.execute(
+        text(
+            "update public.tasks "
+            "set lifecycle_stage = 'in_progress', "
+            "dispatch_status = cast(:ds as task_dispatch_enum), "
+            "updated_at = now() "
+            "where id = cast(:id as uuid)"
+        ),
+        {"id": task_id, "ds": new_dispatch},
+    )
+
+    exec_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "insert into public.task_executions "
+            "(id, task_id, started_at, retry_count, status) "
+            "values (cast(:eid as uuid), cast(:tid as uuid), now(), :rc, 'running')"
+        ),
+        {"eid": exec_id, "tid": task_id, "rc": int(row.retry_count)},
+    )
+
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="task.play",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+            after={
+                "execution_id": exec_id,
+                "lifecycle_stage": "in_progress",
+                "dispatch_status": new_dispatch,
+                "queue_position": queue_position if queue_position > 0 else None,
+                "force": data.force,
+            },
+        )
+    )
+
+    return PlayResult.SUCCESS, PlayTaskResponse(
+        task_id=task_id,
+        lifecycle_stage="in_progress",
+        dispatch_status=new_dispatch,
+        execution_id=exec_id,
+        worktree_path=(None if row.worktree_path is None else str(row.worktree_path)),
+        bridge_command=f"atelier-bridge spawn --task={task_id} --exec={exec_id}",
+        queue_position=queue_position if queue_position > 0 else None,
+    )

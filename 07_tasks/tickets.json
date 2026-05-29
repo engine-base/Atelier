@@ -9898,14 +9898,16 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/src/routes/tasks/__init__.py",
-          "apps/api/src/services/tasks/__init__.py",
-          "apps/api/src/schemas/tasks.py",
-          "apps/api/tests/routes/test_tasks.py"
+          "apps/api/tests/routes/test_tasks_play.py"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
-          "07_api_design/openapi.yaml"
+          "apps/api/src/routes/tasks/__init__.py",
+          "apps/api/src/services/tasks/__init__.py",
+          "apps/api/src/schemas/tasks.py",
+          "apps/api/tests/routes/test_tasks.py",
+          "07_api_design/openapi.yaml",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/tickets.json",

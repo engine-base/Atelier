@@ -546,3 +546,172 @@ class TestTaskBulkAndDecision:
                 ).status_code
                 == 401
             )
+
+
+# --------------------------------------------------------------------------- #
+# T-A-24: タスク再生 API (/tasks/{id}/play) 単体テスト
+# --------------------------------------------------------------------------- #
+def _seed_task(
+    eng: sqlalchemy.Engine,
+    *,
+    project_id: str,
+    lifecycle: str = "ready",
+    title: str = "playable",
+    deps: list[str] | None = None,
+) -> str:
+    tid = str(uuid.uuid4())
+    with eng.begin() as c:
+        c.execute(
+            text(
+                "insert into public.tasks "
+                "(id, project_id, category, title, type, estimated_hours, priority, "
+                "lifecycle_stage, dependencies) "
+                "values (cast(:i as uuid), cast(:p as uuid), 'misc', :t, "
+                "'feature', 2, 'medium', "
+                "cast(:ls as task_lifecycle_enum), :dp)"
+            ),
+            {
+                "i": tid,
+                "p": project_id,
+                "t": title,
+                "ls": lifecycle,
+                "dp": deps or [],
+            },
+        )
+    return tid
+
+
+@pytest.mark.integration
+class TestTaskPlay:
+    def test_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert (
+                client.post(f"/tasks/{uuid.uuid4()}/play", json={"force": False}).status_code == 401
+            )
+
+    def test_play_ready_task_returns_202_and_persists_execution(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        task_id = _seed_task(sync_engine, project_id=seeded["proj_a"], lifecycle="ready")
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=h, json={"force": False})
+            assert r.status_code == 202, r.text
+            data = r.json()["data"]
+            assert data["task_id"] == task_id
+            assert data["lifecycle_stage"] == "in_progress"
+            assert data["dispatch_status"] in ("queued", "spawning")
+            exec_id = data["execution_id"]
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text(
+                    "select status, task_id from public.task_executions where id = cast(:i as uuid)"
+                ),
+                {"i": exec_id},
+            ).first()
+            assert row is not None and row.status == "running"
+            tstage = c.execute(
+                text(
+                    "select lifecycle_stage, dispatch_status from public.tasks "
+                    "where id = cast(:t as uuid)"
+                ),
+                {"t": task_id},
+            ).first()
+            assert tstage is not None
+            assert str(tstage.lifecycle_stage) == "in_progress"
+            audit_cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'task.play' and target_id = cast(:t as uuid)"
+                ),
+                {"t": task_id},
+            ).scalar_one()
+            assert audit_cnt == 1
+
+    def test_play_404_for_nonexistent_task(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{uuid.uuid4()}/play", headers=h, json={"force": False})
+            assert r.status_code == 404
+
+    def test_play_409_when_not_in_playable_stage(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        task_id = _seed_task(sync_engine, project_id=seeded["proj_a"], lifecycle="done")
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=h, json={"force": False})
+            assert r.status_code == 409
+
+    def test_play_409_when_deps_not_done(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        # 依存先 task (in_progress, 未完)
+        dep_id = _seed_task(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            lifecycle="in_progress",
+            title="dep",
+        )
+        task_id = _seed_task(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            lifecycle="ready",
+            title="dependent",
+            deps=[dep_id],
+        )
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=h, json={"force": False})
+            assert r.status_code == 409
+
+    def test_play_force_bypasses_deps(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        dep_id = _seed_task(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            lifecycle="ready",
+            title="dep2",
+        )
+        task_id = _seed_task(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            lifecycle="ready",
+            title="forceable",
+            deps=[dep_id],
+        )
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=h, json={"force": True})
+            assert r.status_code == 202
+
+    def test_play_blocked_task_is_allowed(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        task_id = _seed_task(sync_engine, project_id=seeded["proj_a"], lifecycle="blocked")
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=h, json={"force": False})
+            assert r.status_code == 202
+
+    def test_play_cross_workspace_404(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        task_id = _seed_task(sync_engine, project_id=seeded["proj_a"], lifecycle="ready")
+        hb = _h(seeded["u_b"])
+        with TestClient(app) as client:
+            r = client.post(f"/tasks/{task_id}/play", headers=hb, json={"force": False})
+            assert r.status_code == 404
