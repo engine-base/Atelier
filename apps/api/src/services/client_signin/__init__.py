@@ -28,7 +28,7 @@ import os
 import time
 from datetime import UTC, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -176,12 +176,12 @@ async def client_signin(
 
             scopes_raw = row.scopes
             if isinstance(scopes_raw, str):
-                scopes = json.loads(scopes_raw)
+                raw_scopes = cast("list[object]", json.loads(scopes_raw))
             elif isinstance(scopes_raw, list):
-                scopes = scopes_raw
+                raw_scopes = cast("list[object]", scopes_raw)
             else:
-                scopes = ["view"]
-            scopes = [str(s) for s in scopes]
+                raw_scopes = ["view"]
+            scopes: list[str] = [str(s) for s in raw_scopes]
 
             invitation_id = str(row.id)
             project_id = str(row.project_id)
@@ -256,7 +256,11 @@ async def get_client_project(
         raise ClientSigninError("cross_project", "client token is not authorized for this project")
     invitation_id = str(claims.get("invitation_id", ""))
     scopes_claim = claims.get("scopes")
-    scopes = [str(s) for s in scopes_claim] if isinstance(scopes_claim, list) else []
+    scopes: list[str] = (
+        [str(s) for s in cast("list[object]", scopes_claim)]
+        if isinstance(scopes_claim, list)
+        else []
+    )
 
     factory = _service_session_factory()
     async with factory() as session:

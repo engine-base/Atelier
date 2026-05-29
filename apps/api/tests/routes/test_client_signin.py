@@ -49,7 +49,9 @@ pytestmark = [
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
-    from src.services.client_signin import _service_session_factory
+    from src.services.client_signin import (
+        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+    )
 
     _service_session_factory.cache_clear()
     from src.routes import api_router
@@ -278,7 +280,7 @@ class TestClientSignin:
 
         secret = os.environ["ATELIER_AUTH_JWT_SECRET"]
 
-        def _seg(d: dict) -> str:
+        def _seg(d: dict[str, object]) -> str:
             return _b64.urlsafe_b64encode(_json.dumps(d).encode()).rstrip(b"=").decode()
 
         header = _seg({"alg": "HS256", "typ": "JWT"})
