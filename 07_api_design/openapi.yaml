@@ -811,6 +811,41 @@ components:
         hits: { type: array, items: { $ref: '#/components/schemas/KnowledgeSearchHit' } }
         total: { type: integer }
 
+    KnowledgePromoteRequest:
+      type: object
+      required: [target_workspace_id]
+      properties:
+        target_workspace_id: { type: string, format: uuid }
+        confidence_score: { type: number, minimum: 0, maximum: 1, nullable: true }
+
+    KnowledgePatternRequest:
+      type: object
+      properties:
+        account_id: { type: string, format: uuid, nullable: true }
+        category: { type: string, nullable: true }
+        min_occurrences: { type: integer, minimum: 2, maximum: 100, default: 2 }
+        limit: { type: integer, minimum: 1, maximum: 200, default: 20 }
+
+    KnowledgePattern:
+      type: object
+      required: [pattern_tags, occurrence_count, representative_ids, avg_confidence]
+      properties:
+        pattern_tags:
+          type: array
+          items: { type: string }
+        occurrence_count: { type: integer, minimum: 2 }
+        representative_ids:
+          type: array
+          items: { type: string, format: uuid }
+        avg_confidence: { type: number, minimum: 0, maximum: 1 }
+
+    KnowledgePatternResponse:
+      type: object
+      required: [total, patterns]
+      properties:
+        total: { type: integer, minimum: 0 }
+        patterns: { type: array, items: { $ref: '#/components/schemas/KnowledgePattern' } }
+
     ChatStreamRequest:
       type: object
       required: [user_message]
@@ -3208,6 +3243,58 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/{knowledge_id}/promote:
+    post:
+      tags: [knowledge]
+      summary: ナレッジ昇格（user → workspace common）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::promote_knowledge
+      x-screen-ids: [S-K02]
+      x-feature-ids: [F-K02]
+      parameters:
+        - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgePromoteRequest' }
+      responses:
+        '200':
+          description: 昇格完了 (account_type/account_id が更新された Knowledge)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Knowledge' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 自分のナレッジでない / 昇格先 workspace の member 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: scope=employee_specific は昇格不可, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/patterns/extract:
+    post:
+      tags: [knowledge]
+      summary: 横断パターン抽出（共通タグ集合の凝集 / read-only）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::extract_patterns
+      x-screen-ids: [S-K02]
+      x-feature-ids: [F-K02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgePatternRequest' }
+      responses:
+        '200':
+          description: パターン一覧（occurrence_count 降順）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KnowledgePatternResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: min_occurrences / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # comments (成果物 / モック / タスク / 受入条件へのスレッド型コメント)

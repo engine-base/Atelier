@@ -23,6 +23,8 @@ from src.embeddings.voyage import VoyageClient, VoyageError
 from src.schemas.knowledge import (
     KnowledgeAccountType,
     KnowledgeCreate,
+    KnowledgePattern,
+    KnowledgePatternResponse,
     KnowledgeResponse,
     KnowledgeScope,
     KnowledgeSearchHit,
@@ -326,3 +328,182 @@ async def search_knowledge(
             {"ids": hit_ids},
         )
     return KnowledgeSearchResponse(query=query, hits=hits, total=len(hits))
+
+
+# --------------------------------------------------------------------------- #
+# T-A-37: ナレッジ昇格 + 横断パターン抽出
+# --------------------------------------------------------------------------- #
+class PromoteResult:
+    """promote_knowledge の結果コード。"""
+
+    SUCCESS = "success"
+    NOT_FOUND = "not_found"
+    NOT_USER_OWNED = "not_user_owned"
+    EMPLOYEE_SPECIFIC = "employee_specific"
+    NOT_MEMBER = "not_member"
+
+
+async def _is_workspace_member(session: AsyncSession, *, user_id: str, workspace_id: str) -> bool:
+    """user が workspace の member 以上か (owner / member)。viewer は不可。"""
+    res = await session.execute(
+        text(
+            "select 1 from public.workspace_memberships "
+            "where workspace_id = cast(:w as uuid) "
+            "and user_id = cast(:u as uuid) "
+            "and role in ('owner', 'member')"
+        ),
+        {"w": workspace_id, "u": user_id},
+    )
+    return res.first() is not None
+
+
+async def promote_knowledge(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    knowledge_id: str,
+    target_workspace_id: str,
+    confidence_score: float | None,
+) -> tuple[str, KnowledgeResponse | None]:
+    """user-scope ナレッジを workspace common に昇格する。
+
+    制約:
+    - 元のナレッジの account_type='user' かつ account_id=actor_id 必須
+      (他人の knowledge は昇格不可。RLS が SELECT を許しても自分名義のみ昇格)
+    - scope='employee_specific' は不可 (workspace common と整合しない)
+    - actor が target_workspace_id の owner/member 必須 (viewer 不可)
+
+    昇格後:
+    - account_type='workspace', account_id=target_workspace_id
+    - scope='common' 維持、owner_employee_id=null
+    - approved_by_user_id=actor_id (昇格承認者)
+    - confidence_score: 引数指定で上書き、未指定なら元の値を維持
+    - audit_logs に knowledge.promote (before/after)
+    """
+    res = await session.execute(
+        text(
+            "select account_id, account_type, scope, confidence_score "
+            "from public.knowledge_nodes "
+            "where id = cast(:i as uuid) and deleted_at is null"
+        ),
+        {"i": knowledge_id},
+    )
+    row = res.first()
+    if row is None:
+        return PromoteResult.NOT_FOUND, None
+    if str(row.scope) == "employee_specific":
+        return PromoteResult.EMPLOYEE_SPECIFIC, None
+    if str(row.account_type) != "user" or str(row.account_id) != actor_id:
+        return PromoteResult.NOT_USER_OWNED, None
+    if not await _is_workspace_member(session, user_id=actor_id, workspace_id=target_workspace_id):
+        return PromoteResult.NOT_MEMBER, None
+
+    before = {
+        "account_id": str(row.account_id),
+        "account_type": str(row.account_type),
+        "scope": str(row.scope),
+        "confidence_score": float(row.confidence_score),
+    }
+    new_conf = confidence_score if confidence_score is not None else float(row.confidence_score)
+    upd = await session.execute(
+        text(
+            "update public.knowledge_nodes set "
+            "account_id = cast(:w as uuid), "
+            "account_type = 'workspace', "
+            "scope = 'common', "
+            "owner_employee_id = null, "
+            "approved_by_user_id = cast(:a as uuid), "
+            "confidence_score = :cs, "
+            "updated_at = now() "
+            "where id = cast(:i as uuid) and deleted_at is null returning id"
+        ),
+        {"w": target_workspace_id, "a": actor_id, "cs": new_conf, "i": knowledge_id},
+    )
+    if upd.scalar_one_or_none() is None:
+        return PromoteResult.NOT_FOUND, None
+
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="knowledge.promote",
+            target_type="knowledge_node",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=knowledge_id,
+            before=before,
+            after={
+                "account_id": target_workspace_id,
+                "account_type": "workspace",
+                "scope": "common",
+                "approved_by_user_id": actor_id,
+                "confidence_score": new_conf,
+            },
+        )
+    )
+    promoted = await get_knowledge(session, knowledge_id)
+    return PromoteResult.SUCCESS, promoted
+
+
+async def extract_patterns(
+    session: AsyncSession,
+    *,
+    account_id: str | None,
+    category: str | None,
+    min_occurrences: int,
+    limit: int,
+) -> KnowledgePatternResponse:
+    """共通 tag 集合の凝集で「パターン」を抽出する read-only API。
+
+    RLS で見える knowledge_nodes 全体を対象に、tags が共通する組合せを
+    パターンとして集計する。simple な実装として:
+      1. 各 knowledge の tags を昇順 sorted tuple として正規化
+      2. ↑ をキーに groupby、occurrence_count を計算
+      3. min_occurrences を満たすものだけを返す
+      4. occurrence_count 降順 → 上位 limit
+
+    各パターンの representative_ids は confidence_score 降順で最大 5 件。
+    """
+    where = ["deleted_at is null", "tags is not null", "cardinality(tags) > 0"]
+    params: dict[str, object] = {}
+    if account_id is not None:
+        where.append("account_id = cast(:aid as uuid)")
+        params["aid"] = account_id
+    if category is not None:
+        where.append("category = :cat")
+        params["cat"] = category
+
+    res = await session.execute(
+        text(
+            "select id, tags, confidence_score from public.knowledge_nodes "
+            f"where {' and '.join(where)}"
+        ),
+        params,
+    )
+
+    # クラスタリング: 正規化 tags tuple → list of (id, confidence)
+    buckets: dict[tuple[str, ...], list[tuple[str, float]]] = {}
+    for r in res.all():
+        tags_list = [str(t) for t in (r.tags or [])]
+        if not tags_list:
+            continue
+        key = tuple(sorted(tags_list))
+        buckets.setdefault(key, []).append((str(r.id), float(r.confidence_score)))
+
+    patterns: list[KnowledgePattern] = []
+    for key, items in buckets.items():
+        if len(items) < min_occurrences:
+            continue
+        # 代表 id: confidence 降順、tie は id 文字列順
+        items.sort(key=lambda x: (-x[1], x[0]))
+        rep_ids = [iid for iid, _ in items[:5]]
+        avg = sum(c for _, c in items) / len(items)
+        patterns.append(
+            KnowledgePattern(
+                pattern_tags=list(key),
+                occurrence_count=len(items),
+                representative_ids=rep_ids,
+                avg_confidence=avg,
+            )
+        )
+
+    patterns.sort(key=lambda p: (-p.occurrence_count, -p.avg_confidence, p.pattern_tags))
+    return KnowledgePatternResponse(total=len(patterns), patterns=patterns[:limit])

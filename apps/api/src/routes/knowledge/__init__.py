@@ -19,6 +19,9 @@ from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.knowledge import (
     KnowledgeAccountType,
     KnowledgeCreate,
+    KnowledgePatternRequest,
+    KnowledgePatternResponse,
+    KnowledgePromoteRequest,
     KnowledgeResponse,
     KnowledgeScope,
     KnowledgeSearchResponse,
@@ -136,3 +139,64 @@ async def delete_knowledge(knowledge_id: str, session: SessionDep, user: UserDep
         raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
     if not await svc.delete_knowledge(session, actor_id=user.id, knowledge_id=knowledge_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete knowledge")
+
+
+# --------------------------------------------------------------------------- #
+# T-A-37: ナレッジ昇格 + 横断パターン抽出
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/knowledge/{knowledge_id}/promote",
+    summary="ナレッジ昇格（user → workspace common）",
+)
+async def promote_knowledge(
+    knowledge_id: str,
+    body: KnowledgePromoteRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, KnowledgeResponse]:
+    code, promoted = await svc.promote_knowledge(
+        session,
+        actor_id=user.id,
+        knowledge_id=knowledge_id,
+        target_workspace_id=body.target_workspace_id,
+        confidence_score=body.confidence_score,
+    )
+    if code == svc.PromoteResult.NOT_FOUND:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+    if code == svc.PromoteResult.NOT_USER_OWNED:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "only your own user-scope knowledge can be promoted",
+        )
+    if code == svc.PromoteResult.EMPLOYEE_SPECIFIC:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "scope=employee_specific cannot be promoted to common",
+        )
+    if code == svc.PromoteResult.NOT_MEMBER:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "you must be a member of the target workspace to promote",
+        )
+    assert promoted is not None
+    return {"data": promoted}
+
+
+@router.post(
+    "/knowledge/patterns/extract",
+    summary="横断パターン抽出（共通タグ集合の凝集 / read-only）",
+)
+async def extract_patterns(
+    body: KnowledgePatternRequest,
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, KnowledgePatternResponse]:
+    return {
+        "data": await svc.extract_patterns(
+            session,
+            account_id=body.account_id,
+            category=body.category,
+            min_occurrences=body.min_occurrences,
+            limit=body.limit,
+        )
+    }

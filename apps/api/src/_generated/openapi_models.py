@@ -847,6 +847,30 @@ class KnowledgeSearchResponse(BaseModel):
     total: int
 
 
+class KnowledgePromoteRequest(BaseModel):
+    target_workspace_id: UUID
+    confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+
+
+class KnowledgePatternRequest(BaseModel):
+    account_id: UUID | None = None
+    category: str | None = None
+    min_occurrences: Annotated[int | None, Field(ge=2, le=100)] = 2
+    limit: Annotated[int | None, Field(ge=1, le=200)] = 20
+
+
+class KnowledgePattern(BaseModel):
+    pattern_tags: list[str]
+    occurrence_count: Annotated[int, Field(ge=2)]
+    representative_ids: list[UUID]
+    avg_confidence: Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class KnowledgePatternResponse(BaseModel):
+    total: Annotated[int, Field(ge=0)]
+    patterns: list[KnowledgePattern]
+
+
 class ChatStreamRequest(BaseModel):
     user_message: Annotated[str, Field(max_length=20000, min_length=1)]
     use_knowledge_rag: bool | None = True

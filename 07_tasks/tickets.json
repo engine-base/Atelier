@@ -11570,14 +11570,17 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
+          "apps/api/tests/routes/test_knowledge_promotion.py"
+        ],
+        "modify": [
           "apps/api/src/routes/knowledge/__init__.py",
           "apps/api/src/services/knowledge/__init__.py",
           "apps/api/src/schemas/knowledge.py",
-          "apps/api/tests/routes/test_knowledge.py"
-        ],
-        "modify": [
-          "apps/api/src/routes/__init__.py",
-          "07_api_design/openapi.yaml"
+          "apps/api/tests/routes/test_knowledge.py",
+          "07_api_design/openapi.yaml",
+          "_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
