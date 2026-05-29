@@ -387,6 +387,45 @@ class AuditLog(BaseModel):
     created_at: AwareDatetime | None = None
 
 
+class AdminSkill(BaseModel):
+    """
+    運営 admin 向け skill 詳細 (T-A-42)。
+    """
+
+    id: UUID | None = None
+    name: str | None = None
+    version: str | None = None
+    description: str | None = None
+    content_md: str | None = None
+    assets_storage_path: str | None = None
+    allowed_employee_roles: list[str] | None = None
+    allowed_employee_ids: list[UUID] | None = None
+    is_active: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class AdminTemplate(BaseModel):
+    """
+    運営 admin 向け AI 社員テンプレ詳細 (T-A-42)。
+    """
+
+    id: UUID | None = None
+    default_name: str | None = None
+    default_display_name: str | None = None
+    default_icon: str | None = None
+    department: str | None = None
+    role: str | None = None
+    default_skills: list[UUID] | None = None
+    default_knowledge_cats: list[str] | None = None
+    system_prompt: str | None = None
+    specialty: str | None = None
+    version: int | None = None
+    is_active: bool | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class ClientInvitation(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
