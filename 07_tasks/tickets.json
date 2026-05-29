@@ -7084,14 +7084,17 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
+          "apps/api/tests/test_signin_unit.py"
+        ],
+        "modify": [
           "apps/api/src/routes/auth/__init__.py",
           "apps/api/src/services/auth/__init__.py",
           "apps/api/src/schemas/auth.py",
-          "apps/api/tests/routes/test_auth.py"
-        ],
-        "modify": [
-          "apps/api/src/routes/__init__.py",
-          "07_api_design/openapi.yaml"
+          "apps/api/tests/routes/test_auth.py",
+          "07_api_design/openapi.yaml",
+          "_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/tickets.json",

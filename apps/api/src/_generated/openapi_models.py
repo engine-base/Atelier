@@ -85,6 +85,22 @@ class SigninRequest(BaseModel):
     password: str
 
 
+class TokenType(StrEnum):
+    bearer = "bearer"
+
+
+class SigninResponse(BaseModel):
+    access_token: str
+    """
+    HS256 JWT (sub=user.id)
+    """
+    token_type: TokenType
+    expires_at: AwareDatetime
+    user_id: UUID
+    email: EmailStr
+    display_name: str | None = None
+
+
 class Plan(StrEnum):
     free = "free"
     pro = "pro"

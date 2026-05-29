@@ -15,11 +15,16 @@ F-LEGAL-004: terms_of_service と privacy_policy は accepted=True 必須、
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import ipaddress
+import json
 import os
 import secrets
+import time
 import uuid
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -29,7 +34,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
 from src.db.session import create_engine, create_session_factory
-from src.schemas.auth import ConsentEntry, SignupRequest, SignupResponse
+from src.schemas.auth import (
+    ConsentEntry,
+    SigninResponse,
+    SignupRequest,
+    SignupResponse,
+)
 
 
 def _normalize_ip(ip: str | None) -> str | None:
@@ -245,5 +255,243 @@ async def signup(
     )
 
 
-# unused import shim — secrets is reserved for token issuance in T-A-02/03 path
+# --------------------------------------------------------------------------- #
+# T-A-02: signin + 5 回失敗ロック
+# --------------------------------------------------------------------------- #
+_LOCKOUT_THRESHOLD = 5
+"""連続失敗がこの回数に達すると一時ロック (F-001)。"""
+
+_LOCKOUT_WINDOW_MINUTES = 15
+"""ロック判定の時間窓。直近 N 分の失敗回数を数える。"""
+
+_ACCESS_TOKEN_TTL_SECONDS = 3600
+"""access_token (HS256 JWT) の有効期限。"""
+
+
+class SigninError(Exception):
+    """signin 操作の構造的失敗。code で route が 401 / 429 に振り分ける。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _mint_access_token(*, user_id: str, now: int) -> tuple[str, datetime]:
+    """decode_supabase_jwt (src.dependencies) と互換の HS256 JWT を発行する。
+
+    secret は ATELIER_AUTH_JWT_SECRET。sub=user_id, role/aud='authenticated',
+    exp=now+TTL。本番 Supabase Auth 経路では Supabase が発行する JWT を
+    そのまま返すため、本 mint は dev/test 経路専用。
+    """
+    secret = os.environ.get("ATELIER_AUTH_JWT_SECRET")
+    if not secret:
+        raise SigninError("auth_not_configured", "ATELIER_AUTH_JWT_SECRET is not set")
+    exp = now + _ACCESS_TOKEN_TTL_SECONDS
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    payload = _b64url(
+        json.dumps(
+            {
+                "sub": user_id,
+                "role": "authenticated",
+                "aud": "authenticated",
+                "exp": exp,
+            }
+        ).encode()
+    )
+    sig = _b64url(
+        hmac.new(
+            secret.encode("utf-8"), f"{header}.{payload}".encode("ascii"), hashlib.sha256
+        ).digest()
+    )
+    token = f"{header}.{payload}.{sig}"
+    return token, datetime.fromtimestamp(exp, tz=UTC)
+
+
+async def _count_recent_failures(session: AsyncSession, *, email: str) -> int:
+    """直近 _LOCKOUT_WINDOW_MINUTES 分の auth.signin_failed を email 単位で数える。"""
+    res = await session.execute(
+        text(
+            "select count(*) from public.audit_logs "
+            "where action = 'auth.signin_failed' "
+            "and actor_id = :email "
+            "and created_at > now() - make_interval(mins => :w)"
+        ),
+        {"email": email, "w": _LOCKOUT_WINDOW_MINUTES},
+    )
+    return int(res.scalar_one())
+
+
+async def _verify_password_supabase(*, email: str, password: str) -> str | None:
+    """Supabase Auth token endpoint で password 検証。設定無しなら None。
+
+    成功時 user.id を返す。資格情報不正なら SigninError('invalid_credentials')。
+    """
+    api_url = os.environ.get("ATELIER_SUPABASE_ADMIN_API_URL")
+    anon_key = os.environ.get("ATELIER_SUPABASE_ANON_KEY") or os.environ.get(
+        "ATELIER_SUPABASE_SERVICE_ROLE_KEY"
+    )
+    if not api_url or not anon_key:
+        return None
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(
+            f"{api_url.rstrip('/')}/auth/v1/token?grant_type=password",
+            headers={"apikey": anon_key, "Content-Type": "application/json"},
+            json={"email": email, "password": password},
+        )
+    if r.status_code == 400 or r.status_code == 401:
+        raise SigninError("invalid_credentials", "invalid email or password")
+    if r.status_code >= 400:
+        raise SigninError(
+            "supabase_auth_error",
+            f"Supabase token endpoint failed: {r.status_code} {r.text[:200]}",
+        )
+    body: dict[str, Any] = r.json()
+    user = body.get("user") if isinstance(body, dict) else None
+    uid = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(uid, str):
+        raise SigninError("supabase_auth_error", "missing user id from Supabase response")
+    return uid
+
+
+async def _verify_password_local(session: AsyncSession, *, email: str, password: str) -> str:
+    """dev/test 経路: stub auth.users.encrypted_password (sha256) と照合。
+
+    本番では Supabase が bcrypt 検証するため本 path は使われない。test stub
+    の auth.users に encrypted_password 列がある前提 (test fixture が用意)。
+    user 不在 / hash 不一致は invalid_credentials (どちらも同一応答で
+    user-enumeration を防ぐ)。
+    """
+    res = await session.execute(
+        text("select id, encrypted_password from auth.users where email = :e"),
+        {"e": email},
+    )
+    row = res.first()
+    if row is None or row.encrypted_password is None:
+        raise SigninError("invalid_credentials", "invalid email or password")
+    expected = str(row.encrypted_password)
+    actual = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    if not hmac.compare_digest(expected, actual):
+        raise SigninError("invalid_credentials", "invalid email or password")
+    return str(row.id)
+
+
+async def signin(
+    *,
+    email: str,
+    password: str,
+    ip_address: str | None,
+    user_agent: str | None,
+) -> SigninResponse:
+    """signin の本体。5 回失敗ロック + JWT 発行。
+
+    1. 直近 15 分の失敗回数を audit_logs から数え、>= 5 なら locked (429)
+    2. password 検証 (Supabase Auth 経路 or local stub)
+       - 失敗: audit_logs に auth.signin_failed を記録して invalid_credentials
+       - 成功: audit_logs に auth.signin を記録して JWT 発行
+    3. public.users から表示用情報を取得 (soft-deleted は invalid_credentials)
+
+    全 path で service_role session を使う (RLS バイパス、pre-auth ゆえ)。
+    Raises SigninError (route が 401 / 429 / 500 に振り分ける)。
+    """
+    normalized_ip = _normalize_ip(ip_address)
+    now_epoch = int(time.time())
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            # 1. lockout チェック
+            failures = await _count_recent_failures(session, email=email)
+            if failures >= _LOCKOUT_THRESHOLD:
+                await AuditWriter(session).write(
+                    AuditEvent(
+                        action="auth.signin_locked",
+                        target_type="user",
+                        actor_type="anonymous",
+                        actor_id=email,
+                        ip_address=normalized_ip,
+                        after={"email": email, "failures": failures},
+                    )
+                )
+                await session.commit()
+                raise SigninError(
+                    "locked",
+                    f"account temporarily locked after {failures} failed attempts",
+                )
+
+            # 2. password 検証
+            try:
+                uid = await _verify_password_supabase(email=email, password=password)
+                if uid is None:
+                    uid = await _verify_password_local(session, email=email, password=password)
+            except SigninError as exc:
+                if exc.code == "invalid_credentials":
+                    await AuditWriter(session).write(
+                        AuditEvent(
+                            action="auth.signin_failed",
+                            target_type="user",
+                            actor_type="anonymous",
+                            actor_id=email,
+                            ip_address=normalized_ip,
+                            after={"email": email, "user_agent": user_agent},
+                        )
+                    )
+                    await session.commit()
+                raise
+
+            # 3. public.users 取得 (soft-deleted は拒否)
+            res = await session.execute(
+                text(
+                    "select id, email, display_name, deleted_at "
+                    "from public.users where id = cast(:i as uuid)"
+                ),
+                {"i": uid},
+            )
+            row = res.first()
+            if row is None or row.deleted_at is not None:
+                await AuditWriter(session).write(
+                    AuditEvent(
+                        action="auth.signin_failed",
+                        target_type="user",
+                        actor_type="anonymous",
+                        actor_id=email,
+                        ip_address=normalized_ip,
+                        after={"email": email, "reason": "user_inactive"},
+                    )
+                )
+                await session.commit()
+                raise SigninError("invalid_credentials", "invalid email or password")
+
+            token, expires_at = _mint_access_token(user_id=str(row.id), now=now_epoch)
+
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.signin",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=str(row.id),
+                    ip_address=normalized_ip,
+                    after={"email": email},
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    return SigninResponse(
+        access_token=token,
+        token_type="bearer",
+        expires_at=expires_at,
+        user_id=str(row.id),
+        email=str(row.email),
+        display_name=(None if row.display_name is None else str(row.display_name)),
+    )
+
+
+# secrets は T-A-03/04 (Magic Link / refresh token) で token 生成に使う予約
 _ = secrets

@@ -15,7 +15,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from src.schemas.auth import SignupRequest, SignupResponse
+from src.schemas.auth import SigninRequest, SigninResponse, SignupRequest, SignupResponse
 from src.services import auth as svc
 
 router = APIRouter(tags=["auth"])
@@ -36,5 +36,28 @@ async def signup(body: SignupRequest, request: Request) -> dict[str, SignupRespo
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from exc
         if exc.code == "email_taken":
             raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+    return {"data": result}
+
+
+@router.post(
+    "/auth/signin",
+    summary="ログイン + 5 回失敗ロック (F-001)",
+)
+async def signin(body: SigninRequest, request: Request) -> dict[str, SigninResponse]:
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent")
+    try:
+        result = await svc.signin(
+            email=str(body.email),
+            password=body.password,
+            ip_address=ip,
+            user_agent=ua,
+        )
+    except svc.SigninError as exc:
+        if exc.code == "invalid_credentials":
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+        if exc.code == "locked":
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, exc.message) from exc
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
     return {"data": result}
