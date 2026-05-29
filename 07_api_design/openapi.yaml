@@ -626,43 +626,29 @@ components:
     # ========================================================================
     ApprovalInboxEntry:
       type: object
+      description: 承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。
       properties:
         id: { type: string, format: uuid }
-        category:
+        user_id: { type: string, format: uuid }
+        type:
           type: string
-          enum: [task_approval, phase_approval, scope_change, knowledge_promotion, comment_response]
-        urgent: { type: boolean }
+          enum: [task_approval, phase_approval, knowledge_write, comment_response, scope_change]
+        target_type: { type: string }
+        target_id: { type: string, format: uuid }
         title: { type: string }
-        preview: { type: string }
-        source_ref:
-          type: object
-          properties:
-            type: { type: string }
-            id: { type: string, format: uuid }
-        detected_by:
-          type: object
-          properties:
-            employee_id: { type: string }
-            at: { type: string, format: date-time }
-        impact_analysis: { type: object, nullable: true }
-        score: { type: number, nullable: true }
+        payload: { type: object }
+        status: { type: string, enum: [pending, approved, rejected] }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        resolution_note: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
-        decided_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time }
 
     ApprovalDecideRequest:
       type: object
       required: [decision]
       properties:
-        decision: { type: string, enum: [approve, reject, defer] }
-        reason: { type: string }
-        scope_change_options:
-          type: object
-          properties:
-            rerun_phases:
-              type: array
-              items:
-                type: string
-                enum: [hearing, requirements, architecture, design, breakdown, tasks, implementation, verification, delivery]
+        decision: { type: string, enum: [approve, reject] }
+        note: { type: string, maxLength: 2000 }
 
     # ========================================================================
     # クライアント招待 (R-T08)
@@ -2610,24 +2596,13 @@ paths:
   /approval-inbox:
     get:
       tags: [approval-inbox]
-      summary: 承認待ち一覧（5 種統合）
-      x-implementation-path: apps/api/src/routes/approval_inbox.py::list
+      summary: 承認待ち一覧（本人 / 5 種統合）
+      x-implementation-path: apps/api/src/routes/approvals/__init__.py::list_approvals
       x-screen-ids: [S-J01]
       parameters:
-        - in: query
-          name: category
-          schema:
-            type: string
-            enum: [task_approval, phase_approval, scope_change, knowledge_promotion, comment_response, all]
-        - in: query
-          name: project_id
-          schema: { type: string, format: uuid }
-        - in: query
-          name: status
-          schema: { type: string, enum: [pending, all], default: pending }
-        - in: query
-          name: cursor
-          schema: { type: string }
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, rejected] } }
+        - { name: type, in: query, schema: { type: string, enum: [task_approval, phase_approval, knowledge_write, comment_response, scope_change] } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
       responses:
         '200':
           description: 一覧
@@ -2636,26 +2611,34 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/ApprovalInboxEntry' }
-                  meta:
-                    allOf:
-                      - $ref: '#/components/schemas/PaginationMeta'
-                      - type: object
-                        properties:
-                          counts: { type: object }
+                  data: { type: array, items: { $ref: '#/components/schemas/ApprovalInboxEntry' } }
 
-  /approval-inbox/{id}/decide:
+  /approval-inbox/{approval_id}:
     parameters:
-      - in: path
-        name: id
-        required: true
-        schema: { type: string, format: uuid }
+      - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [approval-inbox]
+      summary: 承認待ち詳細（本人）
+      x-implementation-path: apps/api/src/routes/approvals/__init__.py::get_approval
+      x-screen-ids: [S-J01]
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ApprovalInboxEntry' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /approval-inbox/{approval_id}/decide:
+    parameters:
+      - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [approval-inbox]
-      summary: 承認判断
-      x-implementation-path: apps/api/src/routes/approval_inbox.py::decide
+      summary: 承認判断 (approve / reject)
+      x-implementation-path: apps/api/src/routes/approvals/__init__.py::decide_approval
       x-screen-ids: [S-J01, S-K02]
       x-feature-ids: [F-J02, F-CUC02]
       requestBody:
@@ -2664,9 +2647,17 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/ApprovalDecideRequest' }
       responses:
-        '200': { description: 判断適用 }
+        '200':
+          description: 判断適用
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ApprovalInboxEntry' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409':
-          description: 既に判断済
+          description: 既に判断済 (status != pending)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
