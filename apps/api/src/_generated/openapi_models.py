@@ -765,6 +765,88 @@ class MeetingTranscribeResponse(BaseModel):
     queued_at: AwareDatetime
 
 
+class AccountType(StrEnum):
+    workspace = "workspace"
+    user = "user"
+
+
+class Scope(StrEnum):
+    common = "common"
+    employee_specific = "employee_specific"
+
+
+class SourceType(StrEnum):
+    manual = "manual"
+    ai_extracted = "ai_extracted"
+    import_ = "import"
+    mem0 = "mem0"
+
+
+class KnowledgeCreate(BaseModel):
+    account_id: UUID
+    account_type: AccountType
+    scope: Scope
+    category: Annotated[str, Field(max_length=100, min_length=1)]
+    title: Annotated[str, Field(max_length=200, min_length=1)]
+    content_md: Annotated[str, Field(min_length=1)]
+    tags: Annotated[list[str] | None, Field(max_length=50)] = None
+    owner_employee_id: UUID | None = None
+    source_type: SourceType | None = "manual"
+    source_project_id: UUID | None = None
+    confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = 0.5
+    is_anonymized: bool | None = False
+
+
+class KnowledgeUpdate(BaseModel):
+    title: Annotated[str | None, Field(max_length=200, min_length=1)] = None
+    content_md: Annotated[str | None, Field(min_length=1)] = None
+    category: Annotated[str | None, Field(max_length=100, min_length=1)] = None
+    tags: Annotated[list[str] | None, Field(max_length=50)] = None
+    confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    is_anonymized: bool | None = None
+
+
+class Knowledge(BaseModel):
+    id: UUID
+    account_id: UUID
+    account_type: AccountType
+    scope: Scope
+    owner_employee_id: UUID | None = None
+    category: str
+    title: str
+    content_md: str
+    tags: list[str]
+    source_type: str
+    source_project_id: UUID | None = None
+    confidence_score: float
+    usage_count: int
+    is_anonymized: bool
+    approved_by_user_id: UUID | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+
+
+class KnowledgeSearchRequest(BaseModel):
+    query: Annotated[str, Field(min_length=1)]
+    limit: Annotated[int | None, Field(ge=1, le=50)] = 10
+    account_id: UUID | None = None
+
+
+class KnowledgeSearchHit(BaseModel):
+    knowledge: Knowledge
+    score: float
+    """
+    cosine similarity (0..1)
+    """
+
+
+class KnowledgeSearchResponse(BaseModel):
+    query: str
+    hits: list[KnowledgeSearchHit]
+    total: int
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float

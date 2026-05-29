@@ -4051,6 +4051,323 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ナレッジ一覧 */
+        get: {
+            parameters: {
+                query?: {
+                    account_id?: string;
+                    account_type?: "workspace" | "user";
+                    scope?: "common" | "employee_specific";
+                    category?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ナレッジ一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Knowledge"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** ナレッジ作成（embedding 自動生成） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KnowledgeCreate"];
+                };
+            };
+            responses: {
+                /** @description 作成完了 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Knowledge"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗（scope と owner_employee_id 整合性等） */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ナレッジ semantic 検索（Voyage embedding + cosine similarity） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KnowledgeSearchRequest"];
+                };
+            };
+            responses: {
+                /** @description 検索結果（cosine 類似度降順） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeSearchResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description query 空 / limit 範囲外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/{knowledge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ナレッジ取得 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    knowledge_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取得 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Knowledge"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** ナレッジ削除（論理） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    knowledge_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除完了 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** ナレッジ更新（content_md 変更時は embedding 再生成） */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    knowledge_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KnowledgeUpdate"];
+                };
+            };
+            responses: {
+                /** @description 更新完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Knowledge"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -6316,6 +6633,86 @@ export interface components {
             status: "queued" | "already_parsed";
             /** Format: date-time */
             queued_at: string;
+        };
+        KnowledgeCreate: {
+            /** Format: uuid */
+            account_id: string;
+            /** @enum {string} */
+            account_type: "workspace" | "user";
+            /** @enum {string} */
+            scope: "common" | "employee_specific";
+            category: string;
+            title: string;
+            content_md: string;
+            tags?: string[];
+            /** Format: uuid */
+            owner_employee_id?: string | null;
+            /**
+             * @default manual
+             * @enum {string}
+             */
+            source_type: "manual" | "ai_extracted" | "import" | "mem0";
+            /** Format: uuid */
+            source_project_id?: string | null;
+            /** @default 0.5 */
+            confidence_score: number;
+            /** @default false */
+            is_anonymized: boolean;
+        };
+        KnowledgeUpdate: {
+            title?: string | null;
+            content_md?: string | null;
+            category?: string | null;
+            tags?: string[] | null;
+            confidence_score?: number | null;
+            is_anonymized?: boolean | null;
+        };
+        Knowledge: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            account_id: string;
+            /** @enum {string} */
+            account_type: "workspace" | "user";
+            /** @enum {string} */
+            scope: "common" | "employee_specific";
+            /** Format: uuid */
+            owner_employee_id?: string | null;
+            category: string;
+            title: string;
+            content_md: string;
+            tags: string[];
+            source_type: string;
+            /** Format: uuid */
+            source_project_id?: string | null;
+            confidence_score: number;
+            usage_count: number;
+            is_anonymized: boolean;
+            /** Format: uuid */
+            approved_by_user_id?: string | null;
+            /** Format: date-time */
+            deleted_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        KnowledgeSearchRequest: {
+            query: string;
+            /** @default 10 */
+            limit: number;
+            /** Format: uuid */
+            account_id?: string | null;
+        };
+        KnowledgeSearchHit: {
+            knowledge: components["schemas"]["Knowledge"];
+            /** @description cosine similarity (0..1) */
+            score: number;
+        };
+        KnowledgeSearchResponse: {
+            query: string;
+            hits: components["schemas"]["KnowledgeSearchHit"][];
+            total: number;
         };
         KanbanCompleteRequest: {
             /** Format: uuid */

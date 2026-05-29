@@ -1,0 +1,138 @@
+"""ナレッジ (knowledge_nodes) ルータ (T-A-36)。
+
+S-K01 ナレッジベース画面用。E-018 knowledge_nodes (polymorphic account)
+の CRUD + semantic 検索 (Voyage AI embedding + pgvector cosine)。
+認証 (401) + RLS (T-D-18, R-T08 致命級) + 404/403。
+
+R-T08: workspace A の user が workspace B の knowledge を query しても
+RLS で 0 rows (cross-workspace skip) を必ず実 PostgREST + JWT で検証。
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.schemas.knowledge import (
+    KnowledgeAccountType,
+    KnowledgeCreate,
+    KnowledgeResponse,
+    KnowledgeScope,
+    KnowledgeSearchResponse,
+    KnowledgeUpdate,
+)
+from src.services import knowledge as svc
+
+router = APIRouter(tags=["knowledge"])
+
+SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
+UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+@router.get("/knowledge", summary="ナレッジ一覧")
+async def list_knowledge(
+    session: SessionDep,
+    _user: UserDep,
+    account_id: Annotated[str | None, Query()] = None,
+    account_type: Annotated[KnowledgeAccountType | None, Query()] = None,
+    scope: Annotated[KnowledgeScope | None, Query()] = None,
+    category: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> dict[str, list[KnowledgeResponse]]:
+    return {
+        "data": await svc.list_knowledge(
+            session,
+            account_id=account_id,
+            account_type=account_type,
+            scope=scope,
+            category=category,
+            limit=limit,
+        )
+    }
+
+
+@router.post("/knowledge", status_code=status.HTTP_201_CREATED, summary="ナレッジ作成")
+async def create_knowledge(
+    body: KnowledgeCreate, session: SessionDep, user: UserDep
+) -> dict[str, KnowledgeResponse]:
+    if body.scope == "employee_specific" and body.owner_employee_id is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "scope=employee_specific requires owner_employee_id",
+        )
+    if body.scope == "common" and body.owner_employee_id is not None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "scope=common must not set owner_employee_id",
+        )
+    created = await svc.create_knowledge(session, actor_id=user.id, data=body)
+    if created is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create knowledge")
+    return {"data": created}
+
+
+@router.post(
+    "/knowledge/search",
+    summary="ナレッジ semantic 検索 (Voyage embedding + cosine)",
+)
+async def search_knowledge(
+    body: dict[str, object],
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, KnowledgeSearchResponse]:
+    query = body.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "query (non-empty string) required"
+        )
+    limit_raw = body.get("limit", 10)
+    if not isinstance(limit_raw, int) or limit_raw < 1 or limit_raw > 50:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "limit must be int in [1, 50]")
+    account_id = body.get("account_id")
+    account_id_str: str | None = account_id if isinstance(account_id, str) else None
+    result = await svc.search_knowledge(
+        session, query=query, limit=limit_raw, account_id=account_id_str
+    )
+    return {"data": result}
+
+
+@router.get("/knowledge/{knowledge_id}", summary="ナレッジ取得")
+async def get_knowledge(
+    knowledge_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, KnowledgeResponse]:
+    k = await svc.get_knowledge(session, knowledge_id)
+    if k is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+    return {"data": k}
+
+
+@router.patch("/knowledge/{knowledge_id}", summary="ナレッジ更新")
+async def update_knowledge(
+    knowledge_id: str,
+    body: KnowledgeUpdate,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, KnowledgeResponse]:
+    if await svc.get_knowledge(session, knowledge_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+    updated = await svc.update_knowledge(
+        session, actor_id=user.id, knowledge_id=knowledge_id, data=body
+    )
+    if updated is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update knowledge")
+    return {"data": updated}
+
+
+@router.delete(
+    "/knowledge/{knowledge_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="ナレッジ削除（論理）",
+)
+async def delete_knowledge(knowledge_id: str, session: SessionDep, user: UserDep) -> None:
+    if await svc.get_knowledge(session, knowledge_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+    if not await svc.delete_knowledge(session, actor_id=user.id, knowledge_id=knowledge_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete knowledge")
