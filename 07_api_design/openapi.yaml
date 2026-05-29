@@ -904,6 +904,31 @@ components:
           items: { type: integer }
         evaluated_at: { type: string, format: date-time }
 
+    ExecLogMeta:
+      type: object
+      required: [execution_id, task_id, status, started_at, retry_count]
+      properties:
+        execution_id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        status: { type: string, enum: [running, succeeded, failed, cancelled, timeout] }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        logs_storage_path: { type: string, nullable: true }
+        error_summary: { type: string, nullable: true }
+        retry_count: { type: integer, minimum: 0 }
+
+    ExecLogEvent:
+      type: object
+      required: [type, execution_id, timestamp]
+      properties:
+        type: { type: string, enum: [snapshot, status_change, end, error] }
+        execution_id: { type: string, format: uuid }
+        status: { type: string, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        error_summary: { type: string, nullable: true }
+        logs_storage_path: { type: string, nullable: true }
+        timestamp: { type: string, format: date-time }
+
     ChatStreamRequest:
       type: object
       required: [user_message]
@@ -3419,6 +3444,52 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/BridgeStatus' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /executions/{execution_id}/logs:
+    get:
+      tags: [exec-logs]
+      summary: 実行ログメタデータ取得（non-streaming）
+      x-implementation-path: apps/api/src/routes/exec_logs/__init__.py::get_exec_logs
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行ログメタデータ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ExecLogMeta' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /executions/{execution_id}/logs/stream:
+    get:
+      tags: [exec-logs]
+      summary: 実行ログ SSE ストリーミング（status 変化を polling 配信）
+      x-implementation-path: apps/api/src/routes/exec_logs/__init__.py::stream_exec_logs
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      x-rate-limit: 60/min/user
+      parameters:
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: poll_interval_seconds, in: query, required: false, schema: { type: number, minimum: 0.1, maximum: 30, default: 2 } }
+        - { name: max_duration_seconds, in: query, required: false, schema: { type: number, minimum: 1, maximum: 600, default: 60 } }
+      responses:
+        '200':
+          description: SSE stream (text/event-stream)。各 event は ExecLogEvent JSON。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  Server-Sent Events. data: <json>\n\n の繰り返し。
+                  type は snapshot / status_change / end / error。
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: poll_interval / max_duration 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # comments (成果物 / モック / タスク / 受入条件へのスレッド型コメント)

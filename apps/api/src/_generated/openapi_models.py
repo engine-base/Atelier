@@ -914,6 +914,34 @@ class BridgeStatus(BaseModel):
     evaluated_at: AwareDatetime
 
 
+class ExecLogMeta(BaseModel):
+    execution_id: UUID
+    task_id: UUID
+    status: Status4
+    started_at: AwareDatetime
+    completed_at: AwareDatetime | None = None
+    logs_storage_path: str | None = None
+    error_summary: str | None = None
+    retry_count: Annotated[int, Field(ge=0)]
+
+
+class Type5(StrEnum):
+    snapshot = "snapshot"
+    status_change = "status_change"
+    end = "end"
+    error = "error"
+
+
+class ExecLogEvent(BaseModel):
+    type: Type5
+    execution_id: UUID
+    status: str | None = None
+    completed_at: AwareDatetime | None = None
+    error_summary: str | None = None
+    logs_storage_path: str | None = None
+    timestamp: AwareDatetime
+
+
 class ChatStreamRequest(BaseModel):
     user_message: Annotated[str, Field(max_length=20000, min_length=1)]
     use_knowledge_rag: bool | None = True
@@ -1109,7 +1137,7 @@ class ByokKey(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Type5(StrEnum):
+class Type6(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
     knowledge_write = "knowledge_write"
@@ -1117,7 +1145,7 @@ class Type5(StrEnum):
     scope_change = "scope_change"
 
 
-class Status5(StrEnum):
+class Status6(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1130,12 +1158,12 @@ class ApprovalInboxEntry(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    type: Type5 | None = None
+    type: Type6 | None = None
     target_type: str | None = None
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status5 | None = None
+    status: Status6 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
