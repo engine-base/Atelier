@@ -4176,6 +4176,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mcp-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** MCP トークン一覧 */
+        get: {
+            parameters: {
+                query?: {
+                    workspace_id?: string;
+                    include_revoked?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["McpToken"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** MCP トークン発行（plaintext を 1 度だけ返す） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        workspace_id: string;
+                        name: string;
+                        scopes?: string[];
+                        /** Format: date-time */
+                        expires_at?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 発行成功 (plaintext 含む) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["McpTokenCreateResponse"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp-tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        /** MCP トークン詳細 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 詳細 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["McpToken"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** MCP トークン取消（owner のみ / 論理削除 revoked_at セット） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取消成功 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description owner 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/approval-inbox": {
         parameters: {
             query?: never;
@@ -4969,6 +5141,28 @@ export interface components {
                 files_changed?: string[];
                 retry_count: number;
             };
+        };
+        McpToken: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            workspace_id?: string;
+            name?: string;
+            scopes?: string[];
+            /** Format: date-time */
+            expires_at?: string | null;
+            /** Format: date-time */
+            revoked_at?: string | null;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        McpTokenCreateResponse: components["schemas"]["McpToken"] & {
+            /** @description plaintext token (作成直後の 1 度のみ返す。以降は再表示不可) */
+            token: string;
         };
         /** @description 承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。 */
         ApprovalInboxEntry: {

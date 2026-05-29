@@ -622,6 +622,32 @@ components:
             retry_count: { type: integer }
 
     # ========================================================================
+    # MCP トークン管理 (T-A-08)
+    # ========================================================================
+    McpToken:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        name: { type: string }
+        scopes: { type: array, items: { type: string } }
+        expires_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    McpTokenCreateResponse:
+      allOf:
+        - $ref: '#/components/schemas/McpToken'
+        - type: object
+          required: [token]
+          properties:
+            token:
+              type: string
+              description: "plaintext token (作成直後の 1 度のみ返す。以降は再表示不可)"
+
+    # ========================================================================
     # 承認待ち
     # ========================================================================
     ApprovalInboxEntry:
@@ -2589,6 +2615,83 @@ paths:
                   data: { $ref: '#/components/schemas/AdminTemplate' }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # MCP トークン管理 (T-A-08)
+  # ==========================================================================
+  /mcp-tokens:
+    get:
+      tags: [mcp-tokens]
+      summary: MCP トークン一覧
+      x-implementation-path: apps/api/src/routes/mcp_tokens/__init__.py::list_tokens
+      x-screen-ids: []
+      parameters:
+        - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
+        - { name: include_revoked, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/McpToken' } }
+    post:
+      tags: [mcp-tokens]
+      summary: MCP トークン発行（plaintext を 1 度だけ返す）
+      x-implementation-path: apps/api/src/routes/mcp_tokens/__init__.py::create_token
+      x-screen-ids: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id, name]
+              properties:
+                workspace_id: { type: string, format: uuid }
+                name: { type: string, minLength: 1, maxLength: 100 }
+                scopes: { type: array, items: { type: string } }
+                expires_at: { type: string, format: date-time }
+      responses:
+        '201':
+          description: 発行成功 (plaintext 含む)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/McpTokenCreateResponse' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mcp-tokens/{token_id}:
+    parameters:
+      - { name: token_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mcp-tokens]
+      summary: MCP トークン詳細
+      x-implementation-path: apps/api/src/routes/mcp_tokens/__init__.py::get_token
+      x-screen-ids: []
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/McpToken' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [mcp-tokens]
+      summary: MCP トークン取消（owner のみ / 論理削除 revoked_at セット）
+      x-implementation-path: apps/api/src/routes/mcp_tokens/__init__.py::revoke_token
+      x-screen-ids: []
+      responses:
+        '204': { description: 取消成功 }
+        '403': { description: owner 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # 承認待ち
