@@ -153,22 +153,6 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
-    SignupRequest:
-      type: object
-      required: [email, password, display_name, consents]
-      properties:
-        email: { type: string, format: email, maxLength: 254 }
-        password: { type: string, minLength: 8, maxLength: 128 }
-        display_name: { type: string, maxLength: 50 }
-        consents:
-          type: object
-          required: [terms, privacy, cross_border]
-          properties:
-            terms: { type: boolean }
-            privacy: { type: boolean }
-            cross_border: { type: boolean }
-            marketing: { type: boolean }
-
     SigninRequest:
       type: object
       required: [email, password]
@@ -929,6 +913,39 @@ components:
         logs_storage_path: { type: string, nullable: true }
         timestamp: { type: string, format: date-time }
 
+    ConsentEntry:
+      type: object
+      required: [type, version, accepted]
+      properties:
+        type:
+          type: string
+          enum: [terms_of_service, privacy_policy, data_residency, ai_training_optin]
+        version: { type: string, minLength: 1, maxLength: 50 }
+        accepted: { type: boolean }
+
+    SignupRequest:
+      type: object
+      required: [email, password, display_name, consents]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 128 }
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+        consents:
+          type: array
+          minItems: 2
+          maxItems: 4
+          items: { $ref: '#/components/schemas/ConsentEntry' }
+
+    SignupResponse:
+      type: object
+      required: [user_id, email, display_name, consents_recorded, created_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string }
+        consents_recorded: { type: integer, minimum: 2, maximum: 4 }
+        created_at: { type: string, format: date-time }
+
     ChatStreamRequest:
       type: object
       required: [user_message]
@@ -1204,6 +1221,33 @@ components:
 
 paths:
   # ==========================================================================
+  # auth (T-A-01〜05: signup / signin / Magic Link / リセット / 退会)
+  # ==========================================================================
+  /auth/signup:
+    post:
+      tags: [auth]
+      summary: ユーザー登録 + 同意取得（F-001 / F-LEGAL-004）
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::signup
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001, F-LEGAL-004]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: 登録成功（JWT は含まない、signin で発行）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SignupResponse' }
+        '409': { description: email 重複, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗 / 必須 consent 不足, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
   # impact (F-IMP01 影響範囲解析 / NetworkX)
   # ==========================================================================
   /impact/tasks/{task_id}:
@@ -1294,45 +1338,6 @@ paths:
   # ==========================================================================
   # auth (11 endpoints)
   # ==========================================================================
-  /auth/signup:
-    post:
-      tags: [auth]
-      summary: 新規登録 + 同意取得
-      security: []
-      x-implementation-path: apps/api/src/routes/auth.py::signup
-      x-screen-ids: [S-A01]
-      x-rate-limit: 5/min/ip
-      x-feature-ids: [F-001, F-LEGAL-004]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SignupRequest' }
-      responses:
-        '201':
-          description: 登録成功
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data: { $ref: '#/components/schemas/AuthResponse' }
-        '409':
-          description: メール重複 or 削除猶予中
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '422':
-          description: バリデーション失敗 or 同意未取得
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '429':
-          description: レート上限
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
   /auth/signin:
     post:
       tags: [auth]
