@@ -847,6 +847,25 @@ class KnowledgeSearchResponse(BaseModel):
     total: int
 
 
+class ChatStreamRequest(BaseModel):
+    user_message: Annotated[str, Field(max_length=20000, min_length=1)]
+    use_knowledge_rag: bool | None = True
+    include_history: Annotated[int | None, Field(ge=0, le=50)] = 10
+    rag_account_id: UUID | None = None
+
+
+class ChatContextPreviewRequest(BaseModel):
+    user_message: Annotated[str, Field(max_length=20000, min_length=1)]
+    include_history: Annotated[int | None, Field(ge=0, le=50)] = 10
+    rag_account_id: UUID | None = None
+
+
+class ChatContextPreviewResponse(BaseModel):
+    system_prompt: str
+    history_count: Annotated[int, Field(ge=0)]
+    rag_hit_ids: list[UUID]
+
+
 class Metadata(BaseModel):
     score: Annotated[float, Field(ge=0.0, le=1.0)]
     ac_pass_rate: float
