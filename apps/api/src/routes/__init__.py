@@ -14,6 +14,7 @@ from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
 from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
+from src.routes.cron import router as cron_router
 from src.routes.impact import router as impact_router
 from src.routes.mcp_tokens import router as mcp_tokens_router
 from src.routes.mocks import router as mocks_router
@@ -43,5 +44,6 @@ api_router.include_router(impact_router)
 api_router.include_router(approvals_router)
 api_router.include_router(mcp_tokens_router)
 api_router.include_router(byok_keys_router)
+api_router.include_router(cron_router)
 
 __all__ = ["api_router"]

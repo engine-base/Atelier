@@ -546,6 +546,21 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    CronSchedule:
+      type: object
+      description: cron スケジュール (T-A-40)。project-scoped。Inngest 連動は別途。
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        name: { type: string }
+        cron_expression: { type: string }
+        target_action: { type: string, enum: [task_replay, knowledge_organize, industry_extract, report_summary, daily_digest, weekly_burndown] }
+        target_payload: { type: object }
+        enabled: { type: boolean }
+        next_run_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     LegalDocument:
       type: object
       properties:
@@ -2267,6 +2282,113 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/WorkflowOutput' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # cron スケジュール (T-A-40)
+  # ==========================================================================
+  /cron-schedules:
+    get:
+      tags: [cron-schedules]
+      summary: cron スケジュール一覧
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::list_schedules
+      x-screen-ids: []
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: enabled, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/CronSchedule' } }
+    post:
+      tags: [cron-schedules]
+      summary: cron スケジュール作成
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::create_schedule
+      x-screen-ids: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, name, cron_expression, target_action]
+              properties:
+                project_id: { type: string, format: uuid }
+                name: { type: string, minLength: 1, maxLength: 100 }
+                cron_expression: { type: string, minLength: 1, maxLength: 100 }
+                target_action: { type: string, enum: [task_replay, knowledge_organize, industry_extract, report_summary, daily_digest, weekly_burndown] }
+                target_payload: { type: object }
+                enabled: { type: boolean, default: true }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CronSchedule' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /cron-schedules/{schedule_id}:
+    parameters:
+      - { name: schedule_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [cron-schedules]
+      summary: cron スケジュール詳細
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::get_schedule
+      x-screen-ids: []
+      responses:
+        '200':
+          description: 詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CronSchedule' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [cron-schedules]
+      summary: cron スケジュール更新
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::update_schedule
+      x-screen-ids: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 100 }
+                cron_expression: { type: string, minLength: 1, maxLength: 100 }
+                target_action: { type: string, enum: [task_replay, knowledge_organize, industry_extract, report_summary, daily_digest, weekly_burndown] }
+                target_payload: { type: object }
+                enabled: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CronSchedule' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [cron-schedules]
+      summary: cron スケジュール削除 (owner のみ)
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::delete_schedule
+      x-screen-ids: []
+      responses:
+        '204': { description: 削除成功 }
+        '403': { description: owner 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
