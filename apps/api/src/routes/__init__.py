@@ -17,6 +17,7 @@ from src.routes.chat_sse import router as chat_sse_router
 from src.routes.circuit_breaker import router as circuit_breaker_router
 from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
+from src.routes.contract import router as contract_router
 from src.routes.cron import router as cron_router
 from src.routes.dispatcher import router as dispatcher_router
 from src.routes.exec_logs import router as exec_logs_router
@@ -63,5 +64,6 @@ api_router.include_router(circuit_breaker_router)
 api_router.include_router(executions_router)
 api_router.include_router(exec_logs_router)
 api_router.include_router(auth_router)
+api_router.include_router(contract_router)
 
 __all__ = ["api_router"]

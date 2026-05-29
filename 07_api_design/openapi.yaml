@@ -285,6 +285,49 @@ components:
         user_id: { type: string, format: uuid }
         restored_at: { type: string, format: date-time }
 
+    # T-A-45: API 契約凍結
+    FreezeRequest:
+      type: object
+      properties:
+        note: { type: string, nullable: true }
+
+    FreezeStatus:
+      type: object
+      required: [frozen, total_paths, total_methods, evaluated_at]
+      properties:
+        frozen: { type: boolean }
+        frozen_at: { type: string, format: date-time, nullable: true }
+        frozen_by_user_id: { type: string, format: uuid, nullable: true }
+        last_note: { type: string, nullable: true }
+        total_paths: { type: integer, minimum: 0 }
+        total_methods: { type: integer, minimum: 0 }
+        evaluated_at: { type: string, format: date-time }
+
+    ScreenCoverageEntry:
+      type: object
+      required: [screen_id, endpoint_count, endpoints]
+      properties:
+        screen_id: { type: string }
+        endpoint_count: { type: integer, minimum: 0 }
+        endpoints:
+          type: array
+          items: { type: string }
+
+    ScreenCoverageReport:
+      type: object
+      required: [total_screens, covered_screens, uncovered_screens, coverage_pct, entries, evaluated_at]
+      properties:
+        total_screens: { type: integer, minimum: 0 }
+        covered_screens: { type: integer, minimum: 0 }
+        uncovered_screens:
+          type: array
+          items: { type: string }
+        coverage_pct: { type: number, minimum: 0, maximum: 100 }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/ScreenCoverageEntry' }
+        evaluated_at: { type: string, format: date-time }
+
     # ========================================================================
     # workspace
     # ========================================================================
@@ -1713,6 +1756,128 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
 
   # ==========================================================================
+  # contract (T-A-45 API 契約凍結 + screen coverage 検証)
+  # ==========================================================================
+  /contract/screen-coverage:
+    get:
+      tags: [contract]
+      summary: screen × OpenAPI カバレッジレポート (Gate #9 と同条件)
+      x-implementation-path: apps/api/src/routes/contract/__init__.py::screen_coverage
+      x-screen-ids: [S-T05]
+      responses:
+        '200':
+          description: カバレッジ詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ScreenCoverageReport' }
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /contract/freeze-status:
+    get:
+      tags: [contract]
+      summary: API 契約凍結状態
+      x-implementation-path: apps/api/src/routes/contract/__init__.py::freeze_status
+      x-screen-ids: [S-T05]
+      responses:
+        '200':
+          description: 状態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/FreezeStatus' }
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /contract/freeze:
+    post:
+      tags: [contract]
+      summary: API 契約凍結 (admin, screen coverage 100% 必須)
+      x-implementation-path: apps/api/src/routes/contract/__init__.py::freeze
+      x-screen-ids: [S-T05]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FreezeRequest' }
+      responses:
+        '200':
+          description: 凍結完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/FreezeStatus' }
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: admin 権限なし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: 既に凍結済
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '412':
+          description: screen coverage 100% 未満
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /contract/unfreeze:
+    post:
+      tags: [contract]
+      summary: API 契約凍結解除 (admin)
+      x-implementation-path: apps/api/src/routes/contract/__init__.py::unfreeze
+      x-screen-ids: [S-T05]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FreezeRequest' }
+      responses:
+        '200':
+          description: 凍結解除完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/FreezeStatus' }
+        '401':
+          description: 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: admin 権限なし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: 凍結状態にない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ==========================================================================
   # workspaces (9 endpoints) - 1 つだけ完全定義、残りは構造同様
   # ==========================================================================
   /workspaces:
@@ -1957,7 +2122,7 @@ paths:
       tags: [projects]
       summary: プロジェクト詳細
       x-implementation-path: apps/api/src/routes/projects/__init__.py::get_project
-      x-screen-ids: [S-B02]
+      x-screen-ids: [S-B02, S-B03]
       parameters:
         - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -1974,7 +2139,7 @@ paths:
       tags: [projects]
       summary: プロジェクト更新
       x-implementation-path: apps/api/src/routes/projects/__init__.py::update_project
-      x-screen-ids: [S-B02]
+      x-screen-ids: [S-B02, S-B03]
       parameters:
         - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
       requestBody:
@@ -2944,7 +3109,7 @@ paths:
       tags: [workflow]
       summary: 工程一覧
       x-implementation-path: apps/api/src/routes/workflow/__init__.py::list_phases
-      x-screen-ids: [S-G01]
+      x-screen-ids: [S-G01, S-F01, S-F02]
       parameters:
         - { name: project_id, in: query, schema: { type: string, format: uuid } }
       responses:
@@ -2960,7 +3125,7 @@ paths:
       tags: [workflow]
       summary: 工程作成
       x-implementation-path: apps/api/src/routes/workflow/__init__.py::create_phase
-      x-screen-ids: [S-G01]
+      x-screen-ids: [S-G01, S-F02]
       requestBody:
         required: true
         content:
@@ -2990,7 +3155,7 @@ paths:
       tags: [workflow]
       summary: 工程詳細
       x-implementation-path: apps/api/src/routes/workflow/__init__.py::get_phase
-      x-screen-ids: [S-G01]
+      x-screen-ids: [S-G01, S-F01, S-F02]
       responses:
         '200':
           description: 詳細
@@ -3005,7 +3170,7 @@ paths:
       tags: [workflow]
       summary: 工程遷移・更新
       x-implementation-path: apps/api/src/routes/workflow/__init__.py::update_phase
-      x-screen-ids: [S-G01]
+      x-screen-ids: [S-G01, S-F02]
       requestBody:
         required: true
         content:
@@ -3031,7 +3196,7 @@ paths:
       tags: [workflow]
       summary: 工程削除
       x-implementation-path: apps/api/src/routes/workflow/__init__.py::delete_phase
-      x-screen-ids: [S-G01]
+      x-screen-ids: [S-G01, S-F02]
       responses:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -3084,7 +3249,7 @@ paths:
       tags: [cron-schedules]
       summary: cron スケジュール一覧
       x-implementation-path: apps/api/src/routes/cron/__init__.py::list_schedules
-      x-screen-ids: []
+      x-screen-ids: [S-O01]
       parameters:
         - { name: project_id, in: query, schema: { type: string, format: uuid } }
         - { name: enabled, in: query, schema: { type: boolean } }
@@ -3101,7 +3266,7 @@ paths:
       tags: [cron-schedules]
       summary: cron スケジュール作成
       x-implementation-path: apps/api/src/routes/cron/__init__.py::create_schedule
-      x-screen-ids: []
+      x-screen-ids: [S-O01]
       requestBody:
         required: true
         content:
@@ -3134,7 +3299,7 @@ paths:
       tags: [cron-schedules]
       summary: cron スケジュール詳細
       x-implementation-path: apps/api/src/routes/cron/__init__.py::get_schedule
-      x-screen-ids: []
+      x-screen-ids: [S-O01]
       responses:
         '200':
           description: 詳細
@@ -3149,7 +3314,7 @@ paths:
       tags: [cron-schedules]
       summary: cron スケジュール更新
       x-implementation-path: apps/api/src/routes/cron/__init__.py::update_schedule
-      x-screen-ids: []
+      x-screen-ids: [S-O01]
       requestBody:
         required: true
         content:
@@ -3177,7 +3342,7 @@ paths:
       tags: [cron-schedules]
       summary: cron スケジュール削除 (owner のみ)
       x-implementation-path: apps/api/src/routes/cron/__init__.py::delete_schedule
-      x-screen-ids: []
+      x-screen-ids: [S-O01]
       responses:
         '204': { description: 削除成功 }
         '403': { description: owner 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
@@ -4097,7 +4262,7 @@ paths:
       tags: [admin]
       summary: 監査ログ閲覧（運営 admin）
       x-implementation-path: apps/api/src/routes/admin/__init__.py::list_audit_logs
-      x-screen-ids: [S-AD01]
+      x-screen-ids: [S-AD01, S-T05]
       parameters:
         - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
         - { name: action, in: query, schema: { type: string } }
@@ -4119,7 +4284,7 @@ paths:
       tags: [admin]
       summary: 運営 admin dashboard 集計（所属 workspaces scope）
       x-implementation-path: apps/api/src/routes/admin/__init__.py::get_dashboard
-      x-screen-ids: [S-AD01]
+      x-screen-ids: [S-AD01, S-T01]
       responses:
         '200':
           description: 集計
@@ -4136,7 +4301,7 @@ paths:
       tags: [admin]
       summary: "運営 admin: メンバー横断一覧（所属 workspace scope）"
       x-implementation-path: apps/api/src/routes/admin/__init__.py::list_users
-      x-screen-ids: [S-AD01]
+      x-screen-ids: [S-AD01, S-T04]
       parameters:
         - { name: workspace_id, in: query, schema: { type: string, format: uuid } }
       responses:
@@ -4155,7 +4320,7 @@ paths:
       tags: [admin]
       summary: 運営 admin スキル一覧（全件 / read-only）
       x-implementation-path: apps/api/src/routes/admin/__init__.py::list_skills
-      x-screen-ids: [S-AD02]
+      x-screen-ids: [S-AD02, S-T02]
       parameters:
         - { name: include_inactive, in: query, schema: { type: boolean, default: true } }
         - { name: name, in: query, schema: { type: string } }
@@ -4177,7 +4342,7 @@ paths:
       tags: [admin]
       summary: 運営 admin スキル詳細
       x-implementation-path: apps/api/src/routes/admin/__init__.py::get_skill
-      x-screen-ids: [S-AD02]
+      x-screen-ids: [S-AD02, S-T02]
       responses:
         '200':
           description: スキル詳細
@@ -4195,7 +4360,7 @@ paths:
       tags: [admin]
       summary: 運営 admin AI 社員テンプレ一覧（全件 / read-only）
       x-implementation-path: apps/api/src/routes/admin/__init__.py::list_templates
-      x-screen-ids: [S-AD02]
+      x-screen-ids: [S-AD02, S-T03]
       parameters:
         - { name: include_inactive, in: query, schema: { type: boolean, default: true } }
         - { name: department, in: query, schema: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] } }
@@ -4217,7 +4382,7 @@ paths:
       tags: [admin]
       summary: 運営 admin AI 社員テンプレ詳細
       x-implementation-path: apps/api/src/routes/admin/__init__.py::get_template
-      x-screen-ids: [S-AD02]
+      x-screen-ids: [S-AD02, S-T03]
       responses:
         '200':
           description: テンプレ詳細
