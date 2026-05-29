@@ -9762,10 +9762,13 @@
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
-          "07_api_design/openapi.yaml"
+          "07_api_design/openapi.yaml",
+          "apps/api/pyproject.toml",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
-          "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-A-23.md",
           "07_api_design/openapi.yaml",
           "07_api_design/types.ts",

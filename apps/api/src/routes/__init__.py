@@ -12,6 +12,7 @@ from src.routes.ai_employees import router as ai_employees_router
 from src.routes.chat import router as chat_router
 from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
+from src.routes.impact import router as impact_router
 from src.routes.mocks import router as mocks_router
 from src.routes.outputs import router as outputs_router
 from src.routes.projects import router as projects_router
@@ -35,5 +36,6 @@ api_router.include_router(workflow_router)
 api_router.include_router(outputs_router)
 api_router.include_router(comments_router)
 api_router.include_router(public_router)
+api_router.include_router(impact_router)
 
 __all__ = ["api_router"]
