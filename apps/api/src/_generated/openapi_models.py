@@ -190,6 +190,35 @@ class AccountRestoreResponse(BaseModel):
     restored_at: AwareDatetime
 
 
+class FreezeRequest(BaseModel):
+    note: str | None = None
+
+
+class FreezeStatus(BaseModel):
+    frozen: bool
+    frozen_at: AwareDatetime | None = None
+    frozen_by_user_id: UUID | None = None
+    last_note: str | None = None
+    total_paths: Annotated[int, Field(ge=0)]
+    total_methods: Annotated[int, Field(ge=0)]
+    evaluated_at: AwareDatetime
+
+
+class ScreenCoverageEntry(BaseModel):
+    screen_id: str
+    endpoint_count: Annotated[int, Field(ge=0)]
+    endpoints: list[str]
+
+
+class ScreenCoverageReport(BaseModel):
+    total_screens: Annotated[int, Field(ge=0)]
+    covered_screens: Annotated[int, Field(ge=0)]
+    uncovered_screens: list[str]
+    coverage_pct: Annotated[float, Field(ge=0.0, le=100.0)]
+    entries: list[ScreenCoverageEntry]
+    evaluated_at: AwareDatetime
+
+
 class Plan(StrEnum):
     free = "free"
     pro = "pro"
