@@ -673,6 +673,57 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    MeetingCreate:
+      type: object
+      required: [project_id, type, storage_path, file_name, file_size_bytes, mime_type]
+      properties:
+        project_id: { type: string, format: uuid }
+        type: { type: string, enum: [audio, video, document] }
+        storage_path: { type: string, minLength: 1, maxLength: 500 }
+        file_name: { type: string, minLength: 1, maxLength: 255 }
+        file_size_bytes: { type: integer, minimum: 0 }
+        mime_type: { type: string, minLength: 1, maxLength: 200 }
+
+    Meeting:
+      type: object
+      required:
+        - id
+        - project_id
+        - uploaded_by_user_id
+        - type
+        - storage_path
+        - file_name
+        - file_size_bytes
+        - mime_type
+        - created_at
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        uploaded_by_user_id: { type: string, format: uuid }
+        type: { type: string, enum: [audio, video, document] }
+        storage_path: { type: string }
+        file_name: { type: string }
+        file_size_bytes: { type: integer }
+        mime_type: { type: string }
+        parsed_at: { type: string, format: date-time, nullable: true }
+        parse_result_path: { type: string, nullable: true }
+        parse_error: { type: string, nullable: true }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    MeetingTranscribeRequest:
+      type: object
+      properties:
+        force: { type: boolean, default: false }
+
+    MeetingTranscribeResponse:
+      type: object
+      required: [id, status, queued_at]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [queued, already_parsed] }
+        queued_at: { type: string, format: date-time }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -2526,6 +2577,111 @@ paths:
         - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '204': { description: 削除完了 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # meetings (議事録 / 商談アップロード + Whisper transcription — T-A-38)
+  # E-024 external_uploads を audio/video/document の議事録として扱う
+  # ==========================================================================
+  /meetings:
+    get:
+      tags: [meetings]
+      summary: 議事録アップロード一覧
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::list_meetings
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-M01]
+      parameters:
+        - { name: project_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: type, in: query, required: false, schema: { type: string, enum: [audio, video, document] } }
+      responses:
+        '200':
+          description: 議事録アップロード一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Meeting' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [meetings]
+      summary: 議事録アップロード登録（メタデータ）
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::create_meeting
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-M01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeetingCreate' }
+      responses:
+        '201':
+          description: アップロード登録完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Meeting' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}:
+    get:
+      tags: [meetings]
+      summary: 議事録取得
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::get_meeting
+      x-screen-ids: [S-M01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Meeting' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [meetings]
+      summary: 議事録削除（論理）
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::delete_meeting
+      x-screen-ids: [S-M01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除完了 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/transcribe:
+    post:
+      tags: [meetings]
+      summary: 議事録 Whisper transcription キュー登録
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::transcribe_meeting
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-M01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeetingTranscribeRequest' }
+      responses:
+        '202':
+          description: キュー登録完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MeetingTranscribeResponse' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
