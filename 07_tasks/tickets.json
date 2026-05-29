@@ -9898,7 +9898,8 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/tests/routes/test_tasks_play.py"
+          "apps/api/tests/routes/test_tasks_play.py",
+          "apps/api/tests/test_play_task_unit.py"
         ],
         "modify": [
           "apps/api/src/routes/__init__.py",
