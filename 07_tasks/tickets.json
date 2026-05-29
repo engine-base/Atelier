@@ -11342,9 +11342,10 @@
         "modify": [
           "apps/api/src/routes/__init__.py",
           "07_api_design/openapi.yaml",
-          "_generated/openapi_models.py",
+          "apps/api/src/_generated/openapi_models.py",
           "packages/api-types/src/openapi.ts",
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "supabase/migrations/t-f-40_rls.sql"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
