@@ -12,6 +12,7 @@ from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
 from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
+from src.routes.chat_sse import router as chat_sse_router
 from src.routes.client_invitations import router as client_invitations_router
 from src.routes.comments import router as comments_router
 from src.routes.cron import router as cron_router
@@ -51,5 +52,6 @@ api_router.include_router(cron_router)
 api_router.include_router(sales_docs_router)
 api_router.include_router(meetings_router)
 api_router.include_router(knowledge_router)
+api_router.include_router(chat_sse_router)
 
 __all__ = ["api_router"]

@@ -811,6 +811,33 @@ components:
         hits: { type: array, items: { $ref: '#/components/schemas/KnowledgeSearchHit' } }
         total: { type: integer }
 
+    ChatStreamRequest:
+      type: object
+      required: [user_message]
+      properties:
+        user_message: { type: string, minLength: 1, maxLength: 20000 }
+        use_knowledge_rag: { type: boolean, default: true }
+        include_history: { type: integer, minimum: 0, maximum: 50, default: 10 }
+        rag_account_id: { type: string, format: uuid, nullable: true }
+
+    ChatContextPreviewRequest:
+      type: object
+      required: [user_message]
+      properties:
+        user_message: { type: string, minLength: 1, maxLength: 20000 }
+        include_history: { type: integer, minimum: 0, maximum: 50, default: 10 }
+        rag_account_id: { type: string, format: uuid, nullable: true }
+
+    ChatContextPreviewResponse:
+      type: object
+      required: [system_prompt, history_count, rag_hit_ids]
+      properties:
+        system_prompt: { type: string }
+        history_count: { type: integer, minimum: 0 }
+        rag_hit_ids:
+          type: array
+          items: { type: string, format: uuid }
+
     # ========================================================================
     # Hermes 互換
     # ========================================================================
@@ -3181,6 +3208,59 @@ paths:
                   data: { $ref: '#/components/schemas/MessageFeedback' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/stream:
+    post:
+      tags: [chat-sse]
+      summary: チャット SSE ストリーミング（F-CTX01 文脈構築 + LLM）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::stream_chat_thread
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      x-rate-limit: 30/min/user
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatStreamRequest' }
+      responses:
+        '200':
+          description: SSE stream (text/event-stream). 各 event は ChatStreamChunk JSON。
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/context-preview:
+    post:
+      tags: [chat-sse]
+      summary: チャット F-CTX01 文脈構築プレビュー（LLM 呼出なし）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::preview_chat_context
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatContextPreviewRequest' }
+      responses:
+        '200':
+          description: 文脈構築結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatContextPreviewResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # admin (運営)
