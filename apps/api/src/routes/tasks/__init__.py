@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
+    PlayTaskRequest,
+    PlayTaskResponse,
     TaskBulkLifecycleRequest,
     TaskBulkLifecycleResponse,
     TaskCreate,
@@ -174,3 +176,35 @@ async def retry_task(
     if updated is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "task is not blocked (cannot retry)")
     return {"data": updated}
+
+
+# --------------------------------------------------------------------------- #
+# T-A-24: タスク再生 API (/tasks/{id}/play, dispatcher 連動)
+# openapi.yaml では path 変数を {id} で公開 (PlayTask 仕様)。
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/tasks/{id}/play",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="タスク再生（dispatcher へ）",
+)
+async def play_task(
+    id: str,
+    body: PlayTaskRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, PlayTaskResponse]:
+    result, payload = await svc.play_task(session, actor_id=user.id, task_id=id, data=body)
+    if result == svc.PlayResult.NOT_FOUND:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    if result == svc.PlayResult.INVALID_STATE:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "task is not in a playable lifecycle (ready / blocked)",
+        )
+    if result == svc.PlayResult.DEPS_UNMET:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "task dependencies are not all done (use force=true to override)",
+        )
+    assert payload is not None
+    return {"data": payload}

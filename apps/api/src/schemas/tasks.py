@@ -123,3 +123,30 @@ class TaskDecisionRequest(BaseModel):
     """承認 / 差戻 / 再試行の追加ノート (任意)。"""
 
     note: str | None = Field(default=None, max_length=2000)
+
+
+# --------------------------------------------------------------------------- #
+# T-A-24: タスク再生 (dispatcher 連動)
+# --------------------------------------------------------------------------- #
+class PlayTaskRequest(BaseModel):
+    """タスク再生リクエスト。force=True で依存未完でも強制起動。"""
+
+    force: bool = False
+
+
+class PlayTaskResponse(BaseModel):
+    """dispatcher 起動結果 (202 Accepted)。
+
+    task は lifecycle_stage=in_progress + dispatch_status=queued / spawning に
+    遷移し、E-013 task_executions に新規実行行 (status=running) が作成される。
+    実 Bridge worker spawn は F-BRIDGE01 ジョブが ingest する。並列上限超過時は
+    queue_position に位置を返す。
+    """
+
+    task_id: str
+    lifecycle_stage: str
+    dispatch_status: str
+    execution_id: str
+    worktree_path: str | None = None
+    bridge_command: str | None = None
+    queue_position: int | None = None
