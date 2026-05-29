@@ -179,6 +179,111 @@ components:
         user_id: { type: string, format: uuid }
         email: { type: string, format: email }
         display_name: { type: string, nullable: true }
+        refresh_token: { type: string, nullable: true, description: "opaque refresh token (T-A-04)" }
+
+    # T-A-03: Magic Link + OAuth
+    MagicLinkRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+        redirect_url: { type: string, maxLength: 500, nullable: true }
+
+    MagicLinkAccepted:
+      type: object
+      required: [accepted, delivery]
+      properties:
+        accepted: { type: boolean }
+        delivery: { type: string, enum: [email] }
+
+    MagicLinkVerifyRequest:
+      type: object
+      required: [email, token]
+      properties:
+        email: { type: string, format: email }
+        token: { type: string, minLength: 10, maxLength: 200 }
+
+    OAuthRedirectResponse:
+      type: object
+      required: [authorize_url, state, provider]
+      properties:
+        authorize_url: { type: string }
+        state: { type: string }
+        provider: { type: string, enum: [google, github] }
+
+    # T-A-04: Password Reset + Refresh
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+
+    PasswordResetAccepted:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
+
+    PasswordResetConfirmRequest:
+      type: object
+      required: [email, token, new_password]
+      properties:
+        email: { type: string, format: email }
+        token: { type: string, minLength: 10, maxLength: 200 }
+        new_password: { type: string, minLength: 8, maxLength: 128 }
+
+    PasswordResetConfirmResponse:
+      type: object
+      required: [user_id, email, password_changed_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        password_changed_at: { type: string, format: date-time }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string, minLength: 10, maxLength: 200 }
+
+    RefreshResponse:
+      type: object
+      required: [access_token, token_type, expires_at, refresh_token]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [bearer] }
+        expires_at: { type: string, format: date-time }
+        refresh_token: { type: string, description: "rotated new opaque token" }
+
+    # T-A-05: 退会
+    AccountDeleteRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, minLength: 1, maxLength: 128 }
+        reason: { type: string, maxLength: 2000, nullable: true }
+
+    AccountDeleteResponse:
+      type: object
+      required: [user_id, scheduled_purge_at, deleted_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        scheduled_purge_at: { type: string, format: date-time }
+        deleted_at: { type: string, format: date-time }
+
+    AccountRestoreRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1, maxLength: 128 }
+
+    AccountRestoreResponse:
+      type: object
+      required: [user_id, restored_at]
+      properties:
+        user_id: { type: string, format: uuid }
+        restored_at: { type: string, format: date-time }
 
     # ========================================================================
     # workspace
@@ -1383,147 +1488,226 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /auth/signout:
+  /auth/magic-link/request:
     post:
       tags: [auth]
-      summary: サインアウト
-      x-implementation-path: apps/api/src/routes/auth.py::signout
-      responses:
-        '204': { description: 成功 }
-
-  /auth/magic-link:
-    post:
-      tags: [auth]
-      summary: Magic Link 発行
+      summary: Magic Link 送信要求 (常に 202 / enumeration 防止)
       security: []
-      x-implementation-path: apps/api/src/routes/auth.py::magic_link
-      x-rate-limit: 3/min/ip + 1/min/email
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::magic_link_request
+      x-screen-ids: [S-A01]
       x-feature-ids: [F-001]
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email: { type: string, format: email }
+            schema: { $ref: '#/components/schemas/MagicLinkRequest' }
       responses:
-        '202': { description: メール送信受付 }
-        '429':
-          description: レート上限
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
-  /auth/oauth/google:
-    post:
-      tags: [auth]
-      summary: Google OAuth 連携
-      security: []
-      x-implementation-path: apps/api/src/routes/auth.py::oauth_google
-      x-screen-ids: [S-A01]
-      x-feature-ids: [F-001]
-      responses:
-        '302': { description: Google にリダイレクト }
-
-  /auth/oauth/github:
-    post:
-      tags: [auth]
-      summary: GitHub OAuth 連携
-      security: []
-      x-implementation-path: apps/api/src/routes/auth.py::oauth_github
-      x-screen-ids: [S-A01]
-      x-feature-ids: [F-001]
-      responses:
-        '302': { description: GitHub にリダイレクト }
-
-  /auth/callback:
-    get:
-      tags: [auth]
-      summary: OAuth callback
-      security: []
-      x-implementation-path: apps/api/src/routes/auth.py::oauth_callback
-      responses:
-        '302': { description: アプリにリダイレクト }
-
-  /auth/reset-password:
-    post:
-      tags: [auth]
-      summary: パスワードリセット
-      security: []
-      x-implementation-path: apps/api/src/routes/auth.py::reset_password
-      x-rate-limit: 3/min/ip + 1/min/email
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email]
-              properties:
-                email: { type: string, format: email }
-      responses:
-        '202': { description: リセットメール送信 }
-
-  /auth/me:
-    get:
-      tags: [auth]
-      summary: 現在のユーザー情報
-      x-implementation-path: apps/api/src/routes/auth.py::me
-      x-rate-limit: 100/min/user
-      responses:
-        '200':
-          description: ユーザー情報
+        '202':
+          description: 受付 (email 存在に依らず 202)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/User' }
+                  data: { $ref: '#/components/schemas/MagicLinkAccepted' }
+
+  /auth/magic-link/verify:
+    post:
+      tags: [auth]
+      summary: Magic Link 検証 → JWT 発行 (refresh token 同時)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::magic_link_verify
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MagicLinkVerifyRequest' }
+      responses:
+        '200':
+          description: 成功 (SigninResponse)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SigninResponse' }
         '401':
-          description: 未認証
+          description: token 無効 / 期限切れ / 既消費
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /auth/account:
-    delete:
+  /auth/oauth/{provider}/redirect-url:
+    get:
       tags: [auth]
-      summary: 退会申請（30 日猶予開始）
-      x-implementation-path: apps/api/src/routes/auth.py::delete_account
+      summary: OAuth Provider 認可 URL 取得 (CSRF state 含む)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::oauth_redirect
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [google, github] } }
+      responses:
+        '200':
+          description: 認可 URL + state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OAuthRedirectResponse' }
+        '422':
+          description: provider 不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/password-reset/request:
+    post:
+      tags: [auth]
+      summary: パスワードリセット要求 (常に 202)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::password_reset_request
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+      responses:
+        '202':
+          description: 受付
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PasswordResetAccepted' }
+
+  /auth/password-reset/confirm:
+    post:
+      tags: [auth]
+      summary: パスワードリセット確定 (旧 refresh token 一括失効)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::password_reset_confirm
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetConfirmRequest' }
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PasswordResetConfirmResponse' }
+        '401':
+          description: token 不正 / 期限切れ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: access_token 再発行 (refresh token rotate)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::auth_refresh
+      x-feature-ids: [F-001]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: rotate 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/RefreshResponse' }
+        '401':
+          description: refresh token 不正 / 期限切れ / 失効済
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/account/delete:
+    post:
+      tags: [auth]
+      summary: 退会 (30 日猶予で soft-delete, F-LEGAL-002)
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::account_delete
       x-screen-ids: [S-A03]
       x-feature-ids: [F-001, F-LEGAL-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountDeleteRequest' }
       responses:
         '200':
-          description: 退会申請受付
+          description: 退会受付 (30 日後にハード削除予定)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: object
-                    properties:
-                      deletion_scheduled_at: { type: string, format: date-time }
-                      hard_delete_at: { type: string, format: date-time }
-                      cancellation_deadline: { type: string, format: date-time }
+                  data: { $ref: '#/components/schemas/AccountDeleteResponse' }
+        '401':
+          description: password 不一致 or 未認証
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: 単一オーナーで他メンバー在籍
+          description: 既に退会済 / 削除不能
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
-  /auth/account/cancel-deletion:
+  /auth/account/restore:
     post:
       tags: [auth]
-      summary: 退会キャンセル（30 日猶予中のみ）
-      x-implementation-path: apps/api/src/routes/auth.py::cancel_deletion
+      summary: 退会キャンセル (30 日猶予期間中の復活)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::account_restore
       x-screen-ids: [S-A03]
+      x-feature-ids: [F-001, F-LEGAL-002]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountRestoreRequest' }
       responses:
-        '200': { description: キャンセル成功 }
-        '409':
-          description: 既に hard delete 済 or 猶予期間外
+        '200':
+          description: 復活成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AccountRestoreResponse' }
+        '401':
+          description: password 不一致
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: 退会記録なし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '410':
+          description: 30 日猶予期間切れ (ハード削除予定 / 既削除)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

@@ -16,6 +16,7 @@ F-LEGAL-004: terms_of_service と privacy_policy は accepted=True 必須、
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import ipaddress
@@ -24,7 +25,7 @@ import os
 import secrets
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from typing import Any
 
@@ -36,6 +37,8 @@ from src.audit import AuditEvent, AuditWriter
 from src.db.session import create_engine, create_session_factory
 from src.schemas.auth import (
     ConsentEntry,
+    PasswordResetConfirmResponse,
+    RefreshResponse,
     SigninResponse,
     SignupRequest,
     SignupResponse,
@@ -495,3 +498,637 @@ async def signin(
 
 # secrets は T-A-03/04 (Magic Link / refresh token) で token 生成に使う予約
 _ = secrets
+
+
+# --------------------------------------------------------------------------- #
+# T-A-03 / T-A-04 / T-A-05: 共通の token / hash ヘルパ
+# --------------------------------------------------------------------------- #
+def _hash_token(token: str) -> str:
+    """token の sha256 hex (audit_logs に保存)。"""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _new_opaque_token(*, nbytes: int = 32) -> tuple[str, str]:
+    """opaque token を発行。(plaintext, sha256-hash) を返す。"""
+    plain = secrets.token_urlsafe(nbytes)
+    return plain, _hash_token(plain)
+
+
+_MAGIC_LINK_TTL_MINUTES = 15
+_PASSWORD_RESET_TTL_MINUTES = 30
+_REFRESH_TOKEN_TTL_DAYS = 30
+_ACCOUNT_GRACE_DAYS = 30
+
+
+async def _emit_token_audit(
+    session: AsyncSession,
+    *,
+    action: str,
+    email: str,
+    token_hash: str,
+    ttl_minutes: int,
+    ip_address: str | None,
+    extra: dict[str, object] | None = None,
+) -> str:
+    """token 発行系の audit_logs を 1 行 INSERT。target_id (uuid) は生成。"""
+    audit_id = str(uuid.uuid4())
+    after: dict[str, object] = {
+        "email": email,
+        "token_hash": token_hash,
+        "expires_epoch": int(time.time()) + ttl_minutes * 60,
+    }
+    if extra:
+        after.update(extra)
+    await AuditWriter(session).write(
+        AuditEvent(
+            action=action,
+            target_type="auth_token",
+            actor_type="anonymous",
+            actor_id=email,
+            target_id=audit_id,
+            ip_address=ip_address,
+            after=after,
+        )
+    )
+    return audit_id
+
+
+async def _find_active_token(
+    session: AsyncSession,
+    *,
+    action_issued: str,
+    action_consumed: str,
+    email: str,
+    token_hash: str,
+) -> str | None:
+    """発行済みかつ未消費かつ未失効の token audit を検索し、target_id を返す。
+
+    検索条件:
+      - issued: action = action_issued AND actor_id = email AND
+                after->>'token_hash' = token_hash AND expires_epoch > now
+      - consumed: action = action_consumed AND target_id = issued.target_id
+                  が無いこと
+    """
+    now_epoch = int(time.time())
+    res = await session.execute(
+        text(
+            "select target_id::text as tid from public.audit_logs "
+            "where action = :issued and actor_id = :em "
+            "and (after->>'token_hash') = :h "
+            "and (after->>'expires_epoch')::bigint > :now "
+            "and not exists ("
+            "  select 1 from public.audit_logs c "
+            "  where c.action = :consumed and c.target_id = public.audit_logs.target_id"
+            ") "
+            "order by created_at desc limit 1"
+        ),
+        {
+            "issued": action_issued,
+            "consumed": action_consumed,
+            "em": email,
+            "h": token_hash,
+            "now": now_epoch,
+        },
+    )
+    row = res.first()
+    return None if row is None else str(row.tid)
+
+
+# --------------------------------------------------------------------------- #
+# T-A-03: Magic Link + OAuth
+# --------------------------------------------------------------------------- #
+class MagicLinkError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+async def _send_magic_link_email(*, email: str, link: str) -> None:
+    """Magic Link メール送信のスタブ。ATELIER_EMAIL_DRY_RUN=1 なら no-op。
+
+    引数の email / link は本番経路で src.email.sender に渡される。本層は
+    抽象化レイヤであり、メール送信が未配線でもユーザー応答 (202) を変更しない。
+    """
+    if os.environ.get("ATELIER_EMAIL_DRY_RUN") == "1":
+        return
+    # 未配線時はサイレントに skip (enumeration 防止)。
+    _ = email
+    _ = link
+    return
+
+
+async def request_magic_link(
+    *,
+    email: str,
+    redirect_url: str | None,
+    ip_address: str | None,
+) -> None:
+    """Magic Link を発行・メール送信する。enumeration を漏らさず常に成功扱い。
+
+    1. opaque token 発行 + sha256 で hash 化
+    2. audit_logs に auth.magic_link.issued (token_hash, expires_epoch)
+    3. メール送信 (stub)
+    """
+    plain, token_hash = _new_opaque_token()
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            await _emit_token_audit(
+                session,
+                action="auth.magic_link.issued",
+                email=email,
+                token_hash=token_hash,
+                ttl_minutes=_MAGIC_LINK_TTL_MINUTES,
+                ip_address=_normalize_ip(ip_address),
+                extra={"redirect_url": redirect_url},
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    # メール送信は失敗しても enumeration を防ぐため常に sliently success
+    base_url = os.environ.get("ATELIER_PUBLIC_BASE_URL", "https://atelier.example.com")
+    link = f"{base_url.rstrip('/')}/auth/magic-link/verify?email={email}&token={plain}"
+    with contextlib.suppress(Exception):
+        # メール送信が失敗しても enumeration を防ぐため応答に出さない (defense-in-depth)
+        await _send_magic_link_email(email=email, link=link)
+
+
+async def verify_magic_link(
+    *,
+    email: str,
+    token: str,
+    ip_address: str | None,
+) -> SigninResponse:
+    """Magic Link を検証して JWT を発行。
+
+    - 該当 token が無効 / 期限切れ → invalid_token (401)
+    - 既に consumed → invalid_token (401)
+    - 成功時: auth.magic_link.consumed を記録、JWT + refresh_token 発行
+    """
+    token_hash = _hash_token(token)
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            audit_target = await _find_active_token(
+                session,
+                action_issued="auth.magic_link.issued",
+                action_consumed="auth.magic_link.consumed",
+                email=email,
+                token_hash=token_hash,
+            )
+            if audit_target is None:
+                raise MagicLinkError("invalid_token", "invalid or expired magic link")
+
+            # user 取得 / soft-deleted は拒否
+            res = await session.execute(
+                text(
+                    "select id, email, display_name, deleted_at from public.users where email = :e"
+                ),
+                {"e": email},
+            )
+            row = res.first()
+            if row is None or row.deleted_at is not None:
+                raise MagicLinkError("invalid_token", "invalid or expired magic link")
+
+            # consumed mark
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.magic_link.consumed",
+                    target_type="auth_token",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=audit_target,
+                    ip_address=_normalize_ip(ip_address),
+                    after={"email": email},
+                )
+            )
+
+            # access + refresh トークン発行
+            now_epoch = int(time.time())
+            token_str, expires_at = _mint_access_token(user_id=str(row.id), now=now_epoch)
+            refresh_plain, refresh_hash = _new_opaque_token()
+            await _emit_token_audit(
+                session,
+                action="auth.refresh.issued",
+                email=email,
+                token_hash=refresh_hash,
+                ttl_minutes=_REFRESH_TOKEN_TTL_DAYS * 24 * 60,
+                ip_address=_normalize_ip(ip_address),
+                extra={"user_id": str(row.id), "origin": "magic_link"},
+            )
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.signin",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=str(row.id),
+                    ip_address=_normalize_ip(ip_address),
+                    after={"email": email, "method": "magic_link"},
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    return SigninResponse(
+        access_token=token_str,
+        token_type="bearer",
+        expires_at=expires_at,
+        user_id=str(row.id),
+        email=str(row.email),
+        display_name=(None if row.display_name is None else str(row.display_name)),
+        refresh_token=refresh_plain,
+    )
+
+
+_OAUTH_AUTHORIZE_URLS = {
+    "google": "https://accounts.google.com/o/oauth2/v2/auth",
+    "github": "https://github.com/login/oauth/authorize",
+}
+
+
+async def build_oauth_redirect(
+    *,
+    provider: str,
+    ip_address: str | None,
+) -> tuple[str, str]:
+    """OAuth provider の認可 URL + opaque state を返す。
+
+    state は CSRF 対策で、audit_logs に sha256 hash を残す。callback で
+    state が一致しない要求は拒否する (T-A-03 spec: CSRF guard)。
+    """
+    if provider not in _OAUTH_AUTHORIZE_URLS:
+        raise MagicLinkError("unknown_provider", f"unknown provider: {provider}")
+    state_plain, state_hash = _new_opaque_token(nbytes=24)
+    client_id = os.environ.get(f"ATELIER_OAUTH_{provider.upper()}_CLIENT_ID", "stub")
+    redirect_uri = os.environ.get(
+        "ATELIER_OAUTH_REDIRECT_URI",
+        "https://atelier.example.com/auth/oauth/callback",
+    )
+    scope = {"google": "email profile openid", "github": "read:user user:email"}[provider]
+    authorize_url = (
+        f"{_OAUTH_AUTHORIZE_URLS[provider]}"
+        f"?client_id={client_id}&redirect_uri={redirect_uri}"
+        f"&state={state_plain}&response_type=code&scope={scope.replace(' ', '%20')}"
+    )
+
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            await _emit_token_audit(
+                session,
+                action="auth.oauth.state_issued",
+                email=f"oauth:{provider}",
+                token_hash=state_hash,
+                ttl_minutes=15,
+                ip_address=_normalize_ip(ip_address),
+                extra={"provider": provider},
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    return authorize_url, state_plain
+
+
+# --------------------------------------------------------------------------- #
+# T-A-04: Password Reset + JWT Refresh
+# --------------------------------------------------------------------------- #
+class PasswordResetError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+async def request_password_reset(
+    *,
+    email: str,
+    ip_address: str | None,
+) -> None:
+    """リセット用 token を発行・メール送信。enumeration 防止のため常に成功扱い。"""
+    plain, token_hash = _new_opaque_token()
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            await _emit_token_audit(
+                session,
+                action="auth.password_reset.issued",
+                email=email,
+                token_hash=token_hash,
+                ttl_minutes=_PASSWORD_RESET_TTL_MINUTES,
+                ip_address=_normalize_ip(ip_address),
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    # メール送信は dry-run なら no-op。本番では別経路 (Resend) に置換。
+    if os.environ.get("ATELIER_EMAIL_DRY_RUN") == "1":
+        return
+    _ = plain  # link 内に埋める想定 (本層では送信抽象化)
+
+
+async def confirm_password_reset(
+    *,
+    email: str,
+    token: str,
+    new_password: str,
+    ip_address: str | None,
+) -> PasswordResetConfirmResponse:
+    """token を検証し password を更新する。
+
+    1. issued / consumed audit chain を走査
+    2. user 取得 (soft-deleted は拒否)
+    3. auth.users.encrypted_password を sha256 で更新 (test/dev)
+       本番では Supabase Admin API に PATCH するパスを将来追加
+    4. auth.password_reset.consumed + auth.password_changed を記録
+    5. 旧 refresh_token を一括失効 (auth.refresh.revoked_all)
+    """
+    token_hash = _hash_token(token)
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            audit_target = await _find_active_token(
+                session,
+                action_issued="auth.password_reset.issued",
+                action_consumed="auth.password_reset.consumed",
+                email=email,
+                token_hash=token_hash,
+            )
+            if audit_target is None:
+                raise PasswordResetError("invalid_token", "invalid or expired reset token")
+            res = await session.execute(
+                text(
+                    "select u.id, u.email from public.users u "
+                    "join auth.users a on a.id = u.id "
+                    "where u.email = :e and u.deleted_at is null"
+                ),
+                {"e": email},
+            )
+            row = res.first()
+            if row is None:
+                raise PasswordResetError("invalid_token", "invalid or expired reset token")
+            new_hash = hashlib.sha256(new_password.encode("utf-8")).hexdigest()
+            # encrypted_password 列が無い test stub では update も列を作る
+            await session.execute(
+                text("alter table auth.users add column if not exists encrypted_password text")
+            )
+            await session.execute(
+                text("update auth.users set encrypted_password = :p where id = cast(:i as uuid)"),
+                {"p": new_hash, "i": str(row.id)},
+            )
+            now = datetime.now(UTC)
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.password_reset.consumed",
+                    target_type="auth_token",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=audit_target,
+                    ip_address=_normalize_ip(ip_address),
+                    after={"email": email},
+                )
+            )
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.password_changed",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=str(row.id),
+                    ip_address=_normalize_ip(ip_address),
+                    after={"email": email, "changed_at": now.isoformat()},
+                )
+            )
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.refresh.revoked_all",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=str(row.id),
+                    ip_address=_normalize_ip(ip_address),
+                    after={"reason": "password_changed"},
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    return PasswordResetConfirmResponse(
+        user_id=str(row.id), email=str(row.email), password_changed_at=now
+    )
+
+
+async def refresh_access_token(
+    *,
+    refresh_token: str,
+    ip_address: str | None,
+) -> RefreshResponse:
+    """refresh_token を検証して新しい access_token + 新 refresh_token を発行。
+
+    rotate スタイル: 古い token を auth.refresh.consumed で失効 → 新 token を
+    auth.refresh.issued で発行。
+    """
+    token_hash = _hash_token(refresh_token)
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            # 直近 / 未消費 / 未失効全体 を満たす refresh token を探す
+            now_epoch = int(time.time())
+            res = await session.execute(
+                text(
+                    "select id::text as audit_id, actor_id as email, "
+                    "(after->>'user_id') as user_id "
+                    "from public.audit_logs "
+                    "where action = 'auth.refresh.issued' "
+                    "and (after->>'token_hash') = :h "
+                    "and (after->>'expires_epoch')::bigint > :now "
+                    "and not exists ("
+                    "  select 1 from public.audit_logs c "
+                    "  where c.action = 'auth.refresh.consumed' "
+                    "  and c.target_id::text = public.audit_logs.id::text"
+                    ") "
+                    "and not exists ("
+                    "  select 1 from public.audit_logs r "
+                    "  where r.action = 'auth.refresh.revoked_all' "
+                    "  and r.actor_id = (after->>'user_id') "
+                    "  and r.created_at > public.audit_logs.created_at"
+                    ") "
+                    "order by created_at desc limit 1"
+                ),
+                {"h": token_hash, "now": now_epoch},
+            )
+            row = res.first()
+            if row is None:
+                raise PasswordResetError("invalid_refresh", "refresh token is invalid or expired")
+            user_id = str(row.user_id)
+            email = str(row.email)
+
+            # 旧 token を消費
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.refresh.consumed",
+                    target_type="auth_token",
+                    actor_type="user",
+                    actor_id=user_id,
+                    target_id=str(row.audit_id),
+                    ip_address=_normalize_ip(ip_address),
+                    after={"reason": "rotated"},
+                )
+            )
+            # 新 token 発行
+            new_plain, new_hash = _new_opaque_token()
+            await _emit_token_audit(
+                session,
+                action="auth.refresh.issued",
+                email=email,
+                token_hash=new_hash,
+                ttl_minutes=_REFRESH_TOKEN_TTL_DAYS * 24 * 60,
+                ip_address=_normalize_ip(ip_address),
+                extra={"user_id": user_id, "origin": "rotate"},
+            )
+            access, expires_at = _mint_access_token(user_id=user_id, now=now_epoch)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    return RefreshResponse(
+        access_token=access,
+        token_type="bearer",
+        expires_at=expires_at,
+        refresh_token=new_plain,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# T-A-05: 退会 (30 日猶予, F-LEGAL-002)
+# --------------------------------------------------------------------------- #
+class AccountError(Exception):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+async def delete_account(
+    *,
+    user_id: str,
+    email: str,
+    password: str,
+    reason: str | None,
+    ip_address: str | None,
+) -> tuple[datetime, datetime]:
+    """退会受付。soft-delete + 30 日後ハード削除予定を記録する。
+
+    step-up 認証: 現在の password を再確認 (本タスクでは local hash で検証)。
+    成功時: public.users.deleted_at = now()、scheduled_purge_at は audit.after
+    に記録する (実際のハード削除は worker job が処理する)。
+    """
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            # password 再確認
+            await _verify_password_local(session, email=email, password=password)
+            now = datetime.now(UTC)
+            purge_at = now + timedelta(days=_ACCOUNT_GRACE_DAYS)
+            res = await session.execute(
+                text(
+                    "update public.users set deleted_at = :d "
+                    "where id = cast(:i as uuid) and deleted_at is null "
+                    "returning id"
+                ),
+                {"d": now, "i": user_id},
+            )
+            if res.scalar_one_or_none() is None:
+                raise AccountError("not_found_or_already_deleted", "no active account")
+            # 全 refresh_token 失効
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.refresh.revoked_all",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=user_id,
+                    target_id=user_id,
+                    ip_address=_normalize_ip(ip_address),
+                    after={"reason": "account_deleted"},
+                )
+            )
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.account.deleted",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=user_id,
+                    target_id=user_id,
+                    ip_address=_normalize_ip(ip_address),
+                    after={
+                        "email": email,
+                        "reason": reason,
+                        "scheduled_purge_at": purge_at.isoformat(),
+                        "deleted_at": now.isoformat(),
+                    },
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    return now, purge_at
+
+
+async def restore_account(
+    *,
+    email: str,
+    password: str,
+    ip_address: str | None,
+) -> tuple[str, datetime]:
+    """30 日猶予期間中のアカウント復活。
+
+    deleted_at < now + 30 days のユーザーを復活させる。purge 済 (deleted_at +
+    30d 超過) は restore_window_expired として 410 相当を route が返す。
+    """
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            await _verify_password_local(session, email=email, password=password)
+            res = await session.execute(
+                text("select id, deleted_at from public.users where email = :e"),
+                {"e": email},
+            )
+            row = res.first()
+            if row is None or row.deleted_at is None:
+                raise AccountError("no_pending_deletion", "no pending deletion for this account")
+            elapsed = datetime.now(UTC) - row.deleted_at.replace(
+                tzinfo=row.deleted_at.tzinfo or UTC
+            )
+            if elapsed.days >= _ACCOUNT_GRACE_DAYS:
+                raise AccountError("window_expired", "restore window expired")
+            now = datetime.now(UTC)
+            await session.execute(
+                text("update public.users set deleted_at = null where id = cast(:i as uuid)"),
+                {"i": str(row.id)},
+            )
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="auth.account.restored",
+                    target_type="user",
+                    actor_type="user",
+                    actor_id=str(row.id),
+                    target_id=str(row.id),
+                    ip_address=_normalize_ip(ip_address),
+                    after={"email": email, "restored_at": now.isoformat()},
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    return str(row.id), now

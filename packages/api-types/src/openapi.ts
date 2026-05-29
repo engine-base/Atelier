@@ -317,7 +317,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/signout": {
+    "/auth/magic-link/request": {
         parameters: {
             query?: never;
             header?: never;
@@ -326,41 +326,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** サインアウト */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description 成功 */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/magic-link": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Magic Link 発行 */
+        /** Magic Link 送信要求 (常に 202 / enumeration 防止) */
         post: {
             parameters: {
                 query?: never;
@@ -370,27 +336,19 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                    };
+                    "application/json": components["schemas"]["MagicLinkRequest"];
                 };
             };
             responses: {
-                /** @description メール送信受付 */
+                /** @description 受付 (email 存在に依らず 202) */
                 202: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description レート上限 */
-                429: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Error"];
+                        "application/json": {
+                            data?: components["schemas"]["MagicLinkAccepted"];
+                        };
                     };
                 };
             };
@@ -401,7 +359,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/oauth/google": {
+    "/auth/magic-link/verify": {
         parameters: {
             query?: never;
             header?: never;
@@ -410,109 +368,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Google OAuth 連携 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Google にリダイレクト */
-                302: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/oauth/github": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** GitHub OAuth 連携 */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description GitHub にリダイレクト */
-                302: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/callback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** OAuth callback */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description アプリにリダイレクト */
-                302: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** パスワードリセット */
+        /** Magic Link 検証 → JWT 発行 (refresh token 同時) */
         post: {
             parameters: {
                 query?: never;
@@ -522,57 +378,22 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                    };
+                    "application/json": components["schemas"]["MagicLinkVerifyRequest"];
                 };
             };
             responses: {
-                /** @description リセットメール送信 */
-                202: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/me": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 現在のユーザー情報 */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description ユーザー情報 */
+                /** @description 成功 (SigninResponse) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data?: components["schemas"]["User"];
+                            data?: components["schemas"]["SigninResponse"];
                         };
                     };
                 };
-                /** @description 未認証 */
+                /** @description token 無効 / 期限切れ / 既消費 */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -583,6 +404,53 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/{provider}/redirect-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** OAuth Provider 認可 URL 取得 (CSRF state 含む) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    provider: "google" | "github";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 認可 URL + state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OAuthRedirectResponse"];
+                        };
+                    };
+                };
+                /** @description provider 不正 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         post?: never;
         delete?: never;
@@ -591,7 +459,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/account": {
+    "/auth/password-reset/request": {
         parameters: {
             query?: never;
             header?: never;
@@ -600,36 +468,185 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        /** 退会申請（30 日猶予開始） */
-        delete: {
+        /** パスワードリセット要求 (常に 202) */
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequest"];
+                };
+            };
             responses: {
-                /** @description 退会申請受付 */
+                /** @description 受付 */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PasswordResetAccepted"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** パスワードリセット確定 (旧 refresh token 一括失効) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+                };
+            };
+            responses: {
+                /** @description 成功 */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data?: {
-                                /** Format: date-time */
-                                deletion_scheduled_at?: string;
-                                /** Format: date-time */
-                                hard_delete_at?: string;
-                                /** Format: date-time */
-                                cancellation_deadline?: string;
-                            };
+                            data?: components["schemas"]["PasswordResetConfirmResponse"];
                         };
                     };
                 };
-                /** @description 単一オーナーで他メンバー在籍 */
+                /** @description token 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** access_token 再発行 (refresh token rotate) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RefreshRequest"];
+                };
+            };
+            responses: {
+                /** @description rotate 成功 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["RefreshResponse"];
+                        };
+                    };
+                };
+                /** @description refresh token 不正 / 期限切れ / 失効済 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/account/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 退会 (30 日猶予で soft-delete, F-LEGAL-002) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description 退会受付 (30 日後にハード削除予定) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AccountDeleteResponse"];
+                        };
+                    };
+                };
+                /** @description password 不一致 or 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 既に退会済 / 削除不能 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -640,12 +657,13 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/auth/account/cancel-deletion": {
+    "/auth/account/restore": {
         parameters: {
             query?: never;
             header?: never;
@@ -654,7 +672,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 退会キャンセル（30 日猶予中のみ） */
+        /** 退会キャンセル (30 日猶予期間中の復活) */
         post: {
             parameters: {
                 query?: never;
@@ -662,17 +680,43 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountRestoreRequest"];
+                };
+            };
             responses: {
-                /** @description キャンセル成功 */
+                /** @description 復活成功 */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AccountRestoreResponse"];
+                        };
+                    };
                 };
-                /** @description 既に hard delete 済 or 猶予期間外 */
-                409: {
+                /** @description password 不一致 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 退会記録なし */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 30 日猶予期間切れ (ハード削除予定 / 既削除) */
+                410: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7177,6 +7221,85 @@ export interface components {
             /** Format: email */
             email: string;
             display_name?: string | null;
+            /** @description opaque refresh token (T-A-04) */
+            refresh_token?: string | null;
+        };
+        MagicLinkRequest: {
+            /** Format: email */
+            email: string;
+            redirect_url?: string | null;
+        };
+        MagicLinkAccepted: {
+            accepted: boolean;
+            /** @enum {string} */
+            delivery: "email";
+        };
+        MagicLinkVerifyRequest: {
+            /** Format: email */
+            email: string;
+            token: string;
+        };
+        OAuthRedirectResponse: {
+            authorize_url: string;
+            state: string;
+            /** @enum {string} */
+            provider: "google" | "github";
+        };
+        PasswordResetRequest: {
+            /** Format: email */
+            email: string;
+        };
+        PasswordResetAccepted: {
+            accepted: boolean;
+        };
+        PasswordResetConfirmRequest: {
+            /** Format: email */
+            email: string;
+            token: string;
+            new_password: string;
+        };
+        PasswordResetConfirmResponse: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: email */
+            email: string;
+            /** Format: date-time */
+            password_changed_at: string;
+        };
+        RefreshRequest: {
+            refresh_token: string;
+        };
+        RefreshResponse: {
+            access_token: string;
+            /** @enum {string} */
+            token_type: "bearer";
+            /** Format: date-time */
+            expires_at: string;
+            /** @description rotated new opaque token */
+            refresh_token: string;
+        };
+        AccountDeleteRequest: {
+            password: string;
+            reason?: string | null;
+        };
+        AccountDeleteResponse: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: date-time */
+            scheduled_purge_at: string;
+            /** Format: date-time */
+            deleted_at: string;
+        };
+        AccountRestoreRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        AccountRestoreResponse: {
+            /** Format: uuid */
+            user_id: string;
+            /** Format: date-time */
+            restored_at: string;
         };
         Workspace: {
             /** Format: uuid */
