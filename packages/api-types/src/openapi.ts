@@ -4758,6 +4758,146 @@ export interface paths {
         };
         trace?: never;
     };
+    "/knowledge/{knowledge_id}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ナレッジ昇格（user → workspace common） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    knowledge_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KnowledgePromoteRequest"];
+                };
+            };
+            responses: {
+                /** @description 昇格完了 (account_type/account_id が更新された Knowledge) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Knowledge"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 自分のナレッジでない / 昇格先 workspace の member 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description scope=employee_specific は昇格不可 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/patterns/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 横断パターン抽出（共通タグ集合の凝集 / read-only） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KnowledgePatternRequest"];
+                };
+            };
+            responses: {
+                /** @description パターン一覧（occurrence_count 降順） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgePatternResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description min_occurrences / limit 範囲外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/comments": {
         parameters: {
             query?: never;
@@ -7431,6 +7571,30 @@ export interface components {
             query: string;
             hits: components["schemas"]["KnowledgeSearchHit"][];
             total: number;
+        };
+        KnowledgePromoteRequest: {
+            /** Format: uuid */
+            target_workspace_id: string;
+            confidence_score?: number | null;
+        };
+        KnowledgePatternRequest: {
+            /** Format: uuid */
+            account_id?: string | null;
+            category?: string | null;
+            /** @default 2 */
+            min_occurrences: number;
+            /** @default 20 */
+            limit: number;
+        };
+        KnowledgePattern: {
+            pattern_tags: string[];
+            occurrence_count: number;
+            representative_ids: string[];
+            avg_confidence: number;
+        };
+        KnowledgePatternResponse: {
+            total: number;
+            patterns: components["schemas"]["KnowledgePattern"][];
         };
         ChatStreamRequest: {
             user_message: string;

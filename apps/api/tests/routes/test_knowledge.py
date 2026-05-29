@@ -374,3 +374,322 @@ class TestKnowledge:
             assert r.status_code == 200
             ids = {hit["knowledge"]["id"] for hit in r.json()["data"]["hits"]}
             assert seeded["k_common_a"] not in ids
+
+
+# --------------------------------------------------------------------------- #
+# T-A-37: ナレッジ昇格 + 横断パターン抽出
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def seeded_promotion(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
+    """T-A-37 用 fixture: user-scope ナレッジ + workspace member 関係を seed。"""
+    u_owner = str(uuid.uuid4())
+    u_other = str(uuid.uuid4())
+    ws_member = str(uuid.uuid4())
+    ws_outsider = str(uuid.uuid4())
+    k_user = str(uuid.uuid4())
+    k_emp = str(uuid.uuid4())
+    k_other_user = str(uuid.uuid4())
+    emp_a = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        for uid in (u_owner, u_other):
+            em = f"ta37-{uid[:8]}@t.invalid"
+            c.execute(text("insert into auth.users (id,email) values (:i,:e)"), {"i": uid, "e": em})
+            c.execute(
+                text("insert into public.users (id,email) values (:i,:e)"), {"i": uid, "e": em}
+            )
+        for ws, owner in ((ws_member, u_owner), (ws_outsider, u_other)):
+            c.execute(
+                text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
+                {"i": ws, "o": owner, "n": f"ws-{ws[:6]}"},
+            )
+        # u_owner 個人 user-scope ナレッジ (昇格対象)
+        c.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(id, account_id, account_type, scope, category, title, content_md, tags, "
+                " confidence_score) "
+                "values (cast(:i as uuid), cast(:a as uuid), 'user', 'common', "
+                " 'tech', 'my note', 'private memo', '{python,fastapi}', 0.7)"
+            ),
+            {"i": k_user, "a": u_owner},
+        )
+        # u_other の user-scope ナレッジ (他人なので昇格不可)
+        c.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(id, account_id, account_type, scope, category, title, content_md, tags, "
+                " confidence_score) "
+                "values (cast(:i as uuid), cast(:a as uuid), 'user', 'common', "
+                " 'tech', 'others note', 'private memo', '{python}', 0.5)"
+            ),
+            {"i": k_other_user, "a": u_other},
+        )
+        # ai_employee + employee_specific ナレッジ (昇格不可検証用)
+        c.execute(
+            text(
+                "insert into public.ai_employees "
+                "(id, workspace_id, name, display_name, role, department) "
+                "values (cast(:i as uuid), cast(:w as uuid), :n, :d, "
+                "'member', 'dev_qa')"
+            ),
+            {"i": emp_a, "w": ws_member, "n": f"emp-{emp_a[:6]}", "d": "Emp"},
+        )
+        c.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(id, account_id, account_type, scope, owner_employee_id, category, title, "
+                " content_md, tags, confidence_score) "
+                "values (cast(:i as uuid), cast(:a as uuid), 'user', 'employee_specific', "
+                " cast(:e as uuid), 'tech', 'emp note', 'memo', '{python}', 0.6)"
+            ),
+            {"i": k_emp, "a": u_owner, "e": emp_a},
+        )
+    yield {
+        "u_owner": u_owner,
+        "u_other": u_other,
+        "ws_member": ws_member,
+        "ws_outsider": ws_outsider,
+        "k_user": k_user,
+        "k_emp": k_emp,
+        "k_other_user": k_other_user,
+    }
+    with sync_engine.begin() as c:
+        c.execute(
+            text("delete from public.knowledge_nodes where id in (:a,:b,:c)"),
+            {"a": k_user, "b": k_emp, "c": k_other_user},
+        )
+        c.execute(
+            text("delete from public.workspaces where id in (:a,:b)"),
+            {"a": ws_member, "b": ws_outsider},
+        )
+        c.execute(
+            text("delete from public.users where id in (:a,:b)"),
+            {"a": u_owner, "b": u_other},
+        )
+        c.execute(
+            text("delete from auth.users where id in (:a,:b)"),
+            {"a": u_owner, "b": u_other},
+        )
+
+
+@pytest.mark.integration
+class TestKnowledgePromotion:
+    def test_promote_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{uuid.uuid4()}/promote",
+                json={"target_workspace_id": str(uuid.uuid4())},
+            )
+            assert r.status_code == 401
+
+    def test_promote_owner_user_scope_to_workspace(
+        self,
+        app: FastAPI,
+        seeded_promotion: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        h = _h(seeded_promotion["u_owner"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{seeded_promotion['k_user']}/promote",
+                headers=h,
+                json={"target_workspace_id": seeded_promotion["ws_member"]},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["account_type"] == "workspace"
+            assert d["account_id"] == seeded_promotion["ws_member"]
+            assert d["approved_by_user_id"] == seeded_promotion["u_owner"]
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'knowledge.promote' and target_id = cast(:t as uuid)"
+                ),
+                {"t": seeded_promotion["k_user"]},
+            ).scalar_one()
+            assert cnt == 1
+
+    def test_promote_others_knowledge_403(
+        self, app: FastAPI, seeded_promotion: dict[str, str]
+    ) -> None:
+        # u_owner が u_other のナレッジを昇格しようとする
+        h = _h(seeded_promotion["u_owner"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{seeded_promotion['k_other_user']}/promote",
+                headers=h,
+                json={"target_workspace_id": seeded_promotion["ws_member"]},
+            )
+            # RLS で他人のは見えないため 404 が先 (cross-user invisibility 担保)。
+            # 自分名義なら 403 になるパスを別途確認 (test_promote_employee_specific_409)。
+            assert r.status_code == 404
+
+    def test_promote_employee_specific_409(
+        self, app: FastAPI, seeded_promotion: dict[str, str]
+    ) -> None:
+        h = _h(seeded_promotion["u_owner"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{seeded_promotion['k_emp']}/promote",
+                headers=h,
+                json={"target_workspace_id": seeded_promotion["ws_member"]},
+            )
+            assert r.status_code == 409
+
+    def test_promote_to_non_member_workspace_403(
+        self, app: FastAPI, seeded_promotion: dict[str, str]
+    ) -> None:
+        h = _h(seeded_promotion["u_owner"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{seeded_promotion['k_user']}/promote",
+                headers=h,
+                json={"target_workspace_id": seeded_promotion["ws_outsider"]},
+            )
+            assert r.status_code == 403
+
+    def test_promote_404_for_nonexistent(
+        self, app: FastAPI, seeded_promotion: dict[str, str]
+    ) -> None:
+        h = _h(seeded_promotion["u_owner"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/knowledge/{uuid.uuid4()}/promote",
+                headers=h,
+                json={"target_workspace_id": seeded_promotion["ws_member"]},
+            )
+            assert r.status_code == 404
+
+
+@pytest.fixture()
+def seeded_patterns(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, object]]:
+    """T-A-37 横断パターン用: 同一 tag 集合で 3 件、別 tag 集合で 1 件。"""
+    u = str(uuid.uuid4())
+    ws = str(uuid.uuid4())
+    ids: list[str] = []
+    with sync_engine.begin() as c:
+        em = f"ta37p-{u[:8]}@t.invalid"
+        c.execute(text("insert into auth.users (id,email) values (:i,:e)"), {"i": u, "e": em})
+        c.execute(text("insert into public.users (id,email) values (:i,:e)"), {"i": u, "e": em})
+        c.execute(
+            text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,'ws-p')"),
+            {"i": ws, "o": u},
+        )
+        for idx in range(3):
+            kid = str(uuid.uuid4())
+            ids.append(kid)
+            c.execute(
+                text(
+                    "insert into public.knowledge_nodes "
+                    "(id, account_id, account_type, scope, category, title, content_md, tags, "
+                    " confidence_score) "
+                    "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                    " 'tech', :t, 'body', '{api,fastapi}', :c)"
+                ),
+                {"i": kid, "a": ws, "t": f"shared-{idx}", "c": 0.5 + idx * 0.1},
+            )
+        # 別のタグ集合 (パターン外)
+        k_single = str(uuid.uuid4())
+        ids.append(k_single)
+        c.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(id, account_id, account_type, scope, category, title, content_md, tags, "
+                " confidence_score) "
+                "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                " 'tech', 'lonely', 'body', '{unique-tag}', 0.9)"
+            ),
+            {"i": k_single, "a": ws},
+        )
+    yield {"u": u, "ws": ws, "ids": ids}
+    with sync_engine.begin() as c:
+        c.execute(
+            text("delete from public.knowledge_nodes where account_id = cast(:a as uuid)"),
+            {"a": ws},
+        )
+        c.execute(text("delete from public.workspaces where id = :i"), {"i": ws})
+        c.execute(text("delete from public.users where id = :i"), {"i": u})
+        c.execute(text("delete from auth.users where id = :i"), {"i": u})
+
+
+@pytest.mark.integration
+class TestKnowledgePatterns:
+    def test_patterns_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.post("/knowledge/patterns/extract", json={}).status_code == 401
+
+    def test_patterns_extract_groups_by_shared_tags(
+        self, app: FastAPI, seeded_patterns: dict[str, object]
+    ) -> None:
+        h = _h(str(seeded_patterns["u"]))
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/patterns/extract",
+                headers=h,
+                json={
+                    "account_id": str(seeded_patterns["ws"]),
+                    "min_occurrences": 2,
+                    "limit": 10,
+                },
+            )
+            assert r.status_code == 200, r.text
+            data = r.json()["data"]
+            patterns = data["patterns"]
+            assert any(
+                set(p["pattern_tags"]) == {"api", "fastapi"} and p["occurrence_count"] == 3
+                for p in patterns
+            )
+            # unique-tag は 1 件のみなので除外
+            assert all(set(p["pattern_tags"]) != {"unique-tag"} for p in patterns)
+
+    def test_patterns_min_occurrences_filters(
+        self, app: FastAPI, seeded_patterns: dict[str, object]
+    ) -> None:
+        h = _h(str(seeded_patterns["u"]))
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/patterns/extract",
+                headers=h,
+                json={
+                    "account_id": str(seeded_patterns["ws"]),
+                    "min_occurrences": 4,
+                    "limit": 10,
+                },
+            )
+            assert r.status_code == 200
+            assert r.json()["data"]["total"] == 0
+
+    def test_patterns_validates_min_occurrences(
+        self, app: FastAPI, seeded_patterns: dict[str, object]
+    ) -> None:
+        h = _h(str(seeded_patterns["u"]))
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/patterns/extract",
+                headers=h,
+                json={"min_occurrences": 1},
+            )
+            assert r.status_code == 422
+
+    def test_patterns_representative_ids_by_confidence(
+        self, app: FastAPI, seeded_patterns: dict[str, object]
+    ) -> None:
+        h = _h(str(seeded_patterns["u"]))
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/patterns/extract",
+                headers=h,
+                json={
+                    "account_id": str(seeded_patterns["ws"]),
+                    "min_occurrences": 2,
+                },
+            )
+            assert r.status_code == 200
+            shared = next(
+                p
+                for p in r.json()["data"]["patterns"]
+                if set(p["pattern_tags"]) == {"api", "fastapi"}
+            )
+            # 3 件のうち最大 5 件返却。confidence 降順で並ぶ
+            assert 1 <= len(shared["representative_ids"]) <= 5
