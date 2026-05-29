@@ -7,6 +7,7 @@ RLS が効く AsyncSession を受け取り chat_threads を操作する。可視
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import text
@@ -15,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.chat import (
     MessageCreate,
+    MessageFeedbackCreate,
+    MessageFeedbackResponse,
     MessageResponse,
     ThreadCreate,
     ThreadResponse,
@@ -201,14 +204,25 @@ async def can_post_to_thread(session: AsyncSession, *, thread_id: str) -> bool:
 async def create_message(
     session: AsyncSession, *, actor_id: str, thread_id: str, data: MessageCreate
 ) -> MessageResponse:
-    """ユーザー発話を即時に永続化 (role='user')。AI 応答生成は T-A-18 (SSE)。"""
+    """ユーザー発話を即時に永続化 (role='user')。AI 応答生成は T-A-18 (SSE)。
+
+    T-A-19: parent_message_id を渡すと同スレッド内の分岐として記録する
+    (chat_messages.parent_message_id)。CHECK no_self_parent + FK on delete set null
+    は DB が enforce。
+    """
     new_id = str(uuid.uuid4())
     await session.execute(
         text(
-            "insert into public.chat_messages (id, thread_id, role, content) "
-            "values (cast(:id as uuid), cast(:tid as uuid), 'user', :content)"
+            "insert into public.chat_messages (id, thread_id, role, content, parent_message_id) "
+            "values (cast(:id as uuid), cast(:tid as uuid), 'user', :content, "
+            " cast(:parent as uuid))"
         ),
-        {"id": new_id, "tid": thread_id, "content": data.content},
+        {
+            "id": new_id,
+            "tid": thread_id,
+            "content": data.content,
+            "parent": data.parent_message_id,
+        },
     )
     await AuditWriter(session).write(
         AuditEvent(
@@ -217,7 +231,11 @@ async def create_message(
             actor_type="user",
             actor_id=actor_id,
             target_id=new_id,
-            after={"thread_id": thread_id, "role": "user"},
+            after={
+                "thread_id": thread_id,
+                "role": "user",
+                "parent_message_id": data.parent_message_id,
+            },
         )
     )
     res = await session.execute(
@@ -228,3 +246,54 @@ async def create_message(
     if row is None:  # pragma: no cover - 直前に作成済
         raise RuntimeError("created message not visible after insert")
     return _msg_to_response(row)
+
+
+async def get_message_thread_id(session: AsyncSession, *, message_id: str) -> str | None:
+    """message が可視 (RLS chat_messages_select_member) なら thread_id を返す。"""
+    res = await session.execute(
+        text(
+            "select thread_id from public.chat_messages "
+            "where id = cast(:id as uuid) and deleted_at is null"
+        ),
+        {"id": message_id},
+    )
+    row = res.first()
+    return None if row is None else str(row.thread_id)
+
+
+async def create_message_feedback(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    message_id: str,
+    data: MessageFeedbackCreate,
+) -> MessageFeedbackResponse:
+    """T-A-19: 本人 (actor=user) によるメッセージへの feedback を audit_logs に記録。
+
+    feedback 専用テーブルが無いため append-only な audit_logs に
+    action='chat_message.feedback' で記録 (audit_logs_insert_self を満たす)。
+    """
+    feedback_id = str(uuid.uuid4())
+    recorded_at = datetime.now(tz=UTC)
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="chat_message.feedback",
+            target_type="chat_message",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=message_id,
+            after={
+                "feedback_id": feedback_id,
+                "value": data.value,
+                "comment": data.comment,
+            },
+            created_at=recorded_at,
+        )
+    )
+    return MessageFeedbackResponse(
+        feedback_id=feedback_id,
+        message_id=message_id,
+        value=data.value,
+        comment=data.comment,
+        recorded_at=recorded_at,
+    )

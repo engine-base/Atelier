@@ -445,6 +445,19 @@ class ChatMessage(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Value(StrEnum):
+    up = "up"
+    down = "down"
+
+
+class MessageFeedback(BaseModel):
+    feedback_id: UUID | None = None
+    message_id: UUID | None = None
+    value: Value | None = None
+    comment: str | None = None
+    recorded_at: AwareDatetime | None = None
+
+
 class Status1(StrEnum):
     pending = "pending"
     in_progress = "in_progress"

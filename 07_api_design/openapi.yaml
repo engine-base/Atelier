@@ -437,6 +437,15 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    MessageFeedback:
+      type: object
+      properties:
+        feedback_id: { type: string, format: uuid }
+        message_id: { type: string, format: uuid }
+        value: { type: string, enum: [up, down] }
+        comment: { type: string, nullable: true }
+        recorded_at: { type: string, format: date-time }
+
     Phase:
       type: object
       properties:
@@ -2412,6 +2421,7 @@ paths:
               required: [content]
               properties:
                 content: { type: string, minLength: 1, maxLength: 100000 }
+                parent_message_id: { type: string, format: uuid, description: "T-A-19: 分岐元メッセージ ID" }
       responses:
         '201':
           description: 送信成功
@@ -2422,6 +2432,36 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/ChatMessage' }
         '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/messages/{message_id}/feedback:
+    post:
+      tags: [chat]
+      summary: チャットメッセージへのフィードバック（T-A-19 / audit_logs 記録）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_message_feedback
+      x-screen-ids: [S-D01]
+      parameters:
+        - { name: message_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: { type: string, enum: [up, down] }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '201':
+          description: 受付・記録
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MessageFeedback' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

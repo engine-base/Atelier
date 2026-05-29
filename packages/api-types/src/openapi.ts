@@ -3792,6 +3792,11 @@ export interface paths {
                 content: {
                     "application/json": {
                         content: string;
+                        /**
+                         * Format: uuid
+                         * @description T-A-19: 分岐元メッセージ ID
+                         */
+                        parent_message_id?: string;
                     };
                 };
             };
@@ -3809,6 +3814,72 @@ export interface paths {
                 };
                 /** @description 投稿権限なし (viewer 等) */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/messages/{message_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** チャットメッセージへのフィードバック（T-A-19 / audit_logs 記録） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    message_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        value: "up" | "down";
+                        comment?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 受付・記録 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["MessageFeedback"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -4437,6 +4508,17 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        MessageFeedback: {
+            /** Format: uuid */
+            feedback_id?: string;
+            /** Format: uuid */
+            message_id?: string;
+            /** @enum {string} */
+            value?: "up" | "down";
+            comment?: string | null;
+            /** Format: date-time */
+            recorded_at?: string;
         };
         Phase: {
             /** Format: uuid */

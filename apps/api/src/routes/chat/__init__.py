@@ -1,7 +1,8 @@
-"""Chat スレッド CRUD + メッセージ送信 ルータ (T-A-16 / T-A-17)。
+"""Chat スレッド CRUD + メッセージ送信 + 分岐 / feedback ルータ (T-A-16 / T-A-17 / T-A-19)。
 
-/chat/threads, /chat/threads/{id}, /chat/threads/{id}/messages。
-認証 (401) + RLS (T-D-17) + 404/403。メッセージ送信はユーザー発話の即時永続化。
+/chat/threads, /chat/threads/{id}, /chat/threads/{id}/messages,
+/chat/messages/{id}/feedback。認証 (401) + RLS (T-D-17) + 404/403。
+分岐は POST messages に parent_message_id を渡して実現、feedback は audit_logs 記録。
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.chat import (
     MessageCreate,
+    MessageFeedbackCreate,
+    MessageFeedbackResponse,
     MessageResponse,
     ThreadCreate,
     ThreadResponse,
@@ -104,4 +107,24 @@ async def create_message(
     if not await svc.can_post_to_thread(session, thread_id=thread_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
     created = await svc.create_message(session, actor_id=user.id, thread_id=thread_id, data=body)
+    return {"data": created}
+
+
+@router.post(
+    "/chat/messages/{message_id}/feedback",
+    status_code=status.HTTP_201_CREATED,
+    summary="チャットメッセージへのフィードバック（T-A-19 / audit_logs 記録）",
+)
+async def create_message_feedback(
+    message_id: str,
+    body: MessageFeedbackCreate,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, MessageFeedbackResponse]:
+    # 可視性: chat_messages_select_member RLS → 不可視なら 404
+    if await svc.get_message_thread_id(session, message_id=message_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+    created = await svc.create_message_feedback(
+        session, actor_id=user.id, message_id=message_id, data=body
+    )
     return {"data": created}

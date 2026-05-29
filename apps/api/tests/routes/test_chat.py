@@ -301,3 +301,116 @@ class TestChatMessages:
                 == 404
             )
             client.delete(f"/chat/threads/{tid}", headers=ha)
+
+
+@pytest.mark.integration
+class TestChatBranchAndFeedback:
+    """T-A-19: メッセージ分岐 (parent_message_id) + feedback (audit_logs 記録)。"""
+
+    def _thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        return client.post(
+            "/chat/threads",
+            json={"project_id": seeded["proj_a"], "ai_employee_id": seeded["emp_a"]},
+            headers=_h(seeded["u_a"]),
+        ).json()["data"]["id"]
+
+    def test_branch_with_parent_message_id(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            # 親メッセージ
+            parent = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "root"}, headers=h
+            ).json()["data"]
+            # 分岐 (parent_message_id 指定)
+            r = client.post(
+                f"/chat/threads/{tid}/messages",
+                json={"content": "branch reply", "parent_message_id": parent["id"]},
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            child = r.json()["data"]
+            assert child["parent_message_id"] == parent["id"]
+            assert child["thread_id"] == tid
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_feedback_requires_auth_401(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            mid = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "hi"}, headers=h
+            ).json()["data"]["id"]
+            # 未認証
+            assert (
+                client.post(f"/chat/messages/{mid}/feedback", json={"value": "up"}).status_code
+                == 401
+            )
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_feedback_recorded_and_audit_logged(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            mid = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "rate me"}, headers=h
+            ).json()["data"]["id"]
+            r = client.post(
+                f"/chat/messages/{mid}/feedback",
+                json={"value": "down", "comment": "too generic"},
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            body = r.json()["data"]
+            assert body["value"] == "down"
+            assert body["message_id"] == mid
+            assert body["comment"] == "too generic"
+            fb_id = body["feedback_id"]
+            # audit_logs に記録
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='chat_message.feedback' "
+                        "and target_id=cast(:t as uuid) and actor_id=:a"
+                    ),
+                    {"t": mid, "a": seeded["u_a"]},
+                ).scalar_one()
+            assert n >= 1
+            assert uuid.UUID(fb_id)  # uuid 形式
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_feedback_cross_workspace_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            mid = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "x"}, headers=ha
+            ).json()["data"]["id"]
+            # 別 WS の user からは message 不可視 → 404
+            assert (
+                client.post(
+                    f"/chat/messages/{mid}/feedback", json={"value": "up"}, headers=hb
+                ).status_code
+                == 404
+            )
+            client.delete(f"/chat/threads/{tid}", headers=ha)
+
+    def test_feedback_invalid_value_422(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            mid = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "x"}, headers=h
+            ).json()["data"]["id"]
+            assert (
+                client.post(
+                    f"/chat/messages/{mid}/feedback",
+                    json={"value": "neutral"},
+                    headers=h,
+                ).status_code
+                == 422
+            )
+            client.delete(f"/chat/threads/{tid}", headers=h)
