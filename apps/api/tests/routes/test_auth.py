@@ -555,3 +555,405 @@ class TestAuthSignin:
                 json={"email": signin_user["email"], "password": signin_user["password"]},
             )
             assert r.status_code == 401
+
+
+# --------------------------------------------------------------------------- #
+# T-A-03 / T-A-04 / T-A-05 共通: 認証フロー用 fixture
+# --------------------------------------------------------------------------- #
+import json as _json  # noqa: E402
+
+
+@pytest.fixture()
+def auth_user(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
+    """T-A-03〜05 用 user。encrypted_password 列を auth.users に確保し seed。"""
+    uid = str(uuid.uuid4())
+    em = f"ta03-{uuid.uuid4().hex[:10]}@example.com"
+    pw = "init-password-12345"
+    pw_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest()
+    with sync_engine.begin() as c:
+        c.execute(text("alter table auth.users add column if not exists encrypted_password text"))
+        c.execute(
+            text(
+                "insert into auth.users (id, email, encrypted_password) "
+                "values (cast(:i as uuid), :e, :p)"
+            ),
+            {"i": uid, "e": em, "p": pw_hash},
+        )
+        c.execute(
+            text(
+                "insert into public.users (id, email, display_name) "
+                "values (cast(:i as uuid), :e, 'AuthUser')"
+            ),
+            {"i": uid, "e": em},
+        )
+    yield {"user_id": uid, "email": em, "password": pw}
+    with sync_engine.begin() as c:
+        c.execute(
+            text("delete from public.audit_logs where actor_id in (:e, :u)"),
+            {"e": em, "u": uid},
+        )
+        c.execute(text("delete from public.users where id = cast(:i as uuid)"), {"i": uid})
+        c.execute(text("delete from auth.users where id = cast(:i as uuid)"), {"i": uid})
+
+
+def _seed_audit_token(
+    sync_engine: sqlalchemy.Engine,
+    *,
+    action: str,
+    email: str,
+    extra: dict[str, object] | None = None,
+    ttl_seconds: int = 600,
+) -> tuple[str, str]:
+    """audit_logs に発行済 token を inject し (plain, target_id) を返す。"""
+    import time as _time
+
+    from src.services.auth import _new_opaque_token
+
+    plain, h = _new_opaque_token()
+    target_id = str(uuid.uuid4())
+    after = {
+        "email": email,
+        "token_hash": h,
+        "expires_epoch": int(_time.time()) + ttl_seconds,
+    }
+    if extra:
+        after.update(extra)
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.audit_logs "
+                "(actor_type, actor_id, action, target_type, target_id, after) "
+                "values ('anonymous', :e, :a, 'auth_token', "
+                "cast(:t as uuid), cast(:j as jsonb))"
+            ),
+            {"e": email, "a": action, "t": target_id, "j": _json.dumps(after)},
+        )
+    return plain, target_id
+
+
+# --------------------------------------------------------------------------- #
+# T-A-03: Magic Link + OAuth
+# --------------------------------------------------------------------------- #
+@pytest.mark.integration
+class TestMagicLink:
+    def test_request_returns_202_always(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/magic-link/request", json={"email": "unknown@example.com"})
+            assert r.status_code == 202
+            assert r.json()["data"]["accepted"] is True
+
+    def test_request_records_token_audit(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/magic-link/request", json={"email": auth_user["email"]})
+            assert r.status_code == 202
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'auth.magic_link.issued' and actor_id = :e"
+                ),
+                {"e": auth_user["email"]},
+            ).scalar_one()
+            assert cnt >= 1
+
+    def test_verify_invalid_token_401(self, app: FastAPI, auth_user: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/magic-link/verify",
+                json={"email": auth_user["email"], "token": "x" * 40},
+            )
+            assert r.status_code == 401
+
+    def test_verify_full_roundtrip_returns_jwt(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        plain, _ = _seed_audit_token(
+            sync_engine, action="auth.magic_link.issued", email=auth_user["email"]
+        )
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/magic-link/verify",
+                json={"email": auth_user["email"], "token": plain},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["user_id"] == auth_user["user_id"]
+            assert d["refresh_token"] is not None
+            from src.dependencies import decode_supabase_jwt
+
+            cu = decode_supabase_jwt(d["access_token"], os.environ["ATELIER_AUTH_JWT_SECRET"])
+            assert cu.id == auth_user["user_id"]
+
+    def test_verify_token_can_only_be_used_once(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        plain, _ = _seed_audit_token(
+            sync_engine, action="auth.magic_link.issued", email=auth_user["email"]
+        )
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/auth/magic-link/verify",
+                json={"email": auth_user["email"], "token": plain},
+            )
+            assert r1.status_code == 200
+            r2 = client.post(
+                "/auth/magic-link/verify",
+                json={"email": auth_user["email"], "token": plain},
+            )
+            assert r2.status_code == 401
+
+    def test_oauth_redirect_google(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.get("/auth/oauth/google/redirect-url")
+            assert r.status_code == 200
+            d = r.json()["data"]
+            assert "accounts.google.com" in d["authorize_url"]
+            assert d["state"]
+            assert d["provider"] == "google"
+
+    def test_oauth_redirect_github(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.get("/auth/oauth/github/redirect-url")
+            assert r.status_code == 200
+            assert "github.com" in r.json()["data"]["authorize_url"]
+
+    def test_oauth_unknown_provider_422(self, app: FastAPI) -> None:
+        # provider は Literal['google','github'] のため、それ以外は Pydantic validation 422
+        with TestClient(app) as client:
+            r = client.get("/auth/oauth/facebook/redirect-url")
+            assert r.status_code == 422
+
+
+# --------------------------------------------------------------------------- #
+# T-A-04: Password Reset + Refresh
+# --------------------------------------------------------------------------- #
+@pytest.mark.integration
+class TestPasswordResetAndRefresh:
+    def test_reset_request_always_202(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/password-reset/request", json={"email": "nobody@example.com"})
+            assert r.status_code == 202
+
+    def test_reset_invalid_token_401(self, app: FastAPI, auth_user: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/password-reset/confirm",
+                json={
+                    "email": auth_user["email"],
+                    "token": "z" * 40,
+                    "new_password": "new-strong-password-9876",
+                },
+            )
+            assert r.status_code == 401
+
+    def test_reset_full_roundtrip(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        plain, _ = _seed_audit_token(
+            sync_engine, action="auth.password_reset.issued", email=auth_user["email"]
+        )
+        new_pw = "new-secret-password-789"
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/password-reset/confirm",
+                json={
+                    "email": auth_user["email"],
+                    "token": plain,
+                    "new_password": new_pw,
+                },
+            )
+            assert r.status_code == 200, r.text
+            # 旧 password 失敗 / 新 password 成功
+            assert (
+                client.post(
+                    "/auth/signin",
+                    json={"email": auth_user["email"], "password": auth_user["password"]},
+                ).status_code
+                == 401
+            )
+            assert (
+                client.post(
+                    "/auth/signin",
+                    json={"email": auth_user["email"], "password": new_pw},
+                ).status_code
+                == 200
+            )
+
+    def test_refresh_rotates_token(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        plain, _ = _seed_audit_token(
+            sync_engine,
+            action="auth.refresh.issued",
+            email=auth_user["email"],
+            extra={"user_id": auth_user["user_id"], "origin": "test"},
+            ttl_seconds=86400,
+        )
+        with TestClient(app) as client:
+            r = client.post("/auth/refresh", json={"refresh_token": plain})
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["access_token"]
+            assert d["refresh_token"] != plain
+            # 古い token は失効
+            r2 = client.post("/auth/refresh", json={"refresh_token": plain})
+            assert r2.status_code == 401
+
+    def test_refresh_invalid_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/refresh", json={"refresh_token": "y" * 40})
+            assert r.status_code == 401
+
+
+# --------------------------------------------------------------------------- #
+# T-A-05: 退会 (30 日猶予, F-LEGAL-002)
+# --------------------------------------------------------------------------- #
+def _make_jwt(user_id: str) -> str:
+    import base64 as _b64
+    import hmac as _hmac
+    import time as _time
+
+    secret = os.environ["ATELIER_AUTH_JWT_SECRET"]
+    header = (
+        _b64.urlsafe_b64encode(_json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    payload = (
+        _b64.urlsafe_b64encode(
+            _json.dumps(
+                {
+                    "sub": user_id,
+                    "role": "authenticated",
+                    "aud": "authenticated",
+                    "exp": int(_time.time()) + 3600,
+                }
+            ).encode()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    sig = (
+        _b64.urlsafe_b64encode(
+            _hmac.new(secret.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    return f"{header}.{payload}.{sig}"
+
+
+@pytest.mark.integration
+class TestAccountDeletionAndRestore:
+    def test_delete_unauthenticated_401(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            r = client.post("/auth/account/delete", json={"password": "x"})
+            assert r.status_code == 401
+
+    def test_delete_wrong_password_401(self, app: FastAPI, auth_user: dict[str, str]) -> None:
+        h = {"Authorization": f"Bearer {_make_jwt(auth_user['user_id'])}"}
+        with TestClient(app) as client:
+            r = client.post("/auth/account/delete", headers=h, json={"password": "WRONG-PW"})
+            assert r.status_code == 401
+
+    def test_delete_succeeds(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        h = {"Authorization": f"Bearer {_make_jwt(auth_user['user_id'])}"}
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/account/delete",
+                headers=h,
+                json={"password": auth_user["password"], "reason": "test"},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["user_id"] == auth_user["user_id"]
+            assert d["scheduled_purge_at"] > d["deleted_at"]
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select deleted_at from public.users where id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            ).first()
+            assert row is not None and row.deleted_at is not None
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action = 'auth.account.deleted' and target_id = cast(:t as uuid)"
+                ),
+                {"t": auth_user["user_id"]},
+            ).scalar_one()
+            assert cnt == 1
+
+    def test_restore_within_window(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set deleted_at = now() where id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/account/restore",
+                json={"email": auth_user["email"], "password": auth_user["password"]},
+            )
+            assert r.status_code == 200
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select deleted_at from public.users where id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            ).first()
+            assert row is not None and row.deleted_at is None
+
+    def test_restore_after_window_410(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "update public.users set deleted_at = now() - interval '31 days' "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": auth_user["user_id"]},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/account/restore",
+                json={"email": auth_user["email"], "password": auth_user["password"]},
+            )
+            assert r.status_code == 410
+
+    def test_restore_no_pending_deletion_404(self, app: FastAPI, auth_user: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/account/restore",
+                json={"email": auth_user["email"], "password": auth_user["password"]},
+            )
+            assert r.status_code == 404

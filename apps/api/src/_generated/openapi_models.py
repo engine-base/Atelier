@@ -99,6 +99,95 @@ class SigninResponse(BaseModel):
     user_id: UUID
     email: EmailStr
     display_name: str | None = None
+    refresh_token: str | None = None
+    """
+    opaque refresh token (T-A-04)
+    """
+
+
+class MagicLinkRequest(BaseModel):
+    email: EmailStr
+    redirect_url: Annotated[str | None, Field(max_length=500)] = None
+
+
+class Delivery(StrEnum):
+    email = "email"
+
+
+class MagicLinkAccepted(BaseModel):
+    accepted: bool
+    delivery: Delivery
+
+
+class MagicLinkVerifyRequest(BaseModel):
+    email: EmailStr
+    token: Annotated[str, Field(max_length=200, min_length=10)]
+
+
+class Provider(StrEnum):
+    google = "google"
+    github = "github"
+
+
+class OAuthRedirectResponse(BaseModel):
+    authorize_url: str
+    state: str
+    provider: Provider
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetAccepted(BaseModel):
+    accepted: bool
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    email: EmailStr
+    token: Annotated[str, Field(max_length=200, min_length=10)]
+    new_password: Annotated[str, Field(max_length=128, min_length=8)]
+
+
+class PasswordResetConfirmResponse(BaseModel):
+    user_id: UUID
+    email: EmailStr
+    password_changed_at: AwareDatetime
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: Annotated[str, Field(max_length=200, min_length=10)]
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    token_type: TokenType
+    expires_at: AwareDatetime
+    refresh_token: str
+    """
+    rotated new opaque token
+    """
+
+
+class AccountDeleteRequest(BaseModel):
+    password: Annotated[str, Field(max_length=128, min_length=1)]
+    reason: Annotated[str | None, Field(max_length=2000)] = None
+
+
+class AccountDeleteResponse(BaseModel):
+    user_id: UUID
+    scheduled_purge_at: AwareDatetime
+    deleted_at: AwareDatetime
+
+
+class AccountRestoreRequest(BaseModel):
+    email: EmailStr
+    password: Annotated[str, Field(max_length=128, min_length=1)]
+
+
+class AccountRestoreResponse(BaseModel):
+    user_id: UUID
+    restored_at: AwareDatetime
 
 
 class Plan(StrEnum):
@@ -1147,7 +1236,7 @@ class McpTokenCreateResponse(McpToken):
     """
 
 
-class Provider(StrEnum):
+class Provider1(StrEnum):
     claude = "claude"
     openai = "openai"
     gemini = "gemini"
@@ -1160,7 +1249,7 @@ class ByokKey(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    provider: Provider | None = None
+    provider: Provider1 | None = None
     label: str | None = None
     is_active: bool | None = None
     created_at: AwareDatetime | None = None
