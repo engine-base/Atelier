@@ -2219,6 +2219,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/kanban/pick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_pick — queued task 1 件確保 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanPickRequest"];
+                };
+            };
+            responses: {
+                /** @description 確保結果（または no_available_task=true） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanPickResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kanban/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_start — spawning → running */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanStartRequest"];
+                };
+            };
+            responses: {
+                /** @description 開始完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description dispatch_status 不一致 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kanban/complete": {
         parameters: {
             query?: never;
@@ -2238,7 +2358,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["KanbanCompleteRequest"];
+                    "application/json": components["schemas"]["KanbanCompleteRequestV2"];
                 };
             };
             responses: {
@@ -2249,18 +2369,288 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            data?: {
-                                /** Format: uuid */
-                                task_id?: string;
-                                /** @enum {string} */
-                                new_lifecycle_stage?: "done" | "awaiting" | "blocked" | "triage";
-                                approval_required?: boolean;
-                            };
+                            data?: components["schemas"]["KanbanResponse"];
                         };
                     };
                 };
                 /** @description Bridge token 不正 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description dispatch_status 不一致 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kanban/request-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_request_review — 人レビュー要求 (running → awaiting) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanRequestReviewRequest"];
+                };
+            };
+            responses: {
+                /** @description レビュー要求完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description dispatch_status 不一致 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kanban/request-change": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_request_change — 差戻 (running → blocked) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanRequestChangeRequest"];
+                };
+            };
+            responses: {
+                /** @description 差戻完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description dispatch_status 不一致 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kanban/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_heartbeat — worker PID dead-man switch */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanHeartbeatRequest"];
+                };
+            };
+            responses: {
+                /** @description heartbeat ack */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 or worker_pid 不一致 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/kanban/kill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** kanban_kill — 強制終了 (running → reclaimed) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["KanbanKillRequest"];
+                };
+            };
+            responses: {
+                /** @description 強制終了完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KanbanResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description task 不在 */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6887,6 +7277,81 @@ export interface components {
                 files_changed?: string[];
                 retry_count: number;
             };
+        };
+        KanbanCompleteMetadata: {
+            score: number;
+            ac_pass_rate: number;
+            test_pass_rate: number;
+            verification_score: number;
+            /** @default 0 */
+            retry_count: number;
+            files_changed?: string[];
+        };
+        KanbanCompleteRequestV2: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: uuid */
+            execution_id: string;
+            summary: string;
+            metadata: components["schemas"]["KanbanCompleteMetadata"];
+            /** @default false */
+            auto_approve: boolean;
+        };
+        KanbanPickRequest: {
+            worker_pid: number;
+            /** Format: uuid */
+            project_id?: string | null;
+        };
+        KanbanPickResponse: {
+            /** Format: uuid */
+            task_id?: string | null;
+            /** Format: uuid */
+            execution_id?: string | null;
+            worktree_path?: string | null;
+            no_available_task: boolean;
+        };
+        KanbanStartRequest: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: uuid */
+            execution_id: string;
+            worker_pid: number;
+            claude_code_session_id?: string | null;
+        };
+        KanbanRequestReviewRequest: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: uuid */
+            execution_id: string;
+            note?: string | null;
+        };
+        KanbanRequestChangeRequest: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: uuid */
+            execution_id: string;
+            reason: string;
+        };
+        KanbanHeartbeatRequest: {
+            /** Format: uuid */
+            task_id: string;
+            worker_pid: number;
+        };
+        KanbanKillRequest: {
+            /** Format: uuid */
+            task_id: string;
+            /** Format: uuid */
+            execution_id?: string | null;
+            reason: string;
+        };
+        KanbanResponse: {
+            /** Format: uuid */
+            task_id: string;
+            lifecycle_stage: string;
+            dispatch_status?: string | null;
+            execution_status?: string | null;
+            /** @enum {string} */
+            action: "picked" | "started" | "completed" | "review_requested" | "change_requested" | "heartbeat_ack" | "killed";
         };
         McpToken: {
             /** Format: uuid */
