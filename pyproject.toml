@@ -68,6 +68,15 @@ typeCheckingMode = "strict"
 # 外部 SDK 由来の Any は該当行に # pyright: ignore[reportXxx] で narrow 抑制する。
 reportMissingTypeStubs = false
 
+# datamodel-code-generator (T-F-25 sync-types.sh) は OpenAPI の string-enum 既定値を
+# `EnumType | None = "value"` の literal default 形で emit する。これは Pydantic v2 が
+# 受理しランタイム検証も通るが、pyright strict は `reportAssignmentType` で reject する。
+# 生成コードを手で書き換えるのは drift 源になるため、生成ディレクトリでのみ当該ルールを
+# 緩める (strict は他カテゴリで継続)。Gate #7 (type drift) が契約整合を別途担保する。
+[[tool.pyright.executionEnvironments]]
+root = "apps/api/src/_generated"
+reportAssignmentType = "none"
+
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["apps/api/tests"]
