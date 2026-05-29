@@ -846,6 +846,64 @@ components:
         total: { type: integer, minimum: 0 }
         patterns: { type: array, items: { $ref: '#/components/schemas/KnowledgePattern' } }
 
+    Execution:
+      type: object
+      required:
+        - id
+        - task_id
+        - task_title
+        - project_id
+        - started_at
+        - status
+        - retry_count
+        - created_at
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        task_title: { type: string }
+        project_id: { type: string, format: uuid }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time, nullable: true }
+        duration_seconds: { type: number, nullable: true }
+        status: { type: string, enum: [running, succeeded, failed, cancelled, timeout] }
+        score: { type: number, nullable: true }
+        ac_pass_rate: { type: number, nullable: true }
+        test_pass_rate: { type: number, nullable: true }
+        verification_score: { type: number, nullable: true }
+        retry_count: { type: integer }
+        claude_code_session_id: { type: string, nullable: true }
+        logs_storage_path: { type: string, nullable: true }
+        error_summary: { type: string, nullable: true }
+        worker_pid: { type: integer, nullable: true }
+        dispatch_status: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    BridgeStatus:
+      type: object
+      required:
+        - running_count
+        - queued_count
+        - completing_count
+        - spawning_count
+        - dead_count_24h
+        - parallel_limit
+        - available_slots
+        - active_worker_pids
+        - evaluated_at
+      properties:
+        running_count: { type: integer, minimum: 0 }
+        queued_count: { type: integer, minimum: 0 }
+        completing_count: { type: integer, minimum: 0 }
+        spawning_count: { type: integer, minimum: 0 }
+        dead_count_24h: { type: integer, minimum: 0 }
+        parallel_limit: { type: integer, minimum: 1 }
+        available_slots: { type: integer, minimum: 0 }
+        oldest_running_started_at: { type: string, format: date-time, nullable: true }
+        active_worker_pids:
+          type: array
+          items: { type: integer }
+        evaluated_at: { type: string, format: date-time }
+
     ChatStreamRequest:
       type: object
       required: [user_message]
@@ -3295,6 +3353,72 @@ paths:
                   data: { $ref: '#/components/schemas/KnowledgePatternResponse' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: min_occurrences / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # executions (実行モニター + Bridge 状態 — T-A-30)
+  # E-013 task_executions 横断一覧 + tasks.dispatch_status 集約
+  # ==========================================================================
+  /executions:
+    get:
+      tags: [executions]
+      summary: 実行履歴一覧（実行モニタ）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::list_executions
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: project_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: task_id, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [running, succeeded, failed, cancelled, timeout] } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: 実行履歴一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Execution' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /executions/{execution_id}:
+    get:
+      tags: [executions]
+      summary: 実行詳細
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::get_execution
+      x-screen-ids: [S-I03]
+      parameters:
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行詳細
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Execution' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /bridge/status:
+    get:
+      tags: [executions]
+      summary: Bridge worker 集約状態
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::get_bridge_status
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      responses:
+        '200':
+          description: Bridge 状態（RLS scoped 集計）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/BridgeStatus' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # comments (成果物 / モック / タスク / 受入条件へのスレッド型コメント)

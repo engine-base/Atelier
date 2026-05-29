@@ -871,6 +871,49 @@ class KnowledgePatternResponse(BaseModel):
     patterns: list[KnowledgePattern]
 
 
+class Status4(StrEnum):
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    cancelled = "cancelled"
+    timeout = "timeout"
+
+
+class Execution(BaseModel):
+    id: UUID
+    task_id: UUID
+    task_title: str
+    project_id: UUID
+    started_at: AwareDatetime
+    completed_at: AwareDatetime | None = None
+    duration_seconds: float | None = None
+    status: Status4
+    score: float | None = None
+    ac_pass_rate: float | None = None
+    test_pass_rate: float | None = None
+    verification_score: float | None = None
+    retry_count: int
+    claude_code_session_id: str | None = None
+    logs_storage_path: str | None = None
+    error_summary: str | None = None
+    worker_pid: int | None = None
+    dispatch_status: str | None = None
+    created_at: AwareDatetime
+
+
+class BridgeStatus(BaseModel):
+    running_count: Annotated[int, Field(ge=0)]
+    queued_count: Annotated[int, Field(ge=0)]
+    completing_count: Annotated[int, Field(ge=0)]
+    spawning_count: Annotated[int, Field(ge=0)]
+    dead_count_24h: Annotated[int, Field(ge=0)]
+    parallel_limit: Annotated[int, Field(ge=1)]
+    available_slots: Annotated[int, Field(ge=0)]
+    oldest_running_started_at: AwareDatetime | None = None
+    active_worker_pids: list[int]
+    evaluated_at: AwareDatetime
+
+
 class ChatStreamRequest(BaseModel):
     user_message: Annotated[str, Field(max_length=20000, min_length=1)]
     use_knowledge_rag: bool | None = True
@@ -1074,7 +1117,7 @@ class Type5(StrEnum):
     scope_change = "scope_change"
 
 
-class Status4(StrEnum):
+class Status5(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1092,7 +1135,7 @@ class ApprovalInboxEntry(BaseModel):
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status4 | None = None
+    status: Status5 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
