@@ -858,6 +858,98 @@ components:
             files_changed: { type: array, items: { type: string } }
             retry_count: { type: integer }
 
+    KanbanCompleteMetadata:
+      type: object
+      required: [score, ac_pass_rate, test_pass_rate, verification_score]
+      properties:
+        score: { type: number, minimum: 0, maximum: 1 }
+        ac_pass_rate: { type: number, minimum: 0, maximum: 1 }
+        test_pass_rate: { type: number, minimum: 0, maximum: 1 }
+        verification_score: { type: number, minimum: 0, maximum: 1 }
+        retry_count: { type: integer, minimum: 0, maximum: 3, default: 0 }
+        files_changed:
+          type: array
+          items: { type: string }
+          maxItems: 500
+
+    KanbanCompleteRequestV2:
+      type: object
+      required: [task_id, execution_id, summary, metadata]
+      properties:
+        task_id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid }
+        summary: { type: string, minLength: 1, maxLength: 4000 }
+        metadata: { $ref: '#/components/schemas/KanbanCompleteMetadata' }
+        auto_approve: { type: boolean, default: false }
+
+    KanbanPickRequest:
+      type: object
+      required: [worker_pid]
+      properties:
+        worker_pid: { type: integer, minimum: 1 }
+        project_id: { type: string, format: uuid, nullable: true }
+
+    KanbanPickResponse:
+      type: object
+      required: [no_available_task]
+      properties:
+        task_id: { type: string, format: uuid, nullable: true }
+        execution_id: { type: string, format: uuid, nullable: true }
+        worktree_path: { type: string, nullable: true }
+        no_available_task: { type: boolean }
+
+    KanbanStartRequest:
+      type: object
+      required: [task_id, execution_id, worker_pid]
+      properties:
+        task_id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid }
+        worker_pid: { type: integer, minimum: 1 }
+        claude_code_session_id: { type: string, maxLength: 200, nullable: true }
+
+    KanbanRequestReviewRequest:
+      type: object
+      required: [task_id, execution_id]
+      properties:
+        task_id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid }
+        note: { type: string, maxLength: 2000, nullable: true }
+
+    KanbanRequestChangeRequest:
+      type: object
+      required: [task_id, execution_id, reason]
+      properties:
+        task_id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    KanbanHeartbeatRequest:
+      type: object
+      required: [task_id, worker_pid]
+      properties:
+        task_id: { type: string, format: uuid }
+        worker_pid: { type: integer, minimum: 1 }
+
+    KanbanKillRequest:
+      type: object
+      required: [task_id, reason]
+      properties:
+        task_id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid, nullable: true }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+
+    KanbanResponse:
+      type: object
+      required: [task_id, lifecycle_stage, action]
+      properties:
+        task_id: { type: string, format: uuid }
+        lifecycle_stage: { type: string }
+        dispatch_status: { type: string, nullable: true }
+        execution_status: { type: string, nullable: true }
+        action:
+          type: string
+          enum: [picked, started, completed, review_requested, change_requested, heartbeat_ack, killed]
+
     # ========================================================================
     # MCP トークン管理 (T-A-08)
     # ========================================================================
@@ -1970,19 +2062,69 @@ paths:
   # ==========================================================================
   # Hermes 互換 kanban tools (Bridge worker 専用)
   # ==========================================================================
+  /kanban/pick:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_pick — queued task 1 件確保
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_pick
+      x-feature-ids: [F-DISP01, F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanPickRequest' }
+      responses:
+        '200':
+          description: 確保結果（または no_available_task=true）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanPickResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /kanban/start:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_start — spawning → running
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_start
+      x-feature-ids: [F-DISP01, F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanStartRequest' }
+      responses:
+        '200':
+          description: 開始完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: dispatch_status 不一致, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /kanban/complete:
     post:
       tags: [kanban-tools]
       summary: kanban_complete (Hermes 互換)
       security:
         - bridgeToken: []
-      x-implementation-path: apps/api/src/routes/kanban_tools.py::complete
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_complete
       x-feature-ids: [F-J02, F-DISP01]
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/KanbanCompleteRequest' }
+            schema: { $ref: '#/components/schemas/KanbanCompleteRequestV2' }
       responses:
         '200':
           description: タスク遷移完了
@@ -1991,19 +2133,112 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
-                    type: object
-                    properties:
-                      task_id: { type: string, format: uuid }
-                      new_lifecycle_stage:
-                        type: string
-                        enum: [done, awaiting, blocked, triage]
-                      approval_required: { type: boolean }
-        '401':
-          description: Bridge token 不正
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: dispatch_status 不一致, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /kanban/request-review:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_request_review — 人レビュー要求 (running → awaiting)
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_request_review
+      x-feature-ids: [F-J02, F-DISP01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanRequestReviewRequest' }
+      responses:
+        '200':
+          description: レビュー要求完了
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: dispatch_status 不一致, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /kanban/request-change:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_request_change — 差戻 (running → blocked)
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_request_change
+      x-feature-ids: [F-J02, F-DISP01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanRequestChangeRequest' }
+      responses:
+        '200':
+          description: 差戻完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: dispatch_status 不一致, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /kanban/heartbeat:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_heartbeat — worker PID dead-man switch
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_heartbeat
+      x-feature-ids: [F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanHeartbeatRequest' }
+      responses:
+        '200':
+          description: heartbeat ack
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在 or worker_pid 不一致, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /kanban/kill:
+    post:
+      tags: [kanban-tools]
+      summary: kanban_kill — 強制終了 (running → reclaimed)
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::kanban_kill
+      x-feature-ids: [F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KanbanKillRequest' }
+      responses:
+        '200':
+          description: 強制終了完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KanbanResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: task 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # mocks (CRUD + バージョン管理)

@@ -881,6 +881,83 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
+class KanbanCompleteMetadata(BaseModel):
+    score: Annotated[float, Field(ge=0.0, le=1.0)]
+    ac_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
+    test_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
+    verification_score: Annotated[float, Field(ge=0.0, le=1.0)]
+    retry_count: Annotated[int | None, Field(ge=0, le=3)] = 0
+    files_changed: Annotated[list[str] | None, Field(max_length=500)] = None
+
+
+class KanbanCompleteRequestV2(BaseModel):
+    task_id: UUID
+    execution_id: UUID
+    summary: Annotated[str, Field(max_length=4000, min_length=1)]
+    metadata: KanbanCompleteMetadata
+    auto_approve: bool | None = False
+
+
+class KanbanPickRequest(BaseModel):
+    worker_pid: Annotated[int, Field(ge=1)]
+    project_id: UUID | None = None
+
+
+class KanbanPickResponse(BaseModel):
+    task_id: UUID | None = None
+    execution_id: UUID | None = None
+    worktree_path: str | None = None
+    no_available_task: bool
+
+
+class KanbanStartRequest(BaseModel):
+    task_id: UUID
+    execution_id: UUID
+    worker_pid: Annotated[int, Field(ge=1)]
+    claude_code_session_id: Annotated[str | None, Field(max_length=200)] = None
+
+
+class KanbanRequestReviewRequest(BaseModel):
+    task_id: UUID
+    execution_id: UUID
+    note: Annotated[str | None, Field(max_length=2000)] = None
+
+
+class KanbanRequestChangeRequest(BaseModel):
+    task_id: UUID
+    execution_id: UUID
+    reason: Annotated[str, Field(max_length=2000, min_length=1)]
+
+
+class KanbanHeartbeatRequest(BaseModel):
+    task_id: UUID
+    worker_pid: Annotated[int, Field(ge=1)]
+
+
+class KanbanKillRequest(BaseModel):
+    task_id: UUID
+    execution_id: UUID | None = None
+    reason: Annotated[str, Field(max_length=2000, min_length=1)]
+
+
+class Action(StrEnum):
+    picked = "picked"
+    started = "started"
+    completed = "completed"
+    review_requested = "review_requested"
+    change_requested = "change_requested"
+    heartbeat_ack = "heartbeat_ack"
+    killed = "killed"
+
+
+class KanbanResponse(BaseModel):
+    task_id: UUID
+    lifecycle_stage: str
+    dispatch_status: str | None = None
+    execution_status: str | None = None
+    action: Action
+
+
 class McpToken(BaseModel):
     id: UUID | None = None
     workspace_id: UUID | None = None
