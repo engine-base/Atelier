@@ -13078,9 +13078,24 @@
         "new": [
           "packages/api-client/",
           "packages/api-client/src/index.ts",
-          "scripts/gen-api-client.sh"
+          "scripts/gen-api-client.sh",
+          "apps/web/lib/query-client.ts",
+          "apps/web/providers/query-provider.tsx",
+          "apps/web/i18n/ja.json",
+          "apps/web/lib/i18n.ts",
+          "apps/web/lib/a11y.ts",
+          "docs/a11y.md",
+          "apps/web/styles/tokens.css",
+          "tailwind.config.ts",
+          "apps/web/tests/bundle-a/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "CLAUDE.md",
+          "apps/web/package.json",
+          "pnpm-workspace.yaml",
+          "apps/web/app/globals.css"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-US-04.md",
@@ -13091,7 +13106,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "bundle_note": "Bundle A (W3 infra): T-US-04 + T-US-05 + T-US-12 + T-US-13 + T-US-18. Per CLAUDE.md rule #14-16, files_changed_predicted is expanded to cover all 5 task scopes. Gate #11 PR scope guard evaluates against branch head task ID (T-US-04), so all bundle paths are listed here."
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
