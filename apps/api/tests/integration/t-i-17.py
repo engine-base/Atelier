@@ -85,7 +85,9 @@ def test_analyze_downstream_leaf_has_no_descendants() -> None:
 def test_impact_graph_is_dag() -> None:
     """F-IMP01 前提: 影響グラフは DAG (循環なし) で descendants が有限."""
     g: nx.DiGraph[str] = nx.DiGraph()
-    g.add_edges_from([("a", "b"), ("b", "c"), ("a", "c")])
+    g.add_edges_from(  # pyright: ignore[reportUnknownMemberType]
+        [("a", "b"), ("b", "c"), ("a", "c")]
+    )
     assert nx.is_directed_acyclic_graph(g)
     desc: set[str] = set(
         nx.descendants(g, "a")  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
