@@ -20645,9 +20645,19 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/tests/integration/t-i-13.py"
+          "apps/api/tests/integration/__init__.py",
+          "apps/api/tests/integration/t-i-13.py",
+          "apps/api/tests/integration/t-i-14.py",
+          "apps/api/tests/stress/__init__.py",
+          "apps/api/tests/stress/parallel_10.py",
+          "apps/api/tests/integration/t-i-16.py",
+          "apps/api/tests/integration/t-i-17.py",
+          "apps/api/tests/integration/t-i-18.py"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/api/pytest.ini"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-13.md",
