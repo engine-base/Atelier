@@ -45,7 +45,7 @@ jobs:
           done
           echo "Server did not start"; exit 1
       - name: Run axe a11y spec
-        run: pnpm -F @atelier/e2e exec playwright test e2e/a11y.spec.ts --reporter=list
+        run: pnpm -F @atelier/e2e exec playwright test tests/a11y.spec.ts --project=chromium-desktop --reporter=list
       - name: Upload artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4

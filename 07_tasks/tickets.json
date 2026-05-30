@@ -20275,7 +20275,7 @@
           ".github/workflows/lighthouse.yml",
           "scripts/lighthouse-check.sh",
           ".github/workflows/a11y.yml",
-          "e2e/a11y.spec.ts",
+          "e2e/tests/a11y.spec.ts",
           ".lighthouserc.json"
         ],
         "modify": [
