@@ -20473,7 +20473,8 @@
           "07_tasks/tickets.json",
           "apps/web/package.json",
           "apps/bridge/package.json",
-          ".gitignore"
+          ".gitignore",
+          "apps/web/next-env.d.ts"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
