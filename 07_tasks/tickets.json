@@ -21374,9 +21374,15 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "docs/dns-ssl.md"
+          "docs/dns-ssl.md",
+          "docs/monitoring.md",
+          "scripts/check-monitoring.sh",
+          "docs/rollback-runbook.md",
+          "scripts/rollback.sh"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-21.md",
