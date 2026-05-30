@@ -20454,9 +20454,17 @@
         "new": [
           "apps/bridge/scripts/build-dmg.sh",
           "apps/bridge/scripts/build-msi.sh",
-          "apps/bridge/package.json"
+          "apps/bridge/scripts/build-linux.sh",
+          "apps/bridge/scripts/release-npm.sh",
+          "apps/bridge/scripts/README.md",
+          "scripts/cleanup.sh",
+          "apps/web/.storybook/main.ts",
+          "apps/web/.storybook/preview.ts",
+          "apps/web/.storybook/README.md"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-11.md",
