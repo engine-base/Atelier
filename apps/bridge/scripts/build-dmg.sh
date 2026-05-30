@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # T-I-11: Atelier Bridge macOS .dmg 配布ビルドスクリプト (signed & notarized)。
+# T-I-11 補強: electron-builder で実走するように本配線。
 #
 # 前提:
 #   - APPLE_ID, APPLE_ID_PASSWORD, APPLE_TEAM_ID, CSC_LINK, CSC_KEY_PASSWORD が
 #     環境変数で設定済 (signing + notarization 用)。
-#   - Vibeyard fork (electron-forge) 取込後に electron-forge make --target=dmg
-#     に置き換える。本スクリプトはスケルトンとして配置。
+#   - 本コンテナは Linux なので macOS build は実行不可。
+#     macOS host または GitHub Actions macos-latest runner 上で実行する。
 #
 # Usage:
 #   ./apps/bridge/scripts/build-dmg.sh [--no-notarize]
@@ -25,19 +26,35 @@ done
 echo "→ Building Atelier Bridge macOS .dmg"
 echo "  ROOT: $ROOT"
 
-# placeholder: 本実装は Vibeyard fork 取込後に electron-forge へ置換
 if ! command -v node >/dev/null 2>&1; then
   echo "::error::node not found" >&2
   exit 1
 fi
 
-# 想定: pnpm -F @atelier/bridge run dist:mac で electron-builder が走る
-# pnpm -F @atelier/bridge run dist:mac
-echo "::notice::placeholder build (Vibeyard fork pending). スクリプトは scope を予約。"
-
-if [ "$NO_NOTARIZE" -eq 0 ]; then
-  echo "→ Notarization step (placeholder)"
-  # xcrun notarytool submit ... --wait
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "::warning::This script must run on macOS for code signing & notarization." >&2
 fi
 
-echo "✓ macOS dmg build completed (placeholder)"
+# TypeScript -> dist/
+pnpm -F @atelier/bridge build
+
+# electron-builder で macOS dmg を生成
+if [ "$NO_NOTARIZE" -eq 1 ]; then
+  CSC_IDENTITY_AUTO_DISCOVERY=false \
+    pnpm -F @atelier/bridge exec electron-builder --mac dmg --publish=never
+else
+  pnpm -F @atelier/bridge exec electron-builder --mac dmg --publish=never
+fi
+
+OUT="apps/bridge/out"
+ls -lh "$OUT"/*.dmg 2>/dev/null || {
+  echo "::error::dmg not found in $OUT" >&2
+  exit 1
+}
+
+if [ "$NO_NOTARIZE" -eq 0 ] && [ "$(uname -s)" = "Darwin" ]; then
+  echo "→ Notarization step"
+  # electron-builder の afterSign hook で notarytool を呼ぶ場合は build.afterSign に設定
+fi
+
+echo "✓ macOS dmg build completed"

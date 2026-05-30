@@ -46,6 +46,9 @@ playwright-report/
 test-results/
 storybook-static/
 
+# electron-builder output (apps/bridge/out/ contains 100MB+ artifacts)
+apps/bridge/out/
+
 # JIT 一時 CLAUDE.md（dispatch.sh が /tmp に生成。ルートに置かれた一時ファイルも除外）
 /CLAUDE.md.tmp
 /CLAUDE.md.task
