@@ -15408,10 +15408,31 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/chat/s_e01/page.tsx",
+          "apps/web/app/chat/s_e01/_components/ChatPanel.tsx",
+          "apps/web/app/chat/s_e01/_components/ProcessContextBar.tsx",
           "apps/web/app/chat/s_e01/_components/.gitkeep",
-          "e2e/s_e01.spec.ts"
+          "e2e/s_e01.spec.ts",
+          "apps/web/app/outputs/s_g01/page.tsx",
+          "apps/web/app/outputs/s_g01/_components/OutputViewer.tsx",
+          "apps/web/app/outputs/s_g01/_components/.gitkeep",
+          "e2e/s_g01.spec.ts",
+          "apps/web/app/mocks/s_h01/page.tsx",
+          "apps/web/app/mocks/s_h01/_components/MockViewer.tsx",
+          "apps/web/app/mocks/s_h01/_components/.gitkeep",
+          "e2e/s_h01.spec.ts",
+          "apps/web/app/upload/s_m01/page.tsx",
+          "apps/web/app/upload/s_m01/_components/TranscriptUpload.tsx",
+          "apps/web/app/upload/s_m01/_components/.gitkeep",
+          "e2e/s_m01.spec.ts",
+          "apps/web/app/sales/s_n01/page.tsx",
+          "apps/web/app/sales/s_n01/_components/SalesDocDraft.tsx",
+          "apps/web/app/sales/s_n01/_components/.gitkeep",
+          "e2e/s_n01.spec.ts",
+          "apps/web/tests/bundle-h/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-08.md",
