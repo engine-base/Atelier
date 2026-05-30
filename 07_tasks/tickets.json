@@ -15160,10 +15160,30 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/employees/s_c01/page.tsx",
+          "apps/web/app/employees/s_c01/_components/OrgChart.tsx",
           "apps/web/app/employees/s_c01/_components/.gitkeep",
-          "e2e/s_c01.spec.ts"
+          "e2e/s_c01.spec.ts",
+          "apps/web/app/employees/s_c02/page.tsx",
+          "apps/web/app/employees/s_c02/_components/EmployeeEditor.tsx",
+          "apps/web/app/employees/s_c02/_components/.gitkeep",
+          "e2e/s_c02.spec.ts",
+          "apps/web/app/knowledge/s_k01/page.tsx",
+          "apps/web/app/knowledge/s_k01/_components/KnowledgeExplorer.tsx",
+          "apps/web/app/knowledge/s_k01/_components/.gitkeep",
+          "e2e/s_k01.spec.ts",
+          "apps/web/app/knowledge/s_k02/page.tsx",
+          "apps/web/app/knowledge/s_k02/_components/PromotionReview.tsx",
+          "apps/web/app/knowledge/s_k02/_components/.gitkeep",
+          "e2e/s_k02.spec.ts",
+          "apps/web/app/cron/s_o01/page.tsx",
+          "apps/web/app/cron/s_o01/_components/CronSchedule.tsx",
+          "apps/web/app/cron/s_o01/_components/.gitkeep",
+          "e2e/s_o01.spec.ts",
+          "apps/web/tests/bundle-i/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-06.md",
