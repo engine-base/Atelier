@@ -14511,10 +14511,25 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/auth/s_a01/page.tsx",
+          "apps/web/app/auth/s_a01/_components/SigninForm.tsx",
+          "apps/web/app/auth/s_a01/_components/SignupForm.tsx",
           "apps/web/app/auth/s_a01/_components/.gitkeep",
-          "e2e/s_a01.spec.ts"
+          "e2e/s_a01.spec.ts",
+          "apps/web/app/auth/s_a03/page.tsx",
+          "apps/web/app/auth/s_a03/_components/WorkspaceSettingsForm.tsx",
+          "apps/web/app/auth/s_a03/_components/.gitkeep",
+          "e2e/s_a03.spec.ts",
+          "apps/web/app/client/s_l02/page.tsx",
+          "apps/web/app/client/s_l02/_components/ClientSigninForm.tsx",
+          "apps/web/app/client/s_l02/_components/.gitkeep",
+          "e2e/s_l02.spec.ts",
+          "apps/web/app/t-uc-37/page.tsx",
+          "apps/web/app/t-uc-38/page.tsx",
+          "apps/web/tests/bundle-e/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-01.md",
