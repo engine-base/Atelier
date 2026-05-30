@@ -21393,7 +21393,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "ci_retrigger_note": "Bundle R (T-I-21/22/23) は初回同時 PR 作成時に v3-gate が起動しなかったため、本注記で再トリガー。scope (docs/*.md + scripts/*.sh) 検証済・scope guard PASS 確認済。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
