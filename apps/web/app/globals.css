@@ -1,5 +1,6 @@
 @import "@atelier/design-tokens/css";
 @import "../styles/tokens.css";
+@import "../styles/print.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
