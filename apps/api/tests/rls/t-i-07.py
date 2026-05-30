@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Iterator
 
 import pytest
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 from sqlalchemy.pool import NullPool
 
 PG_SYNC = os.environ.get(
@@ -47,13 +48,13 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="Postgres not availa
 
 
 @pytest.fixture()
-def engine():  # type: ignore[no-untyped-def]
+def engine() -> Iterator[Engine]:
     eng = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
     yield eng
     eng.dispose()
 
 
-def test_employee_specific_knowledge_owner_only(engine) -> None:  # type: ignore[no-untyped-def]
+def test_employee_specific_knowledge_owner_only(engine: Engine) -> None:
     """employee_specific knowledge は owner workspace の owner role のみ可視 (R-T08)."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
@@ -113,7 +114,7 @@ def test_employee_specific_knowledge_owner_only(engine) -> None:  # type: ignore
         assert rows == 0, f"R-T08 violation: ws_b owner saw ws_a employee_specific (rows={rows})"
 
 
-def test_archived_employee_knowledge_invisible(engine) -> None:  # type: ignore[no-untyped-def]
+def test_archived_employee_knowledge_invisible(engine: Engine) -> None:
     """archived ai_employee の employee_specific knowledge は誰からも 0 rows."""
     u_a = str(uuid.uuid4())
     ws_a = str(uuid.uuid4())

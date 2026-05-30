@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Iterator
 
 import pytest
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import Engine, text
 from sqlalchemy.pool import NullPool
 
 PG_SYNC = os.environ.get(
@@ -44,13 +45,13 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="Postgres not availa
 
 
 @pytest.fixture()
-def engine():  # type: ignore[no-untyped-def]
+def engine() -> Iterator[Engine]:
     eng = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
     yield eng
     eng.dispose()
 
 
-def test_byok_key_isolation(engine) -> None:  # type: ignore[no-untyped-def]
+def test_byok_key_isolation(engine: Engine) -> None:
     """byok_keys は user_id = auth.uid() の self のみ見える (R-T06 簡略)."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     k_a = str(uuid.uuid4())
@@ -91,7 +92,7 @@ def test_byok_key_isolation(engine) -> None:  # type: ignore[no-untyped-def]
         assert rows == 0, f"R-T06 violation: u_b saw u_a's byok_key (rows={rows})"
 
 
-def test_service_role_bypass_capability(engine) -> None:  # type: ignore[no-untyped-def]
+def test_service_role_bypass_capability(engine: Engine) -> None:
     """service_role は RLS を bypass する (cron / vault / system 用)."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())

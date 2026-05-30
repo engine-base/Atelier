@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Iterator
 
 import pytest
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import Connection, Engine, text
 from sqlalchemy.pool import NullPool
 
 PG_SYNC = os.environ.get(
@@ -44,13 +45,13 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="Postgres not availa
 
 
 @pytest.fixture()
-def engine():  # type: ignore[no-untyped-def]
+def engine() -> Iterator[Engine]:
     eng = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
     yield eng
     eng.dispose()
 
 
-def _set_jwt(conn, user_id: str) -> None:  # type: ignore[no-untyped-def]
+def _set_jwt(conn: Connection, user_id: str) -> None:
     conn.execute(text("set local role authenticated"))
     conn.execute(
         text("select set_config('request.jwt.claims', :c, true)"),
@@ -58,7 +59,7 @@ def _set_jwt(conn, user_id: str) -> None:  # type: ignore[no-untyped-def]
     )
 
 
-def test_cross_workspace_projects_invisible(engine) -> None:  # type: ignore[no-untyped-def]
+def test_cross_workspace_projects_invisible(engine: Engine) -> None:
     """workspace A の user が workspace B の project を SELECT すると 0 rows."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
@@ -103,7 +104,7 @@ def test_cross_workspace_projects_invisible(engine) -> None:  # type: ignore[no-
         assert rows == 0, f"R-T01 violation: ws_a user saw ws_b project (rows={rows})"
 
 
-def test_cross_workspace_workspaces_invisible(engine) -> None:  # type: ignore[no-untyped-def]
+def test_cross_workspace_workspaces_invisible(engine: Engine) -> None:
     """workspace A の user は workspace B 自身も見えない."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())

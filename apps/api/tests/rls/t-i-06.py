@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Iterator
 
 import pytest
 import sqlalchemy
-from sqlalchemy import text
+from sqlalchemy import Connection, Engine, text
 from sqlalchemy.pool import NullPool
 
 PG_SYNC = os.environ.get(
@@ -41,13 +42,13 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="Postgres not availa
 
 
 @pytest.fixture()
-def engine():  # type: ignore[no-untyped-def]
+def engine() -> Iterator[Engine]:
     eng = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
     yield eng
     eng.dispose()
 
 
-def _set_jwt(conn, user_id: str) -> None:  # type: ignore[no-untyped-def]
+def _set_jwt(conn: Connection, user_id: str) -> None:
     conn.execute(text("set local role authenticated"))
     conn.execute(
         text("select set_config('request.jwt.claims', :c, true)"),
@@ -55,7 +56,7 @@ def _set_jwt(conn, user_id: str) -> None:  # type: ignore[no-untyped-def]
     )
 
 
-def test_cross_project_tasks_invisible(engine) -> None:  # type: ignore[no-untyped-def]
+def test_cross_project_tasks_invisible(engine: Engine) -> None:
     """project A の member は project B の task を見えない (R-T03)."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
@@ -109,7 +110,7 @@ def test_cross_project_tasks_invisible(engine) -> None:  # type: ignore[no-untyp
         assert rows == 0, f"R-T03 violation: project_a user saw project_b task (rows={rows})"
 
 
-def test_mcp_token_workspace_bound(engine) -> None:  # type: ignore[no-untyped-def]
+def test_mcp_token_workspace_bound(engine: Engine) -> None:
     """MCP token (Bridge) は workspace に紐づき、他 WS の token は見えない (R-T04)."""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a, ws_b = str(uuid.uuid4()), str(uuid.uuid4())
