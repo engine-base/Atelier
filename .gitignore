@@ -44,6 +44,7 @@ pnpm-debug.log*
 # Test artifacts
 playwright-report/
 test-results/
+storybook-static/
 
 # JIT 一時 CLAUDE.md（dispatch.sh が /tmp に生成。ルートに置かれた一時ファイルも除外）
 /CLAUDE.md.tmp
