@@ -12799,9 +12799,20 @@
         "new": [
           "apps/web/components/layout/AppShell.tsx",
           "apps/web/components/layout/Sidebar.tsx",
-          "apps/web/components/layout/TopBar.tsx"
+          "apps/web/components/layout/TopBar.tsx",
+          "apps/web/components/WorkspacePicker.tsx",
+          "apps/web/components/ProjectPicker.tsx",
+          "apps/web/app/(client)/layout.tsx",
+          "apps/web/components/client/ClientShell.tsx",
+          "apps/web/app/(admin)/layout.tsx",
+          "apps/web/components/admin/AdminShell.tsx",
+          "apps/web/tests/bundle-b/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/web/package.json",
+          "apps/web/app/layout.tsx"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-US-01.md",
@@ -12812,7 +12823,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "bundle_note": "Bundle B (W3 layouts): T-US-01 + T-US-02 + T-US-15 + T-US-16. Per CLAUDE.md rule #14-16. @testing-library/react を package.json modify で追加。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
