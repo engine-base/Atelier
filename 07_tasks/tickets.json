@@ -16899,10 +16899,30 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/client/s_l01/page.tsx",
+          "apps/web/app/client/s_l01/_components/InvitationsList.tsx",
           "apps/web/app/client/s_l01/_components/.gitkeep",
-          "e2e/s_l01.spec.ts"
+          "e2e/s_l01.spec.ts",
+          "apps/web/app/public/s_pub01/page.tsx",
+          "apps/web/app/public/s_pub01/_components/.gitkeep",
+          "e2e/s_pub01.spec.ts",
+          "apps/web/app/public/s_pub02/page.tsx",
+          "apps/web/app/public/s_pub02/_components/.gitkeep",
+          "e2e/s_pub02.spec.ts",
+          "apps/web/app/public/s_pub03/page.tsx",
+          "apps/web/app/public/s_pub03/_components/.gitkeep",
+          "e2e/s_pub03.spec.ts",
+          "apps/web/app/public/s_pub04/page.tsx",
+          "apps/web/app/public/s_pub04/_components/.gitkeep",
+          "apps/web/app/public/s_pub04/_components/DataDeletionForm.tsx",
+          "e2e/s_pub04.spec.ts",
+          "apps/web/app/t-uc-35/page.tsx",
+          "apps/web/app/t-uc-36/page.tsx",
+          "apps/web/app/t-uc-40/page.tsx",
+          "apps/web/tests/bundle-kl/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-20.md",
