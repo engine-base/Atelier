@@ -20273,9 +20273,15 @@
       "files_changed_predicted": {
         "new": [
           ".github/workflows/lighthouse.yml",
-          "scripts/lighthouse-check.sh"
+          "scripts/lighthouse-check.sh",
+          ".github/workflows/a11y.yml",
+          "e2e/a11y.spec.ts",
+          ".lighthouserc.json"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "e2e/package.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-09.md",
