@@ -20470,9 +20470,28 @@
         "new": [
           "apps/bridge/scripts/build-dmg.sh",
           "apps/bridge/scripts/build-msi.sh",
-          "apps/bridge/package.json"
+          "apps/bridge/scripts/build-linux.sh",
+          "apps/bridge/scripts/release-npm.sh",
+          "apps/bridge/scripts/README.md",
+          "scripts/cleanup.sh",
+          "apps/web/.storybook/main.ts",
+          "apps/web/.storybook/preview.ts",
+          "apps/web/.storybook/README.md",
+          "apps/web/components/Avatar.stories.tsx",
+          "apps/web/components/Skeleton.stories.tsx",
+          "apps/web/components/ui/dialog.stories.tsx",
+          "apps/web/components/data-table/DataTable.stories.tsx",
+          "apps/bridge/src/electron-entry.ts",
+          "apps/bridge/renderer/index.html",
+          "apps/bridge/vitest.config.ts"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/web/package.json",
+          "apps/bridge/package.json",
+          ".gitignore",
+          "apps/web/next-env.d.ts"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-11.md",
@@ -20483,7 +20502,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "scope_expand_note": "T-I-11/12/20 の補強で Storybook を実 build 成功 (SB10 nextjs-vite) + Bridge を electron-builder で実配布物生成 (AppImage/.deb) させた際に必要になった real-wiring ファイルを scope に取り込む (ルール #11/#14 準拠の expand)。electron-entry.ts/renderer/index.html/vitest.config.ts は新規、apps/bridge/package.json (electron deps) と .gitignore (out/・storybook-static/ 除外) は modify。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [

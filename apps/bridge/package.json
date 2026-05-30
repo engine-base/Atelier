@@ -3,21 +3,66 @@
   "version": "0.1.0",
   "private": true,
   "description": "Atelier Bridge — Vibeyard fork (Electron + node-pty + xterm.js) による Claude Code マルチセッション dispatcher",
+  "homepage": "https://atelier.engine-base.com",
+  "author": {
+    "name": "Engine Base, Inc.",
+    "email": "info@engine-base.com"
+  },
   "type": "module",
-  "main": "dist/main.js",
+  "main": "dist/electron-entry.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "echo 'placeholder — Vibeyard fork 取込後に electron-forge start に置き換え' && exit 0",
+    "dev": "electron .",
     "lint": "echo 'placeholder' && exit 0",
     "type-check": "tsc --noEmit",
-    "test": "echo 'placeholder — T-F-24 で vitest に置き換え' && exit 0",
-    "clean": "rm -rf dist"
+    "test": "vitest run",
+    "dist:linux": "electron-builder --linux AppImage deb --publish=never",
+    "dist:mac": "electron-builder --mac dmg --publish=never",
+    "dist:win": "electron-builder --win nsis --publish=never",
+    "clean": "rm -rf dist out"
   },
   "dependencies": {
     "@atelier/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "typescript": "^5.7.2"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "build": {
+    "appId": "com.engine-base.atelier.bridge",
+    "productName": "Atelier Bridge",
+    "artifactName": "atelier-bridge-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "out",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "store",
+    "linux": {
+      "category": "Development",
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ]
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    }
   }
 }
