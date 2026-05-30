@@ -12,9 +12,11 @@
     "codegen": "playwright codegen http://127.0.0.1:3000",
     "lint": "echo 'placeholder' && exit 0",
     "type-check": "tsc --noEmit",
+    "a11y": "playwright test a11y.spec.ts --reporter=list",
     "clean": "rm -rf playwright-report test-results"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "@playwright/test": "^1.49.0",
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2"

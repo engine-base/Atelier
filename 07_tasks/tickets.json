@@ -19479,9 +19479,15 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "e2e/t-i-01.spec.ts"
+          "e2e/t-i-01.spec.ts",
+          "e2e/t-i-02.spec.ts",
+          "e2e/t-i-03.spec.ts",
+          "e2e/t-i-04.spec.ts",
+          "e2e/_helpers/auth.ts"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-01.md",
@@ -19492,7 +19498,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "ci_retrigger_note": "Bundle M (T-I-01/02/03/04) は初回同時 PR 作成時に v3-gate が起動しなかったため、本注記で再トリガー。e2e tsc 0 errors・scope guard PASS 確認済。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
@@ -19853,9 +19860,16 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/tests/rls/t-i-05.py"
+          "apps/api/tests/rls/__init__.py",
+          "apps/api/tests/rls/t-i-05.py",
+          "apps/api/tests/rls/t-i-06.py",
+          "apps/api/tests/rls/t-i-07.py",
+          "apps/api/tests/rls/t-i-08.py"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/api/pytest.ini"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-05.md",
@@ -20273,9 +20287,17 @@
       "files_changed_predicted": {
         "new": [
           ".github/workflows/lighthouse.yml",
-          "scripts/lighthouse-check.sh"
+          "scripts/lighthouse-check.sh",
+          ".github/workflows/a11y.yml",
+          "e2e/tests/a11y.spec.ts",
+          ".lighthouserc.json"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "e2e/package.json",
+          "apps/web/styles/tokens.css",
+          "apps/web/app/client/s_l02/page.tsx"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-09.md",
@@ -20286,7 +20308,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "scope_expand_note": "T-I-09/10 の a11y axe を実 next build で全 39 route 走査した際に発見した build-blocking バグ 2 件 (tokens.css の @layer base が @tailwind base 前読みで PostCSS error / s_l02 の useSearchParams が Next 15 で Suspense 必須) を同 PR で修正。CI で a11y spec を走らせる前提条件のため本タスク scope に取り込む (ルール #11/#14 準拠の expand)。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
@@ -20454,9 +20477,28 @@
         "new": [
           "apps/bridge/scripts/build-dmg.sh",
           "apps/bridge/scripts/build-msi.sh",
-          "apps/bridge/package.json"
+          "apps/bridge/scripts/build-linux.sh",
+          "apps/bridge/scripts/release-npm.sh",
+          "apps/bridge/scripts/README.md",
+          "scripts/cleanup.sh",
+          "apps/web/.storybook/main.ts",
+          "apps/web/.storybook/preview.ts",
+          "apps/web/.storybook/README.md",
+          "apps/web/components/Avatar.stories.tsx",
+          "apps/web/components/Skeleton.stories.tsx",
+          "apps/web/components/ui/dialog.stories.tsx",
+          "apps/web/components/data-table/DataTable.stories.tsx",
+          "apps/bridge/src/electron-entry.ts",
+          "apps/bridge/renderer/index.html",
+          "apps/bridge/vitest.config.ts"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/web/package.json",
+          "apps/bridge/package.json",
+          ".gitignore",
+          "apps/web/next-env.d.ts"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-11.md",
@@ -20467,7 +20509,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "scope_expand_note": "T-I-11/12/20 の補強で Storybook を実 build 成功 (SB10 nextjs-vite) + Bridge を electron-builder で実配布物生成 (AppImage/.deb) させた際に必要になった real-wiring ファイルを scope に取り込む (ルール #11/#14 準拠の expand)。electron-entry.ts/renderer/index.html/vitest.config.ts は新規、apps/bridge/package.json (electron deps) と .gitignore (out/・storybook-static/ 除外) は modify。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
@@ -20645,9 +20688,19 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/tests/integration/t-i-13.py"
+          "apps/api/tests/integration/__init__.py",
+          "apps/api/tests/integration/t-i-13.py",
+          "apps/api/tests/integration/t-i-14.py",
+          "apps/api/tests/stress/__init__.py",
+          "apps/api/tests/stress/parallel_10.py",
+          "apps/api/tests/integration/t-i-16.py",
+          "apps/api/tests/integration/t-i-17.py",
+          "apps/api/tests/integration/t-i-18.py"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/api/pytest.ini"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-13.md",
@@ -21374,9 +21427,15 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "docs/dns-ssl.md"
+          "docs/dns-ssl.md",
+          "docs/monitoring.md",
+          "scripts/check-monitoring.sh",
+          "docs/rollback-runbook.md",
+          "scripts/rollback.sh"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-21.md",
@@ -21387,7 +21446,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "ci_retrigger_note": "Bundle R (T-I-21/22/23) は初回同時 PR 作成時に v3-gate が起動しなかったため、本注記で再トリガー。scope (docs/*.md + scripts/*.sh) 検証済・scope guard PASS 確認済。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
