@@ -12997,9 +12997,18 @@
         "new": [
           "apps/web/lib/auth/cookie.ts",
           "apps/web/middleware.ts",
-          "apps/web/lib/auth/refresh.ts"
+          "apps/web/lib/auth/refresh.ts",
+          "apps/web/components/ErrorBoundary.tsx",
+          "apps/web/components/Notifications.tsx",
+          "apps/web/lib/realtime.ts",
+          "apps/web/lib/print.ts",
+          "apps/web/styles/print.css",
+          "apps/web/tests/bundle-d/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/web/app/globals.css"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-US-03.md",
