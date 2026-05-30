@@ -19479,9 +19479,15 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "e2e/t-i-01.spec.ts"
+          "e2e/t-i-01.spec.ts",
+          "e2e/t-i-02.spec.ts",
+          "e2e/t-i-03.spec.ts",
+          "e2e/t-i-04.spec.ts",
+          "e2e/_helpers/auth.ts"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-01.md",
@@ -19492,7 +19498,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "ci_retrigger_note": "Bundle M (T-I-01/02/03/04) は初回同時 PR 作成時に v3-gate が起動しなかったため、本注記で再トリガー。e2e tsc 0 errors・scope guard PASS 確認済。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
