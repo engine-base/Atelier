@@ -1,11 +1,9 @@
 /**
- * Storybook 7+ 設定 — T-I-20 (任意 / Phase 5+).
+ * Storybook 8 設定 — T-I-20.
  *
- * Bundle B/C で作った AppShell / Pickers / Dialog / Toast / Avatar / DataTable 等を
- * 個別に確認するための Storybook 設定。Storybook 8 系 + Next.js framework adapter。
- *
- * 本ファイルは scope を予約するスケルトン。実 stories ファイルは別 PR で追加し
- * `stories` glob から拾う。
+ * Bundle B/C で作った Avatar / Skeleton / Dialog / DataTable 等を個別に確認する。
+ * @storybook/addon-a11y が各 story の WCAG 2.2 AA 違反を即時検出する。
+ * 依存は apps/web/package.json に追加済 (storybook + @storybook/nextjs + addons)。
  */
 
 import type { StorybookConfig } from '@storybook/nextjs';
@@ -19,12 +17,7 @@ const config: StorybookConfig = {
     '../components/**/*.stories.@(ts|tsx|mdx)',
     '../app/**/*.stories.@(ts|tsx|mdx)',
   ],
-  addons: [
-    '@storybook/addon-essentials',
-    '@storybook/addon-a11y',
-    '@storybook/addon-interactions',
-  ],
-  staticDirs: ['../public'],
+  addons: ['@storybook/addon-essentials', '@storybook/addon-a11y'],
   docs: {
     autodocs: 'tag',
   },

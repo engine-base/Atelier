@@ -20460,10 +20460,15 @@
           "scripts/cleanup.sh",
           "apps/web/.storybook/main.ts",
           "apps/web/.storybook/preview.ts",
-          "apps/web/.storybook/README.md"
+          "apps/web/.storybook/README.md",
+          "apps/web/components/Avatar.stories.tsx",
+          "apps/web/components/Skeleton.stories.tsx",
+          "apps/web/components/ui/dialog.stories.tsx",
+          "apps/web/components/data-table/DataTable.stories.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/package.json"
         ],
         "shared_read": [
           "07_tasks/tickets.json",

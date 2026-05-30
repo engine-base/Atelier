@@ -1,30 +1,45 @@
-# Storybook (T-I-20)
+# Storybook (T-I-20 / 任意・Phase 5+)
 
-Atelier の Web UI コンポーネントを個別カタログ化するための Storybook 設定。
+Atelier の Web UI コンポーネントを個別カタログ化するための Storybook 設定 + stories。
 
-## 起動
+## 現状ステータス(正直な開示)
+
+| 項目 | 状態 |
+|---|---|
+| 依存 (storybook 8.4 + @storybook/nextjs + addon-essentials + addon-a11y) | ✅ package.json 追加済 |
+| 設定 (main.ts / preview.ts) | ✅ 配置済、tsc 0 errors |
+| stories (Avatar / Skeleton / Dialog / DataTable) | ✅ 実装済、tsc + lint clean |
+| `storybook build` (静的書き出し) | ⚠️ **未対応** — 下記の既知問題 |
+
+### 既知の build 問題
+
+`@storybook/nextjs@8` の webpack5 builder が **Next.js 15 の bundled webpack** と
+衝突し、`SB_BUILDER-WEBPACK5_0002 (reading 'tap' of undefined)` で preview build が
+失敗する。これは Storybook 8 系と Next 15 / React 19 の組み合わせの既知の非互換。
+
+**対処の選択肢 (Phase 5+ で対応):**
+- Storybook 9 系へ上げる(Next 15 対応が進んでいる)
+- vite builder (`@storybook/experimental-nextjs-vite`) へ切替
+- `storybook dev` (HMR) はローカル開発確認に使える場合がある
+
+T-I-20 は tickets.json でも **「任意・Phase 5+」** と明記されているため、本 PR では
+stories + 設定までを scope とし、CI での静的 build は Phase 5+ に持ち越す。
+
+## ローカル開発での起動 (HMR)
 
 ```bash
 pnpm -F @atelier/web exec storybook dev -p 6006
 ```
 
-ただし現状は **設定ファイルのみ** であり、storybook 本体 / addon は依存に
-追加していない (Phase 5+ で本格化)。実起動には以下が必要:
-
-```bash
-pnpm -F @atelier/web add -D storybook @storybook/nextjs \
-  @storybook/addon-essentials @storybook/addon-a11y \
-  @storybook/addon-interactions
-```
-
 ## stories の場所
 
-- `apps/web/components/**/*.stories.@(ts|tsx|mdx)`
-- `apps/web/app/**/*.stories.@(ts|tsx|mdx)`
+- `apps/web/components/**/*.stories.@(ts|tsx|mdx)` — 現状 4 stories
+  (Avatar / Skeleton / ui/dialog / data-table/DataTable)
+- `apps/web/app/**/*.stories.@(ts|tsx|mdx)` — 今後追加
 
-Bundle B/C で作ったコンポーネント (AppShell / Sidebar / TopBar / Picker /
-Dialog / Toast / Avatar / EmployeeIcon / DataTable / Pagination / Form / Field /
-Skeleton / Loading / Notifications) を順次 stories 化する想定。
+今後 Bundle B/C の他コンポーネント (AppShell / Sidebar / TopBar / Picker /
+Toast / EmployeeIcon / Pagination / Form / Field / Loading / Notifications) も
+順次 stories 化する。
 
 ## a11y addon
 
