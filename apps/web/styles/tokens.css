@@ -1,0 +1,50 @@
+/*
+ * apps/web/styles/tokens.css — T-US-18
+ *
+ * design-tokens の CSS Custom Properties は packages/design-tokens/src/tokens.css に集約。
+ * app/globals.css 側で `@import "@atelier/design-tokens/css"` 済み (T-F-09 + T-F-16)。
+ * 本ファイルは Atelier 独自の補助 token (focus-ring / shadow / motion / z-index) を追加する。
+ * すべて 05_design/DESIGN-atelier.md の token 命名規則に従う。
+ */
+
+@layer base {
+  :root {
+    /* Focus ring — WCAG 2.2 AA (>= 3:1 vs surroundings, >= 2px) */
+    --focus-ring-color: var(--color-primary);
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+
+    /* Shadow — Material 3 elevation tier */
+    --shadow-e1: 0 1px 2px 0 rgb(15 23 42 / 0.06), 0 1px 1px -1px rgb(15 23 42 / 0.04);
+    --shadow-e2: 0 1px 3px 0 rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+    --shadow-e3: 0 4px 8px -2px rgb(15 23 42 / 0.10), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+    --shadow-e4: 0 10px 20px -5px rgb(15 23 42 / 0.12), 0 4px 6px -2px rgb(15 23 42 / 0.06);
+
+    /* Motion — Material 3 standard easing */
+    --motion-duration-quick: 120ms;
+    --motion-duration-default: 200ms;
+    --motion-duration-slow: 320ms;
+    --motion-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+    --motion-easing-emphasized: cubic-bezier(0.3, 0, 0, 1);
+
+    /* z-index scale — overlay 順序を統一 (modal が toast の下に潜るバグ防止) */
+    --z-base: 0;
+    --z-sticky: 100;
+    --z-overlay: 1000;
+    --z-modal: 1100;
+    --z-toast: 1200;
+    --z-tooltip: 1300;
+  }
+
+  /* a11y: prefers-reduced-motion ユーザーへの配慮 (Atelier 必達) */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
