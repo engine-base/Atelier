@@ -18146,10 +18146,30 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/admin/s_t01/page.tsx",
+          "apps/web/app/admin/s_t01/_components/AdminDashboard.tsx",
           "apps/web/app/admin/s_t01/_components/.gitkeep",
-          "e2e/s_t01.spec.ts"
+          "e2e/s_t01.spec.ts",
+          "apps/web/app/admin/s_t02/page.tsx",
+          "apps/web/app/admin/s_t02/_components/SkillManager.tsx",
+          "apps/web/app/admin/s_t02/_components/.gitkeep",
+          "e2e/s_t02.spec.ts",
+          "apps/web/app/admin/s_t03/page.tsx",
+          "apps/web/app/admin/s_t03/_components/TemplateList.tsx",
+          "apps/web/app/admin/s_t03/_components/.gitkeep",
+          "e2e/s_t03.spec.ts",
+          "apps/web/app/admin/s_t04/page.tsx",
+          "apps/web/app/admin/s_t04/_components/UserAdminList.tsx",
+          "apps/web/app/admin/s_t04/_components/.gitkeep",
+          "e2e/s_t04.spec.ts",
+          "apps/web/app/admin/s_t05/page.tsx",
+          "apps/web/app/admin/s_t05/_components/AuditLogTable.tsx",
+          "apps/web/app/admin/s_t05/_components/.gitkeep",
+          "e2e/s_t05.spec.ts",
+          "apps/web/tests/bundle-j/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-30.md",
