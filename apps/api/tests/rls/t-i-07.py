@@ -168,6 +168,6 @@ def test_archived_employee_knowledge_invisible(engine: Engine) -> None:
             text("select count(*) from public.knowledge_nodes where id = cast(:k as uuid)"),
             {"k": kn_id},
         ).scalar_one()
-        assert rows == 0, (
-            f"T-F-40 violation: archived ai_employee's employee_specific visible (rows={rows})"
-        )
+        assert (
+            rows == 0
+        ), f"T-F-40 violation: archived ai_employee's employee_specific visible (rows={rows})"
