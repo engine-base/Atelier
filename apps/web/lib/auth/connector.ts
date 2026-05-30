@@ -12,7 +12,13 @@
 
 import { COOKIE_NAMES } from './cookie';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+// API base: 明示の NEXT_PUBLIC_API_URL を最優先。未設定なら本番(Vercel)は Fly の
+// API を、それ以外(ローカル)は localhost を既定にする。
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === 'production'
+    ? 'https://atelier-api-eb.fly.dev'
+    : 'http://localhost:8000');
 
 export type ConsentType =
   | 'terms_of_service'
