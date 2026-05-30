@@ -43,12 +43,12 @@ uv run uvicorn main:app --host 127.0.0.1 --port 8000
 cd apps/web
 echo 'NEXT_PUBLIC_API_URL=http://localhost:8000' > .env.local
 pnpm exec next build
-pnpm exec next start -p 3000
+pnpm exec next start -p 3100
 ```
 
 ## 4. ブラウザで触る
 
-→ **http://localhost:3000**
+→ **http://localhost:3100**
 
 | 操作 | URL | 挙動 |
 |---|---|---|
@@ -60,7 +60,7 @@ pnpm exec next start -p 3000
 | 法務ページ | `/public/s_pub01..04` | 未認証でも公開（利用規約・プライバシー等） |
 
 ### デモ手順
-1. http://localhost:3000/auth/s_a01 を開く
+1. http://localhost:3100/auth/s_a01 を開く
 2. 「Sign up」タブ → メール・パスワード（8文字以上）・同意チェック → 登録
 3. 自動ログインされ、プロジェクト画面へ遷移
 4. 以後は cookie 有効期限（1h）内は保護ページを回遊可能

@@ -35,10 +35,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# フロントエンド (Next.js :3000) からの cookie 付きリクエストを許可。
+# フロントエンド (Next.js) からの cookie 付きリクエストを許可。
+# dev はローカル任意ポート (localhost / 127.0.0.1 の :3000, :3100 等) を許容。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
