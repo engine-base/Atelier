@@ -13468,9 +13468,21 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/components/ui/dialog.tsx",
-          "apps/web/components/ui/toast.tsx"
+          "apps/web/components/ui/toast.tsx",
+          "apps/web/components/Avatar.tsx",
+          "apps/web/components/EmployeeIcon.tsx",
+          "apps/web/components/data-table/DataTable.tsx",
+          "apps/web/components/data-table/Pagination.tsx",
+          "apps/web/components/forms/Field.tsx",
+          "apps/web/components/forms/Form.tsx",
+          "apps/web/components/Skeleton.tsx",
+          "apps/web/components/Loading.tsx",
+          "apps/web/tests/bundle-c/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/web/package.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-US-08.md",
