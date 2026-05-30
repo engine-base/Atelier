@@ -19479,9 +19479,15 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "e2e/t-i-01.spec.ts"
+          "e2e/t-i-01.spec.ts",
+          "e2e/t-i-02.spec.ts",
+          "e2e/t-i-03.spec.ts",
+          "e2e/t-i-04.spec.ts",
+          "e2e/_helpers/auth.ts"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-01.md",
