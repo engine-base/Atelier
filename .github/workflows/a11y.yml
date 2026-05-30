@@ -1,0 +1,57 @@
+name: a11y
+
+# T-I-10: @axe-core/playwright で主要 8 画面の WCAG 2.2 AA 違反を 0 件に保つ。
+# main への push 時のみ実行 (PR ごとに走らせると CI 時間が長い)。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: a11y-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.run_attempt == 1 }}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  axe:
+    name: axe-core (主要 8 screen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "9.12.0" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.18.1"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install Playwright browsers
+        run: pnpm -F @atelier/e2e exec playwright install --with-deps chromium
+      - name: Build apps/web
+        run: pnpm -F @atelier/web build
+      - name: Start dev server in background
+        run: pnpm -F @atelier/web start -- -p 3000 &
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000 > /dev/null; then
+              echo "Ready"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not start"; exit 1
+      - name: Run axe a11y spec
+        run: pnpm -F @atelier/e2e exec playwright test tests/a11y.spec.ts --project=chromium-desktop --reporter=list
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a11y-report-${{ github.run_id }}
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          if-no-files-found: ignore
