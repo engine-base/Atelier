@@ -47,6 +47,39 @@
 13. **「動けばいい」「とりあえず」モードは禁止**。仕様を曲げそうになったら、
     まず手を止めて tickets.json を更新する PR を出す。実装を歪めて辻褄を合わせない。
 
+14. **複数タスクをまとめてブランチを切る（テーマで束ねる）**。1 タスク = 1 ブランチで
+    都度切ると total PR 数が膨大になり進行が遅い。**3〜6 タスクを1束 = 1 ブランチ = 1 PR** で
+    進めるのが標準。束ね方は: ① 同一テーマ（infra/UI primitive/feature 横断 等）、② 同一
+    `files_changed_predicted` 群が重ならない、③ assigned_employee が近い、を優先する。
+    束ねても **各タスクの AC は 1 commit 単位で 100% 個別に満たす**。1 commit = 1 task,
+    commit message に task ID を明記。tickets.json の `files_changed_predicted` は
+    全タスク分を合算して expand すること（Gate #11 PR scope guard はブランチ名の先頭
+    task ID で評価するので、束ねる場合は先頭 task の `files_changed_predicted.modify` に
+    束内の他タスクの全 new/modify を追加してから着手する）。
+
+15. **手抜き・「あとで」・「placeholder で」・「最小限で動かす」は永久禁止**。
+    束ね運用でも徹底度は1タスク=1ブランチ運用と同等に保つ。具体的には:
+    - 各タスクの 3-tier AC を全て満たす（Gate #2 validator が通る AC 列の中身を実装で実現）
+    - test_scenarios_inline を全て実装テスト化（structural/functional/regression すべて）
+    - selected-stack.json の確定技術を使う（代替・mock・stub で逃げない）
+    - Gate #4 coverage ≥ 80% を絶対に下げない / threshold 改ざん禁止
+    - Gate #11 (scope guard) / Gate #13 (gap tracker) 違反は merge ブロック
+    - 完了報告に「placeholder」「あとで実装」「TODO」「mock のみ」を一度でも書いたら
+      その PR は merge せず、tickets.json で scope を expand する別 PR を先行させる
+
+16. **W3 以降の「複数タスク束ね運用」標準フロー**:
+    ```bash
+    # 1. 束に含めるタスクを決定 (例: T-US-04/05/12/13/18 → Bundle A = infra 配管)
+    # 2. tickets.json を編集して先頭タスク(T-US-04)の files_changed_predicted.modify に
+    #    束内の他タスクの new/modify を全て追記 (Gate #11 expand)
+    # 3. 先頭タスクで begin-task.sh 実行 (branch + CLAUDE.md.task)
+    ./scripts/begin-task.sh T-US-04
+    # 4. 各タスクを順に実装 → 1 task = 1 commit (commit msg に "feat(T-US-XX): ..." )
+    # 5. 全 commit 後に push、1 PR で全束まとめて green を狙う
+    git push -u origin <branch>
+    ```
+    この運用は今回限りではなく **W3 以降の全フェーズに恒常適用**する。
+
 ## 🚀 タスク着手の標準フロー
 
 ### ⚠️ 必須: タスク着手は **必ず begin-task.sh で atomic 実行する**

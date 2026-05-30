@@ -1,0 +1,66 @@
+{
+  "common": {
+    "appName": "Atelier",
+    "ok": "OK",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "delete": "削除",
+    "edit": "編集",
+    "create": "作成",
+    "back": "戻る",
+    "next": "次へ",
+    "loading": "読み込み中…",
+    "error": "エラーが発生しました",
+    "retry": "再試行",
+    "close": "閉じる",
+    "search": "検索",
+    "yes": "はい",
+    "no": "いいえ",
+    "more": "もっと見る"
+  },
+  "nav": {
+    "home": "ホーム",
+    "projects": "プロジェクト",
+    "tasks": "タスク",
+    "workflow": "ワークフロー",
+    "knowledge": "ナレッジ",
+    "meetings": "議事録",
+    "approvals": "承認待ち",
+    "admin": "運営",
+    "settings": "設定",
+    "signOut": "サインアウト"
+  },
+  "auth": {
+    "signin": "サインイン",
+    "signup": "新規登録",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "magicLink": "マジックリンクを送る",
+    "forgotPassword": "パスワードを忘れた方",
+    "consent": "利用規約とプライバシーポリシーに同意します",
+    "lockoutMessage": "5回連続でサインインに失敗しました。15分後に再試行してください。"
+  },
+  "errors": {
+    "network": "ネットワークエラー。接続を確認してください。",
+    "forbidden": "この操作の権限がありません。",
+    "notFound": "対象が見つかりません。",
+    "validation": "入力に誤りがあります。",
+    "internal": "サーバー側で問題が発生しました。",
+    "expired": "セッションの有効期限が切れました。サインインし直してください。"
+  },
+  "a11y": {
+    "skipToContent": "メインコンテンツへスキップ",
+    "menuOpen": "メニューを開く",
+    "menuClose": "メニューを閉じる",
+    "loading": "読み込み中",
+    "required": "（必須）"
+  },
+  "client": {
+    "portalTitle": "クライアントポータル",
+    "viewProject": "プロジェクトを表示",
+    "comments": "コメント"
+  },
+  "wcag": {
+    "level": "WCAG 2.2 AA"
+  }
+}
