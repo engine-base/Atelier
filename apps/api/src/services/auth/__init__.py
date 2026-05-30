@@ -138,11 +138,16 @@ async def _create_local_auth_user(session: AsyncSession, *, email: str, password
     )
     if dup.first() is not None:
         raise SignupError("email_taken", "email already registered")
-    # password は受け取るが本層では未使用 (Supabase Admin API path で使う)
-    _ = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    # dev/test 経路: sha256 hash を encrypted_password に保存する。
+    # signin の _verify_password_local が同じ sha256 で照合するため、保存しないと
+    # ローカルで signin が必ず invalid_credentials になる (本番は Supabase が bcrypt)。
+    pw_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
     await session.execute(
-        text("insert into auth.users (id, email) values (cast(:i as uuid), :e)"),
-        {"i": new_id, "e": email},
+        text(
+            "insert into auth.users (id, email, encrypted_password) "
+            "values (cast(:i as uuid), :e, :p)"
+        ),
+        {"i": new_id, "e": email, "p": pw_hash},
     )
     return new_id
 

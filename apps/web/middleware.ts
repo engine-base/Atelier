@@ -17,6 +17,7 @@ const PUBLIC_PATHS: readonly string[] = [
   '/signin',
   '/signup',
   '/auth',
+  '/public',
   '/_next',
   '/favicon.ico',
 ];
@@ -39,7 +40,7 @@ export function middleware(req: NextRequest): NextResponse {
     const token = req.cookies.get(COOKIE_NAMES.clientAccess)?.value;
     if (!token || isExpired(decodeJwtUnsafe(token))) {
       const url = req.nextUrl.clone();
-      url.pathname = '/signin';
+      url.pathname = '/client/s_l02';
       url.searchParams.set('redirect', pathname);
       return NextResponse.redirect(url);
     }
@@ -50,7 +51,7 @@ export function middleware(req: NextRequest): NextResponse {
   const token = req.cookies.get(COOKIE_NAMES.access)?.value;
   if (!token || isExpired(decodeJwtUnsafe(token))) {
     const url = req.nextUrl.clone();
-    url.pathname = '/signin';
+    url.pathname = '/auth/s_a01';
     url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
   }
