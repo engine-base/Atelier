@@ -27,7 +27,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from sqlalchemy import text
@@ -117,7 +117,7 @@ async def _create_supabase_auth_user(*, email: str, password: str) -> str | None
             f"Supabase Admin API failed: {r.status_code} {r.text[:200]}",
         )
     body: dict[str, Any] = r.json()
-    uid = body.get("id") if isinstance(body, dict) else None
+    uid = body.get("id")
     if not isinstance(uid, str):
         raise SignupError("supabase_admin_error", "missing id from Supabase response")
     return uid
@@ -359,8 +359,9 @@ async def _verify_password_supabase(*, email: str, password: str) -> str | None:
             f"Supabase token endpoint failed: {r.status_code} {r.text[:200]}",
         )
     body: dict[str, Any] = r.json()
-    user = body.get("user") if isinstance(body, dict) else None
-    uid = user.get("id") if isinstance(user, dict) else None
+    user_raw = body.get("user")
+    user_dict = cast("dict[str, Any]", user_raw) if isinstance(user_raw, dict) else {}
+    uid = user_dict.get("id")
     if not isinstance(uid, str):
         raise SigninError("supabase_auth_error", "missing user id from Supabase response")
     return uid
