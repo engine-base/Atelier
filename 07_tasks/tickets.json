@@ -19853,9 +19853,16 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/api/tests/rls/t-i-05.py"
+          "apps/api/tests/rls/__init__.py",
+          "apps/api/tests/rls/t-i-05.py",
+          "apps/api/tests/rls/t-i-06.py",
+          "apps/api/tests/rls/t-i-07.py",
+          "apps/api/tests/rls/t-i-08.py"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json",
+          "apps/api/pytest.ini"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-I-05.md",
