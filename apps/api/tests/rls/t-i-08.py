@@ -128,6 +128,6 @@ def test_service_role_bypass_capability(engine: Engine) -> None:
             text("select rolbypassrls from pg_roles where rolname = 'service_role'")
         ).scalar()
         # service_role が存在しない環境では None。存在すれば bypassrls であるべき。
-        assert result is None or result is True, (
-            "service_role exists but does not bypass RLS (R-T07 violation)"
-        )
+        assert (
+            result is None or result is True
+        ), "service_role exists but does not bypass RLS (R-T07 violation)"

@@ -8,13 +8,16 @@ OpenAPI 契約 (07_api_design/openapi.yaml) との drift は T-F-25 / T-F-26
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src import __version__
 from src.health import router as health_router
+from src.routes import api_router
 
 
 @asynccontextmanager
@@ -33,4 +36,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# フロントエンド (Next.js) からの cookie 付きリクエストを許可。
+#   - dev:  localhost / 127.0.0.1 の任意ポート (:3000, :3100, :3200 等)
+#   - prod: Vercel (*.vercel.app, engine-bases-projects) + 本番カスタムドメイン
+# 追加ドメインは ATELIER_CORS_EXTRA_ORIGINS (カンマ区切り) で投入可能。
+_extra = [
+    o.strip() for o in os.environ.get("ATELIER_CORS_EXTRA_ORIGINS", "").split(",") if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_extra,
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?|https://([a-z0-9-]+\.)*vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router)
+app.include_router(api_router)

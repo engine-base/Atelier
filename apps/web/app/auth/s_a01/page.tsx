@@ -14,27 +14,43 @@
 'use client';
 
 import * as React from 'react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { SigninForm, type SigninValues } from './_components/SigninForm';
 import { SignupForm, type SignupValues } from './_components/SignupForm';
 import { t } from '../../../lib/i18n';
 import { cn } from '../../../lib/cn';
+import * as auth from '../../../lib/auth/connector';
 
 type Mode = 'signin' | 'signup';
 
-export default function SA01Page() {
+function SA01Inner() {
   const [mode, setMode] = useState<Mode>('signin');
   const [serverError, setServerError] = useState<string | null>(null);
+  const router = useRouter();
+  const params = useSearchParams();
+  const redirectTo = params.get('redirect') || '/projects/s_b01';
 
-  const onSignin = async (_v: SigninValues): Promise<void> => {
+  const onSignin = async (v: SigninValues): Promise<void> => {
     setServerError(null);
-    // TODO (T-A-01 連携 PR): apiClient.post('/auth/signin', { body: v }) で実 API 呼び
-    // 成功時: middleware が cookie を見て / にリダイレクト
+    try {
+      await auth.signin(v.email, v.password);
+      router.push(redirectTo);
+      router.refresh();
+    } catch (e) {
+      setServerError(e instanceof Error ? e.message : 'サインインに失敗しました');
+    }
   };
-  const onSignup = async (_v: SignupValues): Promise<void> => {
+  const onSignup = async (v: SignupValues): Promise<void> => {
     setServerError(null);
-    // 同上 (T-A-01)
+    try {
+      await auth.signup(v.email, v.password);
+      router.push(redirectTo);
+      router.refresh();
+    } catch (e) {
+      setServerError(e instanceof Error ? e.message : 'サインアップに失敗しました');
+    }
   };
 
   return (
@@ -65,5 +81,13 @@ export default function SA01Page() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SA01Page() {
+  return (
+    <Suspense fallback={null}>
+      <SA01Inner />
+    </Suspense>
   );
 }

@@ -1,0 +1,59 @@
+# Atelier ローカル開発フルスタック — `docker compose up` 一発で
+# 登録→ログイン→画面遷移 が動く構成。
+#
+#   docker compose up --build
+#   → ブラウザで http://localhost:3200  (サインイン: /auth/s_a01)
+#
+# port は 3000/3001/3100 を避けて web=3200。API=8000、DB=5433(host)。
+# 競合する場合は下の "${WEB_PORT:-3200}" 等を環境変数で上書き可能:
+#   WEB_PORT=3300 API_PORT=8001 docker compose up --build
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: atelier_dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: atelier_dev
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - atelier_pgdata:/var/lib/postgresql/data
+      # 初回起動時に shim + migration を適用
+      - ./docker/db-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+      - ./supabase/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atelier_dev -d atelier_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    working_dir: /app/apps/api
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      ATELIER_DB_URL: postgresql+asyncpg://atelier_dev:devpass@db:5432/atelier_dev
+      ATELIER_AUTH_JWT_SECRET: dev-local-secret-please-change-in-prod
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # ブラウザ(client)が叩く URL。ホスト到達可能な API ポートに合わせる。
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8000}
+    ports:
+      - "${WEB_PORT:-3200}:3000"
+    depends_on:
+      - api
+
+volumes:
+  atelier_pgdata:
