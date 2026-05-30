@@ -15638,10 +15638,34 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/workflow/s_f01/page.tsx",
+          "apps/web/app/workflow/s_f01/_components/WorkflowGraph.tsx",
           "apps/web/app/workflow/s_f01/_components/.gitkeep",
-          "e2e/s_f01.spec.ts"
+          "e2e/s_f01.spec.ts",
+          "apps/web/app/workflow/s_f02/page.tsx",
+          "apps/web/app/workflow/s_f02/_components/PhaseList.tsx",
+          "apps/web/app/workflow/s_f02/_components/.gitkeep",
+          "e2e/s_f02.spec.ts",
+          "apps/web/app/tasks/s_i01/page.tsx",
+          "apps/web/app/tasks/s_i01/_components/KanbanBoard.tsx",
+          "apps/web/app/tasks/s_i01/_components/.gitkeep",
+          "e2e/s_i01.spec.ts",
+          "apps/web/app/tasks/s_i02/page.tsx",
+          "apps/web/app/tasks/s_i02/_components/TaskDetailTabs.tsx",
+          "apps/web/app/tasks/s_i02/_components/.gitkeep",
+          "e2e/s_i02.spec.ts",
+          "apps/web/app/tasks/s_i03/page.tsx",
+          "apps/web/app/tasks/s_i03/_components/ExecutionMonitor.tsx",
+          "apps/web/app/tasks/s_i03/_components/.gitkeep",
+          "e2e/s_i03.spec.ts",
+          "apps/web/app/approvals/s_j01/page.tsx",
+          "apps/web/app/approvals/s_j01/_components/ApprovalsList.tsx",
+          "apps/web/app/approvals/s_j01/_components/.gitkeep",
+          "e2e/s_j01.spec.ts",
+          "apps/web/tests/bundle-g/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-10.md",
