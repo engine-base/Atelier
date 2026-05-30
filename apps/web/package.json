@@ -15,9 +15,11 @@
   },
   "dependencies": {
     "@assistant-ui/react": "^0.14.7",
+    "@atelier/api-client": "workspace:*",
     "@atelier/design-tokens": "workspace:*",
     "@atelier/shared": "workspace:*",
     "@radix-ui/react-slot": "^1.1.1",
+    "@tanstack/react-query": "^5.62.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
