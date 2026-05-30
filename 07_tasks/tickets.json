@@ -20280,7 +20280,9 @@
         ],
         "modify": [
           "07_tasks/tickets.json",
-          "e2e/package.json"
+          "e2e/package.json",
+          "apps/web/styles/tokens.css",
+          "apps/web/app/client/s_l02/page.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
@@ -20292,7 +20294,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "scope_expand_note": "T-I-09/10 の a11y axe を実 next build で全 39 route 走査した際に発見した build-blocking バグ 2 件 (tokens.css の @layer base が @tailwind base 前読みで PostCSS error / s_l02 の useSearchParams が Next 15 で Suspense 必須) を同 PR で修正。CI で a11y spec を走らせる前提条件のため本タスク scope に取り込む (ルール #11/#14 準拠の expand)。"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
