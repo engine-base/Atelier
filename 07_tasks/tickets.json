@@ -14760,10 +14760,27 @@
       "files_changed_predicted": {
         "new": [
           "apps/web/app/projects/s_b01/page.tsx",
+          "apps/web/app/projects/s_b01/_components/ProjectList.tsx",
           "apps/web/app/projects/s_b01/_components/.gitkeep",
-          "e2e/s_b01.spec.ts"
+          "e2e/s_b01.spec.ts",
+          "apps/web/app/projects/s_b02/page.tsx",
+          "apps/web/app/projects/s_b02/_components/ProjectDashboard.tsx",
+          "apps/web/app/projects/s_b02/_components/.gitkeep",
+          "e2e/s_b02.spec.ts",
+          "apps/web/app/projects/s_b03/page.tsx",
+          "apps/web/app/projects/s_b03/_components/ProjectSettingsForm.tsx",
+          "apps/web/app/projects/s_b03/_components/.gitkeep",
+          "e2e/s_b03.spec.ts",
+          "apps/web/app/client/s_l03/page.tsx",
+          "apps/web/app/client/s_l03/_components/ClientProjectView.tsx",
+          "apps/web/app/client/s_l03/_components/.gitkeep",
+          "e2e/s_l03.spec.ts",
+          "apps/web/app/t-uc-39/page.tsx",
+          "apps/web/tests/bundle-f/"
         ],
-        "modify": [],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-03.md",
