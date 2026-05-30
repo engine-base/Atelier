@@ -1,0 +1,49 @@
+/*
+ * 印刷スタイル — T-US-14
+ *
+ * - @media print 内で chrome (Sidebar/TopBar) を非表示
+ * - 印刷時の link 下線 / URL 表示は維持 (a11y / 正確性)
+ * - .print-only / .no-print の utility class
+ */
+
+@media print {
+  /* 既定で印刷時は背景色 / 影を消す (インク節約) */
+  * {
+    background-color: transparent !important;
+    box-shadow: none !important;
+    color: black !important;
+  }
+
+  /* Atelier の chrome (Sidebar / TopBar / Notifications 等) は非表示 */
+  nav[aria-label],
+  header[role="banner"] {
+    display: none !important;
+  }
+
+  /* utility */
+  .no-print {
+    display: none !important;
+  }
+
+  /* print のみ表示 */
+  .print-only {
+    display: block !important;
+  }
+
+  /* a (リンク) は URL を併記 (a11y + 正確性) */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.9em;
+  }
+
+  /* main は full-width */
+  main {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+}
+
+/* 画面表示時は print-only を非表示 (default) */
+.print-only {
+  display: none;
+}
