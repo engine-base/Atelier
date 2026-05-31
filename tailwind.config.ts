@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import path from 'node:path';
 
 import {
   colors,
@@ -7,11 +8,17 @@ import {
   typography,
 } from './packages/design-tokens/src/index.js';
 
+// content グロブは「設定ファイルのある repo root」基準の絶対パスに解決する。
+// postcss は apps/web を CWD にして走るため、相対 './apps/web/...' だと
+// apps/web/apps/web/... を探して 0 マッチ → 全ユーティリティが purge され
+// CSS が空になる (= 画面が無装飾になる) バグを防ぐ。
+const fromRoot = (glob: string): string => path.join(__dirname, glob);
+
 const config: Config = {
   content: [
-    './apps/web/app/**/*.{ts,tsx}',
-    './apps/web/components/**/*.{ts,tsx}',
-    './packages/**/src/**/*.{ts,tsx}',
+    fromRoot('apps/web/app/**/*.{ts,tsx}'),
+    fromRoot('apps/web/components/**/*.{ts,tsx}'),
+    fromRoot('packages/**/src/**/*.{ts,tsx}'),
   ],
   theme: {
     extend: {
