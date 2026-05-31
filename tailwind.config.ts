@@ -1,5 +1,4 @@
 import type { Config } from 'tailwindcss';
-import path from 'node:path';
 
 import {
   colors,
@@ -8,17 +7,23 @@ import {
   typography,
 } from './packages/design-tokens/src/index.js';
 
-// content グロブは「設定ファイルのある repo root」基準の絶対パスに解決する。
-// postcss は apps/web を CWD にして走るため、相対 './apps/web/...' だと
-// apps/web/apps/web/... を探して 0 マッチ → 全ユーティリティが purge され
-// CSS が空になる (= 画面が無装飾になる) バグを防ぐ。
-const fromRoot = (glob: string): string => path.join(__dirname, glob);
-
+// content グロブは Tailwind の CWD (= postcss 実行ディレクトリ) 基準で解決される。
+// 環境により CWD が異なる:
+//   - ローカル/CI/Fly: repo root
+//   - Vercel (Root Directory=apps/web): apps/web
+// 片方の相対形だけだと 0 マッチ → 全ユーティリティ purge → CSS 空 (無装飾) になる。
+// __dirname は .ts config ローダーによって解決が不定なので使わず、両 CWD 用の
+// 相対グロブを両方列挙する。マッチしないグロブは Tailwind が無視するため安全。
 const config: Config = {
   content: [
-    fromRoot('apps/web/app/**/*.{ts,tsx}'),
-    fromRoot('apps/web/components/**/*.{ts,tsx}'),
-    fromRoot('packages/**/src/**/*.{ts,tsx}'),
+    // CWD = repo root のとき
+    './apps/web/app/**/*.{ts,tsx}',
+    './apps/web/components/**/*.{ts,tsx}',
+    './packages/**/src/**/*.{ts,tsx}',
+    // CWD = apps/web のとき (Vercel Root Directory=apps/web)
+    './app/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    '../../packages/**/src/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {
