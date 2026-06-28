@@ -22038,6 +22038,422 @@
           "expected": "0 rows"
         }
       ]
+    },
+    {
+      "id": "T-D-36",
+      "title": "プロジェクト金庫: project_credentials スキーマ + RLS",
+      "group": "D",
+      "category": "data",
+      "label": "NEW",
+      "deliverable_layer": "data",
+      "phase": "2_data",
+      "wave": 2,
+      "estimate_hours": 6,
+      "assigned_employee": "strange",
+      "depends_on": [
+        "T-D-05",
+        "T-D-15"
+      ],
+      "screen_ids": [
+        "S-B04"
+      ],
+      "entity_ids": [
+        "E-022"
+      ],
+      "feature_ids": [],
+      "ac_path": "07_tasks/acceptance-criteria/T-D-36.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "supabase/migrations/t-d-36_project_credentials.sql",
+          "supabase/migrations/t-d-36_project_credentials_rls.sql",
+          "apps/api/tests/rls/t-d-36_vault.py"
+        ],
+        "modify": [
+          "07_tasks/tickets.json",
+          "04_functional_breakdown/entities.json"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-D-36.md",
+          "07_api_design/openapi.yaml",
+          "07_api_design/types.ts",
+          "04_functional_breakdown/entities.json",
+          "05_design/DESIGN-atelier.md",
+          "docs/project-vault-design.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: project_credentials スキーマ + RLS)",
+          "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an authorized project member stores a credential, the system shall encrypt it with Fernet and persist only the ciphertext"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When listing credentials, the system shall return masked values (name/kind/last4 only)"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the user is not a member of the credential's project workspace, the system shall return 403 Forbidden (RLS 越境=0)",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "The system shall write a row to audit_logs for every store/update/delete/reveal (誰がいつ復号したか)"
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "成功系：登録と暗号化",
+          "steps": [
+            "メンバーJWTで POST credentials",
+            "DB の encrypted_value が平文と異なる確認",
+            "応答に平文が無い確認"
+          ],
+          "expected": "201 + 平文非含有"
+        },
+        {
+          "name": "成功系：一覧マスク",
+          "steps": [
+            "GET credentials"
+          ],
+          "expected": "name/kind/last4 のみ、暗号値も平文も無い"
+        },
+        {
+          "name": "異常系：越境 (RLS)",
+          "steps": [
+            "別workspaceのuserで他projectのcredentialsを呼ぶ"
+          ],
+          "expected": "403 / 0 rows (越境=0)"
+        },
+        {
+          "name": "異常系：未認証",
+          "steps": [
+            "JWT無しで呼ぶ"
+          ],
+          "expected": "401 Unauthorized"
+        },
+        {
+          "name": "監査ログ：reveal",
+          "steps": [
+            "reveal を呼ぶ"
+          ],
+          "expected": "audit_logs に credential.reveal が1行"
+        }
+      ]
+    },
+    {
+      "id": "T-A-46",
+      "title": "プロジェクト金庫: クレデンシャル CRUD + reveal API",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "estimate_hours": 6,
+      "assigned_employee": "thor",
+      "depends_on": [
+        "T-D-36",
+        "T-F-19"
+      ],
+      "screen_ids": [
+        "S-B04"
+      ],
+      "entity_ids": [
+        "E-022"
+      ],
+      "feature_ids": [],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-46.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/routes/project_credentials/__init__.py",
+          "apps/api/src/services/project_credentials/__init__.py",
+          "apps/api/src/schemas/project_credentials.py",
+          "apps/api/tests/routes/test_project_credentials.py"
+        ],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "07_api_design/openapi.yaml",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-A-46.md",
+          "07_api_design/openapi.yaml",
+          "07_api_design/types.ts",
+          "04_functional_breakdown/entities.json",
+          "05_design/DESIGN-atelier.md",
+          "docs/project-vault-design.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: クレデンシャル CRUD + reveal API)",
+          "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an authorized project member stores a credential, the system shall encrypt it with Fernet and persist only the ciphertext"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When listing credentials, the system shall return masked values (name/kind/last4 only)"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the user is not a member of the credential's project workspace, the system shall return 403 Forbidden (RLS 越境=0)",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "The system shall write a row to audit_logs for every store/update/delete/reveal (誰がいつ復号したか)"
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "成功系：登録と暗号化",
+          "steps": [
+            "メンバーJWTで POST credentials",
+            "DB の encrypted_value が平文と異なる確認",
+            "応答に平文が無い確認"
+          ],
+          "expected": "201 + 平文非含有"
+        },
+        {
+          "name": "成功系：一覧マスク",
+          "steps": [
+            "GET credentials"
+          ],
+          "expected": "name/kind/last4 のみ、暗号値も平文も無い"
+        },
+        {
+          "name": "異常系：越境 (RLS)",
+          "steps": [
+            "別workspaceのuserで他projectのcredentialsを呼ぶ"
+          ],
+          "expected": "403 / 0 rows (越境=0)"
+        },
+        {
+          "name": "異常系：未認証",
+          "steps": [
+            "JWT無しで呼ぶ"
+          ],
+          "expected": "401 Unauthorized"
+        },
+        {
+          "name": "監査ログ：reveal",
+          "steps": [
+            "reveal を呼ぶ"
+          ],
+          "expected": "audit_logs に credential.reveal が1行"
+        }
+      ]
+    },
+    {
+      "id": "T-UC-41",
+      "title": "プロジェクト金庫: S-B04 金庫タブ画面",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "frontend",
+      "phase": "4_screen",
+      "wave": 4,
+      "estimate_hours": 6,
+      "assigned_employee": "wanda",
+      "depends_on": [
+        "T-A-46"
+      ],
+      "screen_ids": [
+        "S-B04"
+      ],
+      "entity_ids": [
+        "E-022"
+      ],
+      "feature_ids": [],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-41.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/app/projects/s_b04/page.tsx",
+          "apps/web/app/projects/s_b04/_components/CredentialList.tsx",
+          "apps/web/app/projects/s_b04/_components/CredentialForm.tsx"
+        ],
+        "modify": [
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-UC-41.md",
+          "07_api_design/openapi.yaml",
+          "07_api_design/types.ts",
+          "04_functional_breakdown/entities.json",
+          "05_design/DESIGN-atelier.md",
+          "docs/project-vault-design.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: S-B04 金庫タブ画面)",
+          "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an authorized project member stores a credential, the system shall encrypt it with Fernet and persist only the ciphertext"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When listing credentials, the system shall return masked values (name/kind/last4 only)"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the user is not a member of the credential's project workspace, the system shall return 403 Forbidden (RLS 越境=0)",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "The system shall write a row to audit_logs for every store/update/delete/reveal (誰がいつ復号したか)"
+          },
+          {
+            "type": "UBIQUITOUS",
+            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+          }
+        ],
+        "tier_3_regression": [
+          "CI gate #1 lint (biome/ruff) PASS",
+          "CI gate #2 3-tier AC validator PASS",
+          "CI gate #3 type check (tsc/mypy) 0 errors on touched files",
+          "CI gate #4 coverage >= 80% on touched files",
+          "CI gate #5 endpoint-existence check PASS",
+          "CI gate #6 mock-impl diff PASS",
+          "CI gate #7 type drift (OpenAPI ↔ TS/Pydantic) PASS",
+          "CI gate #8 Schemathesis contract test PASS",
+          "CI gate #9 screen-API coverage 100%",
+          "CI gate #10 RLS isolation matrix PASS"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "成功系：登録と暗号化",
+          "steps": [
+            "メンバーJWTで POST credentials",
+            "DB の encrypted_value が平文と異なる確認",
+            "応答に平文が無い確認"
+          ],
+          "expected": "201 + 平文非含有"
+        },
+        {
+          "name": "成功系：一覧マスク",
+          "steps": [
+            "GET credentials"
+          ],
+          "expected": "name/kind/last4 のみ、暗号値も平文も無い"
+        },
+        {
+          "name": "異常系：越境 (RLS)",
+          "steps": [
+            "別workspaceのuserで他projectのcredentialsを呼ぶ"
+          ],
+          "expected": "403 / 0 rows (越境=0)"
+        },
+        {
+          "name": "異常系：未認証",
+          "steps": [
+            "JWT無しで呼ぶ"
+          ],
+          "expected": "401 Unauthorized"
+        },
+        {
+          "name": "監査ログ：reveal",
+          "steps": [
+            "reveal を呼ぶ"
+          ],
+          "expected": "audit_logs に credential.reveal が1行"
+        }
+      ]
     }
   ],
   "two_axis_policy": {
