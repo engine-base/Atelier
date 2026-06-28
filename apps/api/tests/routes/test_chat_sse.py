@@ -319,7 +319,7 @@ class TestChatSSE:
         meta = ctx_evt["metadata"]
         assert isinstance(meta, dict)
         # 既存 history 1 件 (seeded fixture で挿入)
-        assert int(meta["history_count"]) >= 1
+        assert int(str(meta["history_count"])) >= 1
         assert isinstance(meta["rag_hit_ids"], list)
 
     def test_context_preview_does_not_persist(
