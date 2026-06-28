@@ -1,4 +1,4 @@
-"""プロジェクト金庫サービス層 (T-A-46)。
+"""プロジェクト・シークレットサービス層 (T-A-46)。
 
 plaintext は Fernet で対称暗号化して `project_credentials.encrypted_value` に
 urlsafe-base64 文字列で保存する。鍵は `ATELIER_VAULT_ENCRYPTION_KEY` env から
@@ -79,7 +79,7 @@ def _row_to_response(row: Any) -> CredentialResponse:
 
 
 async def list_credentials(session: AsyncSession, *, project_id: str) -> list[CredentialResponse]:
-    """project の金庫一覧 (RLS で workspace member に scope)。値は含まない。"""
+    """project のシークレット一覧 (RLS で workspace member に scope)。値は含まない。"""
     res = await session.execute(
         text(
             f"select {_COLS} from public.project_credentials "
@@ -109,7 +109,7 @@ async def get_credential(
 async def create_credential(
     session: AsyncSession, *, actor_id: str, project_id: str, data: CredentialCreate
 ) -> CredentialResponse | None:
-    """金庫に登録。value を暗号化して保存 (平文は保存しない)。"""
+    """シークレットに登録。value を暗号化して保存 (平文は保存しない)。"""
     encrypted = encrypt_value(data.value)
     new_id = str(uuid.uuid4())
     res = await session.execute(

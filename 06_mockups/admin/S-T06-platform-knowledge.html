@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>運営デフォルト・ナレッジ — Atelier Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .admin-badge { background: var(--color-error); color: #FFFFFF; padding: 2px 8px; border-radius: var(--rounded-sm); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .pk-note { border: 1px solid #FDE68A; background: #FFFBEB; border-radius: var(--rounded-lg); padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 20px; }
+  .pk-table { width: 100%; border-collapse: collapse; background: #FFFFFF; border: 1px solid var(--color-border); border-radius: var(--rounded-md); overflow: hidden; }
+  .pk-table th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--color-on-surface-variant); padding: 12px 14px; border-bottom: 1px solid var(--color-border); background: var(--color-surface-variant); }
+  .pk-table td { padding: 14px; border-bottom: 1px solid var(--color-border); font-size: 13.5px; vertical-align: middle; }
+  .pk-table tr:last-child td { border-bottom: none; }
+  .cat-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .toggle { position: relative; width: 38px; height: 20px; background: var(--color-surface-variant); border-radius: 11px; cursor: pointer; flex-shrink: 0; }
+  .toggle::after { content: ''; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: #FFFFFF; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); transition: all 0.15s; }
+  .toggle.on { background: var(--color-primary); }
+  .toggle.on::after { left: 20px; }
+  .hidden-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-on-surface-variant); }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar" data-appshell data-context="admin" data-active="S-T06" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
+
+<main class="main" data-bf-screen-id="S-T06" data-bf-screen-name="admin_platform_knowledge" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="flex items-center gap-3"><span class="admin-badge">ADMIN</span><div class="breadcrumb"><strong>運営デフォルト・ナレッジ</strong></div></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 1200px;">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <div class="page-eyebrow">Platform Knowledge</div>
+      <h1 class="page-title">運営デフォルト・ナレッジ</h1>
+      <p class="page-subtitle">全テナント横断で AI 社員が参照するデフォルトナレッジ。テナント側のナレッジツリーには表示されず、RAG 検索でのみ参照されます。</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn btn-outlined"><i data-icon="upload"></i>SKILL.md 取込</button>
+      <button class="btn btn-primary"><i data-icon="plus"></i>新規追加</button>
+    </div>
+  </div>
+
+  <div class="pk-note">
+    <i data-icon="shield-check"></i>
+    <div class="text-sm">
+      <strong>これは運営(プラットフォーム)層のナレッジです。</strong>
+      account_type=<code>platform</code> / <code>visible_in_tree=false</code> で保存され、各テナントの AI 社員が
+      <strong>参照(読み取り)のみ</strong>可能。テナント側からは編集・削除できず、ツリーにも出ません。
+      書込は運営(service_role)のみ。
+    </div>
+  </div>
+
+  <table class="pk-table">
+    <thead>
+      <tr>
+        <th>タイトル</th>
+        <th>カテゴリ</th>
+        <th>参照テナント</th>
+        <th>ツリー表示</th>
+        <th>更新日</th>
+        <th style="text-align:right;">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="font-semibold">提案書の標準構成テンプレート</td>
+        <td><span class="cat-badge">提案</span></td>
+        <td class="text-sm">全 24 テナント</td>
+        <td><span class="hidden-pill"><i data-icon="eye-off" data-size="13"></i>非表示（参照のみ）</span></td>
+        <td class="text-sm text-muted">2026-06-20</td>
+        <td style="text-align:right;">
+          <button class="btn btn-ghost btn-sm"><i data-icon="edit"></i>編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+        </td>
+      </tr>
+      <tr>
+        <td class="font-semibold">業界別ヒアリング項目チェックリスト</td>
+        <td><span class="cat-badge">ヒアリング</span></td>
+        <td class="text-sm">全 24 テナント</td>
+        <td><span class="hidden-pill"><i data-icon="eye-off" data-size="13"></i>非表示（参照のみ）</span></td>
+        <td class="text-sm text-muted">2026-06-18</td>
+        <td style="text-align:right;">
+          <button class="btn btn-ghost btn-sm"><i data-icon="edit"></i>編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+        </td>
+      </tr>
+      <tr>
+        <td class="font-semibold">セキュリティ要件 標準チェック（RLS/認証）</td>
+        <td><span class="cat-badge">アーキ</span></td>
+        <td class="text-sm">全 24 テナント</td>
+        <td><span class="hidden-pill"><i data-icon="eye-off" data-size="13"></i>非表示（参照のみ）</span></td>
+        <td class="text-sm text-muted">2026-06-15</td>
+        <td style="text-align:right;">
+          <button class="btn btn-ghost btn-sm"><i data-icon="edit"></i>編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+        </td>
+      </tr>
+      <tr>
+        <td class="font-semibold">用語・略語 共通辞書</td>
+        <td><span class="cat-badge">用語</span></td>
+        <td class="text-sm">全 24 テナント</td>
+        <td><span class="hidden-pill"><i data-icon="eye-off" data-size="13"></i>非表示（参照のみ）</span></td>
+        <td class="text-sm text-muted">2026-06-10</td>
+        <td style="text-align:right;">
+          <button class="btn btn-ghost btn-sm"><i data-icon="edit"></i>編集</button>
+          <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="text-sm text-muted mt-4"><i data-icon="info"></i> 「ツリー表示」を ON にすると、テナント側のナレッジツリーにも表示されます（既定は非表示・参照のみ）。</p>
+</div>
+</main>
+</div>
+<script src="../_shared/appshell.js"></script>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>

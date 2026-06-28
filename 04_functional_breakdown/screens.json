@@ -373,7 +373,7 @@
     },
     {
       "id": "S-B04",
-      "name": "プロジェクト金庫",
+      "name": "プロジェクト・シークレット",
       "category": "project",
       "status": "decided",
       "access_roles": [
@@ -386,7 +386,7 @@
         "WorkspaceOwner"
       ],
       "mock_path": "mocks/project/S-B04-vault.html",
-      "h1_text": "プロジェクト金庫",
+      "h1_text": "プロジェクト・シークレット",
       "section_h2_texts": [
         "クレデンシャル一覧",
         "新規追加"
@@ -614,7 +614,8 @@
         "メッセージ編集",
         "メッセージ削除",
         "新規スレッド",
-        "スレッド切替"
+        "スレッド切替",
+        "スレッド/コンテキストパネル開閉"
       ],
       "states": [
         "loading",
@@ -975,12 +976,42 @@
       "lifecycle_mapping": {
         "design_source": "Hermes Agent (MIT, NousResearch/hermes-agent) の kanban パターン",
         "lanes": [
-          {"jp": "準備中", "en": "Triage", "meaning": "起票直後・仕様未確定。AC・モック・依存定義が未完", "card_appearance": "opacity 0.75、見積は『未見積』"},
-          {"jp": "着手可", "en": "Ready", "meaning": "依存解消済み・仕様確定。再生待ち", "card_appearance": "通常、個別再生ボタンと選択チェック表示"},
-          {"jp": "実装中", "en": "In Progress", "meaning": "Bridge が claude CLI を spawn 済み、worker 稼働中", "card_appearance": "走査アニメ + 進捗テキスト"},
-          {"jp": "要対応", "en": "Blocked", "meaning": "サーキットブレーカ作動 / 再試行中 / 仕様変更検知 / 人間介入必須", "card_appearance": "赤系ボーダー、エラー理由を併記"},
-          {"jp": "承認待ち", "en": "Awaiting", "meaning": "F-J02 スコアが 0.80〜0.94 で人間判断が必要", "card_appearance": "スコアピル表示"},
-          {"jp": "完了", "en": "Done", "meaning": "F-J02 スコア 0.95 以上で自動承認 or 人間承認", "card_appearance": "高スコアピル"}
+          {
+            "jp": "準備中",
+            "en": "Triage",
+            "meaning": "起票直後・仕様未確定。AC・モック・依存定義が未完",
+            "card_appearance": "opacity 0.75、見積は『未見積』"
+          },
+          {
+            "jp": "着手可",
+            "en": "Ready",
+            "meaning": "依存解消済み・仕様確定。再生待ち",
+            "card_appearance": "通常、個別再生ボタンと選択チェック表示"
+          },
+          {
+            "jp": "実装中",
+            "en": "In Progress",
+            "meaning": "Bridge が claude CLI を spawn 済み、worker 稼働中",
+            "card_appearance": "走査アニメ + 進捗テキスト"
+          },
+          {
+            "jp": "要対応",
+            "en": "Blocked",
+            "meaning": "サーキットブレーカ作動 / 再試行中 / 仕様変更検知 / 人間介入必須",
+            "card_appearance": "赤系ボーダー、エラー理由を併記"
+          },
+          {
+            "jp": "承認待ち",
+            "en": "Awaiting",
+            "meaning": "F-J02 スコアが 0.80〜0.94 で人間判断が必要",
+            "card_appearance": "スコアピル表示"
+          },
+          {
+            "jp": "完了",
+            "en": "Done",
+            "meaning": "F-J02 スコア 0.95 以上で自動承認 or 人間承認",
+            "card_appearance": "高スコアピル"
+          }
         ]
       },
       "actions": [
@@ -1283,7 +1314,8 @@
         "編集",
         "削除",
         "新規作成",
-        "ビュー切替（リスト/グラフ）"
+        "ビュー切替（リスト/グラフ）",
+        "ツリー/詳細パネル開閉"
       ],
       "states": [
         "loading",
@@ -2170,15 +2202,70 @@
       "related_entities": [
         "E-001"
       ]
+    },
+    {
+      "id": "S-T06",
+      "name": "運営デフォルト・ナレッジ管理",
+      "category": "admin",
+      "status": "decided",
+      "access_roles": [
+        "PlatformAdmin"
+      ],
+      "edit_roles": [
+        "PlatformAdmin"
+      ],
+      "mock_path": "mocks/admin/S-T06-platform-knowledge.html",
+      "h1_text": "運営デフォルト・ナレッジ",
+      "section_h2_texts": [
+        "ナレッジ一覧",
+        "新規追加"
+      ],
+      "meta_tags": {
+        "screen_id": "S-T06",
+        "screen_name": "admin_platform_knowledge",
+        "category": "admin",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "プラットフォームナレッジ一覧（タイトル/カテゴリ/参照テナント数/visible_in_tree/更新日）",
+        "新規追加・SKILL.md 取込フォーム",
+        "visible_in_tree トグル（既定 false=ツリー非表示・参照のみ）"
+      ],
+      "actions": [
+        "新規追加（account_type=platform で保存）",
+        "SKILL.md 取込",
+        "編集",
+        "削除",
+        "ツリー表示 ON/OFF 切替"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/knowledge?account_type=platform",
+        "POST /api/v1/knowledge",
+        "PATCH /api/v1/knowledge/:id",
+        "DELETE /api/v1/knowledge/:id"
+      ],
+      "related_entities": [
+        "E-018"
+      ]
     }
   ],
   "summary": {
-    "total_screens": 34,
+    "total_screens": 35,
     "by_role_scope": {
       "guest_public": 5,
       "workspace_app": 24,
       "client_portal": 3,
-      "admin_only": 5
+      "admin_only": 6
     },
     "by_category": {
       "auth": 1,
@@ -2196,12 +2283,12 @@
       "ingestion": 1,
       "sales": 1,
       "execution": 1,
-      "admin": 5,
+      "admin": 6,
       "legal": 4
     },
-    "mock_path_count": 34,
-    "meta_tags_count": 34,
-    "h1_text_count": 34,
+    "mock_path_count": 35,
+    "meta_tags_count": 35,
+    "h1_text_count": 35,
     "kpi_labels_screens": 3,
     "dashboard_screens": [
       "S-B02",

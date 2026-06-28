@@ -55,14 +55,19 @@ const ICONS = {
   palette: 'M12 22a10 10 0 1 1 0-20 10 10 0 0 1 10 10v.5a3.5 3.5 0 0 1-3.5 3.5h-1.5a2 2 0 0 0-2 2 2 2 0 0 1-2 2z|M14 7m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0|M17.5 11m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0|M6 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0|M9 8m-1 0a1 1 0 1 0 2 0a1 1 0 1 0-2 0',
   'paint-bucket': 'M19 11l-7-7-7 7 7 7z|M21 19a2 2 0 1 1-4 0c0-2 2-4 2-4s2 2 2 4z',
   key: 'M15 7l-5 5m0 0l-3 3-3-3a4.243 4.243 0 0 1 6-6l3 3z|M15 7m3-3a4.243 4.243 0 0 1 6 6l-3 3-3-3',
+  info: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z|M12 16v-4|M12 8h.01',
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-icon]').forEach(el => {
+function renderIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    if (el.querySelector('svg')) return; // 描画済みはスキップ（再実行安全）
     const name = el.dataset.icon;
     const paths = ICONS[name];
     if (!paths) return;
     const size = el.dataset.size || '16';
     el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" class="icon-svg">${paths.split('|').map(d => `<path d="${d}"/>`).join('')}</svg>`;
   });
-});
+}
+// appshell.js 等が後から注入した data-icon を再描画できるよう公開。
+window.renderIcons = renderIcons;
+document.addEventListener('DOMContentLoaded', () => renderIcons());

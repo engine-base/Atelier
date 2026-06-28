@@ -1,4 +1,4 @@
--- T-D-36: project_credentials — プロジェクト・クレデンシャル金庫 (E-022 関連)
+-- T-D-36: project_credentials — プロジェクト・クレデンシャルシークレット (E-022 関連)
 --
 -- 信頼源: docs/project-vault-design.md
 -- 関連: BYOK (byok_api_keys) と同じ Fernet 暗号 + RLS パターンを project_id 軸に流用。
@@ -6,7 +6,7 @@
 --
 -- 設計:
 --   各プロジェクトの機密データ (顧客/案件の API キー・パスワード・トークン・接続文字列)
---   を暗号化保存する金庫。資料/ドキュメントは knowledge_* が担当、本表は機密専用。
+--   を暗号化保存するシークレット。資料/ドキュメントは knowledge_* が担当、本表は機密専用。
 --
 -- セキュリティ:
 --   - encrypted_value: アプリ層 (Fernet) で暗号化済の ciphertext のみ保存。平文は保存しない。
@@ -61,7 +61,7 @@ create table if not exists public.project_credentials (
 );
 
 comment on table public.project_credentials is
-  'E-022 プロジェクト金庫 — 機密クレデンシャルを Fernet 暗号化保存。project_id 経由で workspace scoped。RLS で越境=0。';
+  'E-022 プロジェクト・シークレット — 機密クレデンシャルを Fernet 暗号化保存。project_id 経由で workspace scoped。RLS で越境=0。';
 comment on column public.project_credentials.encrypted_value is
   'Fernet 暗号化済 ciphertext。平文は保存も応答もしない (reveal API でのみ復号)。';
 comment on column public.project_credentials.last4 is

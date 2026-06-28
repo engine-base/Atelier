@@ -37,12 +37,12 @@ counters:
         json_path: $.summary.total_entities
 
   - id: screen_count
-    description: 総画面数。プロジェクト金庫画面 S-B04 を含む同期後の目標値。
+    description: 総画面数。S-B04 シークレット + S-T06 運営デフォルトナレッジ管理 を含む。
     source_of_truth:
       type: json_array_length
       file: 04_functional_breakdown/screens.json
       json_path: $.items
-    expected_value: 34
+    expected_value: 35
     mirrors:
       - file: 04_functional_breakdown/screens.json
         json_path: $.summary.total_screens
@@ -108,9 +108,15 @@ references:
       - 06_mockups/project/S-B04-vault.html
 
 # -----------------------------------------------------------------------------
-# C. 廃止用語（今回の変更では無し）
+# C. 廃止用語
 # -----------------------------------------------------------------------------
-deprecated_terms: []
+deprecated_terms:
+  - term: 金庫
+    regex: '金庫'
+    rationale: >-
+      project_credentials の UI 名称を「金庫」→「シークレット」に改称（お金ではないため）。
+      内部識別子 project_credentials / vault slug / credential_kind_enum は不変。
+      active 参照ゼロを維持する。
 
 # -----------------------------------------------------------------------------
 # F. 下流分解カバレッジ

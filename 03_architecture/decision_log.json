@@ -390,6 +390,12 @@
       "reason": "AI社員完全固定方針に伴い不要",
       "alternatives": [],
       "tradeoffs": "—"
+    },
+    {
+      "decision": "Open Design (nexu-io/open-design, Apache-2.0) を『デザイン領域は直接活用、コアエンジンは参照アーキ+部品流用のみ』で採用。丸ごとフォークしてコアエンジン化はしない。",
+      "reason": "Open Design は SKILL.md+DESIGN.md+agent+iframe+MCP の実働実装 (72k★) で、Atelier のスキル駆動エンジンと同型。デザイン/モック生成はそのまま使え即戦力。設計の参照アーキとしても最適。",
+      "alternatives": ["丸ごとフォークしてコアエンジン化", "Onlook", "Sandpack+Claude 自前", "完全自前 (現状の空エンジンを 1 から)"],
+      "tradeoffs": "Open Design はローカルファースト/単一ユーザー/デスクトップ daemon が Claude Code CLI を子プロセス起動する設計で、(1) クラウド多テナント実行に非対応 (2) RLS/R-T08 テナント分離の概念が無い (3) データ層 SQLite (4) スコープがデザイン特化。『欲しい部分=クラウド多テナント・RLS・プロジェクト記憶のエージェント実行基盤』は Open Design に無く、流用できる重なりは チャットUI/skill-loader/MCP/iframe パターンに限られる。結論: デザインは直接活用、コア実行基盤は Atelier 自前 (LangGraph+Postgres+RLS) で構築し Open Design は参照アーキ+部品つまみ食い。R-T08 と多テナントは自前が最も安全。"
     }
   ],
   "architecture_patterns": [

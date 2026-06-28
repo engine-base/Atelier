@@ -1737,7 +1737,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** プロジェクト金庫一覧（値マスク。member のみ） */
+        /** プロジェクト・シークレット一覧（値マスク。member のみ） */
         get: {
             parameters: {
                 query?: never;
@@ -1772,7 +1772,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 金庫に登録（plaintext を暗号化保存、応答に含めない） */
+        /** シークレットに登録（plaintext を暗号化保存、応答に含めない） */
         post: {
             parameters: {
                 query?: never;
@@ -1838,7 +1838,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 金庫から削除（soft delete。owner のみ） */
+        /** シークレットから削除（soft delete。owner のみ） */
         delete: {
             parameters: {
                 query?: never;
@@ -1880,7 +1880,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** 金庫の name / kind 更新（value は変えない） */
+        /** シークレットの name / kind 更新（value は変えない） */
         patch: {
             parameters: {
                 query?: never;
@@ -1942,7 +1942,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 金庫の値を復号して 1 度返す（権限者のみ・監査記録） */
+        /** シークレットの値を復号して 1 度返す（権限者のみ・監査記録） */
         post: {
             parameters: {
                 query?: never;
@@ -4984,8 +4984,12 @@ export interface paths {
             parameters: {
                 query?: {
                     account_id?: string;
-                    account_type?: "workspace" | "user";
-                    scope?: "common" | "employee_specific";
+                    account_type?: "workspace" | "user" | "platform";
+                    scope?: "common" | "employee_specific" | "project";
+                    /** @description scope=project のプロジェクト絞り込み */
+                    source_project_id?: string;
+                    /** @description 構造ツリーの親で絞り込み（子ノード取得） */
+                    parent_id?: string;
                     category?: string;
                     limit?: number;
                 };
@@ -7899,7 +7903,7 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        /** @description プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク） */
+        /** @description プロジェクト・シークレットの1件（plaintext / encrypted は含まない、値マスク） */
         ProjectCredential: {
             /** Format: uuid */
             id: string;
@@ -8466,9 +8470,14 @@ export interface components {
             /** Format: uuid */
             account_id: string;
             /** @enum {string} */
-            account_type: "workspace" | "user";
+            account_type: "workspace" | "user" | "platform";
             /** @enum {string} */
-            scope: "common" | "employee_specific";
+            scope: "common" | "employee_specific" | "project";
+            /**
+             * @description false=ツリー非表示・RAG参照のみ（運営デフォルト用）
+             * @default true
+             */
+            visible_in_tree: boolean;
             category: string;
             title: string;
             content_md: string;
@@ -8476,11 +8485,19 @@ export interface components {
             /** Format: uuid */
             owner_employee_id?: string | null;
             /**
+             * Format: uuid
+             * @description 構造ツリーの親ノード。null=ルート
+             */
+            parent_id?: string | null;
+            /**
              * @default manual
              * @enum {string}
              */
             source_type: "manual" | "ai_extracted" | "import" | "mem0";
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description scope=project の束縛先プロジェクト
+             */
             source_project_id?: string | null;
             /** @default 0.5 */
             confidence_score: number;
@@ -8501,11 +8518,18 @@ export interface components {
             /** Format: uuid */
             account_id: string;
             /** @enum {string} */
-            account_type: "workspace" | "user";
+            account_type: "workspace" | "user" | "platform";
             /** @enum {string} */
-            scope: "common" | "employee_specific";
+            scope: "common" | "employee_specific" | "project";
             /** Format: uuid */
             owner_employee_id?: string | null;
+            /**
+             * Format: uuid
+             * @description 構造ツリーの親ノード。null=ルート
+             */
+            parent_id?: string | null;
+            /** @description false=ツリー非表示・RAG参照のみ（運営デフォルト用） */
+            visible_in_tree?: boolean;
             category: string;
             title: string;
             content_md: string;

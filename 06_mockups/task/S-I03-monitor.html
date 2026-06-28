@@ -231,16 +231,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
-    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
-    <a class="nav-item active" href="#"><i data-icon="cpu"></i>実行モニター</a>
-    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="project" data-active="S-I01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-I03" data-bf-screen-name="execution_monitor" data-bf-category="task" data-bf-status="active" data-bf-version="2">
 <header class="topbar">
@@ -559,6 +550,7 @@
 
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>

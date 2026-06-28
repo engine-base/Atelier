@@ -177,23 +177,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand">
-    <div class="brand-mark">A</div>
-    <div>
-      <div class="brand-name">Atelier Admin</div>
-      <div class="sidebar-sub">運営管理</div>
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-label">プラットフォーム</div>
-    <a class="nav-item active" href="#"><i data-icon="layout-dashboard"></i>運営ダッシュボード</a>
-    <a class="nav-item" href="S-T02-skills.html"><i data-icon="zap"></i>能力（スキル）管理</a>
-    <a class="nav-item" href="S-T03-templates.html"><i data-icon="bot"></i>AI 社員テンプレ</a>
-    <a class="nav-item" href="S-T04-users.html"><i data-icon="users"></i>ユーザー管理</a>
-    <a class="nav-item" href="S-T05-audit.html"><i data-icon="file-text"></i>監査ログ</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="admin" data-active="S-T01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-T01" data-bf-screen-name="admin_dashboard" data-bf-category="admin" data-bf-status="active" data-bf-version="2">
 <header class="topbar">
@@ -590,6 +574,7 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>

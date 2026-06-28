@@ -298,7 +298,7 @@ class Kind(StrEnum):
 
 class ProjectCredential(BaseModel):
     """
-    プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク）
+    プロジェクト・シークレットの1件（plaintext / encrypted は含まない、値マスク）
     """
 
     id: UUID
@@ -937,11 +937,13 @@ class MeetingTranscribeResponse(BaseModel):
 class AccountType(StrEnum):
     workspace = "workspace"
     user = "user"
+    platform = "platform"
 
 
 class Scope(StrEnum):
     common = "common"
     employee_specific = "employee_specific"
+    project = "project"
 
 
 class SourceType(StrEnum):
@@ -955,13 +957,24 @@ class KnowledgeCreate(BaseModel):
     account_id: UUID
     account_type: AccountType
     scope: Scope
+    visible_in_tree: bool | None = True
+    """
+    false=ツリー非表示・RAG参照のみ（運営デフォルト用）
+    """
     category: Annotated[str, Field(max_length=100, min_length=1)]
     title: Annotated[str, Field(max_length=200, min_length=1)]
     content_md: Annotated[str, Field(min_length=1)]
     tags: Annotated[list[str] | None, Field(max_length=50)] = None
     owner_employee_id: UUID | None = None
+    parent_id: UUID | None = None
+    """
+    構造ツリーの親ノード。null=ルート
+    """
     source_type: SourceType | None = "manual"
     source_project_id: UUID | None = None
+    """
+    scope=project の束縛先プロジェクト
+    """
     confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = 0.5
     is_anonymized: bool | None = False
 
@@ -981,6 +994,14 @@ class Knowledge(BaseModel):
     account_type: AccountType
     scope: Scope
     owner_employee_id: UUID | None = None
+    parent_id: UUID | None = None
+    """
+    構造ツリーの親ノード。null=ルート
+    """
+    visible_in_tree: bool | None = None
+    """
+    false=ツリー非表示・RAG参照のみ（運営デフォルト用）
+    """
     category: str
     title: str
     content_md: str

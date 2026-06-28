@@ -3813,11 +3813,11 @@
     },
     {
       "id": "F-041",
-      "name": "プロジェクト・クレデンシャル金庫",
+      "name": "プロジェクト・クレデンシャルシークレット",
       "category": "project",
       "status": "decided",
       "happy_path": [
-        "プロジェクト金庫タブで機密クレデンシャル(APIキー/パスワード/トークン/接続文字列)を Fernet 暗号化保存→一覧はマスク表示→権限者が reveal で一時復号"
+        "プロジェクト・シークレットタブで機密クレデンシャル(APIキー/パスワード/トークン/接続文字列)を Fernet 暗号化保存→一覧はマスク表示→権限者が reveal で一時復号"
       ],
       "error_paths": [
         "viewer が追加/reveal 試行→403",
@@ -3828,7 +3828,7 @@
         "暗号鍵は DB の外 (env ATELIER_VAULT_ENCRYPTION_KEY)",
         "全 reveal/mutating を audit_logs に記録",
         "RLS で project workspace メンバーのみ (越境=0)",
-        "金庫データを AI 学習に使わない (絶対ルール #6)"
+        "シークレットデータを AI 学習に使わない (絶対ルール #6)"
       ],
       "notifications": [],
       "audit_logs": [

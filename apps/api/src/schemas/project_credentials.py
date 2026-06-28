@@ -1,4 +1,4 @@
-"""プロジェクト金庫スキーマ (T-A-46)。
+"""プロジェクト・シークレットスキーマ (T-A-46)。
 
 project_credentials は project の workspace member のみ可視・編集可能 (RLS)。
 plaintext は Fernet で暗号化して encrypted_value に保存し、API 応答には
@@ -18,7 +18,7 @@ CredentialKind = Literal["api_key", "password", "token", "connection_string", "o
 
 
 class CredentialCreate(BaseModel):
-    """金庫への登録。value は plaintext (保存時に暗号化)。"""
+    """シークレットへの登録。value は plaintext (保存時に暗号化)。"""
 
     name: str = Field(min_length=1, max_length=200)
     kind: CredentialKind = "other"

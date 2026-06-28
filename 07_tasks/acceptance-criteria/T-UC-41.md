@@ -1,6 +1,6 @@
 # T-UC-41 — 受入基準
 
-プロジェクト・クレデンシャル金庫。詳細設計は [docs/project-vault-design.md](../../docs/project-vault-design.md)。
+プロジェクト・クレデンシャルシークレット。詳細設計は [docs/project-vault-design.md](../../docs/project-vault-design.md)。
 
 ## Tier 1 構造
 - project_credentials を docs/project-vault-design.md 通りに実装する。
@@ -12,7 +12,7 @@
 - 越境（別 workspace）→ 403 / RLS で 0 rows（致命: 越境=0）。
 - 未認証 → 401。
 - store/update/delete/reveal すべて audit_logs に記録。
-- 金庫データを AI 学習に使わない（絶対ルール #6）。
+- シークレットデータを AI 学習に使わない（絶対ルール #6）。
 
 ## Tier 3 回帰
 - CI 10 gate すべて PASS（特に Gate #10 RLS isolation matrix）。

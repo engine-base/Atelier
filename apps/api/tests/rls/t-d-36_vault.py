@@ -1,8 +1,8 @@
-"""T-D-36 RLS 越境試験: project_credentials (プロジェクト金庫)。
+"""T-D-36 RLS 越境試験: project_credentials (プロジェクト・シークレット)。
 
 検証する不変条件:
-  1. project の workspace member は自 project の金庫を見られる。
-  2. 無関係な user は他 project の金庫を **0 rows** しか見えない (越境=0)。
+  1. project の workspace member は自 project のシークレットを見られる。
+  2. 無関係な user は他 project のシークレットを **0 rows** しか見えない (越境=0)。
 
 本 test は Postgres が立っていない CI 環境では skip される (skipif)。
 """
@@ -56,7 +56,7 @@ def _set_jwt(conn: Connection, user_id: str) -> None:
 
 
 def test_vault_cross_project_invisible(engine: Engine) -> None:
-    """workspace A の owner が作った金庫は、無関係な user B からは 0 rows。"""
+    """workspace A の owner が作ったシークレットは、無関係な user B からは 0 rows。"""
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     ws_a = str(uuid.uuid4())
     proj_a = str(uuid.uuid4())

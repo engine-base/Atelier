@@ -647,17 +647,19 @@
       "id": "E-018",
       "name": "KnowledgeNode",
       "table_name": "knowledge_nodes",
-      "description": "ナレッジ（共通＋AI社員別の2層）。アカウント単位で蓄積",
+      "description": "ナレッジ（共通＋AI社員別＋プロジェクト単位の3層）。アカウント単位で蓄積し、parent_id で構造ツリー化（フォルダ的階層）。",
       "status": "decided",
-      "tenant_isolation": {"type": "account_scoped", "column": "account_id", "fk_table": "polymorphic(workspaces|users)", "note": "account_type で識別"},
+      "tenant_isolation": {"type": "account_scoped", "column": "account_id", "fk_table": "polymorphic(workspaces|users)", "note": "account_type で識別。scope=project は source_project_id でプロジェクト束縛"},
       "soft_delete": true,
       "timestamps": ["created_at", "updated_at", "approved_at", "deleted_at"],
       "fields": [
         {"name": "id", "type": "uuid", "constraints": ["PK"]},
         {"name": "account_id", "type": "uuid", "constraints": ["NN"]},
-        {"name": "account_type", "type": "knowledge_account_type_enum", "constraints": ["NN"], "values": ["workspace", "user"]},
-        {"name": "scope", "type": "knowledge_scope_enum", "constraints": ["NN"], "values": ["common", "employee_specific"]},
+        {"name": "account_type", "type": "knowledge_account_type_enum", "constraints": ["NN"], "values": ["workspace", "user", "platform"], "note": "platform=運営作成・全テナント横断のデフォルトナレッジ（account_id は運営 sentinel）"},
+        {"name": "scope", "type": "knowledge_scope_enum", "constraints": ["NN"], "values": ["common", "employee_specific", "project"], "note": "common=テナント共通 / employee_specific=AI社員別 / project=プロジェクト単位（source_project_id 必須）"},
         {"name": "owner_employee_id", "type": "uuid", "constraints": ["FK ai_employees.id"], "note": "scope=employee_specific時のみ"},
+        {"name": "parent_id", "type": "uuid", "constraints": ["FK knowledge_nodes.id"], "note": "構造ツリーの親ノード。null=ルート。同一 account 内・on delete set null"},
+        {"name": "visible_in_tree", "type": "boolean", "constraints": ["NN"], "default": "true", "note": "false=ツリー非表示だが RAG 検索では参照される（運営デフォルトナレッジ用）"},
         {"name": "category", "type": "text", "constraints": ["NN"]},
         {"name": "tags", "type": "text[]", "constraints": ["NN"], "default": "ARRAY[]::text[]"},
         {"name": "title", "type": "text", "constraints": ["NN"]},
@@ -672,16 +674,20 @@
       ],
       "relations": [
         {"to": "ai_employees", "type": "N:1", "via": "owner_employee_id"},
-        {"to": "projects", "type": "N:1", "via": "source_project_id"}
+        {"to": "projects", "type": "N:1", "via": "source_project_id"},
+        {"to": "knowledge_nodes", "type": "N:1", "via": "parent_id", "note": "構造ツリー（自己参照）"}
       ],
       "indexes": [
         {"name": "idx_knowledge_account_scope_owner", "columns": ["account_id", "scope", "owner_employee_id"], "type": "btree"},
+        {"name": "idx_knowledge_parent", "columns": ["parent_id"], "type": "btree", "where": "parent_id IS NOT NULL"},
+        {"name": "idx_knowledge_project_scope", "columns": ["source_project_id"], "type": "partial", "where": "scope = 'project'"},
         {"name": "idx_knowledge_embedding_hnsw", "columns": ["embedding"], "type": "hnsw vector_cosine_ops"},
         {"name": "idx_knowledge_tags_gin", "columns": ["tags"], "type": "gin_array"},
         {"name": "idx_knowledge_content_fts", "columns": ["content_md"], "type": "gin_tsvector"}
       ],
       "access_control_policies": [
         {"name": "knowledge_account_select", "operation": "SELECT", "role": "authenticated", "predicate": "(account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid())) OR (account_type = 'user' AND account_id = auth.uid())", "rationale": "アカウント単位"},
+        {"name": "knowledge_platform_read", "operation": "SELECT", "role": "authenticated", "predicate": "account_type = 'platform'", "rationale": "運営デフォルトは全テナントが RAG 参照可（読み取りのみ。書込は service_role）"},
         {"name": "knowledge_account_insert", "operation": "INSERT", "role": "authenticated", "predicate": "approved_by_user_id = auth.uid() AND ((account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role IN ('owner','member'))) OR (account_type = 'user' AND account_id = auth.uid()))", "rationale": "承認時記録"},
         {"name": "knowledge_service_role_all", "operation": "ALL", "role": "service_role", "predicate": "true", "rationale": "AI候補生成 / mem0連携"},
         {"name": "knowledge_owner_delete", "operation": "DELETE", "role": "authenticated", "predicate": "(account_type = 'workspace' AND account_id IN (SELECT workspace_id FROM workspace_memberships WHERE user_id = auth.uid() AND role = 'owner')) OR (account_type = 'user' AND account_id = auth.uid())", "rationale": "owner/本人のみ"}
@@ -944,7 +950,7 @@
       "id": "E-027",
       "name": "ProjectCredential",
       "table_name": "project_credentials",
-      "description": "プロジェクト・クレデンシャル金庫。顧客/案件の機密データ（APIキー・パスワード・トークン・接続文字列）を Fernet 暗号化保存。BYOK(E-022) の暗号+RLS パターンを project_id 軸に流用。平文は保存も応答もしない（reveal API でのみ復号）。暗号鍵は DB 外（env ATELIER_VAULT_ENCRYPTION_KEY）。service_role はバックエンド復号用に RLS バイパス。T-D-36 で追加。",
+      "description": "プロジェクト・クレデンシャルシークレット。顧客/案件の機密データ（APIキー・パスワード・トークン・接続文字列）を Fernet 暗号化保存。BYOK(E-022) の暗号+RLS パターンを project_id 軸に流用。平文は保存も応答もしない（reveal API でのみ復号）。暗号鍵は DB 外（env ATELIER_VAULT_ENCRYPTION_KEY）。service_role はバックエンド復号用に RLS バイパス。T-D-36 で追加。",
       "status": "decided",
       "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project_id 経由"},
       "soft_delete": true,

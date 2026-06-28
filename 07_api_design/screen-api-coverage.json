@@ -4,7 +4,7 @@
   "project": "Atelier",
   "frozen_at": "2026-05-20T13:30:00+09:00",
   "summary": {
-    "total_screens": 34,
+    "total_screens": 35,
     "total_apis": 124,
     "coverage_rate": 1.0,
     "uncovered_screens": [],
@@ -91,7 +91,7 @@
     },
     {
       "screen_id": "S-B04",
-      "screen_name": "プロジェクト金庫",
+      "screen_name": "プロジェクト・シークレット",
       "mock_path": "06_mockups/project/S-B04-vault.html",
       "required_apis": [
         {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/credentials", "feature_id": "F-041"},
@@ -434,6 +434,19 @@
       "mock_path": "06_mockups/admin/S-T05-audit.html",
       "required_apis": [
         {"role": "data_fetch", "endpoint": "GET /api/v1/admin/audit-logs", "feature_id": "F-T05"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-T06",
+      "screen_name": "運営デフォルト・ナレッジ管理",
+      "mock_path": "06_mockups/admin/S-T06-platform-knowledge.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/knowledge?account_type=platform", "feature_id": "F-023"},
+        {"role": "action", "endpoint": "POST /api/v1/knowledge", "feature_id": "F-023"},
+        {"role": "action", "endpoint": "PATCH /api/v1/knowledge/:id", "feature_id": "F-023"},
+        {"role": "action", "endpoint": "DELETE /api/v1/knowledge/:id", "feature_id": "F-023"}
       ],
       "coverage_status": "OK",
       "missing": []

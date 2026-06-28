@@ -9,7 +9,14 @@
   body { overflow: hidden; }
   .layout { height: 100vh; overflow: hidden; }
   .main { display: flex; flex-direction: column; height: 100vh; }
-  .chat-shell { display: grid; grid-template-columns: 260px 1fr 340px; flex: 1; min-height: 0; }
+  .chat-shell { display: grid; grid-template-columns: 260px 1fr 340px; flex: 1; min-height: 0; transition: grid-template-columns 0.18s ease; }
+  .chat-shell > .thread-pane, .chat-shell > .context-pane { min-width: 0; }
+  .chat-shell.pane-left-collapsed { grid-template-columns: 0 1fr 340px; }
+  .chat-shell.pane-left-collapsed .thread-pane { overflow: hidden; padding: 0; border: 0; }
+  .chat-shell.pane-right-collapsed { grid-template-columns: 260px 1fr 0; }
+  .chat-shell.pane-right-collapsed .context-pane { overflow: hidden; padding: 0; border: 0; }
+  .chat-shell.pane-left-collapsed.pane-right-collapsed { grid-template-columns: 0 1fr 0; }
+  .pane-tgl[aria-pressed="true"] { background: var(--color-primary-container); color: var(--color-on-primary-container); }
 
   /* === Left: Thread list === */
   .thread-pane { background: #FFFFFF; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; }
@@ -138,17 +145,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">Project · Atelier 自社開発</div>
-    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
-    <a class="nav-item active" href="#"><i data-icon="message-square"></i>チャット</a>
-    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
-    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="project" data-active="S-E01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-E01" data-bf-screen-name="chat_thread" data-bf-category="chat" data-bf-status="active" data-bf-version="2">
 <header class="topbar" style="flex-shrink: 0;">
@@ -275,8 +272,10 @@
             関連ナレッジを検索中... · F-CTX01 で 7 件の関連メッセージを参照中
           </div>
         </div>
+        <button class="btn btn-ghost btn-sm pane-tgl" data-pane-toggle="left" data-pane-target=".chat-shell" aria-pressed="false" title="スレッド一覧を開閉"><i data-icon="chevron-left"></i></button>
         <button class="btn btn-ghost btn-sm"><i data-icon="search"></i></button>
         <button class="btn btn-ghost btn-sm"><i data-icon="more-horizontal"></i></button>
+        <button class="btn btn-ghost btn-sm pane-tgl" data-pane-toggle="right" data-pane-target=".chat-shell" aria-pressed="false" title="コンテキストパネルを開閉"><i data-icon="chevron-right"></i></button>
       </div>
     </div>
 
@@ -555,6 +554,8 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
+<script src="../_shared/panels.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>
