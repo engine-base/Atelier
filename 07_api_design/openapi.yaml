@@ -372,6 +372,42 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    ProjectCredential:
+      type: object
+      description: プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク）
+      required: [id, project_id, name, kind, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        name: { type: string }
+        kind: { type: string, enum: [api_key, password, token, connection_string, other] }
+        last4: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    CredentialCreate:
+      type: object
+      required: [name, value]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        kind: { type: string, enum: [api_key, password, token, connection_string, other] }
+        value: { type: string, minLength: 1, maxLength: 10000, description: plaintext（保存時に暗号化） }
+
+    CredentialUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200, nullable: true }
+        kind: { type: string, enum: [api_key, password, token, connection_string, other], nullable: true }
+
+    CredentialReveal:
+      type: object
+      description: reveal 応答（権限者のみ・監査記録済の上で plaintext を返す）
+      required: [id, name, value]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        value: { type: string, description: plaintext（復号済） }
+
     CreateProjectRequest:
       type: object
       required: [workspace_id, name, type]
@@ -2263,6 +2299,104 @@ paths:
                   data: { $ref: '#/components/schemas/Project' }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/credentials:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [project-credentials]
+      summary: プロジェクト金庫一覧（値マスク。member のみ）
+      x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::list_credentials
+      x-screen-ids: [S-B04]
+      responses:
+        '200':
+          description: 一覧成功（plaintext を含まない）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ProjectCredential' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [project-credentials]
+      summary: 金庫に登録（plaintext を暗号化保存、応答に含めない）
+      x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::create_credential
+      x-screen-ids: [S-B04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CredentialCreate' }
+      responses:
+        '201':
+          description: 登録成功（plaintext を含まない）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ProjectCredential' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/credentials/{credential_id}:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: credential_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [project-credentials]
+      summary: 金庫の name / kind 更新（value は変えない）
+      x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::update_credential
+      x-screen-ids: [S-B04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CredentialUpdate' }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ProjectCredential' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [project-credentials]
+      summary: 金庫から削除（soft delete。owner のみ）
+      x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::delete_credential
+      x-screen-ids: [S-B04]
+      responses:
+        '204': { description: 削除成功 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/credentials/{credential_id}/reveal:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: credential_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [project-credentials]
+      summary: 金庫の値を復号して 1 度返す（権限者のみ・監査記録）
+      x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::reveal_credential
+      x-screen-ids: [S-B04]
+      responses:
+        '200':
+          description: 復号成功（plaintext を返す。監査記録済）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CredentialReveal' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /account/ai-learning:
     post:

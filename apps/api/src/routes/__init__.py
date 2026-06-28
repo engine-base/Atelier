@@ -29,6 +29,7 @@ from src.routes.mcp_tokens import router as mcp_tokens_router
 from src.routes.meetings import router as meetings_router
 from src.routes.mocks import router as mocks_router
 from src.routes.outputs import router as outputs_router
+from src.routes.project_credentials import router as project_credentials_router
 from src.routes.projects import router as projects_router
 from src.routes.public import router as public_router
 from src.routes.sales_docs import router as sales_docs_router
@@ -41,6 +42,7 @@ api_router = APIRouter()
 api_router.include_router(workspaces_router)
 api_router.include_router(workspace_members_router)
 api_router.include_router(projects_router)
+api_router.include_router(project_credentials_router)
 api_router.include_router(tasks_router)
 api_router.include_router(mocks_router)
 api_router.include_router(ai_employees_router)

@@ -288,6 +288,55 @@ class Project(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Kind(StrEnum):
+    api_key = "api_key"
+    password = "password"
+    token = "token"
+    connection_string = "connection_string"
+    other = "other"
+
+
+class ProjectCredential(BaseModel):
+    """
+    プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク）
+    """
+
+    id: UUID
+    project_id: UUID
+    name: str
+    kind: Kind
+    last4: str | None = None
+    created_at: AwareDatetime
+    updated_at: AwareDatetime
+
+
+class CredentialCreate(BaseModel):
+    name: Annotated[str, Field(max_length=200, min_length=1)]
+    kind: Kind | None = None
+    value: Annotated[str, Field(max_length=10000, min_length=1)]
+    """
+    plaintext（保存時に暗号化）
+    """
+
+
+class CredentialUpdate(BaseModel):
+    name: Annotated[str | None, Field(max_length=200, min_length=1)] = None
+    kind: Kind | None = None
+
+
+class CredentialReveal(BaseModel):
+    """
+    reveal 応答（権限者のみ・監査記録済の上で plaintext を返す）
+    """
+
+    id: UUID
+    name: str
+    value: str
+    """
+    plaintext（復号済）
+    """
+
+
 class CreateProjectRequest(BaseModel):
     workspace_id: UUID
     name: Annotated[str, Field(max_length=100)]
