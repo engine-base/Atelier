@@ -97,6 +97,34 @@ export async function getJson<T>(path: string): Promise<{ data: T; meta?: unknow
   return { data: (json?.data ?? []) as T, meta: json?.meta };
 }
 
+/**
+ * 認証付き mutate (POST/PATCH/DELETE)。cookie の JWT を Bearer に載せる。
+ * 204 など body が無い応答は data=undefined を返す。401/403 等は ApiError。
+ */
+export async function sendJson<T>(
+  method: 'POST' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+): Promise<T | undefined> {
+  const token = readAccessToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    credentials: 'include',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return undefined;
+  const json = (await res.json().catch(() => null)) as { data?: T; detail?: unknown } | null;
+  if (!res.ok) {
+    const detail = json?.detail;
+    throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status);
+  }
+  return json?.data as T;
+}
+
 /** 実 API signin → cookie 設定。成功で SigninData を返す。 */
 export async function signin(email: string, password: string): Promise<SigninData> {
   const data = await postJson<SigninData>('/auth/signin', { email, password });
