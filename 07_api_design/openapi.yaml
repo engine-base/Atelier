@@ -3731,6 +3731,7 @@ paths:
         - { name: scope, in: query, required: false, schema: { type: string, enum: [common, employee_specific, project] } }
         - { name: source_project_id, in: query, required: false, schema: { type: string, format: uuid }, description: scope=project のプロジェクト絞り込み }
         - { name: parent_id, in: query, required: false, schema: { type: string, format: uuid }, description: 構造ツリーの親で絞り込み（子ノード取得） }
+        - { name: tree_only, in: query, required: false, schema: { type: boolean, default: false }, description: true=ツリー表示用に visible_in_tree=true のみ返す（検索では使わない） }
         - { name: category, in: query, required: false, schema: { type: string } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:

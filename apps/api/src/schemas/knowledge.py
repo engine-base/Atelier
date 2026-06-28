@@ -15,8 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-KnowledgeAccountType = Literal["workspace", "user"]
-KnowledgeScope = Literal["common", "employee_specific"]
+KnowledgeAccountType = Literal["workspace", "user", "platform"]
+KnowledgeScope = Literal["common", "employee_specific", "project"]
 KnowledgeSourceType = Literal["manual", "ai_extracted", "import", "mem0"]
 
 
@@ -35,6 +35,8 @@ class KnowledgeCreate(BaseModel):
     content_md: str = Field(min_length=1)
     tags: list[str] = Field(default_factory=list, max_length=50)
     owner_employee_id: str | None = None
+    parent_id: str | None = None
+    visible_in_tree: bool = True
     source_type: KnowledgeSourceType = "manual"
     source_project_id: str | None = None
     confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -46,6 +48,8 @@ class KnowledgeUpdate(BaseModel):
     content_md: str | None = Field(default=None, min_length=1)
     category: str | None = Field(default=None, min_length=1, max_length=100)
     tags: list[str] | None = Field(default=None, max_length=50)
+    parent_id: str | None = None
+    visible_in_tree: bool | None = None
     confidence_score: float | None = Field(default=None, ge=0.0, le=1.0)
     is_anonymized: bool | None = None
 
@@ -56,6 +60,8 @@ class KnowledgeResponse(BaseModel):
     account_type: KnowledgeAccountType
     scope: KnowledgeScope
     owner_employee_id: str | None
+    parent_id: str | None
+    visible_in_tree: bool
     category: str
     title: str
     content_md: str

@@ -4990,6 +4990,8 @@ export interface paths {
                     source_project_id?: string;
                     /** @description 構造ツリーの親で絞り込み（子ノード取得） */
                     parent_id?: string;
+                    /** @description true=ツリー表示用に visible_in_tree=true のみ返す（検索では使わない） */
+                    tree_only?: boolean;
                     category?: string;
                     limit?: number;
                 };
