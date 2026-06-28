@@ -236,7 +236,7 @@ li{margin-bottom:4px;color:#404040}
 
   <div class="subsection">
     <div class="subsection-title">4-2. Access Control (RLS)</div>
-    <p>致命級リスク R-T08（クライアント漏洩）対策として、通常ユーザー JWT とクライアント招待 JWT を <strong>完全分離</strong>。全25テーブルに per-entity policy を定義し、Foundation Gate #4 で網羅性を CI 検証。</p>
+    <p>致命級リスク R-T08（クライアント漏洩）対策として、通常ユーザー JWT とクライアント招待 JWT を <strong>完全分離</strong>。全27テーブルに per-entity policy を定義し、Foundation Gate #4 で網羅性を CI 検証。</p>
     <pre><code>predicates_lib:
   self_only         : user_id = auth.uid()
   ws_member         : workspace_id IN (SELECT ... FROM workspace_memberships WHERE user_id = auth.uid())

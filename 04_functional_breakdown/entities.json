@@ -939,13 +939,49 @@
         {"name": "legal_documents_no_write", "operation": "INSERT,UPDATE,DELETE", "role": "authenticated", "predicate": "false", "rationale": "更新は service_role/admin のみ"}
       ],
       "checklist_status": "decided"
+    },
+    {
+      "id": "E-027",
+      "name": "ProjectCredential",
+      "table_name": "project_credentials",
+      "description": "プロジェクト・クレデンシャル金庫。顧客/案件の機密データ（APIキー・パスワード・トークン・接続文字列）を Fernet 暗号化保存。BYOK(E-022) の暗号+RLS パターンを project_id 軸に流用。平文は保存も応答もしない（reveal API でのみ復号）。暗号鍵は DB 外（env ATELIER_VAULT_ENCRYPTION_KEY）。service_role はバックエンド復号用に RLS バイパス。T-D-36 で追加。",
+      "status": "decided",
+      "tenant_isolation": {"type": "workspace_scoped", "column": "workspace_id", "fk_table": "workspaces", "note": "project_id 経由"},
+      "soft_delete": true,
+      "timestamps": ["created_at", "updated_at", "deleted_at"],
+      "fields": [
+        {"name": "id", "type": "uuid", "constraints": ["PK"], "default": "gen_random_uuid()"},
+        {"name": "project_id", "type": "uuid", "constraints": ["FK projects.id", "NN"], "note": "on delete cascade"},
+        {"name": "name", "type": "text", "constraints": ["NN"], "note": "表示名。check char_length 1-200"},
+        {"name": "kind", "type": "credential_kind_enum", "constraints": ["NN"], "default": "'other'", "values": ["api_key", "password", "token", "connection_string", "other"]},
+        {"name": "encrypted_value", "type": "text", "constraints": ["NN"], "note": "Fernet 暗号化済 ciphertext。平文は保存しない"},
+        {"name": "last4", "type": "text", "note": "一覧 UI 識別用の末尾4文字（平文・秘匿性低）。check <=4"},
+        {"name": "created_by", "type": "uuid", "constraints": ["FK users.id"], "note": "on delete set null"},
+        {"name": "created_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "updated_at", "type": "timestamptz", "constraints": ["NN"], "default": "now()"},
+        {"name": "deleted_at", "type": "timestamptz"}
+      ],
+      "relations": [
+        {"to": "projects", "type": "N:1", "via": "project_id"},
+        {"to": "users", "type": "N:1", "via": "created_by"}
+      ],
+      "indexes": [
+        {"name": "project_credentials_project_idx", "columns": ["project_id", "created_at"], "type": "partial", "where": "deleted_at IS NULL"}
+      ],
+      "access_control_policies": [
+        {"name": "project_credentials_select_member", "operation": "SELECT", "role": "authenticated", "predicate": "project_id IN (SELECT p.id FROM projects p WHERE p.workspace_id IN (SELECT current_user_workspaces()))", "rationale": "workspace member 全員（viewer 含む。値は API 層でマスク）"},
+        {"name": "project_credentials_insert_member", "operation": "INSERT", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM projects p JOIN workspace_memberships m ON m.workspace_id = p.workspace_id WHERE p.id = project_credentials.project_id AND m.user_id = auth.uid() AND m.role IN ('owner','member'))", "rationale": "owner/member のみ登録"},
+        {"name": "project_credentials_update_member", "operation": "UPDATE", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM projects p JOIN workspace_memberships m ON m.workspace_id = p.workspace_id WHERE p.id = project_credentials.project_id AND m.user_id = auth.uid() AND m.role IN ('owner','member'))", "rationale": "owner/member のみ更新（値は変えない）"},
+        {"name": "project_credentials_delete_owner", "operation": "DELETE", "role": "authenticated", "predicate": "EXISTS (SELECT 1 FROM projects p JOIN workspace_memberships m ON m.workspace_id = p.workspace_id WHERE p.id = project_credentials.project_id AND m.user_id = auth.uid() AND m.role = 'owner')", "rationale": "owner のみ削除（破壊的）"}
+      ],
+      "checklist_status": "decided"
     }
   ],
   "summary": {
-    "total_entities": 26,
-    "total_access_control_policies": 87,
-    "tenant_isolation_breakdown": {"workspace_scoped": 17, "user_scoped": 4, "account_scoped": 1, "none_global": 4},
-    "soft_delete_enabled": 14,
+    "total_entities": 27,
+    "total_access_control_policies": 91,
+    "tenant_isolation_breakdown": {"workspace_scoped": 18, "user_scoped": 4, "account_scoped": 1, "none_global": 4},
+    "soft_delete_enabled": 15,
     "vector_indexed": 2,
     "fts_indexed": 3
   }

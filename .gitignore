@@ -60,3 +60,6 @@ apps/bridge/out/
 
 # Atelier 専有
 .atelier-cache/
+
+# spec-sync 実行時生成の監査ログ (CLAUDE.md 絶対ルール#2: audit を commit しない)
+.spec-sync/
