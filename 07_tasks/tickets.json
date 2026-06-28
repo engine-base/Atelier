@@ -22355,7 +22355,8 @@
           "apps/web/app/projects/s_b04/_components/CredentialForm.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/lib/auth/connector.ts"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-UC-41.md",
@@ -22367,7 +22368,8 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml"
-        ]
+        ],
+        "scope_expand_note": "金庫画面が mutate(POST/DELETE/reveal) を呼ぶため connector.ts に sendJson を追加 (ルール#11準拠)"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
