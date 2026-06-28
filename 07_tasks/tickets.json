@@ -22058,9 +22058,11 @@
         "S-B04"
       ],
       "entity_ids": [
-        "E-022"
+        "E-027"
       ],
-      "feature_ids": [],
+      "feature_ids": [
+        "F-041"
+      ],
       "ac_path": "07_tasks/acceptance-criteria/T-D-36.md",
       "estimate_hours_human": 6,
       "estimate_hours_ai": 0.5,
@@ -22196,9 +22198,11 @@
         "S-B04"
       ],
       "entity_ids": [
-        "E-022"
+        "E-027"
       ],
-      "feature_ids": [],
+      "feature_ids": [
+        "F-041"
+      ],
       "ac_path": "07_tasks/acceptance-criteria/T-A-46.md",
       "estimate_hours_human": 6,
       "estimate_hours_ai": 0.5,
@@ -22337,9 +22341,11 @@
         "S-B04"
       ],
       "entity_ids": [
-        "E-022"
+        "E-027"
       ],
-      "feature_ids": [],
+      "feature_ids": [
+        "F-041"
+      ],
       "ac_path": "07_tasks/acceptance-criteria/T-UC-41.md",
       "estimate_hours_human": 6,
       "estimate_hours_ai": 0.5,

@@ -3810,14 +3810,69 @@
       "api_endpoints": [],
       "ears_ac_seed": [],
       "vertical_slice_components": []
+    },
+    {
+      "id": "F-041",
+      "name": "プロジェクト・クレデンシャル金庫",
+      "category": "project",
+      "status": "decided",
+      "happy_path": [
+        "プロジェクト金庫タブで機密クレデンシャル(APIキー/パスワード/トークン/接続文字列)を Fernet 暗号化保存→一覧はマスク表示→権限者が reveal で一時復号"
+      ],
+      "error_paths": [
+        "viewer が追加/reveal 試行→403",
+        "他 workspace の project_id 指定→RLS で 0 件 (越境=0)"
+      ],
+      "policies": [
+        "平文は API 応答に含めない (reveal を除く・reveal は監査+権限必須)",
+        "暗号鍵は DB の外 (env ATELIER_VAULT_ENCRYPTION_KEY)",
+        "全 reveal/mutating を audit_logs に記録",
+        "RLS で project workspace メンバーのみ (越境=0)",
+        "金庫データを AI 学習に使わない (絶対ルール #6)"
+      ],
+      "notifications": [],
+      "audit_logs": [
+        "credential_created",
+        "credential_updated",
+        "credential_deleted",
+        "credential_revealed"
+      ],
+      "access_roles": [
+        "WorkspaceOwner",
+        "WorkspaceMember",
+        "WorkspaceViewer"
+      ],
+      "external_services": [],
+      "related_screens": [
+        "S-B04"
+      ],
+      "related_entities": [
+        "E-027"
+      ],
+      "api_endpoints": [
+        {"method": "GET", "path": "/api/v1/projects/:id/credentials", "auth": "required", "inputs": {}, "outputs_2xx": {"credentials": "array(masked)"}, "outputs_4xx": ["403"], "rate_limit": "", "related_entities": ["project_credentials"]},
+        {"method": "POST", "path": "/api/v1/projects/:id/credentials", "auth": "required", "inputs": {"name": "string", "kind": "enum", "value": "string(plaintext)"}, "outputs_2xx": {"credential": "object(masked)"}, "outputs_4xx": ["403"], "rate_limit": "", "related_entities": ["project_credentials"]},
+        {"method": "PATCH", "path": "/api/v1/projects/:id/credentials/:cid", "auth": "required", "inputs": {"name": "string", "kind": "enum"}, "outputs_2xx": {"credential": "object(masked)"}, "outputs_4xx": ["403", "404"], "rate_limit": "", "related_entities": ["project_credentials"]},
+        {"method": "DELETE", "path": "/api/v1/projects/:id/credentials/:cid", "auth": "required", "inputs": {}, "outputs_2xx": {"deleted": "bool"}, "outputs_4xx": ["403", "404"], "rate_limit": "", "related_entities": ["project_credentials"]},
+        {"method": "POST", "path": "/api/v1/projects/:id/credentials/:cid/reveal", "auth": "required", "inputs": {}, "outputs_2xx": {"value": "string(plaintext・一時)"}, "outputs_4xx": ["403", "404"], "rate_limit": "strict", "related_entities": ["project_credentials"]}
+      ],
+      "ears_ac_seed": [
+        "UBIQUITOUS: システムは project_credentials の平文値を reveal API 以外の応答に含めてはならない。",
+        "EVENT: ユーザーが reveal を実行したとき、システムは audit_logs に credential_revealed を記録しなければならない。",
+        "UNWANTED: workspace 非メンバーが credential にアクセスした場合、システムは行を返してはならない (RLS 越境=0)。"
+      ],
+      "vertical_slice_components": [
+        "S-B04",
+        "E-027"
+      ]
     }
   ],
   "summary": {
-    "total_features": 39,
-    "decided": 37,
+    "total_features": 41,
+    "decided": 38,
     "draft": 2,
     "blocked": 1,
-    "total_api_endpoints": 152,
+    "total_api_endpoints": 157,
     "phase_breakdown": {
       "phase_0_1": 22,
       "phase_2": 5,

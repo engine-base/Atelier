@@ -1,0 +1,130 @@
+# =============================================================================
+# spec-dependencies.yaml  —  Atelier プロジェクト固有の仕様間依存マップ
+# -----------------------------------------------------------------------------
+# spec-sync-orchestrator / spec-validator.py が
+#   A 数値整合 (counters) / B クロスリファレンス (references) /
+#   C 廃止用語 (deprecated_terms) / F 下流分解カバレッジ (downstream_coverage)
+# を検証するための写像。プロジェクト構造（番号付きディレクトリ）に合わせて手動メンテ。
+#
+# 初版作成の文脈: 直近 main にマージされた project vault / BYOK
+#   (T-D-36 project_credentials schema+RLS / T-A-46 CRUD+reveal API /
+#    T-UC-41 プロジェクト金庫画面 S-B04) が、上流の正準台帳
+#   (entities.json / screens.json / architecture / screen-api-coverage)
+#   に着地していない silent-miss を検出・同期するため。
+#
+# 方針: counters.expected_value は「同期後の目標値」を置く。
+#   反映前は SoT/mirror が目標値に届かず FAIL（取り残しを検出）→
+#   反映後に PASS する。新規概念追加のたびに本ファイルを手動更新する。
+# =============================================================================
+version: 1.0
+project: Atelier
+generated_at: 2026-06-28
+
+# -----------------------------------------------------------------------------
+# A. 数値整合性ターゲット（カウンタ）
+#    source_of_truth の実値と各 mirror の値を expected_value と比較する。
+# -----------------------------------------------------------------------------
+counters:
+  - id: entity_count
+    description: 総エンティティ数。project_credentials = E-027 を含む同期後の目標値。
+    source_of_truth:
+      type: json_array_length
+      file: 04_functional_breakdown/entities.json
+      json_path: $.entities
+    expected_value: 27
+    mirrors:
+      - file: 04_functional_breakdown/entities.json
+        json_path: $.summary.total_entities
+
+  - id: screen_count
+    description: 総画面数。プロジェクト金庫画面 S-B04 を含む同期後の目標値。
+    source_of_truth:
+      type: json_array_length
+      file: 04_functional_breakdown/screens.json
+      json_path: $.items
+    expected_value: 34
+    mirrors:
+      - file: 04_functional_breakdown/screens.json
+        json_path: $.summary.total_screens
+      - file: 07_api_design/screen-api-coverage.json
+        json_path: $.summary.total_screens
+
+  - id: feature_count
+    description: >-
+      総機能数。features.json items と summary.total_features の整合。
+      F-041 プロジェクト金庫を追加し、既存の items40 vs summary39 ドリフトも 41 に是正。
+    source_of_truth:
+      type: json_array_length
+      file: 04_functional_breakdown/features.json
+      json_path: $.items
+    expected_value: 41
+    mirrors:
+      - file: 04_functional_breakdown/features.json
+        json_path: $.summary.total_features
+
+  - id: db_table_count
+    description: >-
+      DB テーブル総数（≒ エンティティ数）。アーキ文書の現行クレーム「全Nテーブル」が
+      正準（entities.json）と整合しているか。SoT は entities.json。
+      decision_log.json は append-only の履歴/見積もり（「N テーブル程度」）のため
+      sync 対象から除外。
+    source_of_truth:
+      type: json_array_length
+      file: 04_functional_breakdown/entities.json
+      json_path: $.entities
+    expected_value: 27
+    mirrors:
+      - file: 03_architecture/architecture-v1.html
+        regex: '全(\d+)テーブル'
+
+# -----------------------------------------------------------------------------
+# B. クロスリファレンス
+#    各 ids が required_files の全てに（文字列 or regex_template で）存在するか。
+# -----------------------------------------------------------------------------
+references:
+  - kind: entity_project_credentials
+    description: >-
+      project_credentials (E-027) が entity 台帳・API 契約に登録されているか。
+      G4 ガードレール: schema/api だけでなく entity 台帳にも着地必須。
+      注: 07_api_design/types.ts は openapi 生成物（直接編集禁止）。openapi↔TS の
+      drift は Foundation CI「type drift」gate が管轄するため本 gate からは除外。
+      SCHEMA.md はタスクカード用スキーマで entity 台帳ではないため対象外。
+    ids:
+      - project_credentials
+    required_files:
+      - 04_functional_breakdown/entities.json
+      - 07_api_design/openapi.yaml
+
+  - kind: screen_project_vault
+    description: >-
+      プロジェクト金庫画面 S-B04 が画面台帳・画面API カバレッジに登録されているか。
+    ids:
+      - S-B04
+    required_files:
+      - 04_functional_breakdown/screens.json
+      - 07_api_design/screen-api-coverage.json
+
+# -----------------------------------------------------------------------------
+# C. 廃止用語（今回の変更では無し）
+# -----------------------------------------------------------------------------
+deprecated_terms: []
+
+# -----------------------------------------------------------------------------
+# F. 下流分解カバレッジ
+#    全 F-xxx が tickets(09) に存在するか。仕様に機能を足したのに
+#    チケット化されない取り残しを検出する。
+# -----------------------------------------------------------------------------
+downstream_coverage:
+  - id: features_to_tickets
+    id_source:
+      file: 04_functional_breakdown/features.json
+      json_path: $.items
+      id_field: id
+      id_regex: '^F-\d+$'
+    targets:
+      - file: 07_tasks/tickets.json
+        role: ticket_registry
+        severity: warn
+        remediation: >-
+          未チケット化の F-xxx は task-decomposition スキルで分解・起票する。
+          （warn: overall を fail させず warnings に記録）

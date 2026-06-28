@@ -4,8 +4,8 @@
   "project": "Atelier",
   "frozen_at": "2026-05-20T13:30:00+09:00",
   "summary": {
-    "total_screens": 33,
-    "total_apis": 119,
+    "total_screens": 34,
+    "total_apis": 124,
     "coverage_rate": 1.0,
     "uncovered_screens": [],
     "frozen_status": "FROZEN"
@@ -85,6 +85,20 @@
         {"role": "action", "endpoint": "PATCH /api/v1/projects/:id", "feature_id": "F-002"},
         {"role": "action", "endpoint": "POST /api/v1/projects/:id/archive", "feature_id": "F-002"},
         {"role": "action", "endpoint": "DELETE /api/v1/projects/:id", "feature_id": "F-LEGAL-002"}
+      ],
+      "coverage_status": "OK",
+      "missing": []
+    },
+    {
+      "screen_id": "S-B04",
+      "screen_name": "プロジェクト金庫",
+      "mock_path": "06_mockups/project/S-B04-vault.html",
+      "required_apis": [
+        {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/credentials", "feature_id": "F-041"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/credentials", "feature_id": "F-041"},
+        {"role": "action", "endpoint": "PATCH /api/v1/projects/:id/credentials/:cid", "feature_id": "F-041"},
+        {"role": "action", "endpoint": "DELETE /api/v1/projects/:id/credentials/:cid", "feature_id": "F-041"},
+        {"role": "action", "endpoint": "POST /api/v1/projects/:id/credentials/:cid/reveal", "feature_id": "F-041"}
       ],
       "coverage_status": "OK",
       "missing": []

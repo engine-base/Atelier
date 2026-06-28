@@ -372,6 +372,67 @@
       ]
     },
     {
+      "id": "S-B04",
+      "name": "プロジェクト金庫",
+      "category": "project",
+      "status": "decided",
+      "access_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner",
+        "WorkspaceViewer"
+      ],
+      "edit_roles": [
+        "WorkspaceMember",
+        "WorkspaceOwner"
+      ],
+      "mock_path": "mocks/project/S-B04-vault.html",
+      "h1_text": "プロジェクト金庫",
+      "section_h2_texts": [
+        "クレデンシャル一覧",
+        "新規追加"
+      ],
+      "meta_tags": {
+        "screen_id": "S-B04",
+        "screen_name": "project_vault",
+        "category": "project",
+        "status": "active",
+        "version": "1"
+      },
+      "fields": [
+        "クレデンシャル一覧（name + kind + ●●●●last4 マスク）",
+        "追加フォーム: name / kind / value（入力時のみ・保存後は非表示）",
+        "表示(reveal)ボタン: 一時的に平文表示 + クリップボードコピー",
+        "削除ボタン"
+      ],
+      "actions": [
+        "追加（暗号化保存・応答に平文なし）",
+        "表示（reveal API・権限者のみ・audit記録）",
+        "削除（owner のみ・soft delete）"
+      ],
+      "states": [
+        "loading",
+        "loaded",
+        "saving",
+        "revealing"
+      ],
+      "transitions": [],
+      "responsive_breakpoints": [
+        "mobile",
+        "tablet",
+        "desktop"
+      ],
+      "related_apis": [
+        "GET /api/v1/projects/:id/credentials",
+        "POST /api/v1/projects/:id/credentials",
+        "PATCH /api/v1/projects/:id/credentials/:cid",
+        "DELETE /api/v1/projects/:id/credentials/:cid",
+        "POST /api/v1/projects/:id/credentials/:cid/reveal"
+      ],
+      "related_entities": [
+        "E-027"
+      ]
+    },
+    {
       "id": "S-C01",
       "name": "AI社員組織図",
       "category": "ai_employee",
@@ -2112,17 +2173,17 @@
     }
   ],
   "summary": {
-    "total_screens": 33,
+    "total_screens": 34,
     "by_role_scope": {
       "guest_public": 5,
-      "workspace_app": 23,
+      "workspace_app": 24,
       "client_portal": 3,
       "admin_only": 5
     },
     "by_category": {
       "auth": 1,
       "workspace": 1,
-      "project": 3,
+      "project": 4,
       "ai_employee": 2,
       "chat": 1,
       "workflow": 2,
@@ -2138,9 +2199,9 @@
       "admin": 5,
       "legal": 4
     },
-    "mock_path_count": 33,
-    "meta_tags_count": 33,
-    "h1_text_count": 33,
+    "mock_path_count": 34,
+    "meta_tags_count": 34,
+    "h1_text_count": 34,
     "kpi_labels_screens": 3,
     "dashboard_screens": [
       "S-B02",
