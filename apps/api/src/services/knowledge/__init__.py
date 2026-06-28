@@ -419,7 +419,7 @@ async def promote_knowledge(
     if not await _is_workspace_member(session, user_id=actor_id, workspace_id=target_workspace_id):
         return PromoteResult.NOT_MEMBER, None
 
-    before = {
+    before: dict[str, object] = {
         "account_id": str(row.account_id),
         "account_type": str(row.account_type),
         "scope": str(row.scope),
@@ -503,7 +503,8 @@ async def extract_patterns(
     # クラスタリング: 正規化 tags tuple → list of (id, confidence)
     buckets: dict[tuple[str, ...], list[tuple[str, float]]] = {}
     for r in res.all():
-        tags_list = [str(t) for t in (r.tags or [])]
+        raw_tags: list[object] = list(r.tags) if r.tags is not None else []
+        tags_list = [str(t) for t in raw_tags]
         if not tags_list:
             continue
         key = tuple(sorted(tags_list))
