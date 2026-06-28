@@ -33,7 +33,8 @@ from src.schemas.knowledge import (
 )
 
 _COLS = (
-    "id, account_id, account_type, scope, owner_employee_id, category, "
+    "id, account_id, account_type, scope, owner_employee_id, parent_id, "
+    "visible_in_tree, category, "
     "title, content_md, tags, source_type, source_project_id, "
     "confidence_score, usage_count, is_anonymized, approved_by_user_id, "
     "deleted_at, created_at, updated_at"
@@ -47,6 +48,8 @@ def _row_to_response(row: Any) -> KnowledgeResponse:
         account_type=str(row.account_type),  # type: ignore[arg-type]
         scope=str(row.scope),  # type: ignore[arg-type]
         owner_employee_id=(None if row.owner_employee_id is None else str(row.owner_employee_id)),
+        parent_id=(None if row.parent_id is None else str(row.parent_id)),
+        visible_in_tree=bool(row.visible_in_tree),
         category=str(row.category),
         title=str(row.title),
         content_md=str(row.content_md),
@@ -90,6 +93,9 @@ async def list_knowledge(
     account_id: str | None = None,
     account_type: KnowledgeAccountType | None = None,
     scope: KnowledgeScope | None = None,
+    source_project_id: str | None = None,
+    parent_id: str | None = None,
+    tree_only: bool = False,
     category: str | None = None,
     limit: int = 50,
 ) -> list[KnowledgeResponse]:
@@ -104,6 +110,16 @@ async def list_knowledge(
     if scope is not None:
         where.append("scope = cast(:sc as knowledge_scope_enum)")
         params["sc"] = scope
+    if source_project_id is not None:
+        where.append("source_project_id = cast(:spid as uuid)")
+        params["spid"] = source_project_id
+    if parent_id is not None:
+        # parent_id 指定時は当該親の直下の子ノードのみ返す（構造ツリー）
+        where.append("parent_id = cast(:pid as uuid)")
+        params["pid"] = parent_id
+    if tree_only:
+        # ツリー表示用: 非表示(運営デフォルト等)を除外。検索(RAG)はこのフラグを使わない。
+        where.append("visible_in_tree = true")
     if category is not None:
         where.append("category = :cat")
         params["cat"] = category
@@ -140,6 +156,8 @@ async def create_knowledge(
         "at": data.account_type,
         "sc": data.scope,
         "oeid": data.owner_employee_id,
+        "pid": data.parent_id,
+        "vit": data.visible_in_tree,
         "cat": data.category,
         "tt": data.title,
         "cm": data.content_md,
@@ -157,13 +175,14 @@ async def create_knowledge(
     res = await session.execute(
         text(
             f"insert into public.knowledge_nodes "
-            f"(id, account_id, account_type, scope, owner_employee_id, category, "
+            f"(id, account_id, account_type, scope, owner_employee_id, parent_id, "
+            f"visible_in_tree, category, "
             f"title, content_md, tags, embedding, source_type, source_project_id, "
             f"confidence_score, is_anonymized) "
             f"values (cast(:id as uuid), cast(:aid as uuid), "
             f"cast(:at as knowledge_account_type_enum), "
             f"cast(:sc as knowledge_scope_enum), "
-            f"cast(:oeid as uuid), :cat, :tt, :cm, :tg, {emb_sql}, "
+            f"cast(:oeid as uuid), cast(:pid as uuid), :vit, :cat, :tt, :cm, :tg, {emb_sql}, "
             f":st, cast(:spid as uuid), :cs, :ia) "
             f"returning id"
         ),
@@ -281,7 +300,9 @@ async def search_knowledge(
     where = ["deleted_at is null"]
     params: dict[str, object] = {"lim": limit}
     if account_id is not None:
-        where.append("account_id = cast(:aid as uuid)")
+        # 運営デフォルト(account_type=platform)は全テナント横断で RAG 参照可。
+        # visible_in_tree は検索では無視する(ツリー非表示でも参照される)。
+        where.append("(account_id = cast(:aid as uuid) or account_type = 'platform')")
         params["aid"] = account_id
 
     query_emb = await _embed_text(query, input_type="query")
@@ -398,7 +419,7 @@ async def promote_knowledge(
     if not await _is_workspace_member(session, user_id=actor_id, workspace_id=target_workspace_id):
         return PromoteResult.NOT_MEMBER, None
 
-    before = {
+    before: dict[str, object] = {
         "account_id": str(row.account_id),
         "account_type": str(row.account_type),
         "scope": str(row.scope),
@@ -482,7 +503,8 @@ async def extract_patterns(
     # クラスタリング: 正規化 tags tuple → list of (id, confidence)
     buckets: dict[tuple[str, ...], list[tuple[str, float]]] = {}
     for r in res.all():
-        tags_list = [str(t) for t in (r.tags or [])]
+        raw_tags: list[object] = list(r.tags) if r.tags is not None else []
+        tags_list = [str(t) for t in raw_tags]
         if not tags_list:
             continue
         key = tuple(sorted(tags_list))

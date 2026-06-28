@@ -42,6 +42,9 @@ async def list_knowledge(
     account_id: Annotated[str | None, Query()] = None,
     account_type: Annotated[KnowledgeAccountType | None, Query()] = None,
     scope: Annotated[KnowledgeScope | None, Query()] = None,
+    source_project_id: Annotated[str | None, Query()] = None,
+    parent_id: Annotated[str | None, Query()] = None,
+    tree_only: Annotated[bool, Query()] = False,
     category: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> dict[str, list[KnowledgeResponse]]:
@@ -51,6 +54,9 @@ async def list_knowledge(
             account_id=account_id,
             account_type=account_type,
             scope=scope,
+            source_project_id=source_project_id,
+            parent_id=parent_id,
+            tree_only=tree_only,
             category=category,
             limit=limit,
         )
