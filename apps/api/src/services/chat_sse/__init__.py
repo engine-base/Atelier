@@ -132,13 +132,13 @@ async def _load_persona_and_skills(
 async def _load_project_state(session: AsyncSession, *, project_id: str) -> str:
     """プロジェクト状態 (DB-as-truth) を文脈テキストで返す。"""
     res = await session.execute(
-        text("select name, status, type from public.projects where id = cast(:p as uuid)"),
+        text("select name, status, project_type from public.projects where id = cast(:p as uuid)"),
         {"p": project_id},
     )
     row = res.first()
     if row is None:
         return ""
-    return f"現在のプロジェクト: 「{row.name}」 (種別={row.type} / 状態={row.status})"
+    return f"現在のプロジェクト: 「{row.name}」 (種別={row.project_type} / 状態={row.status})"
 
 
 async def _fold_older_history(

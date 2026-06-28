@@ -65,15 +65,15 @@ def seeded() -> Iterator[dict[str, str]]:
         )
         c.execute(
             text(
-                "insert into public.projects (id,workspace_id,name,type,status) "
-                "values (cast(:i as uuid),cast(:w as uuid),'CtxProj','self_product','in_progress')"
+                "insert into public.projects (id,workspace_id,name,project_type,status) "
+                "values (cast(:i as uuid),cast(:w as uuid),'CtxProj','internal_product','active')"
             ),
             {"i": proj, "w": ws},
         )
         c.execute(
             text(
                 "insert into public.skills (id,name,version,content_md,allowed_employee_roles,"
-                "allowed_employee_ids,is_active) values (cast(:i as uuid),'提案スキル','1',"
+                "allowed_employee_ids,is_active) values (cast(:i as uuid),'提案スキル','1.0.0',"
                 "'提案書はナレッジ参照して作る',array[]::text[],array[]::uuid[],true)"
             ),
             {"i": skill},
@@ -82,7 +82,7 @@ def seeded() -> Iterator[dict[str, str]]:
             text(
                 "insert into public.ai_employees (id,workspace_id,name,display_name,role,department,"
                 "attached_skills,is_default) values (cast(:i as uuid),cast(:w as uuid),'tony','トニー',"
-                "'部長','営業',array[cast(:s as uuid)],true)"
+                "'lead','sales',array[cast(:s as uuid)],true)"
             ),
             {"i": emp, "w": ws, "s": skill},
         )
