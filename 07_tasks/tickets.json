@@ -22504,7 +22504,11 @@
         "modify": [
           "apps/api/src/services/knowledge/__init__.py",
           "apps/api/src/routes/knowledge/__init__.py",
-          "apps/api/src/schemas/knowledge.py"
+          "apps/api/src/schemas/knowledge.py",
+          "07_api_design/openapi.yaml",
+          "packages/api-types/src/openapi.ts",
+          "apps/api/src/_generated/openapi_models.py",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-A-47.md",
