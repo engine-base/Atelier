@@ -58,6 +58,45 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return json.data;
 }
 
+/** document.cookie から atelier_access (JWT) を読む。無ければ null。 */
+function readAccessToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const m = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAMES.access}=([^;]+)`));
+  return m && m[1] ? decodeURIComponent(m[1]) : null;
+}
+
+/** API エラー。status を保持する (401 等のハンドリング用)。 */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * 認証付き GET。cookie の JWT を Authorization: Bearer に載せて呼ぶ。
+ * `data` フィールドを返す (API は {data, meta} を返す)。
+ * 401 のときは ApiError(status=401) を投げる (呼び出し側で再ログイン誘導可能)。
+ */
+export async function getJson<T>(path: string): Promise<{ data: T; meta?: unknown }> {
+  const token = readAccessToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
+  });
+  const json = (await res.json().catch(() => null)) as
+    | { data?: T; meta?: unknown; detail?: unknown }
+    | null;
+  if (!res.ok) {
+    const detail = json?.detail;
+    throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status);
+  }
+  return { data: (json?.data ?? []) as T, meta: json?.meta };
+}
+
 /** 実 API signin → cookie 設定。成功で SigninData を返す。 */
 export async function signin(email: string, password: string): Promise<SigninData> {
   const data = await postJson<SigninData>('/auth/signin', { email, password });
