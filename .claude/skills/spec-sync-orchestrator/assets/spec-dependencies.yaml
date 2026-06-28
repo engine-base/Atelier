@@ -97,12 +97,15 @@ references:
 
   - kind: screen_project_vault
     description: >-
-      プロジェクト金庫画面 S-B04 が画面台帳・画面API カバレッジに登録されているか。
+      プロジェクト金庫画面 S-B04 が画面台帳・画面API カバレッジ・モック index に
+      登録されているか。実モック本体 06_mockups/project/S-B04-vault.html も存在必須。
     ids:
       - S-B04
     required_files:
       - 04_functional_breakdown/screens.json
       - 07_api_design/screen-api-coverage.json
+      - 06_mockups/index.html
+      - 06_mockups/project/S-B04-vault.html
 
 # -----------------------------------------------------------------------------
 # C. 廃止用語（今回の変更では無し）

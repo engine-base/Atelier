@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>プロジェクト金庫 — Atelier</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../_shared/atelier.css">
+<style>
+  .vault-table { width: 100%; border-collapse: collapse; }
+  .vault-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--color-on-surface-variant); padding: 10px 12px; border-bottom: 1px solid var(--color-border); }
+  .vault-table td { padding: 14px 12px; border-bottom: 1px solid var(--color-border); font-size: 14px; vertical-align: middle; }
+  .vault-table tr:last-child td { border-bottom: none; }
+  .mask { font-family: monospace; letter-spacing: 1px; color: var(--color-on-surface-variant); }
+  .kind-badge { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--color-surface-variant); color: var(--color-on-surface); }
+  .secure-note { border: 1px solid #FDE68A; background: #FFFBEB; border-radius: var(--rounded-lg); padding: 14px 16px; display: flex; gap: 10px; align-items: flex-start; }
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
+  <div class="nav-section">
+    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
+    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
+    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
+    <a class="nav-item" href="../workspace/S-A03-settings.html"><i data-icon="settings"></i>WS設定</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-label">Project · Atelier 自社開発</div>
+    <a class="nav-item" href="S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
+    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
+    <a class="nav-item" href="S-B03-settings.html"><i data-icon="settings"></i>設定</a>
+    <a class="nav-item active" href="#"><i data-icon="key"></i>金庫</a>
+  </div>
+</aside>
+
+<main class="main" data-bf-screen-id="S-B04" data-bf-screen-name="project_vault" data-bf-category="project" data-bf-status="active" data-bf-version="1">
+<header class="topbar">
+  <div class="breadcrumb"><span>Atelier 自社開発</span><span class="breadcrumb-sep">/</span><strong>金庫</strong></div>
+  <div class="flex items-center gap-3"><div class="avatar avatar-sm">M</div></div>
+</header>
+<div class="content" style="max-width: 880px;">
+  <div class="page-header">
+    <h1 class="page-title">プロジェクト金庫</h1>
+    <p class="page-subtitle">顧客・案件の機密クレデンシャル（APIキー・パスワード・トークン・接続文字列）を暗号化して保管します。</p>
+  </div>
+
+  <div class="secure-note mb-6">
+    <i data-icon="shield-check"></i>
+    <div class="text-sm">
+      <strong>平文は保存・表示しません。</strong> 値は Fernet で暗号化して保存され、暗号鍵は DB の外（環境変数）にあります。
+      表示（reveal）と全変更操作は監査ログに記録され、ワークスペースメンバーのみアクセスできます（越境=0）。AI 学習には利用しません。
+    </div>
+  </div>
+
+  <section class="card mb-6">
+    <h2 class="section-title mb-4">新規追加</h2>
+    <div class="grid grid-2 gap-4">
+      <div class="form-group">
+        <label class="form-label">名称</label>
+        <input class="input" placeholder="例: 顧客 Slack Bot Token">
+      </div>
+      <div class="form-group">
+        <label class="form-label">種別</label>
+        <select class="select">
+          <option value="api_key">API キー</option>
+          <option value="password">パスワード</option>
+          <option value="token" selected>トークン</option>
+          <option value="connection_string">接続文字列</option>
+          <option value="other">その他</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">値（保存後は二度と表示されません）</label>
+      <input class="input" type="password" placeholder="ここに貼り付け（保存時に暗号化）">
+    </div>
+    <button class="btn btn-primary mt-2"><i data-icon="key"></i>暗号化して保存</button>
+  </section>
+
+  <section class="card mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="section-title">クレデンシャル一覧</h2>
+      <span class="text-sm text-muted">3 件</span>
+    </div>
+    <table class="vault-table">
+      <thead>
+        <tr>
+          <th>名称</th>
+          <th>種別</th>
+          <th>値</th>
+          <th>作成者</th>
+          <th>作成日</th>
+          <th style="text-align:right;">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="font-semibold">顧客 Slack Bot Token</td>
+          <td><span class="kind-badge">トークン</span></td>
+          <td class="mask">●●●●●●●●1a2b</td>
+          <td>三宅</td>
+          <td class="text-sm text-muted">2026-06-20</td>
+          <td style="text-align:right;">
+            <button class="btn btn-ghost btn-sm"><i data-icon="eye"></i>表示</button>
+            <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+          </td>
+        </tr>
+        <tr>
+          <td class="font-semibold">本番 DB 接続文字列</td>
+          <td><span class="kind-badge">接続文字列</span></td>
+          <td class="mask">●●●●●●●●f9c0</td>
+          <td>三宅</td>
+          <td class="text-sm text-muted">2026-06-18</td>
+          <td style="text-align:right;">
+            <button class="btn btn-ghost btn-sm"><i data-icon="eye"></i>表示</button>
+            <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+          </td>
+        </tr>
+        <tr>
+          <td class="font-semibold">Stripe シークレットキー</td>
+          <td><span class="kind-badge">API キー</span></td>
+          <td class="mask">●●●●●●●●7d3e</td>
+          <td>三宅</td>
+          <td class="text-sm text-muted">2026-06-15</td>
+          <td style="text-align:right;">
+            <button class="btn btn-ghost btn-sm"><i data-icon="eye"></i>表示</button>
+            <button class="btn btn-ghost btn-sm" style="color:#B91C1C;"><i data-icon="trash"></i></button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-sm text-muted mt-4"><i data-icon="shield-check"></i> 「表示」は復号して一時的に平文を見せ、クリップボードへコピーできます。表示操作は監査ログに記録されます。</p>
+  </section>
+</div>
+</main>
+</div>
+<script src="../_shared/icons.js"></script>
+</body>
+</html>
