@@ -16,7 +16,7 @@ import os
 import time
 import uuid
 from collections.abc import AsyncGenerator, Iterator
-from typing import Annotated
+from typing import Annotated, cast
 
 import pytest
 
@@ -29,6 +29,8 @@ os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", JWT_SECRET)
 # 実 Anthropic / Voyage 呼出を避けて deterministic fallback path を通す
 os.environ.pop("ANTHROPIC_API_KEY", None)
 os.environ.pop("VOYAGE_API_KEY", None)
+# T-A-48: 本番は LLM 未接続時 fake を返さないが、テストでは echo fallback を許可する
+os.environ["ATELIER_ALLOW_FAKE_LLM"] = "1"
 
 import sqlalchemy  # noqa: E402
 from fastapi import Depends, FastAPI  # noqa: E402
@@ -317,7 +319,7 @@ class TestChatSSE:
         meta = ctx_evt["metadata"]
         assert isinstance(meta, dict)
         # 既存 history 1 件 (seeded fixture で挿入)
-        assert int(meta["history_count"]) >= 1
+        assert cast("int", meta["history_count"]) >= 1
         assert isinstance(meta["rag_hit_ids"], list)
 
     def test_context_preview_does_not_persist(

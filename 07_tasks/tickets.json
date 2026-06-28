@@ -22629,7 +22629,9 @@
         ],
         "modify": [
           "apps/api/src/services/chat_sse/__init__.py",
-          "apps/api/src/routes/chat_sse/__init__.py"
+          "apps/api/src/routes/chat_sse/__init__.py",
+          "apps/api/tests/routes/test_chat_sse.py",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-A-48.md",

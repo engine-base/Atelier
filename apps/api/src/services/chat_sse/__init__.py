@@ -1,11 +1,11 @@
-"""チャット SSE + F-CTX01 文脈構築 サービス層 (T-A-18)。
+"""チャット SSE + F-CTX01 文脈構築 サービス層 (T-A-18 / T-A-48 完全実装)。
 
-F-CTX01: thread の過去 message N 件 + ナレッジ RAG (voyage 検索 top-k) を
-system prompt に組み立てる。LLM 呼出は AnthropicClient (T-F-15)。
+F-CTX01 (完全版): ペルソナ + 装着スキル(content_md) + プロジェクト状態(DB-as-truth)
++ これまでの経緯(要約) + ナレッジRAG(本物の Voyage/pgvector 意味検索, 運営デフォルト
+platform を横断参照) + 直近履歴 を system prompt に組み立てる。LLM 呼出は Anthropic SDK。
 
-ANTHROPIC_API_KEY 未設定 / SDK 不在の dev/test 環境では fake stream
-generator にフォールバックし、user_message を echo する短い deterministic
-チャンク列を yield する (SSE 配信 + audit + DB persist を実 path で覆う)。
+LLM 未接続時 (ANTHROPIC_API_KEY 未設定) は本番では **fake/stub を黙って返さず error** を
+返す (鉄則: stub 排除)。テストのみ ATELIER_ALLOW_FAKE_LLM=1 で echo fallback を許可する。
 
 state-changing 操作 (user/assistant message の chat_messages 挿入) は
 audit_logs に必ず記録 (3-tier AC: state-changing audit)。
@@ -48,34 +48,122 @@ async def _load_recent_messages(
 async def _build_rag_context(
     session: AsyncSession, *, query: str, account_id: str | None
 ) -> tuple[str, list[str]]:
-    """ナレッジ RAG 結果を system prompt 用テキストに整形して返す。
+    """ナレッジ RAG を **本物のベクトル検索** (Voyage 埋め込み + pgvector cosine) で構築する。
 
-    Voyage embedding 統合は T-A-36 / T-F-14 に集約されており、本ルータでは
-    RLS が効く query を直接発行して title / content_md の ilike 検索で
-    候補上位を取り出す軽量パスを実装する (chat の dev/test 経路を独立に
-    動かすため)。account_id 指定時は account_id でも絞り込む。
+    T-A-47 の knowledge.search_knowledge を呼ぶ (VOYAGE_API_KEY 未設定時は text fallback に
+    自動 degrade)。account_id 指定時はそのテナント + 運営デフォルト (account_type=platform) を
+    横断参照する。RLS で不可視は自動 skip。
     """
-    where = ["deleted_at is null", "(title ilike :pat or content_md ilike :pat)"]
-    params: dict[str, object] = {"pat": f"%{query}%"}
-    if account_id is not None:
-        where.append("account_id = cast(:aid as uuid)")
-        params["aid"] = account_id
+    from src.services import knowledge as kn
+
+    result = await kn.search_knowledge(session, query=query, limit=5, account_id=account_id)
+    if not result.hits:
+        return "", []
+    lines = ["以下は関連ナレッジ (意味検索 / RAG):"]
+    ids: list[str] = []
+    for hit in result.hits:
+        k = hit.knowledge
+        lines.append(f"- [{k.title}] {k.content_md[:300]}")
+        ids.append(k.id)
+    return "\n".join(lines), ids
+
+
+async def _load_thread_meta(
+    session: AsyncSession, *, thread_id: str
+) -> tuple[str | None, str | None]:
+    """thread から (ai_employee_id, project_id) を返す。RLS 不可視なら (None, None)。"""
     res = await session.execute(
         text(
-            "select id, title, content_md from public.knowledge_nodes "
-            f"where {' and '.join(where)} order by usage_count desc limit 3"
+            "select ai_employee_id, project_id from public.chat_threads where id = cast(:t as uuid)"
         ),
-        params,
+        {"t": thread_id},
+    )
+    row = res.first()
+    if row is None:
+        return None, None
+    return (
+        None if row.ai_employee_id is None else str(row.ai_employee_id),
+        None if row.project_id is None else str(row.project_id),
+    )
+
+
+async def _load_persona_and_skills(
+    session: AsyncSession, *, ai_employee_id: str
+) -> tuple[str, list[str]]:
+    """AI 社員のペルソナ文 + 装着スキル(content_md) を返す。"""
+    res = await session.execute(
+        text(
+            "select display_name, role, department, tone_preset, custom_tone_text, "
+            "system_prompt_override, attached_skills "
+            "from public.ai_employees where id = cast(:i as uuid)"
+        ),
+        {"i": ai_employee_id},
+    )
+    row = res.first()
+    if row is None:
+        return "", []
+    persona_lines: list[str] = []
+    name = str(row.display_name) if row.display_name else "AI社員"
+    role = str(row.role) if row.role else ""
+    dept = str(row.department) if row.department else ""
+    persona_lines.append(f"あなたは「{name}」（{dept} {role}）として振る舞います。")
+    if row.tone_preset:
+        persona_lines.append(f"口調: {row.tone_preset}")
+    if row.custom_tone_text:
+        persona_lines.append(str(row.custom_tone_text))
+    if row.system_prompt_override:
+        persona_lines.append(str(row.system_prompt_override))
+    raw_skills: list[object] = list(row.attached_skills) if row.attached_skills is not None else []
+    skill_ids: list[str] = [str(s) for s in raw_skills]
+    skills_md: list[str] = []
+    if skill_ids:
+        sres = await session.execute(
+            text(
+                "select name, content_md from public.skills "
+                "where id = any(cast(:ids as uuid[])) and is_active = true"
+            ),
+            {"ids": skill_ids},
+        )
+        for s in sres.all():
+            skills_md.append(f"## スキル: {s.name}\n{s.content_md!s}")
+    return "\n".join(persona_lines), skills_md
+
+
+async def _load_project_state(session: AsyncSession, *, project_id: str) -> str:
+    """プロジェクト状態 (DB-as-truth) を文脈テキストで返す。"""
+    res = await session.execute(
+        text("select name, status, project_type from public.projects where id = cast(:p as uuid)"),
+        {"p": project_id},
+    )
+    row = res.first()
+    if row is None:
+        return ""
+    return f"現在のプロジェクト: 「{row.name}」 (種別={row.project_type} / 状態={row.status})"
+
+
+async def _fold_older_history(
+    session: AsyncSession, *, thread_id: str, recent_window: int, char_budget: int = 1200
+) -> str:
+    """直近 recent_window より前の発言を「これまでの経緯」として畳み込む。
+
+    threads に context_summary 列が無いため毎ターン算出 (ローリング要約の簡易版)。
+    長スレッドでも古い文脈を落とさず保持する。char_budget で全体長を制限。
+    """
+    res = await session.execute(
+        text(
+            "select role, content from public.chat_messages "
+            "where thread_id = cast(:t as uuid) order by created_at desc offset :off"
+        ),
+        {"t": thread_id, "off": recent_window},
     )
     rows = list(res.all())
     if not rows:
-        return "", []
-    lines = ["以下は関連ナレッジ (RAG 検索結果):"]
-    ids: list[str] = []
-    for r in rows:
-        lines.append(f"- [{r.title}] {str(r.content_md)[:300]}")
-        ids.append(str(r.id))
-    return "\n".join(lines), ids
+        return ""
+    rows.reverse()
+    joined = " / ".join(f"{r.role}: {str(r.content)[:120]}" for r in rows)
+    if len(joined) > char_budget:
+        joined = "…" + joined[-char_budget:]
+    return f"これまでの経緯(要約): {joined}"
 
 
 async def build_context(
@@ -87,18 +175,40 @@ async def build_context(
     rag_account_id: str | None,
     use_rag: bool = True,
 ) -> tuple[str, list[tuple[str, str]], list[str]]:
-    """(system_prompt, history, rag_hit_ids) を返す F-CTX01 構築。"""
+    """(system_prompt, history, rag_hit_ids) を返す F-CTX01 構築。
+
+    構成: ペルソナ + 装着スキル(content_md) + プロジェクト状態(DB-as-truth) +
+    これまでの経緯(要約) + ナレッジRAG(本物ベクトル) + 直近履歴。
+    """
+    ai_employee_id, project_id = await _load_thread_meta(session, thread_id=thread_id)
     history = await _load_recent_messages(session, thread_id=thread_id, limit=include_history)
-    rag_block = ""
+
+    base = "あなたは Atelier の AI アシスタントです。日本語で簡潔に回答してください。"
+    parts: list[str] = [base]
+
+    if ai_employee_id is not None:
+        persona, skills_md = await _load_persona_and_skills(session, ai_employee_id=ai_employee_id)
+        if persona:
+            parts.append(persona)
+        parts.extend(skills_md)
+
+    if project_id is not None:
+        proj_state = await _load_project_state(session, project_id=project_id)
+        if proj_state:
+            parts.append(proj_state)
+
+    summary = await _fold_older_history(session, thread_id=thread_id, recent_window=include_history)
+    if summary:
+        parts.append(summary)
+
     rag_ids: list[str] = []
     if use_rag:
         rag_block, rag_ids = await _build_rag_context(
             session, query=user_message, account_id=rag_account_id
         )
-    base = "あなたは Atelier の AI アシスタントです。日本語で簡潔に回答してください。"
-    parts = [base]
-    if rag_block:
-        parts.append(rag_block)
+        if rag_block:
+            parts.append(rag_block)
+
     return "\n\n".join(parts), history, rag_ids
 
 
@@ -242,6 +352,16 @@ async def stream_chat(
     yield _sse_event({"type": "start"})
 
     use_real = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
+    if not use_real and not allow_fake:
+        # 本番では LLM 未接続時に fake/stub を黙って返さない (F-CTX01 / 鉄則: stub 排除)。
+        yield _sse_event(
+            {
+                "type": "error",
+                "content": "LLM が利用できません (ANTHROPIC_API_KEY 未設定)。",
+            }
+        )
+        return
     accumulated: list[str] = []
     try:
         if use_real:
