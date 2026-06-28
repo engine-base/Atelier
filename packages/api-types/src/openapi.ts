@@ -4984,8 +4984,12 @@ export interface paths {
             parameters: {
                 query?: {
                     account_id?: string;
-                    account_type?: "workspace" | "user";
-                    scope?: "common" | "employee_specific";
+                    account_type?: "workspace" | "user" | "platform";
+                    scope?: "common" | "employee_specific" | "project";
+                    /** @description scope=project のプロジェクト絞り込み */
+                    source_project_id?: string;
+                    /** @description 構造ツリーの親で絞り込み（子ノード取得） */
+                    parent_id?: string;
                     category?: string;
                     limit?: number;
                 };
@@ -8466,9 +8470,14 @@ export interface components {
             /** Format: uuid */
             account_id: string;
             /** @enum {string} */
-            account_type: "workspace" | "user";
+            account_type: "workspace" | "user" | "platform";
             /** @enum {string} */
-            scope: "common" | "employee_specific";
+            scope: "common" | "employee_specific" | "project";
+            /**
+             * @description false=ツリー非表示・RAG参照のみ（運営デフォルト用）
+             * @default true
+             */
+            visible_in_tree: boolean;
             category: string;
             title: string;
             content_md: string;
@@ -8476,11 +8485,19 @@ export interface components {
             /** Format: uuid */
             owner_employee_id?: string | null;
             /**
+             * Format: uuid
+             * @description 構造ツリーの親ノード。null=ルート
+             */
+            parent_id?: string | null;
+            /**
              * @default manual
              * @enum {string}
              */
             source_type: "manual" | "ai_extracted" | "import" | "mem0";
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description scope=project の束縛先プロジェクト
+             */
             source_project_id?: string | null;
             /** @default 0.5 */
             confidence_score: number;
@@ -8501,11 +8518,18 @@ export interface components {
             /** Format: uuid */
             account_id: string;
             /** @enum {string} */
-            account_type: "workspace" | "user";
+            account_type: "workspace" | "user" | "platform";
             /** @enum {string} */
-            scope: "common" | "employee_specific";
+            scope: "common" | "employee_specific" | "project";
             /** Format: uuid */
             owner_employee_id?: string | null;
+            /**
+             * Format: uuid
+             * @description 構造ツリーの親ノード。null=ルート
+             */
+            parent_id?: string | null;
+            /** @description false=ツリー非表示・RAG参照のみ（運営デフォルト用） */
+            visible_in_tree?: boolean;
             category: string;
             title: string;
             content_md: string;
