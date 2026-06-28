@@ -22462,6 +22462,539 @@
           "expected": "audit_logs に credential.reveal が1行"
         }
       ]
+    },
+    {
+      "id": "T-A-47",
+      "title": "ナレッジ拡張API：project scope + 構造ツリー(parent_id) + 運営デフォルト(platform)対応",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "estimate_hours": 6,
+      "assigned_employee": "tchalla",
+      "depends_on": [
+        "T-D-09",
+        "T-F-14"
+      ],
+      "screen_ids": [
+        "S-K01",
+        "S-T06"
+      ],
+      "entity_ids": [
+        "E-018"
+      ],
+      "feature_ids": [
+        "F-023",
+        "F-024"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-47.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/routes/test_knowledge_scope_tree.py"
+        ],
+        "modify": [
+          "apps/api/src/services/knowledge/__init__.py",
+          "apps/api/src/routes/knowledge/__init__.py",
+          "apps/api/src/schemas/knowledge.py"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-A-47.md",
+          "07_api_design/openapi.yaml",
+          "04_functional_breakdown/entities.json",
+          "supabase/migrations/t-d-09_018_knowledge_scope_project_tree.sql",
+          "supabase/migrations/t-d-09_018_knowledge_platform_default.sql"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: The system shall accept scope=project (requiring source_project_id), parent_id (tree), visible_in_tree, account_type=platform as defined in 07_api_design/openapi.yaml",
+          "UBIQUITOUS: 一覧/ツリーは visible_in_tree=true のみ返し、検索(RAG)は visible_in_tree に関わらず platform を含める"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a member creates knowledge with scope=project, the system shall persist source_project_id and return it"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When listing with parent_id=X, the system shall return only direct children of X"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When any tenant's AI searches, the system shall include account_type=platform knowledge in cosine results"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If a tenant member attempts to create/update/delete account_type=platform knowledge, the system shall reject (403/RLS) — write は service_role のみ",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存 scope=common / employee_specific のナレッジ CRUD と Voyage 埋め込み/cosine 検索が従来どおり動作する",
+          "VOYAGE_API_KEY 未設定でも None フォールバックで落ちない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "project scope 作成",
+          "steps": [
+            "scope=project + source_project_id で POST",
+            "GET で source_project_id 返却確認"
+          ],
+          "expected": "201 + source_project_id 保持"
+        },
+        {
+          "name": "ツリー子取得",
+          "steps": [
+            "parent_id=X で一覧"
+          ],
+          "expected": "X の直下のみ"
+        },
+        {
+          "name": "platform 参照",
+          "steps": [
+            "platform ナレッジを seed",
+            "別テナントで search"
+          ],
+          "expected": "検索結果に含む"
+        },
+        {
+          "name": "platform 書込拒否",
+          "steps": [
+            "テナント member で platform を PATCH"
+          ],
+          "expected": "403/RLS"
+        }
+      ]
+    },
+    {
+      "id": "T-A-48",
+      "title": "F-CTX01 完全実装：本物ベクトルRAG + 直近+要約メモリ + プロジェクト状態 + ペルソナ + スキル注入 + stub排除",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "estimate_hours": 10,
+      "assigned_employee": "thor",
+      "depends_on": [
+        "T-A-47",
+        "T-A-18"
+      ],
+      "screen_ids": [
+        "S-E01"
+      ],
+      "entity_ids": [
+        "E-011",
+        "E-018",
+        "E-007"
+      ],
+      "feature_ids": [
+        "F-008",
+        "F-024"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-48.md",
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 0.83,
+      "wall_clock_h_ai": 0.83,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/services/test_ctx01.py"
+        ],
+        "modify": [
+          "apps/api/src/services/chat_sse/__init__.py",
+          "apps/api/src/routes/chat_sse/__init__.py"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-A-48.md",
+          "04_functional_breakdown/features.json",
+          "apps/api/src/services/knowledge/__init__.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: F-CTX01 文脈は ペルソナ + 装着スキル(content_md) + 直近メッセージ + ローリング要約 + プロジェクト状態 + ナレッジRAG(本物ベクトル) を含む",
+          "UBIQUITOUS: ナレッジ参照は ilike キーワードではなく knowledge service の Voyage/pgvector cosine を呼ぶ"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a chat message is sent, the system shall build context via cosine knowledge search (not ilike) and inject attached_skills content_md"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the thread exceeds the recent window, the system shall fold older messages into a rolling summary (context_summary)"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the user is not a member of the thread's workspace, the system shall return 403 (RLS 越境=0)",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the real LLM is unavailable, the system shall surface an error and shall NOT silently return a fake/stub stream",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存のチャット送信/SSE/分岐が従来どおり動作する",
+          "RAG OFF 指定時は従来どおり履歴のみで応答する"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "ベクトルRAG接続",
+          "steps": [
+            "関連ナレッジを seed",
+            "チャット送信",
+            "build_context のRAGがcosine経由か確認"
+          ],
+          "expected": "意味検索でヒット"
+        },
+        {
+          "name": "要約畳み込み",
+          "steps": [
+            "長スレッドで送信"
+          ],
+          "expected": "context_summary 更新"
+        },
+        {
+          "name": "stub排除",
+          "steps": [
+            "LLM鍵無効で送信"
+          ],
+          "expected": "明示エラー(fake stream 無し)"
+        }
+      ]
+    },
+    {
+      "id": "T-A-49",
+      "title": "スキル管理API(F-007)：SKILL.md upload/edit/新規/版/有効化 + AI社員装着",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "estimate_hours": 6,
+      "assigned_employee": "tony",
+      "depends_on": [
+        "T-D-03"
+      ],
+      "screen_ids": [
+        "S-T02"
+      ],
+      "entity_ids": [
+        "E-009",
+        "E-007"
+      ],
+      "feature_ids": [
+        "F-007"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-49.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/routes/skills/__init__.py",
+          "apps/api/src/services/skills/__init__.py",
+          "apps/api/src/schemas/skills.py",
+          "apps/api/tests/routes/test_skills.py"
+        ],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "07_api_design/openapi.yaml",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-A-49.md",
+          "04_functional_breakdown/entities.json"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: skills の content_md/assets/version/is_active/allowed_employee_roles を CRUD できる API を openapi 通りに公開する",
+          "UBIQUITOUS: スキル管理は管理者(admin)専用でユーザーには非表示"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin uploads a SKILL.md, the system shall store content_md and version it"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin attaches a skill to an AI employee, the system shall update ai_employees.attached_skills"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If a non-admin calls skill management endpoints, the system shall return 403 Forbidden",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存の ai_employees CRUD が attached_skills 更新後も従来どおり動作する"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "アップロード",
+          "steps": [
+            "admin で SKILL.md POST"
+          ],
+          "expected": "201 + version 採番"
+        },
+        {
+          "name": "装着",
+          "steps": [
+            "skill を employee に attach"
+          ],
+          "expected": "attached_skills 更新"
+        },
+        {
+          "name": "非admin拒否",
+          "steps": [
+            "一般ユーザーで POST"
+          ],
+          "expected": "403"
+        }
+      ]
+    },
+    {
+      "id": "T-UC-42",
+      "title": "運営UI配線：S-T02 スキル管理(upload/edit/新規) + S-T06 運営デフォルトナレッジ管理",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "estimate_hours": 8,
+      "assigned_employee": "wanda",
+      "depends_on": [
+        "T-A-49",
+        "T-A-47"
+      ],
+      "screen_ids": [
+        "S-T02",
+        "S-T06"
+      ],
+      "entity_ids": [
+        "E-009",
+        "E-018"
+      ],
+      "feature_ids": [
+        "F-007",
+        "F-023"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-42.md",
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.67,
+      "wall_clock_h_ai": 0.67,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/app/admin/s_t02/page.tsx",
+          "apps/web/app/admin/s_t06/page.tsx"
+        ],
+        "modify": [
+          "apps/web/lib/auth/connector.ts"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-UC-42.md",
+          "06_mockups/admin/S-T02-skills.html",
+          "06_mockups/admin/S-T06-platform-knowledge.html",
+          "07_api_design/types.ts"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: S-T02 は SKILL.md upload/編集/新規登録/装着 を、S-T06 は platform ナレッジ CRUD/visible_in_tree トグル をモック通りに提供する",
+          "UBIQUITOUS: 両画面とも admin(運営)のみ到達可能"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin saves a skill on S-T02, the system shall call the skills API and reflect the result on a fresh GET"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin creates platform knowledge on S-T06, the system shall call POST /knowledge with account_type=platform"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If a non-admin opens S-T02/S-T06, the system shall redirect/deny (admin gate)",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存 admin 画面(S-T01/03/04/05)と AppShell ナビが従来どおり動作する"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "スキル新規",
+          "steps": [
+            "S-T02 で新規追加→保存→別GET"
+          ],
+          "expected": "一覧に反映"
+        },
+        {
+          "name": "運営ナレッジ作成",
+          "steps": [
+            "S-T06 で新規→保存"
+          ],
+          "expected": "platform で保存"
+        },
+        {
+          "name": "admin gate",
+          "steps": [
+            "一般ユーザーで S-T06 を開く"
+          ],
+          "expected": "拒否/リダイレクト"
+        }
+      ]
+    },
+    {
+      "id": "T-UC-43",
+      "title": "ナレッジUI配線：S-K01 3層ツリー(project層) + 構造ツリー + パネル開閉",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "estimate_hours": 6,
+      "assigned_employee": "wanda",
+      "depends_on": [
+        "T-A-47"
+      ],
+      "screen_ids": [
+        "S-K01"
+      ],
+      "entity_ids": [
+        "E-018"
+      ],
+      "feature_ids": [
+        "F-023",
+        "F-024"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-43.md",
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 12,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/app/knowledge/s_k01/page.tsx"
+        ],
+        "modify": [
+          "apps/web/lib/auth/connector.ts"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-UC-43.md",
+          "06_mockups/knowledge/S-K01-explorer.html",
+          "07_api_design/types.ts"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: S-K01 は 共通/AI社員別/プロジェクト別 の3層ツリー + parent_id 階層 + 左右パネル開閉 をモック通りに提供する",
+          "UBIQUITOUS: 運営デフォルト(platform)はツリーに表示せず参照のみ"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a node with children is expanded, the system shall fetch children via parent_id"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a member adds knowledge, the system shall call POST /knowledge and reflect on a fresh GET"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the user is not a workspace member, the system shall not display other tenants' knowledge (RLS 越境=0)",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存のナレッジ検索/ノート表示が従来どおり動作する",
+          "パネル開閉が左右独立で中央が拡張する(回帰)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "ツリー展開",
+          "steps": [
+            "親ノード展開"
+          ],
+          "expected": "parent_id で子取得"
+        },
+        {
+          "name": "新規追加反映",
+          "steps": [
+            "追加→別GET"
+          ],
+          "expected": "ツリー反映"
+        },
+        {
+          "name": "パネル開閉",
+          "steps": [
+            "左/右トグル"
+          ],
+          "expected": "独立開閉・中央拡張"
+        }
+      ]
     }
   ],
   "two_axis_policy": {
