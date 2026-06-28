@@ -91,7 +91,7 @@
     },
     {
       "screen_id": "S-B04",
-      "screen_name": "プロジェクト金庫",
+      "screen_name": "プロジェクト・シークレット",
       "mock_path": "06_mockups/project/S-B04-vault.html",
       "required_apis": [
         {"role": "data_fetch", "endpoint": "GET /api/v1/projects/:id/credentials", "feature_id": "F-041"},

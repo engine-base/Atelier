@@ -373,7 +373,7 @@
     },
     {
       "id": "S-B04",
-      "name": "プロジェクト金庫",
+      "name": "プロジェクト・シークレット",
       "category": "project",
       "status": "decided",
       "access_roles": [
@@ -386,7 +386,7 @@
         "WorkspaceOwner"
       ],
       "mock_path": "mocks/project/S-B04-vault.html",
-      "h1_text": "プロジェクト金庫",
+      "h1_text": "プロジェクト・シークレット",
       "section_h2_texts": [
         "クレデンシャル一覧",
         "新規追加"

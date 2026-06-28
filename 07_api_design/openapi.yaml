@@ -374,7 +374,7 @@ components:
 
     ProjectCredential:
       type: object
-      description: プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク）
+      description: プロジェクト・シークレットの1件（plaintext / encrypted は含まない、値マスク）
       required: [id, project_id, name, kind, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
@@ -908,15 +908,17 @@ components:
       required: [account_id, account_type, scope, category, title, content_md]
       properties:
         account_id: { type: string, format: uuid }
-        account_type: { type: string, enum: [workspace, user] }
-        scope: { type: string, enum: [common, employee_specific] }
+        account_type: { type: string, enum: [workspace, user, platform] }
+        scope: { type: string, enum: [common, employee_specific, project] }
+        visible_in_tree: { type: boolean, default: true, description: false=ツリー非表示・RAG参照のみ（運営デフォルト用） }
         category: { type: string, minLength: 1, maxLength: 100 }
         title: { type: string, minLength: 1, maxLength: 200 }
         content_md: { type: string, minLength: 1 }
         tags: { type: array, items: { type: string }, maxItems: 50 }
         owner_employee_id: { type: string, format: uuid, nullable: true }
+        parent_id: { type: string, format: uuid, nullable: true, description: 構造ツリーの親ノード。null=ルート }
         source_type: { type: string, enum: [manual, ai_extracted, import, mem0], default: manual }
-        source_project_id: { type: string, format: uuid, nullable: true }
+        source_project_id: { type: string, format: uuid, nullable: true, description: scope=project の束縛先プロジェクト }
         confidence_score: { type: number, minimum: 0, maximum: 1, default: 0.5 }
         is_anonymized: { type: boolean, default: false }
 
@@ -950,9 +952,11 @@ components:
       properties:
         id: { type: string, format: uuid }
         account_id: { type: string, format: uuid }
-        account_type: { type: string, enum: [workspace, user] }
-        scope: { type: string, enum: [common, employee_specific] }
+        account_type: { type: string, enum: [workspace, user, platform] }
+        scope: { type: string, enum: [common, employee_specific, project] }
         owner_employee_id: { type: string, format: uuid, nullable: true }
+        parent_id: { type: string, format: uuid, nullable: true, description: 構造ツリーの親ノード。null=ルート }
+        visible_in_tree: { type: boolean, description: false=ツリー非表示・RAG参照のみ（運営デフォルト用） }
         category: { type: string }
         title: { type: string }
         content_md: { type: string }
@@ -2305,7 +2309,7 @@ paths:
       - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
     get:
       tags: [project-credentials]
-      summary: プロジェクト金庫一覧（値マスク。member のみ）
+      summary: プロジェクト・シークレット一覧（値マスク。member のみ）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::list_credentials
       x-screen-ids: [S-B04]
       responses:
@@ -2322,7 +2326,7 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     post:
       tags: [project-credentials]
-      summary: 金庫に登録（plaintext を暗号化保存、応答に含めない）
+      summary: シークレットに登録（plaintext を暗号化保存、応答に含めない）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::create_credential
       x-screen-ids: [S-B04]
       requestBody:
@@ -2348,7 +2352,7 @@ paths:
       - { name: credential_id, in: path, required: true, schema: { type: string, format: uuid } }
     patch:
       tags: [project-credentials]
-      summary: 金庫の name / kind 更新（value は変えない）
+      summary: シークレットの name / kind 更新（value は変えない）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::update_credential
       x-screen-ids: [S-B04]
       requestBody:
@@ -2369,7 +2373,7 @@ paths:
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
     delete:
       tags: [project-credentials]
-      summary: 金庫から削除（soft delete。owner のみ）
+      summary: シークレットから削除（soft delete。owner のみ）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::delete_credential
       x-screen-ids: [S-B04]
       responses:
@@ -2383,7 +2387,7 @@ paths:
       - { name: credential_id, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [project-credentials]
-      summary: 金庫の値を復号して 1 度返す（権限者のみ・監査記録）
+      summary: シークレットの値を復号して 1 度返す（権限者のみ・監査記録）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::reveal_credential
       x-screen-ids: [S-B04]
       responses:
@@ -3723,8 +3727,10 @@ paths:
       x-feature-ids: [F-K01]
       parameters:
         - { name: account_id, in: query, required: false, schema: { type: string, format: uuid } }
-        - { name: account_type, in: query, required: false, schema: { type: string, enum: [workspace, user] } }
-        - { name: scope, in: query, required: false, schema: { type: string, enum: [common, employee_specific] } }
+        - { name: account_type, in: query, required: false, schema: { type: string, enum: [workspace, user, platform] } }
+        - { name: scope, in: query, required: false, schema: { type: string, enum: [common, employee_specific, project] } }
+        - { name: source_project_id, in: query, required: false, schema: { type: string, format: uuid }, description: scope=project のプロジェクト絞り込み }
+        - { name: parent_id, in: query, required: false, schema: { type: string, format: uuid }, description: 構造ツリーの親で絞り込み（子ノード取得） }
         - { name: category, in: query, required: false, schema: { type: string } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:

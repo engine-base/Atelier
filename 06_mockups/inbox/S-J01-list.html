@@ -251,21 +251,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
-    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
-    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI 社員</a>
-    <a class="nav-item" href="#"><i data-icon="brain"></i>ナレッジ</a>
-    <a class="nav-item active" href="#"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">7</span></a>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
-    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="workspace" data-active="S-J01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-J01" data-bf-screen-name="approval_inbox" data-bf-category="verification" data-bf-status="active" data-bf-version="2">
 <header class="topbar">
@@ -562,6 +548,7 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 <script>
   // リストアイテムを選択 → 詳細パネル切替（モックなので URL のみ）

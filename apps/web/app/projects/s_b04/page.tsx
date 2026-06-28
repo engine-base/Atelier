@@ -1,8 +1,8 @@
 /**
- * S-B04 プロジェクト金庫タブ — T-UC-41
+ * S-B04 プロジェクト・シークレットタブ — T-UC-41
  *
  * 各プロジェクトの機密クレデンシャル (顧客/案件の API キー・パスワード・トークン) を
- * 暗号化保管する金庫。一覧は値マスク、登録は暗号化、表示は reveal API + 監査。
+ * 暗号化保管するシークレット。一覧は値マスク、登録は暗号化、表示は reveal API + 監査。
  *
  * project_id は ?project=<uuid> で受け取る (プロジェクト配下のタブから遷移)。
  */
@@ -44,7 +44,7 @@ function SB04Inner() {
         router.push('/auth/s_a01?redirect=/projects/s_b04');
         return;
       }
-      setError(e instanceof Error ? e.message : '金庫の取得に失敗しました');
+      setError(e instanceof Error ? e.message : 'シークレットの取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -74,7 +74,7 @@ function SB04Inner() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-lg px-md py-lg">
       <header>
-        <h1 className="text-headline-md font-bold text-on-surface">プロジェクト金庫</h1>
+        <h1 className="text-headline-md font-bold text-on-surface">プロジェクト・シークレット</h1>
         <p className="mt-xs text-body-sm text-on-surface-variant">
           顧客・案件の機密情報（API キー / パスワード / トークン）を暗号化して保管します。
         </p>

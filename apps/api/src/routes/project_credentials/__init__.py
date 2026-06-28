@@ -1,4 +1,4 @@
-"""プロジェクト金庫ルータ (T-A-46)。
+"""プロジェクト・シークレットルータ (T-A-46)。
 
 /projects/{project_id}/credentials[/{credential_id}]。
 認証 (401) + RLS (project の workspace member のみ、越境=0) + 404。
@@ -30,7 +30,7 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 @router.get(
     "/projects/{project_id}/credentials",
-    summary="金庫一覧（値マスク。member のみ）",
+    summary="シークレット一覧（値マスク。member のみ）",
 )
 async def list_credentials(
     project_id: str, session: SessionDep, _user: UserDep
@@ -41,7 +41,7 @@ async def list_credentials(
 @router.post(
     "/projects/{project_id}/credentials",
     status_code=status.HTTP_201_CREATED,
-    summary="金庫に登録（plaintext を暗号化保存、応答に含めない）",
+    summary="シークレットに登録（plaintext を暗号化保存、応答に含めない）",
 )
 async def create_credential(
     project_id: str, body: CredentialCreate, session: SessionDep, user: UserDep
@@ -56,7 +56,7 @@ async def create_credential(
 
 @router.patch(
     "/projects/{project_id}/credentials/{credential_id}",
-    summary="金庫の name / kind 更新（value は変えない）",
+    summary="シークレットの name / kind 更新（value は変えない）",
 )
 async def update_credential(
     project_id: str,
@@ -80,7 +80,7 @@ async def update_credential(
 @router.delete(
     "/projects/{project_id}/credentials/{credential_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="金庫から削除（soft delete。owner のみ）",
+    summary="シークレットから削除（soft delete。owner のみ）",
 )
 async def delete_credential(
     project_id: str, credential_id: str, session: SessionDep, user: UserDep
@@ -94,7 +94,7 @@ async def delete_credential(
 
 @router.post(
     "/projects/{project_id}/credentials/{credential_id}/reveal",
-    summary="金庫の値を復号して 1 度返す（権限者のみ・監査記録）",
+    summary="シークレットの値を復号して 1 度返す（権限者のみ・監査記録）",
 )
 async def reveal_credential(
     project_id: str, credential_id: str, session: SessionDep, user: UserDep

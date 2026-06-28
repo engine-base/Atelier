@@ -193,17 +193,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">プロジェクト · Atelier 自社開発</div>
-    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="../workflow/S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
-    <a class="nav-item active" href="#"><i data-icon="kanban"></i>タスク<span style="margin-left:auto;font-size:11px;">87</span></a>
-    <a class="nav-item" href="S-I03-monitor.html"><i data-icon="cpu"></i>実行モニター</a>
-    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち<span style="margin-left:auto;" class="badge badge-primary">3</span></a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="project" data-active="S-I01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-I01" data-bf-screen-name="kanban" data-bf-category="task" data-bf-status="active" data-bf-version="2">
 <header class="topbar">
@@ -573,6 +563,7 @@
 
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 <script>
   // カードクリックで選択トグル → 再生バーに件数反映

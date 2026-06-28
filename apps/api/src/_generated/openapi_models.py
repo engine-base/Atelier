@@ -298,7 +298,7 @@ class Kind(StrEnum):
 
 class ProjectCredential(BaseModel):
     """
-    プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク）
+    プロジェクト・シークレットの1件（plaintext / encrypted は含まない、値マスク）
     """
 
     id: UUID

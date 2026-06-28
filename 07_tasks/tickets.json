@@ -22041,7 +22041,7 @@
     },
     {
       "id": "T-D-36",
-      "title": "プロジェクト金庫: project_credentials スキーマ + RLS",
+      "title": "プロジェクト・シークレット: project_credentials スキーマ + RLS",
       "group": "D",
       "category": "data",
       "label": "NEW",
@@ -22095,7 +22095,7 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: project_credentials スキーマ + RLS)",
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト・シークレット: project_credentials スキーマ + RLS)",
           "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
         ],
         "tier_2_functional": [
@@ -22123,7 +22123,7 @@
           },
           {
             "type": "UBIQUITOUS",
-            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+            "text": "シークレットデータを AI 学習に使わない (絶対ルール #6 準拠)"
           }
         ],
         "tier_3_regression": [
@@ -22181,7 +22181,7 @@
     },
     {
       "id": "T-A-46",
-      "title": "プロジェクト金庫: クレデンシャル CRUD + reveal API",
+      "title": "プロジェクト・シークレット: クレデンシャル CRUD + reveal API",
       "group": "A",
       "category": "backend",
       "label": "NEW",
@@ -22239,7 +22239,7 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: クレデンシャル CRUD + reveal API)",
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト・シークレット: クレデンシャル CRUD + reveal API)",
           "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
         ],
         "tier_2_functional": [
@@ -22267,7 +22267,7 @@
           },
           {
             "type": "UBIQUITOUS",
-            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+            "text": "シークレットデータを AI 学習に使わない (絶対ルール #6 準拠)"
           }
         ],
         "tier_3_regression": [
@@ -22325,7 +22325,7 @@
     },
     {
       "id": "T-UC-41",
-      "title": "プロジェクト金庫: S-B04 金庫タブ画面",
+      "title": "プロジェクト・シークレット: S-B04 シークレットタブ画面",
       "group": "UC",
       "category": "frontend",
       "label": "NEW",
@@ -22375,11 +22375,11 @@
         "forbidden": [
           ".github/workflows/v3-gate.yml"
         ],
-        "scope_expand_note": "金庫画面が mutate(POST/DELETE/reveal) を呼ぶため connector.ts に sendJson を追加 (ルール#11準拠)"
+        "scope_expand_note": "シークレット画面が mutate(POST/DELETE/reveal) を呼ぶため connector.ts に sendJson を追加 (ルール#11準拠)"
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト金庫: S-B04 金庫タブ画面)",
+          "UBIQUITOUS: The system shall implement the project credential vault as defined in docs/project-vault-design.md (related to プロジェクト・シークレット: S-B04 シークレットタブ画面)",
           "UBIQUITOUS: 平文 (plaintext) は DB に保存せず、API 応答にも含めない (reveal を除く)"
         ],
         "tier_2_functional": [
@@ -22407,7 +22407,7 @@
           },
           {
             "type": "UBIQUITOUS",
-            "text": "金庫データを AI 学習に使わない (絶対ルール #6 準拠)"
+            "text": "シークレットデータを AI 学習に使わない (絶対ルール #6 準拠)"
           }
         ],
         "tier_3_regression": [

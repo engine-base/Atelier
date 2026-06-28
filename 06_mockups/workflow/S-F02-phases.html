@@ -26,16 +26,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">Project · Atelier 自社開発</div>
-    <a class="nav-item" href="../project/S-B02-dashboard.html"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="S-F01-flow.html"><i data-icon="workflow"></i>工程</a>
-    <a class="nav-item active" href="#"><i data-icon="git-branch"></i>フェーズ管理</a>
-    <a class="nav-item" href="../task/S-I01-kanban.html"><i data-icon="kanban"></i>タスク</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="project" data-active="S-F01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-F02" data-bf-screen-name="phases" data-bf-category="workflow" data-bf-status="active" data-bf-version="1">
 <header class="topbar">
@@ -190,6 +181,7 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>

@@ -6,7 +6,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../_shared/atelier.css">
 <style>
-  .knowledge-layout { display: grid; grid-template-columns: 280px 1fr 320px; height: calc(100vh - 56px); }
+  .knowledge-layout { display: grid; grid-template-columns: 280px 1fr 320px; height: calc(100vh - 56px); transition: grid-template-columns 0.18s var(--ease-out, ease); }
+  .knowledge-layout > .tree-pane, .knowledge-layout > .meta-pane { min-width: 0; }
+  .knowledge-layout.pane-left-collapsed { grid-template-columns: 0 1fr 320px; }
+  .knowledge-layout.pane-left-collapsed .tree-pane { overflow: hidden; padding: 0; border: 0; }
+  .knowledge-layout.pane-right-collapsed { grid-template-columns: 280px 1fr 0; }
+  .knowledge-layout.pane-right-collapsed .meta-pane { overflow: hidden; padding: 0; border: 0; }
+  .knowledge-layout.pane-left-collapsed.pane-right-collapsed { grid-template-columns: 0 1fr 0; }
+  .pane-tgl[aria-pressed="true"] { background: var(--color-primary-container); color: var(--color-on-primary-container); }
   .tree-pane { background: #FFFFFF; border-right: 1px solid var(--color-border); overflow-y: auto; padding: 14px 12px; }
   .tree-search { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--color-surface-variant); border-radius: var(--rounded-md); margin-bottom: 12px; }
   .tree-search input { border: none; background: transparent; outline: none; flex: 1; font-size: 13px; }
@@ -48,16 +55,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar">
-  <div class="sidebar-brand"><div class="brand-mark">A</div><span class="brand-name">Atelier</span></div>
-  <div class="nav-section">
-    <div class="nav-section-label">ワークスペース · ENGINE BASE</div>
-    <a class="nav-item" href="../project/S-B01-list.html"><i data-icon="folder"></i>プロジェクト</a>
-    <a class="nav-item" href="../employee/S-C01-org.html"><i data-icon="users"></i>AI社員</a>
-    <a class="nav-item active" href="#"><i data-icon="brain"></i>ナレッジ<span style="margin-left:auto;font-size:11px;">142</span></a>
-    <a class="nav-item" href="../inbox/S-J01-list.html"><i data-icon="inbox"></i>承認待ち</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="workspace" data-active="S-K01" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-K01" data-bf-screen-name="knowledge_explorer" data-bf-category="knowledge" data-bf-status="active" data-bf-version="1" style="margin-left: 240px;">
 <header class="topbar">
@@ -102,11 +100,23 @@
       <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-thor">T</div>ソー<span class="count">7</span></div>
       <div class="tree-item tree-employee-row"><div class="avatar avatar-sm avatar-vision">V</div>ヴィジョン<span class="count">5</span></div>
     </div>
+
+    <div class="tree-group">
+      <div class="tree-group-label"><i data-icon="folder" data-size="11"></i>プロジェクト別 <span class="count" style="margin-left:auto;">38</span></div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>Atelier 自社開発<span class="count">21</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>議事録・商談<span class="count">9</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>決定事項（ADR）<span class="count">7</span></div>
+      <div class="tree-item child"><i data-icon="file-text" data-size="12"></i>シークレット運用メモ</div>
+      <div class="tree-item"><i data-icon="folder" data-size="13"></i>クライアントA 案件<span class="count">17</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>要件・仕様<span class="count">11</span></div>
+      <div class="tree-item child"><i data-icon="folder" data-size="12"></i>納品物<span class="count">6</span></div>
+    </div>
   </aside>
 
   <!-- Main note -->
   <div class="main-pane">
     <div class="main-toolbar">
+      <button class="btn btn-ghost btn-sm pane-tgl" data-pane-toggle="left" data-pane-target=".knowledge-layout" aria-pressed="false" title="ツリーを開閉"><i data-icon="chevron-left"></i></button>
       <div class="view-toggle">
         <button class="active"><i data-icon="file-text" data-size="12"></i> ノート</button>
         <button><i data-icon="layout-dashboard" data-size="12"></i> リスト</button>
@@ -116,6 +126,7 @@
         <button class="btn btn-ghost btn-sm"><i data-icon="copy"></i>複製</button>
         <button class="btn btn-ghost btn-sm"><i data-icon="external-link"></i>Obsidian で開く</button>
         <button class="btn btn-outlined btn-sm"><i data-icon="edit"></i>編集</button>
+        <button class="btn btn-ghost btn-sm pane-tgl" data-pane-toggle="right" data-pane-target=".knowledge-layout" aria-pressed="false" title="詳細パネルを開閉"><i data-icon="chevron-right"></i></button>
       </div>
     </div>
 
@@ -230,6 +241,8 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
+<script src="../_shared/panels.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>

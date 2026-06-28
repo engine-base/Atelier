@@ -57,12 +57,16 @@ const ICONS = {
   key: 'M15 7l-5 5m0 0l-3 3-3-3a4.243 4.243 0 0 1 6-6l3 3z|M15 7m3-3a4.243 4.243 0 0 1 6 6l-3 3-3-3',
 };
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-icon]').forEach(el => {
+function renderIcons(root) {
+  (root || document).querySelectorAll('[data-icon]').forEach(el => {
+    if (el.querySelector('svg')) return; // 描画済みはスキップ（再実行安全）
     const name = el.dataset.icon;
     const paths = ICONS[name];
     if (!paths) return;
     const size = el.dataset.size || '16';
     el.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" class="icon-svg">${paths.split('|').map(d => `<path d="${d}"/>`).join('')}</svg>`;
   });
-});
+}
+// appshell.js 等が後から注入した data-icon を再描画できるよう公開。
+window.renderIcons = renderIcons;
+document.addEventListener('DOMContentLoaded', () => renderIcons());

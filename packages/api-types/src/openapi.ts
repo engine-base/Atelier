@@ -1737,7 +1737,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** プロジェクト金庫一覧（値マスク。member のみ） */
+        /** プロジェクト・シークレット一覧（値マスク。member のみ） */
         get: {
             parameters: {
                 query?: never;
@@ -1772,7 +1772,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 金庫に登録（plaintext を暗号化保存、応答に含めない） */
+        /** シークレットに登録（plaintext を暗号化保存、応答に含めない） */
         post: {
             parameters: {
                 query?: never;
@@ -1838,7 +1838,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** 金庫から削除（soft delete。owner のみ） */
+        /** シークレットから削除（soft delete。owner のみ） */
         delete: {
             parameters: {
                 query?: never;
@@ -1880,7 +1880,7 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        /** 金庫の name / kind 更新（value は変えない） */
+        /** シークレットの name / kind 更新（value は変えない） */
         patch: {
             parameters: {
                 query?: never;
@@ -1942,7 +1942,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 金庫の値を復号して 1 度返す（権限者のみ・監査記録） */
+        /** シークレットの値を復号して 1 度返す（権限者のみ・監査記録） */
         post: {
             parameters: {
                 query?: never;
@@ -7899,7 +7899,7 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        /** @description プロジェクト金庫の1件（plaintext / encrypted は含まない、値マスク） */
+        /** @description プロジェクト・シークレットの1件（plaintext / encrypted は含まない、値マスク） */
         ProjectCredential: {
             /** Format: uuid */
             id: string;

@@ -21,20 +21,7 @@
 </head>
 <body>
 <div class="layout">
-<aside class="sidebar" style="background:#0F172A;border-right:1px solid #1E293B;">
-  <div class="sidebar-brand" style="border-bottom-color:#1E293B;">
-    <div class="brand-mark" style="background:var(--color-error);">A</div>
-    <div><div class="brand-name" style="color:#FFFFFF;">Atelier Admin</div></div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-label" style="color:#475569;">PLATFORM</div>
-    <a class="nav-item" href="S-T01-dashboard.html" style="color:#94A3B8;"><i data-icon="layout-dashboard"></i>ダッシュボード</a>
-    <a class="nav-item" href="S-T02-skills.html" style="color:#94A3B8;"><i data-icon="zap"></i>スキル管理</a>
-    <a class="nav-item" href="S-T03-templates.html" style="color:#94A3B8;"><i data-icon="bot"></i>AI社員テンプレ</a>
-    <a class="nav-item" href="S-T04-users.html" style="color:#94A3B8;"><i data-icon="users"></i>ユーザー管理</a>
-    <a class="nav-item active" href="#" style="color:#93C5FD;background:rgba(37,99,235,0.15);border-left-color:var(--color-primary);"><i data-icon="file-text"></i>監査ログ</a>
-  </div>
-</aside>
+<aside class="sidebar" data-appshell data-context="admin" data-active="S-T05" data-ws="ENGINE BASE" data-project="Atelier 自社開発"></aside>
 
 <main class="main" data-bf-screen-id="S-T05" data-bf-screen-name="admin_audit" data-bf-category="admin" data-bf-status="active" data-bf-version="1">
 <header class="topbar">
@@ -300,6 +287,7 @@
 </div>
 </main>
 </div>
+<script src="../_shared/appshell.js"></script>
 <script src="../_shared/icons.js"></script>
 </body>
 </html>
