@@ -37,12 +37,12 @@ counters:
         json_path: $.summary.total_entities
 
   - id: screen_count
-    description: 総画面数。プロジェクト金庫画面 S-B04 を含む同期後の目標値。
+    description: 総画面数。S-B04 シークレット + S-T06 運営デフォルトナレッジ管理 を含む。
     source_of_truth:
       type: json_array_length
       file: 04_functional_breakdown/screens.json
       json_path: $.items
-    expected_value: 34
+    expected_value: 35
     mirrors:
       - file: 04_functional_breakdown/screens.json
         json_path: $.summary.total_screens

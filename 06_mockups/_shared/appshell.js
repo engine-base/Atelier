@@ -30,6 +30,7 @@
     { id: 'S-T04', label: 'ユーザー', icon: 'users', href: '../admin/S-T04-users.html' },
     { id: 'S-T02', label: 'スキル', icon: 'sparkles', href: '../admin/S-T02-skills.html' },
     { id: 'S-T03', label: 'テンプレート', icon: 'bot', href: '../admin/S-T03-templates.html' },
+    { id: 'S-T06', label: '運営ナレッジ', icon: 'brain', href: '../admin/S-T06-platform-knowledge.html' },
     { id: 'S-T05', label: '監査ログ', icon: 'file-text', href: '../admin/S-T05-audit.html' },
   ];
 
