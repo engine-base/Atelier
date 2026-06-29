@@ -80,7 +80,9 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
     # service 層の lru_cache をクリア (ATELIER_DB_URL を確実に反映)。
-    from src.services.skills import _service_session_factory
+    from src.services.skills import (
+        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+    )
 
     _service_session_factory.cache_clear()
     from src.routes import api_router
