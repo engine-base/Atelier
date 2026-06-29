@@ -964,6 +964,8 @@ components:
         tags: { type: array, items: { type: string }, maxItems: 50, nullable: true }
         confidence_score: { type: number, minimum: 0, maximum: 1, nullable: true }
         is_anonymized: { type: boolean, nullable: true }
+        parent_id: { type: string, format: uuid, nullable: true, description: '構造ツリーの親ノード（null=ルート）' }
+        visible_in_tree: { type: boolean, nullable: true, description: 'ナレッジツリー表示フラグ（運営デフォルトは false で非表示）' }
 
     Knowledge:
       type: object

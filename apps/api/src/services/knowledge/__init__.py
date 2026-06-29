@@ -40,6 +40,11 @@ _COLS = (
     "deleted_at, created_at, updated_at"
 )
 
+# 運営デフォルト(platform)ナレッジの account_id は polymorphic 列の非NULL要件を満たす
+# だけの固定 sentinel（FK 無し / 読取は account_type='platform' で横断マッチ）。
+# migration t-d-09_018_knowledge_platform_default.sql の設計（アプリ層で固定 UUID）に従う。
+_PLATFORM_ACCOUNT_SENTINEL = "00000000-0000-0000-0000-000000000000"
+
 
 def _row_to_response(row: Any) -> KnowledgeResponse:
     return KnowledgeResponse(
@@ -150,9 +155,11 @@ async def create_knowledge(
 ) -> KnowledgeResponse | None:
     new_id = str(uuid.uuid4())
     embedding = await _embed_text(data.content_md, input_type="document")
+    # platform(運営デフォルト)は account_id を信頼せず sentinel に固定する。
+    account_id = _PLATFORM_ACCOUNT_SENTINEL if data.account_type == "platform" else data.account_id
     params: dict[str, object] = {
         "id": new_id,
-        "aid": data.account_id,
+        "aid": account_id,
         "at": data.account_type,
         "sc": data.scope,
         "oeid": data.owner_employee_id,
@@ -198,7 +205,7 @@ async def create_knowledge(
             actor_id=actor_id,
             target_id=new_id,
             after={
-                "account_id": data.account_id,
+                "account_id": account_id,
                 "account_type": data.account_type,
                 "scope": data.scope,
                 "title": data.title,
@@ -237,6 +244,12 @@ async def update_knowledge(
     if data.is_anonymized is not None:
         sets.append("is_anonymized = :ia")
         params["ia"] = data.is_anonymized
+    if data.parent_id is not None:
+        sets.append("parent_id = cast(:pid as uuid)")
+        params["pid"] = data.parent_id
+    if data.visible_in_tree is not None:
+        sets.append("visible_in_tree = :vit")
+        params["vit"] = data.visible_in_tree
     if not sets:
         return await get_knowledge(session, knowledge_id)
     sets.append("updated_at = now()")
