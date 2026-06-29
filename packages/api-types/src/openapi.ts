@@ -8746,6 +8746,13 @@ export interface components {
             tags?: string[] | null;
             confidence_score?: number | null;
             is_anonymized?: boolean | null;
+            /**
+             * Format: uuid
+             * @description 構造ツリーの親ノード（null=ルート）
+             */
+            parent_id?: string | null;
+            /** @description ナレッジツリー表示フラグ（運営デフォルトは false で非表示） */
+            visible_in_tree?: boolean | null;
         };
         Knowledge: {
             /** Format: uuid */

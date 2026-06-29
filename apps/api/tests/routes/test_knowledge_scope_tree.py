@@ -260,3 +260,33 @@ def test_member_cannot_write_platform(app: FastAPI, seeded: dict[str, str]) -> N
         )
         # RLS insert policy は workspace/user のみ許可 → platform 書込は拒否
         assert r.status_code in (401, 403, 422, 500), r.text
+
+
+def test_update_visible_in_tree_persists(app: FastAPI, seeded: dict[str, str]) -> None:
+    """update_knowledge が visible_in_tree を永続化する（S-T06 トグルの土台）。"""
+    with TestClient(app) as cl:
+        # k_root は visible_in_tree=true で seed 済。false へ更新。
+        up = cl.patch(
+            f"/knowledge/{seeded['k_root']}",
+            json={"visible_in_tree": False},
+            headers=_h(seeded["u"]),
+        )
+        assert up.status_code == 200, up.text
+        assert up.json()["data"]["visible_in_tree"] is False
+        # 別 GET でも反映されている（DB 永続化を確認）。
+        g = cl.get(f"/knowledge/{seeded['k_root']}", headers=_h(seeded["u"]))
+        assert g.status_code == 200, g.text
+        assert g.json()["data"]["visible_in_tree"] is False
+
+
+def test_update_parent_id_persists(app: FastAPI, seeded: dict[str, str]) -> None:
+    """update_knowledge が parent_id（構造ツリー親）を永続化する。"""
+    with TestClient(app) as cl:
+        # k_other(ルート) を k_root の子に付け替え。
+        up = cl.patch(
+            f"/knowledge/{seeded['k_other']}",
+            json={"parent_id": seeded["k_root"]},
+            headers=_h(seeded["u"]),
+        )
+        assert up.status_code == 200, up.text
+        assert up.json()["data"]["parent_id"] == seeded["k_root"]

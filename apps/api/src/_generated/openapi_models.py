@@ -1029,6 +1029,14 @@ class KnowledgeUpdate(BaseModel):
     tags: Annotated[list[str] | None, Field(max_length=50)] = None
     confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
     is_anonymized: bool | None = None
+    parent_id: UUID | None = None
+    """
+    構造ツリーの親ノード（null=ルート）
+    """
+    visible_in_tree: bool | None = None
+    """
+    ナレッジツリー表示フラグ（運営デフォルトは false で非表示）
+    """
 
 
 class Knowledge(BaseModel):
