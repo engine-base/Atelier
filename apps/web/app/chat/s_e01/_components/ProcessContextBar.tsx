@@ -5,11 +5,11 @@
  * phase change で AI に context を渡す callback も提供。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
 export interface ProcessContextBarProps {
   readonly phases: readonly string[];
@@ -28,23 +28,25 @@ export function ProcessContextBar({
     <nav
       aria-label="工程文脈"
       className={cn(
-        'flex items-center gap-xs overflow-x-auto rounded-md bg-surface-variant/40 px-sm py-xs',
+        "flex items-center gap-xs overflow-x-auto rounded-md bg-surface-variant/40 px-sm py-xs",
         className,
       )}
     >
-      <span className="shrink-0 text-label-md text-on-surface-variant">工程:</span>
+      <span className="shrink-0 text-label-md text-on-surface-variant">
+        工程:
+      </span>
       <ul role="list" className="flex gap-xs">
         {phases.map((p) => (
           <li key={p}>
             <button
               type="button"
               onClick={() => onChange(p)}
-              aria-current={p === currentPhaseId ? 'true' : undefined}
+              aria-current={p === currentPhaseId ? "true" : undefined}
               className={cn(
-                'inline-flex h-7 items-center rounded-sm px-sm text-label-md',
+                "inline-flex h-7 items-center rounded-sm px-sm text-label-md",
                 p === currentPhaseId
-                  ? 'bg-primary text-primary-fg'
-                  : 'bg-surface text-on-surface hover:bg-surface-variant',
+                  ? "bg-primary text-primary-fg"
+                  : "bg-surface text-on-surface hover:bg-surface-variant",
               )}
             >
               {p}

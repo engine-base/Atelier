@@ -7,14 +7,14 @@
  * 本コンポーネントは message render + 入力の最小構造で a11y 完備。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
-export type ChatRole = 'user' | 'assistant' | 'system';
+export type ChatRole = "user" | "assistant" | "system";
 
 export interface ChatMessage {
   readonly id: string;
@@ -29,35 +29,40 @@ export interface ChatPanelProps {
 }
 
 const ROLE_LABEL: Record<ChatRole, string> = {
-  user: 'あなた',
-  assistant: 'AI 社員',
-  system: 'システム',
+  user: "あなた",
+  assistant: "AI 社員",
+  system: "システム",
 };
 
 const ROLE_ALIGN: Record<ChatRole, string> = {
-  user: 'self-end bg-primary-container text-primary-container-fg',
-  assistant: 'self-start bg-surface-variant text-on-surface',
-  system: 'self-center bg-secondary-container text-secondary-container-fg text-label-md',
+  user: "self-end bg-primary-container text-primary-container-fg",
+  assistant: "self-start bg-surface-variant text-on-surface",
+  system:
+    "self-center bg-secondary-container text-secondary-container-fg text-label-md",
 };
 
 export function ChatPanel({ messages, onSend, disabled }: ChatPanelProps) {
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
 
   const submit = () => {
     const v = input.trim();
     if (!v) return;
     onSend(v);
-    setInput('');
+    setInput("");
   };
 
   return (
     <section aria-label="チャット" className="flex h-full flex-col gap-md">
-      <ul role="log" aria-live="polite" className="flex flex-1 flex-col gap-sm overflow-y-auto">
+      <ul
+        role="log"
+        aria-live="polite"
+        className="flex flex-1 flex-col gap-sm overflow-y-auto"
+      >
         {messages.map((m) => (
           <li
             key={m.id}
             className={cn(
-              'max-w-[80%] rounded-md px-md py-sm text-body-md',
+              "max-w-[80%] rounded-md px-md py-sm text-body-md",
               ROLE_ALIGN[m.role],
             )}
           >
@@ -83,7 +88,7 @@ export function ChatPanel({ messages, onSend, disabled }: ChatPanelProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               submit();
             }

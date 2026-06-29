@@ -10,23 +10,23 @@
  * client から document.cookie で設定する (middleware は read のみ)。
  */
 
-import { createApiClient, type ApiClient } from '@atelier/api-client';
+import { createApiClient, type ApiClient } from "@atelier/api-client";
 
-import { COOKIE_NAMES } from './cookie';
+import { COOKIE_NAMES } from "./cookie";
 
 // API base: 明示の NEXT_PUBLIC_API_URL を最優先。未設定なら本番(Vercel)は Fly の
 // API を、それ以外(ローカル)は localhost を既定にする。
-const API_BASE =
+export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ??
-  (process.env.NODE_ENV === 'production'
-    ? 'https://atelier-api-eb.fly.dev'
-    : 'http://localhost:8000');
+  (process.env.NODE_ENV === "production"
+    ? "https://atelier-api-eb.fly.dev"
+    : "http://localhost:8000");
 
 export type ConsentType =
-  | 'terms_of_service'
-  | 'privacy_policy'
-  | 'data_residency'
-  | 'ai_training_optin';
+  | "terms_of_service"
+  | "privacy_policy"
+  | "data_residency"
+  | "ai_training_optin";
 
 interface SigninData {
   access_token: string;
@@ -46,24 +46,31 @@ function setAccessCookie(token: string, expiresAt: string): void {
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(body),
   });
-  const json = (await res.json().catch(() => null)) as { data?: T; detail?: unknown } | null;
+  const json = (await res.json().catch(() => null)) as {
+    data?: T;
+    detail?: unknown;
+  } | null;
   if (!res.ok) {
     const detail = json?.detail;
-    throw new AuthError(typeof detail === 'string' ? detail : `HTTP ${res.status}`);
+    throw new AuthError(
+      typeof detail === "string" ? detail : `HTTP ${res.status}`,
+    );
   }
-  if (!json?.data) throw new AuthError('unexpected response');
+  if (!json?.data) throw new AuthError("unexpected response");
   return json.data;
 }
 
 /** document.cookie から atelier_access (JWT) を読む。無ければ null。 */
-function readAccessToken(): string | null {
-  if (typeof document === 'undefined') return null;
-  const m = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_NAMES.access}=([^;]+)`));
+export function readAccessToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const m = document.cookie.match(
+    new RegExp(`(?:^|; )${COOKIE_NAMES.access}=([^;]+)`),
+  );
   return m && m[1] ? decodeURIComponent(m[1]) : null;
 }
 
@@ -82,19 +89,26 @@ export class ApiError extends Error {
  * `data` フィールドを返す (API は {data, meta} を返す)。
  * 401 のときは ApiError(status=401) を投げる (呼び出し側で再ログイン誘導可能)。
  */
-export async function getJson<T>(path: string): Promise<{ data: T; meta?: unknown }> {
+export async function getJson<T>(
+  path: string,
+): Promise<{ data: T; meta?: unknown }> {
   const token = readAccessToken();
   const res = await fetch(`${API_BASE}${path}`, {
-    method: 'GET',
+    method: "GET",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: 'include',
+    credentials: "include",
   });
-  const json = (await res.json().catch(() => null)) as
-    | { data?: T; meta?: unknown; detail?: unknown }
-    | null;
+  const json = (await res.json().catch(() => null)) as {
+    data?: T;
+    meta?: unknown;
+    detail?: unknown;
+  } | null;
   if (!res.ok) {
     const detail = json?.detail;
-    throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status);
+    throw new ApiError(
+      typeof detail === "string" ? detail : `HTTP ${res.status}`,
+      res.status,
+    );
   }
   return { data: (json?.data ?? []) as T, meta: json?.meta };
 }
@@ -104,7 +118,7 @@ export async function getJson<T>(path: string): Promise<{ data: T; meta?: unknow
  * 204 など body が無い応答は data=undefined を返す。401/403 等は ApiError。
  */
 export async function sendJson<T>(
-  method: 'POST' | 'PATCH' | 'DELETE',
+  method: "POST" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T | undefined> {
@@ -113,16 +127,22 @@ export async function sendJson<T>(
     method,
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
-    credentials: 'include',
+    credentials: "include",
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (res.status === 204) return undefined;
-  const json = (await res.json().catch(() => null)) as { data?: T; detail?: unknown } | null;
+  const json = (await res.json().catch(() => null)) as {
+    data?: T;
+    detail?: unknown;
+  } | null;
   if (!res.ok) {
     const detail = json?.detail;
-    throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status);
+    throw new ApiError(
+      typeof detail === "string" ? detail : `HTTP ${res.status}`,
+      res.status,
+    );
   }
   return json?.data as T;
 }
@@ -142,25 +162,31 @@ export function createAuthedApiClient(): ApiClient {
 }
 
 /** 実 API signin → cookie 設定。成功で SigninData を返す。 */
-export async function signin(email: string, password: string): Promise<SigninData> {
-  const data = await postJson<SigninData>('/auth/signin', { email, password });
+export async function signin(
+  email: string,
+  password: string,
+): Promise<SigninData> {
+  const data = await postJson<SigninData>("/auth/signin", { email, password });
   setAccessCookie(data.access_token, data.expires_at);
   return data;
 }
 
 /** 実 API signup → 続けて signin して cookie 設定。 */
-export async function signup(email: string, password: string): Promise<SigninData> {
+export async function signup(
+  email: string,
+  password: string,
+): Promise<SigninData> {
   const today = new Date().toISOString().slice(0, 10);
-  const displayName = email.split('@')[0] || email;
-  await postJson('/auth/signup', {
+  const displayName = email.split("@")[0] || email;
+  await postJson("/auth/signup", {
     email,
     password,
     display_name: displayName,
     consents: [
-      { type: 'terms_of_service', version: today, accepted: true },
-      { type: 'privacy_policy', version: today, accepted: true },
+      { type: "terms_of_service", version: today, accepted: true },
+      { type: "privacy_policy", version: today, accepted: true },
       // AI 学習はデフォルト OFF (絶対ルール #6)
-      { type: 'ai_training_optin', version: today, accepted: false },
+      { type: "ai_training_optin", version: today, accepted: false },
     ],
   });
   // 登録直後に自動ログインして cookie を確立
