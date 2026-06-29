@@ -22947,10 +22947,18 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/web/app/knowledge/s_k01/page.tsx"
+          "apps/web/app/knowledge/s_k01/_components/CreateKnowledgeDialog.tsx",
+          "apps/web/app/knowledge/s_k01/_components/NodeDetail.tsx",
+          "apps/web/app/knowledge/s_k01/_components/TreeNode.tsx",
+          "apps/web/app/knowledge/s_k01/_components/types.ts",
+          "apps/web/app/knowledge/s_k01/_components/ui.tsx",
+          "apps/web/tests/bundle-j/uc43-knowledge-explorer.test.tsx"
         ],
         "modify": [
-          "apps/web/lib/auth/connector.ts"
+          "apps/web/app/knowledge/s_k01/page.tsx",
+          "apps/web/app/knowledge/s_k01/_components/KnowledgeExplorer.tsx",
+          "apps/web/tests/bundle-i/employees-knowledge-cron.test.tsx",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-UC-43.md",
