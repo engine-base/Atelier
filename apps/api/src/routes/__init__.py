@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from src.routes.admin import router as admin_router
+from src.routes.admin_knowledge import router as admin_knowledge_router
 from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
 from src.routes.auth import router as auth_router
@@ -48,6 +49,7 @@ api_router.include_router(tasks_router)
 api_router.include_router(mocks_router)
 api_router.include_router(ai_employees_router)
 api_router.include_router(admin_router)
+api_router.include_router(admin_knowledge_router)
 api_router.include_router(client_invitations_router)
 api_router.include_router(chat_router)
 api_router.include_router(workflow_router)

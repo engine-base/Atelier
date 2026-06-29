@@ -967,6 +967,19 @@ components:
         parent_id: { type: string, format: uuid, nullable: true, description: '構造ツリーの親ノード（null=ルート）' }
         visible_in_tree: { type: boolean, nullable: true, description: 'ナレッジツリー表示フラグ（運営デフォルトは false で非表示）' }
 
+    AdminKnowledgeCreate:
+      type: object
+      description: 運営デフォルト(platform)ナレッジ作成（T-A-50 / F-023）。account_type/account_id は server 側で固定。
+      required: [category, title, content_md]
+      properties:
+        category: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        content_md: { type: string, minLength: 1 }
+        tags: { type: array, items: { type: string }, maxItems: 50 }
+        parent_id: { type: string, format: uuid, nullable: true }
+        visible_in_tree: { type: boolean, default: false, description: '運営デフォルトは既定でツリー非表示（RAG 横断参照のみ）' }
+        confidence_score: { type: number, minimum: 0, maximum: 1, default: 0.5 }
+
     Knowledge:
       type: object
       required:
@@ -4622,6 +4635,77 @@ paths:
               schema: { type: object, properties: { data: { type: boolean } } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: AI 社員 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge:
+    get:
+      tags: [admin-knowledge]
+      summary: 運営 admin 運営デフォルトナレッジ一覧（全件）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::list_platform_knowledge
+      x-screen-ids: [S-T06]
+      x-feature-ids: [F-023]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: 運営ナレッジ一覧
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: array, items: { $ref: '#/components/schemas/Knowledge' } } } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [admin-knowledge]
+      summary: 運営 admin 運営デフォルトナレッジ作成（account_type=platform 強制）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::create_platform_knowledge
+      x-screen-ids: [S-T06]
+      x-feature-ids: [F-023]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminKnowledgeCreate' }
+      responses:
+        '201':
+          description: 作成完了
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { $ref: '#/components/schemas/Knowledge' } } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge/{knowledge_id}:
+    parameters:
+      - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [admin-knowledge]
+      summary: 運営 admin 運営ナレッジ編集（visible_in_tree トグル等）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::update_platform_knowledge
+      x-screen-ids: [S-T06]
+      x-feature-ids: [F-023]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/KnowledgeUpdate' }
+      responses:
+        '200':
+          description: 更新完了
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { $ref: '#/components/schemas/Knowledge' } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [admin-knowledge]
+      summary: 運営 admin 運営ナレッジ削除
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::delete_platform_knowledge
+      x-screen-ids: [S-T06]
+      x-feature-ids: [F-023]
+      responses:
+        '204': { description: 削除完了 }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/ai-employee-templates:
     get:
