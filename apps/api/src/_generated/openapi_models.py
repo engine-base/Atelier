@@ -1039,6 +1039,23 @@ class KnowledgeUpdate(BaseModel):
     """
 
 
+class AdminKnowledgeCreate(BaseModel):
+    """
+    運営デフォルト(platform)ナレッジ作成（T-A-50 / F-023）。account_type/account_id は server 側で固定。
+    """
+
+    category: Annotated[str, Field(max_length=100, min_length=1)]
+    title: Annotated[str, Field(max_length=200, min_length=1)]
+    content_md: Annotated[str, Field(min_length=1)]
+    tags: Annotated[list[str] | None, Field(max_length=50)] = None
+    parent_id: UUID | None = None
+    visible_in_tree: bool | None = False
+    """
+    運営デフォルトは既定でツリー非表示（RAG 横断参照のみ）
+    """
+    confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = 0.5
+
+
 class Knowledge(BaseModel):
     id: UUID
     account_id: UUID

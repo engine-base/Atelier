@@ -23001,6 +23001,113 @@
           "expected": "独立開閉・中央拡張"
         }
       ]
+    },
+    {
+      "id": "T-A-50",
+      "title": "運営ナレッジ管理API(F-023)：platform ナレッジ CRUD + visible_in_tree (admin + service_role)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "estimate_hours": 5,
+      "assigned_employee": "tchalla",
+      "depends_on": [
+        "T-A-47"
+      ],
+      "screen_ids": [
+        "S-T06"
+      ],
+      "entity_ids": [
+        "E-018"
+      ],
+      "feature_ids": [
+        "F-023"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-50.md",
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/routes/admin_knowledge/__init__.py",
+          "apps/api/src/schemas/admin_knowledge.py",
+          "apps/api/tests/routes/test_admin_knowledge.py",
+          "07_tasks/acceptance-criteria/T-A-50.md"
+        ],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "07_api_design/openapi.yaml",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "07_tasks/acceptance-criteria/T-A-50.md",
+          "apps/api/src/services/knowledge/__init__.py",
+          "apps/api/src/schemas/knowledge.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: platform(運営デフォルト)ナレッジの作成/編集/削除/一覧 と visible_in_tree トグル を openapi 通りに /admin/knowledge で公開する",
+          "UBIQUITOUS: 運営ナレッジ管理は管理者(admin)専用で service_role により RLS をバイパスして書込む"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin creates operator-default knowledge, the system shall store it with account_type=platform and a fixed sentinel account_id"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an admin toggles visible_in_tree, the system shall persist the flag and a fresh GET shall reflect it"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If a non-admin calls operator-knowledge management endpoints, the system shall return 403 Forbidden",
+            "critical": true
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
+            "critical": true
+          }
+        ],
+        "tier_3_regression": [
+          "既存のテナント knowledge CRUD (RLS / /knowledge) が従来どおり動作する"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "運営作成",
+          "steps": [
+            "admin で POST /admin/knowledge"
+          ],
+          "expected": "201 + account_type=platform"
+        },
+        {
+          "name": "表示トグル",
+          "steps": [
+            "visible_in_tree を PATCH"
+          ],
+          "expected": "別GETで反映"
+        },
+        {
+          "name": "非admin拒否",
+          "steps": [
+            "一般ユーザーで POST /admin/knowledge"
+          ],
+          "expected": "403"
+        }
+      ]
     }
   ],
   "two_axis_policy": {
