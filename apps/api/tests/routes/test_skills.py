@@ -256,3 +256,54 @@ def test_delete_skill(app: FastAPI, seeded: dict[str, str]) -> None:
         assert de.status_code == 204, de.text
         miss = cl.delete(f"/admin/skills/{sid}", headers=_h(seeded["admin"], admin=True))
         assert miss.status_code == 404, miss.text
+
+
+def test_unauthenticated_401(app: FastAPI) -> None:
+    """tier_2 critical UNWANTED: Authorization 無しは 401（管理エンドポイント全般）。"""
+    with TestClient(app) as cl:
+        post = cl.post("/admin/skills", json=_create_body())
+        assert post.status_code == 401, post.text
+        bad = cl.post(
+            "/admin/skills", json=_create_body(), headers={"Authorization": "Bearer not.a.jwt"}
+        )
+        assert bad.status_code == 401, bad.text
+
+
+def test_attach_does_not_regress_ai_employee(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """tier_3 regression: attach は attached_skills のみ更新し、ai_employees の他属性を壊さない。"""
+    cols = "name, display_name, role, department, is_default"
+    with sync_engine.connect() as c:
+        before = c.execute(
+            text(f"select {cols} from public.ai_employees where id = cast(:i as uuid)"),
+            {"i": seeded["emp"]},
+        ).first()
+    with TestClient(app) as cl:
+        cr = cl.post("/admin/skills", json=_create_body(), headers=_h(seeded["admin"], admin=True))
+        sid = cr.json()["data"]["id"]
+        at = cl.post(
+            f"/admin/skills/{sid}/attach",
+            json={"ai_employee_id": seeded["emp"], "attached": True},
+            headers=_h(seeded["admin"], admin=True),
+        )
+        assert at.status_code == 200, at.text
+    with sync_engine.connect() as c:
+        after = c.execute(
+            text(f"select {cols} from public.ai_employees where id = cast(:i as uuid)"),
+            {"i": seeded["emp"]},
+        ).first()
+    assert before is not None and after is not None
+    assert (
+        before.name,
+        before.display_name,
+        before.role,
+        before.department,
+        before.is_default,
+    ) == (
+        after.name,
+        after.display_name,
+        after.role,
+        after.department,
+        after.is_default,
+    )
