@@ -1,24 +1,47 @@
 /**
  * S-B02 プロジェクトダッシュボード — T-UC-04
+ *
+ * 実 projects API (GET /projects/{id}/dashboard) に配線。projectId は URL ?project=。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-import { ProjectDashboard, type DashboardKpi } from './_components/ProjectDashboard';
+import { QueryProvider } from "../../../providers/query-provider";
+import { ProjectDashboardContainer } from "./_components/ProjectDashboardContainer";
 
-const SAMPLE_KPIS: DashboardKpi[] = [
-  { id: 'tasks', label: 'タスク (進行中)', value: 12, tone: 'info' },
-  { id: 'awaiting', label: '承認待ち', value: 3, tone: 'success' },
-  { id: 'blocked', label: 'ブロック', value: 1, tone: 'error' },
-  { id: 'completed', label: '完了 (今週)', value: 24, tone: 'success' },
-];
+function SB02Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-md py-lg">
+      {projectId ? (
+        <ProjectDashboardContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトを選択するとダッシュボードを表示します。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SB02Page() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-md py-lg">
-      <ProjectDashboard projectName="Sample Project" kpis={SAMPLE_KPIS} />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SB02Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }

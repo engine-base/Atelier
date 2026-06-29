@@ -5,18 +5,18 @@
  * 実 API 連携は別 PR で TanStack Query で接続。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { Skeleton } from '../../../../components/Skeleton';
-import { cn } from '../../../../lib/cn';
+import { Skeleton } from "../../../../components/Skeleton";
+import { cn } from "../../../../lib/cn";
 
 export interface DashboardKpi {
   readonly id: string;
   readonly label: string;
   readonly value: number | string;
-  readonly tone?: 'info' | 'success' | 'error';
+  readonly tone?: "info" | "success" | "error";
 }
 
 export interface ProjectDashboardProps {
@@ -25,18 +25,26 @@ export interface ProjectDashboardProps {
   readonly loading?: boolean;
 }
 
-const TONE_BG: Record<NonNullable<DashboardKpi['tone']>, string> = {
-  info: 'bg-surface-variant text-on-surface',
-  success: 'bg-tertiary-container text-tertiary-container-fg',
-  error: 'bg-error/10 text-error',
+const TONE_BG: Record<NonNullable<DashboardKpi["tone"]>, string> = {
+  info: "bg-surface-variant text-on-surface",
+  success: "bg-tertiary-container text-tertiary-container-fg",
+  error: "bg-error/10 text-error",
 };
 
-export function ProjectDashboard({ projectName, kpis, loading }: ProjectDashboardProps) {
+export function ProjectDashboard({
+  projectName,
+  kpis,
+  loading,
+}: ProjectDashboardProps) {
   return (
     <div className="flex flex-col gap-lg">
       <header>
-        <h1 className="text-headline-md font-bold text-on-surface">{projectName}</h1>
-        <p className="text-body-md text-on-surface-variant">プロジェクトダッシュボード</p>
+        <h1 className="text-headline-md font-bold text-on-surface">
+          {projectName}
+        </h1>
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトダッシュボード
+        </p>
       </header>
       <section
         aria-label="KPI 一覧"
@@ -50,8 +58,8 @@ export function ProjectDashboard({ projectName, kpis, loading }: ProjectDashboar
               <article
                 key={k.id}
                 className={cn(
-                  'flex flex-col gap-xs rounded-lg p-md',
-                  TONE_BG[k.tone ?? 'info'],
+                  "flex flex-col gap-xs rounded-lg p-md",
+                  TONE_BG[k.tone ?? "info"],
                 )}
               >
                 <span className="text-label-md">{k.label}</span>

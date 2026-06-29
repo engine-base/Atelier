@@ -14916,9 +14916,15 @@
         "new": [
           "apps/web/app/projects/s_b02/page.tsx",
           "apps/web/app/projects/s_b02/_components/.gitkeep",
-          "e2e/s_b02.spec.ts"
+          "e2e/s_b02.spec.ts",
+          "apps/web/app/projects/s_b02/_components/ProjectDashboardContainer.tsx",
+          "apps/web/tests/bundle-f/uc04-project-dashboard.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/projects/s_b02/page.tsx",
+          "apps/web/app/projects/s_b02/_components/ProjectDashboard.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-04.md",
