@@ -1,21 +1,44 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-import { KanbanBoard, type TaskCard } from './_components/KanbanBoard';
+import { QueryProvider } from "../../../providers/query-provider";
+import { TaskBoardContainer } from "./_components/TaskBoardContainer";
 
-const SAMPLE: TaskCard[] = [
-  { id: 't1', title: '要件 hearing', stage: 'done', assignee: 'tony' },
-  { id: 't2', title: 'API 設計', stage: 'in_progress', assignee: 'thor' },
-  { id: 't3', title: 'UI 実装', stage: 'ready' },
-  { id: 't4', title: 'デプロイ', stage: 'blocked' },
-];
+function SI01Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-lg px-md py-lg">
+      <h1 className="text-headline-md font-bold text-on-surface">
+        タスクボード
+      </h1>
+      {projectId ? (
+        <TaskBoardContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトを選択するとタスクボードを表示します。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SI01Page() {
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">タスクボード</h1>
-      <KanbanBoard tasks={SAMPLE} onPlay={() => undefined} />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SI01Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
