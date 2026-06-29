@@ -136,8 +136,8 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
         )
         c.execute(
             text(
-                "insert into public.projects (id,workspace_id,name,type) "
-                "values (cast(:i as uuid),cast(:w as uuid),'proj','self_product')"
+                "insert into public.projects (id,workspace_id,name,project_type) "
+                "values (cast(:i as uuid),cast(:w as uuid),'proj','internal_product')"
             ),
             {"i": proj, "w": ws},
         )
