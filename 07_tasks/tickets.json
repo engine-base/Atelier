@@ -16214,9 +16214,15 @@
         "new": [
           "apps/web/app/tasks/s_i01/page.tsx",
           "apps/web/app/tasks/s_i01/_components/.gitkeep",
-          "e2e/s_i01.spec.ts"
+          "e2e/s_i01.spec.ts",
+          "apps/web/app/tasks/s_i01/_components/TaskBoardContainer.tsx",
+          "apps/web/tests/bundle-i/uc14-task-board.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/tasks/s_i01/page.tsx",
+          "07_tasks/tickets.json",
+          "apps/web/app/tasks/s_i01/_components/KanbanBoard.tsx"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-14.md",
