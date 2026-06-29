@@ -22841,11 +22841,19 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/web/app/admin/s_t02/page.tsx",
-          "apps/web/app/admin/s_t06/page.tsx"
+          "apps/web/app/admin/s_t06/page.tsx",
+          "apps/web/app/admin/s_t06/_components/PlatformKnowledgeManager.tsx",
+          "apps/web/app/admin/s_t02/_components/SkillForm.tsx",
+          "apps/web/app/admin/_components/AdminButton.tsx",
+          "apps/web/app/admin/_components/AdminDenied.tsx",
+          "apps/web/tests/bundle-j/uc42-admin-skills-knowledge.test.tsx"
         ],
         "modify": [
-          "apps/web/lib/auth/connector.ts"
+          "apps/web/app/admin/s_t02/page.tsx",
+          "apps/web/app/admin/s_t02/_components/SkillManager.tsx",
+          "apps/web/lib/auth/connector.ts",
+          "apps/web/tests/bundle-j/admin.test.tsx",
+          "07_tasks/tickets.json"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-UC-42.md",

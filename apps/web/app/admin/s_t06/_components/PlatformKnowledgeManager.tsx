@@ -1,18 +1,16 @@
 /**
  * S-T06 運営デフォルト・ナレッジ管理 — T-UC-42 (F-023 platform knowledge)
  *
- * 運営(admin)が platform-scope のデフォルトナレッジ (account_type=platform) を CRUD し、
- * visible_in_tree トグルで「テナント側ツリー表示 / 参照のみ」を切り替える。
- * 実 knowledge API (/knowledge) に TanStack Query で配線。
+ * 運営(admin)が platform(運営デフォルト)ナレッジを CRUD し、visible_in_tree トグルで
+ * 「テナント側ツリー表示 / 参照のみ」を切り替える。運営ナレッジ管理 API (T-A-50 / F-023)
+ * に TanStack Query で配線。platform 書込は RLS 上 service_role のみのため、通常の
+ * /knowledge ではなく admin 専用の /admin/knowledge を使う。
  *
- *   - 一覧: GET /knowledge?account_type=platform
- *   - 作成: POST /knowledge (account_type=platform, visible_in_tree 既定 false)
- *   - トグル: 既定では PATCH に visible_in_tree が無い (KnowledgeUpdate) ため、
- *     UI のトグルは作成時 / 再作成 ではなく PATCH で title 等と共に送る。
- *     ※ KnowledgeUpdate に visible_in_tree が無い場合は再作成 fallback を使わず、
- *       本マネージャは PATCH(title) で楽観反映し list を再取得する。
+ *   - 一覧: GET /admin/knowledge
+ *   - 作成: POST /admin/knowledge (account_type/account_id は server が固定)
+ *   - トグル: PATCH /admin/knowledge/{id} { visible_in_tree }
  *
- * admin gate: knowledge API が 403 を返したら AdminDenied を表示する。
+ * admin gate: API が 403 を返したら AdminDenied を表示する。
  * api client は prop 注入可能 (テスト時に fake を渡せる)。
  */
 
@@ -22,18 +20,13 @@ import * as React from 'react';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ApiError, type ApiClient, type Paths } from '@atelier/api-client';
+import { ApiError, type ApiClient } from '@atelier/api-client';
 
 import { createAuthedApiClient } from '../../../../lib/auth/connector';
 import { AdminButton } from '../../_components/AdminButton';
 import { Dialog } from '../../../../components/ui/dialog';
 import { Field } from '../../../../components/forms/Field';
 import { AdminDenied } from '../../_components/AdminDenied';
-
-/** PATCH /knowledge/{id} の request body 型 (生成 KnowledgeUpdate)。toggle 用 cast に使う */
-type KnowledgeUpdateBody = NonNullable<
-  Paths['/knowledge/{knowledge_id}']['patch']['requestBody']
->['content']['application/json'];
 
 interface KnowledgeNode {
   id: string;
@@ -44,26 +37,18 @@ interface KnowledgeNode {
   updated_at?: string;
 }
 
-/** platform account のフォールバック UUID (全テナント横断の運営層 account_id) */
-const DEFAULT_PLATFORM_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
-const KEY = ['knowledge', 'platform'] as const;
+const KEY = ['admin-knowledge', 'platform'] as const;
 
 export interface PlatformKnowledgeManagerProps {
   readonly client?: ApiClient;
-  /** platform-scope の account_id。未指定なら運営層フォールバック UUID */
-  readonly platformAccountId?: string;
 }
 
 function isForbidden(error: unknown): boolean {
   return error instanceof ApiError && error.status === 403;
 }
 
-export function PlatformKnowledgeManager({
-  client: injected,
-  platformAccountId,
-}: PlatformKnowledgeManagerProps) {
+export function PlatformKnowledgeManager({ client: injected }: PlatformKnowledgeManagerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
-  const accountId = platformAccountId ?? DEFAULT_PLATFORM_ACCOUNT_ID;
   const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
@@ -74,9 +59,7 @@ export function PlatformKnowledgeManager({
   const list = useQuery({
     queryKey: KEY,
     queryFn: async () => {
-      const res = await client.get('/knowledge', {
-        params: { query: { account_type: 'platform' } },
-      });
+      const res = await client.get('/admin/knowledge');
       return (res as { data?: KnowledgeNode[] }).data ?? [];
     },
     retry: false,
@@ -86,19 +69,9 @@ export function PlatformKnowledgeManager({
 
   const createMut = useMutation({
     mutationFn: () =>
-      client.post('/knowledge', {
-        body: {
-          account_id: accountId,
-          account_type: 'platform',
-          scope: 'common',
-          visible_in_tree: false,
-          category,
-          title,
-          content_md: content,
-          source_type: 'manual',
-          confidence_score: 0.5,
-          is_anonymized: false,
-        },
+      client.post('/admin/knowledge', {
+        // 運営デフォルトは既定でツリー非表示（RAG 横断参照のみ）。account_type/account_id は server 側で固定。
+        body: { category, title, content_md: content, visible_in_tree: false, confidence_score: 0.5 },
       }),
     onSuccess: () => {
       setOpen(false);
@@ -111,12 +84,9 @@ export function PlatformKnowledgeManager({
 
   const toggleMut = useMutation({
     mutationFn: (node: KnowledgeNode) =>
-      client.patch('/knowledge/{knowledge_id}', {
+      client.patch('/admin/knowledge/{knowledge_id}', {
         params: { path: { knowledge_id: node.id } },
-        // backend Pydantic KnowledgeUpdate は visible_in_tree を受理するが、生成
-        // openapi.ts の KnowledgeUpdate 型が stale で同フィールドを欠く (drift)。
-        // generated 型を手編集せず、ここでのみ body を緩める。詳細は PR description 参照。
-        body: { visible_in_tree: !(node.visible_in_tree ?? false) } as unknown as KnowledgeUpdateBody,
+        body: { visible_in_tree: !(node.visible_in_tree ?? false) },
       }),
     onSuccess: () => void invalidate(),
   });

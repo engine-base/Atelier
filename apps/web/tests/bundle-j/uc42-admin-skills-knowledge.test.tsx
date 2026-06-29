@@ -178,20 +178,18 @@ describe('S-T06 PlatformKnowledgeManager (T-UC-42)', () => {
     },
   ];
 
-  it('renders platform knowledge list (GET account_type=platform)', async () => {
+  it('renders platform knowledge list (GET /admin/knowledge)', async () => {
     const get = vi.fn(async () => ({ data: rows }));
     renderWithQuery(<PlatformKnowledgeManager client={fakeClient({ get })} />);
     expect(await screen.findByText('提案書テンプレ')).toBeInTheDocument();
-    const [, init] = get.mock.calls[0]! as unknown as [string, { params: { query: { account_type: string } } }];
-    expect(init.params.query.account_type).toBe('platform');
+    const [path] = get.mock.calls[0]! as unknown as [string];
+    expect(path).toBe('/admin/knowledge');
   });
 
-  it('creates knowledge with account_type=platform via POST /knowledge', async () => {
+  it('creates operator knowledge via POST /admin/knowledge', async () => {
     const get = vi.fn(async () => ({ data: rows }));
     const post = vi.fn(async () => ({ data: { id: 'k2' } }));
-    renderWithQuery(
-      <PlatformKnowledgeManager client={fakeClient({ get, post })} platformAccountId="acc-9" />,
-    );
+    renderWithQuery(<PlatformKnowledgeManager client={fakeClient({ get, post })} />);
     await screen.findByText('提案書テンプレ');
 
     fireEvent.click(screen.getByRole('button', { name: '新規追加' }));
@@ -203,16 +201,15 @@ describe('S-T06 PlatformKnowledgeManager (T-UC-42)', () => {
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     const [path, init] = post.mock.calls[0]! as unknown as [
       string,
-      { body: { account_type: string; account_id: string; visible_in_tree: boolean; title: string } },
+      { body: { category: string; title: string; content_md: string } },
     ];
-    expect(path).toBe('/knowledge');
-    expect(init.body.account_type).toBe('platform');
-    expect(init.body.account_id).toBe('acc-9');
-    expect(init.body.visible_in_tree).toBe(false);
+    expect(path).toBe('/admin/knowledge');
     expect(init.body.title).toBe('用語辞書');
+    expect(init.body.category).toBe('用語');
+    expect(init.body.content_md).toBe('# 用語');
   });
 
-  it('toggles visible_in_tree via PATCH', async () => {
+  it('toggles visible_in_tree via PATCH /admin/knowledge/{id}', async () => {
     const get = vi.fn(async () => ({ data: rows }));
     const patch = vi.fn(async () => ({ data: {} }));
     renderWithQuery(<PlatformKnowledgeManager client={fakeClient({ get, patch })} />);
@@ -227,7 +224,7 @@ describe('S-T06 PlatformKnowledgeManager (T-UC-42)', () => {
       string,
       { params: { path: { knowledge_id: string } }; body: { visible_in_tree: boolean } },
     ];
-    expect(path).toBe('/knowledge/{knowledge_id}');
+    expect(path).toBe('/admin/knowledge/{knowledge_id}');
     expect(init.params.path.knowledge_id).toBe('k1');
     expect(init.body.visible_in_tree).toBe(true);
   });
