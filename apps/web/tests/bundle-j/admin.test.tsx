@@ -11,7 +11,6 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AdminDashboard } from '../../app/admin/s_t01/_components/AdminDashboard';
-import { SkillManager } from '../../app/admin/s_t02/_components/SkillManager';
 import { TemplateList, type Template } from '../../app/admin/s_t03/_components/TemplateList';
 import {
   UserAdminList,
@@ -40,21 +39,8 @@ describe('AdminDashboard (T-UC-30)', () => {
   });
 });
 
-describe('SkillManager (T-UC-31)', () => {
-  it('renders initial skills', () => {
-    render(<SkillManager initial={[{ id: 's1', name: 'TS', category: 'lang', level: 5 }]} />);
-    expect(screen.getByText('TS')).toBeInTheDocument();
-  });
-
-  it('adds and removes a skill', () => {
-    render(<SkillManager initial={[]} />);
-    fireEvent.change(screen.getByLabelText('名前'), { target: { value: 'Go' } });
-    fireEvent.click(screen.getByRole('button', { name: '追加' }));
-    expect(screen.getByText('Go')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Go を削除' }));
-    expect(screen.queryByText('Go')).toBeNull();
-  });
-});
+// NOTE: SkillManager (旧 T-UC-31 employee competency 版) は T-UC-42 で F-007
+// SKILL.md マネージャに置換。配線テストは bundle-j/uc42-admin-skills-knowledge.test.tsx を参照。
 
 describe('TemplateList (T-UC-32)', () => {
   const tpl: Template[] = [{ id: 't1', name: 'X', role: 'engineer', description: 'd' }];

@@ -10,6 +10,8 @@
  * client から document.cookie で設定する (middleware は read のみ)。
  */
 
+import { createApiClient, type ApiClient } from '@atelier/api-client';
+
 import { COOKIE_NAMES } from './cookie';
 
 // API base: 明示の NEXT_PUBLIC_API_URL を最優先。未設定なら本番(Vercel)は Fly の
@@ -123,6 +125,20 @@ export async function sendJson<T>(
     throw new ApiError(typeof detail === 'string' ? detail : `HTTP ${res.status}`, res.status);
   }
   return json?.data as T;
+}
+
+/**
+ * 認証付き型安全 API クライアント (@atelier/api-client) を構築する。
+ *
+ * baseURL は API_BASE、token は cookie の atelier_access JWT を read する。
+ * TanStack Query から呼ぶ container コンポーネントで利用する想定。
+ * 型安全 (openapi paths 由来) で、4xx/5xx は `ApiError` として throw される。
+ */
+export function createAuthedApiClient(): ApiClient {
+  return createApiClient({
+    baseURL: API_BASE,
+    getToken: () => readAccessToken(),
+  });
 }
 
 /** 実 API signin → cookie 設定。成功で SigninData を返す。 */
