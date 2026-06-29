@@ -574,6 +574,49 @@ class AdminSkill(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class SkillCreate(BaseModel):
+    """
+    スキル新規登録（SKILL.md upload, T-A-49 / F-007）。name+version unique・version semver。
+    """
+
+    name: Annotated[str, Field(max_length=200, min_length=1)]
+    version: Annotated[str, Field(max_length=64, min_length=1)]
+    """
+    semver (例 1.0.0)
+    """
+    content_md: Annotated[str, Field(min_length=1)]
+    description: str | None = None
+    assets_storage_path: str | None = None
+    allowed_employee_roles: Annotated[list[str] | None, Field(max_length=50)] = None
+    allowed_employee_ids: Annotated[list[UUID] | None, Field(max_length=200)] = None
+    is_active: bool | None = True
+
+
+class SkillUpdate(BaseModel):
+    """
+    スキル編集（name/version は不変。新バージョンは create で別行, T-A-49）。
+    """
+
+    content_md: Annotated[str | None, Field(min_length=1)] = None
+    description: str | None = None
+    assets_storage_path: str | None = None
+    allowed_employee_roles: Annotated[list[str] | None, Field(max_length=50)] = None
+    allowed_employee_ids: Annotated[list[UUID] | None, Field(max_length=200)] = None
+    is_active: bool | None = None
+
+
+class SkillAttachRequest(BaseModel):
+    """
+    AI 社員へのスキル装着 / 解除（T-A-49）。
+    """
+
+    ai_employee_id: UUID
+    attached: bool | None = True
+    """
+    true=装着 / false=解除
+    """
+
+
 class AdminTemplate(BaseModel):
     """
     運営 admin 向け AI 社員テンプレ詳細 (T-A-42)。

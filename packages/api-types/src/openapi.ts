@@ -6834,7 +6834,60 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** 運営 admin スキル新規登録（SKILL.md upload） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SkillCreate"];
+                };
+            };
+            responses: {
+                /** @description 作成完了 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminSkill"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗（semver / name+version unique） */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -6895,6 +6948,154 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        /** 運営 admin スキル削除 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    skill_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除完了 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** 運営 admin スキル編集 */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    skill_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SkillUpdate"];
+                };
+            };
+            responses: {
+                /** @description 更新完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminSkill"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/admin/skills/{skill_id}/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                skill_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin スキルを AI 社員に装着 / 解除 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    skill_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SkillAttachRequest"];
+                };
+            };
+            responses: {
+                /** @description 装着 / 解除 完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: boolean;
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description AI 社員 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -8126,6 +8327,38 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description スキル新規登録（SKILL.md upload, T-A-49 / F-007）。name+version unique・version semver。 */
+        SkillCreate: {
+            name: string;
+            /** @description semver (例 1.0.0) */
+            version: string;
+            content_md: string;
+            description?: string | null;
+            assets_storage_path?: string | null;
+            allowed_employee_roles?: string[];
+            allowed_employee_ids?: string[];
+            /** @default true */
+            is_active: boolean;
+        };
+        /** @description スキル編集（name/version は不変。新バージョンは create で別行, T-A-49）。 */
+        SkillUpdate: {
+            content_md?: string | null;
+            description?: string | null;
+            assets_storage_path?: string | null;
+            allowed_employee_roles?: string[] | null;
+            allowed_employee_ids?: string[] | null;
+            is_active?: boolean | null;
+        };
+        /** @description AI 社員へのスキル装着 / 解除（T-A-49）。 */
+        SkillAttachRequest: {
+            /** Format: uuid */
+            ai_employee_id: string;
+            /**
+             * @description true=装着 / false=解除
+             * @default true
+             */
+            attached: boolean;
         };
         /** @description 運営 admin 向け AI 社員テンプレ詳細 (T-A-42)。 */
         AdminTemplate: {
