@@ -15448,10 +15448,14 @@
           "apps/web/app/sales/s_n01/_components/SalesDocDraft.tsx",
           "apps/web/app/sales/s_n01/_components/.gitkeep",
           "e2e/s_n01.spec.ts",
-          "apps/web/tests/bundle-h/"
+          "apps/web/tests/bundle-h/",
+          "apps/web/app/chat/s_e01/_components/ChatContainer.tsx",
+          "apps/web/app/chat/s_e01/_components/stream.ts",
+          "apps/web/tests/bundle-h/uc08-chat.test.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/lib/auth/connector.ts"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
