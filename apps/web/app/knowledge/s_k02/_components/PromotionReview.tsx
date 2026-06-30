@@ -5,11 +5,11 @@
  * - confidence_score 表示 + before/after preview + approve/reject button
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
 export interface PromotionItem {
   readonly id: string;
@@ -25,7 +25,11 @@ export interface PromotionReviewProps {
   readonly onReject: (id: string) => void;
 }
 
-export function PromotionReview({ items, onApprove, onReject }: PromotionReviewProps) {
+export function PromotionReview({
+  items,
+  onApprove,
+  onReject,
+}: PromotionReviewProps) {
   return (
     <section aria-label="ナレッジ昇格レビュー" className="flex flex-col gap-md">
       {items.length === 0 ? (
@@ -33,18 +37,23 @@ export function PromotionReview({ items, onApprove, onReject }: PromotionReviewP
       ) : (
         <ul role="list" className="flex flex-col gap-md">
           {items.map((it) => (
-            <li key={it.id} className="rounded-md border border-surface-variant bg-surface p-md">
+            <li
+              key={it.id}
+              className="rounded-md border border-surface-variant bg-surface p-md"
+            >
               <header className="flex items-baseline justify-between">
-                <h3 className="text-label-lg font-semibold text-on-surface">{it.title}</h3>
+                <h3 className="text-label-lg font-semibold text-on-surface">
+                  {it.title}
+                </h3>
                 <span
                   aria-label={`信頼度 ${(it.confidence * 100).toFixed(0)}%`}
                   className={cn(
-                    'text-label-md',
+                    "text-label-md",
                     it.confidence >= 0.8
-                      ? 'text-tertiary'
+                      ? "text-tertiary"
                       : it.confidence >= 0.5
-                        ? 'text-on-surface-variant'
-                        : 'text-error',
+                        ? "text-on-surface-variant"
+                        : "text-error",
                   )}
                 >
                   信頼度 {(it.confidence * 100).toFixed(0)}%
@@ -53,7 +62,9 @@ export function PromotionReview({ items, onApprove, onReject }: PromotionReviewP
               <p className="mt-xs text-label-sm text-on-surface-variant">
                 出典: {it.source}
               </p>
-              <p className="mt-sm whitespace-pre-wrap text-body-sm text-on-surface">{it.content}</p>
+              <p className="mt-sm whitespace-pre-wrap text-body-sm text-on-surface">
+                {it.content}
+              </p>
               <footer className="mt-md flex gap-sm">
                 <button
                   type="button"

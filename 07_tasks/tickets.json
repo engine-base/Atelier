@@ -16853,9 +16853,14 @@
         "new": [
           "apps/web/app/knowledge/s_k02/page.tsx",
           "apps/web/app/knowledge/s_k02/_components/.gitkeep",
-          "e2e/s_k02.spec.ts"
+          "e2e/s_k02.spec.ts",
+          "apps/web/app/knowledge/s_k02/_components/PromotionReviewContainer.tsx",
+          "apps/web/tests/bundle-j/uc19-promotion-review.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/knowledge/s_k02/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-19.md",

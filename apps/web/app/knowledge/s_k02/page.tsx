@@ -1,24 +1,58 @@
-'use client';
+/**
+ * S-K02 ナレッジ昇格レビュー画面 — T-UC-19
+ *
+ * 実 knowledge API に配線。本人(JWT sub)の user-scope ナレッジを昇格候補として表示し、
+ * 昇格先 workspace は URL ?workspace= で受ける。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { PromotionReview, type PromotionItem } from './_components/PromotionReview';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-const ITEMS: PromotionItem[] = [
-  {
-    id: 'pr1',
-    title: 'ライフサイクル状態の遷移ルール',
-    confidence: 0.92,
-    content: 'active → paused → archived の単方向...',
-    source: 'タスク T-XXX の議事録',
-  },
-];
+import { QueryProvider } from "../../../providers/query-provider";
+import { readAccessToken } from "../../../lib/auth/connector";
+import { decodeJwtUnsafe } from "../../../lib/auth/cookie";
+import { PromotionReviewContainer } from "./_components/PromotionReviewContainer";
+
+function SK02Inner() {
+  const params = useSearchParams();
+  const workspaceId = params.get("workspace");
+  const token = readAccessToken();
+  const accountId = token ? (decodeJwtUnsafe(token)?.sub ?? null) : null;
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+      <h1 className="mb-md text-headline-md font-bold text-on-surface">
+        ナレッジ昇格レビュー
+      </h1>
+      {accountId && workspaceId ? (
+        <PromotionReviewContainer
+          accountId={accountId}
+          targetWorkspaceId={workspaceId}
+        />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          昇格先ワークスペースを選択するとレビューを開始できます。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SK02Page() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
-      <h1 className="mb-md text-headline-md font-bold text-on-surface">ナレッジ昇格レビュー</h1>
-      <PromotionReview items={ITEMS} onApprove={() => undefined} onReject={() => undefined} />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SK02Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
