@@ -1,26 +1,50 @@
-'use client';
+/**
+ * S-F01 工程ワークフロー（司令塔）画面 — T-UC-10
+ *
+ * 実 workflow API (GET /workflow/phases) に配線。projectId は URL ?project=。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { type PhaseEdge, type PhaseNode, WorkflowGraph } from './_components/WorkflowGraph';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-const NODES: PhaseNode[] = [
-  { id: 'discovery', label: '要件定義', status: 'done' },
-  { id: 'design', label: '設計', status: 'in_progress' },
-  { id: 'impl', label: '実装', status: 'pending' },
-  { id: 'release', label: 'リリース', status: 'pending' },
-];
-const EDGES: PhaseEdge[] = [
-  { from: 'discovery', to: 'design' },
-  { from: 'design', to: 'impl' },
-  { from: 'impl', to: 'release' },
-];
+import { QueryProvider } from "../../../providers/query-provider";
+import { WorkflowGraphContainer } from "./_components/WorkflowGraphContainer";
+
+function SF01Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-lg px-md py-lg">
+      <h1 className="text-headline-md font-bold text-on-surface">
+        工程ワークフロー
+      </h1>
+      {projectId ? (
+        <WorkflowGraphContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトを選択すると工程フローを表示します。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SF01Page() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">工程ワークフロー</h1>
-      <WorkflowGraph nodes={NODES} edges={EDGES} />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SF01Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
