@@ -13,9 +13,11 @@
  *   - 401 は middleware による refresh の領分 (T-US-03)
  */
 
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 
-import { ApiError } from '@atelier/api-client';
+import { ApiError } from "@atelier/api-client";
+
+import { pushToast } from "./toast/store";
 
 /** ApiClient で扱う構造的エラー扱いを retry policy に反映 */
 function shouldRetry(failureCount: number, error: unknown): boolean {
@@ -26,9 +28,32 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
   return true;
 }
 
+/** ApiError の status から利用者向けの簡潔なメッセージを作る。 */
+function toastMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 403) return "権限がありません。";
+    if (error.status === 404) return "対象が見つかりませんでした。";
+    if (error.status === 422) return "入力内容を確認してください。";
+    if (error.status >= 500) return "サーバーでエラーが発生しました。";
+    return `エラーが発生しました（HTTP ${error.status}）。`;
+  }
+  return "通信エラーが発生しました。時間をおいて再試行してください。";
+}
+
+/**
+ * 4xx/5xx 時にグローバル toast を出す（AC「inline error + toast」の toast 部分を横断で担保）。
+ * 401 は middleware の再ログイン誘導の領分なので toast しない。
+ */
+export function reportQueryError(error: unknown): void {
+  if (error instanceof ApiError && error.status === 401) return;
+  pushToast(toastMessage(error), "error");
+}
+
 /** Atelier 既定の QueryClient を生成。テストや SSR で個別 instance を作る場合も同じ defaults */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
+    queryCache: new QueryCache({ onError: reportQueryError }),
+    mutationCache: new MutationCache({ onError: reportQueryError }),
     defaultOptions: {
       queries: {
         staleTime: 30 * 1000,
@@ -45,4 +70,4 @@ export function createQueryClient(): QueryClient {
 }
 
 /** 公開: テストでの差分検証用 */
-export const _internal = { shouldRetry };
+export const _internal = { shouldRetry, toastMessage };

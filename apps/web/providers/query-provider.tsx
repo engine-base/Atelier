@@ -6,13 +6,14 @@
  * - dev では Devtools をマウント (production bundle から除外)
  */
 
-'use client';
+"use client";
 
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useState } from "react";
 
-import { QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from "@tanstack/react-query";
 
-import { createQueryClient } from '../lib/query-client';
+import { ToastViewport } from "../components/ui/ToastViewport";
+import { createQueryClient } from "../lib/query-client";
 
 interface QueryProviderProps {
   readonly children: ReactNode;
@@ -20,5 +21,10 @@ interface QueryProviderProps {
 
 export function QueryProvider({ children }: QueryProviderProps) {
   const [client] = useState(() => createQueryClient());
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+      <ToastViewport />
+    </QueryClientProvider>
+  );
 }
