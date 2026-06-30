@@ -17606,9 +17606,15 @@
         "new": [
           "apps/web/app/cron/s_o01/page.tsx",
           "apps/web/app/cron/s_o01/_components/.gitkeep",
-          "e2e/s_o01.spec.ts"
+          "e2e/s_o01.spec.ts",
+          "apps/web/app/cron/s_o01/_components/CronScheduleContainer.tsx",
+          "apps/web/tests/bundle-i/uc25-cron-schedule.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/cron/s_o01/page.tsx",
+          "apps/web/app/cron/s_o01/_components/CronSchedule.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-25.md",
