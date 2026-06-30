@@ -29,14 +29,14 @@ import {
 
 describe("OrgChart (T-UC-06)", () => {
   const nodes: OrgNode[] = [
-    { id: "tony", displayName: "Tony", role: "engineer" },
-    { id: "wanda", displayName: "Wanda", role: "specialist" },
+    { id: "tony", displayName: "Tony", department: "dev_qa" },
+    { id: "wanda", displayName: "Wanda", department: "design" },
   ];
 
-  it("groups by role", () => {
+  it("groups by department", () => {
     render(<OrgChart nodes={nodes} />);
-    expect(screen.getByLabelText("エンジニア")).toBeInTheDocument();
-    expect(screen.getByLabelText("スペシャリスト")).toBeInTheDocument();
+    expect(screen.getByLabelText("開発・QA")).toBeInTheDocument();
+    expect(screen.getByLabelText("デザイン")).toBeInTheDocument();
   });
 
   it("invokes onSelect on member click", () => {
