@@ -18481,9 +18481,15 @@
         "new": [
           "apps/web/app/admin/s_t03/page.tsx",
           "apps/web/app/admin/s_t03/_components/.gitkeep",
-          "e2e/s_t03.spec.ts"
+          "e2e/s_t03.spec.ts",
+          "apps/web/app/admin/s_t03/_components/TemplateListContainer.tsx",
+          "apps/web/tests/bundle-j/uc32-templates.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/admin/s_t03/page.tsx",
+          "apps/web/app/admin/s_t03/_components/TemplateList.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-32.md",
