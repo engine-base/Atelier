@@ -17024,10 +17024,14 @@
           "apps/web/app/t-uc-35/page.tsx",
           "apps/web/app/t-uc-36/page.tsx",
           "apps/web/app/t-uc-40/page.tsx",
-          "apps/web/tests/bundle-kl/"
+          "apps/web/tests/bundle-kl/",
+          "apps/web/app/client/s_l01/_components/InvitationsListContainer.tsx",
+          "apps/web/tests/bundle-kl/uc20-invitations-container.test.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/client/s_l01/page.tsx",
+          "apps/web/app/client/s_l01/_components/InvitationsList.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
