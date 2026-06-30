@@ -16485,9 +16485,15 @@
         "new": [
           "apps/web/app/tasks/s_i03/page.tsx",
           "apps/web/app/tasks/s_i03/_components/.gitkeep",
-          "e2e/s_i03.spec.ts"
+          "e2e/s_i03.spec.ts",
+          "apps/web/app/tasks/s_i03/_components/ExecutionMonitorContainer.tsx",
+          "apps/web/app/tasks/s_i03/_components/execStream.ts",
+          "apps/web/tests/bundle-i/uc16-execution-monitor.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/tasks/s_i03/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-16.md",
