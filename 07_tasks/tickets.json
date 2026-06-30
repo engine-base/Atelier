@@ -15190,10 +15190,15 @@
           "apps/web/app/cron/s_o01/_components/CronSchedule.tsx",
           "apps/web/app/cron/s_o01/_components/.gitkeep",
           "e2e/s_o01.spec.ts",
-          "apps/web/tests/bundle-i/"
+          "apps/web/tests/bundle-i/",
+          "apps/web/app/employees/s_c01/_components/OrgChartContainer.tsx",
+          "apps/web/tests/bundle-i/uc06-org-chart.test.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/employees/s_c01/page.tsx",
+          "apps/web/app/employees/s_c01/_components/OrgChart.tsx",
+          "apps/web/tests/bundle-i/employees-knowledge-cron.test.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
