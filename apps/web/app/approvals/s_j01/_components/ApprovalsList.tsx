@@ -5,13 +5,16 @@
  * - 承認 / 却下 アクションは onAction prop で外部に委譲
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { DataTable, type ColumnDef } from '../../../../components/data-table/DataTable';
+import {
+  DataTable,
+  type ColumnDef,
+} from "../../../../components/data-table/DataTable";
 
-export type ApprovalKind = 'task' | 'output' | 'publish' | 'refund' | 'access';
+export type ApprovalKind = "task" | "output" | "publish" | "refund" | "access";
 
 export interface ApprovalRow {
   readonly id: string;
@@ -22,11 +25,11 @@ export interface ApprovalRow {
 }
 
 const KIND_LABEL: Record<ApprovalKind, string> = {
-  task: 'タスク',
-  output: '成果物',
-  publish: '公開',
-  refund: '返金',
-  access: 'アクセス',
+  task: "タスク",
+  output: "成果物",
+  publish: "公開",
+  refund: "返金",
+  access: "アクセス",
 };
 
 export interface ApprovalsListProps {
@@ -35,15 +38,24 @@ export interface ApprovalsListProps {
   readonly onReject: (id: string) => void;
 }
 
-export function ApprovalsList({ rows, onApprove, onReject }: ApprovalsListProps) {
+export function ApprovalsList({
+  rows,
+  onApprove,
+  onReject,
+}: ApprovalsListProps) {
   const cols: ColumnDef<ApprovalRow>[] = [
-    { id: 'kind', header: '種別', cell: (r) => KIND_LABEL[r.kind] },
-    { id: 'title', header: '内容', cell: (r) => r.title },
-    { id: 'requester', header: '依頼者', cell: (r) => r.requester },
-    { id: 'created', header: '日時', cell: (r) => r.created_at, align: 'right' },
+    { id: "kind", header: "種別", cell: (r) => KIND_LABEL[r.kind] },
+    { id: "title", header: "内容", cell: (r) => r.title },
+    { id: "requester", header: "依頼者", cell: (r) => r.requester },
     {
-      id: 'actions',
-      header: 'アクション',
+      id: "created",
+      header: "日時",
+      cell: (r) => r.created_at,
+      align: "right",
+    },
+    {
+      id: "actions",
+      header: "アクション",
       cell: (r) => (
         <div className="flex gap-xs">
           <button
@@ -64,7 +76,7 @@ export function ApprovalsList({ rows, onApprove, onReject }: ApprovalsListProps)
           </button>
         </div>
       ),
-      align: 'right',
+      align: "right",
     },
   ];
 

@@ -16599,9 +16599,14 @@
         "new": [
           "apps/web/app/inbox/s_j01/page.tsx",
           "apps/web/app/inbox/s_j01/_components/.gitkeep",
-          "e2e/s_j01.spec.ts"
+          "e2e/s_j01.spec.ts",
+          "apps/web/app/approvals/s_j01/_components/ApprovalsContainer.tsx",
+          "apps/web/tests/bundle-j/uc17-approvals.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/approvals/s_j01/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-17.md",

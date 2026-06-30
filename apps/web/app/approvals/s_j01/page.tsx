@@ -1,31 +1,23 @@
-'use client';
+/**
+ * S-J01 承認待ち（5 種統合）— T-UC-17
+ *
+ * 実 approval-inbox API に配線。本人の承認待ちを取得し承認 / 差戻する。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { ApprovalsList, type ApprovalRow } from './_components/ApprovalsList';
+import * as React from "react";
 
-const ROWS: ApprovalRow[] = [
-  {
-    id: 'a1',
-    kind: 'task',
-    title: 'API 設計を承認してください',
-    requester: 'thor',
-    created_at: '5 分前',
-  },
-  {
-    id: 'a2',
-    kind: 'output',
-    title: 'PRD を確認してください',
-    requester: 'tony',
-    created_at: '1 時間前',
-  },
-];
+import { QueryProvider } from "../../../providers/query-provider";
+import { ApprovalsContainer } from "./_components/ApprovalsContainer";
 
 export default function SJ01Page() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-lg px-md py-lg">
       <h1 className="text-headline-md font-bold text-on-surface">承認待ち</h1>
-      <ApprovalsList rows={ROWS} onApprove={() => undefined} onReject={() => undefined} />
+      <QueryProvider>
+        <ApprovalsContainer />
+      </QueryProvider>
     </div>
   );
 }
