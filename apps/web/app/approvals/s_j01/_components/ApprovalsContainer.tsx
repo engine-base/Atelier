@@ -79,7 +79,19 @@ export function ApprovalsContainer({
         params: { path: { approval_id: vars.id } },
         body: { decision: vars.decision },
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+    // 楽観更新: 決裁した項目を即座にインボックスから除外。失敗時は元に戻す。
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: KEY });
+      const prev = queryClient.getQueryData<ApiApproval[]>(KEY);
+      queryClient.setQueryData<ApiApproval[]>(KEY, (old) =>
+        (old ?? []).filter((a) => a.id !== vars.id),
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(KEY, ctx.prev);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
   });
 
   if (isForbidden(list.error)) {

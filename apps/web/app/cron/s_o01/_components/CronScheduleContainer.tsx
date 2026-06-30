@@ -60,7 +60,22 @@ export function CronScheduleContainer({
         params: { path: { schedule_id: vars.id } },
         body: { enabled: vars.enabled },
       }),
-    onSuccess: () =>
+    // 楽観更新: 対象ジョブの enabled を即座に反映。失敗時は元に戻す。
+    onMutate: async (vars) => {
+      const key = KEY(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ApiCron[]>(key);
+      queryClient.setQueryData<ApiCron[]>(key, (old) =>
+        (old ?? []).map((j) =>
+          j.id === vars.id ? { ...j, enabled: vars.enabled } : j,
+        ),
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(KEY(projectId), ctx.prev);
+    },
+    onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
   });
 
