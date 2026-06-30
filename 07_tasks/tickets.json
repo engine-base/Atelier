@@ -15867,9 +15867,16 @@
         "new": [
           "apps/web/app/workflow/s_f02/page.tsx",
           "apps/web/app/workflow/s_f02/_components/.gitkeep",
-          "e2e/s_f02.spec.ts"
+          "e2e/s_f02.spec.ts",
+          "apps/web/app/workflow/s_f02/_components/PhaseListContainer.tsx",
+          "apps/web/tests/bundle-g/uc11-phase-list.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/workflow/s_f02/page.tsx",
+          "apps/web/app/workflow/s_f02/_components/PhaseList.tsx",
+          "apps/web/tests/bundle-g/workflow-and-phases.test.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-11.md",

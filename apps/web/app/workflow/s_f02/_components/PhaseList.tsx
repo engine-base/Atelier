@@ -5,14 +5,16 @@
  * - DataTable で簡易表示、状態変更は select で
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
 
-import { DataTable, type ColumnDef } from '../../../../components/data-table/DataTable';
+import {
+  DataTable,
+  type ColumnDef,
+} from "../../../../components/data-table/DataTable";
 
-export type PhaseStatus = 'pending' | 'in_progress' | 'done' | 'blocked';
+export type PhaseStatus = "pending" | "in_progress" | "done" | "blocked";
 
 export interface PhaseRow {
   readonly id: string;
@@ -22,28 +24,28 @@ export interface PhaseRow {
 }
 
 export interface PhaseListProps {
-  readonly initial: readonly PhaseRow[];
+  readonly rows: readonly PhaseRow[];
+  /** 状態遷移。controlled（コンテナが API 配線して rows を更新する）。 */
+  readonly onTransition?: (id: string, status: PhaseStatus) => void;
 }
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
-  pending: '未着手',
-  in_progress: '進行中',
-  done: '完了',
-  blocked: 'ブロック',
+  pending: "未着手",
+  in_progress: "進行中",
+  done: "完了",
+  blocked: "ブロック",
 };
 
-export function PhaseList({ initial }: PhaseListProps) {
-  const [rows, setRows] = useState<PhaseRow[]>([...initial]);
-
+export function PhaseList({ rows, onTransition }: PhaseListProps) {
   const update = (id: string, status: PhaseStatus) =>
-    setRows((r) => r.map((x) => (x.id === id ? { ...x, status } : x)));
+    onTransition?.(id, status);
 
   const cols: ColumnDef<PhaseRow>[] = [
-    { id: 'order', header: '#', cell: (r) => String(r.order), align: 'right' },
-    { id: 'name', header: 'フェーズ', cell: (r) => r.name },
+    { id: "order", header: "#", cell: (r) => String(r.order), align: "right" },
+    { id: "name", header: "フェーズ", cell: (r) => r.name },
     {
-      id: 'status',
-      header: '状態',
+      id: "status",
+      header: "状態",
       cell: (r) => (
         <select
           value={r.status}
