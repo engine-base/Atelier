@@ -1,28 +1,25 @@
-'use client';
+/**
+ * S-T03 AI 社員テンプレ画面 — T-UC-32
+ *
+ * 実 admin API (GET /admin/ai-employee-templates) に配線。運営 admin 専用・read-only。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { TemplateList, type Template } from './_components/TemplateList';
+import * as React from "react";
 
-const TEMPLATES: Template[] = [
-  {
-    id: 't1',
-    name: 'Senior Engineer',
-    role: 'engineer',
-    description: 'コードレビューと設計レビュー特化',
-  },
-];
+import { QueryProvider } from "../../../providers/query-provider";
+import { TemplateListContainer } from "./_components/TemplateListContainer";
 
 export default function ST03Page() {
   return (
     <div className="bg-on-surface min-h-dvh p-lg">
-      <h1 className="mb-md text-headline-md font-bold text-surface">AI 社員テンプレ</h1>
-      <TemplateList
-        templates={TEMPLATES}
-        onClone={() => undefined}
-        onEdit={() => undefined}
-        onDelete={() => undefined}
-      />
+      <h1 className="mb-md text-headline-md font-bold text-surface">
+        AI 社員テンプレ
+      </h1>
+      <QueryProvider>
+        <TemplateListContainer />
+      </QueryProvider>
     </div>
   );
 }
