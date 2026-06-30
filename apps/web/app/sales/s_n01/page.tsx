@@ -1,18 +1,44 @@
-'use client';
+/**
+ * S-N01 商談ドラフト画面 — T-UC-24
+ *
+ * 実 sales-docs API に配線。projectId は URL ?project=。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { SalesDocDraft } from './_components/SalesDocDraft';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+import { SalesDocDraftContainer } from "./_components/SalesDocDraftContainer";
+
+function SN01Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+      {projectId ? (
+        <SalesDocDraftContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトを選択すると商談ドラフトを作成できます。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SN01Page() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
-      <SalesDocDraft
-        onDraft={async (v) => {
-          await new Promise((r) => setTimeout(r, 200));
-          return `# ${v.opportunity}\n\n## 顧客: ${v.customer}\n\n${v.summary}\n\n---\nAI 生成ドラフト`;
-        }}
-      />
-    </div>
+    <Suspense
+      fallback={
+        <div className="p-lg text-body-md text-on-surface-variant">
+          読み込み中…
+        </div>
+      }
+    >
+      <SN01Inner />
+    </Suspense>
   );
 }
