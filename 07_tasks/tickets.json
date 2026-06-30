@@ -18608,9 +18608,15 @@
         "new": [
           "apps/web/app/admin/s_t04/page.tsx",
           "apps/web/app/admin/s_t04/_components/.gitkeep",
-          "e2e/s_t04.spec.ts"
+          "e2e/s_t04.spec.ts",
+          "apps/web/app/admin/s_t04/_components/UserAdminContainer.tsx",
+          "apps/web/tests/bundle-j/uc33-user-admin.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/admin/s_t04/page.tsx",
+          "apps/web/app/admin/s_t04/_components/UserAdminList.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-33.md",
