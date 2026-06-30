@@ -1,0 +1,107 @@
+/**
+ * S-T01 運営ダッシュボード コンテナ — T-UC-30 (実 admin API 配線)
+ *
+ * GET /admin/dashboard の集計を KPI タイルへ、GET /admin/audit-logs の直近を
+ * 「最近のアクティビティ」へマップする。いずれも運営 admin 専用 (403)。
+ * api client は prop 注入可能 (テスト時に fake を渡す)。
+ */
+
+"use client";
+
+import * as React from "react";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { ApiError, type ApiClient } from "@atelier/api-client";
+
+import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import {
+  AdminDashboard,
+  type AdminActivity,
+  type AdminKpi,
+} from "./AdminDashboard";
+
+interface ApiDashboard {
+  workspace_count?: number;
+  project_count?: number;
+  ai_employee_count?: number;
+}
+
+interface ApiAudit {
+  id: string;
+  action: string;
+  actor_id: string;
+  created_at: string;
+}
+
+export interface AdminDashboardContainerProps {
+  readonly client?: ApiClient;
+}
+
+function isForbidden(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403;
+}
+
+export function AdminDashboardContainer({
+  client: injected,
+}: AdminDashboardContainerProps) {
+  const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+
+  const dashboard = useQuery({
+    queryKey: ["admin", "dashboard"],
+    queryFn: async () => {
+      const res = await client.get("/admin/dashboard");
+      return (res as { data?: ApiDashboard }).data ?? {};
+    },
+    retry: false,
+  });
+
+  const activity = useQuery({
+    queryKey: ["admin", "dashboard", "recent"],
+    queryFn: async () => {
+      const res = await client.get("/admin/audit-logs");
+      return (res as { data?: ApiAudit[] }).data ?? [];
+    },
+    retry: false,
+  });
+
+  if (isForbidden(dashboard.error) || isForbidden(activity.error)) {
+    return (
+      <p role="alert" className="text-body-md text-error">
+        運営ダッシュボードにアクセスする権限がありません（運営 admin 専用）。
+      </p>
+    );
+  }
+  if (dashboard.error) {
+    return (
+      <p role="alert" className="text-body-md text-error">
+        ダッシュボードの取得に失敗しました。
+      </p>
+    );
+  }
+  if (dashboard.isLoading) {
+    return <p className="text-body-md text-surface">読み込み中…</p>;
+  }
+
+  const d = dashboard.data ?? {};
+  const kpis: AdminKpi[] = [
+    {
+      id: "workspaces",
+      label: "ワークスペース数",
+      value: d.workspace_count ?? 0,
+    },
+    { id: "projects", label: "プロジェクト数", value: d.project_count ?? 0 },
+    { id: "employees", label: "AI 社員数", value: d.ai_employee_count ?? 0 },
+  ];
+
+  const recent: AdminActivity[] = (activity.data ?? [])
+    .slice(0, 10)
+    .map((a) => ({
+      id: a.id,
+      ts: a.created_at.slice(0, 16).replace("T", " "),
+      action: a.action,
+      actor: a.actor_id,
+    }));
+
+  return <AdminDashboard kpis={kpis} recent={recent} />;
+}
