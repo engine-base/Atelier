@@ -18720,9 +18720,14 @@
         "new": [
           "apps/web/app/admin/s_t05/page.tsx",
           "apps/web/app/admin/s_t05/_components/.gitkeep",
-          "e2e/s_t05.spec.ts"
+          "e2e/s_t05.spec.ts",
+          "apps/web/app/admin/s_t05/_components/AuditLogContainer.tsx",
+          "apps/web/tests/bundle-j/uc34-audit-log.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/admin/s_t05/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-34.md",

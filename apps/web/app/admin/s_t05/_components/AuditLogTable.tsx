@@ -5,17 +5,20 @@
  * フィルタ: action prefix, actor_type、日付範囲(範囲 picker は将来)。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
-import { DataTable, type ColumnDef } from '../../../../components/data-table/DataTable';
+import {
+  DataTable,
+  type ColumnDef,
+} from "../../../../components/data-table/DataTable";
 
 export interface AuditEntry {
   readonly id: string;
   readonly action: string;
-  readonly actor_type: 'user' | 'ai' | 'system' | 'anonymous';
+  readonly actor_type: "user" | "ai" | "system" | "anonymous";
   readonly actor_id: string;
   readonly target_type: string;
   readonly target_id: string;
@@ -28,17 +31,26 @@ export interface AuditLogTableProps {
 }
 
 export function AuditLogTable({ entries }: AuditLogTableProps) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const filtered = entries.filter(
-    (e) => query === '' || e.action.includes(query) || e.actor_id.includes(query),
+    (e) =>
+      query === "" || e.action.includes(query) || e.actor_id.includes(query),
   );
 
   const cols: ColumnDef<AuditEntry>[] = [
-    { id: 'created', header: '日時', cell: (r) => r.created_at },
-    { id: 'action', header: 'action', cell: (r) => <code>{r.action}</code> },
-    { id: 'actor', header: 'actor', cell: (r) => `${r.actor_type}:${r.actor_id}` },
-    { id: 'target', header: 'target', cell: (r) => `${r.target_type}:${r.target_id}` },
-    { id: 'ip', header: 'IP', cell: (r) => r.ip_address ?? '—' },
+    { id: "created", header: "日時", cell: (r) => r.created_at },
+    { id: "action", header: "action", cell: (r) => <code>{r.action}</code> },
+    {
+      id: "actor",
+      header: "actor",
+      cell: (r) => `${r.actor_type}:${r.actor_id}`,
+    },
+    {
+      id: "target",
+      header: "target",
+      cell: (r) => `${r.target_type}:${r.target_id}`,
+    },
+    { id: "ip", header: "IP", cell: (r) => r.ip_address ?? "—" },
   ];
 
   return (
