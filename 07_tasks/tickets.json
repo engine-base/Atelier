@@ -15046,9 +15046,14 @@
         "new": [
           "apps/web/app/projects/s_b03/page.tsx",
           "apps/web/app/projects/s_b03/_components/.gitkeep",
-          "e2e/s_b03.spec.ts"
+          "e2e/s_b03.spec.ts",
+          "apps/web/app/projects/s_b03/_components/ProjectSettingsContainer.tsx",
+          "apps/web/tests/bundle-f/uc05-project-settings.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/projects/s_b03/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-05.md",
