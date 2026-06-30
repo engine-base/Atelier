@@ -5,14 +5,17 @@
  * 発行時にしか平文表示せず token_hash で保存。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
-import { DataTable, type ColumnDef } from '../../../../components/data-table/DataTable';
+import {
+  DataTable,
+  type ColumnDef,
+} from "../../../../components/data-table/DataTable";
 
-export type InvitationStatus = 'pending' | 'used' | 'revoked' | 'expired';
+export type InvitationStatus = "pending" | "used" | "revoked" | "expired";
 
 export interface Invitation {
   readonly id: string;
@@ -22,17 +25,18 @@ export interface Invitation {
 }
 
 const STATUS_LABEL: Record<InvitationStatus, string> = {
-  pending: '未使用',
-  used: '使用済',
-  revoked: '失効',
-  expired: '期限切れ',
+  pending: "未使用",
+  used: "使用済",
+  revoked: "失効",
+  expired: "期限切れ",
 };
 
 export interface InvitationsListProps {
   readonly invitations: readonly Invitation[];
   readonly onIssue: (email: string) => void;
   readonly onRevoke: (id: string) => void;
-  readonly onResend: (id: string) => void;
+  /** 再送 API が無いため optional。未指定なら再送ボタンは表示しない。 */
+  readonly onResend?: (id: string) => void;
 }
 
 export function InvitationsList({
@@ -41,18 +45,23 @@ export function InvitationsList({
   onRevoke,
   onResend,
 }: InvitationsListProps) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
 
   const cols: ColumnDef<Invitation>[] = [
-    { id: 'email', header: 'メール', cell: (r) => r.email },
-    { id: 'status', header: '状態', cell: (r) => STATUS_LABEL[r.status] },
-    { id: 'expires', header: '有効期限', cell: (r) => r.expires_at, align: 'right' },
+    { id: "email", header: "メール", cell: (r) => r.email },
+    { id: "status", header: "状態", cell: (r) => STATUS_LABEL[r.status] },
     {
-      id: 'actions',
-      header: 'アクション',
+      id: "expires",
+      header: "有効期限",
+      cell: (r) => r.expires_at,
+      align: "right",
+    },
+    {
+      id: "actions",
+      header: "アクション",
       cell: (r) => (
         <div className="flex gap-xs">
-          {r.status === 'pending' ? (
+          {r.status === "pending" && onResend ? (
             <button
               type="button"
               onClick={() => onResend(r.id)}
@@ -62,7 +71,7 @@ export function InvitationsList({
               再送
             </button>
           ) : null}
-          {r.status === 'pending' ? (
+          {r.status === "pending" ? (
             <button
               type="button"
               onClick={() => onRevoke(r.id)}
@@ -74,7 +83,7 @@ export function InvitationsList({
           ) : null}
         </div>
       ),
-      align: 'right',
+      align: "right",
     },
   ];
 
@@ -85,12 +94,14 @@ export function InvitationsList({
           e.preventDefault();
           if (!email) return;
           onIssue(email);
-          setEmail('');
+          setEmail("");
         }}
         className="flex items-end gap-sm"
       >
         <label className="flex flex-1 flex-col gap-xs">
-          <span className="text-label-md text-on-surface">招待メールアドレス</span>
+          <span className="text-label-md text-on-surface">
+            招待メールアドレス
+          </span>
           <input
             type="email"
             value={email}
