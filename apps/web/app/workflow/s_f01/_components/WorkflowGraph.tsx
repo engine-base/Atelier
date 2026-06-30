@@ -6,16 +6,16 @@
  *   本コンポーネントは AC「nodes/edges を表示」を満たす最小実装。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
 export interface PhaseNode {
   readonly id: string;
   readonly label: string;
-  readonly status: 'pending' | 'in_progress' | 'done' | 'blocked';
+  readonly status: "pending" | "in_progress" | "done" | "blocked";
 }
 
 export interface PhaseEdge {
@@ -28,18 +28,18 @@ export interface WorkflowGraphProps {
   readonly edges: readonly PhaseEdge[];
 }
 
-const STATUS_BG: Record<PhaseNode['status'], string> = {
-  pending: 'bg-surface-variant text-on-surface-variant',
-  in_progress: 'bg-primary-container text-primary-container-fg',
-  done: 'bg-tertiary-container text-tertiary-container-fg',
-  blocked: 'bg-error/10 text-error',
+const STATUS_BG: Record<PhaseNode["status"], string> = {
+  pending: "bg-surface-variant text-on-surface-variant",
+  in_progress: "bg-primary-container text-primary-container-fg",
+  done: "bg-tertiary-container text-tertiary-container-fg",
+  blocked: "bg-error/10 text-error",
 };
 
-const STATUS_LABEL: Record<PhaseNode['status'], string> = {
-  pending: '未着手',
-  in_progress: '進行中',
-  done: '完了',
-  blocked: 'ブロック',
+const STATUS_LABEL: Record<PhaseNode["status"], string> = {
+  pending: "未着手",
+  in_progress: "進行中",
+  done: "完了",
+  blocked: "ブロック",
 };
 
 export function WorkflowGraph({ nodes, edges }: WorkflowGraphProps) {
@@ -50,7 +50,7 @@ export function WorkflowGraph({ nodes, edges }: WorkflowGraphProps) {
           <article
             key={n.id}
             className={cn(
-              'flex min-w-32 flex-col gap-xs rounded-md px-md py-sm shadow-[var(--shadow-e1)]',
+              "flex min-w-32 flex-col gap-xs rounded-md px-md py-sm shadow-[var(--shadow-e1)]",
               STATUS_BG[n.status],
             )}
           >
@@ -59,10 +59,13 @@ export function WorkflowGraph({ nodes, edges }: WorkflowGraphProps) {
           </article>
         ))}
       </div>
-      <ul aria-label="依存関係" className="flex flex-col gap-xs text-label-md text-on-surface-variant">
+      <ul
+        aria-label="依存関係"
+        className="flex flex-col gap-xs text-label-md text-on-surface-variant"
+      >
         {edges.map((e, i) => (
           <li key={i}>
-            {nodes.find((n) => n.id === e.from)?.label ?? e.from} →{' '}
+            {nodes.find((n) => n.id === e.from)?.label ?? e.from} →{" "}
             {nodes.find((n) => n.id === e.to)?.label ?? e.to}
           </li>
         ))}

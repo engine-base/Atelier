@@ -15744,10 +15744,13 @@
           "apps/web/app/approvals/s_j01/_components/ApprovalsList.tsx",
           "apps/web/app/approvals/s_j01/_components/.gitkeep",
           "e2e/s_j01.spec.ts",
-          "apps/web/tests/bundle-g/"
+          "apps/web/tests/bundle-g/",
+          "apps/web/app/workflow/s_f01/_components/WorkflowGraphContainer.tsx",
+          "apps/web/tests/bundle-g/uc10-workflow-graph.test.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/workflow/s_f01/page.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
