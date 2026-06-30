@@ -18234,10 +18234,13 @@
           "apps/web/app/admin/s_t05/_components/AuditLogTable.tsx",
           "apps/web/app/admin/s_t05/_components/.gitkeep",
           "e2e/s_t05.spec.ts",
-          "apps/web/tests/bundle-j/"
+          "apps/web/tests/bundle-j/",
+          "apps/web/app/admin/s_t01/_components/AdminDashboardContainer.tsx",
+          "apps/web/tests/bundle-j/uc30-admin-dashboard.test.tsx"
         ],
         "modify": [
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/admin/s_t01/page.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",

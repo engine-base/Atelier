@@ -1,24 +1,22 @@
-'use client';
+/**
+ * S-T01 運営ダッシュボード画面 — T-UC-30
+ *
+ * 実 admin API (GET /admin/dashboard + /admin/audit-logs) に配線。運営 admin 専用。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { AdminDashboard } from './_components/AdminDashboard';
+import * as React from "react";
+
+import { QueryProvider } from "../../../providers/query-provider";
+import { AdminDashboardContainer } from "./_components/AdminDashboardContainer";
 
 export default function ST01Page() {
   return (
     <div className="bg-on-surface min-h-dvh p-lg">
-      <AdminDashboard
-        kpis={[
-          { id: 'orgs', label: 'WS 数', value: 42 },
-          { id: 'users', label: 'ユーザ数', value: 318 },
-          { id: 'mrr', label: 'MRR', value: '¥1.2M' },
-          { id: 'churn', label: 'チャーン率', value: '2.1%' },
-        ]}
-        recent={[
-          { id: '1', ts: '5m', actor: 'tony', action: 'プロジェクト作成' },
-          { id: '2', ts: '20m', actor: 'wanda', action: 'WS 設定変更' },
-        ]}
-      />
+      <QueryProvider>
+        <AdminDashboardContainer />
+      </QueryProvider>
     </div>
   );
 }
