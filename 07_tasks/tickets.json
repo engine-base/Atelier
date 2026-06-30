@@ -15314,9 +15314,16 @@
         "new": [
           "apps/web/app/employees/s_c02/page.tsx",
           "apps/web/app/employees/s_c02/_components/.gitkeep",
-          "e2e/s_c02.spec.ts"
+          "e2e/s_c02.spec.ts",
+          "apps/web/app/employees/s_c02/_components/EmployeeEditorContainer.tsx",
+          "apps/web/tests/bundle-i/uc07-employee-editor.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/employees/s_c02/page.tsx",
+          "apps/web/app/employees/s_c02/_components/EmployeeEditor.tsx",
+          "apps/web/tests/bundle-i/employees-knowledge-cron.test.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-07.md",

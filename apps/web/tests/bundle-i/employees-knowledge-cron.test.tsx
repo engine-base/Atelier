@@ -50,9 +50,8 @@ describe("OrgChart (T-UC-06)", () => {
 describe("EmployeeEditor (T-UC-07)", () => {
   const defaults: EmployeeValues = {
     display_name: "Tony",
-    role: "engineer",
-    system_prompt: "p",
-    archived: false,
+    tone_preset: "friendly",
+    custom_tone_text: "",
   };
   it("renders form with defaults", () => {
     render(
@@ -65,9 +64,9 @@ describe("EmployeeEditor (T-UC-07)", () => {
     expect((screen.getByLabelText(/表示名/) as HTMLInputElement).value).toBe(
       "Tony",
     );
-    expect((screen.getByLabelText(/役割/) as HTMLSelectElement).value).toBe(
-      "engineer",
-    );
+    expect(
+      (screen.getByLabelText(/口調プリセット/) as HTMLSelectElement).value,
+    ).toBe("friendly");
   });
 });
 
