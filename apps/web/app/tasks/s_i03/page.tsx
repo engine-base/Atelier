@@ -1,21 +1,47 @@
-'use client';
+/**
+ * S-I03 実行モニター画面 — T-UC-16
+ *
+ * 実 exec-logs SSE (GET /executions/{id}/logs/stream) に配線。executionId は URL ?execution=。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { ExecutionMonitor, type LogLine } from './_components/ExecutionMonitor';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-const SAMPLE: LogLine[] = [
-  { id: '1', ts: '10:00:01', level: 'info', message: '実行開始' },
-  { id: '2', ts: '10:00:03', level: 'debug', message: 'プロンプト構築' },
-  { id: '3', ts: '10:00:05', level: 'warn', message: 'リトライ実行 (1/3)' },
-  { id: '4', ts: '10:00:10', level: 'info', message: '正常終了' },
-];
+import { ExecutionMonitorContainer } from "./_components/ExecutionMonitorContainer";
+
+function SI03Inner() {
+  const params = useSearchParams();
+  const executionId = params.get("execution");
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-lg px-md py-lg">
+      <h1 className="text-headline-md font-bold text-on-surface">
+        実行モニター
+      </h1>
+      {executionId ? (
+        <ExecutionMonitorContainer executionId={executionId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          実行を選択するとログをリアルタイム表示します。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SI03Page() {
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">実行モニター</h1>
-      <ExecutionMonitor lines={SAMPLE} />
-    </div>
+    <Suspense
+      fallback={
+        <div className="p-lg text-body-md text-on-surface-variant">
+          読み込み中…
+        </div>
+      }
+    >
+      <SI03Inner />
+    </Suspense>
   );
 }

@@ -6,13 +6,13 @@
  * - 実 SSE 連携は createRealtimeClient (Bundle D T-US-07) を別 PR で配線
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogLine {
   readonly id: string;
@@ -26,17 +26,17 @@ export interface ExecutionMonitorProps {
 }
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
-  debug: 'text-surface-variant',
-  info: 'text-surface',
-  warn: 'text-secondary',
-  error: 'text-error',
+  debug: "text-surface-variant",
+  info: "text-surface",
+  warn: "text-secondary",
+  error: "text-error",
 };
 
 const LEVEL_LABEL: Record<LogLevel, string> = {
-  debug: 'DBG',
-  info: 'INF',
-  warn: 'WRN',
-  error: 'ERR',
+  debug: "DBG",
+  info: "INF",
+  warn: "WRN",
+  error: "ERR",
 };
 
 export function ExecutionMonitor({ lines }: ExecutionMonitorProps) {
@@ -50,7 +50,9 @@ export function ExecutionMonitor({ lines }: ExecutionMonitorProps) {
         {lines.map((l) => (
           <li key={l.id} className="flex gap-sm">
             <time className="text-surface-variant">{l.ts}</time>
-            <span className={cn('font-bold', LEVEL_COLOR[l.level])}>{LEVEL_LABEL[l.level]}</span>
+            <span className={cn("font-bold", LEVEL_COLOR[l.level])}>
+              {LEVEL_LABEL[l.level]}
+            </span>
             <span className="text-surface">{l.message}</span>
           </li>
         ))}
