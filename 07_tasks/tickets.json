@@ -16368,9 +16368,15 @@
         "new": [
           "apps/web/app/tasks/s_i02/page.tsx",
           "apps/web/app/tasks/s_i02/_components/.gitkeep",
-          "e2e/s_i02.spec.ts"
+          "e2e/s_i02.spec.ts",
+          "apps/web/app/tasks/s_i02/_components/TaskDetailContainer.tsx",
+          "apps/web/tests/bundle-i/uc15-task-detail.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/tasks/s_i02/page.tsx",
+          "apps/web/app/tasks/s_i02/_components/TaskDetailTabs.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-15.md",
