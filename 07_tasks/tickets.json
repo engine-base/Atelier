@@ -17151,9 +17151,18 @@
         "new": [
           "apps/web/app/client/s_l02/page.tsx",
           "apps/web/app/client/s_l02/_components/.gitkeep",
-          "e2e/s_l02.spec.ts"
+          "e2e/s_l02.spec.ts",
+          "apps/web/lib/auth/client-portal.ts",
+          "apps/web/app/client/s_l02/_components/ClientSigninContainer.tsx",
+          "apps/web/tests/bundle-kl/uc21-client-signin.test.tsx",
+          "apps/web/app/client/s_l03/_components/ClientProjectViewContainer.tsx",
+          "apps/web/tests/bundle-kl/uc22-client-project-view.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/client/s_l02/page.tsx",
+          "apps/web/app/client/s_l03/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-21.md",

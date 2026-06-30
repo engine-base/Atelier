@@ -5,11 +5,11 @@
  * ClientProjectView に対応)。description / scopes / viewed_as_client_display_name を表示。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
 export interface ClientProjectViewData {
   readonly id: string;
@@ -25,16 +25,18 @@ export interface ClientProjectViewProps {
 }
 
 const SCOPE_LABEL: Record<string, string> = {
-  view: '閲覧',
-  comment: 'コメント',
-  approve: '承認',
+  view: "閲覧",
+  comment: "コメント",
+  approve: "承認",
 };
 
 export function ClientProjectView({ data, className }: ClientProjectViewProps) {
   return (
-    <article className={cn('flex flex-col gap-md', className)}>
+    <article className={cn("flex flex-col gap-md", className)}>
       <header className="flex items-baseline justify-between gap-md">
-        <h1 className="text-headline-md font-bold text-on-surface">{data.name}</h1>
+        <h1 className="text-headline-md font-bold text-on-surface">
+          {data.name}
+        </h1>
         {data.viewed_as_client_display_name ? (
           <span className="text-label-md text-on-surface-variant">
             {data.viewed_as_client_display_name}

@@ -5,13 +5,13 @@
  * R-T08 互換: 専用 client_portal JWT を発行 (T-A-35)、別 cookie 分離。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { z } from 'zod';
+import * as React from "react";
+import { z } from "zod";
 
-import { Field } from '../../../../components/forms/Field';
-import { Form, useAtelierForm } from '../../../../components/forms/Form';
+import { Field } from "../../../../components/forms/Field";
+import { Form, useAtelierForm } from "../../../../components/forms/Form";
 
 const Schema = z.object({
   invitation_token: z.string().min(10).max(200),
@@ -25,15 +25,25 @@ export interface ClientSigninFormProps {
   readonly serverError?: string | null;
 }
 
-export function ClientSigninForm({ defaultToken, onSubmit, serverError }: ClientSigninFormProps) {
+export function ClientSigninForm({
+  defaultToken,
+  onSubmit,
+  serverError,
+}: ClientSigninFormProps) {
   const form = useAtelierForm({
     schema: Schema,
-    defaultValues: { invitation_token: defaultToken ?? '', display_name: '' },
+    defaultValues: { invitation_token: defaultToken ?? "", display_name: "" },
   });
 
   return (
-    <Form form={form} onValid={onSubmit} className="mx-auto w-full max-w-md gap-md">
-      <h1 className="text-headline-md font-bold text-on-surface">クライアントサインイン</h1>
+    <Form
+      form={form}
+      onValid={onSubmit}
+      className="mx-auto w-full max-w-md gap-md"
+    >
+      <h1 className="text-headline-md font-bold text-on-surface">
+        クライアントサインイン
+      </h1>
       {serverError ? (
         <p role="alert" className="text-label-lg text-error">
           {serverError}
@@ -46,13 +56,16 @@ export function ClientSigninForm({ defaultToken, onSubmit, serverError }: Client
         description="メールでお送りした招待リンクのトークンです"
       >
         <input
-          {...form.register('invitation_token')}
+          {...form.register("invitation_token")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>
-      <Field label="表示名 (任意)" error={form.formState.errors.display_name?.message}>
+      <Field
+        label="表示名 (任意)"
+        error={form.formState.errors.display_name?.message}
+      >
         <input
-          {...form.register('display_name')}
+          {...form.register("display_name")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>

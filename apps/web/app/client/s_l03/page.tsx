@@ -1,31 +1,47 @@
 /**
  * S-L03 クライアントプロジェクトビュー画面 — T-UC-22 (R-T08)
  *
- * client_portal JWT で /client/projects/{id} を fetch する想定。
- * 本 PR は UI 配線のみ、実 fetch は別 connector PR。
+ * client_portal JWT で GET /client/projects/{id} を取得。projectId は URL ?project=。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-import {
-  ClientProjectView,
-  type ClientProjectViewData,
-} from './_components/ClientProjectView';
+import { QueryProvider } from "../../../providers/query-provider";
+import { ClientProjectViewContainer } from "./_components/ClientProjectViewContainer";
 
-const SAMPLE: ClientProjectViewData = {
-  id: 'p1',
-  name: 'Sample Project (Client View)',
-  description: 'クライアント向けに公開される最小情報のみが表示されます。',
-  scopes: ['view', 'comment'],
-  viewed_as_client_display_name: '株式会社ACME 山田',
-};
+function SL03Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+      {projectId ? (
+        <ClientProjectViewContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトが指定されていません。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SL03Page() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
-      <ClientProjectView data={SAMPLE} />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SL03Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
