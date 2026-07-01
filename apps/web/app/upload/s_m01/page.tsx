@@ -1,19 +1,45 @@
-'use client';
+/**
+ * S-M01 議事録アップロード画面 — T-UC-23
+ *
+ * 実 meetings API に配線（2 段階アップロード + 非同期 transcription）。
+ * projectId は URL ?project=。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { TranscriptUpload } from './_components/TranscriptUpload';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+import { MeetingUploadContainer } from "./_components/MeetingUploadContainer";
+
+function SM01Inner() {
+  const params = useSearchParams();
+  const projectId = params.get("project");
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+      {projectId ? (
+        <MeetingUploadContainer projectId={projectId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          プロジェクトを選択すると議事録をアップロードできます。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SM01Page() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
-      <TranscriptUpload
-        onUpload={async (_f) => {
-          // 実 API 連携は別 PR (audio→STT)。本 PR はモック transcript を返す。
-          await new Promise((r) => setTimeout(r, 200));
-          return 'これはサンプルの文字起こし結果です。';
-        }}
-      />
-    </div>
+    <Suspense
+      fallback={
+        <div className="p-lg text-body-md text-on-surface-variant">
+          読み込み中…
+        </div>
+      }
+    >
+      <SM01Inner />
+    </Suspense>
   );
 }

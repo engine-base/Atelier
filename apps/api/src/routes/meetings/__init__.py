@@ -19,6 +19,8 @@ from src.schemas.meetings import (
     MeetingTranscribeRequest,
     MeetingTranscribeResponse,
     MeetingUploadType,
+    MeetingUploadUrlRequest,
+    MeetingUploadUrlResponse,
 )
 from src.services import meetings as svc
 
@@ -46,6 +48,30 @@ async def create_meeting(
     if created is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create meeting upload")
     return {"data": created}
+
+
+@router.post(
+    "/meetings/upload-url",
+    summary="議事録アップロード用 署名付き URL 発行",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def create_meeting_upload_url(
+    body: MeetingUploadUrlRequest, _user: UserDep
+) -> dict[str, MeetingUploadUrlResponse]:
+    """実ファイル PUT 用の署名付き URL を発行する（2 段階アップロードの 1 段目）。
+
+    プロジェクトへのアクセス権は後続 POST /meetings の RLS で最終的に強制される。
+    storage 未設定環境では 503 を返す。
+    """
+    try:
+        result = await svc.create_signed_upload(
+            project_id=body.project_id, file_name=body.file_name, mime_type=body.mime_type
+        )
+    except svc.MeetingUploadError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": result}
 
 
 @router.get("/meetings/{meeting_id}", summary="議事録取得")
