@@ -16005,9 +16005,16 @@
         "new": [
           "apps/web/app/outputs/s_g01/page.tsx",
           "apps/web/app/outputs/s_g01/_components/.gitkeep",
-          "e2e/s_g01.spec.ts"
+          "e2e/s_g01.spec.ts",
+          "apps/web/app/outputs/s_g01/_components/OutputViewerContainer.tsx",
+          "apps/web/tests/bundle-h/uc12-output-viewer.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/outputs/s_g01/_components/OutputViewer.tsx",
+          "apps/web/app/outputs/s_g01/page.tsx",
+          "apps/web/tests/bundle-h/chat-collab.test.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-12.md",

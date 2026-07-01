@@ -1,29 +1,48 @@
-'use client';
+/**
+ * S-G01 成果物ビューア画面 — T-UC-12
+ *
+ * 実 outputs / comments API に配線（署名付き閲覧 URL を iframe 表示）。
+ * outputId は URL ?output=。
+ */
 
-import * as React from 'react';
-import { useState } from 'react';
+"use client";
 
-import { OutputViewer, type CommentPin } from './_components/OutputViewer';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-const HTML = '<h2>サンプル成果物</h2><p>クリックでコメントピンを追加できます。</p>';
+import { QueryProvider } from "../../../providers/query-provider";
+import { OutputViewerContainer } from "./_components/OutputViewerContainer";
 
-export default function SG01Page() {
-  const [pins, setPins] = useState<CommentPin[]>([
-    { id: 'c1', x: 30, y: 20, text: '見出しの fontWeight を確認', author: 'wanda' },
-  ]);
+function SG01Inner() {
+  const params = useSearchParams();
+  const outputId = params.get("output");
+
   return (
     <div className="mx-auto w-full max-w-4xl px-md py-lg">
-      <OutputViewer
-        title="サンプル成果物"
-        contentHtml={HTML}
-        pins={pins}
-        onAddPin={(x, y) =>
-          setPins((p) => [
-            ...p,
-            { id: `c-${Date.now()}`, x, y, text: '新規コメント', author: 'you' },
-          ])
-        }
-      />
+      {outputId ? (
+        <OutputViewerContainer outputId={outputId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          成果物を選択すると表示します。
+        </p>
+      )}
     </div>
+  );
+}
+
+export default function SG01Page() {
+  return (
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SG01Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
