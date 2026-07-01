@@ -12,6 +12,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading } from "../../../../components/Loading";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -107,7 +108,7 @@ export function WorkspaceSettingsContainer({
     );
   }
   if (ws.isLoading || !ws.data) {
-    return <p className="text-body-md text-on-surface-variant">読み込み中…</p>;
+    return <Loading className="py-md" />;
   }
 
   // AI 学習は既定でオプトアウト（学習に使わない）。取得 API が無いため true 初期化。

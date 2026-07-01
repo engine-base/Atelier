@@ -3,12 +3,12 @@
  * 「表示」で reveal API を叩いて一時的に平文を見せる (クリップボードコピー可)。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
 export interface CredentialRow {
   readonly id: string;
@@ -19,11 +19,11 @@ export interface CredentialRow {
 }
 
 const KIND_LABEL: Record<string, string> = {
-  api_key: 'API キー',
-  password: 'パスワード',
-  token: 'トークン',
-  connection_string: '接続文字列',
-  other: 'その他',
+  api_key: "API キー",
+  password: "パスワード",
+  token: "トークン",
+  connection_string: "接続文字列",
+  other: "その他",
 };
 
 interface CredentialListProps {
@@ -32,7 +32,11 @@ interface CredentialListProps {
   readonly onDelete: (id: string) => void;
 }
 
-export function CredentialList({ rows, onReveal, onDelete }: CredentialListProps) {
+export function CredentialList({
+  rows,
+  onReveal,
+  onDelete,
+}: CredentialListProps) {
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -54,7 +58,9 @@ export function CredentialList({ rows, onReveal, onDelete }: CredentialListProps
     });
 
   if (rows.length === 0) {
-    return <p className="text-on-surface-variant">まだ何も保管されていません。</p>;
+    return (
+      <p className="text-on-surface-variant">まだ何も保管されていません。</p>
+    );
   }
 
   return (
@@ -68,13 +74,15 @@ export function CredentialList({ rows, onReveal, onDelete }: CredentialListProps
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-sm">
-                <span className="truncate font-semibold text-on-surface">{r.name}</span>
+                <span className="truncate font-semibold text-on-surface">
+                  {r.name}
+                </span>
                 <span className="rounded-sm bg-surface-variant px-xs text-label-sm text-on-surface-variant">
                   {KIND_LABEL[r.kind] ?? r.kind}
                 </span>
               </div>
               <code className="mt-xs block truncate text-body-sm text-on-surface-variant">
-                {shown ?? `••••••••${r.last4 ?? ''}`}
+                {shown ?? `••••••••${r.last4 ?? ""}`}
               </code>
             </div>
             <div className="flex shrink-0 items-center gap-xs">
@@ -101,11 +109,11 @@ export function CredentialList({ rows, onReveal, onDelete }: CredentialListProps
                   disabled={busy === r.id}
                   onClick={() => void reveal(r.id)}
                   className={cn(
-                    'rounded-sm px-sm py-xs text-label-md text-primary hover:bg-surface-variant',
-                    busy === r.id && 'opacity-50',
+                    "rounded-sm px-sm py-xs text-label-md text-primary hover:bg-surface-variant",
+                    busy === r.id && "opacity-50",
                   )}
                 >
-                  {busy === r.id ? '復号中…' : '表示'}
+                  {busy === r.id ? "復号中…" : "表示"}
                 </button>
               )}
               <button

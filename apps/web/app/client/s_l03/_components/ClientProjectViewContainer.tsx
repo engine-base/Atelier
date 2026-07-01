@@ -9,6 +9,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading } from "../../../../components/Loading";
 import { useQuery } from "@tanstack/react-query";
 
 import {
@@ -83,7 +84,7 @@ export function ClientProjectViewContainer({
     );
   }
   if (query.isLoading || !query.data) {
-    return <p className="text-body-md text-on-surface-variant">読み込み中…</p>;
+    return <Loading className="py-md" />;
   }
 
   return <ClientProjectView data={query.data} />;

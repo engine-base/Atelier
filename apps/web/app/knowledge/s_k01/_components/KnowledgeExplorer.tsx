@@ -19,6 +19,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading } from "../../../../components/Loading";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -220,7 +221,7 @@ export function KnowledgeExplorer({
         </KbButton>
 
         {rootQuery.isLoading ? (
-          <p className="text-body-sm text-on-surface-variant">読み込み中…</p>
+          <Loading className="py-md" />
         ) : roots.length === 0 ? (
           <p className="text-body-sm text-on-surface-variant">
             ナレッジがありません

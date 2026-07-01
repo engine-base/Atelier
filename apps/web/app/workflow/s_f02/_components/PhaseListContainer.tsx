@@ -9,6 +9,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading } from "../../../../components/Loading";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -108,7 +109,7 @@ export function PhaseListContainer({
     );
   }
   if (list.isLoading) {
-    return <p className="text-body-md text-on-surface-variant">読み込み中…</p>;
+    return <Loading className="py-md" />;
   }
 
   const rows: PhaseRow[] = (list.data ?? []).map((p, i) => ({

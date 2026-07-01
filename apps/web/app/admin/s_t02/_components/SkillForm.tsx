@@ -8,23 +8,25 @@
  * 純粋な presentational component。送信は onSubmit prop に委譲する。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
-import { z } from 'zod';
+import * as React from "react";
+import { useState } from "react";
+import { z } from "zod";
 
-import { Field } from '../../../../components/forms/Field';
-import { Form, useAtelierForm } from '../../../../components/forms/Form';
-import { AdminButton } from '../../_components/AdminButton';
+import { Field } from "../../../../components/forms/Field";
+import { Form, useAtelierForm } from "../../../../components/forms/Form";
+import { AdminButton } from "../../_components/AdminButton";
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
 
 const CreateSchema = z.object({
-  name: z.string().min(1, 'スキル名は必須です'),
-  version: z.string().regex(SEMVER, 'semver 形式 (例 1.0.0) で入力してください'),
+  name: z.string().min(1, "スキル名は必須です"),
+  version: z
+    .string()
+    .regex(SEMVER, "semver 形式 (例 1.0.0) で入力してください"),
   description: z.string().optional(),
-  content_md: z.string().min(1, 'SKILL.md の本文は必須です'),
+  content_md: z.string().min(1, "SKILL.md の本文は必須です"),
   allowed_employee_roles: z.string().optional(),
   is_active: z.boolean(),
 });
@@ -40,7 +42,7 @@ export interface SkillFormSubmit {
 }
 
 export interface SkillFormProps {
-  readonly mode: 'create' | 'edit';
+  readonly mode: "create" | "edit";
   readonly defaultValues?: Partial<SkillFormValues>;
   readonly onSubmit: (values: SkillFormSubmit) => Promise<void> | void;
   readonly onCancel: () => void;
@@ -50,25 +52,33 @@ export interface SkillFormProps {
 function parseRoles(raw: string | undefined): string[] {
   if (!raw) return [];
   return raw
-    .split(',')
+    .split(",")
     .map((r) => r.trim())
     .filter((r) => r.length > 0);
 }
 
-export function SkillForm({ mode, defaultValues, onSubmit, onCancel, submitting }: SkillFormProps) {
-  const isEdit = mode === 'edit';
+export function SkillForm({
+  mode,
+  defaultValues,
+  onSubmit,
+  onCancel,
+  submitting,
+}: SkillFormProps) {
+  const isEdit = mode === "edit";
   const form = useAtelierForm({
     schema: CreateSchema,
     defaultValues: {
-      name: defaultValues?.name ?? '',
-      version: defaultValues?.version ?? '',
-      description: defaultValues?.description ?? '',
-      content_md: defaultValues?.content_md ?? '',
-      allowed_employee_roles: defaultValues?.allowed_employee_roles ?? '',
+      name: defaultValues?.name ?? "",
+      version: defaultValues?.version ?? "",
+      description: defaultValues?.description ?? "",
+      content_md: defaultValues?.content_md ?? "",
+      allowed_employee_roles: defaultValues?.allowed_employee_roles ?? "",
       is_active: defaultValues?.is_active ?? true,
     },
   });
-  const [isActive, setIsActive] = useState<boolean>(defaultValues?.is_active ?? true);
+  const [isActive, setIsActive] = useState<boolean>(
+    defaultValues?.is_active ?? true,
+  );
 
   const handleValid = (v: SkillFormValues) => {
     return onSubmit({
@@ -83,11 +93,15 @@ export function SkillForm({ mode, defaultValues, onSubmit, onCancel, submitting 
 
   return (
     <Form form={form} onValid={handleValid} className="gap-md">
-      <Field label="スキル名" required error={form.formState.errors.name?.message}>
+      <Field
+        label="スキル名"
+        required
+        error={form.formState.errors.name?.message}
+      >
         <input
           type="text"
           disabled={isEdit}
-          {...form.register('name')}
+          {...form.register("name")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm font-mono text-body-md text-on-surface disabled:opacity-60"
         />
       </Field>
@@ -95,35 +109,46 @@ export function SkillForm({ mode, defaultValues, onSubmit, onCancel, submitting 
         label="バージョン (semver)"
         required
         error={form.formState.errors.version?.message}
-        description={isEdit ? 'name/version は編集できません。新バージョンは新規登録してください。' : undefined}
+        description={
+          isEdit
+            ? "name/version は編集できません。新バージョンは新規登録してください。"
+            : undefined
+        }
       >
         <input
           type="text"
           placeholder="1.0.0"
           disabled={isEdit}
-          {...form.register('version')}
+          {...form.register("version")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface disabled:opacity-60"
         />
       </Field>
       <Field label="説明" error={form.formState.errors.description?.message}>
         <input
           type="text"
-          {...form.register('description')}
+          {...form.register("description")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>
-      <Field label="許可ロール (カンマ区切り)" error={form.formState.errors.allowed_employee_roles?.message}>
+      <Field
+        label="許可ロール (カンマ区切り)"
+        error={form.formState.errors.allowed_employee_roles?.message}
+      >
         <input
           type="text"
           placeholder="lead, member"
-          {...form.register('allowed_employee_roles')}
+          {...form.register("allowed_employee_roles")}
           className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>
-      <Field label="SKILL.md 本文" required error={form.formState.errors.content_md?.message}>
+      <Field
+        label="SKILL.md 本文"
+        required
+        error={form.formState.errors.content_md?.message}
+      >
         <textarea
           rows={8}
-          {...form.register('content_md')}
+          {...form.register("content_md")}
           className="rounded-md border border-surface-variant bg-surface px-sm py-sm font-mono text-body-md text-on-surface"
         />
       </Field>
@@ -140,7 +165,7 @@ export function SkillForm({ mode, defaultValues, onSubmit, onCancel, submitting 
           キャンセル
         </AdminButton>
         <AdminButton type="submit" variant="primary" disabled={submitting}>
-          {isEdit ? '更新' : '登録'}
+          {isEdit ? "更新" : "登録"}
         </AdminButton>
       </div>
     </Form>
