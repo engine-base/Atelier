@@ -475,6 +475,10 @@ class Mock(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class ContentUrl(BaseModel):
+    url: str
+
+
 class Role1(StrEnum):
     coo = "coo"
     lead = "lead"

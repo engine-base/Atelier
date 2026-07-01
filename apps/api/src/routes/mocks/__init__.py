@@ -18,7 +18,9 @@ from src.schemas.mocks import (
     MockUpdate,
     MockVersionCreate,
 )
+from src.schemas.storage import ContentUrlResponse
 from src.services import mocks as svc
+from src.storage_signing import StorageSigningError, create_signed_download_url
 
 router = APIRouter(tags=["mocks"])
 
@@ -54,6 +56,27 @@ async def get_mock(mock_id: str, session: SessionDep, _user: UserDep) -> dict[st
     if mock is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": mock}
+
+
+@router.get(
+    "/mocks/{mock_id}/content-url",
+    summary="モック HTML の署名付き閲覧 URL",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def get_mock_content_url(
+    mock_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, ContentUrlResponse]:
+    """RLS で可視な mock の html_storage_path に対する署名付き閲覧 URL を返す。"""
+    mock = await svc.get_mock(session, mock_id)
+    if mock is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+    try:
+        url = await create_signed_download_url(mock.html_storage_path)
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": ContentUrlResponse(url=url)}
 
 
 @router.patch("/mocks/{mock_id}", summary="モック更新")
