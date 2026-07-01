@@ -12,7 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.outputs import OutputResponse
+from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
+from src.storage_signing import StorageSigningError, create_signed_download_url
 
 router = APIRouter(tags=["outputs"])
 
@@ -43,3 +45,26 @@ async def get_output(
     if out is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
     return {"data": out}
+
+
+@router.get(
+    "/outputs/{output_id}/content-url",
+    summary="成果物 HTML の署名付き閲覧 URL",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def get_output_content_url(
+    output_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, ContentUrlResponse]:
+    """RLS で可視な output の html_path に対する署名付き閲覧 URL を返す。"""
+    out = await svc.get_output(session, output_id)
+    if out is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    if out.html_path is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "output has no rendered HTML yet")
+    try:
+        url = await create_signed_download_url(out.html_path)
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": ContentUrlResponse(url=url)}
