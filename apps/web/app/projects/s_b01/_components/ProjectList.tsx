@@ -2,7 +2,7 @@
  * S-B01 プロジェクト一覧 — T-UC-03 (client component)
  *
  * DataTable (Bundle C) で project を表示。loading / error / empty 状態対応。
- * 各行クリックで /projects/<id>/dashboard に遷移する想定 (callback prop)。
+ * 各行クリックで onSelect(id) を発火（親が /projects/s_b02?project=id へ遷移）。
  */
 
 "use client";
