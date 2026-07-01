@@ -96,7 +96,7 @@ export default function SB01Page() {
           nextCursor={nextCursor}
           onPrev={() => setCursor(null)}
           onNext={() => setCursor(nextCursor)}
-          onSelect={(id) => router.push(`/projects/${id}/dashboard` as never)}
+          onSelect={(id) => router.push(`/projects/s_b02?project=${id}`)}
         />
       )}
     </div>
