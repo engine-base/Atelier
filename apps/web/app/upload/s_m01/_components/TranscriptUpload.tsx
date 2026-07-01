@@ -2,7 +2,8 @@
  * S-M01 議事録アップロード + transcript — T-UC-23
  *
  * ファイル選択 → アップロード進捗表示 → transcript 表示。
- * 実 API 連携は別 PR (audio → STT → text)。本実装は UI 配線のみ。
+ * presentational（onUpload を受ける）。実 API 配線（2段階アップロード + 非同期
+ * transcription polling）は MeetingUploadContainer が担う。
  */
 
 "use client";

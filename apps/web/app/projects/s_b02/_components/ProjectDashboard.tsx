@@ -2,7 +2,7 @@
  * S-B02 プロジェクトダッシュボード — T-UC-04 (client component)
  *
  * 主要 KPI ティル + 直近タスクサマリ + チャットへのショートカット。
- * 実 API 連携は別 PR で TanStack Query で接続。
+ * presentational（props で KPI を受ける）。実 API 配線は ProjectDashboardContainer が担う。
  */
 
 "use client";

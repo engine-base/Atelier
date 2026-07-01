@@ -3,7 +3,8 @@
  *
  * - 6 列 lifecycle (backlog / ready / in_progress / awaiting / done / blocked)
  * - 各列にタスクカード一覧
- * - 再生バーはヘッダに play ボタン (実 API 連携は別 PR で apiClient.post('/tasks/{id}/play'))
+ * - ready / blocked カードに「▶ 再生」ボタン。onPlay 経由で TaskBoardContainer が
+ *   POST /tasks/{id}/play (dispatcher 連動) を呼ぶ。presentational（props で駆動）。
  */
 
 "use client";
