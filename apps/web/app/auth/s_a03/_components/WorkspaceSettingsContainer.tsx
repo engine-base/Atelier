@@ -13,7 +13,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -41,10 +41,12 @@ export function WorkspaceSettingsContainer({
   client: injected,
 }: WorkspaceSettingsContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
+  const KEY = ["workspace", workspaceId] as const;
 
   const ws = useQuery({
-    queryKey: ["workspace", workspaceId],
+    queryKey: KEY,
     queryFn: async () => {
       const res = await client.get("/workspaces/{workspace_id}", {
         params: { path: { workspace_id: workspaceId } },
@@ -54,9 +56,9 @@ export function WorkspaceSettingsContainer({
     retry: false,
   });
 
-  const onSubmit = async (v: WorkspaceSettingsValues): Promise<void> => {
-    setServerError(null);
-    try {
+  // 楽観更新: 保存前に workspace 名をキャッシュへ即時反映、失敗時に戻す。
+  const saveMut = useMutation({
+    mutationFn: async (v: WorkspaceSettingsValues) => {
       await client.patch("/workspaces/{workspace_id}", {
         params: { path: { workspace_id: workspaceId } },
         body: { name: v.name },
@@ -65,13 +67,29 @@ export function WorkspaceSettingsContainer({
       await client.post("/account/ai-learning", {
         body: { opt_out: v.aiLearningOptOut },
       });
-    } catch (error) {
+    },
+    onMutate: async (v) => {
+      setServerError(null);
+      await queryClient.cancelQueries({ queryKey: KEY });
+      const prev = queryClient.getQueryData<ApiWorkspace>(KEY);
+      queryClient.setQueryData<ApiWorkspace>(KEY, (old) =>
+        old ? { ...old, name: v.name } : old,
+      );
+      return { prev };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(KEY, ctx.prev);
       setServerError(
         error instanceof ApiError && error.status === 403
           ? "設定を変更する権限がありません。"
           : "設定の保存に失敗しました。時間をおいて再度お試しください。",
       );
-    }
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+  });
+
+  const onSubmit = async (v: WorkspaceSettingsValues): Promise<void> => {
+    await saveMut.mutateAsync(v).catch(() => undefined);
   };
 
   if (isForbidden(ws.error)) {
