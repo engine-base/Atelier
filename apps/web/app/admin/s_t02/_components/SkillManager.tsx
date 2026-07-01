@@ -11,19 +11,20 @@
  * createAuthedApiClient() で cookie JWT を載せた本物の client を構築する。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as React from "react";
+import { Loading } from "../../../../components/Loading";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, type ApiClient } from '@atelier/api-client';
+import { ApiError, type ApiClient } from "@atelier/api-client";
 
-import { createAuthedApiClient } from '../../../../lib/auth/connector';
-import { AdminButton } from '../../_components/AdminButton';
-import { Dialog } from '../../../../components/ui/dialog';
-import { AdminDenied } from '../../_components/AdminDenied';
-import { SkillForm, type SkillFormSubmit } from './SkillForm';
+import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { AdminButton } from "../../_components/AdminButton";
+import { Dialog } from "../../../../components/ui/dialog";
+import { AdminDenied } from "../../_components/AdminDenied";
+import { SkillForm, type SkillFormSubmit } from "./SkillForm";
 
 interface AdminSkill {
   id?: string;
@@ -35,7 +36,7 @@ interface AdminSkill {
   is_active?: boolean;
 }
 
-const SKILLS_KEY = ['admin', 'skills'] as const;
+const SKILLS_KEY = ["admin", "skills"] as const;
 
 export interface SkillManagerProps {
   /** テスト時に fake client を注入。未指定なら cookie JWT 付き本物 client */
@@ -50,14 +51,17 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
 
-  const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; skill?: AdminSkill } | null>(null);
+  const [dialog, setDialog] = useState<{
+    mode: "create" | "edit";
+    skill?: AdminSkill;
+  } | null>(null);
   const [attachFor, setAttachFor] = useState<AdminSkill | null>(null);
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState("");
 
   const list = useQuery({
     queryKey: SKILLS_KEY,
     queryFn: async () => {
-      const res = await client.get('/admin/skills', {
+      const res = await client.get("/admin/skills", {
         params: { query: { include_inactive: true } },
       });
       return (res as { data?: AdminSkill[] }).data ?? [];
@@ -65,11 +69,12 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
     retry: false,
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: SKILLS_KEY });
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: SKILLS_KEY });
 
   const createMut = useMutation({
     mutationFn: (v: SkillFormSubmit) =>
-      client.post('/admin/skills', {
+      client.post("/admin/skills", {
         body: {
           name: v.name,
           version: v.version,
@@ -87,7 +92,7 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
 
   const updateMut = useMutation({
     mutationFn: (args: { id: string; v: SkillFormSubmit }) =>
-      client.patch('/admin/skills/{skill_id}', {
+      client.patch("/admin/skills/{skill_id}", {
         params: { path: { skill_id: args.id } },
         body: {
           content_md: args.v.content_md,
@@ -104,19 +109,21 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
 
   const deleteMut = useMutation({
     mutationFn: (id: string) =>
-      client.delete('/admin/skills/{skill_id}', { params: { path: { skill_id: id } } }),
+      client.delete("/admin/skills/{skill_id}", {
+        params: { path: { skill_id: id } },
+      }),
     onSuccess: () => void invalidate(),
   });
 
   const attachMut = useMutation({
     mutationFn: (args: { id: string; ai_employee_id: string }) =>
-      client.post('/admin/skills/{skill_id}/attach', {
+      client.post("/admin/skills/{skill_id}/attach", {
         params: { path: { skill_id: args.id } },
         body: { ai_employee_id: args.ai_employee_id, attached: true },
       }),
     onSuccess: () => {
       setAttachFor(null);
-      setEmployeeId('');
+      setEmployeeId("");
       void invalidate();
     },
   });
@@ -131,15 +138,20 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
         <p className="text-body-md text-on-surface-variant">
           ユーザー側ではスキルの中身は編集できません。運営側で一括管理します。
         </p>
-        <AdminButton variant="primary" onClick={() => setDialog({ mode: 'create' })}>
+        <AdminButton
+          variant="primary"
+          onClick={() => setDialog({ mode: "create" })}
+        >
           新規アップロード
         </AdminButton>
       </div>
 
       {list.isLoading ? (
-        <p className="text-body-md text-on-surface-variant">読み込み中…</p>
+        <Loading className="py-md" />
       ) : skills.length === 0 ? (
-        <p className="text-body-md text-on-surface-variant">スキルがありません</p>
+        <p className="text-body-md text-on-surface-variant">
+          スキルがありません
+        </p>
       ) : (
         <table className="w-full border-collapse">
           <caption className="sr-only">スキル一覧</caption>
@@ -156,24 +168,36 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
             {skills.map((s) => (
               <tr key={s.id} className="border-b border-surface-variant/60">
                 <td className="py-sm">
-                  <div className="font-mono font-bold text-on-surface">{s.name}</div>
+                  <div className="font-mono font-bold text-on-surface">
+                    {s.name}
+                  </div>
                   {s.description ? (
-                    <div className="text-label-md text-on-surface-variant">{s.description}</div>
+                    <div className="text-label-md text-on-surface-variant">
+                      {s.description}
+                    </div>
                   ) : null}
                 </td>
                 <td className="py-sm text-body-md">v{s.version}</td>
-                <td className="py-sm text-label-md">{(s.allowed_employee_roles ?? []).join(', ') || '—'}</td>
-                <td className="py-sm text-label-md">{s.is_active ? 'active' : 'disabled'}</td>
+                <td className="py-sm text-label-md">
+                  {(s.allowed_employee_roles ?? []).join(", ") || "—"}
+                </td>
+                <td className="py-sm text-label-md">
+                  {s.is_active ? "active" : "disabled"}
+                </td>
                 <td className="py-sm text-right">
                   <div className="inline-flex gap-xs">
                     <AdminButton
                       variant="ghost"
                       size="sm"
-                      onClick={() => setDialog({ mode: 'edit', skill: s })}
+                      onClick={() => setDialog({ mode: "edit", skill: s })}
                     >
                       編集
                     </AdminButton>
-                    <AdminButton variant="ghost" size="sm" onClick={() => setAttachFor(s)}>
+                    <AdminButton
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAttachFor(s)}
+                    >
                       装着
                     </AdminButton>
                     <AdminButton
@@ -195,7 +219,7 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
       <Dialog
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={dialog?.mode === 'edit' ? 'スキル編集' : '新規スキル登録'}
+        title={dialog?.mode === "edit" ? "スキル編集" : "新規スキル登録"}
         className="max-w-2xl"
       >
         {dialog ? (
@@ -206,9 +230,11 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
                 ? {
                     name: dialog.skill.name,
                     version: dialog.skill.version,
-                    description: dialog.skill.description ?? '',
+                    description: dialog.skill.description ?? "",
                     content_md: dialog.skill.content_md,
-                    allowed_employee_roles: (dialog.skill.allowed_employee_roles ?? []).join(', '),
+                    allowed_employee_roles: (
+                      dialog.skill.allowed_employee_roles ?? []
+                    ).join(", "),
                     is_active: dialog.skill.is_active,
                   }
                 : undefined
@@ -216,7 +242,7 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
             submitting={createMut.isPending || updateMut.isPending}
             onCancel={() => setDialog(null)}
             onSubmit={(v) => {
-              if (dialog.mode === 'edit' && dialog.skill?.id) {
+              if (dialog.mode === "edit" && dialog.skill?.id) {
                 updateMut.mutate({ id: dialog.skill.id, v });
               } else {
                 createMut.mutate(v);
@@ -239,7 +265,11 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
               variant="primary"
               disabled={!employeeId || attachMut.isPending}
               onClick={() =>
-                attachFor?.id && attachMut.mutate({ id: attachFor.id, ai_employee_id: employeeId })
+                attachFor?.id &&
+                attachMut.mutate({
+                  id: attachFor.id,
+                  ai_employee_id: employeeId,
+                })
               }
             >
               装着する
@@ -248,7 +278,9 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
         }
       >
         <label className="flex flex-col gap-xs">
-          <span className="text-label-lg font-semibold text-on-surface">AI 社員 ID</span>
+          <span className="text-label-lg font-semibold text-on-surface">
+            AI 社員 ID
+          </span>
           <input
             type="text"
             value={employeeId}

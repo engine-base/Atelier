@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading } from "../../../components/Loading";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -85,7 +86,7 @@ export function WorkspaceSwitcherContainer({
     );
   }
   if (list.isLoading) {
-    return <p className="text-body-md text-on-surface-variant">読み込み中…</p>;
+    return <Loading className="py-md" />;
   }
 
   const options: WorkspaceOption[] = (list.data ?? []).map((w) => ({

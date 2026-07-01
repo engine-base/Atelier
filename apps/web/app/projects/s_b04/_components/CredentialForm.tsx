@@ -3,10 +3,10 @@
  * value は登録時にのみ送信し、保存後は二度と画面に保持しない。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
 export interface CredentialInput {
   readonly name: string;
@@ -15,11 +15,11 @@ export interface CredentialInput {
 }
 
 const KINDS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'api_key', label: 'API キー' },
-  { value: 'password', label: 'パスワード' },
-  { value: 'token', label: 'トークン' },
-  { value: 'connection_string', label: '接続文字列' },
-  { value: 'other', label: 'その他' },
+  { value: "api_key", label: "API キー" },
+  { value: "password", label: "パスワード" },
+  { value: "token", label: "トークン" },
+  { value: "connection_string", label: "接続文字列" },
+  { value: "other", label: "その他" },
 ];
 
 interface CredentialFormProps {
@@ -27,9 +27,9 @@ interface CredentialFormProps {
 }
 
 export function CredentialForm({ onSubmit }: CredentialFormProps) {
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState('other');
-  const [value, setValue] = useState('');
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("other");
+  const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,17 +37,17 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
     e.preventDefault();
     setError(null);
     if (!name.trim() || !value) {
-      setError('名前と値は必須です。');
+      setError("名前と値は必須です。");
       return;
     }
     setBusy(true);
     try {
       await onSubmit({ name: name.trim(), kind, value });
-      setName('');
-      setKind('other');
-      setValue('');
+      setName("");
+      setKind("other");
+      setValue("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存に失敗しました');
+      setError(err instanceof Error ? err.message : "保存に失敗しました");
     } finally {
       setBusy(false);
     }
@@ -58,7 +58,9 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
       onSubmit={(e) => void submit(e)}
       className="flex flex-col gap-sm rounded-md border border-surface-variant bg-surface p-md"
     >
-      <h2 className="text-label-lg font-semibold text-on-surface">新しいクレデンシャルを保管</h2>
+      <h2 className="text-label-lg font-semibold text-on-surface">
+        新しいクレデンシャルを保管
+      </h2>
       {error ? (
         <div role="alert" className="text-body-sm text-error">
           {error}
@@ -103,7 +105,7 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
         disabled={busy}
         className="mt-xs self-start rounded-md bg-primary px-md py-xs text-label-lg font-semibold text-primary-fg disabled:opacity-50"
       >
-        {busy ? '保管中…' : '保管する'}
+        {busy ? "保管中…" : "保管する"}
       </button>
     </form>
   );

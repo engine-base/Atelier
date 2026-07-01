@@ -5,19 +5,22 @@
  * 各行クリックで /projects/<id>/dashboard に遷移する想定 (callback prop)。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
-import { DataTable, type ColumnDef } from '../../../../components/data-table/DataTable';
-import { Pagination } from '../../../../components/data-table/Pagination';
-import { formatDate } from '../../../../lib/i18n';
+import {
+  DataTable,
+  type ColumnDef,
+} from "../../../../components/data-table/DataTable";
+import { Pagination } from "../../../../components/data-table/Pagination";
+import { formatDate } from "../../../../lib/i18n";
 
 export interface ProjectRow {
   readonly id: string;
   readonly name: string;
   readonly client_name: string | null;
-  readonly lifecycle: 'active' | 'archived' | 'paused';
+  readonly lifecycle: "active" | "archived" | "paused";
   readonly created_at: string;
 }
 
@@ -32,10 +35,10 @@ export interface ProjectListProps {
   readonly onSelect?: (id: string) => void;
 }
 
-const LIFECYCLE_LABEL: Record<ProjectRow['lifecycle'], string> = {
-  active: '進行中',
-  paused: '一時停止',
-  archived: 'アーカイブ',
+const LIFECYCLE_LABEL: Record<ProjectRow["lifecycle"], string> = {
+  active: "進行中",
+  paused: "一時停止",
+  archived: "アーカイブ",
 };
 
 export function ProjectList({
@@ -50,8 +53,8 @@ export function ProjectList({
 }: ProjectListProps) {
   const cols: ColumnDef<ProjectRow>[] = [
     {
-      id: 'name',
-      header: 'プロジェクト名',
+      id: "name",
+      header: "プロジェクト名",
       cell: (r) =>
         onSelect ? (
           <button
@@ -65,17 +68,17 @@ export function ProjectList({
           r.name
         ),
     },
-    { id: 'client', header: 'クライアント', cell: (r) => r.client_name ?? '—' },
+    { id: "client", header: "クライアント", cell: (r) => r.client_name ?? "—" },
     {
-      id: 'lifecycle',
-      header: '状態',
+      id: "lifecycle",
+      header: "状態",
       cell: (r) => LIFECYCLE_LABEL[r.lifecycle],
     },
     {
-      id: 'created',
-      header: '作成日',
-      cell: (r) => formatDate(r.created_at, 'short-date'),
-      align: 'right',
+      id: "created",
+      header: "作成日",
+      cell: (r) => formatDate(r.created_at, "short-date"),
+      align: "right",
     },
   ];
 
