@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
@@ -80,6 +80,7 @@ interface ProfileFormProps {
 }
 
 function ProfileForm({ client, email, initialName }: ProfileFormProps) {
+  const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const form = useAtelierForm({
@@ -87,19 +88,34 @@ function ProfileForm({ client, email, initialName }: ProfileFormProps) {
     defaultValues: { display_name: initialName },
   });
 
-  const onSubmit = async (v: { display_name: string }): Promise<void> => {
-    setServerError(null);
-    setSaved(false);
-    try {
-      await client.patch("/me", { body: { display_name: v.display_name } });
-      setSaved(true);
-    } catch (error) {
+  // 楽観更新: 表示名をキャッシュ(['me'])へ即時反映、失敗時に戻す。
+  const saveMut = useMutation({
+    mutationFn: (v: { display_name: string }) =>
+      client.patch("/me", { body: { display_name: v.display_name } }),
+    onMutate: async (v) => {
+      setServerError(null);
+      setSaved(false);
+      await queryClient.cancelQueries({ queryKey: ["me"] });
+      const prev = queryClient.getQueryData<ApiMe>(["me"]);
+      queryClient.setQueryData<ApiMe>(["me"], (old) =>
+        old ? { ...old, display_name: v.display_name } : old,
+      );
+      return { prev };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(["me"], ctx.prev);
       setServerError(
         error instanceof ApiError && error.status === 401
           ? "サインインが必要です。"
           : "プロフィールの保存に失敗しました。",
       );
-    }
+    },
+    onSuccess: () => setSaved(true),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["me"] }),
+  });
+
+  const onSubmit = async (v: { display_name: string }): Promise<void> => {
+    await saveMut.mutateAsync(v).catch(() => undefined);
   };
 
   const name = form.watch("display_name") || email || "User";

@@ -103,4 +103,22 @@ describe("S-A03 WorkspaceSettingsContainer (T-UC-02)", () => {
       "権限がありません",
     );
   });
+
+  it("rolls back and shows an error when the save fails", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS" } }));
+    const patch = vi.fn(async () => {
+      throw apiError(403);
+    });
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get, patch })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "権限がありません",
+    );
+  });
 });

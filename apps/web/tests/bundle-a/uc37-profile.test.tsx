@@ -87,4 +87,22 @@ describe("T-UC-37 ProfileContainer", () => {
       "サインインが必要",
     );
   });
+
+  it("rolls back and shows an error when the save fails", async () => {
+    const get = vi.fn(async () => ({
+      data: { email: "a@example.com", display_name: "山田" },
+    }));
+    const patch = vi.fn(async () => {
+      throw apiError(400);
+    });
+    renderWithQuery(<ProfileContainer client={fakeClient({ get, patch })} />);
+    const nameInput = (await screen.findByDisplayValue(
+      "山田",
+    )) as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "田中" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存|save/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "保存に失敗しました",
+    );
+  });
 });
