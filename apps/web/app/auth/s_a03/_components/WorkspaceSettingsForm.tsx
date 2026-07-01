@@ -5,17 +5,17 @@
  * - 削除は 30 日 grace + danger zone
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { z } from 'zod';
+import * as React from "react";
+import { z } from "zod";
 
-import { Field } from '../../../../components/forms/Field';
-import { Form, useAtelierForm } from '../../../../components/forms/Form';
-import { t } from '../../../../lib/i18n';
+import { Field } from "../../../../components/forms/Field";
+import { Form, useAtelierForm } from "../../../../components/forms/Form";
+import { t } from "../../../../lib/i18n";
 
 const Schema = z.object({
-  name: z.string().min(1, '入力必須').max(100),
+  name: z.string().min(1, "入力必須").max(100),
   aiLearningOptOut: z.boolean(),
 });
 export type WorkspaceSettingsValues = z.infer<typeof Schema>;
@@ -46,9 +46,13 @@ export function WorkspaceSettingsForm({
             {serverError}
           </p>
         ) : null}
-        <Field label="名前" required error={form.formState.errors.name?.message}>
+        <Field
+          label="名前"
+          required
+          error={form.formState.errors.name?.message}
+        >
           <input
-            {...form.register('name')}
+            {...form.register("name")}
             className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
           />
         </Field>
@@ -57,7 +61,7 @@ export function WorkspaceSettingsForm({
           description="既定では OFF。顧客データを Atelier の AI 改善に使う場合のみ ON にしてください。"
         >
           <label className="flex items-center gap-sm text-body-md">
-            <input type="checkbox" {...form.register('aiLearningOptOut')} />
+            <input type="checkbox" {...form.register("aiLearningOptOut")} />
             <span>有効化する</span>
           </label>
         </Field>
@@ -65,7 +69,7 @@ export function WorkspaceSettingsForm({
           type="submit"
           className="inline-flex h-10 w-fit items-center rounded-md bg-primary px-md text-label-lg text-primary-fg"
         >
-          {t('common.save')}
+          {t("common.save")}
         </button>
       </Form>
       {onDelete ? (
@@ -73,7 +77,9 @@ export function WorkspaceSettingsForm({
           aria-label="Danger zone"
           className="flex flex-col gap-sm rounded-md border border-error/40 bg-error/5 p-md"
         >
-          <h2 className="text-label-lg font-semibold text-error">Danger Zone</h2>
+          <h2 className="text-label-lg font-semibold text-error">
+            Danger Zone
+          </h2>
           <p className="text-body-sm text-on-surface-variant">
             削除後 30 日間は復元可能です(F-LEGAL-007)。
           </p>
