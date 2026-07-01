@@ -1,0 +1,132 @@
+{
+  "note": "画面 ↔ 実装(container) ↔ API ↔ tickets の対応。結果=planned(実機BLOCKED)。",
+  "screens": {
+    "S-B01": {
+      "container": "projects/s_b01",
+      "api": [
+        "/projects"
+      ],
+      "ticket": "T-UC-05"
+    },
+    "S-B02": {
+      "container": "ProjectDashboardContainer",
+      "api": [
+        "/projects/{id}/dashboard"
+      ],
+      "ticket": "T-UC-04"
+    },
+    "S-I02": {
+      "container": "TaskDetailContainer",
+      "api": [
+        "/tasks/{id}",
+        "/comments"
+      ],
+      "ticket": "T-UC-15"
+    },
+    "S-F01": {
+      "container": "WorkflowGraphContainer",
+      "api": [
+        "/workflow/phases"
+      ],
+      "ticket": "T-UC-10"
+    },
+    "S-F02": {
+      "container": "PhaseListContainer",
+      "api": [
+        "/workflow/phases"
+      ],
+      "ticket": "T-UC-11"
+    },
+    "S-G01": {
+      "container": "OutputViewerContainer",
+      "api": [
+        "/outputs/{id}",
+        "/outputs/{id}/content-url",
+        "/comments"
+      ],
+      "ticket": "T-UC-12"
+    },
+    "S-H01": {
+      "container": "MockViewerContainer",
+      "api": [
+        "/mocks/{id}",
+        "/mocks/{id}/content-url"
+      ],
+      "ticket": "T-UC-13"
+    },
+    "S-M01": {
+      "container": "MeetingUploadContainer",
+      "api": [
+        "/meetings/upload-url",
+        "/meetings",
+        "/meetings/{id}/transcribe",
+        "/meetings/{id}/transcript-url"
+      ],
+      "ticket": "T-UC-23"
+    },
+    "S-L01": {
+      "container": "InvitationsListContainer",
+      "api": [
+        "/client-invitations"
+      ],
+      "ticket": "T-UC-20"
+    },
+    "S-L02": {
+      "container": "ClientSigninContainer",
+      "api": [
+        "/client/auth/signin"
+      ],
+      "ticket": "T-UC-21"
+    },
+    "S-L03": {
+      "container": "ClientProjectViewContainer",
+      "api": [
+        "/client/projects/{id}"
+      ],
+      "ticket": "T-UC-22"
+    },
+    "T-UC-37": {
+      "container": "ProfileContainer",
+      "api": [
+        "/me"
+      ],
+      "ticket": "T-UC-37"
+    },
+    "T-UC-40": {
+      "container": "SearchContainer",
+      "api": [
+        "/search"
+      ],
+      "ticket": "T-UC-40"
+    },
+    "T-UC-36": {
+      "container": "NotificationsContainer",
+      "api": [
+        "/approval-inbox"
+      ],
+      "ticket": "T-UC-36"
+    },
+    "T-UC-38": {
+      "container": "WorkspaceSwitcherContainer",
+      "api": [
+        "/workspaces"
+      ],
+      "ticket": "T-UC-38"
+    },
+    "T-UC-39": {
+      "container": "ProjectSwitcherContainer",
+      "api": [
+        "/projects"
+      ],
+      "ticket": "T-UC-39"
+    },
+    "S-A03": {
+      "container": "WorkspaceSettingsContainer",
+      "api": [
+        "/workspaces/{id}",
+        "/account/ai-learning"
+      ],
+      "ticket": "T-UC-02"
+    }
+  }
+}
