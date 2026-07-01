@@ -62,3 +62,27 @@ class MeetingTranscribeResponse(BaseModel):
     id: str
     status: Literal["queued", "already_parsed"]
     queued_at: datetime
+
+
+class MeetingUploadUrlRequest(BaseModel):
+    """署名付きアップロード URL 発行リクエスト。
+
+    実ファイルは client がこの URL へ直接 PUT し、返却された storage_path を
+    POST /meetings に渡して登録する（2 段階アップロード）。
+    """
+
+    project_id: str
+    file_name: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(min_length=1, max_length=200)
+
+
+class MeetingUploadUrlResponse(BaseModel):
+    """署名付きアップロード URL 発行結果。
+
+    upload_url: client が音声/動画ファイルを PUT する署名付き URL。
+    storage_path: 後続の POST /meetings に渡す storage 上のパス（bucket 込み）。
+    """
+
+    upload_url: str
+    storage_path: str
+    bucket: str

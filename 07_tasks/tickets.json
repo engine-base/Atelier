@@ -17404,9 +17404,18 @@
         "new": [
           "apps/web/app/upload/s_m01/page.tsx",
           "apps/web/app/upload/s_m01/_components/.gitkeep",
-          "e2e/s_m01.spec.ts"
+          "e2e/s_m01.spec.ts",
+          "apps/api/tests/routes/test_meetings_upload_url.py"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/src/schemas/meetings.py",
+          "apps/api/src/services/meetings/__init__.py",
+          "apps/api/src/routes/meetings/__init__.py",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_api_design/openapi.yaml",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-23.md",

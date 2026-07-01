@@ -977,6 +977,18 @@ class MeetingTranscribeResponse(BaseModel):
     queued_at: AwareDatetime
 
 
+class MeetingUploadUrlRequest(BaseModel):
+    project_id: UUID
+    file_name: Annotated[str, Field(max_length=255, min_length=1)]
+    mime_type: Annotated[str, Field(max_length=200, min_length=1)]
+
+
+class MeetingUploadUrlResponse(BaseModel):
+    upload_url: str
+    storage_path: str
+    bucket: str
+
+
 class AccountType(StrEnum):
     workspace = "workspace"
     user = "user"

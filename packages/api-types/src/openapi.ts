@@ -4805,6 +4805,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/meetings/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 議事録アップロード用 署名付き URL 発行 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MeetingUploadUrlRequest"];
+                };
+            };
+            responses: {
+                /** @description 署名付きアップロード URL 発行 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["MeetingUploadUrlResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage 署名失敗 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meetings/{meeting_id}": {
         parameters: {
             query?: never;
@@ -8913,6 +8991,17 @@ export interface components {
             status: "queued" | "already_parsed";
             /** Format: date-time */
             queued_at: string;
+        };
+        MeetingUploadUrlRequest: {
+            /** Format: uuid */
+            project_id: string;
+            file_name: string;
+            mime_type: string;
+        };
+        MeetingUploadUrlResponse: {
+            upload_url: string;
+            storage_path: string;
+            bucket: string;
         };
         KnowledgeCreate: {
             /** Format: uuid */

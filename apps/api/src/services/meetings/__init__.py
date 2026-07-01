@@ -10,10 +10,13 @@ audit_logs に必ず記録。
 
 from __future__ import annotations
 
+import os
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +26,74 @@ from src.schemas.meetings import (
     MeetingResponse,
     MeetingTranscribeResponse,
     MeetingUploadType,
+    MeetingUploadUrlResponse,
 )
+
+# 議事録ファイルの storage bucket（既定 "meetings"、env で上書き可）。
+STORAGE_BUCKET = os.environ.get("ATELIER_MEETINGS_BUCKET", "meetings")
+
+# ファイル名に使えない文字を除去（path traversal / 署名 URL 崩れ防止）。
+_UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+class MeetingUploadError(Exception):
+    """署名付きアップロード発行時のエラー。code で分岐する。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+def _sanitize_filename(file_name: str) -> str:
+    cleaned = _UNSAFE_FILENAME.sub("_", file_name)
+    # ".." による path traversal を無効化（allow list に "." を残すため個別に潰す）。
+    while ".." in cleaned:
+        cleaned = cleaned.replace("..", "_")
+    cleaned = cleaned.strip("._-")
+    return cleaned or "upload"
+
+
+async def create_signed_upload(
+    *, project_id: str, file_name: str, mime_type: str
+) -> MeetingUploadUrlResponse:
+    """Supabase Storage の署名付きアップロード URL を発行する。
+
+    service_role key で `storage/v1/object/upload/sign/{bucket}/{path}` を叩く。
+    storage が未設定（dev/test 等）の場合は MeetingUploadError("storage_unconfigured")。
+    """
+    api_url = os.environ.get("ATELIER_SUPABASE_ADMIN_API_URL")
+    service_key = os.environ.get("ATELIER_SUPABASE_SERVICE_ROLE_KEY")
+    if not api_url or not service_key:
+        raise MeetingUploadError("storage_unconfigured", "storage backend is not configured")
+
+    # mime_type は登録時の検証用途。ここでは object path の一意性のみ担保する。
+    _ = mime_type
+    object_path = f"{project_id}/{uuid.uuid4()}/{_sanitize_filename(file_name)}"
+    base = api_url.rstrip("/")
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        r = await client.post(
+            f"{base}/storage/v1/object/upload/sign/{STORAGE_BUCKET}/{object_path}",
+            headers={
+                "Authorization": f"Bearer {service_key}",
+                "apikey": service_key,
+                "Content-Type": "application/json",
+            },
+        )
+    if r.status_code >= 400:
+        raise MeetingUploadError(
+            "storage_sign_failed", f"failed to sign upload url: {r.status_code} {r.text[:200]}"
+        )
+    body: dict[str, Any] = r.json()
+    signed = body.get("url")
+    if not isinstance(signed, str) or not signed:
+        raise MeetingUploadError("storage_sign_failed", "missing signed url in storage response")
+    return MeetingUploadUrlResponse(
+        upload_url=f"{base}/storage/v1{signed if signed.startswith('/') else '/' + signed}",
+        storage_path=f"{STORAGE_BUCKET}/{object_path}",
+        bucket=STORAGE_BUCKET,
+    )
+
 
 _COLS = (
     "id, project_id, uploaded_by_user_id, type, storage_path, file_name, "

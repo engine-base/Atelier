@@ -936,6 +936,22 @@ components:
         status: { type: string, enum: [queued, already_parsed] }
         queued_at: { type: string, format: date-time }
 
+    MeetingUploadUrlRequest:
+      type: object
+      required: [project_id, file_name, mime_type]
+      properties:
+        project_id: { type: string, format: uuid }
+        file_name: { type: string, minLength: 1, maxLength: 255 }
+        mime_type: { type: string, minLength: 1, maxLength: 200 }
+
+    MeetingUploadUrlResponse:
+      type: object
+      required: [upload_url, storage_path, bucket]
+      properties:
+        upload_url: { type: string }
+        storage_path: { type: string }
+        bucket: { type: string }
+
     KnowledgeCreate:
       type: object
       required: [account_id, account_type, scope, category, title, content_md]
@@ -3704,6 +3720,32 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/upload-url:
+    post:
+      tags: [meetings]
+      summary: 議事録アップロード用 署名付き URL 発行
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::create_meeting_upload_url
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-M01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeetingUploadUrlRequest' }
+      responses:
+        '200':
+          description: 署名付きアップロード URL 発行
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MeetingUploadUrlResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /meetings/{meeting_id}:
     get:
