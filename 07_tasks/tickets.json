@@ -17405,7 +17405,9 @@
           "apps/web/app/upload/s_m01/page.tsx",
           "apps/web/app/upload/s_m01/_components/.gitkeep",
           "e2e/s_m01.spec.ts",
-          "apps/api/tests/routes/test_meetings_upload_url.py"
+          "apps/api/tests/routes/test_meetings_upload_url.py",
+          "apps/web/app/upload/s_m01/_components/MeetingUploadContainer.tsx",
+          "apps/web/tests/bundle-h/uc23-meeting-upload.test.tsx"
         ],
         "modify": [
           "apps/api/src/schemas/meetings.py",
@@ -17414,7 +17416,8 @@
           "apps/api/src/_generated/openapi_models.py",
           "packages/api-types/src/openapi.ts",
           "07_api_design/openapi.yaml",
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/upload/s_m01/page.tsx"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
