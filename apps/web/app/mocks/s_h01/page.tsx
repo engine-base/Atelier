@@ -1,13 +1,47 @@
-'use client';
+/**
+ * S-H01 モックビューア画面 — T-UC-13
+ *
+ * 実 mocks API に配線（署名付き閲覧 URL を iframe 表示）。mockId は URL ?mock=。
+ */
 
-import * as React from 'react';
+"use client";
 
-import { MockViewer } from './_components/MockViewer';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+
+import { QueryProvider } from "../../../providers/query-provider";
+import { MockViewerContainer } from "./_components/MockViewerContainer";
+
+function SH01Inner() {
+  const params = useSearchParams();
+  const mockId = params.get("mock");
+
+  return (
+    <div className="mx-auto w-full max-w-7xl px-md py-lg">
+      {mockId ? (
+        <MockViewerContainer mockId={mockId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          モックを選択すると表示します。
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SH01Page() {
   return (
-    <div className="mx-auto w-full max-w-7xl px-md py-lg">
-      <MockViewer src="about:blank" title="サンプルモック" />
-    </div>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SH01Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }

@@ -5,27 +5,27 @@
  * 320 / 768 / 1024 / 1440 のレスポンシブ切替 (web/testing.md)。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
-import { useState } from 'react';
+import * as React from "react";
+import { useState } from "react";
 
-import { cn } from '../../../../lib/cn';
+import { cn } from "../../../../lib/cn";
 
-export type ViewportPreset = '320' | '768' | '1024' | '1440';
+export type ViewportPreset = "320" | "768" | "1024" | "1440";
 
 const VIEWPORT_W: Record<ViewportPreset, number> = {
-  '320': 320,
-  '768': 768,
-  '1024': 1024,
-  '1440': 1440,
+  "320": 320,
+  "768": 768,
+  "1024": 1024,
+  "1440": 1440,
 };
 
 const VIEWPORT_LABEL: Record<ViewportPreset, string> = {
-  '320': 'モバイル (320)',
-  '768': 'タブレット (768)',
-  '1024': 'デスクトップ (1024)',
-  '1440': 'ワイド (1440)',
+  "320": "モバイル (320)",
+  "768": "タブレット (768)",
+  "1024": "デスクトップ (1024)",
+  "1440": "ワイド (1440)",
 };
 
 export interface MockViewerProps {
@@ -34,7 +34,11 @@ export interface MockViewerProps {
   readonly initialPreset?: ViewportPreset;
 }
 
-export function MockViewer({ src, title, initialPreset = '1024' }: MockViewerProps) {
+export function MockViewer({
+  src,
+  title,
+  initialPreset = "1024",
+}: MockViewerProps) {
   const [preset, setPreset] = useState<ViewportPreset>(initialPreset);
 
   return (
@@ -48,10 +52,10 @@ export function MockViewer({ src, title, initialPreset = '1024' }: MockViewerPro
             onClick={() => setPreset(p)}
             aria-pressed={preset === p}
             className={cn(
-              'inline-flex h-8 items-center rounded-sm px-sm text-label-md',
+              "inline-flex h-8 items-center rounded-sm px-sm text-label-md",
               preset === p
-                ? 'bg-primary text-primary-fg'
-                : 'bg-surface-variant text-on-surface hover:bg-surface-variant/70',
+                ? "bg-primary text-primary-fg"
+                : "bg-surface-variant text-on-surface hover:bg-surface-variant/70",
             )}
           >
             {VIEWPORT_LABEL[p]}
