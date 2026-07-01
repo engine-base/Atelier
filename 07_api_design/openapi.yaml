@@ -3491,6 +3491,29 @@ paths:
                   data: { $ref: '#/components/schemas/WorkflowOutput' }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /outputs/{output_id}/content-url:
+    parameters:
+      - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [outputs]
+      summary: 成果物 HTML の署名付き閲覧 URL
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_output_content_url
+      x-screen-ids: [S-G01]
+      responses:
+        '200':
+          description: 署名付き閲覧 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ContentUrl' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: HTML 未生成, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # cron スケジュール (T-A-40)
   # ==========================================================================
@@ -3805,6 +3828,29 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/transcript-url:
+    parameters:
+      - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [meetings]
+      summary: 議事録 文字起こし結果の署名付き閲覧 URL
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::get_meeting_transcript_url
+      x-screen-ids: [S-M01]
+      responses:
+        '200':
+          description: 署名付き閲覧 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ContentUrl' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 文字起こし未完了, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /meetings/{meeting_id}/transcribe:
     post:

@@ -22,7 +22,9 @@ from src.schemas.meetings import (
     MeetingUploadUrlRequest,
     MeetingUploadUrlResponse,
 )
+from src.schemas.storage import ContentUrlResponse
 from src.services import meetings as svc
+from src.storage_signing import StorageSigningError, create_signed_download_url
 
 router = APIRouter(tags=["meetings"])
 
@@ -82,6 +84,29 @@ async def get_meeting(
     if meeting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
     return {"data": meeting}
+
+
+@router.get(
+    "/meetings/{meeting_id}/transcript-url",
+    summary="議事録 文字起こし結果の署名付き閲覧 URL",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def get_meeting_transcript_url(
+    meeting_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, ContentUrlResponse]:
+    """RLS で可視な meeting の parse_result_path に対する署名付き閲覧 URL を返す。"""
+    meeting = await svc.get_meeting(session, meeting_id)
+    if meeting is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    if meeting.parse_result_path is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "transcription result is not ready yet")
+    try:
+        url = await create_signed_download_url(meeting.parse_result_path)
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": ContentUrlResponse(url=url)}
 
 
 @router.post(
