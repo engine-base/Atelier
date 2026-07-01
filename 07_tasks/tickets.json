@@ -19042,9 +19042,14 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/web/app/t-uc-36/page.tsx"
+          "apps/web/app/t-uc-36/page.tsx",
+          "apps/web/app/t-uc-36/_components/NotificationsContainer.tsx",
+          "apps/web/tests/bundle-d/uc36-notifications.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/web/app/t-uc-36/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-36.md",
