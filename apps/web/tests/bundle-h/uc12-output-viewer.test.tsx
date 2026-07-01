@@ -10,7 +10,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -67,6 +67,60 @@ describe("S-G01 OutputViewerContainer (T-UC-12)", () => {
       "https://storage/signed/out.html?token=x",
     );
     expect(screen.getByText("要修正")).toBeInTheDocument();
+  });
+
+  it("adds a comment via POST /comments (optimistic)", async () => {
+    const commentsData: {
+      id: string;
+      author_user_id: string;
+      content: string;
+    }[] = [];
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/out.html?token=x" } };
+      if (path === "/comments") return { data: [...commentsData] };
+      return { data: { summary: "見積書 v2" } };
+    });
+    const post = vi.fn(
+      async (_path: string, init: { body: { content: string } }) => {
+        // server が永続化した想定: 以降の GET /comments に反映する。
+        commentsData.push({
+          id: "c9",
+          author_user_id: "u2",
+          content: init.body.content,
+        });
+        return { data: { id: "c9" } };
+      },
+    );
+    const client = {
+      get,
+      post,
+      patch: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={client as never} />,
+    );
+    const ta = (await screen.findByPlaceholderText(
+      "コメントを追加…",
+    )) as HTMLTextAreaElement;
+    fireEvent.change(ta, { target: { value: "要修正です" } });
+    fireEvent.click(screen.getByRole("button", { name: "コメント" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { body: { target_type: string; target_id: string; content: string } },
+    ];
+    expect(path).toBe("/comments");
+    expect(init.body).toEqual({
+      target_type: "workflow_output",
+      target_id: "o1",
+      content: "要修正です",
+    });
+    // 楽観追加で即座に表示
+    expect(screen.getByText("要修正です")).toBeInTheDocument();
   });
 
   it("shows a not-generated message on 409", async () => {
