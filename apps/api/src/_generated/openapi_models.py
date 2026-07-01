@@ -90,6 +90,20 @@ class MeUpdate(BaseModel):
     display_name: Annotated[str, Field(max_length=100, min_length=1)]
 
 
+class Kind(StrEnum):
+    project = "project"
+    task = "task"
+    knowledge = "knowledge"
+    employee = "employee"
+
+
+class SearchHit(BaseModel):
+    id: str
+    kind: Kind
+    title: str
+    snippet: str
+
+
 class SigninRequest(BaseModel):
     email: EmailStr
     password: str
@@ -298,7 +312,7 @@ class Project(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Kind(StrEnum):
+class Kind1(StrEnum):
     api_key = "api_key"
     password = "password"
     token = "token"
@@ -314,7 +328,7 @@ class ProjectCredential(BaseModel):
     id: UUID
     project_id: UUID
     name: str
-    kind: Kind
+    kind: Kind1
     last4: str | None = None
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -322,7 +336,7 @@ class ProjectCredential(BaseModel):
 
 class CredentialCreate(BaseModel):
     name: Annotated[str, Field(max_length=200, min_length=1)]
-    kind: Kind | None = None
+    kind: Kind1 | None = None
     value: Annotated[str, Field(max_length=10000, min_length=1)]
     """
     plaintext（保存時に暗号化）
@@ -331,7 +345,7 @@ class CredentialCreate(BaseModel):
 
 class CredentialUpdate(BaseModel):
     name: Annotated[str | None, Field(max_length=200, min_length=1)] = None
-    kind: Kind | None = None
+    kind: Kind1 | None = None
 
 
 class CredentialReveal(BaseModel):

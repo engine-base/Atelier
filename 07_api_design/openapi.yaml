@@ -167,6 +167,15 @@ components:
       properties:
         display_name: { type: string, minLength: 1, maxLength: 100 }
 
+    SearchHit:
+      type: object
+      required: [id, kind, title, snippet]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [project, task, knowledge, employee] }
+        title: { type: string }
+        snippet: { type: string }
+
     SigninRequest:
       type: object
       required: [email, password]
@@ -2059,6 +2068,30 @@ paths:
                   data: { $ref: '#/components/schemas/Me' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /search:
+    get:
+      tags: [search]
+      summary: 横断検索（project/task/knowledge/employee）
+      x-implementation-path: apps/api/src/routes/search/__init__.py::search
+      x-screen-ids: [S-U02]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 200 } }
+        - name: kind
+          in: query
+          required: false
+          schema: { type: string, enum: [all, project, task, knowledge, employee], default: all }
+      responses:
+        '200':
+          description: 検索結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/SearchHit' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

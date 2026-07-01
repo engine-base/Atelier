@@ -1082,6 +1082,65 @@ export interface paths {
         };
         trace?: never;
     };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 横断検索（project/task/knowledge/employee） */
+        get: {
+            parameters: {
+                query: {
+                    q: string;
+                    kind?: "all" | "project" | "task" | "knowledge" | "employee";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 検索結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SearchHit"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspaces": {
         parameters: {
             query?: never;
@@ -8590,6 +8649,13 @@ export interface components {
         };
         MeUpdate: {
             display_name: string;
+        };
+        SearchHit: {
+            id: string;
+            /** @enum {string} */
+            kind: "project" | "task" | "knowledge" | "employee";
+            title: string;
+            snippet: string;
         };
         SigninRequest: {
             /** Format: email */

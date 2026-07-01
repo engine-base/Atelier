@@ -19526,9 +19526,22 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/web/app/t-uc-40/page.tsx"
+          "apps/web/app/t-uc-40/page.tsx",
+          "apps/api/src/schemas/search.py",
+          "apps/api/src/services/search/__init__.py",
+          "apps/api/src/routes/search/__init__.py",
+          "apps/api/tests/routes/test_search.py",
+          "apps/web/app/t-uc-40/_components/SearchContainer.tsx",
+          "apps/web/tests/bundle-h/uc40-search.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_api_design/openapi.yaml",
+          "apps/web/app/t-uc-40/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-40.md",
