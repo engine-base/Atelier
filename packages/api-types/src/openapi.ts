@@ -3409,6 +3409,84 @@ export interface paths {
         };
         trace?: never;
     };
+    "/mocks/{mock_id}/content-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mock_id: string;
+            };
+            cookie?: never;
+        };
+        /** モック HTML の署名付き閲覧 URL */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 署名付き閲覧 URL */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ContentUrl"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage 署名失敗 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mocks/{mock_id}/versions": {
         parameters: {
             query?: never;
@@ -8536,6 +8614,9 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        ContentUrl: {
+            url: string;
         };
         AiEmployee: {
             /** Format: uuid */

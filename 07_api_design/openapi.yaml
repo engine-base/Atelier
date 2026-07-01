@@ -508,6 +508,12 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    ContentUrl:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string }
+
     AiEmployee:
       type: object
       properties:
@@ -3084,6 +3090,28 @@ paths:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mocks/{mock_id}/content-url:
+    parameters:
+      - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: モック HTML の署名付き閲覧 URL
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::get_mock_content_url
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: 署名付き閲覧 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ContentUrl' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /mocks/{mock_id}/versions:
     parameters:

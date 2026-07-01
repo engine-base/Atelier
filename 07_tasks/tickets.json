@@ -16128,9 +16128,21 @@
         "new": [
           "apps/web/app/mocks/s_h01/page.tsx",
           "apps/web/app/mocks/s_h01/_components/.gitkeep",
-          "e2e/s_h01.spec.ts"
+          "e2e/s_h01.spec.ts",
+          "apps/api/src/storage_signing.py",
+          "apps/api/src/schemas/storage.py",
+          "apps/api/tests/routes/test_mocks_content_url.py",
+          "apps/web/app/mocks/s_h01/_components/MockViewerContainer.tsx",
+          "apps/web/tests/bundle-h/uc13-mock-viewer.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/src/routes/mocks/__init__.py",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_api_design/openapi.yaml",
+          "apps/web/app/mocks/s_h01/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-13.md",
