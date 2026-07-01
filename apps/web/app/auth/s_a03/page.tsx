@@ -1,31 +1,53 @@
 /**
  * S-A03 ワークスペース設定 — T-UC-02
  *
- * AppShell 内で表示される設定画面。実 API 連携は T-A-XX (workspace API) で別途。
+ * 実 workspaces / ai-learning API に配線。workspaceId は URL ?workspace=、
+ * 無ければ localStorage(atelier_current_workspace) を使う。
  */
 
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-import {
-  WorkspaceSettingsForm,
-  type WorkspaceSettingsValues,
-} from './_components/WorkspaceSettingsForm';
+import { QueryProvider } from "../../../providers/query-provider";
+import { WorkspaceSettingsContainer } from "./_components/WorkspaceSettingsContainer";
 
-export default function SA03Page() {
-  const initial: WorkspaceSettingsValues = { name: '', aiLearningOptOut: false };
+function readCurrentWorkspace(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("atelier_current_workspace");
+}
+
+function SA03Inner() {
+  const params = useSearchParams();
+  const workspaceId = params.get("workspace") ?? readCurrentWorkspace();
+
   return (
     <div className="mx-auto w-full max-w-2xl px-md py-lg">
-      <WorkspaceSettingsForm
-        defaultValues={initial}
-        onSubmit={async (_v) => {
-          // TODO: apiClient.patch('/workspaces/{id}') と連携 (T-A-XX)
-        }}
-        onDelete={() => {
-          // TODO: confirm dialog → apiClient.delete('/workspaces/{id}')
-        }}
-      />
+      {workspaceId ? (
+        <WorkspaceSettingsContainer workspaceId={workspaceId} />
+      ) : (
+        <p className="text-body-md text-on-surface-variant">
+          ワークスペースが選択されていません。
+        </p>
+      )}
     </div>
+  );
+}
+
+export default function SA03Page() {
+  return (
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SA03Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
