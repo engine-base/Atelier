@@ -54,33 +54,41 @@ describe("S-M01 MeetingUploadContainer (T-UC-23)", () => {
       return { data: {} }; // transcribe
     });
     let polls = 0;
-    const get = vi.fn(async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("transcript-url")) {
+        return { data: { url: "https://storage/signed/m1.json?token=x" } };
+      }
       polls += 1;
       if (polls < 2) return { data: { parsed_at: null, parse_error: null } };
       return {
         data: {
           parsed_at: "2026-06-20T10:00:00Z",
-          parse_result_path: "results/m1.json",
+          parse_result_path: "transcripts/queued/m1.json",
         },
       };
     });
     const uploadFile = vi.fn(async () => undefined);
+    const fetchText = vi.fn(async () => "これは文字起こし本文です。");
 
     render(
       <MeetingUploadContainer
         projectId="p1"
         client={fakeClient({ get, post })}
         uploadFile={uploadFile}
+        fetchText={fetchText}
         pollIntervalMs={5}
       />,
     );
 
     selectFile();
 
+    // 完了時に実際の文字起こし本文が表示される
     expect(
-      await screen.findByText(/文字起こしが完了しました/),
+      await screen.findByText("これは文字起こし本文です。"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/results\/m1\.json/)).toBeInTheDocument();
+    expect(fetchText).toHaveBeenCalledWith(
+      "https://storage/signed/m1.json?token=x",
+    );
 
     // 各段が呼ばれたことを検証
     const postPaths = post.mock.calls.map((c) => (c as unknown as [string])[0]);
