@@ -7,10 +7,10 @@
  *   3. POST /meetings                    → メタデータ登録 (meeting id)
  *   4. POST /meetings/{id}/transcribe    → Whisper キュー登録 (202)
  *   5. GET  /meetings/{id} を polling     → parsed_at / parse_error まで待つ
+ *   6. GET  /meetings/{id}/transcript-url → 署名付き URL を取得し本文を fetch 表示
  *
- * 文字起こし本文は storage 上 (parse_result_path) にあり本 API では返らないため、
- * 完了時は結果パスを提示する（本文取得は別途 result-download endpoint が必要）。
- * client / uploadFile / poll 間隔はテスト用に注入可能。
+ * 文字起こし本文は storage 上 (parse_result_path) にあり、署名付き閲覧 URL 経由で取得する。
+ * client / uploadFile / fetchText / poll 間隔はテスト用に注入可能。
  */
 
 "use client";
@@ -61,10 +61,26 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** 署名付き URL から文字起こし本文を取得。JSON なら text/transcript フィールドを優先。 */
+async function defaultFetchText(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok)
+    throw new Error(`文字起こし結果の取得に失敗しました (HTTP ${res.status})`);
+  const raw = await res.text();
+  try {
+    const parsed = JSON.parse(raw) as { text?: string; transcript?: string };
+    return parsed.text ?? parsed.transcript ?? raw;
+  } catch {
+    return raw;
+  }
+}
+
 export interface MeetingUploadContainerProps {
   readonly projectId: string;
   readonly client?: ApiClient;
   readonly uploadFile?: (url: string, file: File) => Promise<void>;
+  /** 署名付き URL から本文を取得。テスト用に注入可能。 */
+  readonly fetchText?: (url: string) => Promise<string>;
   readonly pollIntervalMs?: number;
   readonly maxPolls?: number;
 }
@@ -73,6 +89,7 @@ export function MeetingUploadContainer({
   projectId,
   client: injected,
   uploadFile = defaultUploadFile,
+  fetchText = defaultFetchText,
   pollIntervalMs = POLL_INTERVAL_MS,
   maxPolls = MAX_POLLS,
 }: MeetingUploadContainerProps) {
@@ -122,8 +139,17 @@ export function MeetingUploadContainer({
       if (st.parse_error)
         throw new Error(`文字起こしに失敗しました: ${st.parse_error}`);
       if (st.parsed_at) {
-        const path = st.parse_result_path ?? "(結果パス不明)";
-        return `文字起こしが完了しました。\n結果ファイル: ${path}`;
+        // 完了: 署名付き URL を取得して本文を表示する。
+        const urlRes = await client.get(
+          "/meetings/{meeting_id}/transcript-url",
+          {
+            params: { path: { meeting_id: meeting.id } },
+          },
+        );
+        const signed = (urlRes as { data?: { url: string } }).data;
+        if (!signed)
+          return "文字起こしは完了しましたが、結果の取得に失敗しました。";
+        return await fetchText(signed.url);
       }
       await sleep(pollIntervalMs);
     }
