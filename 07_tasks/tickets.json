@@ -19157,9 +19157,22 @@
       "estimate_confidence": "high",
       "files_changed_predicted": {
         "new": [
-          "apps/web/app/t-uc-37/page.tsx"
+          "apps/web/app/t-uc-37/page.tsx",
+          "apps/api/src/schemas/users.py",
+          "apps/api/src/services/users/__init__.py",
+          "apps/api/src/routes/users/__init__.py",
+          "apps/api/tests/routes/test_users_me.py",
+          "apps/web/app/t-uc-37/_components/ProfileContainer.tsx",
+          "apps/web/tests/bundle-a/uc37-profile.test.tsx"
         ],
-        "modify": [],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "apps/api/src/_generated/openapi_models.py",
+          "packages/api-types/src/openapi.ts",
+          "07_api_design/openapi.yaml",
+          "apps/web/app/t-uc-37/page.tsx",
+          "07_tasks/tickets.json"
+        ],
         "shared_read": [
           "07_tasks/tickets.json",
           "07_tasks/acceptance-criteria/T-UC-37.md",

@@ -153,6 +153,20 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    Me:
+      type: object
+      required: [id, email, display_name]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        display_name: { type: string, nullable: true }
+
+    MeUpdate:
+      type: object
+      required: [display_name]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 100 }
+
     SigninRequest:
       type: object
       required: [email, password]
@@ -2006,6 +2020,46 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /me:
+    get:
+      tags: [users]
+      summary: 自己プロフィール取得
+      x-implementation-path: apps/api/src/routes/users/__init__.py::get_me
+      x-screen-ids: [S-U01]
+      responses:
+        '200':
+          description: プロフィール
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Me' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [users]
+      summary: 自己プロフィール更新（display_name）
+      x-implementation-path: apps/api/src/routes/users/__init__.py::update_me
+      x-screen-ids: [S-U01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeUpdate' }
+      responses:
+        '200':
+          description: 更新後プロフィール
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Me' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # workspaces (9 endpoints) - 1 つだけ完全定義、残りは構造同様

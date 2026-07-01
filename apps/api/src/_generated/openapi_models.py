@@ -80,6 +80,16 @@ class User(BaseModel):
     updated_at: AwareDatetime
 
 
+class Me(BaseModel):
+    id: UUID
+    email: EmailStr
+    display_name: str
+
+
+class MeUpdate(BaseModel):
+    display_name: Annotated[str, Field(max_length=100, min_length=1)]
+
+
 class SigninRequest(BaseModel):
     email: EmailStr
     password: str

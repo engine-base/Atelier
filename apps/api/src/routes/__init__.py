@@ -36,6 +36,7 @@ from src.routes.public import router as public_router
 from src.routes.sales_docs import router as sales_docs_router
 from src.routes.skills import router as skills_router
 from src.routes.tasks import router as tasks_router
+from src.routes.users import router as users_router
 from src.routes.workflow import router as workflow_router
 from src.routes.workspace_members import router as workspace_members_router
 from src.routes.workspaces import router as workspaces_router
@@ -71,6 +72,7 @@ api_router.include_router(circuit_breaker_router)
 api_router.include_router(executions_router)
 api_router.include_router(exec_logs_router)
 api_router.include_router(auth_router)
+api_router.include_router(users_router)
 api_router.include_router(contract_router)
 api_router.include_router(client_signin_router)
 
