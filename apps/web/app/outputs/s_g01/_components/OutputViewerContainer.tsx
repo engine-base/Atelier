@@ -2,20 +2,21 @@
  * S-G01 成果物ビューア コンテナ — T-UC-12 (実 outputs / comments API 配線)
  *
  * GET /outputs/{id}（タイトル）+ /content-url（署名付き閲覧 URL）+ GET /comments
- * (target_type=workflow_output) を取得し OutputViewer に渡す。
- * HTML 未生成(409) / storage 未設定(503) はその旨を表示。api client は注入可能。
+ * (target_type=workflow_output) を取得し OutputViewer に渡す。コメント追加は
+ * POST /comments（楽観追加 + 失敗ロールバック）。HTML 未生成(409) / storage 未設定(503)
+ * はその旨を表示。api client は注入可能。
  */
 
 "use client";
 
 import * as React from "react";
-import { Loading } from "../../../../components/Loading";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { Loading } from "../../../../components/Loading";
 import { OutputViewer, type OutputComment } from "./OutputViewer";
 
 interface ApiOutput {
@@ -26,6 +27,7 @@ interface ApiComment {
   id: string;
   author_user_id?: string | null;
   content: string;
+  created_at?: string;
 }
 
 function statusOf(error: unknown): number | null {
@@ -42,6 +44,8 @@ export function OutputViewerContainer({
   client: injected,
 }: OutputViewerContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
+  const COMMENTS_KEY = ["output", outputId, "comments"] as const;
 
   const meta = useQuery({
     queryKey: ["output", outputId],
@@ -66,7 +70,7 @@ export function OutputViewerContainer({
   });
 
   const comments = useQuery({
-    queryKey: ["output", outputId, "comments"],
+    queryKey: COMMENTS_KEY,
     queryFn: async () => {
       const res = await client.get("/comments", {
         params: {
@@ -76,6 +80,38 @@ export function OutputViewerContainer({
       return (res as { data?: ApiComment[] }).data ?? [];
     },
     retry: false,
+  });
+
+  // コメント追加: 楽観的に一覧へ差し込み、失敗時に元へ戻す。
+  const addMut = useMutation({
+    mutationFn: (text: string) =>
+      client.post("/comments", {
+        body: {
+          target_type: "workflow_output",
+          target_id: outputId,
+          content: text,
+        },
+      }),
+    onMutate: async (text) => {
+      await queryClient.cancelQueries({ queryKey: COMMENTS_KEY });
+      const prev = queryClient.getQueryData<ApiComment[]>(COMMENTS_KEY);
+      const optimistic: ApiComment = {
+        id: `optimistic-${prev?.length ?? 0}`,
+        author_user_id: "あなた",
+        content: text,
+        created_at: new Date().toISOString(),
+      };
+      queryClient.setQueryData<ApiComment[]>(COMMENTS_KEY, (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+      return { prev };
+    },
+    onError: (_e, _text, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(COMMENTS_KEY, ctx.prev);
+    },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
   });
 
   if (statusOf(meta.error) === 403 || statusOf(content.error) === 403) {
@@ -115,6 +151,7 @@ export function OutputViewerContainer({
     id: c.id,
     author: c.author_user_id ?? "匿名",
     content: c.content,
+    createdAt: c.created_at ? c.created_at.slice(0, 16).replace("T", " ") : "",
   }));
 
   return (
@@ -122,6 +159,7 @@ export function OutputViewerContainer({
       title={title}
       contentUrl={content.data.url}
       comments={outputComments}
+      onAddComment={(text) => addMut.mutate(text)}
     />
   );
 }

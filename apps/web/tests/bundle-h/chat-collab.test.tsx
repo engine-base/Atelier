@@ -88,7 +88,7 @@ describe("ProcessContextBar (T-UC-09)", () => {
 
 describe("OutputViewer (T-UC-12)", () => {
   const comments: OutputComment[] = [
-    { id: "p1", author: "wanda", content: "x" },
+    { id: "p1", author: "wanda", content: "x", createdAt: "2026-06-20 10:00" },
   ];
 
   it("renders title, content iframe, and comments", () => {
@@ -97,7 +97,7 @@ describe("OutputViewer (T-UC-12)", () => {
     );
     expect(screen.getByRole("heading", { name: "T" })).toBeInTheDocument();
     expect(screen.getByTitle("T")).toHaveAttribute("src", "about:blank");
-    expect(screen.getByText("wanda")).toBeInTheDocument();
+    expect(screen.getByText(/wanda/)).toBeInTheDocument();
   });
 
   it("renders the comment list", () => {
