@@ -35,7 +35,10 @@ _SQL: dict[SearchKind, str] = {
         "order by updated_at desc limit :lim"
     ),
     "employee": (
-        "select id, display_name as title, coalesce(role, '') as snippet "
+        # role は ai_employee_role_enum (NOT NULL)。coalesce(role, '') と書くと
+        # '' が enum 型に解決され「invalid input value for enum: ""」で 500 になるため
+        # 明示的に text へキャストする（role は非 NULL なので情報は失われない）。
+        "select id, display_name as title, role::text as snippet "
         "from public.ai_employees "
         "where display_name ilike :pat "
         "order by display_name limit :lim"
