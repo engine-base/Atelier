@@ -20,6 +20,7 @@ from collections.abc import Iterator
 import pytest
 import sqlalchemy
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.pool import NullPool
 
 PG_SYNC = os.environ.get(
@@ -52,7 +53,12 @@ def engine() -> Iterator[Engine]:
 
 
 def test_byok_key_isolation(engine: Engine) -> None:
-    """byok_keys は user_id = auth.uid() の self のみ見える (R-T06 簡略)."""
+    """byok_api_keys (E-022) は user_id = auth.uid() の self のみ見える (R-T06)。
+
+    さらに encrypted_key 列は authenticated から SELECT 不可 (列レベル GRANT, t-d-95)。
+    ※ 旧 byok_keys(encrypted_secret,status,name) は entities.json#E-022 と乖離した
+      stale スキーマだったため、実 DDL (byok_api_keys) に合わせて更新済み。
+    """
     u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
     k_a = str(uuid.uuid4())
     with engine.begin() as c:
@@ -72,24 +78,50 @@ def test_byok_key_isolation(engine: Engine) -> None:
             )
         c.execute(
             text(
-                "insert into public.byok_keys(id,user_id,provider,name,encrypted_secret,status) "
-                "values(cast(:i as uuid),cast(:u as uuid),'anthropic','main',:s,'active')"
+                "insert into public.byok_api_keys(id,user_id,provider,encrypted_key,key_label,is_active) "
+                "values(cast(:i as uuid),cast(:u as uuid),'anthropic',:s,'main',true)"
             ),
-            {"i": k_a, "u": u_a, "s": b"encrypted"},
+            {"i": k_a, "u": u_a, "s": "encrypted"},
         )
 
     with engine.connect() as c:
-        # u_b は u_a の byok_keys を見えない
+        # u_b は u_a の byok_api_keys を見えない
         c.execute(text("set local role authenticated"))
         c.execute(
             text("select set_config('request.jwt.claims', :c, true)"),
             {"c": f'{{"sub":"{u_b}","role":"authenticated"}}'},
         )
         rows = c.execute(
-            text("select count(*) from public.byok_keys where id = cast(:k as uuid)"),
+            text("select count(*) from public.byok_api_keys where id = cast(:k as uuid)"),
             {"k": k_a},
         ).scalar_one()
         assert rows == 0, f"R-T06 violation: u_b saw u_a's byok_key (rows={rows})"
+
+    with engine.connect() as c:
+        # self (u_a) は行を見える (許可列のみ)
+        c.execute(text("set local role authenticated"))
+        c.execute(
+            text("select set_config('request.jwt.claims', :c, true)"),
+            {"c": f'{{"sub":"{u_a}","role":"authenticated"}}'},
+        )
+        rows = c.execute(
+            text("select count(*) from public.byok_api_keys where id = cast(:k as uuid)"),
+            {"k": k_a},
+        ).scalar_one()
+        assert rows == 1, f"self row should be visible (rows={rows})"
+
+    with engine.connect() as c:
+        # encrypted_key 列は self でも SELECT 不可 (列レベル GRANT)
+        c.execute(text("set local role authenticated"))
+        c.execute(
+            text("select set_config('request.jwt.claims', :c, true)"),
+            {"c": f'{{"sub":"{u_a}","role":"authenticated"}}'},
+        )
+        with pytest.raises(ProgrammingError):
+            c.execute(
+                text("select encrypted_key from public.byok_api_keys where id = cast(:k as uuid)"),
+                {"k": k_a},
+            )
 
 
 def test_service_role_bypass_capability(engine: Engine) -> None:
@@ -128,6 +160,6 @@ def test_service_role_bypass_capability(engine: Engine) -> None:
             text("select rolbypassrls from pg_roles where rolname = 'service_role'")
         ).scalar()
         # service_role が存在しない環境では None。存在すれば bypassrls であるべき。
-        assert (
-            result is None or result is True
-        ), "service_role exists but does not bypass RLS (R-T07 violation)"
+        assert result is None or result is True, (
+            "service_role exists but does not bypass RLS (R-T07 violation)"
+        )

@@ -89,14 +89,14 @@ def test_cross_project_tasks_invisible(engine: Engine) -> None:
             c.execute(
                 text(
                     "insert into public.projects(id,workspace_id,name,project_type) "
-                    "values(cast(:i as uuid),cast(:w as uuid),:n,'internal')"
+                    "values(cast(:i as uuid),cast(:w as uuid),:n,'internal_product')"
                 ),
                 {"i": p, "w": ws, "n": f"p-{p[:5]}"},
             )
         c.execute(
             text(
-                "insert into public.tasks(id,project_id,title,stage) "
-                "values(cast(:i as uuid),cast(:p as uuid),:t,'ready')"
+                "insert into public.tasks(id,project_id,category,title,type,estimated_hours,lifecycle_stage) "
+                "values(cast(:i as uuid),cast(:p as uuid),'backend',:t,'feature',1,'ready')"
             ),
             {"i": t_b, "p": p_b, "t": "B-only-task"},
         )
@@ -143,7 +143,7 @@ def test_mcp_token_workspace_bound(engine: Engine) -> None:
                 "insert into public.mcp_tokens(id,workspace_id,name,token_hash) "
                 "values(cast(:i as uuid),cast(:w as uuid),:n,:h)"
             ),
-            {"i": t_b, "w": ws_b, "n": "B-token", "h": "h" * 64},
+            {"i": t_b, "w": ws_b, "n": "B-token", "h": (t_b.replace("-", "") * 3)[:64]},
         )
 
     with engine.connect() as c:

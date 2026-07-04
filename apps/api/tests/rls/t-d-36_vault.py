@@ -88,7 +88,8 @@ def test_vault_cross_project_invisible(engine: Engine) -> None:
         c.execute(
             text(
                 "insert into public.workspace_memberships(workspace_id,user_id,role) "
-                "values(cast(:w as uuid),cast(:u as uuid),'owner')"
+                "values(cast(:w as uuid),cast(:u as uuid),'owner') "
+                "on conflict do nothing"  # t-d-90 owner bootstrap trigger と重複回避
             ),
             {"w": ws_a, "u": u_a},
         )

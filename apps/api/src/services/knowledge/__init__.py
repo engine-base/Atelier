@@ -16,6 +16,7 @@ import uuid
 from typing import Any
 
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
@@ -179,22 +180,26 @@ async def create_knowledge(
         emb_sql = "cast(:emb as extensions.vector)"
     else:
         emb_sql = "null"
-    res = await session.execute(
-        text(
-            f"insert into public.knowledge_nodes "
-            f"(id, account_id, account_type, scope, owner_employee_id, parent_id, "
-            f"visible_in_tree, category, "
-            f"title, content_md, tags, embedding, source_type, source_project_id, "
-            f"confidence_score, is_anonymized) "
-            f"values (cast(:id as uuid), cast(:aid as uuid), "
-            f"cast(:at as knowledge_account_type_enum), "
-            f"cast(:sc as knowledge_scope_enum), "
-            f"cast(:oeid as uuid), cast(:pid as uuid), :vit, :cat, :tt, :cm, :tg, {emb_sql}, "
-            f":st, cast(:spid as uuid), :cs, :ia) "
-            f"returning id"
-        ),
-        params,
-    )
+    try:
+        res = await session.execute(
+            text(
+                f"insert into public.knowledge_nodes "
+                f"(id, account_id, account_type, scope, owner_employee_id, parent_id, "
+                f"visible_in_tree, category, "
+                f"title, content_md, tags, embedding, source_type, source_project_id, "
+                f"confidence_score, is_anonymized) "
+                f"values (cast(:id as uuid), cast(:aid as uuid), "
+                f"cast(:at as knowledge_account_type_enum), "
+                f"cast(:sc as knowledge_scope_enum), "
+                f"cast(:oeid as uuid), cast(:pid as uuid), :vit, :cat, :tt, :cm, :tg, {emb_sql}, "
+                f":st, cast(:spid as uuid), :cs, :ia) "
+                f"returning id"
+            ),
+            params,
+        )
+    except ProgrammingError:
+        # RLS with check 違反 (例: member による platform 書込) は 403 相当として None。
+        return None
     if res.scalar_one_or_none() is None:
         return None
     await AuditWriter(session).write(

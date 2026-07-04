@@ -240,7 +240,7 @@ def test_search_includes_platform(app: FastAPI, seeded: dict[str, str]) -> None:
             headers=_h(seeded["u"]),
         )
         assert r.status_code == 200, r.text
-        ids = {h["knowledge"]["id"] for h in r.json()["hits"]}
+        ids = {h["knowledge"]["id"] for h in r.json()["data"]["hits"]}
         assert seeded["k_platform"] in ids
 
 
