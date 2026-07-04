@@ -90,7 +90,7 @@ def test_cross_workspace_projects_invisible(engine: Engine) -> None:
         c.execute(
             text(
                 "insert into public.projects(id,workspace_id,name,project_type) "
-                "values(cast(:i as uuid),cast(:w as uuid),:n,'internal')"
+                "values(cast(:i as uuid),cast(:w as uuid),:n,'internal_product')"
             ),
             {"i": proj_b, "w": ws_b, "n": "B-only"},
         )

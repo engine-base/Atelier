@@ -18,9 +18,20 @@ PG_ASYNC = os.environ.get(
     "ATELIER_TEST_PG_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
 )
 PG_SYNC = PG_ASYNC.replace("+asyncpg", "+psycopg")
-os.environ.pop("ANTHROPIC_API_KEY", None)
-os.environ.pop("VOYAGE_API_KEY", None)
-os.environ.pop("ATELIER_ALLOW_FAKE_LLM", None)  # 本番相当 (no-stub) を検証
+
+
+@pytest.fixture(autouse=True)
+def _no_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
+    """本番相当 (no-stub) を検証するため LLM 系 env を本テスト内でのみ剥がす。
+
+    ※ 以前は module import 時に os.environ.pop していたが、pytest は run 前に
+      全 test module を import するため、collect 段階で他テスト (chat_sse の
+      fake-LLM 経路等) の env まで破壊していた。monkeypatch なら test 単位で復元される。
+    """
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+
 
 import sqlalchemy  # noqa: E402
 from sqlalchemy import text  # noqa: E402

@@ -15,6 +15,7 @@ F-LEGAL-004: terms_of_service と privacy_policy は accepted=True 必須、
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import contextlib
 import hashlib
@@ -83,10 +84,26 @@ def _validate_consents(consents: list[ConsentEntry]) -> None:
             )
 
 
-@lru_cache(maxsize=1)
-def _service_session_factory() -> async_sessionmaker[AsyncSession]:
-    """service_role 相当の sessionmaker。RLS バイパス用 (role を下げない)。"""
+@lru_cache(maxsize=8)
+def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
+    """service_role 相当の sessionmaker。RLS バイパス用 (role を下げない)。
+
+    asyncpg の接続は event loop を跨いで再利用できないため、実行中 loop 毎に
+    engine を分離してキャッシュする (本番 uvicorn は単一 loop で挙動不変。
+    テストの TestClient はブロック毎に新 loop を作るため必須)。
+    """
+    del loop_key  # cache key 専用
     return create_session_factory(create_engine())
+
+
+def _service_session_factory() -> async_sessionmaker[AsyncSession]:
+    """実行中 event loop に紐づく sessionmaker を返す。"""
+    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+
+
+_service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
+    _session_factory_for_loop.cache_clear
+)
 
 
 async def _create_supabase_auth_user(*, email: str, password: str) -> str | None:

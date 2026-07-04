@@ -85,8 +85,8 @@ def test_employee_specific_knowledge_owner_only(engine: Engine) -> None:
             )
         c.execute(
             text(
-                "insert into public.ai_employees(id,workspace_id,role,display_name,archived) "
-                "values(cast(:i as uuid),cast(:w as uuid),'engineer','TestEmp',false)"
+                "insert into public.ai_employees(id,workspace_id,name,role,department,display_name,archived) "
+                "values(cast(:i as uuid),cast(:w as uuid),'testemp','member','dev_qa','TestEmp',false)"
             ),
             {"i": emp_a, "w": ws_a},
         )
@@ -139,12 +139,12 @@ def test_archived_employee_knowledge_invisible(engine: Engine) -> None:
                 "insert into public.workspaces(id,owner_user_id,name) "
                 "values(cast(:i as uuid),cast(:o as uuid),:n)"
             ),
-            {"i": ws_a, "o": u_a, "n": "w"},
+            {"i": ws_a, "o": u_a, "n": "w-arch"},
         )
         c.execute(
             text(
-                "insert into public.ai_employees(id,workspace_id,role,display_name,archived) "
-                "values(cast(:i as uuid),cast(:w as uuid),'engineer','Archived',true)"
+                "insert into public.ai_employees(id,workspace_id,name,role,department,display_name,archived) "
+                "values(cast(:i as uuid),cast(:w as uuid),'archivedemp','member','dev_qa','Archived',true)"
             ),
             {"i": emp_a, "w": ws_a},
         )
