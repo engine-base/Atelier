@@ -171,14 +171,16 @@ export function KnowledgeExplorer({
     <section
       aria-label="ナレッジエクスプローラ"
       className={cn(
-        "grid h-[calc(100dvh-12rem)] gap-md transition-[grid-template-columns] duration-200",
+        // モバイル(〜lg)は縦積み 1 カラム (固定 18rem+20rem の 3 ペインは 320px で
+        // 338px 横オーバーフローする実バグが E2E で出たため lg 以上でのみ 3 ペイン化)
+        "grid grid-cols-1 gap-md lg:h-[calc(100dvh-12rem)] lg:transition-[grid-template-columns] lg:duration-200",
         leftCollapsed && rightCollapsed
-          ? "grid-cols-[0_1fr_0]"
+          ? "lg:grid-cols-[0_1fr_0]"
           : leftCollapsed
-            ? "grid-cols-[0_1fr_20rem]"
+            ? "lg:grid-cols-[0_1fr_20rem]"
             : rightCollapsed
-              ? "grid-cols-[18rem_1fr_0]"
-              : "grid-cols-[18rem_1fr_20rem]",
+              ? "lg:grid-cols-[18rem_1fr_0]"
+              : "lg:grid-cols-[18rem_1fr_20rem]",
       )}
     >
       {/* 左: ツリー */}
