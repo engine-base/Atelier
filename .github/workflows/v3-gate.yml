@@ -689,6 +689,59 @@ jobs:
           PY
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Gate #14 — real-PG integration (migrations + full pytest)
+  # Gate #10 は「migration ファイルの静的 regex 監査」のみで実 DB を立てないため、
+  # migration 欠落 (DDL がリポに無い)・RLS↔INSERT 乖離・enum/列名の実スキーマ不一致は
+  # 素通りしていた (実DB検証で mcp_tokens/byok_api_keys の DDL 欠落等を人力検出した経緯:
+  # apps/web/.qa/RESULTS-2026-07-04-realdb.md)。本 gate は素の PG に bootstrap →
+  # migration を sorted 全適用 → pytest 全スイートを実 PG + RLS で実走する。
+  # 「PG が無いから skip」は green ではない — PG 系 skip が 1 件でもあれば FAIL。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-14-real-pg:
+    name: "Gate #14 — real-PG integration"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
+      - name: Bootstrap supabase-compatible base (roles / auth schema / pgvector)
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 -f scripts/ci/pg-bootstrap.sql
+      - name: Apply all migrations (sorted, supabase CLI 非依存)
+        run: |
+          PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            bash scripts/ci/apply-migrations.sh
+      - name: pytest full suite on real PG (0 fail / 0 PG-skip)
+        env:
+          ATELIER_TEST_PG_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          uv sync --all-packages --all-extras
+          set -o pipefail
+          (cd apps/api && uv run pytest tests -q -rs --no-cov) | tee /tmp/pytest-realpg.txt
+          # skip ガード: 「Postgres not available」で skip された PG テストは
+          # 配線切れを意味する (skip を green と数えない)。
+          if grep -qiE "SKIPPED.*Postgres not available" /tmp/pytest-realpg.txt; then
+            echo "::error::Gate #14 FAIL — PG 系テストが SKIP されています (DB 配線切れ。skip は green ではない)"
+            exit 1
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
   # Gate #11 — PR scope guard (T-F-30)
   # ブランチ名から task ID を抽出 → tickets.json#T-X-Y.files_changed_predicted
   # の new ∪ modify に含まれないファイルを touch していたら FAIL。
@@ -960,6 +1013,7 @@ jobs:
       - gate-11-scope-guard
       - gate-12-selected-stack-coverage
       - gate-13-gap-tracker
+      - gate-14-real-pg
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -978,6 +1032,7 @@ jobs:
             [gate-11-scope-guard]="${{ needs.gate-11-scope-guard.result }}"
             [gate-12-selected-stack-coverage]="${{ needs.gate-12-selected-stack-coverage.result }}"
             [gate-13-gap-tracker]="${{ needs.gate-13-gap-tracker.result }}"
+            [gate-14-real-pg]="${{ needs.gate-14-real-pg.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
