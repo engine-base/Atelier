@@ -20,7 +20,7 @@ export default function UC38Page() {
           ワークスペース切替
         </h1>
         <p className="text-body-md text-on-surface-variant">
-          所属する {t("nav.projects")} を切り替えます。
+          所属する {t("nav.workspaces")} を切り替えます。
         </p>
         <WorkspaceSwitcherContainer />
       </div>

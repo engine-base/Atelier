@@ -79,6 +79,9 @@ async def create_signed_upload(
                 "apikey": service_key,
                 "Content-Type": "application/json",
             },
+            # storage-api (Fastify) は Content-Type: application/json で body 空だと
+            # 400 "Body cannot be empty" を返す。空 JSON を明示送信する (実 storage で発覚)。
+            json={},
         )
     if r.status_code >= 400:
         raise MeetingUploadError(

@@ -44,7 +44,7 @@ export function WorkspacePicker({ value, options, onChange, className }: Workspa
         onClick={() => setOpen((o) => !o)}
         className="inline-flex h-9 items-center gap-xs rounded-md border border-surface-variant bg-surface px-sm text-label-lg text-on-surface hover:bg-surface-variant"
       >
-        <span className="text-label-md text-on-surface-variant">{t('nav.projects')}:</span>
+        <span className="text-label-md text-on-surface-variant">{t('nav.workspaces')}:</span>
         <span className="font-semibold">{current?.name ?? t('common.loading')}</span>
         <ChevronDown size={16} aria-hidden="true" />
       </button>
