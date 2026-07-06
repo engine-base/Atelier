@@ -43,7 +43,7 @@ function toDept(d: string): Department {
 
 export interface OrgChartContainerProps {
   readonly client?: ApiClient;
-  readonly onSelect?: (id: EmployeeId) => void;
+  readonly onSelect?: (id: string) => void;
 }
 
 function isForbidden(error: unknown): boolean {
@@ -93,7 +93,8 @@ export function OrgChartContainer({
   }
 
   const nodes: OrgNode[] = emps.map((e) => ({
-    id: (e.name || e.id) as EmployeeId,
+    id: (e.name || e.id) as EmployeeId, // persona (アイコン表示用)
+    selectId: e.id, // 遷移用 実UUID (name を渡すと GET /ai-employees/{id} が失敗する)
     displayName: e.display_name,
     department: toDept(e.department),
   }));

@@ -14,7 +14,13 @@ import {
   type ColumnDef,
 } from "../../../../components/data-table/DataTable";
 
-export type ApprovalKind = "task" | "output" | "publish" | "refund" | "access";
+// 実 DB enum (approval_inbox_type_enum) と 1:1。乖離すると全行が fallback 表示になる。
+export type ApprovalKind =
+  | "task_approval"
+  | "phase_approval"
+  | "knowledge_write"
+  | "comment_response"
+  | "scope_change";
 
 export interface ApprovalRow {
   readonly id: string;
@@ -25,11 +31,11 @@ export interface ApprovalRow {
 }
 
 const KIND_LABEL: Record<ApprovalKind, string> = {
-  task: "タスク",
-  output: "成果物",
-  publish: "公開",
-  refund: "返金",
-  access: "アクセス",
+  task_approval: "タスク",
+  phase_approval: "工程",
+  knowledge_write: "ナレッジ",
+  comment_response: "コメント",
+  scope_change: "スコープ変更",
 };
 
 export interface ApprovalsListProps {

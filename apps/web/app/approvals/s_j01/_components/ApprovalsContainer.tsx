@@ -23,11 +23,11 @@ import {
 } from "./ApprovalsList";
 
 const KINDS: readonly ApprovalKind[] = [
-  "task",
-  "output",
-  "publish",
-  "refund",
-  "access",
+  "task_approval",
+  "phase_approval",
+  "knowledge_write",
+  "comment_response",
+  "scope_change",
 ];
 const KEY = ["approval-inbox"] as const;
 
@@ -42,7 +42,7 @@ interface ApiApproval {
 function toKind(type: string): ApprovalKind {
   return (KINDS as readonly string[]).includes(type)
     ? (type as ApprovalKind)
-    : "task";
+    : "task_approval";
 }
 
 function requesterOf(payload: Record<string, unknown> | undefined): string {
@@ -68,7 +68,11 @@ export function ApprovalsContainer({
   const list = useQuery({
     queryKey: KEY,
     queryFn: async () => {
-      const res = await client.get("/approval-inbox");
+      // 「承認待ち」インボックスなので pending のみ取得する。
+      // フィルタ無しだと承認/却下済みが一覧に残り続ける (実機QAで検出)。
+      const res = await client.get("/approval-inbox", {
+        params: { query: { status: "pending" } },
+      });
       return (res as { data?: ApiApproval[] }).data ?? [];
     },
     retry: false,

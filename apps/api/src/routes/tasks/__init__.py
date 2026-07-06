@@ -189,11 +189,15 @@ async def retry_task(
 )
 async def play_task(
     id: str,
-    body: PlayTaskRequest,
     session: SessionDep,
     user: UserDep,
+    body: PlayTaskRequest | None = None,
 ) -> dict[str, PlayTaskResponse]:
-    result, payload = await svc.play_task(session, actor_id=user.id, task_id=id, data=body)
+    # 契約 (openapi.yaml) では requestBody は optional。body 無し = force=False。
+    # 必須のままだと S-I01 の再生ボタン (body なし POST) が 422 になる。
+    result, payload = await svc.play_task(
+        session, actor_id=user.id, task_id=id, data=body or PlayTaskRequest()
+    )
     if result == svc.PlayResult.NOT_FOUND:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
     if result == svc.PlayResult.INVALID_STATE:

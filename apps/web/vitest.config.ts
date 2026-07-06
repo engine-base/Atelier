@@ -12,6 +12,9 @@ export default mergeConfig(
     test: {
       environment: 'jsdom',
       include: ['**/*.{test,spec}.{ts,tsx}'],
+      // Node 22+/25 の実験的 WebStorage が jsdom の localStorage を shadow して
+      // clear() 欠落の TypeError になるのを防ぐ（Node バージョン非依存にする）。
+      setupFiles: ['./tests/setup/localstorage.ts'],
     },
   }),
 );

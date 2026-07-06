@@ -29,8 +29,8 @@ import {
 
 describe("OrgChart (T-UC-06)", () => {
   const nodes: OrgNode[] = [
-    { id: "tony", displayName: "Tony", department: "dev_qa" },
-    { id: "wanda", displayName: "Wanda", department: "design" },
+    { id: "tony", selectId: "e-tony", displayName: "Tony", department: "dev_qa" },
+    { id: "wanda", selectId: "e-wanda", displayName: "Wanda", department: "design" },
   ];
 
   it("groups by department", () => {
@@ -43,7 +43,7 @@ describe("OrgChart (T-UC-06)", () => {
     const onSelect = vi.fn();
     render(<OrgChart nodes={nodes} onSelect={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: /Tony の詳細/ }));
-    expect(onSelect).toHaveBeenCalledWith("tony");
+    expect(onSelect).toHaveBeenCalledWith("e-tony");
   });
 });
 

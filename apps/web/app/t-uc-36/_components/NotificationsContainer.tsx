@@ -65,7 +65,10 @@ export function NotificationsContainer({
   const inbox = useQuery({
     queryKey: ["notifications", "approval-inbox"],
     queryFn: async () => {
-      const res = await client.get("/approval-inbox");
+      // 通知ソースは「未処理の承認待ち」。処理済みが通知に残り続けないよう pending のみ。
+      const res = await client.get("/approval-inbox", {
+        params: { query: { status: "pending" } },
+      });
       return (res as { data?: ApiApproval[] }).data ?? [];
     },
     retry: false,
