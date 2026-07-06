@@ -11,10 +11,15 @@ set -euo pipefail
 : "${PGURL:?PGURL (postgresql://...) を指定してください}"
 cd "$(dirname "$0")/../.."
 
-count=0
-for f in $(ls supabase/migrations/*.sql | sort); do
+shopt -s nullglob
+# glob 展開は辞書順 (Gate #10 の静的監査・実DB検証と同じ順序)
+files=(supabase/migrations/*.sql)
+if [ "${#files[@]}" -eq 0 ]; then
+  echo "no migrations found" >&2
+  exit 1
+fi
+for f in "${files[@]}"; do
   echo "== apply: $f"
   psql "$PGURL" -v ON_ERROR_STOP=1 -q -f "$f"
-  count=$((count + 1))
 done
-echo "== done: ${count} migrations applied"
+echo "== done: ${#files[@]} migrations applied"
