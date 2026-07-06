@@ -49,14 +49,18 @@ class _FakeClient:
     async def __aexit__(self, *_a: Any) -> bool:
         return False
 
-    async def post(self, url: str, headers: dict[str, str] | None = None) -> _FakeResponse:
+    async def post(
+        self, url: str, headers: dict[str, str] | None = None, json: object | None = None
+    ) -> _FakeResponse:
         # object path は末尾。署名 URL は相対で返るのが Supabase Storage の仕様。
         return _FakeResponse(200, {"url": "/object/upload/sign/meetings/p1/xxx/rec.m4a?token=abc"})
 
 
 def _fake_client_with(status_code: int, payload: dict[str, Any]) -> type:
     class _C(_FakeClient):
-        async def post(self, url: str, headers: dict[str, str] | None = None) -> _FakeResponse:
+        async def post(
+            self, url: str, headers: dict[str, str] | None = None, json: object | None = None
+        ) -> _FakeResponse:
             return _FakeResponse(status_code, payload)
 
     return _C
