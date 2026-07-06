@@ -98,7 +98,7 @@ describe('ApprovalsList (T-UC-17)', () => {
   const rows: ApprovalRow[] = [
     {
       id: 'a1',
-      kind: 'task',
+      kind: 'task_approval',
       title: 'X',
       requester: 'tony',
       created_at: '5m',
