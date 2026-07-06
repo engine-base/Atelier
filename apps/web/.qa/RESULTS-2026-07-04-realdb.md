@@ -55,3 +55,31 @@
 
 ### 注記（R-T08）
 t-d-94/95/96 は新規 RLS ポリシーを含む。CI Gate #10（RLS isolation matrix）+ 実PG の rls/ テスト全PASSで機械検証済みだが、**規約上は経営者レビュー対象**。
+
+---
+
+## 改訂 v3（実機フルスイープ・全26画面 / 2026-07-06）
+
+実 DB + API(uvicorn) + web(next dev) + **実 Chrome** で全26画面を操作スイープ。**実バグ6件を検出→修正→実機で貫通再確認→マージ（#250）**。
+
+### 検出・修正した実バグ（すべて単体テスト緑では出ない型）
+| # | 画面 | バグ | 型 |
+|---|---|---|---|
+| 2 | S-C01→C02 | 社員クリックが persona名 を id として遷移し詳細取得 500（テストがバグを期待値化） | 鉄則5 |
+| 3 | S-I01 | 再生ボタンが 422。契約上 optional の requestBody を route が必須化 | 契約乖離 |
+| 4 | S-J01/UC36 | approval kind が実 enum と全不一致で全行「タスク」表示 | G1 enum整合 |
+| 5 | S-J01/UC36 | status フィルタ無しで承認/却下済みが一覧・通知に残留 | 意図とAPI既定の乖離 |
+| 6 | S-K01 | page が workspaceId 未配線で恒久 zero-UUID 照会=常に空 | 未配線プレースホルダ |
+| 7/8 | middleware | S-L01が client ガードに巻き込まれ社内到達不能 / **S-L02 自身がガード対象で自己無限リダイレクト＝ポータル全滅(P0)** | 到達性 |
+
+（#1 は前回 diff: /search 500 → #249）
+
+### 実機PASS（証拠=network/DB/画面遷移）
+signup(local)→signin→cookie→redirect復帰 / 認証ガード / zero-state空UI(K02含む) / B01一覧→行クリック(死リンク#245修正済)→B02 KPI=DB実数 / C01組織図(部門別)→C02編集→PATCH→**DB反映** / I01再生→**202→列移動** / I02全6タブ(実行履歴=実データ) / I03 SSE(snapshot/end受信) / F01ノード+エッジ / F02状態select→PATCH→**DB反映** / J01承認→decide 200→**DB approved→一覧から消滅** / O01トグル→PATCH→**DB enabled=f** / K01ツリー表示(修正後) / UC36 pending通知+既読localStorage / UC37/38/39 / A03保存→**PATCH+ai-learning 2API発火** / G01(409)・H01(503)のdesignedエラー表示 / M01フォーム / L01招待一覧(修正後) / **L02 token→L03 клиентポータル貫通(修正後・権限バッジ表示)** / UC40検索(修正後ヒット)
+
+### 残 BLOCKED（環境要因・正直に）
+- storage 実表示（G01/H01 iframe・M01 実アップロード→Whisper）: supabase storage コンテナ unhealthy。解除=storage 起動+bucket 作成
+- 負荷・スケール（第9軸）と RLS 越境のブラウザ実走: 未実施（RLS は pytest 実PG で全PASS済み）
+
+### 既知の軽微残（起票対象）
+- T-UC-38 の説明文言が「所属する プロジェクト を切り替えます」（正: ワークスペース）
