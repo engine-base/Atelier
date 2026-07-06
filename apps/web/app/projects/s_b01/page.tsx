@@ -64,7 +64,13 @@ export default function SB01Page() {
           router.push('/auth/s_a01?redirect=/projects/s_b01');
           return;
         }
-        setError(e instanceof Error ? e.message : 'プロジェクトの取得に失敗しました');
+        // e.message 直出しは API の生 detail (例 "forbidden") がそのまま画面に出る
+        // 実バグが E2E で出たため、ユーザー向け固定文言に変換する。
+        setError(
+          e instanceof api.ApiError && e.status === 403
+            ? 'プロジェクト一覧を表示する権限がありません。'
+            : 'プロジェクトの取得に失敗しました。',
+        );
       } finally {
         setLoading(false);
       }
