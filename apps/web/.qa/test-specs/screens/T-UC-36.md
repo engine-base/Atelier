@@ -17,6 +17,6 @@
 | TUC36-011 | 通知センター | エラー | 既読(localStorage): API 失敗時 inline error + toast | 接続失敗/レート | 1. 既読(localStorage) を失敗させる | role=alert + toast、状態は不整合にならない | | UNWANTED critical |
 | TUC36-012 | 通知センター | 受容差分 | 永続既読/承認以外の種別は別migration | - | 1. 既読挙動 | 専用テーブル(R-T08致命級)が無く localStorage 管理(MVP) | | ★致命級migrationは別タスク |
 | TUC36-013 | 通知センター | a11y | axe scan で 0 critical/serious | - | 1. axe を実行 | critical/serious 違反 0（semantic role/aria） | PASS | vitest-axe 実測済(該当時) |
-| TUC36-014 | 通知センター | レスポンシブ | 320/768/1024/1440 で崩れない | - | 1. 各幅で開く | 横スクロール/はみ出し/縦折れが無い | | 第8軸 |
+| TUC36-014 | 通知センター | レスポンシブ | 320/768/1024/1440 で崩れない | - | 1. 各幅で開く | 横スクロール/はみ出し/縦折れが無い | PASS | Playwright responsive.e2e 26画面×4幅 実走 第8軸 |
 | TUC36-015 | 通知センター | 状態永続 | F5 リロードでログアウトに飛ばない | ログイン済 | 1. 画面で F5 | 保護ガードで維持・状態復元（URL クエリ等） | PASS | セクションG G4 |
 | TUC36-016 | 通知センター | 到達性 | ナビ/リンクからUIで到達でき遷移先が正しい | - | 1. 導線から本画面へ到達→主要リンクを辿る | 死リンク無し・遷移先が正しい文脈(param)で開く | PASS | I4-S（全体で死リンク0確認済） |
