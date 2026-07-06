@@ -727,11 +727,42 @@ jobs:
         run: |
           PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             bash scripts/ci/apply-migrations.sh
+      - name: uv sync
+        run: uv sync --all-packages --all-extras
+      - name: probe DB connectivity (fail-fast with real reason)
+        run: |
+          uv run python - <<'PY'
+          import traceback
+          import sqlalchemy
+          for url in (
+              "postgresql+psycopg://postgres:postgres@127.0.0.1:54322/postgres",
+              "postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres",
+          ):
+              try:
+                  if "asyncpg" in url:
+                      import asyncio
+                      from sqlalchemy.ext.asyncio import create_async_engine
+                      async def go() -> None:
+                          e = create_async_engine(url)
+                          async with e.connect():
+                              pass
+                          await e.dispose()
+                      asyncio.run(go())
+                  else:
+                      e = sqlalchemy.create_engine(url)
+                      with e.connect():
+                          pass
+                      e.dispose()
+                  print(f"OK: {url.split('://')[0]}")
+              except Exception:
+                  print(f"FAIL: {url}")
+                  traceback.print_exc()
+                  raise SystemExit(1)
+          PY
       - name: pytest full suite on real PG (0 fail / 0 PG-skip)
         env:
           ATELIER_TEST_PG_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
         run: |
-          uv sync --all-packages --all-extras
           set -o pipefail
           (cd apps/api && uv run pytest tests -q -rs --no-cov) | tee /tmp/pytest-realpg.txt
           # skip ガード: 「Postgres not available」で skip された PG テストは
