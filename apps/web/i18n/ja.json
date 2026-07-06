@@ -20,6 +20,7 @@
   },
   "nav": {
     "home": "ホーム",
+    "workspaces": "ワークスペース",
     "projects": "プロジェクト",
     "tasks": "タスク",
     "workflow": "ワークフロー",
