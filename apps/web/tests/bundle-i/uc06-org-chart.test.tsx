@@ -76,7 +76,8 @@ describe("S-C01 OrgChartContainer (T-UC-06)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /トニー の詳細/ }),
     );
-    expect(onSelect).toHaveBeenCalledWith("tony");
+    // 遷移には実 UUID を渡す (name "tony" を渡すと詳細取得が 404/500 になる実バグがあった)
+    expect(onSelect).toHaveBeenCalledWith("e1");
   });
 
   it("shows empty state when there are no employees", async () => {

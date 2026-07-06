@@ -7,6 +7,7 @@ T-A-15: /ai-employees/templates[/{id}] は運営側固定テンプレの read-on
 
 from __future__ import annotations
 
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -59,10 +60,19 @@ async def get_template(
     return {"data": tpl}
 
 
+def _require_uuid(employee_id: str) -> None:
+    """path param が UUID 形式でなければ 404 (cast エラーの 500 化を防ぐ)。"""
+    try:
+        uuid.UUID(employee_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found") from exc
+
+
 @router.get("/ai-employees/{employee_id}", summary="AI 社員詳細")
 async def get_ai_employee(
     employee_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, AiEmployeeResponse]:
+    _require_uuid(employee_id)
     emp = await svc.get_ai_employee(session, employee_id)
     if emp is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
@@ -73,6 +83,7 @@ async def get_ai_employee(
 async def update_ai_employee(
     employee_id: str, body: AiEmployeeUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, AiEmployeeResponse]:
+    _require_uuid(employee_id)
     if await svc.get_ai_employee(session, employee_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
     updated = await svc.update_ai_employee(

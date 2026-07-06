@@ -25,14 +25,18 @@ export type Department =
   | "cross_functional";
 
 export interface OrgNode {
+  /** EmployeeIcon 用の persona キー (name)。表示専用で API の id ではない。 */
   readonly id: EmployeeId;
+  /** 遷移/API 用の実 UUID。onSelect にはこちらを渡す。 */
+  readonly selectId: string;
   readonly displayName: string;
   readonly department: Department;
 }
 
 export interface OrgChartProps {
   readonly nodes: readonly OrgNode[];
-  readonly onSelect?: (id: EmployeeId) => void;
+  /** 実 UUID (OrgNode.selectId) を受け取る。 */
+  readonly onSelect?: (id: string) => void;
 }
 
 const DEPT_LABEL = {
@@ -66,10 +70,10 @@ export function OrgChart({ nodes, onSelect }: OrgChartProps) {
             </h2>
             <ul role="list" className="flex flex-wrap gap-md">
               {members.map((n) => (
-                <li key={n.id}>
+                <li key={n.selectId}>
                   <button
                     type="button"
-                    onClick={() => onSelect?.(n.id)}
+                    onClick={() => onSelect?.(n.selectId)}
                     aria-label={`${n.displayName} の詳細`}
                     className={cn(
                       "flex flex-col items-center gap-xs rounded-md p-sm",
