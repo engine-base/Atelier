@@ -773,6 +773,90 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Gate #15 — browser E2E (Playwright)
+  # 実 PG + 実 API + 実 web を job 内で起動し、apps/web/tests/e2e の
+  # レスポンシブ(26画面×4幅)・403 sweep・楽観ロールバック・loading・
+  # バリデーションを実ブラウザで実走する。単体テスト/静的検査では原理的に
+  # 出ない退行 (モバイル崩れ・403白画面・rollback 不能・死に導線) を止める。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-15-browser-e2e:
+    name: "Gate #15 — browser E2E (Playwright)"
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      ATELIER_AUTH_JWT_SECRET: local-human-qa-secret-at-least-32-characters-long
+      ATELIER_DB_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
+      ATELIER_CORS_EXTRA_ORIGINS: http://localhost:3000
+      ATELIER_EMAIL_DRY_RUN: "1"
+      ATELIER_ALLOW_FAKE_LLM: "1"
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
+      - name: Provision DB (bootstrap + migrations + E2E seed)
+        run: |
+          PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/pg-bootstrap.sql
+          PGURL="$PGURL" bash scripts/ci/apply-migrations.sh
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/e2e-seed.sql
+      - name: Start API (background)
+        run: |
+          uv sync --all-packages --all-extras
+          export ATELIER_BYOK_ENCRYPTION_KEY="$(uv run python -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
+          export ATELIER_VAULT_ENCRYPTION_KEY="$ATELIER_BYOK_ENCRYPTION_KEY"
+          (cd apps/api && nohup uv run uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/api.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health >/dev/null && { echo "api up"; exit 0; }
+            sleep 2
+          done
+          echo "::error::API did not become healthy"; tail -50 /tmp/api.log; exit 1
+      - name: Build & start web (background)
+        run: |
+          pnpm --filter @atelier/web build
+          (cd apps/web && nohup npx next start -p 3000 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && { echo "web up"; exit 0; }
+            sleep 2
+          done
+          echo "::error::web did not become healthy"; tail -50 /tmp/web.log; exit 1
+      - name: Install Playwright chromium
+        run: cd apps/web && npx playwright install --with-deps chromium
+      - name: Run E2E
+        run: cd apps/web && npx playwright test
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            apps/web/test-results/
+            /tmp/api.log
+            /tmp/web.log
+          retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────────────
   # Gate #11 — PR scope guard (T-F-30)
   # ブランチ名から task ID を抽出 → tickets.json#T-X-Y.files_changed_predicted
   # の new ∪ modify に含まれないファイルを touch していたら FAIL。
@@ -1045,6 +1129,7 @@ jobs:
       - gate-12-selected-stack-coverage
       - gate-13-gap-tracker
       - gate-14-real-pg
+      - gate-15-browser-e2e
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -1064,6 +1149,7 @@ jobs:
             [gate-12-selected-stack-coverage]="${{ needs.gate-12-selected-stack-coverage.result }}"
             [gate-13-gap-tracker]="${{ needs.gate-13-gap-tracker.result }}"
             [gate-14-real-pg]="${{ needs.gate-14-real-pg.result }}"
+            [gate-15-browser-e2e]="${{ needs.gate-15-browser-e2e.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
