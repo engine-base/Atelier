@@ -6,7 +6,7 @@
 |---|---|---|---|---|---|---|---|---|
 | TUC38-001 | ワークスペース切替 | 画面表示 | 画面が正常表示（全 UI 要素・モック準拠） | - | 1. ワークスペース切替 を開く | モックの全要素（見出し/ボタン/一覧/フォーム）が表示される | PASS |  |
 | TUC38-002 | ワークスペース切替 | 視覚忠実度 | 配色/角丸/タイポが design token 準拠 | - | 1. 画面を目視 | --color-* / --rounded-* / --text-* トークンで描画（ハードコード色なし） | | 段1: token値=DESIGN-atelier.md 一致(済) |
-| TUC38-003 | ワークスペース切替 | データ取得 | loading skeleton 表示（所属 WS 一覧） | 取得未完 | 1. ワークスペース切替 を開き取得完了前を観察 | <Loading>（role=status/aria-live）が出る | |  |
+| TUC38-003 | ワークスペース切替 | データ取得 | loading skeleton 表示（所属 WS 一覧） | 取得未完 | 1. ワークスペース切替 を開き取得完了前を観察 | <Loading>（role=status/aria-live）が出る | PASS |  |
 | TUC38-004 | ワークスペース切替 | 空データ | 0 件時の空状態（所属 WS 一覧） | GET /workspaces が空配列 | 1. データ0件で開く | 空状態メッセージを表示（500/undefined 参照にならない） | | セクションH |
 | TUC38-005 | ワークスペース切替 | エラー | 取得失敗の inline error + toast（所属 WS 一覧） | GET /workspaces が 5xx | 1. API を 500 でモックし開く | role=alert の inline error 表示 かつ toast 発火 | | UNWANTED critical |
 | TUC38-006 | ワークスペース切替 | 権限 | 403 拒否表示（所属 WS 一覧） | 権限なしユーザ | 1. 権限なしで ワークスペース切替 を開く | 「権限がありません」等の拒否表示（他人のデータは出さない=RLS） | PASS | セクションG 越境 |
