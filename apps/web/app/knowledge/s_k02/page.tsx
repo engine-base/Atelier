@@ -19,8 +19,13 @@ import { PromotionReviewContainer } from "./_components/PromotionReviewContainer
 function SK02Inner() {
   const params = useSearchParams();
   const workspaceId = params.get("workspace");
-  const token = readAccessToken();
-  const accountId = token ? (decodeJwtUnsafe(token)?.sub ?? null) : null;
+  // cookie 読みは client 専用。render 中に直接呼ぶと SSR(null)≠CSR(値) で
+  // hydration mismatch になる実バグが axe/E2E 実機で出たため effect で読む。
+  const [accountId, setAccountId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const token = readAccessToken();
+    setAccountId(token ? (decodeJwtUnsafe(token)?.sub ?? null) : null);
+  }, []);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-md py-lg">

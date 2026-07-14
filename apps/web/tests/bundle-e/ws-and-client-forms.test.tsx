@@ -14,7 +14,7 @@ import { WorkspaceSettingsForm } from '../../app/auth/s_a03/_components/Workspac
 import { ClientSigninForm } from '../../app/client/s_l02/_components/ClientSigninForm';
 
 describe('WorkspaceSettingsForm (T-UC-02)', () => {
-  const defaults = { name: 'My WS', aiLearningOptOut: false };
+  const defaults = { name: 'My WS', aiLearningOptIn: false };
 
   it('renders with default values', () => {
     render(<WorkspaceSettingsForm defaultValues={defaults} onSubmit={() => undefined} />);
@@ -53,7 +53,7 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
     const onSubmit = vi.fn();
     render(
       <WorkspaceSettingsForm
-        defaultValues={{ name: '', aiLearningOptOut: false }}
+        defaultValues={{ name: '', aiLearningOptIn: false }}
         onSubmit={onSubmit}
       />,
     );

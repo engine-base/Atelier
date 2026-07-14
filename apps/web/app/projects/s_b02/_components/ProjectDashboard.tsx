@@ -26,9 +26,17 @@ export interface ProjectDashboardProps {
 }
 
 const TONE_BG: Record<NonNullable<DashboardKpi["tone"]>, string> = {
-  info: "bg-surface-variant text-on-surface",
-  success: "bg-tertiary-container text-tertiary-container-fg",
-  error: "bg-error/10 text-error",
+  info: "bg-surface-variant",
+  success: "bg-tertiary-container",
+  error: "bg-error/10",
+};
+
+// 12px ラベルを tone 色 (例 error #DC2626 on #fbe7e3 = 4.05) にすると AA(4.5) を
+// 割る実バグが axe 実機で出たため、ラベルは中立色・数値(36px bold, AA=3.0) のみ tone 色。
+const TONE_TEXT: Record<NonNullable<DashboardKpi["tone"]>, string> = {
+  info: "text-on-surface",
+  success: "text-tertiary-container-fg",
+  error: "text-error",
 };
 
 export function ProjectDashboard({
@@ -62,8 +70,17 @@ export function ProjectDashboard({
                   TONE_BG[k.tone ?? "info"],
                 )}
               >
-                <span className="text-label-md">{k.label}</span>
-                <span className="text-headline-md font-bold">{k.value}</span>
+                <span className="text-label-md text-on-surface-variant">
+                  {k.label}
+                </span>
+                <span
+                  className={cn(
+                    "text-headline-md font-bold",
+                    TONE_TEXT[k.tone ?? "info"],
+                  )}
+                >
+                  {k.value}
+                </span>
               </article>
             ))}
       </section>

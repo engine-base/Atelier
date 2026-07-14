@@ -13,7 +13,7 @@ import { AuditLogContainer } from "./_components/AuditLogContainer";
 
 export default function ST05Page() {
   return (
-    <div className="bg-on-surface min-h-dvh p-lg">
+    <div className="bg-surface-fg min-h-dvh p-lg">
       <h1 className="mb-md text-headline-md font-bold text-surface">
         監査ログ
       </h1>

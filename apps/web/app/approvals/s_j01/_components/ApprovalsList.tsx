@@ -68,7 +68,7 @@ export function ApprovalsList({
             type="button"
             onClick={() => onApprove(r.id)}
             aria-label={`${r.title} を承認`}
-            className="inline-flex h-8 items-center rounded-sm bg-tertiary px-sm text-label-md text-tertiary-fg"
+            className="inline-flex h-8 items-center rounded-sm bg-tertiary-container px-sm text-label-md font-semibold text-tertiary-container-fg"
           >
             承認
           </button>

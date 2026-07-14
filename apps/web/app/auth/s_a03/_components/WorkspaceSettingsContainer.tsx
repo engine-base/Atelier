@@ -66,7 +66,7 @@ export function WorkspaceSettingsContainer({
       });
       // AI 学習オプトアウトはアカウント単位（rule #6: 既定 OFF を維持）。
       await client.post("/account/ai-learning", {
-        body: { opt_out: v.aiLearningOptOut },
+        body: { opt_out: !v.aiLearningOptIn },
       });
     },
     onMutate: async (v) => {
@@ -114,7 +114,7 @@ export function WorkspaceSettingsContainer({
   // AI 学習は既定でオプトアウト（学習に使わない）。取得 API が無いため true 初期化。
   const initial: WorkspaceSettingsValues = {
     name: ws.data.name,
-    aiLearningOptOut: true,
+    aiLearningOptIn: false, // 既定 OFF (絶対ルール #6)
   };
 
   return (

@@ -16,7 +16,9 @@ import { t } from "../../../../lib/i18n";
 
 const Schema = z.object({
   name: z.string().min(1, "入力必須").max(100),
-  aiLearningOptOut: z.boolean(),
+  // UI は「利用する (optIn)」で持つ。optOut を直バインドすると
+  // 既定 OFF なのに checked 表示になり、操作の意味も反転する実バグがあった。
+  aiLearningOptIn: z.boolean(),
 });
 export type WorkspaceSettingsValues = z.infer<typeof Schema>;
 
@@ -61,7 +63,7 @@ export function WorkspaceSettingsForm({
           description="既定では OFF。顧客データを Atelier の AI 改善に使う場合のみ ON にしてください。"
         >
           <label className="flex items-center gap-sm text-body-md">
-            <input type="checkbox" {...form.register("aiLearningOptOut")} />
+            <input type="checkbox" {...form.register("aiLearningOptIn")} />
             <span>有効化する</span>
           </label>
         </Field>

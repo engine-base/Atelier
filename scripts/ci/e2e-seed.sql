@@ -115,3 +115,22 @@ insert into public.client_invitations (id, project_id, email, token_hash, expire
 on conflict do nothing;
 
 commit;
+
+-- (v2 追記) E2E 第6弾用:
+--   - K02 昇格候補: 本人 user-scope ナレッジ
+--   - L02 期限切れ招待 (token 平文 'qa-expired-token')
+begin;
+insert into public.knowledge_nodes (id, account_id, account_type, scope, category, title, content_md) values
+  ('22222222-0000-4000-8000-000000000010',
+   'a818edcd-8e05-4bd9-a0d1-aaf80c777adf', 'user', 'common',
+   'general', '昇格候補メモ', '昇格させたい個人ナレッジ')
+on conflict do nothing;
+
+-- expiry CHECK (expires_at > created_at) を満たしつつ失効させるため created_at も過去に
+insert into public.client_invitations (id, project_id, email, token_hash, created_at, expires_at) values
+  ('99999999-0000-4000-8000-000000000002',
+   'a5dc7390-30c5-4084-9eb2-af6f7b1c1c1b',
+   'expired@example.com', encode(sha256('qa-expired-token'), 'hex'),
+   now() - interval '10 days', now() - interval '1 day')
+on conflict do nothing;
+commit;
