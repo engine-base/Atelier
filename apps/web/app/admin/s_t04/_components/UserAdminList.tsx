@@ -69,7 +69,7 @@ export function UserAdminList({
                   type="button"
                   onClick={() => onRestore(r.id)}
                   aria-label={`${r.email} を復元`}
-                  className="inline-flex h-8 items-center rounded-sm bg-tertiary px-sm text-label-md text-tertiary-fg"
+                  className="inline-flex h-8 items-center rounded-sm bg-tertiary-container px-sm text-label-md font-semibold text-tertiary-container-fg"
                 >
                   復元
                 </button>
