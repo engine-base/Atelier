@@ -70,7 +70,7 @@ export function PromotionReview({
                   type="button"
                   onClick={() => onApprove(it.id)}
                   aria-label={`${it.title} を昇格`}
-                  className="inline-flex h-9 items-center rounded-md bg-tertiary px-md text-label-md text-tertiary-fg"
+                  className="inline-flex h-9 items-center rounded-md bg-tertiary-container px-md text-label-md font-semibold text-tertiary-container-fg"
                 >
                   昇格
                 </button>

@@ -13,7 +13,7 @@ import { TemplateListContainer } from "./_components/TemplateListContainer";
 
 export default function ST03Page() {
   return (
-    <div className="bg-on-surface min-h-dvh p-lg">
+    <div className="bg-surface-fg min-h-dvh p-lg">
       <h1 className="mb-md text-headline-md font-bold text-surface">
         AI 社員テンプレ
       </h1>

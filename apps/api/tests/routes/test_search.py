@@ -151,3 +151,68 @@ def test_search_real_sql_employee_no_500() -> None:
     emp_hits = [h for h in hits if h.kind == "employee" and h.id == emp]
     assert emp_hits, "employee 検索がヒットしない（実 SQL 経路が壊れている）"
     assert emp_hits[0].snippet == "lead"  # role::text がそのまま入る
+
+
+@pytest.mark.skipif(not _db_available(), reason="Postgres not available")
+def test_search_rls_cross_workspace_isolation() -> None:
+    """R-T08: 他 WS のデータは検索にヒットしない (RLS session で実走)。
+
+    user_b (別WS) のセッションで user_a のプロジェクト/タスクを検索しても 0 件。
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    u_a, u_b = str(uuid.uuid4()), str(uuid.uuid4())
+    ws_a = str(uuid.uuid4())
+    proj_a = str(uuid.uuid4())
+    marker = f"rlsq-{uuid.uuid4().hex[:8]}"
+
+    async def _run() -> list[SearchHit]:
+        eng = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        try:
+            async with eng.begin() as c:
+                for u in (u_a, u_b):
+                    await c.execute(
+                        text(
+                            "insert into auth.users(id,email) values(:i,:e) on conflict do nothing"
+                        ),
+                        {"i": u, "e": f"srchrls-{u[:8]}@t.invalid"},
+                    )
+                    await c.execute(
+                        text(
+                            "insert into public.users(id,email) values(:i,:e) on conflict do nothing"
+                        ),
+                        {"i": u, "e": f"srchrls-{u[:8]}@t.invalid"},
+                    )
+                await c.execute(
+                    text("insert into public.workspaces(id,owner_user_id,name) values(:i,:o,:n)"),
+                    {"i": ws_a, "o": u_a, "n": f"WS-{marker}"},
+                )
+                await c.execute(
+                    text(
+                        "insert into public.projects(id,workspace_id,name,project_type,status) "
+                        "values(:i,:w,:n,'internal_product','active')"
+                    ),
+                    {"i": proj_a, "w": ws_a, "n": f"Proj-{marker}"},
+                )
+            # user_b の RLS セッションで検索 (get_rls_session 相当)
+            async with AsyncSession(eng) as s:
+                await s.execute(text("set local role authenticated"))
+                await s.execute(
+                    text("select set_config('request.jwt.claims', :c, true)"),
+                    {"c": f'{{"sub":"{u_b}","role":"authenticated"}}'},
+                )
+                hits = await search_svc.search(s, q=marker, kind="all")
+            return hits
+        finally:
+            async with eng.begin() as c:
+                await c.execute(text("delete from public.projects where id=:i"), {"i": proj_a})
+                await c.execute(text("delete from public.workspaces where id=:i"), {"i": ws_a})
+                for u in (u_a, u_b):
+                    await c.execute(text("delete from public.users where id=:i"), {"i": u})
+                    await c.execute(text("delete from auth.users where id=:i"), {"i": u})
+            await eng.dispose()
+
+    hits = asyncio.run(_run())
+    assert hits == [], f"R-T08 violation: 他WSのデータが検索にヒット ({hits})"

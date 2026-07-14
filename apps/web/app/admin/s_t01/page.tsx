@@ -13,7 +13,7 @@ import { AdminDashboardContainer } from "./_components/AdminDashboardContainer";
 
 export default function ST01Page() {
   return (
-    <div className="bg-on-surface min-h-dvh p-lg">
+    <div className="bg-surface-fg min-h-dvh p-lg">
       <QueryProvider>
         <AdminDashboardContainer />
       </QueryProvider>

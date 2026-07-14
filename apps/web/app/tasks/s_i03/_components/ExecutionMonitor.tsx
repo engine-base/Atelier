@@ -43,10 +43,14 @@ export function ExecutionMonitor({ lines }: ExecutionMonitorProps) {
   return (
     <section
       aria-label="実行ログ"
-      data-theme="dark"
-      className="rounded-md bg-on-surface p-md font-mono text-body-sm"
+      // 旧実装は bg-on-surface (未定義クラス=透過) で、クリーム地に
+      // クリーム文字 (コントラスト 1.09・ほぼ不可視) になる実バグが axe 実機で出た。
+      // config で有効な bg-surface-fg (濃紺 #0F172A) + surface 系クリーム文字にする。
+      role="log"
+      aria-live="polite"
+      className="rounded-md bg-surface-fg p-md font-mono text-body-sm"
     >
-      <ul role="log" aria-live="polite" className="flex flex-col gap-xs">
+      <ul className="flex flex-col gap-xs">
         {lines.map((l) => (
           <li key={l.id} className="flex gap-sm">
             <time className="text-surface-variant">{l.ts}</time>

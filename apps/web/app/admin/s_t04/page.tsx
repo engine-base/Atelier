@@ -13,7 +13,7 @@ import { UserAdminContainer } from "./_components/UserAdminContainer";
 
 export default function ST04Page() {
   return (
-    <div className="bg-on-surface min-h-dvh p-lg">
+    <div className="bg-surface-fg min-h-dvh p-lg">
       <h1 className="mb-md text-headline-md font-bold text-surface">
         ユーザー管理
       </h1>
