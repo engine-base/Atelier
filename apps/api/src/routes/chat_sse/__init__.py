@@ -18,6 +18,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.rate_limit import rate_limit_user
 from src.schemas.chat_sse import (
     ChatContextPreviewRequest,
     ChatContextPreviewResponse,
@@ -43,6 +44,7 @@ async def _thread_visible(session: AsyncSession, thread_id: str) -> bool:
 
 @router.post(
     "/chat/threads/{thread_id}/stream",
+    dependencies=[Depends(rate_limit_user(30))],  # x-rate-limit: 30/min/user
     summary="チャット SSE ストリーミング (F-CTX01 文脈構築 + LLM)",
 )
 async def stream_chat_thread(

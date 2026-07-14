@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.rate_limit import rate_limit_user
 from src.schemas.exec_logs import ExecLogMeta
 from src.services import exec_logs as svc
 
@@ -41,6 +42,7 @@ async def get_exec_logs(
 @router.get(
     "/executions/{execution_id}/logs/stream",
     summary="実行ログ SSE ストリーミング（status 変化を polling 配信）",
+    dependencies=[Depends(rate_limit_user(60))],  # x-rate-limit: 60/min/user
 )
 async def stream_exec_logs(
     execution_id: str,

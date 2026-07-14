@@ -22,6 +22,9 @@ if str(_API_ROOT) not in sys.path:
 
 # テスト時は外部送信を抑止
 os.environ.setdefault("ATELIER_EMAIL_DRY_RUN", "1")
+# レート制限は既定で無効化 (signin 系テストは同一 TestClient IP で連打するため)。
+# 実到達の検証は tests/test_rate_limit.py が明示的に有効化して行う。
+os.environ.setdefault("ATELIER_RATE_LIMIT_DISABLED", "1")
 
 
 @pytest.fixture(scope="session")

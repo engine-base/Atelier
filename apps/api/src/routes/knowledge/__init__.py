@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.rate_limit import rate_limit_user
 from src.schemas.knowledge import (
     KnowledgeAccountType,
     KnowledgeCreate,
@@ -86,6 +87,7 @@ async def create_knowledge(
 @router.post(
     "/knowledge/search",
     summary="ナレッジ semantic 検索 (Voyage embedding + cosine)",
+    dependencies=[Depends(rate_limit_user(60))],  # x-rate-limit: 60/min/user
 )
 async def search_knowledge(
     body: dict[str, object],
