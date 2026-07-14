@@ -2787,6 +2787,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: レート上限超過 (x-rate-limit 10/min/user)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '503':
           description: Bridge オフライン or 並列上限
           content:
@@ -4043,6 +4048,7 @@ paths:
                   data: { $ref: '#/components/schemas/KnowledgeSearchResponse' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: query 空 / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: レート上限超過 (x-rate-limit), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /knowledge/{knowledge_id}:
     get:
@@ -4262,6 +4268,7 @@ paths:
                   type は snapshot / status_change / end / error。
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: poll_interval / max_duration 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: レート上限超過 (x-rate-limit), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # comments (成果物 / モック / タスク / 受入条件へのスレッド型コメント)
@@ -4566,6 +4573,7 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: レート上限超過 (x-rate-limit), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/threads/{thread_id}/context-preview:
     post:

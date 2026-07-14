@@ -2628,6 +2628,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description レート上限超過 (x-rate-limit 10/min/user) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description Bridge オフライン or 並列上限 */
                 503: {
                     headers: {
@@ -5634,6 +5643,15 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description レート上限超過 (x-rate-limit) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -6191,6 +6209,15 @@ export interface paths {
                 };
                 /** @description poll_interval / max_duration 範囲外 */
                 422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート上限超過 (x-rate-limit) */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -6867,6 +6894,15 @@ export interface paths {
                 };
                 /** @description バリデーション失敗 */
                 422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート上限超過 (x-rate-limit) */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };

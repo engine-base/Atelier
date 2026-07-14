@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.rate_limit import rate_limit_user
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
     PlayTaskRequest,
@@ -186,6 +187,7 @@ async def retry_task(
     "/tasks/{id}/play",
     status_code=status.HTTP_202_ACCEPTED,
     summary="タスク再生（dispatcher へ）",
+    dependencies=[Depends(rate_limit_user(10))],  # x-rate-limit: 10/min/user
 )
 async def play_task(
     id: str,

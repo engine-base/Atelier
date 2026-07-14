@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 
 from src.dependencies import CurrentUser, get_current_user
+from src.rate_limit import rate_limit_ip
 from src.schemas.auth import (
     AccountDeleteRequest,
     AccountDeleteResponse,
@@ -67,6 +68,7 @@ async def signup(body: SignupRequest, request: Request) -> dict[str, SignupRespo
 @router.post(
     "/auth/signin",
     summary="ログイン + 5 回失敗ロック (F-001)",
+    dependencies=[Depends(rate_limit_ip(5))],  # x-rate-limit: 5/min/ip
 )
 async def signin(body: SigninRequest, request: Request) -> dict[str, SigninResponse]:
     ip = request.client.host if request.client else None
@@ -215,7 +217,7 @@ async def account_delete(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> dict[str, AccountDeleteResponse]:
     # email を user table から復元
-    email_lookup_session_factory = svc._service_session_factory()
+    email_lookup_session_factory = svc._service_session_factory()  # pyright: ignore[reportPrivateUsage]
     async with email_lookup_session_factory() as s:
         res = await s.execute(
             text("select email from public.users where id = cast(:i as uuid)"),
