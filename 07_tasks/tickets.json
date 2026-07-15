@@ -23350,7 +23350,8 @@
         "modify": [
           "apps/api/src/services/chat_sse/__init__.py",
           "apps/api/tests/routes/test_chat_sse.py",
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/api/tests/routes/test_chat_prompt_cache.py"
         ],
         "shared_read": [
           "apps/api/src/tools/web_search.py",
