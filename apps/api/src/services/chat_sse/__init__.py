@@ -274,6 +274,22 @@ async def _fake_stream_chunks(prompt: str) -> AsyncIterator[str]:
         yield ch
 
 
+def _build_system_param(system_prompt: str) -> str | list[dict[str, Any]]:
+    """T-A-52: 実 stream の system 引数を組み立てる。
+
+    T-F-15 の cache_system_prompt() で cache_control 付き blocks に変換し、
+    連続ターンで provider prompt cache にヒットし得る形にする
+    (Atelier の system はペルソナ+スキル+プロジェクト状態で毎ターンほぼ同一)。
+    ATELIER_PROMPT_CACHE_DISABLED=1 で plain string のまま渡す (既定は有効)。
+    """
+    if os.environ.get("ATELIER_PROMPT_CACHE_DISABLED") == "1":
+        return system_prompt
+    from src.llm.caching import cache_system_prompt
+
+    blocks = cache_system_prompt(system_prompt)
+    return blocks if blocks else system_prompt
+
+
 def _build_stream_tools() -> list[dict[str, Any]] | None:
     """T-A-51: 実 stream に注入する tools を組み立てる。
 
@@ -315,7 +331,7 @@ async def _real_stream_chunks(
     async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        system=system_prompt,
+        system=_build_system_param(system_prompt),  # type: ignore[arg-type]
         messages=msgs,  # type: ignore[arg-type]
         **kwargs,
     ) as stream:
