@@ -45,6 +45,8 @@ jobs:
         id: check_labels
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # checkout していない job のため、gh pr 系には repo を明示する必要がある
+          GH_REPO: ${{ github.repository }}
         run: |
           labels=$(gh pr view ${{ steps.find_pr.outputs.pr_number }} --json labels --jq '[.labels[].name] | join(",")')
           if echo "$labels" | grep -qE '(do-not-merge|wip|hold)'; then
@@ -55,6 +57,7 @@ jobs:
         if: steps.find_pr.outputs.skip != 'true' && steps.check_labels.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           pr=${{ steps.find_pr.outputs.pr_number }}
           gh pr merge "$pr" --squash --auto \
@@ -107,6 +110,7 @@ jobs:
         if: steps.counter.outputs.attempts != '' && fromJSON(steps.counter.outputs.attempts) >= 4
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           pr_number=$(gh api "repos/${{ github.repository }}/commits/${{ steps.counter.outputs.head_sha }}/pulls" --jq '.[0].number // empty')
           run_url="${{ github.event.workflow_run.html_url }}"
