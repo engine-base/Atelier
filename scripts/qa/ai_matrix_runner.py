@@ -323,6 +323,8 @@ class Runner:
         res = await self.stream_chat(
             client, thread_id=SEED_THREAD, message="1+1 はいくつですか。1 文で。"
         )
+        if res["status"] != 200:
+            r.failures.append(f"status={res['status']} (text={res['text'][:80]})")
         types = [e.get("type") for e in res["events"]]
         r.evidence.append(
             {
@@ -506,9 +508,10 @@ class Runner:
 
     # ── 実行 ──────────────────────────────────────────────────────────────
 
+    # AI-003 はレート上限まで実連投するため、直後 60 秒間は他行が 429 を踏む。
+    # 必ず最後に実行する (実測: 2026-07-15 run で AI-020/022 が巻き添え FAIL)。
     ROWS: ClassVar[dict[str, Any]] = {
         "AI-001": run_ai_001,
-        "AI-003": run_ai_003,
         "AI-004": run_ai_004,
         "AI-005": run_ai_005,
         "AI-020": run_ai_020,
@@ -520,6 +523,7 @@ class Runner:
         "AI-034": run_ai_034,
         "AI-035": run_ai_035,
         "AI-036": run_ai_036,
+        "AI-003": run_ai_003,  # 最後 (レート連投の巻き添え防止)
     }
 
     async def run(self, only: list[str] | None) -> int:
