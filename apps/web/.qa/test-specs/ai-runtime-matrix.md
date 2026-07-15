@@ -22,11 +22,10 @@
 
 ## マトリクス（結果列: PASS/FAIL/BLOCKED）
 
-> 集計 (2026-07-15 v4 / **実キー実走完了**): **PASS 17 / BLOCKED 6 / N-A 1（全24行）**。
-> 実キー (ANTHROPIC_API_KEY) 設定により実走可能な 16 行を全て実プロバイダーで実走し全 PASS
-> （AI-002 は先行 PASS 済）。evidence は `apps/web/.qa/evidence/ai-matrix/` に JSONL/JSON で保存。
-> BLOCKED 6 の内訳と解除条件:
-> - AI-005/036: VOYAGE_API_KEY 未設定（設定すれば runner で即実走）
+> 集計 (2026-07-15 v5 / **キー実走 全完了**): **PASS 19 / BLOCKED 4 / N-A 1（全24行）**。
+> ANTHROPIC_API_KEY + VOYAGE_API_KEY 設定により、キーで実走可能な**全 18 行を実プロバイダーで
+> 実走し全 PASS**（AI-002 は先行 PASS 済）。evidence は `apps/web/.qa/evidence/ai-matrix/` に保存。
+> 残 BLOCKED 4 の解除条件（全て実装作業・チケット済/保留明記済）:
 > - AI-032: compress は意図的保留（T-A-52 AC md に明記。chat の長文脈は _fold_older_history が実担当）
 > - AI-040/041: bridge dispatcher T-F-28 未実装（チケット済・次の実装ウェーブ）
 > - AI-042: cron worker（Inngest, T-F-20/T-A-40）未稼働（チケット済）
@@ -37,7 +36,7 @@
 | AI-002 | provider | Anthropic キー無効 | 既定 | 不正キーで chat | SSE error イベント・UI に明示エラー・リトライ暴走なし | **PASS** | 2026-07-15 実走: 実 Anthropic 401 到達（req_011Cd35r…）→ SSE `error` well-formed → UI role=alert+Toast 定型文。stream 呼び出し 1 回のみ（暴走なし）。半端保存なし（空 assistant 行 0）。**バグ#17 発見・修正**: 生エラー（request_id 含む）を UI に露出 → chat_sse を定型文+server log 化。証拠 `.qa/evidence/ai-002-ui-error.png` |
 | AI-003 | provider | Anthropic レート/タイムアウト | 既定 | 極小 timeout / 連投 | バックオフ or 明示エラー・半端保存なし | **PASS** | 31 連投で 429 実到達 (i=28)・Retry-After=34 付与・半端保存なし。`run-20260715-134410.jsonl`（※本行は連投の巻き添え防止のため runner 実行順を最後に固定） |
 | AI-004 | provider | 廃止/誤モデル名 | 既定 | model 名を typo に | 明示エラー（沈黙 fallback しない） | **PASS** | typo model 名で provider が 404 明示エラー・沈黙 fallback なし (アプリは単一 model 固定で fallback 分岐なし)。`run-20260715-134410.jsonl` |
-| AI-005 | provider | Voyage 実接続 | 既定 | embedding 1 件 | 1024 次元 vector 返却・knowledge 検索にヒット | BLOCKED | 解除=VOYAGE_API_KEY |
+| AI-005 | provider | Voyage 実接続 | 既定 | embedding 1 件 | 1024 次元 vector 返却・knowledge 検索にヒット | **PASS** | 2026-07-15 実走: Voyage 実接続で /knowledge/search が 10 hits (seed 44 件は SQL 直挿入で embedding NULL だったため一括バックフィル実施)。`run-20260715-141416.jsonl` |
 | AI-006 | provider | fallback | — | — | **対象外: fallback 実装なし（棚卸しどおり単一系）** | N/A | 実装追加時に行を起こす |
 | AI-010 | tool | web_search 正起動 | 既定 | 「最新の…を調べて」等 2-3 通り | tool_use ブロックに web_search・実行果を引用 | **PASS** | 「天気を調べて」「最新モデルを調べて」2 サンプルとも server_tool_use(web_search) が実起動し実行結果を引用。`tool-cache-20260715-135034.json` |
 | AI-011 | tool | web_search 誤選択防止 | 既定 | 検索不要の依頼（社内データ質問） | web_search を呼ばない（2-3 サンプル） | **PASS** | 計算/敬語作文の 2 サンプルとも web_search を呼ばず (誤選択ゼロ)。`tool-cache-20260715-135034.json` |
@@ -53,7 +52,7 @@
 | AI-033 | state | キャッシュ hit/miss | 同一 prompt 連投 | caching.py 経路 | 応答整合・キャッシュ起因の他ユーザー文脈混入なし | **PASS** | 配線 (T-A-52) を実証: 同一 system blocks 2 連投で cache_creation=3413→cache_read=3413 (2回目は 1/10 料金)。※実運用 system が約1024tokens 未満のスレッドでは cache 不成立 (仕様)。`cache-proof-20260715-135227.json` |
 | AI-034 | state | 並行 5 本 | 別スレッド同時 | 5 セッション同時 stream | 混線なし（各応答が自スレッドの文脈のみ） | **PASS** | 5 スレッド同時 stream で各応答が自スレッドの識別子のみ (混線ゼロ)。`run-20260715-134410.jsonl` |
 | AI-035 | state | 中断→再開 | stream 途中切断 | 切断→リトライ | 二重保存なし・再開可能 | **PASS** | stream 途中切断→空 assistant 行の残留ゼロ・リトライ成功 (二重保存なし)。`run-20260715-134410.jsonl` |
-| AI-036 | state | RAG 実引き | knowledge 大量/0件 | ナレッジ参照質問 | 0件でも破綻せず・大量でも該当ナレッジを実引用 | BLOCKED | Voyage 必須 |
+| AI-036 | state | RAG 実引き | knowledge 大量/0件 | ナレッジ参照質問 | 0件でも破綻せず・大量でも該当ナレッジを実引用 | **PASS** | 本物 RAG end-to-end 実証: rag_hit_ids 5 件 (seed『提案書の書き方』含む)・実 LLM がナレッジ内容を引用して回答・存在しない語クエリ (0件) でも 200。`run-20260715-141416.jsonl` |
 | AI-040 | bridge | play→実タスク遂行 | 既定 | apps/bridge 起動→▶再生 | AI が実際にタスクを遂行し成果物/実行ログが DB・画面に反映 | BLOCKED | **訂正 (2026-07-15 実コード確認): bridge dispatcher は T-F-27 の型+空骨格のみで実体未実装**（`dispatcher.ts` claimNext=TODO(T-F-28)・spawn ロジックなし）。解除=T-F-28 実装完了+claude CLI+キー |
 | AI-041 | bridge | 実行失敗の回復 | tool/LLM 失敗 | 途中失敗させる | status=failed が UI に出て retry 可能 | BLOCKED | 〃（実装未着手のためテスト以前） |
 | AI-042 | cron | daily_digest 自律実行 | 既定 | スケジュール発火 | 成果が生成され通知/DB に反映 | BLOCKED | worker 未稼働 |
