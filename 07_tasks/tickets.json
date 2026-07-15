@@ -22226,6 +22226,112 @@
       ]
     },
     {
+      "id": "T-F-41",
+      "title": "Bridge dispatcher クライアント実体（headless: pick→claude 実行→complete/heartbeat / AI-040/041 解除）",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 3,
+      "assigned_employee": "tony",
+      "screen_ids": [
+        "S-I03"
+      ],
+      "entity_ids": [
+        "E-007"
+      ],
+      "feature_ids": [
+        "F-016"
+      ],
+      "estimate_hours": 8,
+      "estimate_hours_human": 8,
+      "estimate_hours_ai": 0.8,
+      "wall_clock_h_ai": 0.8,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "depends_on": [
+        "T-F-27",
+        "T-A-28"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-41.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/bridge/src/api-client.ts",
+          "apps/bridge/src/headless.ts",
+          "apps/bridge/src/dispatcher.test.ts"
+        ],
+        "modify": [
+          "apps/bridge/src/dispatcher.ts",
+          "apps/bridge/src/main.ts",
+          "apps/bridge/package.json",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "apps/api/src/routes/dispatcher/__init__.py",
+          "apps/api/src/services/dispatcher/bridge_tools.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: dispatcher は API /kanban/pick→start→complete|request-change を X-Bridge-Token 認証で呼ぶ（独自 SQL 直叩き禁止）",
+          "UBIQUITOUS: headless エントリ (node dist/headless.js) で Electron UI 無しに 1 claim サイクルを実行できる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a queued task is picked, the dispatcher shall run `claude -p <task prompt>` as a child process, stream output to the execution log file, and call kanban/complete on exit 0"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the child process exits non-zero or times out, the dispatcher shall call kanban/request-change (status=failed 側の遷移) so the task is retryable"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "While a task is running, the dispatcher shall send kanban/heartbeat at a fixed interval"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If ATELIER_BRIDGE_TOKEN is absent or rejected (401), the dispatcher shall stop without claiming tasks"
+          }
+        ],
+        "tier_3_regression": [
+          "apps/bridge の tsc / vitest が green",
+          "Electron エントリ（electron-entry.js）の既存挙動を変えない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "claim→実行→complete（functional）",
+          "steps": [
+            "mock API + echo コマンドで 1 サイクル"
+          ],
+          "expected": "pick/start/complete が順に呼ばれ log が書ける"
+        },
+        {
+          "name": "失敗→request-change",
+          "steps": [
+            "exit 1 のコマンドで実行"
+          ],
+          "expected": "request-change が呼ばれる"
+        },
+        {
+          "name": "401 停止（UNWANTED）",
+          "steps": [
+            "token 無しで起動"
+          ],
+          "expected": "claim せず終了"
+        }
+      ],
+      "note": "第10軸 AI-040/041 の解除タスク。実走検証は本物 API + 実 claude CLI で 1 タスク遂行し DB/S-I03 反映を evidence 化。node-pty は不要（claude -p の print モード）。"
+    },
+    {
       "id": "T-D-36",
       "title": "プロジェクト・シークレット: project_credentials スキーマ + RLS",
       "group": "D",
@@ -23508,6 +23614,114 @@
         }
       ],
       "note": "第10軸 QA (AI-033) で判明した起票漏れの解消。compress(LLMLingua)/Batch API は意図的保留（chat は _fold_older_history が要約を実担当、Batch は用途未発生）— 保留の記録は apps/web/.qa/test-specs/ai-runtime-matrix.md に明記済。"
+    },
+    {
+      "id": "T-A-53",
+      "title": "daily_digest 実体実装 + Inngest serve 配線（AI-042 解除）",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "tony",
+      "screen_ids": [
+        "S-E01",
+        "S-O01"
+      ],
+      "entity_ids": [
+        "E-011"
+      ],
+      "feature_ids": [
+        "F-024"
+      ],
+      "estimate_hours": 6,
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-20",
+        "T-A-40"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-53.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/services/cron/digest.py",
+          "apps/api/tests/test_cron_digest.py"
+        ],
+        "modify": [
+          "apps/api/src/cron/inngest_handlers.py",
+          "apps/api/main.py",
+          "07_tasks/tickets.json",
+          "apps/bridge/src/api-client.ts",
+          "apps/bridge/src/headless.ts",
+          "apps/bridge/src/dispatcher.test.ts",
+          "apps/bridge/src/dispatcher.ts",
+          "apps/bridge/src/main.ts",
+          "apps/bridge/package.json"
+        ],
+        "shared_read": [
+          "apps/api/src/cron/scheduler.py",
+          "apps/api/inngest_config.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: main.py は ATELIER_INNGEST_ENABLED=1 のとき inngest FastAPI serve を mount する（既定 OFF・既存挙動不変）",
+          "UBIQUITOUS: daily-digest handler は skeleton でなく services/cron/digest.py の実体を呼ぶ"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When daily-digest fires, for each enabled cron_schedules row with target_action='daily_digest', the system shall aggregate the project's tasks/phases/recent executions into a markdown digest and persist it as an assistant chat message in the project's 「日次ダイジェスト」 thread (create the thread if absent), with audit_logs record"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the same digest date already has a message for the project, the system shall skip regeneration (idempotent per day)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If there are zero enabled digest schedules, the handler shall return ok without raising"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 cron テスト（test_cron_scheduler.py）が従来どおり green",
+          "ATELIER_INNGEST_ENABLED 未設定時の API 起動・全既存テストに影響なし"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "digest 生成+保存（functional）",
+          "steps": [
+            "seed project + digest schedule",
+            "handler 実行"
+          ],
+          "expected": "「日次ダイジェスト」thread に assistant message + audit log"
+        },
+        {
+          "name": "冪等（同日 2 回）",
+          "steps": [
+            "handler を同日 2 回実行"
+          ],
+          "expected": "message は 1 件のまま"
+        },
+        {
+          "name": "0 件耐性（UNWANTED）",
+          "steps": [
+            "schedule 全 disable で実行"
+          ],
+          "expected": "例外なし ok"
+        }
+      ],
+      "note": "第10軸 AI-042 の解除タスク。実発火検証は inngest dev server + 毎分 cron 一時設定で行い evidence を残す。"
     }
   ],
   "two_axis_policy": {
