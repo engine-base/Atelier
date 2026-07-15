@@ -23671,7 +23671,12 @@
           "apps/web/app/chat/s_e01/_components/stream.ts",
           "apps/web/app/tasks/s_i02/_components/TaskDetailContainer.tsx",
           "apps/api/tests/routes/test_dispatcher.py",
-          "apps/api/src/services/dispatcher/bridge_tools.py"
+          "apps/api/src/services/dispatcher/bridge_tools.py",
+          "apps/web/.qa/evidence/ai-matrix/ai-040-ui-execution.png",
+          "apps/web/.qa/evidence/ai-matrix/ai-040-ui-task-detail.png",
+          "apps/web/.qa/evidence/ai-matrix/ai-040-ui-task-list.png",
+          "apps/web/.qa/evidence/ai-matrix/ai-041-ui-blocked.png",
+          "apps/web/.qa/evidence/ai-matrix/ai-042-ui-digest.png"
         ],
         "shared_read": [
           "apps/api/src/cron/scheduler.py",
