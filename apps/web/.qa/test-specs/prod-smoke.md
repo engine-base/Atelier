@@ -24,19 +24,23 @@
 ## 主要フロー（実 AI まで）
 | ID | 対象 | 手順 | 期待 | 結果 |
 |---|---|---|---|---|
-| PS-20 | ワークスペース作成 | POST /workspaces | 201 | **FAIL → BLOCKED** INFRA-3（本番スキーマドリフト） |
-| PS-21 | プロジェクト作成 | POST /projects | 201 | BLOCKED（PS-20 依存） |
-| PS-22 | チャット実 AI | S-E01 で送信 | 実 LLM 応答がストリーム表示 | BLOCKED（PS-20 依存） |
-| PS-23 | RAG 実引き | ナレッジ参照質問 | Voyage→pgvector→実引用 | BLOCKED（PS-20 依存） |
-| PS-24 | リロード永続 | F5 | ログアウトせず維持 | BLOCKED |
+| PS-20 | ワークスペース作成 | POST /workspaces | 201 | **PASS**（2026-07-15 本番実測 201。旧: INFRA-3 で 500 → マイグレーション適用で解消） |
+| PS-21 | プロジェクト作成 | POST /projects | 201 | **PASS**（本番実測 201） |
+| PS-22 | チャット実 AI | S-E01 で送信 | 実 LLM 応答がストリーム表示 | **BLOCKED（別要因＝製品ギャップ #27）**: 新規 WS は AI 社員 0、かつ AI 社員を作成する API が無い（GET テンプレ/GET・PATCH のみ・POST 無し）→ chat thread に必要な ai_employee_id を得られず新規ユーザーはチャット開始不能。※実 AI チャット自体はフルスタック実ブラウザで実証済（RESULTS v22・本番同一コード） |
+| PS-23 | RAG 実引き | ナレッジ参照質問 | Voyage→pgvector→実引用 | BLOCKED（PS-22 依存。RAG は v22 で実証済） |
+| PS-24 | リロード永続 | F5 | ログアウトせず維持 | BLOCKED（PS-22 依存。履歴永続=バグ#23 修正は v22 で実証済） |
 
 ## 恒久対策（INFRA-3 / production readiness）
 1. ✅ **schema/verification 分離**: t-d-31/32 に `@verification-only` マーカーを付与し本番から除外（PR #276）。
 2. ✅ **deploy に schema-only 冪等適用ステップを追加**: `apply-migrations.sh` の `SCHEMA_ONLY=1` を
    deploy.yml から実行（`PROD_DATABASE_URL` secret があるときのみ）。使い捨て DB で
    「37 適用→再適用で冪等→workspace insert でトリガ動作」を実証済み（PR #276）。
-3. ⏳ **残: `PROD_DATABASE_URL` を GitHub secret に登録**（人間作業・DB 認証情報）。
-   登録して再 deploy すれば本番スキーマが自動同期され、PS-20〜24 のブロックが解ける。
+3. ✅ **完了 (2026-07-15)**: `PROD_DATABASE_URL` を GitHub secret 登録 → 再 deploy で
+   `37 applied / 2 skipped (SCHEMA_ONLY=1)` を実行、本番スキーマ同期完了。
+   PS-20/21 が本番実測 201 で PASS 化（旧 INFRA-3 500 が解消）。
+   - 副作用対応: DB パスワード reset に伴い Fly の `ATELIER_DB_URL`/`DATABASE_URL` も新パスワードへ更新（signin 復旧）。
+   - ⚠ 未解決の製品ギャップ **#27**: 新規 WS に AI 社員を追加する API/フローが無く、
+     新規ユーザーがチャットを開始できない。テンプレからの「hire」エンドポイント実装が別途必要（PS-22〜24 の解除条件）。
    ```bash
    # Supabase Dashboard → Connect → Session pooler の URL (postgresql://...) を取得し:
    gh secret set PROD_DATABASE_URL --repo engine-base/Atelier   # 値を貼る
