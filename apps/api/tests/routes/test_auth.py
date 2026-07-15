@@ -3,6 +3,7 @@
 Supabase Admin API は test 環境で設定無しのため DB direct path を使う。
 F-LEGAL-004: terms_of_service / privacy_policy 必須 / 任意 consent も記録。
 """
+# pyright: reportPrivateUsage=false, reportFunctionMemberAccess=false, reportCallIssue=false, reportArgumentType=false
 
 from __future__ import annotations
 
@@ -253,6 +254,27 @@ class TestAuthSignup:
                 },
             )
             assert r.status_code == 422
+
+    def test_signup_invalid_consent_version_returns_422_not_500(
+        self, app: FastAPI, created_emails: list[str]
+    ) -> None:
+        """バグ #25 回帰: 不正 version は DB CHECK に達する前に 422 で弾く (旧: 500)。"""
+        em = _unique_email()
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signup",
+                json={
+                    "email": em,
+                    "password": "supersecret-pw",
+                    "display_name": "BadVersion",
+                    "consents": [
+                        {"type": "terms_of_service", "version": "v1", "accepted": True},
+                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                    ],
+                },
+            )
+            assert r.status_code == 422
+            assert r.status_code != 500
 
     def test_signup_duplicate_email_returns_409(
         self,

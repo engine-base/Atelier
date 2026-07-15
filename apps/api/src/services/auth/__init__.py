@@ -22,6 +22,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import os
 import secrets
 import time
@@ -44,6 +45,8 @@ from src.schemas.auth import (
     SignupRequest,
     SignupResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_ip(ip: str | None) -> str | None:
@@ -140,6 +143,27 @@ async def _create_supabase_auth_user(*, email: str, password: str) -> str | None
     return uid
 
 
+async def _delete_supabase_auth_user(uid: str) -> None:
+    """補償トランザクション: signup の DB 部分が失敗した際に Supabase auth.users を削除する。
+
+    バグ #26: 従来は DB 失敗時に session.rollback() のみで、外部 API で作成済みの
+    auth.users が孤児化し、以後その email が「登録済み」で再登録も復旧もできなくなっていた。
+    ベストエフォート (削除自体の失敗は握りつぶし、元の例外を優先する)。
+    """
+    api_url = os.environ.get("ATELIER_SUPABASE_ADMIN_API_URL")
+    service_key = os.environ.get("ATELIER_SUPABASE_SERVICE_ROLE_KEY")
+    if not api_url or not service_key:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            await client.delete(
+                f"{api_url.rstrip('/')}/auth/v1/admin/users/{uid}",
+                headers={"Authorization": f"Bearer {service_key}", "apikey": service_key},
+            )
+    except Exception as exc:  # 補償失敗は元例外を優先 (ログのみ)
+        logger.warning("failed to roll back orphan supabase auth user %s: %s", uid, exc)
+
+
 async def _create_local_auth_user(session: AsyncSession, *, email: str, password: str) -> str:
     """test / dev 環境用: auth.users に直接 insert (RLS バイパス済 session 前提)。
 
@@ -193,6 +217,7 @@ async def signup(
 
     # service_role session を直接 factory から取得 (RLS バイパス)
     factory = _service_session_factory()
+    supabase_uid: str | None = None  # 補償対象 (Supabase 経由で作成した場合のみ)
     async with factory() as session:
         try:
             uid = await _create_supabase_auth_user(email=str(data.email), password=data.password)
@@ -201,6 +226,7 @@ async def signup(
                     session, email=str(data.email), password=data.password
                 )
             else:
+                supabase_uid = uid
                 # Supabase に既に作成済 → public.users 作成のため重複チェック
                 dup = await session.execute(
                     text("select 1 from public.users where email = :e"),
@@ -267,8 +293,13 @@ async def signup(
                 raise SignupError("post_insert_missing", "created user not visible")
 
             await session.commit()
-        except Exception:
+        except Exception as exc:
             await session.rollback()
+            # 補償: DB 部分が失敗したら外部で作成済みの Supabase auth.users も消す。
+            # email_taken は「既存ユーザー = 我々が作っていない」ので対象外。
+            is_email_taken = isinstance(exc, SignupError) and exc.code == "email_taken"
+            if supabase_uid is not None and not is_email_taken:
+                await _delete_supabase_auth_user(supabase_uid)
             raise
 
     return SignupResponse(

@@ -10,12 +10,17 @@ T-A-02 signin、T-A-03〜04 (Magic Link/OAuth/Reset)、T-A-05 退会は別タス
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 ConsentType = Literal["terms_of_service", "privacy_policy", "data_residency", "ai_training_optin"]
+
+# DB CHECK 制約 consents_version_semver_or_date と同一 (t-d-11 migration)。
+# semver 系 (1 / 1.0 / 1.0.0 …) または YYYY-MM-DD。
+_CONSENT_VERSION = re.compile(r"^[0-9]+(\.[0-9]+)*$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 
 
 class ConsentEntry(BaseModel):
@@ -28,6 +33,15 @@ class ConsentEntry(BaseModel):
     type: ConsentType
     version: str = Field(min_length=1, max_length=50)
     accepted: bool
+
+    @field_validator("version")
+    @classmethod
+    def _check_version(cls, v: str) -> str:
+        # DB CHECK と同じ形式検証を境界で行い、不正入力を 500 でなく 422 で弾く
+        # (バグ #25: 実本番 signup で不正 version が opaque な 500 になっていた)。
+        if not _CONSENT_VERSION.match(v):
+            raise ValueError("version must be semver (e.g. 1.0.0) or YYYY-MM-DD")
+        return v
 
 
 class SignupRequest(BaseModel):

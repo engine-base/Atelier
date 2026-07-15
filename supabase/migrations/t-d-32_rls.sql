@@ -1,3 +1,4 @@
+-- @verification-only : RLS 越境試験 (fixture insert + assert)。本番には流さない (SCHEMA_ONLY=1 で skip)。
 -- T-D-32: RLS 越境試験 — project 分離 (R-T08)
 --
 -- 信頼源: 04_functional_breakdown/entities.json + R-T08 (致命級)

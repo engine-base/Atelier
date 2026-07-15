@@ -1,3 +1,4 @@
+-- @verification-only : RLS 越境試験 (fixture insert + assert)。本番には流さない (SCHEMA_ONLY=1 で skip)。
 -- T-D-31: RLS 越境試験 — workspace 分離（基本）(R-T08)
 --
 -- 信頼源: 04_functional_breakdown/entities.json + R-T08 (致命級)

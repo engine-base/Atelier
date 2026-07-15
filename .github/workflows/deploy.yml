@@ -9,6 +9,9 @@
 #
 # 必要な GitHub Secrets:
 #   - FLY_API_TOKEN / FLY_APP_NAME
+#   - PROD_DATABASE_URL (任意 / 推奨): 本番 DB へ schema migration を自動適用する。
+#     未設定なら migration ステップは skip (従来動作)。設定すると deploy 前に
+#     SCHEMA_ONLY=1 で冪等適用し、スキーマドリフト (INFRA-3) を恒久的に防ぐ。
 #
 # v3-gate.yml が PASS している前提 (deploy は merge 後にのみ動く)。
 
@@ -46,6 +49,7 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP_NAME: ${{ inputs.app || secrets.FLY_APP_NAME }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
       - name: Install flyctl
@@ -61,6 +65,20 @@ jobs:
             exit 1
           fi
           echo "::notice::deploying to app=$FLY_APP_NAME"
+      # INFRA-3 恒久対策: 本番 DB スキーマを deploy 前に同期する。
+      # スキーマ用 migration は冪等 (if not exists / drop policy if exists) なので
+      # 部分適用済みの本番へ再適用しても安全。@verification-only (RLS 越境試験の
+      # fixture) は SCHEMA_ONLY=1 で skip し本番を汚さない。
+      - name: Apply DB migrations (schema-only)
+        if: ${{ env.PROD_DATABASE_URL != '' }}
+        env:
+          PGURL: ${{ env.PROD_DATABASE_URL }}
+          SCHEMA_ONLY: "1"
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+          bash scripts/ci/apply-migrations.sh
       - name: Deploy
         run: |
           flyctl deploy \
