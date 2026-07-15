@@ -14,6 +14,7 @@ audit_logs に必ず記録 (3-tier AC: state-changing audit)。
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -24,6 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.chat_sse import ChatContextPreviewResponse
+
+logger = logging.getLogger(__name__)
 
 
 async def _load_recent_messages(
@@ -376,7 +379,14 @@ async def stream_chat(
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})
     except Exception as exc:  # pragma: no cover  - 実 LLM 障害は別レイヤ
-        yield _sse_event({"type": "error", "content": str(exc)[:300]})
+        # 生のプロバイダーエラー (request_id 等の内部情報) はクライアントへ流さない。
+        logger.error("chat stream LLM failure (thread=%s): %s", thread_id, exc)
+        yield _sse_event(
+            {
+                "type": "error",
+                "content": "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
+            }
+        )
         return
 
     final_text = "".join(accumulated)
