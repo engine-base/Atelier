@@ -31,7 +31,16 @@
 | PS-24 | リロード永続 | F5 | ログアウトせず維持 | BLOCKED |
 
 ## 恒久対策（INFRA-3 / production readiness）
-1. **schema migration と verification script の分離**（t-d-31〜35 は本番へ流さない）。
-2. **deploy に schema-only の冪等マイグレーション適用ステップを追加**（現状ゼロ＝根因）。
-3. **prod DB URL を CI secret 化**し、deploy 時に schema を必ず同期。
-4. 上記完了後に PS-20〜24 を実ブラウザで実走し本欄を PASS 化する。
+1. ✅ **schema/verification 分離**: t-d-31/32 に `@verification-only` マーカーを付与し本番から除外（PR #276）。
+2. ✅ **deploy に schema-only 冪等適用ステップを追加**: `apply-migrations.sh` の `SCHEMA_ONLY=1` を
+   deploy.yml から実行（`PROD_DATABASE_URL` secret があるときのみ）。使い捨て DB で
+   「37 適用→再適用で冪等→workspace insert でトリガ動作」を実証済み（PR #276）。
+3. ⏳ **残: `PROD_DATABASE_URL` を GitHub secret に登録**（人間作業・DB 認証情報）。
+   登録して再 deploy すれば本番スキーマが自動同期され、PS-20〜24 のブロックが解ける。
+   ```bash
+   # Supabase Dashboard → Connect → Session pooler の URL (postgresql://...) を取得し:
+   gh secret set PROD_DATABASE_URL --repo engine-base/Atelier   # 値を貼る
+   gh workflow run deploy.yml --ref main                        # 再deploy でマイグレーション適用
+   ```
+4. 上記 3 完了後に PS-20〜24 を実ブラウザで実走し本欄を PASS 化する（実 AI チャットは
+   フルスタックで実証済み＝RESULTS v22。本番でも同一コードで動く）。
