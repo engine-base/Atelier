@@ -53,9 +53,9 @@
 | AI-034 | state | 並行 5 本 | 別スレッド同時 | 5 セッション同時 stream | 混線なし（各応答が自スレッドの文脈のみ） | **PASS** | 5 スレッド同時 stream で各応答が自スレッドの識別子のみ (混線ゼロ)。`run-20260715-134410.jsonl` |
 | AI-035 | state | 中断→再開 | stream 途中切断 | 切断→リトライ | 二重保存なし・再開可能 | **PASS** | stream 途中切断→空 assistant 行の残留ゼロ・リトライ成功 (二重保存なし)。`run-20260715-134410.jsonl` |
 | AI-036 | state | RAG 実引き | knowledge 大量/0件 | ナレッジ参照質問 | 0件でも破綻せず・大量でも該当ナレッジを実引用 | **PASS** | 本物 RAG end-to-end 実証: rag_hit_ids 5 件 (seed『提案書の書き方』含む)・実 LLM がナレッジ内容を引用して回答・存在しない語クエリ (0件) でも 200。`run-20260715-141416.jsonl` |
-| AI-040 | bridge | play→実タスク遂行 | 既定 | apps/bridge 起動→▶再生 | AI が実際にタスクを遂行し成果物/実行ログが DB・画面に反映 | BLOCKED | **訂正 (2026-07-15 実コード確認): bridge dispatcher は T-F-27 の型+空骨格のみで実体未実装**（`dispatcher.ts` claimNext=TODO(T-F-28)・spawn ロジックなし）。解除=T-F-28 実装完了+claude CLI+キー |
-| AI-041 | bridge | 実行失敗の回復 | tool/LLM 失敗 | 途中失敗させる | status=failed が UI に出て retry 可能 | BLOCKED | 〃（実装未着手のためテスト以前） |
-| AI-042 | cron | daily_digest 自律実行 | 既定 | スケジュール発火 | 成果が生成され通知/DB に反映 | BLOCKED | worker 未稼働 |
+| AI-040 | bridge | play→実タスク遂行 | 既定 | apps/bridge 起動→▶再生 | AI が実際にタスクを遂行し成果物/実行ログが DB・画面に反映 | BLOCKED | **精密化 (2026-07-15 実コード精査)**: API 側 (kanban_tools/bridge_tools/routes/dispatcher, T-F-28/T-A-28) は実装済み。欠けているのは **Electron クライアント側の dispatcher 実体**（apps/bridge — T-F-27 コメントいわく「Vibeyard fork 取込後に実装」= **未起票の将来ウェーブ**）+ claude CLI 実行環境。解除=クライアント側実装の起票→実装+キー |
+| AI-041 | bridge | 実行失敗の回復 | tool/LLM 失敗 | 途中失敗させる | status=failed が UI に出て retry 可能 | BLOCKED | 〃（クライアント側実装が先） |
+| AI-042 | cron | daily_digest 自律実行 | 既定 | スケジュール発火 | 成果が生成され通知/DB に反映 | BLOCKED | **精密化**: cron CRUD/scheduler/Inngest handler (T-F-20/T-A-40) は実装済みだが、handler は**設計どおりの Phase 0 skeleton**（docstring に「実体(ダイジェスト生成/通知)は別 task で実装」と明記・logger のみ）。**ダイジェスト実体のチケットは未起票**。解除=実体タスク起票→実装+Inngest worker 稼働 |
 
 **刈った組合せ（silent cap 禁止・明記）**: provider×state の全直積（Anthropic 以外の chat 経路が無いため代表構成のみ）、
 tool×長文脈（AI-032 と AI-010 の合流はリスク低と判断）、openai.py 経路（chat から未使用。使用開始時に行を起こす）。
