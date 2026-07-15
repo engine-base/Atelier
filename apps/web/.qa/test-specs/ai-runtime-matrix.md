@@ -22,13 +22,14 @@
 
 ## マトリクス（結果列: PASS/FAIL/BLOCKED）
 
-> 集計 (2026-07-15 v2 / grep 実カウントで検算): **PASS 1 / BLOCKED 22 / N-A 1（全24行）**。
+> 集計 (2026-07-15 v3 / grep 実カウントで検算): **PASS 1 / BLOCKED 22 / N-A 1（全24行）**。
 > ※従来記載の「23行」は誤集計だったため訂正。BLOCKED 22 の内訳:
-> - **キー設定だけで実走可能: 13 行** — AI-001/003/004（Anthropic）、AI-020〜023（output）、
->   AI-030/031/034/035（state）、AI-005/036（Voyage 必須）
->   → `scripts/qa/ai_matrix_runner.py` で一括実走・evidence 自動保存できる状態に準備済
-> - **実装が存在せずテスト以前: 9 行** — tool 4行（web_search 未配線）/ AI-032（compress 未配線）/
->   AI-033（caching 未配線）/ bridge 2行（T-F-28 未着手）/ cron 1行（worker 未稼働）
+> - **キー設定だけで実走可能: 18 行** — AI-001/003/004（Anthropic）、AI-010〜013（tool ※T-A-51 で配線済）、
+>   AI-020〜023（output）、AI-030/031/033/034/035（state ※AI-033 は T-A-52 で配線済）、AI-005/036（Voyage 必須）
+>   → うち 13 行は `scripts/qa/ai_matrix_runner.py` で一括実走・evidence 自動保存（tool 行と cache hit 実証は
+>     provider usage 確認を伴うため半自動）
+> - **実装が存在せずテスト以前: 4 行** — AI-032（compress は意図的保留を T-A-52 AC md に明記）/
+>   bridge 2行（T-F-28 未着手）/ cron 1行（worker 未稼働）
 
 | ID | 軸 | 対象 | 状態 | 手順 | 期待（不変条件） | 結果 | 証拠/備考 |
 |---|---|---|---|---|---|---|---|
@@ -38,7 +39,7 @@
 | AI-004 | provider | 廃止/誤モデル名 | 既定 | model 名を typo に | 明示エラー（沈黙 fallback しない） | BLOCKED | 〃 |
 | AI-005 | provider | Voyage 実接続 | 既定 | embedding 1 件 | 1024 次元 vector 返却・knowledge 検索にヒット | BLOCKED | 解除=VOYAGE_API_KEY |
 | AI-006 | provider | fallback | — | — | **対象外: fallback 実装なし（棚卸しどおり単一系）** | N/A | 実装追加時に行を起こす |
-| AI-010 | tool | web_search 正起動 | 既定 | 「最新の…を調べて」等 2-3 通り | tool_use ブロックに web_search・実行果を引用 | BLOCKED | **訂正: web_search は chat 経路未配線（呼び出し元ゼロ）＝テスト以前**。解除=配線タスク起票・実装+キー |
+| AI-010 | tool | web_search 正起動 | 既定 | 「最新の…を調べて」等 2-3 通り | tool_use ブロックに web_search・実行果を引用 | BLOCKED | **配線済 (T-A-51 / PR #268)**。解除=キーのみ。evidence は応答内容+provider usage（SSE は text delta のみのため tool 列の直接観測は provider ログ or 今後の SSE メタ拡張で） |
 | AI-011 | tool | web_search 誤選択防止 | 既定 | 検索不要の依頼（社内データ質問） | web_search を呼ばない（2-3 サンプル） | BLOCKED | 〃 |
 | AI-012 | tool | 入力の尊重 | 既定 | task_id/値を明示して依頼 | 与えた値が応答/引数に出る・取り直さない | BLOCKED | 〃 |
 | AI-013 | tool | max_uses 上限 | 既定 | 検索多発する依頼 | 5 回で打ち止め・壊れず要約 | BLOCKED | 〃 |
@@ -49,7 +50,7 @@
 | AI-030 | state | 空文脈（初回） | RAG 0件 | 新規スレッド 1 ターン | 500 にせず自然な応答 | BLOCKED | |
 | AI-031 | state | 会話 3+ ターン | 履歴あり | 「続けて」「さっきの件」 | 前ターン文脈を保持（固有名を再説明なしで解決） | BLOCKED | |
 | AI-032 | state | 長文脈（compress 発火） | 履歴を閾値超まで積む | compress.py が実発火 | 発火後も文脈の要点を保持・エラーなし | BLOCKED | **訂正: compress.py 未配線＝発火し得ない**（chat の長文脈は chat_sse 内の `_fold_older_history` 簡易要約が担当。こちらはキー設定後 AI-031 と同時に実走可能）。解除=配線 or 行を _fold_older_history 検証に差替 |
-| AI-033 | state | キャッシュ hit/miss | 同一 prompt 連投 | caching.py 経路 | 応答整合・キャッシュ起因の他ユーザー文脈混入なし | BLOCKED | **訂正: caching.py 未配線＝経路が存在しない**。解除=配線タスク起票・実装+キー |
+| AI-033 | state | キャッシュ hit/miss | 同一 prompt 連投 | caching.py 経路 | 応答整合・キャッシュ起因の他ユーザー文脈混入なし | BLOCKED | **配線済 (T-A-52 / PR #268)**: system が cache_control 付き blocks で渡る。解除=キーのみ（hit 実証は provider usage の cache_read tokens で確認） |
 | AI-034 | state | 並行 5 本 | 別スレッド同時 | 5 セッション同時 stream | 混線なし（各応答が自スレッドの文脈のみ） | BLOCKED | |
 | AI-035 | state | 中断→再開 | stream 途中切断 | 切断→リトライ | 二重保存なし・再開可能 | BLOCKED | |
 | AI-036 | state | RAG 実引き | knowledge 大量/0件 | ナレッジ参照質問 | 0件でも破綻せず・大量でも該当ナレッジを実引用 | BLOCKED | Voyage 必須 |

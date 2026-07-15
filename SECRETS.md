@@ -38,7 +38,11 @@ flyctl secrets set --app atelier-api-eb \
   ATELIER_DB_URL='<Supabase Session Pooler の asyncpg URL>' \
   ATELIER_SUPABASE_ADMIN_API_URL='https://<ref>.supabase.co' \
   ATELIER_SUPABASE_ANON_KEY='<anon>' \
-  ATELIER_SUPABASE_SERVICE_ROLE_KEY='<service_role>'
+  ATELIER_SUPABASE_SERVICE_ROLE_KEY='<service_role>' \
+  ANTHROPIC_API_KEY='<Anthropic Console で発行>' \
+  VOYAGE_API_KEY='<Voyage AI Dashboard で発行>'
+# ⚠ ANTHROPIC_API_KEY / VOYAGE_API_KEY 未投入だと本番 chat は
+#   「LLM が利用できません」エラー、RAG は text 検索 degrade になる。
 # 確認 (値は出ず名前と digest のみ):
 flyctl secrets list --app atelier-api-eb
 ```
