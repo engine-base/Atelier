@@ -22,13 +22,12 @@
 
 ## マトリクス（結果列: PASS/FAIL/BLOCKED）
 
-> 集計 (2026-07-15 v5 / **キー実走 全完了**): **PASS 19 / BLOCKED 4 / N-A 1（全24行）**。
-> ANTHROPIC_API_KEY + VOYAGE_API_KEY 設定により、キーで実走可能な**全 18 行を実プロバイダーで
-> 実走し全 PASS**（AI-002 は先行 PASS 済）。evidence は `apps/web/.qa/evidence/ai-matrix/` に保存。
-> 残 BLOCKED 4 の解除条件（全て実装作業・チケット済/保留明記済）:
-> - AI-032: compress は意図的保留（T-A-52 AC md に明記。chat の長文脈は _fold_older_history が実担当）
-> - AI-040/041: bridge dispatcher T-F-28 未実装（チケット済・次の実装ウェーブ）
-> - AI-042: cron worker（Inngest, T-F-20/T-A-40）未稼働（チケット済）
+> 集計 (2026-07-15 v6 / **最終クローズ**): **PASS 22 / BLOCKED 1 / N-A 1（全24行）**。
+> テスト可能な全行を実プロバイダー+実画面で実証済み。「理由なき未検証」ゼロ。
+> - 残 BLOCKED 1 = AI-032（compress/LLMLingua）のみ: **意図的保留を T-A-52 AC md に明記済**
+>   （chat の長文脈は `_fold_older_history` が実担当。LLMLingua 導入時に行を再開する）
+> - AI 成果は **ユーザー可視面（実画面スクショ）まで実証**するルールをスキル 4.5 節に追加
+>   （DB green で止まらない — 実際に S-E01 履歴未ロードのバグ #23 を画面検証が検出した）
 
 | ID | 軸 | 対象 | 状態 | 手順 | 期待（不変条件） | 結果 | 証拠/備考 |
 |---|---|---|---|---|---|---|---|
@@ -53,9 +52,9 @@
 | AI-034 | state | 並行 5 本 | 別スレッド同時 | 5 セッション同時 stream | 混線なし（各応答が自スレッドの文脈のみ） | **PASS** | 5 スレッド同時 stream で各応答が自スレッドの識別子のみ (混線ゼロ)。`run-20260715-134410.jsonl` |
 | AI-035 | state | 中断→再開 | stream 途中切断 | 切断→リトライ | 二重保存なし・再開可能 | **PASS** | stream 途中切断→空 assistant 行の残留ゼロ・リトライ成功 (二重保存なし)。`run-20260715-134410.jsonl` |
 | AI-036 | state | RAG 実引き | knowledge 大量/0件 | ナレッジ参照質問 | 0件でも破綻せず・大量でも該当ナレッジを実引用 | **PASS** | 本物 RAG end-to-end 実証: rag_hit_ids 5 件 (seed『提案書の書き方』含む)・実 LLM がナレッジ内容を引用して回答・存在しない語クエリ (0件) でも 200。`run-20260715-141416.jsonl` |
-| AI-040 | bridge | play→実タスク遂行 | 既定 | apps/bridge 起動→▶再生 | AI が実際にタスクを遂行し成果物/実行ログが DB・画面に反映 | BLOCKED | **精密化 (2026-07-15 実コード精査)**: API 側 (kanban_tools/bridge_tools/routes/dispatcher, T-F-28/T-A-28) は実装済み。欠けているのは **Electron クライアント側の dispatcher 実体**（apps/bridge — T-F-27 コメントいわく「Vibeyard fork 取込後に実装」= **未起票の将来ウェーブ**）+ claude CLI 実行環境。解除=クライアント側実装の起票→実装+キー |
-| AI-041 | bridge | 実行失敗の回復 | tool/LLM 失敗 | 途中失敗させる | status=failed が UI に出て retry 可能 | BLOCKED | 〃（クライアント側実装が先） |
-| AI-042 | cron | daily_digest 自律実行 | 既定 | スケジュール発火 | 成果が生成され通知/DB に反映 | BLOCKED | **精密化**: cron CRUD/scheduler/Inngest handler (T-F-20/T-A-40) は実装済みだが、handler は**設計どおりの Phase 0 skeleton**（docstring に「実体(ダイジェスト生成/通知)は別 task で実装」と明記・logger のみ）。**ダイジェスト実体のチケットは未起票**。解除=実体タスク起票→実装+Inngest worker 稼働 |
+| AI-040 | bridge | play→実タスク遂行 | 既定 | apps/bridge 起動→▶再生 | AI が実際にタスクを遂行し成果物/実行ログが DB・画面に反映 | **PASS** | 2026-07-15 実走: T-F-41 実装後、実 claude CLI で queued タスクを bridge が遂行 → complete → DB (awaiting / execution succeeded score=1.0) → **実画面 S-I01/S-I02/S-I03 反映をスクショ evidence 化** (`ai-040-ui-*.png`)。PR #274 |
+| AI-041 | bridge | 実行失敗の回復 | tool/LLM 失敗 | 途中失敗させる | status=failed が UI に出て retry 可能 | **PASS** | 2026-07-15 実走: exit 1 → request-change → blocked + 理由記録 + **dispatch_status=reclaimed (retry 可能)**。実走が**実バグ #21 (running のまま孤児化) を検出→修正**。画面 evidence `ai-041-ui-blocked.png`。PR #274 |
+| AI-042 | cron | daily_digest 自律実行 | 既定 | スケジュール発火 | 成果が生成され通知/DB に反映 | **PASS** | 2026-07-15 実走: T-A-53 実装後、Inngest dev + 毎分 cron で**実スケジュール発火**→ digest 生成 → **実画面 S-E01 表示まで確認** (`ai-042-ui-digest.png`)。実走が**潜在バグ #22 (handler 2引数 500) と実バグ #23 (chat 履歴未ロード) を検出→修正**。PR #274 |
 
 **刈った組合せ（silent cap 禁止・明記）**: provider×state の全直積（Anthropic 以外の chat 経路が無いため代表構成のみ）、
 tool×長文脈（AI-032 と AI-010 の合流はリスク低と判断）、openai.py 経路（chat から未使用。使用開始時に行を起こす）。
