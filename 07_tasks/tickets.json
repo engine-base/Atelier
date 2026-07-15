@@ -23662,7 +23662,8 @@
           "apps/bridge/src/dispatcher.test.ts",
           "apps/bridge/src/dispatcher.ts",
           "apps/bridge/src/main.ts",
-          "apps/bridge/package.json"
+          "apps/bridge/package.json",
+          "07_tasks/acceptance-criteria/T-F-41.md"
         ],
         "shared_read": [
           "apps/api/src/cron/scheduler.py",
