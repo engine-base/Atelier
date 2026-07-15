@@ -23651,7 +23651,8 @@
       "files_changed_predicted": {
         "new": [
           "apps/api/src/services/cron/digest.py",
-          "apps/api/tests/test_cron_digest.py"
+          "apps/api/tests/test_cron_digest.py",
+          "apps/api/tests/test_cron_digest_unit.py"
         ],
         "modify": [
           "apps/api/src/cron/inngest_handlers.py",
