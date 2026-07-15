@@ -23310,6 +23310,204 @@
           "expected": "403"
         }
       ]
+    },
+    {
+      "id": "T-A-51",
+      "title": "web_search を chat SSE 実経路へ配線（T-F-21 消費側実装）",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-E01"
+      ],
+      "entity_ids": [
+        "E-011"
+      ],
+      "feature_ids": [
+        "F-008"
+      ],
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "human_review_h": 0.0,
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 10,
+      "depends_on": [
+        "T-F-21",
+        "T-A-48"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-51.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/routes/test_chat_web_search.py"
+        ],
+        "modify": [
+          "apps/api/src/services/chat_sse/__init__.py",
+          "apps/api/tests/routes/test_chat_sse.py",
+          "07_tasks/tickets.json",
+          "apps/api/tests/routes/test_chat_prompt_cache.py"
+        ],
+        "shared_read": [
+          "apps/api/src/tools/web_search.py",
+          "apps/api/src/llm/anthropic.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: chat SSE の実 LLM stream は T-F-21 build_web_search_tool() の descriptor を tools= に注入する（独自 dict の直書き禁止）",
+          "UBIQUITOUS: ATELIER_WEB_SEARCH_DISABLED=1 で tools 注入を無効化できる（既定は有効）"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the assistant uses web_search during streaming, the system shall keep emitting well-formed SSE events (context/start/delta/end)"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When ATELIER_WEB_SEARCH_DISABLED=1, the system shall call the provider without tools"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the provider returns a tool-related error, the system shall emit the sanitized user-facing error event and shall NOT leak raw provider error text to the client"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 chat SSE テスト（fake 経路含む）が従来どおり green",
+          "fake LLM 経路（ATELIER_ALLOW_FAKE_LLM=1）の挙動を変えない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "descriptor 注入（structural）",
+          "steps": [
+            "_real_stream_chunks の tools 組立を unit で検証"
+          ],
+          "expected": "build_web_search_tool() の戻り値が tools[0] に一致"
+        },
+        {
+          "name": "無効化フラグ（functional）",
+          "steps": [
+            "ATELIER_WEB_SEARCH_DISABLED=1 で組立"
+          ],
+          "expected": "tools 未注入"
+        },
+        {
+          "name": "既存回帰（regression）",
+          "steps": [
+            "tests/routes/test_chat_sse.py 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "第10軸 QA (AI-010〜013) で判明した起票漏れの解消。実プロバイダーでの tool 実走検証は ai_matrix_runner の tool 行で行う。"
+    },
+    {
+      "id": "T-A-52",
+      "title": "Prompt Caching を chat SSE 実経路へ配線（T-F-15 消費側実装）",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-E01"
+      ],
+      "entity_ids": [
+        "E-011"
+      ],
+      "feature_ids": [
+        "F-008"
+      ],
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "human_review_h": 0.0,
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "depends_on": [
+        "T-F-15",
+        "T-A-48"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-52.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/routes/test_chat_prompt_cache.py"
+        ],
+        "modify": [
+          "apps/api/src/services/chat_sse/__init__.py",
+          "apps/api/tests/routes/test_chat_sse.py",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "apps/api/src/llm/caching.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: chat SSE の実 LLM stream は system prompt を T-F-15 cache_system_prompt() 経由の blocks（cache_control 付与）で渡す",
+          "UBIQUITOUS: ATELIER_PROMPT_CACHE_DISABLED=1 で cache_control 付与を無効化できる（既定は有効）"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a chat message is sent with real LLM, the system shall pass system as cacheable blocks so repeated turns hit the provider prompt cache"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When ATELIER_PROMPT_CACHE_DISABLED=1, the system shall pass system as a plain string (no cache_control)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If caching is enabled, the system shall NOT change the semantic content of the system prompt (blocks join equals the original text)"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 chat SSE テスト（fake 経路含む）が従来どおり green",
+          "fake LLM 経路の挙動を変えない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "cache blocks 組立（structural）",
+          "steps": [
+            "system prompt の blocks 化を unit で検証"
+          ],
+          "expected": "cache_system_prompt() 経由・原文一致"
+        },
+        {
+          "name": "無効化フラグ（functional）",
+          "steps": [
+            "ATELIER_PROMPT_CACHE_DISABLED=1 で組立"
+          ],
+          "expected": "plain string のまま"
+        },
+        {
+          "name": "既存回帰（regression）",
+          "steps": [
+            "tests/routes/test_chat_sse.py 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "第10軸 QA (AI-033) で判明した起票漏れの解消。compress(LLMLingua)/Batch API は意図的保留（chat は _fold_older_history が要約を実担当、Batch は用途未発生）— 保留の記録は apps/web/.qa/test-specs/ai-runtime-matrix.md に明記済。"
     }
   ],
   "two_axis_policy": {
