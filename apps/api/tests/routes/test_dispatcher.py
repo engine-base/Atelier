@@ -4,6 +4,7 @@ Bridge worker 用 7 ツールの HTTP layer。X-Bridge-Token 認証 (Supabase JW
 独立) + service_role セッション (RLS バイパス)。Hermes 互換 lifecycle / dispatch
 遷移を実 DB で検証。
 """
+# pyright: reportUnknownMemberType=false
 
 from __future__ import annotations
 
