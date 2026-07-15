@@ -337,13 +337,20 @@ class TestKanbanTools:
             )
             assert r.status_code == 200
             assert r.json()["data"]["lifecycle_stage"] == "blocked"
+            # バグ #21 回帰: dispatch_status を running のまま残すと再 pick 不能で孤児化する
+            assert r.json()["data"]["dispatch_status"] == "reclaimed"
         with sync_engine.begin() as c:
             row = c.execute(
-                text("select blocked_reason from public.tasks where id = cast(:i as uuid)"),
+                text(
+                    "select blocked_reason, dispatch_status, worker_pid "
+                    "from public.tasks where id = cast(:i as uuid)"
+                ),
                 {"i": seeded["running_id"]},
             ).first()
             assert row is not None
             assert "AC" in str(row.blocked_reason)
+            assert str(row.dispatch_status) == "reclaimed"
+            assert row.worker_pid is None
 
     def test_request_review_moves_to_awaiting(self, app: FastAPI, seeded: dict[str, str]) -> None:
         exec_id = str(uuid.uuid4())
