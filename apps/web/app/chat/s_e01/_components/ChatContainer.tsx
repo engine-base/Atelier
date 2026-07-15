@@ -12,11 +12,12 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Toast } from "../../../../components/ui/toast";
 import { ChatPanel, type ChatMessage } from "./ChatPanel";
 import {
+  fetchThreadMessages,
   streamChatThread,
   type ChatStreamChunk,
   type StreamChatArgs,
@@ -64,6 +65,30 @@ export function ChatContainer({
   const [sending, setSending] = useState(false);
   const [context, setContext] = useState<ChatContextSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // バグ #23 対応: 既存スレッドの履歴をマウント時にロードする
+  // (これが無いとリロードで会話が消え、cron ダイジェスト等の既存メッセージが不可視)。
+  useEffect(() => {
+    let cancelled = false;
+    fetchThreadMessages(threadId)
+      .then((history) => {
+        if (cancelled || history.length === 0) return;
+        // 履歴は先頭に置く。stream 中 (送信中) の楽観行は維持する。
+        setMessages((prev) => {
+          const existing = new Set(prev.map((m) => m.id));
+          const fresh = history.filter((m) => !existing.has(m.id));
+          return [...fresh, ...prev];
+        });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("過去のメッセージの取得に失敗しました。");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId]);
 
   const handleSend = useCallback(
     async (text: string) => {

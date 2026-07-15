@@ -95,3 +95,41 @@ export async function streamChatThread(args: StreamChatArgs): Promise<void> {
   const tail = parseChunk(buffer);
   if (tail) args.onChunk(tail);
 }
+
+export interface ThreadMessage {
+  readonly id: string;
+  readonly role: "user" | "assistant";
+  readonly content: string;
+}
+
+/**
+ * 既存スレッドの過去メッセージを取得する (バグ #23 対応)。
+ * 失敗時は throw — 呼び出し側でエラー表示する。
+ */
+export async function fetchThreadMessages(
+  threadId: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<readonly ThreadMessage[]> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/threads/${threadId}/messages`, {
+    headers,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(`messages fetch failed: ${res.status}`);
+  }
+  const json = (await res.json()) as {
+    data: readonly { id: string; role: string; content: string }[];
+  };
+  return json.data
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+}
