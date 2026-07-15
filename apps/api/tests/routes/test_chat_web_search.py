@@ -5,6 +5,7 @@ tier 2 (functional): ATELIER_WEB_SEARCH_DISABLED=1 で注入無効化。
 tier 2 (UNWANTED):   provider 例外はサニタイズ済み定型文で SSE error 化 (生エラー非漏えい)。
 tier 3 (regression): fake 経路 (_fake_stream_chunks) は tools 概念を持たず不変。
 """
+# pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
