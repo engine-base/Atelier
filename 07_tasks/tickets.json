@@ -23663,7 +23663,15 @@
           "apps/bridge/src/dispatcher.ts",
           "apps/bridge/src/main.ts",
           "apps/bridge/package.json",
-          "07_tasks/acceptance-criteria/T-F-41.md"
+          "07_tasks/acceptance-criteria/T-F-41.md",
+          "apps/bridge/__tests__/dispatcher.test.ts",
+          "apps/bridge/__tests__/main.test.ts",
+          "apps/api/tests/test_cron_scheduler.py",
+          "apps/web/app/chat/s_e01/_components/ChatContainer.tsx",
+          "apps/web/app/chat/s_e01/_components/stream.ts",
+          "apps/web/app/tasks/s_i02/_components/TaskDetailContainer.tsx",
+          "apps/api/tests/routes/test_dispatcher.py",
+          "apps/api/src/services/dispatcher/bridge_tools.py"
         ],
         "shared_read": [
           "apps/api/src/cron/scheduler.py",

@@ -54,3 +54,14 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(api_router)
+
+# T-A-53: Inngest serve (cron worker 経路)。既定 OFF — ATELIER_INNGEST_ENABLED=1 の
+# ときのみ /api/inngest を mount し、cron functions (daily-digest 等) を配信する。
+if os.environ.get("ATELIER_INNGEST_ENABLED") == "1":
+    import inngest.fast_api
+
+    from inngest_config import get_client
+    from src.cron import register_cron_jobs
+
+    _inngest_client = get_client()
+    inngest.fast_api.serve(app, _inngest_client, register_cron_jobs(_inngest_client))

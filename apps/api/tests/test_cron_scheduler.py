@@ -67,9 +67,41 @@ class TestBuildCronFunction:
 @pytest.mark.unit
 class TestHandlerBodies:
     @pytest.mark.asyncio
-    async def test_daily_digest_body_returns_status_ok(self) -> None:
+    async def test_daily_digest_body_calls_digest_service(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T-A-53: handler は skeleton でなく digest 実体を呼ぶ (DB は monkeypatch)。"""
+        from src.services.cron import digest as digest_mod
+
+        async def _fake_run(session: object) -> dict[str, int]:
+            del session
+            return {"generated": 2, "skipped": 1}
+
+        class _FakeSession:
+            async def __aenter__(self) -> object:
+                return object()
+
+            async def __aexit__(self, *exc: object) -> None:
+                return None
+
+        monkeypatch.setattr(digest_mod, "run_daily_digest", _fake_run)
+        import src.db as db_mod
+
+        def _fake_engine() -> None:
+            return None
+
+        def _fake_factory(_eng: None) -> type[_FakeSession]:
+            return _FakeSession
+
+        monkeypatch.setattr(db_mod, "create_engine", _fake_engine)
+        monkeypatch.setattr(db_mod, "create_session_factory", _fake_factory)
         result = await _daily_digest_body(ctx=None, step=None)
-        assert result == {"status": "ok", "name": "daily-digest"}
+        assert result == {
+            "status": "ok",
+            "name": "daily-digest",
+            "generated": "2",
+            "skipped": "1",
+        }
 
     @pytest.mark.asyncio
     async def test_weekly_burndown_body_returns_status_ok(self) -> None:
