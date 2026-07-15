@@ -274,13 +274,46 @@ async def _fake_stream_chunks(prompt: str) -> AsyncIterator[str]:
         yield ch
 
 
+def _build_system_param(system_prompt: str) -> str | list[dict[str, Any]]:
+    """T-A-52: 実 stream の system 引数を組み立てる。
+
+    T-F-15 の cache_system_prompt() で cache_control 付き blocks に変換し、
+    連続ターンで provider prompt cache にヒットし得る形にする
+    (Atelier の system はペルソナ+スキル+プロジェクト状態で毎ターンほぼ同一)。
+    ATELIER_PROMPT_CACHE_DISABLED=1 で plain string のまま渡す (既定は有効)。
+    """
+    if os.environ.get("ATELIER_PROMPT_CACHE_DISABLED") == "1":
+        return system_prompt
+    from src.llm.caching import cache_system_prompt
+
+    blocks = cache_system_prompt(system_prompt)
+    return blocks if blocks else system_prompt
+
+
+def _build_stream_tools() -> list[dict[str, Any]] | None:
+    """T-A-51: 実 stream に注入する tools を組み立てる。
+
+    T-F-21 の build_web_search_tool() を唯一の組立元とする (独自 dict 直書き禁止)。
+    ATELIER_WEB_SEARCH_DISABLED=1 で注入を無効化できる (既定は有効)。
+    """
+    if os.environ.get("ATELIER_WEB_SEARCH_DISABLED") == "1":
+        return None
+    from src.tools.web_search import build_web_search_tool
+
+    return [build_web_search_tool()]
+
+
 async def _real_stream_chunks(
     *,
     system_prompt: str,
     history: list[tuple[str, str]],
     user_message: str,
 ) -> AsyncIterator[str]:
-    """Anthropic SDK で実 stream。chunk text delta を yield する。"""
+    """Anthropic SDK で実 stream。chunk text delta を yield する。
+
+    web_search は Anthropic server-side tool のため、tool 実行は provider 側で
+    完結し、text_stream は text delta のみを yield する (SSE 整形は不変)。
+    """
     from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
 
     client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
@@ -290,11 +323,17 @@ async def _real_stream_chunks(
             msgs.append({"role": role, "content": content})
     msgs.append({"role": "user", "content": user_message})
 
+    kwargs: dict[str, Any] = {}
+    tools = _build_stream_tools()
+    if tools is not None:
+        kwargs["tools"] = tools
+
     async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        system=system_prompt,
+        system=_build_system_param(system_prompt),  # type: ignore[arg-type]
         messages=msgs,  # type: ignore[arg-type]
+        **kwargs,
     ) as stream:
         async for delta in stream.text_stream:  # type: ignore[union-attr]
             if delta:
