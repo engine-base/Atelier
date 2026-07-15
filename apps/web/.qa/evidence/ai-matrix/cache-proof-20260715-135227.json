@@ -1,0 +1,17 @@
+{
+ "AI-033-threshold-proof": {
+  "usages": [
+   {
+    "input": 15,
+    "cache_creation": 3413,
+    "cache_read": 0
+   },
+   {
+    "input": 15,
+    "cache_creation": 0,
+    "cache_read": 3413
+   }
+  ],
+  "verdict": "PASS"
+ }
+}

@@ -1,0 +1,158 @@
+{
+ "AI-010": {
+  "verdict": "PASS",
+  "samples": [
+   {
+    "prompt": "今日の東京の天気を web で検索して教えてください。",
+    "used_web_search": true,
+    "blocks": [
+     {
+      "type": "text",
+      "text_head": "少々お待ちください！"
+     },
+     {
+      "type": "server_tool_use",
+      "name": "web_search",
+      "input": {
+       "query": "東京 天気 今日 2026年7月15日"
+      }
+     },
+     {
+      "type": "web_search_tool_result"
+     },
+     {
+      "type": "text",
+      "text_head": "本日（2026年7月15日水曜日）の東京の天気をお伝えします！ ☀️\n\n"
+     },
+     {
+      "type": "text",
+      "text_head": "\n| 項目 | 内容 |\n|------|------|\n| 最高気温 | **33℃** |\n| 最低気温 | **26℃** |\n| 降水確率 | **10%** |\n"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n"
+     },
+     {
+      "type": "text",
+      "text_head": "傘は不要で、**紫外線が非常に強い**一日です。日中は日陰を活用することをおすすめします。また、**熱中症に注意**が必要で、屋外での活動はなるべく控えるよう呼びかけられています。"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n🌡️ 猛暑日に迫る暑さですので、こまめな水分補給と熱中症対策をお忘れなく！"
+     }
+    ],
+    "text_head": "少々お待ちください！本日（2026年7月15日水曜日）の東京の天気をお伝えします！ ☀️\n\n\n| 項目 | 内容 |\n|------|------|\n| 最高気温 | **33℃** |\n| 最低気温 | **26℃** |\n| 降水確率 | **10%** |\n\n\n傘は不要で、**紫外線が非常に強い**一日です。日中は日陰を活用することをおすすめします。また、**熱中症に注意**が必要で、屋外で"
+   },
+   {
+    "prompt": "Anthropic の最新モデルのリリース情報を web で調べて要約してください。",
+    "used_web_search": true,
+    "blocks": [
+     {
+      "type": "server_tool_use",
+      "name": "web_search",
+      "input": {
+       "query": "Anthropic 最新モデル リリース 2026"
+      }
+     },
+     {
+      "type": "web_search_tool_result"
+     },
+     {
+      "type": "text",
+      "text_head": "以下に、Anthropic の最新モデルリリース情報をまとめます（2026年7月時点）。\n\n---\n\n## 🤖 Anthropic 最新モデル情報まとめ\n\n### 1. Claude Sonnet 5（2026年6月30日リリース）\n"
+     },
+     {
+      "type": "text",
+      "text_head": "Anthropicが2026年6月30日にリリースした中位モデルで、開発コードネームは「Fennec」。前世代の Sonnet 4.6 の後継として位置づけられており、上位モデルの Opus 4.8 に迫る性能を Sonnet ティアの低価"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n"
+     },
+     {
+      "type": "text",
+      "text_head": "コンテキストウィンドウは100万トークン、最大出力は12.8万トークン。Anthropic はこのモデルを「最もエージェント的な Sonnet」と表現しており、計画立案からツール操作、自律実行までを一貫して遂行できる能力が特徴です。"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n---\n\n### 2. Claude Fable 5 / Mythos 5（2026年6月9日発表・アクセス停止中）\n"
+     },
+     {
+      "type": "text",
+      "text_head": "Claude Fable 5（およびその限定版 Claude Mythos 5）が2026年6月9日に発表されましたが、6月12日に米国の輸出規制当局の指示を受けて、全顧客へのアクセスが停止されました。"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n"
+     },
+     {
+      "type": "text",
+      "text_head": "米政府はAnthropicに対し、外国籍者へのアクセス遮断を指示。Anthropicは一夜にしてユーザーごとのゲーティングを構築することが困難として、全員へのアクセスを停止する対応をとりました。"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n---\n\n### 3. Claude Opus 4.8（2026年5月28日リリース・現在の主力モデル）\n"
+     },
+     {
+      "type": "text",
+      "text_head": "現在実際に利用可能な最新フラッグシップモデルは **Claude Opus 4.8**（2026年5月28日リリース、API ID: `claude-opus-4-8`）で、Fable 5 の停止措置の影響を受けていません。"
+     },
+     {
+      "type": "text",
+      "text_head": "\n\n"
+     },
+     {
+      "type": "text",
+      "text_head": "Opus 4.7 のリリース時には、"
+     }
+    ],
+    "text_head": "以下に、Anthropic の最新モデルリリース情報をまとめます（2026年7月時点）。\n\n---\n\n## 🤖 Anthropic 最新モデル情報まとめ\n\n### 1. Claude Sonnet 5（2026年6月30日リリース）\nAnthropicが2026年6月30日にリリースした中位モデルで、開発コードネームは「Fennec」。前世代の Sonnet 4.6 の後継として位置づけられており"
+   }
+  ]
+ },
+ "AI-011": {
+  "verdict": "PASS",
+  "samples": [
+   {
+    "prompt": "1+1 はいくつですか。1 文で。",
+    "used_web_search": false,
+    "text_head": "1+1 は **2** です。"
+   },
+   {
+    "prompt": "取引先へのお礼を敬語で 1 文書いてください。",
+    "used_web_search": false,
+    "text_head": "「此度はご支援を賜り、誠にありがとうございます。心より御礼申し上げます。」\n\nご活用ください！他にご入り用でしたら何でもお申し付けください。"
+   }
+  ]
+ },
+ "AI-012": {
+  "verdict": "PASS",
+  "given_phrase": "Claude Sonnet 4.6 リリース日",
+  "actual_queries": [
+   "Claude Sonnet 4.6 リリース日"
+  ],
+  "text_head": "少々お待ちください。検索を実行します！検索完了です！結果を 2 文でまとめます。\n\n**Claude Sonnet 4.6** は、Anthropic が **2026年2月17日** にリリースした Claude 4 ファミリーの主力 AI モデルで、claude.ai の無料プランでもデフォルトモデルとして利用できます。前モデルの Sonnet 4.5（2025年9月リリース）から約5ヶ月ぶり"
+ },
+ "AI-013": {
+  "verdict": "FAIL",
+  "search_count": 6,
+  "max_uses": 5,
+  "text_head": "6都市の天気を同時に検索します！パリ・ベルリンの詳細データが一部限定的ですが、取得できた情報をもとに一覧にまとめます。\n\n---\n\n## 🌍 本日（7月15日）の世界6都市 天気一覧\n\n| 都市 | 天気 | 最高気温 | 最低気温 | 備考 |\n|------|------|---------|---------|------|\n| 🇯🇵 東京 | 曇のち晴れ | 33℃ | 26℃ | 降水確"
+ },
+ "AI-033": {
+  "verdict": "PASS_WITH_CAVEAT",
+  "caveat": "system が provider の cache 最小サイズ(約1024tokens)未満のため cache 不成立。配線は正しく、実運用のペルソナ+スキル注入で閾値を超えれば hit する",
+  "usages": [
+   {
+    "input_tokens": 107,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+   },
+   {
+    "input_tokens": 107,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+   }
+  ]
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "AI-013": {
+  "verdict": "PASS",
+  "note": "初回計測の FAIL は『試行ブロック数(6)』を数えた誤カウント。実際は 6 個目の server_tool_use に対し provider が max_uses_exceeded エラーを返し、実検索は 5 回で打ち止め。モデルは壊れず『パリ・ベルリンの詳細データが一部限定的ですが』と正直に劣化を明示して要約した。",
+  "descriptor": {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
+  "observed": {
+   "server_tool_use_blocks": 6,
+   "web_search_tool_result_errors": ["max_uses_exceeded"],
+   "usage.server_tool_use.web_search_requests": 5
+  },
+  "queries": [
+   "東京 今日の天気 2026年7月15日",
+   "New York weather today July 15 2026",
+   "London weather today July 15 2026",
+   "Paris weather today July 15 2026",
+   "Sydney weather today July 15 2026",
+   "Berlin weather today July 15 2026"
+  ],
+  "captured_at": "2026-07-15T13:52 JST"
+ }
+}
