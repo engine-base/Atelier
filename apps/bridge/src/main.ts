@@ -12,7 +12,8 @@
  * このファイルは T-F-27 で雛形のみ作成。Vibeyard 取り込みは別タスク。
  */
 
-import { Dispatcher } from './dispatcher.js';
+import { ApiClient } from './api-client.js';
+import { DEFAULT_DISPATCHER_CONFIG, Dispatcher } from './dispatcher.js';
 
 export interface BridgeConfig {
   readonly maxConcurrency: number; // 5-10 並列
@@ -28,9 +29,19 @@ const DEFAULT_CONFIG: BridgeConfig = {
   dispatchScript: '09_dispatch/scripts/dispatch.sh',
 } as const;
 
-export function createBridge(config: Partial<BridgeConfig> = {}): Dispatcher {
-  const merged: BridgeConfig = { ...DEFAULT_CONFIG, ...config };
-  return new Dispatcher(merged);
+/** T-F-41: API 経由の claim ループ dispatcher を生成する (headless.ts と共用)。 */
+export function createBridge(_config: Partial<BridgeConfig> = {}): Dispatcher {
+  const token = process.env.ATELIER_BRIDGE_TOKEN ?? '';
+  const api = new ApiClient({
+    baseUrl: process.env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
+    token,
+  });
+  return new Dispatcher(api, {
+    ...DEFAULT_DISPATCHER_CONFIG,
+    workerPid: process.pid,
+  });
 }
+
+export { DEFAULT_CONFIG };
 
 // Electron app.whenReady() / BrowserWindow 生成は Vibeyard 取り込み時に追加

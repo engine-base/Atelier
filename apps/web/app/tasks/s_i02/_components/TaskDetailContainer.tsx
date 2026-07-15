@@ -90,10 +90,16 @@ export function TaskDetailContainer({
   const ac = useQuery({
     queryKey: ["task", taskId, "ac"],
     queryFn: async () => {
-      const res = await client.get("/tasks/{task_id}/acceptance-criteria", {
-        params: { path: { task_id: taskId } },
-      });
-      return (res as { data?: ApiAc }).data ?? null;
+      try {
+        const res = await client.get("/tasks/{task_id}/acceptance-criteria", {
+          params: { path: { task_id: taskId } },
+        });
+        return (res as { data?: ApiAc }).data ?? null;
+      } catch (error: unknown) {
+        // AC 未登録は正常状態 — 404 をエラー toast にしない (バグ #24)。
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
     },
     retry: false,
   });

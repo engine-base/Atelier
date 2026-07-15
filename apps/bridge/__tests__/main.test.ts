@@ -1,23 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import { Dispatcher } from '../src/dispatcher.js';
-import { createBridge } from '../src/main.js';
+import { createBridge, DEFAULT_CONFIG } from '../src/main.js';
 
-describe('createBridge', () => {
-  it('returns a Dispatcher with default config', () => {
+describe('createBridge (T-F-41)', () => {
+  it('returns a Dispatcher (API 経由の claim ループ実体)', () => {
     const bridge = createBridge();
     expect(bridge).toBeInstanceOf(Dispatcher);
-    expect(bridge.capacity).toBe(5);
   });
 
-  it('applies config overrides on top of defaults', () => {
-    const bridge = createBridge({ maxConcurrency: 10 });
-    expect(bridge.capacity).toBe(10);
+  it('capacity は現状 1 worker = 1 (electron-entry 表示互換)', () => {
+    const bridge = createBridge();
+    expect(bridge.capacity).toBe(1);
   });
 
-  it('keeps default worktreeRoot when not overridden', () => {
-    const bridge = createBridge({});
-    // 構造的に確認: capacity が default の 5 から動かない
-    expect(bridge.capacity).toBe(5);
+  it('DEFAULT_CONFIG は従来の既定値を保持する (回帰)', () => {
+    expect(DEFAULT_CONFIG.maxConcurrency).toBe(5);
+    expect(DEFAULT_CONFIG.worktreeRoot).toBe('/tmp/atelier-worktrees');
   });
 });

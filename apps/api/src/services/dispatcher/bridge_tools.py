@@ -328,8 +328,11 @@ async def request_change(
         )
     await session.execute(
         text(
+            # dispatch_status を 'reclaimed' に戻さないと pick 不可のまま孤児化する
+            # (retry 不能バグ #21 — 2026-07-15 AI-041 実走で検出)。kill と同じ遷移。
             "update public.tasks set lifecycle_stage = 'blocked', "
-            "blocked_reason = :rs, updated_at = now() "
+            "blocked_reason = :rs, dispatch_status = 'reclaimed', "
+            "worker_pid = null, updated_at = now() "
             "where id = cast(:id as uuid)"
         ),
         {"rs": reason, "id": task_id},
@@ -351,7 +354,7 @@ async def request_change(
     return KanbanResponse(
         task_id=task_id,
         lifecycle_stage="blocked",
-        dispatch_status=str(row.dispatch_status),
+        dispatch_status="reclaimed",
         execution_status="failed",
         action="change_requested",
     )
