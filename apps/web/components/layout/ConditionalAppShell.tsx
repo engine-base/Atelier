@@ -124,11 +124,15 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   }, [bare]);
 
   if (bare) return <>{children}</>;
+  const activeNav = MAIN_NAV.find(
+    (n) => pathname === n.match || pathname.startsWith(`${n.match}/`),
+  );
   return (
     <AppShell
       currentPath={pathname}
       navItems={MAIN_NAV}
       workspaceName={workspaceName}
+      breadcrumb={activeNav?.labelKey}
       topBarTrailing={<TopBarTrailing />}
     >
       {children}
