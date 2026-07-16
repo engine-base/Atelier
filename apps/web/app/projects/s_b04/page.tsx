@@ -41,7 +41,7 @@ function SB04Inner() {
       setRows(res.data);
     } catch (e) {
       if (e instanceof api.ApiError && e.status === 401) {
-        router.push('/auth/s_a01?redirect=/projects/s_b04');
+        router.push('/signin?redirect=/projects/vault');
         return;
       }
       setError(e instanceof Error ? e.message : 'シークレットの取得に失敗しました');

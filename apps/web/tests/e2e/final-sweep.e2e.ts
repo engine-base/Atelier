@@ -102,22 +102,22 @@ async function forceEmpty(page: Page): Promise<void> {
 }
 
 const GET_SCREENS: readonly { id: string; path: string }[] = [
-  { id: "S-A03", path: `/auth/s_a03?workspace=${IDS.ws}` },
-  { id: "S-B01", path: "/projects/s_b01" },
-  { id: "S-B02", path: `/projects/s_b02?project=${IDS.project}` },
-  { id: "S-C01", path: "/employees/s_c01" },
-  { id: "S-C02", path: `/employees/s_c02?employee=${IDS.employee}` },
-  { id: "S-F01", path: `/workflow/s_f01?project=${IDS.project}` },
-  { id: "S-F02", path: `/workflow/s_f02?project=${IDS.project}` },
-  { id: "S-G01", path: `/outputs/s_g01?output=${IDS.output}` },
-  { id: "S-H01", path: `/mocks/s_h01?mock=${IDS.mock}` },
-  { id: "S-I01", path: `/tasks/s_i01?project=${IDS.project}` },
-  { id: "S-I02", path: `/tasks/s_i02?task=${IDS.task}` },
-  { id: "S-J01", path: "/approvals/s_j01" },
-  { id: "S-K01", path: `/knowledge/s_k01?workspace=${IDS.ws}` },
-  { id: "S-K02", path: `/knowledge/s_k02?workspace=${IDS.ws}` },
-  { id: "S-L01", path: `/client/s_l01?project=${IDS.project}` },
-  { id: "S-O01", path: `/cron/s_o01?project=${IDS.project}` },
+  { id: "S-A03", path: `/workspace-settings?workspace=${IDS.ws}` },
+  { id: "S-B01", path: "/projects" },
+  { id: "S-B02", path: `/projects/dashboard?project=${IDS.project}` },
+  { id: "S-C01", path: "/employees" },
+  { id: "S-C02", path: `/employees/detail?employee=${IDS.employee}` },
+  { id: "S-F01", path: `/workflow?project=${IDS.project}` },
+  { id: "S-F02", path: `/workflow/phases?project=${IDS.project}` },
+  { id: "S-G01", path: `/outputs?output=${IDS.output}` },
+  { id: "S-H01", path: `/mocks?mock=${IDS.mock}` },
+  { id: "S-I01", path: `/tasks?project=${IDS.project}` },
+  { id: "S-I02", path: `/tasks/detail?task=${IDS.task}` },
+  { id: "S-J01", path: "/approvals" },
+  { id: "S-K01", path: `/knowledge?workspace=${IDS.ws}` },
+  { id: "S-K02", path: `/knowledge/review?workspace=${IDS.ws}` },
+  { id: "S-L01", path: `/portal/invitations?project=${IDS.project}` },
+  { id: "S-O01", path: `/schedules?project=${IDS.project}` },
   { id: "T-UC-36", path: "/t-uc-36" },
   { id: "T-UC-37", path: "/t-uc-37" },
   { id: "T-UC-38", path: "/t-uc-38" },
@@ -126,10 +126,10 @@ const GET_SCREENS: readonly { id: string; path: string }[] = [
 
 const ALL_SCREENS: readonly { id: string; path: string }[] = [
   ...GET_SCREENS,
-  { id: "S-A01", path: "/auth/s_a01" },
-  { id: "S-I03", path: `/tasks/s_i03?execution=${IDS.execution}` },
-  { id: "S-L02", path: "/client/s_l02" },
-  { id: "S-M01", path: `/upload/s_m01?project=${IDS.project}` },
+  { id: "S-A01", path: "/signin" },
+  { id: "S-I03", path: `/tasks/monitor?execution=${IDS.execution}` },
+  { id: "S-L02", path: "/portal/signin" },
+  { id: "S-M01", path: `/meetings?project=${IDS.project}` },
   { id: "T-UC-40", path: "/t-uc-40" },
 ];
 
@@ -182,7 +182,7 @@ test.describe("状態永続: F5 リロードでログアウトへ飛ばない", 
       const url = page.url();
       const base = s.path.split("?")[0];
       // 公開画面(A01/L02)以外は認証画面へ飛ばされないこと
-      if (base !== "/auth/s_a01" && base !== "/client/s_l02") {
+      if (base !== "/signin" && base !== "/portal/signin") {
         expect(url, `${s.id}: reload 後もログアウトしない`).toContain(base);
       } else {
         expect(url).toContain(base);

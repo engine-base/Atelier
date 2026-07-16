@@ -30,7 +30,7 @@ function SA01Inner() {
   const [serverError, setServerError] = useState<string | null>(null);
   const router = useRouter();
   const params = useSearchParams();
-  const redirectTo = params.get('redirect') || '/projects/s_b01';
+  const redirectTo = params.get('redirect') || '/projects';
 
   const onSignin = async (v: SigninValues): Promise<void> => {
     setServerError(null);

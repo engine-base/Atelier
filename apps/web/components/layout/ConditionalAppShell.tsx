@@ -36,17 +36,17 @@ const ICON = 'h-4 w-4';
 
 /** モック appshell.js のワークスペース系ナビに準拠 (labelKey は literal ラベル: t() 未登録キーは自身を返す)。 */
 // href は各セクションの主画面の実ルート (index ルートは存在しないため子ルートを直指定)。
-// match はセクション prefix — sub-route (例 /projects/s_b02) でも active になるようにする。
+// match はセクション prefix — sub-route (例 /projects/dashboard) でも active になるようにする。
 const MAIN_NAV: readonly NavItem[] = [
-  { id: 'projects', labelKey: 'プロジェクト', href: '/projects/s_b01', match: '/projects', icon: <FolderKanban className={ICON} /> },
-  { id: 'employees', labelKey: 'AI社員', href: '/employees/s_c01', match: '/employees', icon: <Users className={ICON} /> },
-  { id: 'chat', labelKey: 'チャット', href: '/chat/s_e01', match: '/chat', icon: <MessageSquare className={ICON} /> },
-  { id: 'tasks', labelKey: 'タスク', href: '/tasks/s_i01', match: '/tasks', icon: <Bot className={ICON} /> },
-  { id: 'workflow', labelKey: '工程', href: '/workflow/s_f01', match: '/workflow', icon: <Workflow className={ICON} /> },
-  { id: 'knowledge', labelKey: 'ナレッジ', href: '/knowledge/s_k01', match: '/knowledge', icon: <Brain className={ICON} /> },
-  { id: 'approvals', labelKey: '承認待ち', href: '/approvals/s_j01', match: '/approvals', icon: <Inbox className={ICON} /> },
-  { id: 'meetings', labelKey: '議事録', href: '/upload/s_m01', match: '/upload', icon: <FileText className={ICON} /> },
-  { id: 'ws-settings', labelKey: 'WS設定', href: '/auth/s_a03', match: '/auth/s_a03', icon: <Settings className={ICON} /> },
+  { id: 'projects', labelKey: 'プロジェクト', href: '/projects', match: '/projects', icon: <FolderKanban className={ICON} /> },
+  { id: 'employees', labelKey: 'AI社員', href: '/employees', match: '/employees', icon: <Users className={ICON} /> },
+  { id: 'chat', labelKey: 'チャット', href: '/chat', match: '/chat', icon: <MessageSquare className={ICON} /> },
+  { id: 'tasks', labelKey: 'タスク', href: '/tasks', match: '/tasks', icon: <Bot className={ICON} /> },
+  { id: 'workflow', labelKey: '工程', href: '/workflow', match: '/workflow', icon: <Workflow className={ICON} /> },
+  { id: 'knowledge', labelKey: 'ナレッジ', href: '/knowledge', match: '/knowledge', icon: <Brain className={ICON} /> },
+  { id: 'approvals', labelKey: '承認待ち', href: '/approvals', match: '/approvals', icon: <Inbox className={ICON} /> },
+  { id: 'meetings', labelKey: '議事録', href: '/meetings', match: '/upload', icon: <FileText className={ICON} /> },
+  { id: 'ws-settings', labelKey: 'WS設定', href: '/workspace-settings', match: '/workspace-settings', icon: <Settings className={ICON} /> },
 ];
 
 /** これらの prefix は自前 shell を持つ or shell 不要 (auth/client/admin/public/デモ)。 */

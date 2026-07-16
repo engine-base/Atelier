@@ -21,7 +21,7 @@ function SC01Inner() {
         AI 社員組織図
       </h1>
       <OrgChartContainer
-        onSelect={(id) => router.push(`/employees/s_c02?employee=${id}`)}
+        onSelect={(id) => router.push(`/employees/detail?employee=${id}`)}
       />
     </div>
   );

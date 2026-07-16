@@ -1,8 +1,8 @@
 /**
  * S-L02 クライアントサインイン画面 — T-UC-21 (R-T08)
  *
- * 招待 URL (例: /client/s_l02?token=...) でアクセスし、自動 fill。
- * 実 /client/auth/signin に配線し、成功で /client/s_l03 へ遷移する。
+ * 招待 URL (例: /portal/signin?token=...) でアクセスし、自動 fill。
+ * 実 /client/auth/signin に配線し、成功で /portal へ遷移する。
  *
  * `useSearchParams()` は Next 15 で Suspense 境界が必須 (prerender error 回避)。
  */

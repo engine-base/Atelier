@@ -68,7 +68,7 @@ export default function SB01Page() {
         setNextCursor((res.meta as ProjectsMeta | undefined)?.next_cursor ?? null);
       } catch (e) {
         if (e instanceof api.ApiError && e.status === 401) {
-          router.push('/auth/s_a01?redirect=/projects/s_b01');
+          router.push('/signin?redirect=/projects');
           return;
         }
         // e.message 直出しは API の生 detail (例 "forbidden") がそのまま画面に出る
@@ -109,7 +109,7 @@ export default function SB01Page() {
           nextCursor={nextCursor}
           onPrev={() => setCursor(null)}
           onNext={() => setCursor(nextCursor)}
-          onSelect={(id) => router.push(`/projects/s_b02?project=${id}`)}
+          onSelect={(id) => router.push(`/projects/dashboard?project=${id}`)}
         />
       )}
     </div>

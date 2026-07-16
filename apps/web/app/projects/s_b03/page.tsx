@@ -23,7 +23,7 @@ function SB03Inner() {
       {projectId ? (
         <ProjectSettingsContainer
           projectId={projectId}
-          onDeleted={() => router.push("/projects/s_b01")}
+          onDeleted={() => router.push("/projects")}
         />
       ) : (
         <p className="text-body-md text-on-surface-variant">
