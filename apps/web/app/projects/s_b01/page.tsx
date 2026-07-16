@@ -18,8 +18,12 @@ import * as api from '../../../lib/auth/connector';
 interface ApiProject {
   id: string;
   name: string;
+  description: string | null;
+  type: 'client_project' | 'self_product' | 'personal';
   status: 'in_progress' | 'draft' | 'paused' | 'archived';
+  current_phase: string;
   created_at: string;
+  updated_at: string;
 }
 
 interface ProjectsMeta {
@@ -53,9 +57,12 @@ export default function SB01Page() {
           res.data.map((p) => ({
             id: p.id,
             name: p.name,
-            client_name: null,
+            client_name: p.description,
+            type: p.type,
             lifecycle: toLifecycle(p.status),
+            currentPhase: p.current_phase,
             created_at: p.created_at,
+            updated_at: p.updated_at,
           })),
         );
         setNextCursor((res.meta as ProjectsMeta | undefined)?.next_cursor ?? null);
