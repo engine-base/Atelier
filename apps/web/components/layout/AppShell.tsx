@@ -24,6 +24,8 @@ export interface AppShellProps {
   readonly currentPath?: string;
   /** カスタム nav 項目 */
   readonly navItems?: readonly NavItem[];
+  /** サイドバー上部のワークスペース名 */
+  readonly workspaceName?: string;
   /** TopBar 中央 slot (WS/Project picker 等) */
   readonly topBarCenter?: ReactNode;
   /** TopBar 右端 slot (通知/ユーザー) */
@@ -35,6 +37,7 @@ export function AppShell({
   children,
   currentPath,
   navItems,
+  workspaceName,
   topBarCenter,
   topBarTrailing,
   className,
@@ -49,7 +52,12 @@ export function AppShell({
       >
         {t('a11y.skipToContent')}
       </a>
-      <Sidebar currentPath={currentPath} items={navItems} collapsed={collapsed} />
+      <Sidebar
+        currentPath={currentPath}
+        items={navItems}
+        collapsed={collapsed}
+        workspaceName={workspaceName}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
           onToggleSidebar={() => setCollapsed((c) => !c)}

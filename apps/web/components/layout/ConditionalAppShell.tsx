@@ -13,8 +13,9 @@
 'use client';
 
 import * as React from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
+  Bell,
   Bot,
   Brain,
   FileText,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
+import { getJson } from '../../lib/auth/connector';
 import { AppShell } from './AppShell';
 import type { NavItem } from './Sidebar';
 
@@ -53,11 +55,60 @@ function isBare(pathname: string): boolean {
   return BARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`) || pathname.startsWith(p));
 }
 
+interface WorkspaceLite {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** トップバー右端: 通知ベル + ユーザーアバター (モックのトップバー右側)。 */
+function TopBarTrailing() {
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="通知"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-variant"
+      >
+        <Bell className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <span
+        aria-hidden="true"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant"
+      >
+        Q
+      </span>
+    </>
+  );
+}
+
 export function ConditionalAppShell({ children }: { readonly children: ReactNode }) {
   const pathname = usePathname() ?? '/';
-  if (isBare(pathname)) return <>{children}</>;
+  const bare = isBare(pathname);
+  const [workspaceName, setWorkspaceName] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (bare) return;
+    let cancelled = false;
+    getJson<readonly WorkspaceLite[]>('/workspaces')
+      .then((res) => {
+        if (!cancelled) setWorkspaceName(res.data[0]?.name);
+      })
+      .catch(() => {
+        /* シェル表示は WS 名取得失敗でも継続 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bare]);
+
+  if (bare) return <>{children}</>;
   return (
-    <AppShell currentPath={pathname} navItems={MAIN_NAV}>
+    <AppShell
+      currentPath={pathname}
+      navItems={MAIN_NAV}
+      workspaceName={workspaceName}
+      topBarTrailing={<TopBarTrailing />}
+    >
       {children}
     </AppShell>
   );
