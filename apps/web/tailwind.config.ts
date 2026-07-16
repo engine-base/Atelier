@@ -62,6 +62,22 @@ const config: Config = {
           DEFAULT: colors.neutral,
           fg: colors.onNeutral,
         },
+        // M3 ロール名 (on-*) のフラットエイリアス。
+        // アプリコードは全面的に `text-on-surface` / `text-on-surface-variant` 等の
+        // on-* 命名を使うが、上の入れ子定義は `surface.fg` (=text-surface-fg) しか
+        // 生成せず on-* クラスが CSS 未生成 → muted テキストが full-dark に落ちて
+        // 階層が潰れていた。design-tokens の実ロール値でエイリアスを張り解消する。
+        'on-surface': colors.onSurface,
+        'on-surface-variant': colors.onSurfaceVariant,
+        'on-primary': colors.onPrimary,
+        'on-primary-container': colors.onPrimaryContainer,
+        'on-secondary': colors.onSecondary,
+        'on-secondary-container': colors.onSecondaryContainer,
+        'on-tertiary': colors.onTertiary,
+        'on-tertiary-container': colors.onTertiaryContainer,
+        'on-error': colors.onError,
+        'on-neutral': colors.onNeutral,
+        border: colors.border,
       },
       spacing: {
         xs: spacing.xs,
