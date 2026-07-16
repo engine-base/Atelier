@@ -14,6 +14,8 @@
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 
+import { Brain } from "lucide-react";
+
 import { Toast } from "../../../../components/ui/toast";
 import { ChatPanel, type ChatMessage } from "./ChatPanel";
 import {
@@ -142,22 +144,24 @@ export function ChatContainer({
     <div className="flex h-full flex-col gap-sm">
       {context ? (
         <div
-          className="flex items-center gap-md rounded-md border border-surface-variant bg-surface px-md py-xs text-label-sm text-on-surface-variant"
+          className="inline-flex w-fit items-center gap-2 rounded-full bg-tertiary-container px-3 py-1 text-[11.5px] font-semibold text-on-tertiary-container"
           aria-label="F-CTX01 文脈サマリ"
         >
+          <Brain size={12} aria-hidden="true" />
+          <span>F-CTX01 コンテキスト構築</span>
+          <span aria-hidden="true" className="opacity-60">
+            ·
+          </span>
           <span>
             参照履歴{" "}
-            <strong className="text-on-surface tabular-nums">
-              {context.historyCount}
-            </strong>{" "}
-            件
+            <strong className="tabular-nums">{context.historyCount}</strong> 件
+          </span>
+          <span aria-hidden="true" className="opacity-60">
+            ·
           </span>
           <span>
             ナレッジ参照{" "}
-            <strong className="text-on-surface tabular-nums">
-              {context.ragHitCount}
-            </strong>{" "}
-            件
+            <strong className="tabular-nums">{context.ragHitCount}</strong> 件
           </span>
         </div>
       ) : null}

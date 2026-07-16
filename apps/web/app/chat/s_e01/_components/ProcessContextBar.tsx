@@ -8,6 +8,7 @@
 "use client";
 
 import * as React from "react";
+import { ArrowRight, Workflow } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
 
@@ -24,36 +25,47 @@ export function ProcessContextBar({
   onChange,
   className,
 }: ProcessContextBarProps) {
+  const currentIndex = Math.max(0, phases.indexOf(currentPhaseId));
+
   return (
     <nav
       aria-label="工程文脈"
       className={cn(
-        "flex items-center gap-xs overflow-x-auto rounded-md bg-surface-variant/40 px-sm py-xs",
+        "flex items-center gap-sm overflow-x-auto rounded-md bg-primary-container px-md py-xs text-on-primary-container",
         className,
       )}
     >
-      <span className="shrink-0 text-label-md text-on-surface-variant">
-        工程:
+      <Workflow size={14} aria-hidden="true" className="shrink-0" />
+      <span className="shrink-0 text-[11.5px] font-bold">現在の工程</span>
+      <span className="shrink-0 text-[11.5px] opacity-75 tabular-nums">
+        · Stage {currentIndex + 1} / {phases.length}
       </span>
       <ul role="list" className="flex gap-xs">
-        {phases.map((p) => (
-          <li key={p}>
-            <button
-              type="button"
-              onClick={() => onChange(p)}
-              aria-current={p === currentPhaseId ? "true" : undefined}
-              className={cn(
-                "inline-flex h-7 items-center rounded-sm px-sm text-label-md",
-                p === currentPhaseId
-                  ? "bg-primary text-primary-fg"
-                  : "bg-surface text-on-surface hover:bg-surface-variant",
-              )}
-            >
-              {p}
-            </button>
-          </li>
-        ))}
+        {phases.map((p) => {
+          const active = p === currentPhaseId;
+          return (
+            <li key={p}>
+              <button
+                type="button"
+                onClick={() => onChange(p)}
+                aria-current={active ? "true" : undefined}
+                className={cn(
+                  "inline-flex h-7 items-center rounded-full px-sm text-[11px] font-semibold transition-colors",
+                  active
+                    ? "bg-primary text-on-primary"
+                    : "bg-white/40 text-on-primary-container hover:bg-white/70",
+                )}
+              >
+                {p}
+              </button>
+            </li>
+          );
+        })}
       </ul>
+      <span className="ml-auto hidden shrink-0 items-center gap-1 text-[11px] font-semibold opacity-90 sm:inline-flex">
+        工程画面で全体を見る
+        <ArrowRight size={11} aria-hidden="true" />
+      </span>
     </nav>
   );
 }

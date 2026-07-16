@@ -1,9 +1,10 @@
 /**
- * S-I03 実行モニター (ダーク・SSE ログ) — T-UC-16
+ * S-I03 実行モニター — ライブログ・コンソール (T-UC-16)
  *
- * - ダーク背景でログを行表示
- * - level (info/warn/error/debug) で色分け
- * - 実 SSE 連携は createRealtimeClient (Bundle D T-US-07) を別 PR で配線
+ * モック 06_mockups/task/S-I03-monitor.html の `.session-log` を踏襲した
+ * ダーク・モノスペースのログ行表示。level (info/warn/error/debug) で色分けする。
+ * - 濃紺の面 (bg-surface-fg = #0F172A) にクリーム/トークン色の文字でコントラストを担保
+ * - 各行: 時刻 (log-t 相当・muted) + レベル略号 + メッセージ
  */
 
 "use client";
@@ -25,10 +26,12 @@ export interface ExecutionMonitorProps {
   readonly lines: readonly LogLine[];
 }
 
+// モックの log-info(青) / log-ok/info(緑) / log-warn(琥珀) 相当をトークンで再現。
+// 濃紺の面の上で可読なコントラストが出る container / error トークンを使う。
 const LEVEL_COLOR: Record<LogLevel, string> = {
-  debug: "text-surface-variant",
-  info: "text-surface",
-  warn: "text-secondary",
+  debug: "text-on-surface-variant",
+  info: "text-primary-container",
+  warn: "text-secondary-container",
   error: "text-error",
 };
 
@@ -43,21 +46,22 @@ export function ExecutionMonitor({ lines }: ExecutionMonitorProps) {
   return (
     <section
       aria-label="実行ログ"
-      // 旧実装は bg-on-surface (未定義クラス=透過) で、クリーム地に
-      // クリーム文字 (コントラスト 1.09・ほぼ不可視) になる実バグが axe 実機で出た。
-      // config で有効な bg-surface-fg (濃紺 #0F172A) + surface 系クリーム文字にする。
       role="log"
       aria-live="polite"
-      className="rounded-md bg-surface-fg p-md font-mono text-body-sm"
+      className="max-h-[280px] overflow-y-auto rounded-md bg-surface-fg p-md font-mono text-body-sm leading-relaxed"
     >
       <ul className="flex flex-col gap-xs">
         {lines.map((l) => (
           <li key={l.id} className="flex gap-sm">
-            <time className="text-surface-variant">{l.ts}</time>
-            <span className={cn("font-bold", LEVEL_COLOR[l.level])}>
+            <time className="shrink-0 tabular-nums text-on-surface-variant">
+              {l.ts}
+            </time>
+            <span className={cn("shrink-0 font-bold", LEVEL_COLOR[l.level])}>
               {LEVEL_LABEL[l.level]}
             </span>
-            <span className="text-surface">{l.message}</span>
+            <span className={cn("min-w-0 break-words", LEVEL_COLOR[l.level])}>
+              {l.message}
+            </span>
           </li>
         ))}
       </ul>

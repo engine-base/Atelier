@@ -133,20 +133,22 @@ export function InvitationsListContainer({
   }));
 
   return (
-    <div className="flex flex-col gap-md">
+    <div className="flex flex-col gap-6">
       {issuedToken ? (
         <div
           role="status"
-          className="rounded-md border border-primary/40 bg-primary-container/30 p-md text-body-sm text-on-surface"
+          className="rounded-md border-l-[3px] border-primary bg-primary-container p-4 text-body-sm text-primary-container-fg"
         >
           <p className="font-semibold">
             招待トークン（この画面でのみ表示・再取得不可）
           </p>
-          <code className="break-all">{issuedToken}</code>
+          <code className="mt-1 block break-all font-mono text-[13px]">
+            {issuedToken}
+          </code>
           <button
             type="button"
             onClick={() => setIssuedToken(null)}
-            className="ml-sm text-label-md text-primary underline"
+            className="mt-2 text-label-md font-semibold text-primary-container-fg underline"
           >
             閉じる
           </button>

@@ -18,13 +18,15 @@ function SL03Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+    <div className="min-h-screen w-full bg-surface">
       {projectId ? (
         <ClientProjectViewContainer projectId={projectId} />
       ) : (
-        <p className="text-body-md text-on-surface-variant">
-          プロジェクトが指定されていません。
-        </p>
+        <div className="mx-auto w-full max-w-[1100px] px-6 py-8">
+          <p className="text-body-md text-on-surface-variant">
+            プロジェクトが指定されていません。
+          </p>
+        </div>
       )}
     </div>
   );

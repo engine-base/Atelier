@@ -1,7 +1,9 @@
 /**
- * S-B02 プロジェクトダッシュボード — T-UC-04 (client component)
+ * S-B02 プロジェクトダッシュボード — T-UC-04 / F-VIS 是正 (client component)
  *
- * 主要 KPI ティル + 直近タスクサマリ + チャットへのショートカット。
+ * モック 06_mockups/project/S-B02-dashboard.html に忠実な本文:
+ *   - page header (eyebrow + プロジェクト名 見出し + サブタイトル)
+ *   - KPI タイルグリッド (純白カード + uppercase ラベル + 大数値)
  * presentational（props で KPI を受ける）。実 API 配線は ProjectDashboardContainer が担う。
  */
 
@@ -25,14 +27,8 @@ export interface ProjectDashboardProps {
   readonly loading?: boolean;
 }
 
-const TONE_BG: Record<NonNullable<DashboardKpi["tone"]>, string> = {
-  info: "bg-surface-variant",
-  success: "bg-tertiary-container",
-  error: "bg-error/10",
-};
-
-// 12px ラベルを tone 色 (例 error #DC2626 on #fbe7e3 = 4.05) にすると AA(4.5) を
-// 割る実バグが axe 実機で出たため、ラベルは中立色・数値(36px bold, AA=3.0) のみ tone 色。
+// ラベルを tone 色 (例 error #DC2626 on tinted 面 = 4.05) にすると AA(4.5) を割る実バグが
+// axe 実機で出たため、ラベルは中立色・数値 (28px bold, AA=3.0) のみ tone アクセント色。
 const TONE_TEXT: Record<NonNullable<DashboardKpi["tone"]>, string> = {
   info: "text-on-surface",
   success: "text-tertiary-container-fg",
@@ -45,37 +41,38 @@ export function ProjectDashboard({
   loading,
 }: ProjectDashboardProps) {
   return (
-    <div className="flex flex-col gap-lg">
-      <header>
-        <h1 className="text-headline-md font-bold text-on-surface">
+    <div className="flex flex-col gap-xl">
+      <header className="flex flex-col gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+          Project Dashboard
+        </span>
+        <h1 className="text-[28px] font-bold leading-tight tracking-[-0.02em] text-on-surface">
           {projectName}
         </h1>
-        <p className="text-body-md text-on-surface-variant">
+        <p className="text-body-sm text-on-surface-variant">
           プロジェクトダッシュボード
         </p>
       </header>
+
       <section
         aria-label="KPI 一覧"
-        className="grid grid-cols-1 gap-md md:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-2 gap-md md:grid-cols-3 xl:grid-cols-5"
       >
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} height={80} className="w-full" />
+          ? Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} height={92} className="w-full rounded-lg" />
             ))
           : kpis.map((k) => (
               <article
                 key={k.id}
-                className={cn(
-                  "flex flex-col gap-xs rounded-lg p-md",
-                  TONE_BG[k.tone ?? "info"],
-                )}
+                className="flex flex-col gap-2 rounded-lg border border-border bg-white p-md"
               >
-                <span className="text-label-md text-on-surface-variant">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-on-surface-variant">
                   {k.label}
                 </span>
                 <span
                   className={cn(
-                    "text-headline-md font-bold",
+                    "text-[28px] font-bold leading-none tracking-[-0.02em] tabular-nums",
                     TONE_TEXT[k.tone ?? "info"],
                   )}
                 >

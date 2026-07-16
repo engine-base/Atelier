@@ -18,11 +18,11 @@ function SM01Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {projectId ? (
         <MeetingUploadContainer projectId={projectId} />
       ) : (
-        <p className="text-body-md text-on-surface-variant">
+        <p className="rounded-md border-l-[3px] border-primary bg-primary-container px-4 py-3 text-body-md text-primary-container-fg">
           プロジェクトを選択すると議事録をアップロードできます。
         </p>
       )}

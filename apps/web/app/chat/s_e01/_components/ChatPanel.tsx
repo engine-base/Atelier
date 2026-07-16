@@ -1,18 +1,25 @@
 /**
  * S-E01 チャットパネル — T-UC-08 (assistant-ui + SSE + tool-ui)
  *
- * 簡易チャット UI。message list + 入力欄。
- * 実 SSE は createRealtimeClient (Bundle D T-US-07) で別 PR 配線、
- * 実 assistant-ui 統合は selected-stack 通り @assistant-ui/react を別 PR で配線。
- * 本コンポーネントは message render + 入力の最小構造で a11y 完備。
+ * モック 06_mockups/chat/S-E01-thread.html の中央チャットペイン (メッセージスレッド +
+ * コンポーザ) に忠実な presentational。メッセージバブル(user=右/primary、assistant=左+avatar)、
+ * ツールバー付きコンポーザ、学習除外バッジを再現する。データ配線・props・a11y 契約は不変。
  */
 
 "use client";
 
 import * as React from "react";
 import { useState } from "react";
+import {
+  AtSign,
+  Brain,
+  Paperclip,
+  SendHorizontal,
+  ShieldCheck,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 
-import { cn } from "../../../../lib/cn";
 
 export type ChatRole = "user" | "assistant" | "system";
 
@@ -34,12 +41,59 @@ const ROLE_LABEL: Record<ChatRole, string> = {
   system: "システム",
 };
 
-const ROLE_ALIGN: Record<ChatRole, string> = {
-  user: "self-end bg-primary-container text-primary-container-fg",
-  assistant: "self-start bg-surface-variant text-on-surface",
-  system:
-    "self-center bg-secondary-container text-secondary-container-fg text-label-md",
-};
+function MessageRow({ message }: { readonly message: ChatMessage }) {
+  const name = ROLE_LABEL[message.role];
+
+  if (message.role === "user") {
+    return (
+      <li className="ml-auto flex max-w-[760px] flex-col items-end">
+        <div className="mb-1 flex items-center gap-2 pr-1 text-on-surface-variant">
+          <span className="text-[12.5px] font-bold">{name}</span>
+        </div>
+        <div className="max-w-[580px] whitespace-pre-wrap rounded-lg rounded-br-sm bg-primary px-4 py-3 text-body-md text-on-primary">
+          {message.content}
+        </div>
+      </li>
+    );
+  }
+
+  if (message.role === "system") {
+    return (
+      <li className="mx-auto max-w-[580px] rounded-md bg-secondary-container px-md py-sm text-center text-label-md text-on-secondary-container">
+        {message.content}
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex max-w-[760px] gap-3">
+      <div
+        aria-hidden="true"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container"
+      >
+        <Sparkles size={15} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-[12.5px] font-bold text-on-surface">{name}</span>
+        </div>
+        <div className="whitespace-pre-wrap text-body-md leading-relaxed text-on-surface">
+          {message.content}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+const TOOL_BUTTONS: readonly {
+  readonly icon: React.ReactNode;
+  readonly label: string;
+}[] = [
+  { icon: <Paperclip size={12} aria-hidden="true" />, label: "添付" },
+  { icon: <AtSign size={12} aria-hidden="true" />, label: "@メンション" },
+  { icon: <Brain size={12} aria-hidden="true" />, label: "ナレッジ参照" },
+  { icon: <Zap size={12} aria-hidden="true" />, label: "/コマンド" },
+];
 
 export function ChatPanel({ messages, onSend, disabled }: ChatPanelProps) {
   const [input, setInput] = useState("");
@@ -56,55 +110,70 @@ export function ChatPanel({ messages, onSend, disabled }: ChatPanelProps) {
       <ul
         role="log"
         aria-live="polite"
-        className="flex flex-1 flex-col gap-sm overflow-y-auto"
+        className="flex flex-1 flex-col gap-lg overflow-y-auto py-sm"
       >
         {messages.map((m) => (
-          <li
-            key={m.id}
-            className={cn(
-              "max-w-[80%] rounded-md px-md py-sm text-body-md",
-              ROLE_ALIGN[m.role],
-            )}
-          >
-            <span className="block text-label-sm font-semibold opacity-70">
-              {ROLE_LABEL[m.role]}
-            </span>
-            <span className="whitespace-pre-wrap">{m.content}</span>
-          </li>
+          <MessageRow key={m.id} message={m} />
         ))}
       </ul>
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
-        className="flex items-end gap-sm"
+        className="shrink-0"
       >
-        <label htmlFor="chat-input" className="sr-only">
-          メッセージを入力
-        </label>
-        <textarea
-          id="chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          disabled={disabled}
-          rows={2}
-          placeholder="メッセージを入力（Ctrl/Cmd+Enter で送信）"
-          className="flex-1 rounded-md border border-surface-variant bg-surface px-sm py-xs text-body-md text-on-surface"
-        />
-        <button
-          type="submit"
-          disabled={disabled || !input.trim()}
-          className="inline-flex h-10 items-center rounded-md bg-primary px-md text-label-lg text-primary-fg disabled:opacity-50"
-        >
-          送信
-        </button>
+        <div className="rounded-lg border border-border bg-surface p-3 transition-colors focus-within:border-primary focus-within:ring-4 focus-within:ring-primary-container">
+          <label htmlFor="chat-input" className="sr-only">
+            メッセージを入力
+          </label>
+          <textarea
+            id="chat-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            disabled={disabled}
+            rows={2}
+            placeholder="AI 社員にメッセージ… · @ でメンション · / でコマンド呼出"
+            className="max-h-[200px] min-h-[44px] w-full resize-none border-0 bg-transparent text-body-md leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant"
+          />
+          <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
+            {TOOL_BUTTONS.map((t) => (
+              <button
+                key={t.label}
+                type="button"
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+            <button
+              type="submit"
+              disabled={disabled || !input.trim()}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-[12.5px] font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              送信
+              <SendHorizontal size={12} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-2 flex items-center gap-3 px-1 text-label-sm text-on-surface-variant">
+          <span className="inline-flex items-center gap-1">
+            <ShieldCheck size={11} aria-hidden="true" />
+            学習に使われません
+          </span>
+          <span className="ml-auto tabular-nums">
+            Ctrl / Cmd + Enter で送信 · Shift + Enter で改行
+          </span>
+        </div>
       </form>
     </section>
   );

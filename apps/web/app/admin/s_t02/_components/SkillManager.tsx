@@ -57,6 +57,7 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
   } | null>(null);
   const [attachFor, setAttachFor] = useState<AdminSkill | null>(null);
   const [employeeId, setEmployeeId] = useState("");
+  const [query, setQuery] = useState("");
 
   const list = useQuery({
     queryKey: SKILLS_KEY,
@@ -131,13 +132,33 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
   if (isForbidden(list.error)) return <AdminDenied />;
 
   const skills = list.data ?? [];
+  const activeCount = skills.filter((s) => s.is_active).length;
+  const inactiveCount = skills.length - activeCount;
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? skills.filter((s) =>
+        `${s.name ?? ""} ${s.description ?? ""}`.toLowerCase().includes(q),
+      )
+    : skills;
+
+  const ROW_GRID =
+    "grid grid-cols-[minmax(0,1fr)_80px_minmax(120px,200px)_110px_auto] items-center gap-4";
 
   return (
-    <section className="flex flex-col gap-md">
-      <div className="flex items-center justify-between">
-        <p className="text-body-md text-on-surface-variant">
-          ユーザー側ではスキルの中身は編集できません。運営側で一括管理します。
-        </p>
+    <section className="flex flex-col gap-6">
+      {/* ── ヘッダー ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+            Skill Management
+          </div>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-on-surface">
+            スキル管理
+          </h1>
+          <p className="mt-1 text-body-md text-on-surface-variant">
+            ユーザー側ではスキルの中身は編集できません。運営側で一括管理します。
+          </p>
+        </div>
         <AdminButton
           variant="primary"
           onClick={() => setDialog({ mode: "create" })}
@@ -146,75 +167,185 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
         </AdminButton>
       </div>
 
-      {list.isLoading ? (
-        <Loading className="py-md" />
-      ) : skills.length === 0 ? (
-        <p className="text-body-md text-on-surface-variant">
-          スキルがありません
+      {/* ── 統計カード ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-white p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+            登録スキル
+          </div>
+          <div className="mt-1 text-3xl font-bold tabular-nums text-on-surface">
+            {skills.length}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-white p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+            有効
+          </div>
+          <div className="mt-1 text-3xl font-bold tabular-nums text-tertiary">
+            {activeCount}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-white p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+            無効
+          </div>
+          <div className="mt-1 text-3xl font-bold tabular-nums text-on-surface">
+            {inactiveCount}
+          </div>
+        </div>
+      </div>
+
+      {/* ── アップロードゾーン ── */}
+      <button
+        type="button"
+        onClick={() => setDialog({ mode: "create" })}
+        className="rounded-lg border-2 border-dashed border-border bg-white px-6 py-7 text-center transition-colors hover:border-primary hover:bg-primary-container"
+      >
+        <div className="text-base font-bold text-on-surface">
+          スキルファイルをドロップ
+        </div>
+        <p className="mt-1 text-body-sm text-on-surface-variant">
+          SKILL.md + assets/ フォルダ · YAML frontmatter 付き ·
+          既存スキルは新バージョンとして登録
         </p>
-      ) : (
-        <table className="w-full border-collapse">
-          <caption className="sr-only">スキル一覧</caption>
-          <thead>
-            <tr className="border-b border-surface-variant text-left text-label-md text-on-surface-variant">
-              <th className="py-sm">スキル名 / 説明</th>
-              <th className="py-sm">Version</th>
-              <th className="py-sm">許可ロール</th>
-              <th className="py-sm">有効</th>
-              <th className="py-sm text-right">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {skills.map((s) => (
-              <tr key={s.id} className="border-b border-surface-variant/60">
-                <td className="py-sm">
-                  <div className="font-mono font-bold text-on-surface">
-                    {s.name}
-                  </div>
-                  {s.description ? (
-                    <div className="text-label-md text-on-surface-variant">
-                      {s.description}
+      </button>
+
+      {/* ── スキル一覧カード ── */}
+      <div className="overflow-hidden rounded-lg border border-border bg-white">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-[18px] py-3">
+          <h2 className="text-base font-bold tracking-tight text-on-surface">
+            スキル一覧
+          </h2>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="検索..."
+            aria-label="スキルを検索"
+            className="h-9 w-60 rounded-md border border-border bg-surface px-3 text-body-sm text-on-surface placeholder:text-on-surface-variant focus-visible:border-primary focus-visible:outline-none"
+          />
+        </div>
+
+        {list.isLoading ? (
+          <Loading className="py-md" />
+        ) : skills.length === 0 ? (
+          <p className="px-[18px] py-12 text-center text-body-md text-on-surface-variant">
+            スキルがありません
+          </p>
+        ) : (
+          <>
+            <div
+              className={`${ROW_GRID} bg-surface-variant px-[18px] py-3 text-[10.5px] font-bold uppercase tracking-[0.06em] text-on-surface-variant`}
+            >
+              <div>スキル名 / 説明</div>
+              <div>Version</div>
+              <div>許可ロール</div>
+              <div>有効</div>
+              <div className="text-right">操作</div>
+            </div>
+
+            {visible.length === 0 ? (
+              <p className="px-[18px] py-12 text-center text-body-md text-on-surface-variant">
+                該当するスキルがありません
+              </p>
+            ) : (
+              visible.map((s) => {
+                const roles = s.allowed_employee_roles ?? [];
+                return (
+                  <div
+                    key={s.id}
+                    className={`${ROW_GRID} border-b border-border px-[18px] py-[14px] transition-colors hover:bg-surface-variant ${
+                      s.is_active ? "" : "opacity-60"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-[13.5px] font-bold text-on-surface">
+                        {s.name}
+                      </div>
+                      {s.description ? (
+                        <div className="mt-0.5 truncate text-[11.5px] text-on-surface-variant">
+                          {s.description}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </td>
-                <td className="py-sm text-body-md">v{s.version}</td>
-                <td className="py-sm text-label-md">
-                  {(s.allowed_employee_roles ?? []).join(", ") || "—"}
-                </td>
-                <td className="py-sm text-label-md">
-                  {s.is_active ? "active" : "disabled"}
-                </td>
-                <td className="py-sm text-right">
-                  <div className="inline-flex gap-xs">
-                    <AdminButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDialog({ mode: "edit", skill: s })}
-                    >
-                      編集
-                    </AdminButton>
-                    <AdminButton
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setAttachFor(s)}
-                    >
-                      装着
-                    </AdminButton>
-                    <AdminButton
-                      variant="ghost"
-                      size="sm"
-                      aria-label={`${s.name} を削除`}
-                      onClick={() => s.id && deleteMut.mutate(s.id)}
-                    >
-                      削除
-                    </AdminButton>
+                    <div>
+                      <span
+                        className={`inline-flex items-center rounded-sm px-2 py-0.5 text-[10.5px] font-semibold ${
+                          s.is_active
+                            ? "bg-primary-container text-primary-container-fg"
+                            : "bg-surface-variant text-on-surface-variant"
+                        }`}
+                      >
+                        v{s.version}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {roles.length > 0 ? (
+                        roles.map((r) => (
+                          <span
+                            key={r}
+                            className="inline-flex items-center gap-1 rounded-sm bg-surface-variant px-2 py-0.5 text-[10.5px] font-semibold text-on-surface-variant"
+                          >
+                            {r}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="inline-flex items-center rounded-sm bg-surface-variant px-2 py-0.5 text-[10.5px] font-semibold text-on-surface-variant">
+                          —
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          s.is_active
+                            ? "bg-tertiary-container text-tertiary-container-fg"
+                            : "bg-[#FEE2E2] text-[#991B1B]"
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            s.is_active ? "bg-tertiary" : "bg-error"
+                          }`}
+                        />
+                        {s.is_active ? "active" : "disabled"}
+                      </span>
+                    </div>
+                    <div className="flex justify-end gap-xs">
+                      <AdminButton
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDialog({ mode: "edit", skill: s })}
+                      >
+                        編集
+                      </AdminButton>
+                      <AdminButton
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setAttachFor(s)}
+                      >
+                        装着
+                      </AdminButton>
+                      <AdminButton
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`${s.name} を削除`}
+                        onClick={() => s.id && deleteMut.mutate(s.id)}
+                      >
+                        削除
+                      </AdminButton>
+                    </div>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+                );
+              })
+            )}
+
+            <div className="px-[18px] py-3 text-center text-body-sm text-on-surface-variant">
+              全 {skills.length} 件
+            </div>
+          </>
+        )}
+      </div>
 
       <Dialog
         open={dialog !== null}
@@ -285,7 +416,7 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
             type="text"
             value={employeeId}
             onChange={(e) => setEmployeeId(e.target.value)}
-            className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+            className="h-10 rounded-md border border-border bg-surface px-sm text-body-md text-on-surface"
           />
         </label>
       </Dialog>

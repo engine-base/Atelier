@@ -17,7 +17,7 @@ function SN01Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-8 py-8">
       {projectId ? (
         <SalesDocDraftContainer projectId={projectId} />
       ) : (

@@ -9,7 +9,7 @@
 
 import * as React from "react";
 
-type Variant = "primary" | "ghost";
+type Variant = "primary" | "ghost" | "outlined";
 type Size = "sm" | "md";
 
 export interface KbButtonProps
@@ -22,8 +22,9 @@ const BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-primary text-primary-fg hover:bg-primary/90",
+  primary: "bg-primary text-primary-fg hover:bg-[#1E54D8]",
   ghost: "text-on-surface hover:bg-surface-variant",
+  outlined: "border border-primary text-primary hover:bg-primary-container",
 };
 
 const SIZES: Record<Size, string> = {

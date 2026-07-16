@@ -16,17 +16,24 @@ function SE01Inner() {
   const [phase, setPhase] = useState(PHASES[1]!);
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-5xl flex-col gap-md px-md py-md">
+    <div className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-4xl flex-col gap-md px-md py-md">
       <ProcessContextBar
         phases={PHASES}
         currentPhaseId={phase}
         onChange={setPhase}
       />
       {threadId ? (
-        <ChatContainer threadId={threadId} />
+        <div className="min-h-0 flex-1">
+          <ChatContainer threadId={threadId} />
+        </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center text-body-md text-on-surface-variant">
-          スレッドを選択すると AI 社員との会話を開始できます。
+        <div className="flex flex-1 flex-col items-center justify-center gap-sm text-center">
+          <p className="text-body-lg font-bold text-on-surface">
+            スレッドを選択してください
+          </p>
+          <p className="max-w-md text-body-md text-on-surface-variant">
+            スレッドを選択すると AI 社員との会話を開始できます。
+          </p>
         </div>
       )}
     </div>

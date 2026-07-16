@@ -18,7 +18,7 @@ function SC02Inner() {
   const employeeId = params.get("employee");
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {employeeId ? (
         <EmployeeEditorContainer employeeId={employeeId} />
       ) : (

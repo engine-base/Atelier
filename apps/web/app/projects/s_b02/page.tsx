@@ -18,7 +18,7 @@ function SB02Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {projectId ? (
         <ProjectDashboardContainer projectId={projectId} />
       ) : (

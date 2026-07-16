@@ -61,21 +61,30 @@ export function MockViewerContainer({
 
   if (statusOf(meta.error) === 403 || statusOf(content.error) === 403) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="rounded-md border-l-[3px] border-error bg-error/10 px-md py-sm text-body-md text-error"
+      >
         このモックを表示する権限がありません。
       </p>
     );
   }
   if (statusOf(content.error) === 503) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="rounded-md border-l-[3px] border-error bg-error/10 px-md py-sm text-body-md text-error"
+      >
         モックの保存先が未設定のため表示できません。
       </p>
     );
   }
   if (meta.error || content.error) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="rounded-md border-l-[3px] border-error bg-error/10 px-md py-sm text-body-md text-error"
+      >
         モックの取得に失敗しました。
       </p>
     );
