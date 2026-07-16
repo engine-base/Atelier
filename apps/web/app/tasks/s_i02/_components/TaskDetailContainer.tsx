@@ -185,8 +185,11 @@ function TaskHero({
     <section className="rounded-lg border border-border bg-white p-6">
       {/* ID + タグ */}
       <div className="flex flex-wrap items-center gap-2.5">
-        <span className="rounded-sm bg-surface-variant px-2.5 py-[3px] font-mono text-label-sm font-bold text-on-surface-variant">
-          {taskId}
+        <span
+          title={taskId}
+          className="rounded-sm bg-surface-variant px-2.5 py-[3px] font-mono text-label-sm font-bold text-on-surface-variant"
+        >
+          #{taskId.slice(0, 8)}
         </span>
         {typeLabel ? (
           <span className="rounded-full bg-primary-container px-2.5 py-[3px] text-label-sm font-semibold text-primary-container-fg">
