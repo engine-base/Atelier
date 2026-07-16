@@ -21,6 +21,8 @@ export interface NavItem {
   /** i18n key (例: "nav.projects") もしくは literal label */
   readonly labelKey: string;
   readonly href: string;
+  /** current-page 判定に使う prefix (省略時は href)。sub-route でもセクションを active にする用。 */
+  readonly match?: string;
   /** lucide-react icon の slot。実 icon は呼び出し側で渡す (props 型は ReactNode) */
   readonly icon?: ReactNode;
 }
@@ -96,7 +98,7 @@ export function Sidebar({
 
       <ul className="flex flex-col gap-xs px-sm" role="list">
         {items.map((item) => {
-          const current = isCurrent(item.href, currentPath);
+          const current = isCurrent(item.match ?? item.href, currentPath);
           return (
             <li key={item.id}>
               <Link

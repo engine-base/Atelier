@@ -29,6 +29,7 @@
   --color-on-surface: #0F172A;
   --color-surface-variant: #F4F1EC;
   --color-on-surface-variant: #475569;
+  --color-border: #E7E5E4;
 
   /* Colors — Error */
   --color-error: #DC2626;
@@ -55,8 +56,8 @@
   --rounded-full: 9999px;
 
   /* Font Families */
-  --font-sans: "Noto Sans JP", system-ui, -apple-system, "Helvetica Neue",
-    sans-serif;
+  --font-sans: var(--font-noto), "Noto Sans JP", system-ui, -apple-system,
+    "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas,
     monospace;
 

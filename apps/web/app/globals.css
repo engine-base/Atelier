@@ -24,7 +24,7 @@
     --accent-foreground: var(--color-on-tertiary-container);
     --destructive: var(--color-error);
     --destructive-foreground: var(--color-on-error);
-    --border: var(--color-surface-variant);
+    --border: var(--color-border);
     --input: var(--color-surface-variant);
     --ring: var(--color-primary);
     --radius: var(--rounded-md);
