@@ -89,29 +89,42 @@ export default function SB01Page() {
     void load(cursor);
   }, [cursor, load]);
 
+  const handleNew = useCallback(async (): Promise<void> => {
+    const workspaceId =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem('atelier_current_workspace')
+        : null;
+    if (!workspaceId) {
+      setError('ワークスペースが選択されていません。');
+      return;
+    }
+    const name = typeof window !== 'undefined' ? window.prompt('新規プロジェクト名') : null;
+    if (!name || !name.trim()) return;
+    try {
+      await api.sendJson('POST', '/projects', {
+        workspace_id: workspaceId,
+        name: name.trim(),
+        type: 'client_project',
+      });
+      await load(null);
+    } catch {
+      setError('プロジェクトの作成に失敗しました。');
+    }
+  }, [load]);
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-lg px-md py-lg">
-      <header className="flex items-center justify-between">
-        <h1 className="text-headline-md font-bold text-on-surface">プロジェクト一覧</h1>
-      </header>
-      {error ? (
-        <div role="alert" className="rounded-md border border-error bg-surface p-md text-error">
-          {error}
-        </div>
-      ) : loading ? (
-        <p className="text-on-surface-variant">読み込み中…</p>
-      ) : rows.length === 0 ? (
-        <p className="text-on-surface-variant">プロジェクトがまだありません。</p>
-      ) : (
-        <ProjectList
-          rows={rows}
-          prevCursor={cursor}
-          nextCursor={nextCursor}
-          onPrev={() => setCursor(null)}
-          onNext={() => setCursor(nextCursor)}
-          onSelect={(id) => router.push(`/projects/dashboard?project=${id}`)}
-        />
-      )}
+    <div className="mx-auto w-full max-w-[1200px] px-8 py-8">
+      <ProjectList
+        rows={rows}
+        loading={loading}
+        error={error}
+        prevCursor={cursor}
+        nextCursor={nextCursor}
+        onPrev={() => setCursor(null)}
+        onNext={() => setCursor(nextCursor)}
+        onSelect={(id) => router.push(`/projects/dashboard?project=${id}`)}
+        onNew={handleNew}
+      />
     </div>
   );
 }
