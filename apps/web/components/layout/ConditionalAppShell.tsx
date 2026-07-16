@@ -49,11 +49,32 @@ const MAIN_NAV: readonly NavItem[] = [
   { id: 'ws-settings', labelKey: 'WS設定', href: '/workspace-settings', match: '/workspace-settings', icon: <Settings className={ICON} /> },
 ];
 
-/** これらの prefix は自前 shell を持つ or shell 不要 (auth/client/admin/public/デモ)。 */
-const BARE_PREFIXES = ['/auth', '/client', '/admin', '/public', '/t-uc'];
+/**
+ * 主 AppShell を付けない意味的パス。URL 是正で pathname は意味的URL(/signin 等)になったため
+ * 旧 内部prefix(/auth /client…) 判定では signin 等に誤ってシェルが付いていた。
+ *   - auth / landing / 法務ページ / デモ : 単体ページ (シェル不要)
+ *   - /admin/* : 専用 AdminShell を持つ
+ *   - 外部クライアントポータル(/portal, /portal/signin) : 専用 ClientShell / サインイン単体
+ * 社内向けの招待管理(/portal/invitations)と WS設定(/workspace-settings)はモック通り主シェルを付ける。
+ */
+const BARE_EXACT: ReadonlySet<string> = new Set(['/', '/signin', '/signup']);
+const BARE_PREFIXES: readonly string[] = [
+  '/admin',
+  '/terms',
+  '/privacy',
+  '/tokushoho',
+  '/data-deletion',
+  '/t-uc',
+];
 
 function isBare(pathname: string): boolean {
-  return BARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`) || pathname.startsWith(p));
+  if (BARE_EXACT.has(pathname)) return true;
+  if (BARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
+  // 外部クライアントポータルはベア。社内向け招待管理のみ主シェルを付ける。
+  if (pathname === '/portal' || pathname.startsWith('/portal/')) {
+    return !(pathname === '/portal/invitations' || pathname.startsWith('/portal/invitations/'));
+  }
+  return false;
 }
 
 interface WorkspaceLite {
