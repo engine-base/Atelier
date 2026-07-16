@@ -337,28 +337,34 @@ def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def _mint_access_token(*, user_id: str, now: int) -> tuple[str, datetime]:
+def _mint_access_token(
+    *, user_id: str, now: int, app_metadata: dict[str, Any] | None = None
+) -> tuple[str, datetime]:
     """decode_supabase_jwt (src.dependencies) と互換の HS256 JWT を発行する。
 
     secret は ATELIER_AUTH_JWT_SECRET。sub=user_id, role/aud='authenticated',
     exp=now+TTL。本番 Supabase Auth 経路では Supabase が発行する JWT を
     そのまま返すため、本 mint は dev/test 経路専用。
+
+    app_metadata: Supabase 発行 JWT と同形の claim。**信頼源は DB
+    (auth.users.raw_app_meta_data) のみ**で、ユーザー入力からは絶対に受け取らない。
+    services.admin.is_admin が app_metadata.role=='admin' を見るため、これを載せないと
+    DB で admin を付与しても運営コンソールに到達できない (実際に到達不能だった)。
     """
     secret = os.environ.get("ATELIER_AUTH_JWT_SECRET")
     if not secret:
         raise SigninError("auth_not_configured", "ATELIER_AUTH_JWT_SECRET is not set")
     exp = now + _ACCESS_TOKEN_TTL_SECONDS
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-    payload = _b64url(
-        json.dumps(
-            {
-                "sub": user_id,
-                "role": "authenticated",
-                "aud": "authenticated",
-                "exp": exp,
-            }
-        ).encode()
-    )
+    claims: dict[str, Any] = {
+        "sub": user_id,
+        "role": "authenticated",
+        "aud": "authenticated",
+        "exp": exp,
+    }
+    if app_metadata:
+        claims["app_metadata"] = app_metadata
+    payload = _b64url(json.dumps(claims).encode())
     sig = _b64url(
         hmac.new(
             secret.encode("utf-8"), f"{header}.{payload}".encode("ascii"), hashlib.sha256
@@ -366,6 +372,29 @@ def _mint_access_token(*, user_id: str, now: int) -> tuple[str, datetime]:
     )
     token = f"{header}.{payload}.{sig}"
     return token, datetime.fromtimestamp(exp, tz=UTC)
+
+
+async def _load_app_metadata(session: AsyncSession, *, user_id: str) -> dict[str, Any] | None:
+    """auth.users.raw_app_meta_data から JWT に載せる app_metadata を取り出す。
+
+    **信頼源は DB のみ** (service_role session で読む)。ユーザー入力は一切参照しない。
+    現状 JWT に必要なのは role (services.admin.is_admin が参照) だけなので role のみ写す。
+    role が無い/読めない場合は None を返し、従来どおり app_metadata 無しで発行する。
+    """
+    try:
+        res = await session.execute(
+            text(
+                "select coalesce(raw_app_meta_data->>'role', '') as role "
+                "from auth.users where id = cast(:i as uuid)"
+            ),
+            {"i": user_id},
+        )
+        row = res.first()
+    except Exception:
+        return None
+    if row is None or not row.role:
+        return None
+    return {"role": row.role}
 
 
 async def _count_recent_failures(session: AsyncSession, *, email: str) -> int:
@@ -522,7 +551,10 @@ async def signin(
                 await session.commit()
                 raise SigninError("invalid_credentials", "invalid email or password")
 
-            token, expires_at = _mint_access_token(user_id=str(row.id), now=now_epoch)
+            app_meta = await _load_app_metadata(session, user_id=str(row.id))
+            token, expires_at = _mint_access_token(
+                user_id=str(row.id), now=now_epoch, app_metadata=app_meta
+            )
 
             await AuditWriter(session).write(
                 AuditEvent(
@@ -761,7 +793,10 @@ async def verify_magic_link(
 
             # access + refresh トークン発行
             now_epoch = int(time.time())
-            token_str, expires_at = _mint_access_token(user_id=str(row.id), now=now_epoch)
+            app_meta = await _load_app_metadata(session, user_id=str(row.id))
+            token_str, expires_at = _mint_access_token(
+                user_id=str(row.id), now=now_epoch, app_metadata=app_meta
+            )
             refresh_plain, refresh_hash = _new_opaque_token()
             await _emit_token_audit(
                 session,
@@ -1048,7 +1083,10 @@ async def refresh_access_token(
                 ip_address=_normalize_ip(ip_address),
                 extra={"user_id": user_id, "origin": "rotate"},
             )
-            access, expires_at = _mint_access_token(user_id=user_id, now=now_epoch)
+            app_meta = await _load_app_metadata(session, user_id=user_id)
+            access, expires_at = _mint_access_token(
+                user_id=user_id, now=now_epoch, app_metadata=app_meta
+            )
             await session.commit()
         except Exception:
             await session.rollback()
