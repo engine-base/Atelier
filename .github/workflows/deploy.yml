@@ -79,6 +79,14 @@ jobs:
             sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
           fi
           bash scripts/ci/apply-migrations.sh
+      # 運営固定シード (AI 社員テンプレ / skill / 法令ページ) を投入する。全て UPSERT で
+      # 再実行安全。これが無いと新規 workspace の AI 社員自動シード (t-d-99) が
+      # テンプレ 0 件で空振りする (ギャップ #27)。
+      - name: Apply DB seeds
+        if: ${{ env.PROD_DATABASE_URL != '' }}
+        env:
+          PGURL: ${{ env.PROD_DATABASE_URL }}
+        run: bash scripts/ci/apply-seeds.sh
       - name: Deploy
         run: |
           flyctl deploy \

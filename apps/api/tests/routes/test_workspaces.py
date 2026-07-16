@@ -252,6 +252,37 @@ class TestWorkspacesCrud:
             assert client.delete(f"/workspaces/{wid}", headers=h).status_code == 204
             assert client.get(f"/workspaces/{wid}", headers=h).status_code == 404
 
+    def test_create_bootstraps_ai_employees_from_templates(
+        self, app: FastAPI, seeded_users: tuple[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """T-A-54 / ギャップ#27: WS 作成でアクティブテンプレから AI 社員が自動シードされる。"""
+        u_a, _ = seeded_users
+        h = {"Authorization": f"Bearer {_mint_jwt(u_a)}"}
+        # 決定論のため一意名のテスト用テンプレを 2 件投入 (他テンプレ有無に非依存)
+        marker = uuid.uuid4().hex[:8]
+        names = [f"ta54emp1_{marker}", f"ta54emp2_{marker}"]
+        with sync_engine.begin() as c:
+            for i, nm in enumerate(names):
+                c.execute(
+                    text(
+                        "insert into public.ai_employee_templates "
+                        "(default_name, default_display_name, department, role, "
+                        "system_prompt, specialty, version, is_active) values "
+                        "(:n, :d, 'sales', 'member', 'sp', 'sc', :v, true)"
+                    ),
+                    {"n": nm, "d": f"表示{i}", "v": i + 1},
+                )
+        with TestClient(app) as client:
+            wid = client.post("/workspaces", json={"name": f"TA54 {marker}"}, headers=h).json()[
+                "data"
+            ]["id"]
+            emps = client.get(f"/ai-employees?workspace_id={wid}", headers=h).json()["data"]
+            seeded = {e["name"] for e in emps}
+            assert set(names).issubset(seeded), f"auto-seed 漏れ: {names} not in {seeded}"
+            # is_default=True で実体化される
+            assert all(e["template_id"] is not None for e in emps if e["name"] in names)
+            client.delete(f"/workspaces/{wid}", headers=h)
+
     def test_cross_user_workspace_invisible_404(
         self, app: FastAPI, seeded_users: tuple[str, str]
     ) -> None:
