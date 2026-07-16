@@ -111,7 +111,9 @@ function TaskCardItem({
         {task.title}
       </p>
       <div className="flex items-center gap-1.5 text-[10.5px] text-on-surface-variant">
-        <span className="font-mono text-[10px]">{task.id}</span>
+        <span className="font-mono text-[10px]" title={task.id}>
+          #{task.id.slice(0, 8)}
+        </span>
         {task.assignee ? (
           <span
             aria-hidden="true"
