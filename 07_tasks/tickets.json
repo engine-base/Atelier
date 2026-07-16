@@ -23737,6 +23737,105 @@
         }
       ],
       "note": "第10軸 AI-042 の解除タスク。実発火検証は inngest dev server + 毎分 cron 一時設定で行い evidence を残す。"
+    },
+    {
+      "id": "T-A-54",
+      "title": "WS作成時のAI社員自動シード + 運営seed適用 (ギャップ#27解消)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-C01",
+        "S-E01"
+      ],
+      "entity_ids": [
+        "E-008"
+      ],
+      "feature_ids": [
+        "F-005"
+      ],
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-A-06",
+        "T-D-24"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-54.md",
+      "files_changed_predicted": {
+        "new": [
+          "supabase/migrations/t-d-99_ta54_workspace_ai_employees_bootstrap.sql",
+          "scripts/ci/apply-seeds.sh"
+        ],
+        "modify": [
+          ".github/workflows/deploy.yml",
+          "apps/api/tests/routes/test_workspaces.py",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "supabase/seed/t-d-24.sql",
+          "supabase/migrations/t-d-90_ta06_workspace_owner_bootstrap.sql"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: workspaces INSERT 時に is_active テンプレから AI 社員を実体化する SECURITY DEFINER トリガが存在する",
+          "UBIQUITOUS: deploy は migration 後に運営 seed (ai_employee_templates 等) を冪等適用する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a workspace is created, the system shall instantiate one ai_employee per active template (template_id/name/role/department 継承・is_default=true)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If no active templates exist, the trigger shall seed 0 employees without error"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 workspace CRUD/RLS テストが従来どおり green",
+          "トリガ再適用が冪等 (create or replace + 存在チェック)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "自動シード",
+          "steps": [
+            "テンプレ2件投入",
+            "WS作成",
+            "/ai-employees?workspace_id で確認"
+          ],
+          "expected": "該当テンプレ名の社員が実体化"
+        },
+        {
+          "name": "0テンプレ耐性",
+          "steps": [
+            "テンプレ無しでWS作成"
+          ],
+          "expected": "社員0・例外なし"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "test_workspaces 全走"
+          ],
+          "expected": "全green"
+        }
+      ],
+      "note": "本番実機検証 (prod-smoke PS-22) で判明したギャップ#27の解消。seed が deploy で流れず本番テンプレ0だったのが根因 (INFRA-3 と同型)。"
     }
   ],
   "two_axis_policy": {
