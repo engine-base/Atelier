@@ -92,8 +92,7 @@ export function ClientSigninForm({
       <div className="flex items-center justify-center gap-2 rounded-md bg-secondary-container px-2 py-2 text-[12px] text-on-secondary-container">
         <ClockIcon />
         <span>
-          このリンクの有効期限は{" "}
-          <strong className="font-bold">残り 4 日</strong> です
+          この招待リンクには<strong className="font-bold">有効期限</strong>があります
         </span>
       </div>
 
