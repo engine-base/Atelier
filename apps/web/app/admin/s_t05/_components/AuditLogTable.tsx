@@ -162,7 +162,8 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
     <section className="flex flex-col">
       {/* 集計カード */}
       <div className="mb-6 grid grid-cols-4 gap-4">
-        <StatCard label="本日の操作" value={entries.length.toLocaleString()} />
+        {/* 当日絞り込みは未実装のため「本日の操作」ではなく総件数として表示 */}
+        <StatCard label="操作件数" value={entries.length.toLocaleString()} />
         <StatCard label="AI 操作" value={aiCount.toLocaleString()} tone="text-tertiary" />
         <StatCard
           label="ユーザー操作"
@@ -218,14 +219,14 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
           <option value="delete">delete</option>
           <option value="access">access</option>
         </select>
+        {/* WS 絞り込み: 実テナント名のハードコード(ENGINE BASE/マツリデハッピー)は
+            虚偽表示だったため撤去。WS 一覧 API を配線するまで既定の「全 WS」のみ。 */}
         <select
           aria-label="WS で絞り込み"
           defaultValue="all"
           className="rounded-md border border-border bg-white px-3 py-1.5 text-[12px] text-on-surface"
         >
           <option value="all">全 WS</option>
-          <option value="engine-base">ENGINE BASE</option>
-          <option value="matsuri">マツリデハッピー</option>
         </select>
         <input
           type="date"

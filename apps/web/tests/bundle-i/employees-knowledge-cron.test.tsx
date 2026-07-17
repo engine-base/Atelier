@@ -57,6 +57,11 @@ describe("EmployeeEditor (T-UC-07)", () => {
     render(
       <EmployeeEditor
         employeeId="tony"
+        name="Tony"
+        role="開発リード"
+        department="dev_qa"
+        attachedSkills={["task_prioritization"]}
+        attachedKnowledgeCats={["dev"]}
         defaultValues={defaults}
         onSubmit={() => undefined}
       />,

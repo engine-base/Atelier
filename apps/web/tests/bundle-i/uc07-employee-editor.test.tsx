@@ -52,8 +52,12 @@ function fakeClient(
 const EMP = {
   name: "tony",
   display_name: "トニー",
+  role: "開発リード",
+  department: "dev_qa",
   tone_preset: "coaching",
   custom_tone_text: "",
+  attached_skills: ["task_prioritization"],
+  attached_knowledge_cats: ["dev"],
 };
 
 afterEach(() => vi.clearAllMocks());

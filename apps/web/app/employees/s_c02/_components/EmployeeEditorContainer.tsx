@@ -31,8 +31,12 @@ const TONES: readonly TonePreset[] = [
 interface ApiEmployee {
   name: string;
   display_name: string;
+  role: string;
+  department: string;
   tone_preset: string;
   custom_tone_text?: string | null;
+  attached_skills?: readonly string[] | null;
+  attached_knowledge_cats?: readonly string[] | null;
 }
 
 function toTone(preset: string): TonePreset {
@@ -119,6 +123,11 @@ export function EmployeeEditorContainer({
   return (
     <EmployeeEditor
       employeeId={(e.name || "tony") as EmployeeId}
+      name={e.name}
+      role={e.role}
+      department={e.department}
+      attachedSkills={e.attached_skills ?? []}
+      attachedKnowledgeCats={e.attached_knowledge_cats ?? []}
       defaultValues={defaultValues}
       serverError={serverError}
       onSubmit={(v) => updateMut.mutate(v)}

@@ -12,15 +12,7 @@
 
 import * as React from "react";
 import { z } from "zod";
-import {
-  Brain,
-  Check,
-  GitBranch,
-  LayoutDashboard,
-  ListChecks,
-  Users,
-  Zap,
-} from "lucide-react";
+import { Check, Zap } from "lucide-react";
 
 import {
   EmployeeIcon,
@@ -66,49 +58,28 @@ export type EmployeeValues = z.infer<typeof Schema>;
 
 export interface EmployeeEditorProps {
   readonly employeeId: EmployeeId;
+  /** 実 API 由来の識別情報 (name/role/department)。以前は COO 固定のべた書きだった。 */
+  readonly name: string;
+  readonly role: string;
+  readonly department: string;
+  /** 付与済みスキル / ナレッジカテゴリ (実 API attached_*)。 */
+  readonly attachedSkills: readonly string[];
+  readonly attachedKnowledgeCats: readonly string[];
   readonly defaultValues: EmployeeValues;
   readonly onSubmit: (v: EmployeeValues) => Promise<void> | void;
   readonly serverError?: string | null;
 }
-
-interface Ability {
-  readonly icon: React.ComponentType<{ className?: string }>;
-  readonly label: string;
-}
-
-/** 運営側で固定される担当業務領域 (モック「できること」)。編集不可の参照情報。 */
-const ABILITIES: readonly Ability[] = [
-  { icon: ListChecks, label: "タスク優先順位管理" },
-  { icon: LayoutDashboard, label: "週次レビュー" },
-  { icon: GitBranch, label: "フェーズ提案" },
-  { icon: Brain, label: "意思決定支援" },
-  { icon: Users, label: "部署横断調整" },
-];
-
-const SCOPE_ROWS: ReadonlyArray<readonly [string, string]> = [
-  ["役職", "COO"],
-  ["所属", "経営層"],
-  ["レポート対象", "あなた（オーナー）"],
-  ["直属の部下", "部署リーダー 5 名"],
-];
-
-interface Activity {
-  readonly time: string;
-  readonly text: string;
-}
-
-const ACTIVITIES: readonly Activity[] = [
-  { time: "14:32", text: "タスク T-042 を完了承認" },
-  { time: "12:40", text: "第 5 段階 への移行を提案" },
-  { time: "10:18", text: "週次サマリーをメールで配信" },
-  { time: "昨日", text: "4 タスクの優先順位を再評価" },
-];
 
 const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold text-on-surface";
 
 export function EmployeeEditor({
   employeeId,
+  name,
+  role,
+  department,
+  attachedSkills,
+  attachedKnowledgeCats,
   defaultValues,
   onSubmit,
   serverError,
@@ -131,15 +102,14 @@ export function EmployeeEditor({
             <h1 className="text-[26px] font-bold tracking-tight text-on-surface">
               {defaultValues.display_name}
             </h1>
-            <span className="inline-flex items-center rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-semibold text-primary-container-fg">
-              COO
-            </span>
+            {role ? (
+              <span className="inline-flex items-center rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-semibold text-primary-container-fg">
+                {role}
+              </span>
+            ) : null}
           </div>
-          <p className="mb-2 text-base text-on-surface-variant">
-            Jarvis · 全社統括 · 経営層
-          </p>
-          <p className="text-sm text-on-surface">
-            プロジェクト全体を俯瞰し、フェーズ提案・優先順位調整・週次レビューを担う。各部署リーダーへの指示と、ユーザーへの状況サマリーが主な仕事。
+          <p className="text-base text-on-surface-variant">
+            {[name, department].filter(Boolean).join(" · ")}
           </p>
         </div>
       </header>
@@ -157,7 +127,10 @@ export function EmployeeEditor({
           type="button"
           className="border-b-2 border-transparent px-4 py-2.5 text-[13px] font-semibold text-on-surface-variant hover:text-on-surface"
         >
-          ナレッジ <span className="text-on-surface-variant">12</span>
+          ナレッジ{" "}
+          <span className="text-on-surface-variant">
+            {attachedKnowledgeCats.length}
+          </span>
         </button>
         <button
           type="button"
@@ -257,61 +230,60 @@ export function EmployeeEditor({
 
           {/* 右: 参照のみ */}
           <aside className="flex flex-col gap-4">
-            {/* できること (スキル) */}
+            {/* できること (スキル) — 実 API attached_skills 由来 */}
             <div className={CARD}>
               <h2 className={`mb-3 ${SECTION_TITLE}`}>できること</h2>
               <p className="mb-3 text-sm text-on-surface-variant">
-                この AI 社員が担当する業務領域です。運営側で整えられているため変更できません。
+                この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。
               </p>
-              <div className="flex flex-wrap gap-1.5">
-                {ABILITIES.map(({ icon: Icon, label }) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-primary-container px-3 py-1.5 text-[12.5px] font-semibold text-primary-container-fg"
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {label}
-                  </span>
-                ))}
-              </div>
+              {attachedSkills.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {attachedSkills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-primary-container px-3 py-1.5 text-[12.5px] font-semibold text-primary-container-fg"
+                    >
+                      <Zap className="h-3.5 w-3.5" aria-hidden="true" />
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-on-surface-variant">
+                  付与されているスキルはありません。
+                </p>
+              )}
             </div>
 
-            {/* 担当範囲 */}
+            {/* 担当範囲 — 実 API role/department 由来 */}
             <div className={CARD}>
               <h2 className="mb-3 text-sm font-bold text-on-surface">担当範囲</h2>
               <div className="flex flex-col gap-2 text-sm">
-                {SCOPE_ROWS.map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between py-1"
-                  >
-                    <span className="text-on-surface-variant">{label}</span>
-                    <strong className="font-semibold text-on-surface">
-                      {value}
-                    </strong>
-                  </div>
-                ))}
+                {[
+                  ["役職", role],
+                  ["所属", department],
+                ]
+                  .filter(([, value]) => Boolean(value))
+                  .map(([label, value]) => (
+                    <div
+                      key={label}
+                      className="flex items-center justify-between py-1"
+                    >
+                      <span className="text-on-surface-variant">{label}</span>
+                      <strong className="font-semibold text-on-surface">
+                        {value}
+                      </strong>
+                    </div>
+                  ))}
               </div>
             </div>
 
-            {/* 最近の活動 */}
+            {/* 最近の活動 — 活動履歴 API 未提供のため空状態 (偽ログを出さない) */}
             <div className={CARD}>
               <h2 className="mb-3 text-sm font-bold text-on-surface">最近の活動</h2>
-              <div className="flex flex-col">
-                {ACTIVITIES.map((a, i) => (
-                  <div
-                    key={a.time + a.text}
-                    className={`flex items-start gap-2.5 py-2.5 text-[12.5px] text-on-surface ${
-                      i < ACTIVITIES.length - 1 ? "border-b border-border" : ""
-                    }`}
-                  >
-                    <span className="min-w-[60px] shrink-0 text-[11px] tabular-nums text-on-surface-variant">
-                      {a.time}
-                    </span>
-                    <span>{a.text}</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-[12.5px] text-on-surface-variant">
+                活動履歴はまだありません。
+              </p>
             </div>
           </aside>
         </div>

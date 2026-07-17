@@ -35,32 +35,25 @@ export interface SalesDocDraftProps {
 const INPUT_CLASS =
   "w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-[14px] text-on-surface transition focus:border-primary focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-primary-container";
 
-/** 種別タブ (ドラフト一覧 + 種別 badge)。proposal を active 表示。 */
-const DOC_TABS: ReadonlyArray<{ label: string; count: string; active: boolean }> =
-  [
-    { label: "提案書", count: "v3", active: true },
-    { label: "見積書", count: "v2", active: false },
-    { label: "業務委託契約", count: "v1", active: false },
-    { label: "NDA", count: "v1", active: false },
-    { label: "請求書", count: "draft", active: false },
-  ];
-
-const PROCESS_STEPS: ReadonlyArray<{
-  title: string;
-  note: string;
-  done: boolean;
-}> = [
-  { title: "ナレッジ参照", note: "過去類似 3 案件", done: true },
-  { title: "機能分解から工数算出", note: "35 機能 · 87 タスク", done: true },
-  { title: "トニーが項目構成", note: "フェーズ別に集約", done: true },
-  { title: "ナターシャが価格レビュー", note: "市場相場との照合済み", done: true },
-  { title: "人間レビュー", note: "承認後に確定", done: false },
+/** 種別タブ (ドキュメント種別)。proposal を active 表示。
+ *  以前は "v3/v2/draft" 等の版数バッジをべた書きしていたが、実ドキュメントの
+ *  有無に関係なく既存版があるように見える虚偽表示だったため撤去した。 */
+const DOC_TABS: ReadonlyArray<{ label: string; active: boolean }> = [
+  { label: "提案書", active: true },
+  { label: "見積書", active: false },
+  { label: "業務委託契約", active: false },
+  { label: "NDA", active: false },
+  { label: "請求書", active: false },
 ];
 
-const KNOWLEDGE_SOURCES: ReadonlyArray<{ title: string; note: string }> = [
-  { title: "受託案件の提案書テンプレ v3", note: "成約率 +18% パターン · トニー" },
-  { title: "SaaS 開発の価格レンジ", note: "業界傾向 · 共通ナレッジ" },
-  { title: "Phase 別工数の積算式", note: "トニー専用ナレッジ" },
+/** 生成の流れ (参考)。以前は "過去類似3案件"/"35機能87タスク" 等の具体数を
+ *  実行済みかのように出していたが、生成トレース API が無く虚偽のため汎用手順に是正。 */
+const PROCESS_STEPS: readonly string[] = [
+  "過去の類似案件・ナレッジを参照",
+  "機能分解から工数を算出",
+  "フェーズ別に項目を構成",
+  "価格を市場相場と照合",
+  "人間レビューで承認・確定",
 ];
 
 const TOOLBAR_ACTIONS: ReadonlyArray<{ label: string; variant: string }> = [
@@ -96,77 +89,38 @@ function DocTabs() {
           }
         >
           {tab.label}
-          <span
-            className={
-              "rounded-full px-[7px] py-px text-[10.5px] font-bold " +
-              (tab.active
-                ? "bg-primary-container text-on-primary-container"
-                : "bg-surface-variant text-on-surface-variant")
-            }
-          >
-            {tab.count}
-          </span>
         </span>
       ))}
     </div>
   );
 }
 
+/** 生成の流れ (参考手順)。実行トレースではなく、AI 提案ドラフトの作り方の説明。 */
 function ProcessCard() {
   return (
     <div className="rounded-lg border border-border bg-white p-5">
       <h3 className="mb-3 text-[14px] font-bold tracking-tight text-on-surface">
-        生成プロセス
+        生成の流れ
       </h3>
-      {PROCESS_STEPS.map((step, i) => (
-        <div
-          key={step.title}
-          className={
-            "flex items-center gap-2.5 py-2.5 text-[12.5px] " +
-            (i < PROCESS_STEPS.length - 1 ? "border-b border-border" : "")
-          }
-        >
-          <span
+      <ol className="flex flex-col">
+        {PROCESS_STEPS.map((step, i) => (
+          <li
+            key={step}
             className={
-              "flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[11px] " +
-              (step.done
-                ? "bg-tertiary text-on-tertiary"
-                : "bg-surface-variant text-on-surface-variant")
+              "flex items-center gap-2.5 py-2.5 text-[12.5px] text-on-surface " +
+              (i < PROCESS_STEPS.length - 1 ? "border-b border-border" : "")
             }
-            aria-hidden="true"
           >
-            ✓
-          </span>
-          <div>
-            <div
-              className={
-                "font-semibold " +
-                (step.done ? "text-on-surface" : "text-on-surface-variant")
-              }
+            <span
+              className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-surface-variant text-[11px] font-semibold text-on-surface-variant tabular-nums"
+              aria-hidden="true"
             >
-              {step.title}
-            </div>
-            <div className="text-[12px] text-on-surface-variant">{step.note}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function KnowledgeCard() {
-  return (
-    <div className="rounded-lg bg-secondary-container p-5 text-on-secondary-container">
-      <h3 className="mb-2 text-[14px] font-bold tracking-tight">参照ナレッジ</h3>
-      {KNOWLEDGE_SOURCES.map((src) => (
-        <div
-          key={src.title}
-          className="mb-1.5 rounded-md bg-white/60 px-3 py-2.5 text-[12px]"
-        >
-          <strong className="font-semibold">{src.title}</strong>
-          <div className="mt-0.5 text-[12px] opacity-85">{src.note}</div>
-        </div>
-      ))}
+              {i + 1}
+            </span>
+            <span className="font-medium">{step}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -318,7 +272,6 @@ export function SalesDocDraft({ onDraft }: SalesDocDraftProps) {
 
         <aside className="flex flex-col gap-4">
           <ProcessCard />
-          <KnowledgeCard />
           <SendHistoryCard />
         </aside>
       </div>
