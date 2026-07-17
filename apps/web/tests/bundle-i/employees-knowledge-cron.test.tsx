@@ -165,6 +165,26 @@ describe("CronSchedule (T-UC-25)", () => {
     fireEvent.click(screen.getByRole("button", { name: /job-A を今すぐ実行/ }));
     expect(onRunNow).toHaveBeenCalledWith("j1");
   });
+
+  it("deletes only after inline confirm (two-step)", () => {
+    const onDelete = vi.fn();
+    render(
+      <CronSchedule jobs={jobs} onToggle={() => undefined} onDelete={onDelete} />,
+    );
+    // 1回目クリックは確認待ちで、まだ削除しない。
+    fireEvent.click(screen.getByRole("button", { name: /job-A を削除/ }));
+    expect(onDelete).not.toHaveBeenCalled();
+    // 確認の「削除」で実行。
+    fireEvent.click(screen.getByRole("button", { name: /job-A を削除/ }));
+    expect(onDelete).toHaveBeenCalledWith("j1");
+  });
+
+  it("does not render a delete control when onDelete is absent", () => {
+    render(<CronSchedule jobs={jobs} onToggle={() => undefined} />);
+    expect(
+      screen.queryByRole("button", { name: /job-A を削除/ }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("ScheduleBuilder (T-UC-25 create)", () => {

@@ -9,11 +9,8 @@
 "use client";
 
 import * as React from "react";
-import {
-  Clock,
-  MoreHorizontal,
-  PlayCircle,
-} from "lucide-react";
+import { useState } from "react";
+import { Clock, PlayCircle, Trash2 } from "lucide-react";
 
 export interface CronJob {
   readonly id: string;
@@ -28,6 +25,8 @@ export interface CronScheduleProps {
   readonly onToggle: (id: string, enabled: boolean) => void;
   /** 即時実行。未指定なら「即時実行」ボタンを出さない（バックエンド未対応時など）。 */
   readonly onRunNow?: (id: string) => void;
+  /** 削除。未指定なら削除ボタンを出さない。 */
+  readonly onDelete?: (id: string) => void;
 }
 
 /** 状態 pill（稼働中 / 停止中）— 角丸 full・先頭 6px ドット。 */
@@ -88,11 +87,14 @@ function ScheduleRow({
   job,
   onToggle,
   onRunNow,
+  onDelete,
 }: {
   readonly job: CronJob;
   readonly onToggle: (id: string, enabled: boolean) => void;
   readonly onRunNow?: (id: string) => void;
+  readonly onDelete?: (id: string) => void;
 }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <li
       className={`grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-lg border border-border bg-white p-4 transition-colors hover:border-primary hover:shadow-sm sm:grid-cols-[44px_1fr_180px_auto_auto] ${
@@ -139,19 +141,51 @@ function ScheduleRow({
             <PlayCircle size={16} />
           </button>
         ) : null}
-        <button
-          type="button"
-          aria-label={`${job.name} の操作`}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-variant"
-        >
-          <MoreHorizontal size={16} />
-        </button>
+        {onDelete ? (
+          confirming ? (
+            <span className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(job.id);
+                  setConfirming(false);
+                }}
+                aria-label={`${job.name} を削除`}
+                className="inline-flex h-8 items-center rounded-md bg-error px-2 text-[11px] font-semibold text-on-error transition-colors hover:opacity-90"
+              >
+                削除
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                aria-label="削除を取り消す"
+                className="inline-flex h-8 items-center rounded-md px-2 text-[11px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+              >
+                取消
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              aria-label={`${job.name} を削除`}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-error"
+            >
+              <Trash2 size={16} />
+            </button>
+          )
+        ) : null}
       </div>
     </li>
   );
 }
 
-export function CronSchedule({ jobs, onToggle, onRunNow }: CronScheduleProps) {
+export function CronSchedule({
+  jobs,
+  onToggle,
+  onRunNow,
+  onDelete,
+}: CronScheduleProps) {
   return (
     <section aria-label="自動スケジュール">
       {/* グループ見出し */}
@@ -181,6 +215,7 @@ export function CronSchedule({ jobs, onToggle, onRunNow }: CronScheduleProps) {
               job={job}
               onToggle={onToggle}
               onRunNow={onRunNow}
+              onDelete={onDelete}
             />
           ))}
         </ul>
