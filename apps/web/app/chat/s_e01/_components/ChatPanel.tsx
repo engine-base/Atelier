@@ -144,11 +144,14 @@ export function ChatPanel({ messages, onSend, disabled }: ChatPanelProps) {
             className="max-h-[200px] min-h-[44px] w-full resize-none border-0 bg-transparent text-body-md leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant"
           />
           <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
+            {/* 添付/@メンション/ナレッジ参照/コマンドは対応API未提供のため非活性(機能を偽らない)。 */}
             {TOOL_BUTTONS.map((t) => (
               <button
                 key={t.label}
                 type="button"
-                className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+                disabled
+                title="準備中です"
+                className="inline-flex cursor-not-allowed items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant opacity-50"
               >
                 {t.icon}
                 {t.label}

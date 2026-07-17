@@ -40,10 +40,13 @@ function SC01Inner() {
             <LayoutDashboard size={12} aria-hidden="true" />
             組織図
           </button>
+          {/* リスト表示は未実装のため非活性(組織図が唯一の実ビュー)。 */}
           <button
             type="button"
             aria-pressed="false"
-            className="inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant"
+            disabled
+            title="リスト表示は準備中です"
+            className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant opacity-50"
           >
             <ListChecks size={12} aria-hidden="true" />
             リスト

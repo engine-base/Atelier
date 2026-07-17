@@ -367,7 +367,7 @@ export function KnowledgeExplorer({
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
 
-          {/* view-toggle (表示のみ) */}
+          {/* view-toggle: ノートのみ実装。リスト/グラフは未実装のため非活性(機能を偽らない)。 */}
           <div className="flex gap-1 rounded-md bg-surface-variant p-1">
             <button
               type="button"
@@ -379,14 +379,18 @@ export function KnowledgeExplorer({
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:text-on-surface"
+              disabled
+              title="リスト表示は準備中です"
+              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
             >
               <LayoutDashboard className="h-3 w-3" aria-hidden="true" />
               リスト
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:text-on-surface"
+              disabled
+              title="グラフ表示は準備中です"
+              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
             >
               <GitBranch className="h-3 w-3" aria-hidden="true" />
               グラフ
