@@ -9,7 +9,8 @@
  *   - workspace name は form.register('name') で編集 (Field label「名前」)
  *   - AI 学習は opt-in トグル (既定 OFF を維持 — 絶対ルール #6)
  *   - 削除は onDelete が渡された時のみ danger zone を表示 (WS 削除 API 無し)
- * メンバー / MCPトークンはモック忠実の静的表示 (対応 props/API が無いため)。
+ * メンバー / MCPトークンは membersSlot / tokensSlot で実 API 配線した section を
+ * 差し込む (以前は静的モックだった)。未指定時は何も出さない。
  */
 
 "use client";
@@ -35,6 +36,9 @@ export interface WorkspaceSettingsFormProps {
   readonly onSubmit: (v: WorkspaceSettingsValues) => Promise<void> | void;
   readonly onDelete?: () => void;
   readonly serverError?: string | null;
+  /** 実 API 配線済みのメンバー / MCPトークン section を差し込む。 */
+  readonly membersSlot?: React.ReactNode;
+  readonly tokensSlot?: React.ReactNode;
 }
 
 /** モックの settings-tabs (7 セクション、基本情報が active)。表示専用。 */
@@ -48,116 +52,13 @@ const SETTINGS_TABS = [
   "退会",
 ] as const;
 
-interface MemberRow {
-  readonly initial: string;
-  readonly name: string;
-  readonly email: string;
-  readonly role: string;
-  readonly roleTone: string;
-  readonly avatarClass: string;
-}
-
-/** メンバー一覧 (モック忠実の静的表示)。対応する API/props が無い。 */
-const MEMBERS: readonly MemberRow[] = [
-  {
-    initial: "M",
-    name: "高本まさと",
-    email: "masato@engine-base.com",
-    role: "オーナー",
-    roleTone: "bg-primary-container text-on-primary-container",
-    avatarClass: "bg-primary text-on-primary",
-  },
-  {
-    initial: "T",
-    name: "高本聖斗",
-    email: "takamoto@engine-base.com",
-    role: "メンバー",
-    roleTone: "bg-surface-variant text-on-surface-variant",
-    avatarClass: "bg-[#7C3AED] text-white",
-  },
-  {
-    initial: "S",
-    name: "佐藤花子",
-    email: "sato@engine-base.com",
-    role: "閲覧者",
-    roleTone: "bg-surface-variant text-on-surface-variant",
-    avatarClass: "bg-[#0891B2] text-white",
-  },
-] as const;
-
-interface TokenRow {
-  readonly name: string;
-  readonly meta: string;
-  readonly status: string;
-  readonly statusTone: string;
-  readonly scopes: string;
-}
-
-/** MCP トークン一覧 (モック忠実の静的表示)。 */
-const TOKENS: readonly TokenRow[] = [
-  {
-    name: "Claude Desktop (Mac)",
-    meta: "atelier_pat_••••••••••••3a9f · 最終使用 2 時間前",
-    status: "active",
-    statusTone: "bg-tertiary-container text-on-tertiary-container",
-    scopes: "read, write",
-  },
-  {
-    name: "CI/CD Pipeline",
-    meta: "atelier_pat_••••••••••••f81e · 未使用",
-    status: "revoked",
-    statusTone: "bg-surface-variant text-on-surface-variant",
-    scopes: "read",
-  },
-] as const;
-
 const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
-const BADGE = "inline-flex items-center rounded-sm px-2 py-0.5 text-[10.5px] font-semibold";
 
 const BTN_PRIMARY =
   "inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-const BTN_PRIMARY_SM =
-  "inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 const BTN_OUTLINED_SM =
   "inline-flex w-fit items-center justify-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-label-md font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-const BTN_GHOST_SM =
-  "inline-flex items-center justify-center rounded-md p-1.5 text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-
-function PlusIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M8 3v10M3 8h10" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      width="15"
-      height="15"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2.5 4h11M6 4V2.5h4V4M4 4l.6 9.5h6.8L12 4" />
-    </svg>
-  );
-}
 
 function ShieldCheckIcon() {
   return (
@@ -184,6 +85,8 @@ export function WorkspaceSettingsForm({
   onSubmit,
   onDelete,
   serverError,
+  membersSlot,
+  tokensSlot,
 }: WorkspaceSettingsFormProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
   const nameValue = form.watch("name");
@@ -258,87 +161,11 @@ export function WorkspaceSettingsForm({
           </button>
         </Form>
 
-        {/* メンバー */}
-        <section className={CARD} aria-label="メンバー">
-          <h2 className={cn(SECTION_TITLE, "mb-4")}>
-            メンバー（{MEMBERS.length}）
-          </h2>
-          <ul>
-            {MEMBERS.map((m) => (
-              <li
-                key={m.email}
-                className="flex items-center gap-3 border-b border-border py-3 last:border-b-0"
-              >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-label-md font-bold",
-                    m.avatarClass,
-                  )}
-                >
-                  {m.initial}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold text-on-surface">
-                    {m.name}
-                  </div>
-                  <div className="truncate text-body-sm text-on-surface-variant">
-                    {m.email}
-                  </div>
-                </div>
-                <span className={cn(BADGE, m.roleTone)}>{m.role}</span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className={cn(BTN_OUTLINED_SM, "mt-4")}>
-            <PlusIcon />
-            メンバー招待
-          </button>
-        </section>
+        {/* メンバー (実 API 配線 section) */}
+        {membersSlot}
 
-        {/* MCPトークン */}
-        <section className={cn(CARD, "md:col-span-2")} aria-label="MCPトークン">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className={SECTION_TITLE}>MCPトークン</h2>
-            <button type="button" className={BTN_PRIMARY_SM}>
-              <PlusIcon />
-              発行
-            </button>
-          </div>
-          <p className="mb-4 text-body-sm text-on-surface-variant">
-            Claude デスクトップ等の MCP
-            クライアントからこのワークスペースの AI
-            社員を呼び出すためのトークン。
-          </p>
-          <ul>
-            {TOKENS.map((tk) => (
-              <li
-                key={tk.name}
-                className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 border-b border-border py-3 last:border-b-0"
-              >
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-on-surface">
-                    {tk.name}
-                  </div>
-                  <div className="truncate font-mono text-body-sm text-on-surface-variant">
-                    {tk.meta}
-                  </div>
-                </div>
-                <span className={cn(BADGE, tk.statusTone)}>{tk.status}</span>
-                <span className="text-body-sm text-on-surface-variant">
-                  {tk.scopes}
-                </span>
-                <button
-                  type="button"
-                  className={BTN_GHOST_SM}
-                  aria-label={`${tk.name} のトークンを取り消す`}
-                >
-                  <TrashIcon />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {/* MCPトークン (実 API 配線 section) */}
+        {tokensSlot}
 
         {/* AI 学習設定 */}
         <section

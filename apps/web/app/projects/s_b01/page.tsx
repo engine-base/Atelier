@@ -60,6 +60,12 @@ export default function SB01Page() {
   const [wsName, setWsName] = useState('');
   const [creatingWs, setCreatingWs] = useState(false);
 
+  // 新規プロジェクト作成モーダル (window.prompt は不便＋自動操作不可のため置換)。
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<ApiProject['type']>('client_project');
+  const [creatingProject, setCreatingProject] = useState(false);
+
   const load = useCallback(
     async (c: string | null): Promise<void> => {
       setLoading(true);
@@ -152,25 +158,36 @@ export default function SB01Page() {
     }
   }, [wsName, load]);
 
-  const handleNew = useCallback(async (): Promise<void> => {
-    const workspaceId = window.localStorage.getItem(CURRENT_WS_KEY);
-    if (!workspaceId) {
+  const handleNew = useCallback((): void => {
+    if (!window.localStorage.getItem(CURRENT_WS_KEY)) {
       setNeedsWorkspace(true);
       return;
     }
-    const name = window.prompt('新規プロジェクト名');
-    if (!name || !name.trim()) return;
+    setNewName('');
+    setNewType('client_project');
+    setNewOpen(true);
+  }, []);
+
+  const submitNewProject = useCallback(async (): Promise<void> => {
+    const workspaceId = window.localStorage.getItem(CURRENT_WS_KEY);
+    const name = newName.trim();
+    if (!workspaceId || !name) return;
+    setCreatingProject(true);
+    setError(null);
     try {
       await api.sendJson('POST', '/projects', {
         workspace_id: workspaceId,
-        name: name.trim(),
-        type: 'client_project',
+        name,
+        type: newType,
       });
+      setNewOpen(false);
       await load(null);
     } catch {
       setError('プロジェクトの作成に失敗しました。');
+    } finally {
+      setCreatingProject(false);
     }
-  }, [load]);
+  }, [newName, newType, load]);
 
   // 未 workspace: 最初のワークスペースを作成するオンボーディング。
   if (wsChecked && needsWorkspace) {
@@ -238,6 +255,66 @@ export default function SB01Page() {
         onSelect={(id) => router.push(`/projects/dashboard?project=${id}`)}
         onNew={handleNew}
       />
+
+      {newOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="新規プロジェクト"
+          className="fixed inset-0 z-modal flex items-center justify-center bg-on-surface/40 p-4"
+          onClick={() => setNewOpen(false)}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submitNewProject();
+            }}
+            className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-border bg-white p-6 shadow-lg"
+          >
+            <h2 className="text-lg font-bold text-on-surface">新規プロジェクト</h2>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-label-md font-medium text-on-surface-variant">プロジェクト名</span>
+              <input
+                type="text"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="例：小松様 EC モール統合"
+                autoFocus
+                className="h-11 rounded-md border border-border bg-surface px-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-container"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-label-md font-medium text-on-surface-variant">種別</span>
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value as ApiProject['type'])}
+                className="h-11 rounded-md border border-border bg-surface px-3 text-body-md text-on-surface focus:border-primary focus:outline-none"
+              >
+                <option value="client_project">クライアント案件</option>
+                <option value="self_product">自社プロダクト</option>
+                <option value="personal">個人開発</option>
+              </select>
+            </label>
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setNewOpen(false)}
+                className="inline-flex h-10 items-center rounded-md px-4 text-label-lg font-semibold text-on-surface hover:bg-surface-variant"
+              >
+                キャンセル
+              </button>
+              <button
+                type="submit"
+                disabled={!newName.trim() || creatingProject}
+                className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+              >
+                {creatingProject ? '作成中…' : '作成'}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
