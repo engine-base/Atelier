@@ -1,15 +1,21 @@
-import { ATELIER_VERSION } from '@atelier/shared';
+/**
+ * ルート `/` — アプリの入口。
+ *
+ * 以前は "T-F-03 placeholder" の開発用スタブを表示しており、デプロイ環境で
+ * トップにアクセスした利用者に未実装ページが出ていた。ここでログイン状態に応じて
+ * アプリ本体へ振り分ける:
+ *   - atelier_access cookie あり  → /projects (認証は middleware が最終検証)
+ *   - なし                        → /signin
+ * cookie の妥当性(期限切れ等)は各遷移先で middleware が検証するため、ここでは
+ * 存在のみを見る。
+ */
 
-export default function HomePage() {
-  return (
-    <main>
-      <h1>Atelier</h1>
-      <p>AI 社員常駐型プロジェクト管理 SaaS</p>
-      <p>version: {ATELIER_VERSION}</p>
-      <p>
-        T-F-03 placeholder。デザインシステム (T-F-09 / T-F-16) と画面実装
-        (Group U) で本実装が入る。
-      </p>
-    </main>
-  );
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+
+import { COOKIE_NAMES } from "../lib/auth/cookie";
+
+export default async function HomePage() {
+  const token = (await cookies()).get(COOKIE_NAMES.access)?.value;
+  redirect(token ? "/projects" : "/signin");
 }
