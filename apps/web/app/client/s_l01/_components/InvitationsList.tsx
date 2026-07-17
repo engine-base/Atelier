@@ -425,7 +425,7 @@ export function InvitationsList({
               招待を発行
             </button>
             <span className="text-body-sm text-on-surface-variant">
-              Resend 経由でメール配信されます
+              発行後に招待リンクを表示します（メール設定済みの環境では自動送信も行います）
             </span>
           </div>
         </form>

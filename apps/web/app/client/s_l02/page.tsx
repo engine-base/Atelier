@@ -49,22 +49,10 @@ export default function SL02Page() {
             ご招待ありがとうございます
           </h1>
           <p className="text-[13px] text-on-primary-container opacity-90">
-            高本まさと さんから以下のプロジェクトへ招待されました。
+            プロジェクトのクライアントポータルへの招待が届いています。
+            <br />
+            下のフォームからサインインすると、招待されたプロジェクトが表示されます。
           </p>
-
-          {/* プロジェクトカード */}
-          <div className="mt-4 rounded-md bg-[rgba(255,255,255,0.7)] px-[18px] py-3.5 text-left">
-            <div className="text-[13px] text-on-surface-variant">プロジェクト</div>
-            <div className="mb-2 text-[15px] font-bold text-on-surface">
-              小松様 EC モール統合
-            </div>
-            <div className="flex items-center gap-2 text-[13px] text-on-surface">
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-fg">
-                M
-              </span>
-              <span>高本まさと · ENGINE BASE</span>
-            </div>
-          </div>
         </div>
 
         {/* サインインカード (実フォーム) */}
@@ -74,14 +62,7 @@ export default function SL02Page() {
 
         {/* フッター注記 */}
         <p className="mt-4 text-center text-[12px] text-on-surface-variant">
-          招待リンクに問題がある場合は、招待元へお問い合わせください
-          <br />
-          <a
-            href="mailto:masato@engine-base.com"
-            className="text-primary hover:underline"
-          >
-            masato@engine-base.com
-          </a>
+          招待リンクに問題がある場合は、招待元（担当者）へお問い合わせください。
         </p>
       </div>
     </main>
