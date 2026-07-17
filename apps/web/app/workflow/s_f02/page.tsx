@@ -18,10 +18,18 @@ function SF02Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">
-        フェーズ管理
-      </h1>
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
+      <header className="mb-7">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+          Phase Management
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-on-surface">
+          フェーズ管理
+        </h1>
+        <p className="mt-2 text-body-md text-on-surface-variant">
+          AI 提案を承認してフェーズを確定。タスク移動時は F-IMP01 が影響範囲を解析します。
+        </p>
+      </header>
       {projectId ? (
         <PhaseListContainer projectId={projectId} />
       ) : (

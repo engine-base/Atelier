@@ -79,7 +79,7 @@ export function AuditLogContainer({
 
   const rows = list.data ?? [];
   if (rows.length === 0) {
-    return <p className="text-body-md text-surface">監査ログがありません。</p>;
+    return <p className="text-body-md text-on-surface-variant">監査ログがありません。</p>;
   }
 
   const entries: AuditEntry[] = rows.map((r) => ({

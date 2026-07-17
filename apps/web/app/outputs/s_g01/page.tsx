@@ -19,7 +19,7 @@ function SG01Inner() {
   const outputId = params.get("output");
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {outputId ? (
         <OutputViewerContainer outputId={outputId} />
       ) : (

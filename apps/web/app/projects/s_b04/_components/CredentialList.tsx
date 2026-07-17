@@ -59,74 +59,130 @@ export function CredentialList({
 
   if (rows.length === 0) {
     return (
-      <p className="text-on-surface-variant">まだ何も保管されていません。</p>
+      <p className="py-12 text-center text-on-surface-variant">
+        まだ何も保管されていません。
+      </p>
     );
   }
 
+  const thClass =
+    "border-b border-border px-3 py-2.5 text-left text-xs font-semibold text-on-surface-variant";
+  const tdClass = "border-b border-border px-3 py-3.5 align-middle";
+  const ghostBtn =
+    "inline-flex items-center gap-1 rounded-sm px-2 py-1 text-sm text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary";
+
   return (
-    <ul className="flex flex-col gap-sm">
-      {rows.map((r) => {
-        const shown = revealed[r.id];
-        return (
-          <li
-            key={r.id}
-            className="flex items-center justify-between gap-md rounded-md border border-surface-variant bg-surface px-md py-sm"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-sm">
-                <span className="truncate font-semibold text-on-surface">
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <th className={thClass}>名称</th>
+            <th className={thClass}>種別</th>
+            <th className={thClass}>値</th>
+            <th className={thClass}>作成日</th>
+            <th className={`${thClass} text-right`}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const shown = revealed[r.id];
+            return (
+              <tr key={r.id} className="last:[&>td]:border-b-0 hover:bg-surface-variant/40">
+                <td className={`${tdClass} text-sm font-semibold text-on-surface`}>
                   {r.name}
-                </span>
-                <span className="rounded-sm bg-surface-variant px-xs text-label-sm text-on-surface-variant">
-                  {KIND_LABEL[r.kind] ?? r.kind}
-                </span>
-              </div>
-              <code className="mt-xs block truncate text-body-sm text-on-surface-variant">
-                {shown ?? `••••••••${r.last4 ?? ""}`}
-              </code>
-            </div>
-            <div className="flex shrink-0 items-center gap-xs">
-              {shown ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void navigator.clipboard?.writeText(shown)}
-                    className="rounded-sm px-sm py-xs text-label-md text-primary hover:bg-surface-variant"
-                  >
-                    コピー
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => hide(r.id)}
-                    className="rounded-sm px-sm py-xs text-label-md text-on-surface-variant hover:bg-surface-variant"
-                  >
-                    隠す
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  disabled={busy === r.id}
-                  onClick={() => void reveal(r.id)}
-                  className={cn(
-                    "rounded-sm px-sm py-xs text-label-md text-primary hover:bg-surface-variant",
-                    busy === r.id && "opacity-50",
+                </td>
+                <td className={tdClass}>
+                  <span className="inline-block rounded-full bg-surface-variant px-2 py-0.5 text-[11.5px] font-semibold text-on-surface">
+                    {KIND_LABEL[r.kind] ?? r.kind}
+                  </span>
+                </td>
+                <td className={tdClass}>
+                  <code className="break-all font-mono text-sm tracking-wide text-on-surface-variant">
+                    {shown ?? `••••••••${r.last4 ?? ""}`}
+                  </code>
+                </td>
+                <td className={`${tdClass} whitespace-nowrap text-sm text-on-surface-variant`}>
+                  {r.created_at}
+                </td>
+                <td className={`${tdClass} whitespace-nowrap text-right`}>
+                  {shown ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void navigator.clipboard?.writeText(shown)}
+                        className={ghostBtn}
+                      >
+                        コピー
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => hide(r.id)}
+                        className={cn(ghostBtn, "text-on-surface-variant")}
+                      >
+                        隠す
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy === r.id}
+                      onClick={() => void reveal(r.id)}
+                      className={cn(ghostBtn, busy === r.id && "opacity-50")}
+                    >
+                      <EyeIcon className="h-4 w-4" />
+                      {busy === r.id ? "復号中…" : "表示"}
+                    </button>
                   )}
-                >
-                  {busy === r.id ? "復号中…" : "表示"}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onDelete(r.id)}
-                className="rounded-sm px-sm py-xs text-label-md text-error hover:bg-surface-variant"
-              >
-                削除
-              </button>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+                  <button
+                    type="button"
+                    aria-label="削除"
+                    onClick={() => onDelete(r.id)}
+                    className={cn(ghostBtn, "text-error")}
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EyeIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
   );
 }

@@ -37,14 +37,14 @@ function apiError(status: number): ApiError {
 }
 
 function fakeClient(
-  impl: Partial<Record<"get" | "patch" | "delete", unknown>>,
+  impl: Partial<Record<"get" | "patch" | "delete" | "post", unknown>>,
 ): ApiClient {
   const noop = vi.fn(async () => ({ data: {} }));
   return {
     get: impl.get ?? noop,
     patch: impl.patch ?? noop,
     delete: impl.delete ?? noop,
-    post: noop,
+    post: impl.post ?? noop,
     put: noop,
     request: noop,
   } as unknown as ApiClient;
@@ -114,6 +114,28 @@ describe("S-B03 ProjectSettingsContainer (T-UC-05)", () => {
     fireEvent.click(screen.getByRole("button", { name: "プロジェクトを削除" }));
     await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+  });
+
+  it("toggles AI learning via POST /projects/{id}/ai-learning (opt_out inverse)", async () => {
+    const get = vi.fn(async () => ({ data: PROJECT }));
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <ProjectSettingsContainer
+        projectId="p1"
+        client={fakeClient({ get, post })}
+      />,
+    );
+    await screen.findByLabelText(/プロジェクト名/);
+    // 既定は opt-out(学習しない)。トグル ON = 利用を許可 → opt_out:false を送る。
+    fireEvent.click(screen.getByLabelText("AI 学習への利用を許可"));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { project_id: string } }; body: { opt_out: boolean } },
+    ];
+    expect(path).toBe("/projects/{project_id}/ai-learning");
+    expect(init.params.path.project_id).toBe("p1");
+    expect(init.body.opt_out).toBe(false);
   });
 
   it("shows a forbidden message on 403", async () => {

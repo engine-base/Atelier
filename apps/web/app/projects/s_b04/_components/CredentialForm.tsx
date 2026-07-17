@@ -53,60 +53,100 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
     }
   };
 
+  const fieldClass =
+    "rounded-md border border-border bg-white px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none";
+  const labelClass = "text-sm font-medium text-on-surface-variant";
+
   return (
     <form
       onSubmit={(e) => void submit(e)}
-      className="flex flex-col gap-sm rounded-md border border-surface-variant bg-surface p-md"
+      className="rounded-lg border border-border bg-white p-5 shadow-sm"
     >
-      <h2 className="text-label-lg font-semibold text-on-surface">
-        新しいクレデンシャルを保管
-      </h2>
+      <h2 className="mb-4 text-base font-bold text-on-surface">新規追加</h2>
       {error ? (
-        <div role="alert" className="text-body-sm text-error">
+        <div
+          role="alert"
+          className="mb-4 rounded-md border-l-[3px] border-l-error bg-error/10 p-3 text-sm text-error"
+        >
           {error}
         </div>
       ) : null}
-      <label className="flex flex-col gap-xs text-label-md text-on-surface-variant">
-        名前
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="cred-name" className={labelClass}>
+            名称
+          </label>
+          <input
+            id="cred-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="例: 顧客 Slack Bot Token"
+            className={fieldClass}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="cred-kind" className={labelClass}>
+            種別
+          </label>
+          <select
+            id="cred-kind"
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className={fieldClass}
+          >
+            {KINDS.map((k) => (
+              <option key={k.value} value={k.value}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-1.5">
+        <label htmlFor="cred-value" className={labelClass}>
+          値（保存後は二度と表示されません）
+        </label>
         <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="例: 顧客Slack Bot Token"
-          className="rounded-sm border border-surface-variant bg-surface px-sm py-xs text-on-surface"
-        />
-      </label>
-      <label className="flex flex-col gap-xs text-label-md text-on-surface-variant">
-        種別
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          className="rounded-sm border border-surface-variant bg-surface px-sm py-xs text-on-surface"
-        >
-          {KINDS.map((k) => (
-            <option key={k.value} value={k.value}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-xs text-label-md text-on-surface-variant">
-        値（保存後は表示時のみ復号されます）
-        <input
+          id="cred-value"
           type="password"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           autoComplete="off"
-          className="rounded-sm border border-surface-variant bg-surface px-sm py-xs font-mono text-on-surface"
+          placeholder="ここに貼り付け（保存時に暗号化）"
+          className={`${fieldClass} font-mono`}
         />
-      </label>
+      </div>
+
       <button
         type="submit"
         disabled={busy}
-        className="mt-xs self-start rounded-md bg-primary px-md py-xs text-label-lg font-semibold text-primary-fg disabled:opacity-50"
+        className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
       >
-        {busy ? "保管中…" : "保管する"}
+        <KeyIcon className="h-4 w-4" />
+        {busy ? "保存中…" : "暗号化して保存"}
       </button>
     </form>
+  );
+}
+
+function KeyIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="m21 2-9.6 9.6" />
+      <path d="m15.5 7.5 3 3L22 7l-3-3" />
+    </svg>
   );
 }

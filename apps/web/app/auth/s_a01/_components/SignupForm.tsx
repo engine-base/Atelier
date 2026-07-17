@@ -48,16 +48,12 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
   });
 
   return (
-    <Form
-      form={form}
-      onValid={onSubmit}
-      className="mx-auto w-full max-w-md gap-md"
-    >
-      <h1 className="text-headline-md font-bold text-on-surface">
-        {t("auth.signup")}
-      </h1>
+    <Form form={form} onValid={onSubmit} className="w-full gap-4">
       {serverError ? (
-        <p role="alert" className="text-label-lg text-error">
+        <p
+          role="alert"
+          className="rounded-md border-l-[3px] border-error bg-[#FEE2E2] px-3 py-2 text-xs text-[#991B1B]"
+        >
           {serverError}
         </p>
       ) : null}
@@ -70,7 +66,7 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
           type="email"
           autoComplete="email"
           {...form.register("email")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
       <Field
@@ -82,7 +78,7 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
           type="password"
           autoComplete="new-password"
           {...form.register("password")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
       <Field
@@ -94,22 +90,29 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
           type="password"
           autoComplete="new-password"
           {...form.register("confirm")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
-      <Field
-        label={t("auth.consent")}
-        error={form.formState.errors.consent?.message}
-      >
-        <label className="flex items-center gap-sm text-body-md">
-          <input type="checkbox" {...form.register("consent")} />
+      {/* 同意行 (モックの consent-row) */}
+      <div>
+        <label className="flex items-start gap-2.5 rounded-md bg-surface-variant p-3 text-xs leading-relaxed text-on-surface-variant">
+          <input
+            type="checkbox"
+            {...form.register("consent")}
+            className="mt-0.5 shrink-0"
+          />
           <span>{t("auth.consent")}</span>
         </label>
-      </Field>
+        {form.formState.errors.consent?.message ? (
+          <span role="alert" className="mt-1 block text-xs text-error">
+            {form.formState.errors.consent.message}
+          </span>
+        ) : null}
+      </div>
       <button
         type="submit"
         disabled={form.formState.isSubmitting}
-        className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-md text-label-lg text-primary-fg disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-container disabled:opacity-50"
       >
         {t("auth.signup")}
       </button>

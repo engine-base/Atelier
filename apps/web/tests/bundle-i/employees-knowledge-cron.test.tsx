@@ -7,8 +7,11 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+
+import { type ApiClient } from "@atelier/api-client";
 
 import {
   OrgChart,
@@ -22,10 +25,14 @@ import {
   PromotionReview,
   type PromotionItem,
 } from "../../app/knowledge/s_k02/_components/PromotionReview";
+import { NodeDetail } from "../../app/knowledge/s_k01/_components/NodeDetail";
+import { type KnowledgeNode } from "../../app/knowledge/s_k01/_components/types";
 import {
   CronSchedule,
   type CronJob,
 } from "../../app/cron/s_o01/_components/CronSchedule";
+import { ScheduleBuilder } from "../../app/cron/s_o01/_components/ScheduleBuilder";
+import { ScheduleBuilderContainer } from "../../app/cron/s_o01/_components/ScheduleBuilderContainer";
 
 describe("OrgChart (T-UC-06)", () => {
   const nodes: OrgNode[] = [
@@ -57,6 +64,11 @@ describe("EmployeeEditor (T-UC-07)", () => {
     render(
       <EmployeeEditor
         employeeId="tony"
+        name="Tony"
+        role="開発リード"
+        department="dev_qa"
+        attachedSkills={["task_prioritization"]}
+        attachedKnowledgeCats={["dev"]}
         defaultValues={defaults}
         onSubmit={() => undefined}
       />,
@@ -154,5 +166,143 @@ describe("CronSchedule (T-UC-25)", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /job-A を今すぐ実行/ }));
     expect(onRunNow).toHaveBeenCalledWith("j1");
+  });
+
+  it("deletes only after inline confirm (two-step)", () => {
+    const onDelete = vi.fn();
+    render(
+      <CronSchedule jobs={jobs} onToggle={() => undefined} onDelete={onDelete} />,
+    );
+    // 1回目クリックは確認待ちで、まだ削除しない。
+    fireEvent.click(screen.getByRole("button", { name: /job-A を削除/ }));
+    expect(onDelete).not.toHaveBeenCalled();
+    // 確認の「削除」で実行。
+    fireEvent.click(screen.getByRole("button", { name: /job-A を削除/ }));
+    expect(onDelete).toHaveBeenCalledWith("j1");
+  });
+
+  it("does not render a delete control when onDelete is absent", () => {
+    render(<CronSchedule jobs={jobs} onToggle={() => undefined} />);
+    expect(
+      screen.queryByRole("button", { name: /job-A を削除/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("NodeDetail 昇格 (T-UC-19)", () => {
+  const node: KnowledgeNode = {
+    id: "k1",
+    account_id: "w1",
+    account_type: "workspace",
+    scope: "project",
+    category: "spec",
+    title: "認証仕様",
+    content_md: "本文",
+    tags: [],
+  };
+
+  it("invokes onPromote with the node id", () => {
+    const onPromote = vi.fn();
+    render(<NodeDetail node={node} onPromote={onPromote} />);
+    fireEvent.click(screen.getByRole("button", { name: "共通ナレッジに昇格" }));
+    expect(onPromote).toHaveBeenCalledWith("k1");
+  });
+
+  it("hides the promote action when onPromote is absent", () => {
+    render(<NodeDetail node={node} />);
+    expect(
+      screen.queryByRole("button", { name: "共通ナレッジに昇格" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("ScheduleBuilder (T-UC-25 create)", () => {
+  it("submits name + selected action + preset cron via onCreate", () => {
+    const onCreate = vi.fn();
+    render(<ScheduleBuilder onCreate={onCreate} />);
+    fireEvent.change(screen.getByLabelText("1. 名前"), {
+      target: { value: "週次サマリー" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /進捗レポートを配信する/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "毎週月曜 4:00" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /このスケジュールを作成/ }),
+    );
+    expect(onCreate).toHaveBeenCalledWith({
+      name: "週次サマリー",
+      cron_expression: "0 4 * * 1",
+      target_action: "report_summary",
+    });
+  });
+
+  it("disables submit until a name is entered", () => {
+    render(<ScheduleBuilder onCreate={() => undefined} />);
+    const submit = screen.getByRole("button", {
+      name: /このスケジュールを作成/,
+    });
+    expect(submit).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("1. 名前"), {
+      target: { value: "x" },
+    });
+    expect(submit).not.toBeDisabled();
+  });
+});
+
+describe("ScheduleBuilderContainer (T-UC-25 create wiring)", () => {
+  function fakeClient(post: ReturnType<typeof vi.fn>): ApiClient {
+    const noop = vi.fn(async () => ({ data: {} }));
+    return {
+      get: noop,
+      post,
+      patch: noop,
+      delete: noop,
+      put: noop,
+      request: noop,
+    } as unknown as ApiClient;
+  }
+
+  it("POSTs /cron-schedules with the project + form payload", async () => {
+    const post = vi.fn(async () => ({ data: { id: "c1" } }));
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <ScheduleBuilderContainer projectId="p1" client={fakeClient(post)} />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("1. 名前"), {
+      target: { value: "毎日ダイジェスト" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /日次ダイジェストを配信する/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "毎日 深夜 2:00" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /このスケジュールを作成/ }),
+    );
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      {
+        body: {
+          project_id: string;
+          name: string;
+          cron_expression: string;
+          target_action: string;
+          enabled: boolean;
+        };
+      },
+    ];
+    expect(path).toBe("/cron-schedules");
+    expect(init.body).toMatchObject({
+      project_id: "p1",
+      name: "毎日ダイジェスト",
+      cron_expression: "0 2 * * *",
+      target_action: "daily_digest",
+      enabled: true,
+    });
   });
 });

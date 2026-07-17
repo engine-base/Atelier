@@ -108,23 +108,23 @@ async function failMutations(page: Page): Promise<void> {
 
 // ── 1) 権限 403 sweep ─────────────────────────────────────────────────────
 const SCREENS_403: readonly { id: string; path: string }[] = [
-  { id: "S-A03", path: `/auth/s_a03?workspace=${IDS.ws}` },
-  { id: "S-B01", path: "/projects/s_b01" },
-  { id: "S-B02", path: `/projects/s_b02?project=${IDS.project}` },
-  { id: "S-C01", path: "/employees/s_c01" },
-  { id: "S-C02", path: `/employees/s_c02?employee=${IDS.employee}` },
-  { id: "S-F01", path: `/workflow/s_f01?project=${IDS.project}` },
-  { id: "S-F02", path: `/workflow/s_f02?project=${IDS.project}` },
-  { id: "S-G01", path: `/outputs/s_g01?output=${IDS.output}` },
-  { id: "S-H01", path: `/mocks/s_h01?mock=${IDS.mock}` },
-  { id: "S-I01", path: `/tasks/s_i01?project=${IDS.project}` },
-  { id: "S-I02", path: `/tasks/s_i02?task=${IDS.task}` },
-  { id: "S-J01", path: "/approvals/s_j01" },
-  { id: "S-K01", path: `/knowledge/s_k01?workspace=${IDS.ws}` },
-  { id: "S-K02", path: `/knowledge/s_k02?workspace=${IDS.ws}` },
-  { id: "S-L01", path: `/client/s_l01?project=${IDS.project}` },
+  { id: "S-A03", path: `/workspace-settings?workspace=${IDS.ws}` },
+  { id: "S-B01", path: "/projects" },
+  { id: "S-B02", path: `/projects/dashboard?project=${IDS.project}` },
+  { id: "S-C01", path: "/employees" },
+  { id: "S-C02", path: `/employees/detail?employee=${IDS.employee}` },
+  { id: "S-F01", path: `/workflow?project=${IDS.project}` },
+  { id: "S-F02", path: `/workflow/phases?project=${IDS.project}` },
+  { id: "S-G01", path: `/outputs?output=${IDS.output}` },
+  { id: "S-H01", path: `/mocks?mock=${IDS.mock}` },
+  { id: "S-I01", path: `/tasks?project=${IDS.project}` },
+  { id: "S-I02", path: `/tasks/detail?task=${IDS.task}` },
+  { id: "S-J01", path: "/approvals" },
+  { id: "S-K01", path: `/knowledge?workspace=${IDS.ws}` },
+  { id: "S-K02", path: `/knowledge/review?workspace=${IDS.ws}` },
+  { id: "S-L01", path: `/portal/invitations?project=${IDS.project}` },
   // S-M01 は初期 GET を持たない (アップロード起点画面) ため 403 sweep 対象外
-  { id: "S-O01", path: `/cron/s_o01?project=${IDS.project}` },
+  { id: "S-O01", path: `/schedules?project=${IDS.project}` },
   { id: "T-UC-36", path: "/t-uc-36" },
   { id: "T-UC-37", path: "/t-uc-37" },
   { id: "T-UC-38", path: "/t-uc-38" },
@@ -152,7 +152,7 @@ test("S-O01 トグル: 422 で楽観反映がロールバックし alert 表示"
   context,
 }) => {
   await signin(context);
-  await page.goto(`/cron/s_o01?project=${IDS.project}`, {
+  await page.goto(`/schedules?project=${IDS.project}`, {
     waitUntil: "networkidle",
   });
   const toggle = page.locator("input[type=checkbox]").first();
@@ -172,7 +172,7 @@ test("S-F02 状態select: 422 でロールバックし alert 表示", async ({
   context,
 }) => {
   await signin(context);
-  await page.goto(`/workflow/s_f02?project=${IDS.project}`, {
+  await page.goto(`/workflow/phases?project=${IDS.project}`, {
     waitUntil: "networkidle",
   });
   const select = page.locator("select").last();
@@ -189,7 +189,7 @@ test("S-F02 状態select: 422 でロールバックし alert 表示", async ({
 
 test("S-J01 承認: 422 で行が復元され alert 表示", async ({ page, context }) => {
   await signin(context);
-  await page.goto("/approvals/s_j01", { waitUntil: "networkidle" });
+  await page.goto("/approvals", { waitUntil: "networkidle" });
   const approveButtons = page.getByRole("button", { name: /を承認$/ });
   const count = await approveButtons.count();
   test.skip(count === 0, "承認待ち seed が無い環境");

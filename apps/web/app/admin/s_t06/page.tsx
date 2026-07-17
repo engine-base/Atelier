@@ -7,11 +7,12 @@ import { PlatformKnowledgeManager } from './_components/PlatformKnowledgeManager
 
 export default function ST06Page() {
   return (
-    <div className="bg-surface-fg min-h-dvh p-lg">
-      <h1 className="mb-md text-headline-md font-bold text-surface">運営デフォルト・ナレッジ</h1>
-      <QueryProvider>
-        <PlatformKnowledgeManager />
-      </QueryProvider>
+    <div className="min-h-dvh bg-surface p-lg">
+      <div className="mx-auto w-full max-w-[1200px]">
+        <QueryProvider>
+          <PlatformKnowledgeManager />
+        </QueryProvider>
+      </div>
     </div>
   );
 }

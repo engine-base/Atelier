@@ -26,7 +26,7 @@ export default function SPub02Page() {
         </p>
         <h2 className="mt-lg text-label-lg font-semibold">5. 開示・訂正・削除</h2>
         <p>
-          データ削除請求は <a href="/public/s_pub04" className="text-primary underline">専用フォーム</a> から受け付けます。
+          データ削除請求は <a href="/data-deletion" className="text-primary underline">専用フォーム</a> から受け付けます。
         </p>
       </section>
     </article>

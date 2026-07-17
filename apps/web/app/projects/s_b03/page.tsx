@@ -19,11 +19,11 @@ function SB03Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[800px] px-md py-lg">
       {projectId ? (
         <ProjectSettingsContainer
           projectId={projectId}
-          onDeleted={() => router.push("/projects/s_b01")}
+          onDeleted={() => router.push("/projects")}
         />
       ) : (
         <p className="text-body-md text-on-surface-variant">

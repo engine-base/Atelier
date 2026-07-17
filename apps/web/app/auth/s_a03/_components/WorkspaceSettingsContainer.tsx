@@ -19,6 +19,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { MembersSection } from "./MembersSection";
+import { McpTokensSection } from "./McpTokensSection";
 import {
   WorkspaceSettingsForm,
   type WorkspaceSettingsValues,
@@ -122,6 +124,8 @@ export function WorkspaceSettingsContainer({
       defaultValues={initial}
       onSubmit={onSubmit}
       serverError={serverError}
+      membersSlot={<MembersSection workspaceId={workspaceId} client={client} />}
+      tokensSlot={<McpTokensSection workspaceId={workspaceId} client={client} />}
     />
   );
 }

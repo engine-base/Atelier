@@ -22,6 +22,23 @@ import * as React from "react";
 import { Loading } from "../../../../components/Loading";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Copy,
+  ExternalLink,
+  FileText,
+  Folder,
+  GitBranch,
+  Globe,
+  LayoutDashboard,
+  Pencil,
+  Plus,
+  Search,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -35,6 +52,13 @@ import {
   type KnowledgeDraft,
 } from "./CreateKnowledgeDialog";
 import { SCOPES, type KnowledgeNode, type KnowledgeScope } from "./types";
+
+/** scope ごとのツリーグループ・アイコン (モックの globe / users / folder 見出し)。 */
+const SCOPE_ICON: Record<KnowledgeScope, typeof Globe> = {
+  common: Globe,
+  employee_specific: Users,
+  project: Folder,
+};
 
 /** workspaceId 未指定時のフォールバック (親が WorkspacePicker で解決するまでの controlled 既定)。 */
 const FALLBACK_WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
@@ -163,37 +187,106 @@ export function KnowledgeExplorer({
     },
   });
 
+  // 共通ナレッジへ昇格 (user/その他 scope → workspace common)。成功でツリー再取得。
+  const promoteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.post("/knowledge/{knowledge_id}/promote", {
+        params: { path: { knowledge_id: id } },
+        body: { target_workspace_id: accountId },
+      }),
+    onSuccess: () => {
+      setSelected(null);
+      void queryClient.invalidateQueries({ queryKey: rootKey });
+    },
+  });
+
+  // 本文編集 (title / content_md) → PATCH /knowledge/{id}。以前は「編集」ボタンが非機能だった。
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+
+  const editMut = useMutation({
+    mutationFn: (v: { id: string; title: string; content_md: string }) =>
+      client.patch("/knowledge/{knowledge_id}", {
+        params: { path: { knowledge_id: v.id } },
+        body: { title: v.title, content_md: v.content_md },
+      }),
+    onSuccess: (_res, v) => {
+      setSelected((prev) =>
+        prev ? { ...prev, title: v.title, content_md: v.content_md } : prev,
+      );
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: rootKey });
+    },
+  });
+
+  const startEdit = (): void => {
+    if (!selected) return;
+    setEditTitle(selected.title);
+    setEditContent(selected.content_md);
+    setEditing(true);
+  };
+
   if (isForbidden(rootQuery.error)) return <KbDenied />;
 
   const roots = rootQuery.data ?? [];
+  const currentScope = SCOPES.find((s) => s.id === scope);
+  const ScopeIcon = SCOPE_ICON[scope];
 
   return (
     <section
       aria-label="ナレッジエクスプローラ"
       className={cn(
-        // モバイル(〜lg)は縦積み 1 カラム (固定 18rem+20rem の 3 ペインは 320px で
-        // 338px 横オーバーフローする実バグが E2E で出たため lg 以上でのみ 3 ペイン化)
-        "grid grid-cols-1 gap-md lg:h-[calc(100dvh-12rem)] lg:transition-[grid-template-columns] lg:duration-200",
+        // モバイル(〜lg)は縦積み 1 カラム (固定 280px+320px の 3 ペインは 320px で
+        // 横オーバーフローする実バグが E2E で出たため lg 以上でのみ 3 ペイン化)
+        "grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface",
+        "lg:h-[calc(100dvh-12rem)] lg:transition-[grid-template-columns] lg:duration-200 lg:ease-out-expo",
         leftCollapsed && rightCollapsed
           ? "lg:grid-cols-[0_1fr_0]"
           : leftCollapsed
-            ? "lg:grid-cols-[0_1fr_20rem]"
+            ? "lg:grid-cols-[0_1fr_320px]"
             : rightCollapsed
-              ? "lg:grid-cols-[18rem_1fr_0]"
-              : "lg:grid-cols-[18rem_1fr_20rem]",
+              ? "lg:grid-cols-[280px_1fr_0]"
+              : "lg:grid-cols-[280px_1fr_320px]",
       )}
     >
-      {/* 左: ツリー */}
+      {/* 左: ツリーペイン */}
       <aside
         className={cn(
-          "flex min-w-0 flex-col gap-md overflow-y-auto rounded-lg border border-surface-variant p-sm",
+          "flex min-w-0 flex-col overflow-y-auto bg-white p-3 lg:border-r lg:border-border",
           leftCollapsed && "hidden",
         )}
       >
+        {/* RAG 検索 (表示のみ) */}
+        <div className="mb-3 flex items-center gap-2 rounded-md bg-surface-variant px-2.5 py-2">
+          <Search
+            className="h-3.5 w-3.5 shrink-0 text-on-surface-variant"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            aria-label="ナレッジを検索（RAG）"
+            placeholder="ナレッジを検索（RAG）…"
+            className="w-full min-w-0 border-none bg-transparent text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant"
+          />
+        </div>
+
+        {/* 新規追加 */}
+        <KbButton
+          variant="primary"
+          size="sm"
+          className="mb-3 w-full"
+          onClick={() => setDialogOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          新規追加
+        </KbButton>
+
+        {/* scope 切替 (共通 / AI社員別 / プロジェクト別) */}
         <div
           role="tablist"
           aria-label="スコープ"
-          className="flex border-b border-surface-variant"
+          className="mb-3 flex gap-1 rounded-md bg-surface-variant p-1"
         >
           {SCOPES.map((s) => (
             <button
@@ -203,10 +296,10 @@ export function KnowledgeExplorer({
               aria-selected={scope === s.id}
               onClick={() => switchScope(s.id)}
               className={cn(
-                "flex-1 py-xs text-label-sm",
+                "flex-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors",
                 scope === s.id
-                  ? "border-b-2 border-primary font-semibold text-primary"
-                  : "text-on-surface-variant",
+                  ? "bg-white text-on-surface shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface",
               )}
             >
               {s.label}
@@ -214,18 +307,17 @@ export function KnowledgeExplorer({
           ))}
         </div>
 
-        <KbButton
-          variant="primary"
-          size="sm"
-          onClick={() => setDialogOpen(true)}
-        >
-          新規追加
-        </KbButton>
+        {/* 現 scope のグループ見出し */}
+        <div className="mb-1.5 flex items-center gap-1.5 px-2.5 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+          <ScopeIcon className="h-3 w-3" aria-hidden="true" />
+          {currentScope?.label}ナレッジ
+          <span className="ml-auto tabular-nums">{roots.length}</span>
+        </div>
 
         {rootQuery.isLoading ? (
           <Loading className="py-md" />
         ) : roots.length === 0 ? (
-          <p className="text-body-sm text-on-surface-variant">
+          <p className="px-2.5 py-2 text-[13px] text-on-surface-variant">
             ナレッジがありません
           </p>
         ) : (
@@ -250,65 +342,215 @@ export function KnowledgeExplorer({
           </ul>
         )}
 
-        <p className="mt-auto flex items-center gap-xs border-t border-surface-variant pt-sm text-label-sm text-on-surface-variant">
+        <p className="mt-auto flex items-center gap-2 border-t border-border pt-2.5 text-[11px] text-on-surface-variant">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           運営デフォルト・ナレッジは参照のみ（ツリー非表示）
         </p>
       </aside>
 
-      {/* 中央: ノート本文 + パネルトグル */}
-      <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-surface-variant">
-        <div className="flex items-center gap-sm border-b border-surface-variant p-sm">
+      {/* 中央: ノート本文 + ツールバー */}
+      <div className="flex min-w-0 flex-col overflow-hidden bg-surface">
+        <div className="flex items-center gap-2 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
           <button
             type="button"
             aria-label="ツリーパネルを開閉"
             aria-pressed={leftCollapsed}
             onClick={() => setLeftCollapsed((v) => !v)}
-            className="rounded-md px-sm py-xs text-label-md text-on-surface hover:bg-surface-variant"
+            title="ツリーを開閉"
+            className={cn(
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+              leftCollapsed
+                ? "bg-primary-container text-primary-container-fg"
+                : "text-on-surface hover:bg-surface-variant",
+            )}
           >
-            ◀
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
-          <span className="text-label-md font-semibold text-on-surface">
-            {selected?.title ?? "ナレッジ"}
-          </span>
-          <button
-            type="button"
-            aria-label="詳細パネルを開閉"
-            aria-pressed={rightCollapsed}
-            onClick={() => setRightCollapsed((v) => !v)}
-            className="ml-auto rounded-md px-sm py-xs text-label-md text-on-surface hover:bg-surface-variant"
-          >
-            ▶
-          </button>
+
+          {/* view-toggle: ノートのみ実装。リスト/グラフは未実装のため非活性(機能を偽らない)。 */}
+          <div className="flex gap-1 rounded-md bg-surface-variant p-1">
+            <button
+              type="button"
+              aria-pressed="true"
+              className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[12px] font-semibold text-on-surface shadow-sm"
+            >
+              <FileText className="h-3 w-3" aria-hidden="true" />
+              ノート
+            </button>
+            <button
+              type="button"
+              disabled
+              title="リスト表示は準備中です"
+              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
+            >
+              <LayoutDashboard className="h-3 w-3" aria-hidden="true" />
+              リスト
+            </button>
+            <button
+              type="button"
+              disabled
+              title="グラフ表示は準備中です"
+              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
+            >
+              <GitBranch className="h-3 w-3" aria-hidden="true" />
+              グラフ
+            </button>
+          </div>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* 複製 / Obsidian 連携は対応API無し。機能を偽らないよう非活性。 */}
+            <KbButton variant="ghost" size="sm" disabled title="準備中です">
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+              複製
+            </KbButton>
+            <KbButton
+              variant="ghost"
+              size="sm"
+              disabled
+              title="Obsidian 連携は準備中です"
+            >
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              Obsidian で開く
+            </KbButton>
+            <KbButton
+              variant="outlined"
+              size="sm"
+              onClick={startEdit}
+              disabled={!selected || editing}
+            >
+              <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+              編集
+            </KbButton>
+            <button
+              type="button"
+              aria-label="詳細パネルを開閉"
+              aria-pressed={rightCollapsed}
+              onClick={() => setRightCollapsed((v) => !v)}
+              title="詳細パネルを開閉"
+              className={cn(
+                "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors",
+                rightCollapsed
+                  ? "bg-primary-container text-primary-container-fg"
+                  : "text-on-surface hover:bg-surface-variant",
+              )}
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
         </div>
-        <article className="flex-1 overflow-y-auto p-lg">
-          {selected ? (
+
+        <article className="flex-1 overflow-y-auto px-6 py-8 lg:px-12">
+          {selected && editing ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (editTitle.trim()) {
+                  editMut.mutate({
+                    id: selected.id,
+                    title: editTitle.trim(),
+                    content_md: editContent,
+                  });
+                }
+              }}
+              className="flex flex-col gap-4"
+            >
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
+                  タイトル
+                </span>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="h-11 rounded-md border border-border bg-surface px-3 text-[18px] font-bold text-on-surface focus:border-primary focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
+                  本文
+                </span>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={16}
+                  className="rounded-md border border-border bg-surface px-3 py-2 text-[14px] leading-[1.85] text-on-surface focus:border-primary focus:outline-none"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="inline-flex h-10 items-center rounded-md px-4 text-sm font-semibold text-on-surface hover:bg-surface-variant"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editTitle.trim() || editMut.isPending}
+                  className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+                >
+                  {editMut.isPending ? "保存中…" : "保存"}
+                </button>
+              </div>
+            </form>
+          ) : selected ? (
             <>
-              <p className="mb-xs text-label-sm uppercase tracking-wide text-on-surface-variant">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
                 {selected.category}
               </p>
-              <h2 className="mb-md text-headline-md font-bold text-on-surface">
+              <h2 className="mb-3 text-[28px] font-bold leading-tight tracking-[-0.02em] text-on-surface">
                 {selected.title}
               </h2>
-              <p className="whitespace-pre-wrap text-body-md leading-relaxed text-on-surface">
+              <div className="mb-6 flex flex-wrap items-center gap-x-3.5 gap-y-2 border-b border-border pb-4 text-[12.5px] text-on-surface-variant">
+                {selected.updated_at ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                    {selected.updated_at} 更新
+                  </span>
+                ) : null}
+                <span>
+                  参照{" "}
+                  <strong className="tabular-nums text-on-surface">
+                    {selected.usage_count ?? 0}
+                  </strong>{" "}
+                  回
+                </span>
+                {selected.tags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selected.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full bg-primary-container px-2.5 py-0.5 text-[11px] font-semibold text-primary-container-fg"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <p className="whitespace-pre-wrap text-[14px] leading-[1.85] text-on-surface">
                 {selected.content_md}
               </p>
             </>
           ) : (
-            <p className="text-body-md text-on-surface-variant">
+            <p className="py-12 text-center text-body-md text-on-surface-variant">
               左のツリーからナレッジを選択してください
             </p>
           )}
         </article>
       </div>
 
-      {/* 右: メタ詳細 */}
+      {/* 右: メタ詳細ペイン */}
       <aside
         className={cn(
-          "min-w-0 overflow-y-auto rounded-lg border border-surface-variant p-md",
+          "min-w-0 overflow-y-auto bg-white p-[18px] lg:border-l lg:border-border",
           rightCollapsed && "hidden",
         )}
       >
-        <NodeDetail node={selected} />
+        <NodeDetail
+          node={selected}
+          onPromote={(id) => promoteMut.mutate(id)}
+          promoting={promoteMut.isPending}
+        />
       </aside>
 
       <CreateKnowledgeDialog

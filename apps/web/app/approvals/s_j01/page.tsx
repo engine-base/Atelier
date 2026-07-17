@@ -13,8 +13,8 @@ import { ApprovalsContainer } from "./_components/ApprovalsContainer";
 
 export default function SJ01Page() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">承認待ち</h1>
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-lg px-md py-lg">
+      <h1 className="text-3xl font-bold tracking-tight text-on-surface">承認待ち</h1>
       <QueryProvider>
         <ApprovalsContainer />
       </QueryProvider>

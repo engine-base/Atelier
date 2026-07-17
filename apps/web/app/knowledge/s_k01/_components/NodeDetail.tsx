@@ -8,7 +8,9 @@
 "use client";
 
 import * as React from "react";
+import { Sparkles } from "lucide-react";
 
+import { KbButton } from "./ui";
 import type { KnowledgeNode, KnowledgeScope } from "./types";
 
 const SCOPE_LABEL: Record<KnowledgeScope, string> = {
@@ -17,11 +19,30 @@ const SCOPE_LABEL: Record<KnowledgeScope, string> = {
   project: "プロジェクト別",
 };
 
-export interface NodeDetailProps {
-  readonly node: KnowledgeNode | null;
+/** confidence の定量値を定性ラベルに変換 (モック "高/中/低")。 */
+function confidenceLabel(score: number): string {
+  if (score >= 0.8) return "高 · 業界傾向に昇格候補";
+  if (score >= 0.5) return "中";
+  return "低";
 }
 
-export function NodeDetail({ node }: NodeDetailProps) {
+export interface NodeDetailProps {
+  readonly node: KnowledgeNode | null;
+  /** 共通ナレッジへ昇格 (POST /knowledge/{id}/promote)。未指定ならボタンを出さない。 */
+  readonly onPromote?: (id: string) => void;
+  readonly promoting?: boolean;
+}
+
+/** メタ・タイトル (uppercase の小見出し)。 */
+function MetaTitle({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
+      {children}
+    </h3>
+  );
+}
+
+export function NodeDetail({ node, onPromote, promoting }: NodeDetailProps) {
   if (!node) {
     return (
       <p className="text-body-md text-on-surface-variant">
@@ -30,26 +51,36 @@ export function NodeDetail({ node }: NodeDetailProps) {
     );
   }
 
-  const confidence = Math.round((node.confidence_score ?? 0) * 100);
+  const score = node.confidence_score ?? 0;
+  const confidence = Math.round(score * 100);
 
   return (
-    <div className="flex flex-col gap-lg">
+    <div className="flex flex-col gap-5">
+      {/* メタ情報 */}
       <section>
-        <h3 className="mb-sm text-label-sm font-bold uppercase tracking-wide text-on-surface-variant">
-          メタ情報
-        </h3>
-        <dl className="flex flex-col gap-xs text-body-sm">
-          <div className="flex justify-between">
+        <MetaTitle>メタ情報</MetaTitle>
+        <dl className="flex flex-col gap-2 text-[13px]">
+          <div className="flex items-center justify-between gap-2">
             <dt className="text-on-surface-variant">スコープ</dt>
-            <dd className="font-semibold text-on-surface">
-              {SCOPE_LABEL[node.scope]}
+            <dd>
+              <span className="inline-flex items-center rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-semibold text-primary-container-fg">
+                {SCOPE_LABEL[node.scope]}
+              </span>
             </dd>
           </div>
-          <div className="flex justify-between">
+          {node.owner_employee_id ? (
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-on-surface-variant">オーナー</dt>
+              <dd className="truncate font-semibold text-on-surface">
+                {node.owner_employee_id}
+              </dd>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between gap-2">
             <dt className="text-on-surface-variant">カテゴリ</dt>
             <dd className="text-on-surface">{node.category}</dd>
           </div>
-          <div className="flex justify-between">
+          <div className="flex items-center justify-between gap-2">
             <dt className="text-on-surface-variant">参照回数</dt>
             <dd className="font-bold tabular-nums text-on-surface">
               {node.usage_count ?? 0}
@@ -58,14 +89,18 @@ export function NodeDetail({ node }: NodeDetailProps) {
         </dl>
       </section>
 
+      {/* 信頼度 */}
       <section>
-        <h3 className="mb-sm text-label-sm font-bold uppercase tracking-wide text-on-surface-variant">
-          信頼度（confidence）
-        </h3>
-        <p className="text-body-sm font-bold text-on-surface">
-          {(confidence / 100).toFixed(2)}
-        </p>
-        <div className="mt-xs h-1.5 overflow-hidden rounded-full bg-surface-variant">
+        <MetaTitle>信頼度（confidence）</MetaTitle>
+        <div className="flex items-center gap-2">
+          <strong className="text-[18px] font-bold tabular-nums text-tertiary">
+            {score.toFixed(2)}
+          </strong>
+          <span className="text-[13px] text-on-surface-variant">
+            {confidenceLabel(score)}
+          </span>
+        </div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-variant">
           <div
             className="h-full rounded-full bg-tertiary"
             style={{ width: `${confidence}%` }}
@@ -74,21 +109,39 @@ export function NodeDetail({ node }: NodeDetailProps) {
         </div>
       </section>
 
+      {/* タグ */}
       {node.tags.length > 0 ? (
         <section>
-          <h3 className="mb-sm text-label-sm font-bold uppercase tracking-wide text-on-surface-variant">
-            タグ
-          </h3>
-          <ul className="flex flex-wrap gap-xs">
+          <MetaTitle>タグ</MetaTitle>
+          <ul className="flex flex-wrap gap-1.5">
             {node.tags.map((tag) => (
               <li
                 key={tag}
-                className="rounded-full bg-primary-container px-sm py-px text-label-sm font-semibold text-primary-container-fg"
+                className="inline-flex items-center rounded-full bg-primary-container px-2.5 py-0.5 text-[11px] font-semibold text-primary-container-fg"
               >
                 {tag}
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {/* アクション */}
+      {onPromote ? (
+        <section>
+          <MetaTitle>アクション</MetaTitle>
+          <div className="flex flex-col gap-2">
+            <KbButton
+              variant="outlined"
+              size="sm"
+              className="w-full"
+              onClick={() => onPromote(node.id)}
+              disabled={promoting}
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              {promoting ? "昇格中…" : "共通ナレッジに昇格"}
+            </KbButton>
+          </div>
         </section>
       ) : null}
     </div>

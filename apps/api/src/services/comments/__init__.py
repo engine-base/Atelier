@@ -71,26 +71,49 @@ async def get_comment(session: AsyncSession, comment_id: str) -> CommentResponse
     return None if row is None else _row_to_response(row)
 
 
+def _client_invitation_id(actor_id: str) -> str | None:
+    """actor_id が client_portal (sub="client:<invitation_id>") なら招待 UUID を返す。"""
+    if actor_id.startswith("client:"):
+        return actor_id.split("client:", 1)[1]
+    return None
+
+
 async def create_comment(
     session: AsyncSession, *, actor_id: str, data: CommentCreate
 ) -> CommentResponse | None:
-    visible = await session.execute(
-        text(
-            "select public.user_can_see_comment_target("
-            "cast(:tt as comment_target_type_enum)::text, cast(:tid as uuid))"
-        ),
-        {"tt": data.target_type, "tid": data.target_id},
-    )
+    invitation_id = _client_invitation_id(actor_id)
+    is_client = invitation_id is not None
+    # 可視性: member は user_can_see_comment_target、client は client_can_access(comment)。
+    # どちらも該当 target の workspace/project スコープ内かを判定 (RLS でも二重に強制)。
+    if is_client:
+        visible = await session.execute(
+            text(
+                "select public.client_can_access_comment_target("
+                "cast(:inv as uuid), cast(:tt as comment_target_type_enum)::text, "
+                "cast(:tid as uuid), 'comment')"
+            ),
+            {"inv": invitation_id, "tt": data.target_type, "tid": data.target_id},
+        )
+    else:
+        visible = await session.execute(
+            text(
+                "select public.user_can_see_comment_target("
+                "cast(:tt as comment_target_type_enum)::text, cast(:tid as uuid))"
+            ),
+            {"tt": data.target_type, "tid": data.target_id},
+        )
     if not bool(visible.scalar_one()):
         return None
     new_id = str(uuid.uuid4())
+    # 作者: member は author_user_id、client は author_invitation_id (排他制約 comments_author_exclusive)。
     res = await session.execute(
         text(
             "insert into public.comments "
             "(id, target_type, target_id, target_element_id, author_user_id, "
-            " content, parent_comment_id) "
+            " author_invitation_id, content, parent_comment_id) "
             "values (cast(:id as uuid), cast(:tt as comment_target_type_enum), "
-            " cast(:tid as uuid), :elem, cast(:author as uuid), :content, "
+            " cast(:tid as uuid), :elem, "
+            " cast(:author_user as uuid), cast(:author_inv as uuid), :content, "
             " cast(:parent as uuid)) returning id"
         ),
         {
@@ -98,7 +121,8 @@ async def create_comment(
             "tt": data.target_type,
             "tid": data.target_id,
             "elem": data.target_element_id,
-            "author": actor_id,
+            "author_user": None if is_client else actor_id,
+            "author_inv": invitation_id if is_client else None,
             "content": data.content,
             "parent": data.parent_comment_id,
         },

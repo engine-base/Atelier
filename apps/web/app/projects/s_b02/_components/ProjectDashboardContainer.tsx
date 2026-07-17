@@ -76,7 +76,7 @@ export function ProjectDashboardContainer({
       const res = await client.get("/projects/{project_id}", {
         params: { path: { project_id: projectId } },
       });
-      return (res as { data?: { name?: string } }).data ?? {};
+      return (res as { data?: { name?: string; current_phase?: string } }).data ?? {};
     },
     retry: false,
   });
@@ -102,6 +102,7 @@ export function ProjectDashboardContainer({
   return (
     <ProjectDashboard
       projectName={projectName}
+      currentPhase={project.data?.current_phase}
       kpis={kpis}
       loading={dashboard.isLoading}
     />

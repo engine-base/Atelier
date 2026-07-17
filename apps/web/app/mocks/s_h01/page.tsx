@@ -18,11 +18,11 @@ function SH01Inner() {
   const mockId = params.get("mock");
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {mockId ? (
         <MockViewerContainer mockId={mockId} />
       ) : (
-        <p className="text-body-md text-on-surface-variant">
+        <p className="rounded-lg border border-dashed border-border py-2xl text-center text-body-md text-on-surface-variant">
           モックを選択すると表示します。
         </p>
       )}

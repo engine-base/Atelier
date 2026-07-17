@@ -133,23 +133,49 @@ export function InvitationsListContainer({
   }));
 
   return (
-    <div className="flex flex-col gap-md">
+    <div className="flex flex-col gap-6">
       {issuedToken ? (
         <div
           role="status"
-          className="rounded-md border border-primary/40 bg-primary-container/30 p-md text-body-sm text-on-surface"
+          className="rounded-md border-l-[3px] border-primary bg-primary-container p-4 text-body-sm text-primary-container-fg"
         >
           <p className="font-semibold">
-            招待トークン（この画面でのみ表示・再取得不可）
+            招待リンク（この画面でのみ表示・再取得不可）
           </p>
-          <code className="break-all">{issuedToken}</code>
-          <button
-            type="button"
-            onClick={() => setIssuedToken(null)}
-            className="ml-sm text-label-md text-primary underline"
-          >
-            閉じる
-          </button>
+          <p className="mt-1 text-[12px] opacity-90">
+            クライアントにこのリンクを共有してください。メール送信が設定済みの環境では
+            自動送信もされますが、確実に届けるには下のリンクを直接お渡しください。
+          </p>
+          {(() => {
+            const origin =
+              typeof window !== "undefined" ? window.location.origin : "";
+            const link = `${origin}/portal/signin?token=${encodeURIComponent(issuedToken)}`;
+            return (
+              <>
+                <code className="mt-2 block break-all font-mono text-[13px]">
+                  {link}
+                </code>
+                <div className="mt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(link).catch(() => undefined);
+                    }}
+                    className="text-label-md font-semibold text-primary-container-fg underline"
+                  >
+                    リンクをコピー
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIssuedToken(null)}
+                    className="text-label-md font-semibold text-primary-container-fg underline"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       ) : null}
       <InvitationsList

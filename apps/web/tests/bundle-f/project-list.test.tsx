@@ -17,15 +17,21 @@ const ROWS: ProjectRow[] = [
     id: 'p1',
     name: 'Alpha',
     client_name: 'ACME',
+    type: 'client_project',
     lifecycle: 'active',
+    currentPhase: 'implementation',
     created_at: '2026-05-01T00:00:00Z',
+    updated_at: '2026-05-02T00:00:00Z',
   },
   {
     id: 'p2',
     name: 'Beta',
     client_name: null,
+    type: 'self_product',
     lifecycle: 'archived',
+    currentPhase: 'delivery',
     created_at: '2026-04-15T00:00:00Z',
+    updated_at: '2026-04-16T00:00:00Z',
   },
 ];
 
@@ -38,12 +44,16 @@ describe('ProjectList (T-UC-03)', () => {
     onNext: () => undefined,
   };
 
-  it('renders project names and lifecycle labels', () => {
+  it('renders project cards with name / type badge / phase pill', () => {
     render(<ProjectList {...baseProps} />);
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta')).toBeInTheDocument();
-    expect(screen.getByText('進行中')).toBeInTheDocument();
-    expect(screen.getByText('アーカイブ')).toBeInTheDocument();
+    // 種別バッジ
+    expect(screen.getByText('クライアント案件')).toBeInTheDocument();
+    expect(screen.getByText('自社プロダクト')).toBeInTheDocument();
+    // 工程 pill (current_phase 由来)
+    expect(screen.getByText('実装中')).toBeInTheDocument();
+    expect(screen.getByText('納品済')).toBeInTheDocument();
   });
 
   it('renders — for null client_name', () => {
@@ -65,6 +75,6 @@ describe('ProjectList (T-UC-03)', () => {
 
   it('renders summary in Pagination', () => {
     render(<ProjectList {...baseProps} />);
-    expect(screen.getByText(/2 件表示中/)).toBeInTheDocument();
+    expect(screen.getByText(/2 件のプロジェクト/)).toBeInTheDocument();
   });
 });

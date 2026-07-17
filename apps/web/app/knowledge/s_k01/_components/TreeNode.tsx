@@ -12,6 +12,7 @@
 "use client";
 
 import * as React from "react";
+import { ChevronDown, ChevronRight, FileText } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
 import type { KnowledgeNode } from "./types";
@@ -57,19 +58,41 @@ export function TreeNode({
           onSelect(node);
           onToggle(node);
         }}
-        style={{ paddingLeft: `${0.5 + depth * 0.85}rem` }}
+        style={{ paddingLeft: `${10 + depth * 12}px` }}
         className={cn(
-          "flex w-full items-center gap-xs rounded-md py-xs pr-sm text-left text-body-sm",
+          "flex w-full items-center gap-2 rounded-md py-[5px] pr-2.5 text-left text-[13px]",
           selected
             ? "bg-primary-container font-semibold text-primary-container-fg"
             : "text-on-surface hover:bg-surface-variant",
         )}
       >
-        <span aria-hidden="true" className="text-on-surface-variant">
-          {expanded ? "▾" : "▸"}
+        <span
+          aria-hidden="true"
+          className={cn(
+            "flex h-3.5 w-3.5 shrink-0 items-center justify-center",
+            selected ? "text-primary-container-fg" : "text-on-surface-variant",
+          )}
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
         </span>
+        <FileText
+          aria-hidden="true"
+          className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            selected ? "text-primary-container-fg" : "text-on-surface-variant",
+          )}
+        />
         <span className="truncate">{node.title}</span>
-        <span className="ml-auto text-label-sm text-on-surface-variant">
+        <span
+          className={cn(
+            "ml-auto shrink-0 text-[10.5px]",
+            selected ? "text-primary-container-fg" : "text-on-surface-variant",
+          )}
+        >
           {node.category}
         </span>
       </button>
@@ -79,14 +102,14 @@ export function TreeNode({
           {loading ? (
             <li
               role="none"
-              className="py-xs pl-lg text-label-sm text-on-surface-variant"
+              className="py-[5px] pl-6 text-[11px] text-on-surface-variant"
             >
               読み込み中…
             </li>
           ) : children.length === 0 ? (
             <li
               role="none"
-              className="py-xs pl-lg text-label-sm text-on-surface-variant"
+              className="py-[5px] pl-6 text-[11px] text-on-surface-variant"
             >
               子ナレッジはありません
             </li>

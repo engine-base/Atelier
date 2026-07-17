@@ -47,7 +47,10 @@ export function ClientProjectViewContainer({
 
   if (!token) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
+      >
         サインインが必要です。招待リンクから再度サインインしてください。
       </p>
     );
@@ -57,34 +60,46 @@ export function ClientProjectViewContainer({
     query.error instanceof ClientPortalError ? query.error.status : null;
   if (status === 403) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
+      >
         このプロジェクトを参照する権限がありません。
       </p>
     );
   }
   if (status === 401) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
+      >
         セッションの有効期限が切れました。再度サインインしてください。
       </p>
     );
   }
   if (status === 404) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
+      >
         プロジェクトが見つかりません。
       </p>
     );
   }
   if (query.error) {
     return (
-      <p role="alert" className="text-body-md text-error">
+      <p
+        role="alert"
+        className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
+      >
         プロジェクトの取得に失敗しました。
       </p>
     );
   }
   if (query.isLoading || !query.data) {
-    return <Loading className="py-md" />;
+    return <Loading className="mx-auto w-full max-w-[1100px] px-6 py-8" />;
   }
 
   return <ClientProjectView data={query.data} />;

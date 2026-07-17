@@ -41,7 +41,7 @@ function SB04Inner() {
       setRows(res.data);
     } catch (e) {
       if (e instanceof api.ApiError && e.status === 401) {
-        router.push('/auth/s_a01?redirect=/projects/s_b04');
+        router.push('/signin?redirect=/projects/vault');
         return;
       }
       setError(e instanceof Error ? e.message : 'シークレットの取得に失敗しました');
@@ -72,26 +72,73 @@ function SB04Inner() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-lg px-md py-lg">
-      <header>
-        <h1 className="text-headline-md font-bold text-on-surface">プロジェクト・シークレット</h1>
-        <p className="mt-xs text-body-sm text-on-surface-variant">
-          顧客・案件の機密情報（API キー / パスワード / トークン）を暗号化して保管します。
+    <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
+      <header className="mb-6">
+        <h1 className="text-3xl font-bold tracking-tight text-on-surface">
+          プロジェクト・シークレット
+        </h1>
+        <p className="mt-2 text-on-surface-variant">
+          顧客・案件の機密クレデンシャル（APIキー・パスワード・トークン・接続文字列）を暗号化して保管します。
         </p>
       </header>
 
-      <CredentialForm onSubmit={onCreate} />
+      <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-secondary-container border-l-[3px] border-l-secondary bg-secondary-container p-4 text-secondary-container-fg">
+        <ShieldCheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
+        <p className="text-sm">
+          <strong className="font-bold">平文は保存・表示しません。</strong>{' '}
+          値は Fernet で暗号化して保存され、暗号鍵は DB の外（環境変数）にあります。
+          表示（reveal）と全変更操作は監査ログに記録され、ワークスペースメンバーのみアクセスできます（越境=0）。AI
+          学習には利用しません。
+        </p>
+      </div>
 
-      {error ? (
-        <div role="alert" className="rounded-md border border-error bg-surface p-md text-error">
-          {error}
+      <div className="mb-6">
+        <CredentialForm onSubmit={onCreate} />
+      </div>
+
+      <section className="rounded-lg border border-border bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-on-surface">クレデンシャル一覧</h2>
+          <span className="text-sm text-on-surface-variant">{rows.length} 件</span>
         </div>
-      ) : loading ? (
-        <p className="text-on-surface-variant">読み込み中…</p>
-      ) : (
-        <CredentialList rows={rows} onReveal={onReveal} onDelete={onDelete} />
-      )}
+
+        {error ? (
+          <div
+            role="alert"
+            className="rounded-md border-l-[3px] border-l-error bg-error/10 p-3 text-sm text-error"
+          >
+            {error}
+          </div>
+        ) : loading ? (
+          <p className="py-12 text-center text-on-surface-variant">読み込み中…</p>
+        ) : (
+          <CredentialList rows={rows} onReveal={onReveal} onDelete={onDelete} />
+        )}
+
+        <p className="mt-4 flex items-center gap-1.5 text-sm text-on-surface-variant">
+          <ShieldCheckIcon className="h-3.5 w-3.5 shrink-0" />
+          「表示」は復号して一時的に平文を見せ、クリップボードへコピーできます。表示操作は監査ログに記録されます。
+        </p>
+      </section>
     </div>
+  );
+}
+
+function ShieldCheckIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
   );
 }
 

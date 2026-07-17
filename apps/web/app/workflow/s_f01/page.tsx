@@ -18,7 +18,7 @@ function SF01Inner() {
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-lg px-md py-lg">
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-lg px-md py-lg">
       <h1 className="text-headline-md font-bold text-on-surface">
         工程ワークフロー
       </h1>

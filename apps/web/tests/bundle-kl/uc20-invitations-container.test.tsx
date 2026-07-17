@@ -92,7 +92,13 @@ describe("S-L01 InvitationsListContainer (T-UC-20)", () => {
       target: { value: "new@example.com" },
     });
     fireEvent.click(screen.getByRole("button", { name: "招待を発行" }));
-    expect(await screen.findByText("raw-token-xyz")).toBeInTheDocument();
+    // バナーはトークン単体ではなく、共有用の招待リンク(?token=<raw>)を表示する。
+    expect(
+      await screen.findByText((t) => t.includes("/portal/signin?token=raw-token-xyz")),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "リンクをコピー" }),
+    ).toBeInTheDocument();
     const [path, init] = post.mock.calls[0]! as unknown as [
       string,
       { body: { project_id: string; email: string } },

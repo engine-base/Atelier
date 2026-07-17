@@ -7,7 +7,7 @@
 import '@testing-library/jest-dom/vitest';
 
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { AppShell } from '../../components/layout/AppShell';
@@ -35,30 +35,25 @@ describe('AppShell', () => {
     expect(link.getAttribute('href')).toBe('#main-content');
   });
 
-  it('toggles sidebar collapse on TopBar menu click', () => {
+  it('renders the workspace name and breadcrumb in the TopBar', () => {
     render(
-      <AppShell currentPath="/">
+      <AppShell currentPath="/" workspaceName="ENGINE BASE" breadcrumb="プロジェクト">
         <p>X</p>
       </AppShell>,
     );
-    // 初期は展開状態 → ラベル「プロジェクト」が見える
-    expect(screen.getByText('プロジェクト')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /メニュー/ }));
-    // 折りたたみ後 → ラベルが消える (icon 名はそのまま隠す方針)
-    expect(screen.queryByText('プロジェクト')).toBeNull();
+    expect(screen.getByText('ENGINE BASE')).toBeInTheDocument();
+    // パンくずの「プロジェクト」(サイドバーのナビ項目とは別に TopBar 内にも出る)
+    expect(
+      screen.getByRole('banner').textContent?.includes('プロジェクト'),
+    ).toBe(true);
   });
 
-  it('renders topBarCenter and topBarTrailing slots', () => {
+  it('renders the topBarTrailing slot', () => {
     render(
-      <AppShell
-        currentPath="/"
-        topBarCenter={<span>CTR</span>}
-        topBarTrailing={<span>TRL</span>}
-      >
+      <AppShell currentPath="/" topBarTrailing={<span>TRL</span>}>
         <p>X</p>
       </AppShell>,
     );
-    expect(screen.getByText('CTR')).toBeInTheDocument();
     expect(screen.getByText('TRL')).toBeInTheDocument();
   });
 });

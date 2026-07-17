@@ -120,3 +120,55 @@ class TestVerifyPasswordLocal:
                 _verify_password_local(session, email="x@example.com", password="pw")  # type: ignore[arg-type]
             )
         assert ei.value.code == "invalid_credentials"
+
+
+# ── T-A-02 / 実バグ回帰: DB 付与の admin ロールが JWT に載ること ──────────────
+#
+# 実事故 (2026-07): _mint_access_token が sub/role/aud しか載せず app_metadata を
+# 落としていたため、auth.users.raw_app_meta_data で admin を付与しても
+# services.admin.is_admin が常に False → 運営コンソールに誰も到達できなかった。
+# 信頼源は DB のみ (ユーザー入力からは受け取らない) である点も合わせて固定する。
+
+
+def _claims_of(token: str) -> dict[str, Any]:
+    import base64
+    import json as _json
+
+    payload = token.split(".")[1]
+    payload += "=" * (-len(payload) % 4)
+    return _json.loads(base64.urlsafe_b64decode(payload))
+
+
+def test_mint_access_token_embeds_app_metadata_role() -> None:
+    from src.dependencies import CurrentUser
+    from src.services.admin import is_admin
+
+    uid = str(uuid.uuid4())
+    token, _ = _mint_access_token(user_id=uid, now=int(time.time()), app_metadata={"role": "admin"})
+    claims = _claims_of(token)
+    assert claims["app_metadata"] == {"role": "admin"}
+    assert is_admin(CurrentUser(id=uid, role="authenticated", claims=claims)) is True
+
+
+def test_mint_access_token_without_app_metadata_is_not_admin() -> None:
+    from src.dependencies import CurrentUser
+    from src.services.admin import is_admin
+
+    uid = str(uuid.uuid4())
+    token, _ = _mint_access_token(user_id=uid, now=int(time.time()))
+    claims = _claims_of(token)
+    assert "app_metadata" not in claims
+    assert is_admin(CurrentUser(id=uid, role="authenticated", claims=claims)) is False
+
+
+def test_mint_access_token_non_admin_role_is_not_admin() -> None:
+    from src.dependencies import CurrentUser
+    from src.services.admin import is_admin
+
+    uid = str(uuid.uuid4())
+    token, _ = _mint_access_token(
+        user_id=uid, now=int(time.time()), app_metadata={"role": "member"}
+    )
+    claims = _claims_of(token)
+    assert claims["app_metadata"] == {"role": "member"}
+    assert is_admin(CurrentUser(id=uid, role="authenticated", claims=claims)) is False

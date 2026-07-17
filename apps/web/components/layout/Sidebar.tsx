@@ -21,6 +21,8 @@ export interface NavItem {
   /** i18n key (例: "nav.projects") もしくは literal label */
   readonly labelKey: string;
   readonly href: string;
+  /** current-page 判定に使う prefix (省略時は href)。sub-route でもセクションを active にする用。 */
+  readonly match?: string;
   /** lucide-react icon の slot。実 icon は呼び出し側で渡す (props 型は ReactNode) */
   readonly icon?: ReactNode;
 }
@@ -43,6 +45,8 @@ export interface SidebarProps {
   readonly items?: readonly NavItem[];
   /** 折りたたみ状態 */
   readonly collapsed?: boolean;
+  /** サイドバー上部に出すワークスペース名 (モックの「ワークスペース · <name>」) */
+  readonly workspaceName?: string;
   /** className 追加 */
   readonly className?: string;
 }
@@ -58,20 +62,43 @@ export function Sidebar({
   currentPath,
   items = DEFAULT_NAV_ITEMS,
   collapsed = false,
+  workspaceName,
   className,
 }: SidebarProps) {
   return (
     <nav
       aria-label={t('nav.home')}
       className={cn(
-        'flex h-full flex-col gap-xs border-r border-surface-variant bg-surface-variant/30 py-md transition-all duration-200',
+        'flex h-full flex-col gap-xs border-r border-surface-variant bg-surface py-md transition-all duration-200',
         collapsed ? 'w-16' : 'w-64',
         className,
       )}
     >
+      {/* ロゴ + ワークスペース名 (モック S-*-list.html の左上ヘッダ) */}
+      <div className={cn('flex flex-col gap-xs px-md pb-md', collapsed && 'items-center px-0')}>
+        <div className="flex items-center gap-sm">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary text-title-md font-black text-primary-fg"
+          >
+            A
+          </span>
+          {collapsed ? null : (
+            <span className="text-title-md font-bold text-on-surface">
+              {t('common.appName')}
+            </span>
+          )}
+        </div>
+        {!collapsed && workspaceName ? (
+          <span className="truncate pl-1 text-label-sm text-on-surface-variant">
+            ワークスペース · {workspaceName}
+          </span>
+        ) : null}
+      </div>
+
       <ul className="flex flex-col gap-xs px-sm" role="list">
         {items.map((item) => {
-          const current = isCurrent(item.href, currentPath);
+          const current = isCurrent(item.match ?? item.href, currentPath);
           return (
             <li key={item.id}>
               <Link

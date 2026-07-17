@@ -28,6 +28,7 @@ export const colors = {
   onError: '#FFFFFF',
   neutral: '#94A3B8',
   onNeutral: '#0F172A',
+  border: '#E7E5E4',
 } as const;
 
 export type ColorToken = keyof typeof colors;

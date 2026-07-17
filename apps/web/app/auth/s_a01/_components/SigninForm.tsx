@@ -45,21 +45,20 @@ export function SigninForm({
   const email = form.watch("email");
 
   return (
-    <Form
-      form={form}
-      onValid={onSubmit}
-      className="mx-auto w-full max-w-md gap-md"
-    >
-      <h1 className="text-headline-md font-bold text-on-surface">
-        {t("auth.signin")}
-      </h1>
+    <Form form={form} onValid={onSubmit} className="w-full gap-4">
       {locked ? (
-        <p role="alert" className="text-label-lg text-error">
+        <p
+          role="alert"
+          className="rounded-md border-l-[3px] border-error bg-[#FEE2E2] px-3 py-2 text-xs text-[#991B1B]"
+        >
           {t("auth.lockoutMessage")}
         </p>
       ) : null}
       {serverError ? (
-        <p role="alert" className="text-label-lg text-error">
+        <p
+          role="alert"
+          className="rounded-md border-l-[3px] border-error bg-[#FEE2E2] px-3 py-2 text-xs text-[#991B1B]"
+        >
           {serverError}
         </p>
       ) : null}
@@ -72,7 +71,7 @@ export function SigninForm({
           type="email"
           autoComplete="email"
           {...form.register("email")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
       <Field
@@ -84,28 +83,26 @@ export function SigninForm({
           type="password"
           autoComplete="current-password"
           {...form.register("password")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
-      <div className="flex items-center justify-between gap-md">
+      <button
+        type="submit"
+        disabled={locked || form.formState.isSubmitting}
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-container disabled:opacity-50"
+      >
+        {t("auth.signin")}
+      </button>
+      {onMagicLink ? (
         <button
-          type="submit"
-          disabled={locked || form.formState.isSubmitting}
-          className="inline-flex h-10 items-center rounded-md bg-primary px-md text-label-lg text-primary-fg disabled:opacity-50"
+          type="button"
+          disabled={!email || locked}
+          onClick={() => onMagicLink(email)}
+          className="inline-flex w-full items-center justify-center rounded-md px-4 py-2.5 text-sm font-semibold text-primary transition-colors hover:bg-primary-container disabled:opacity-50"
         >
-          {t("auth.signin")}
+          {t("auth.magicLink")}
         </button>
-        {onMagicLink ? (
-          <button
-            type="button"
-            disabled={!email || locked}
-            onClick={() => onMagicLink(email)}
-            className="text-label-md text-primary hover:underline disabled:opacity-50"
-          >
-            {t("auth.magicLink")}
-          </button>
-        ) : null}
-      </div>
+      ) : null}
     </Form>
   );
 }

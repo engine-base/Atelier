@@ -40,8 +40,8 @@ function SK01Inner() {
 
 export default function SK01Page() {
   return (
-    <div className="min-h-dvh bg-surface px-md py-lg">
-      <h1 className="mb-md text-headline-md font-bold text-on-surface">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-md">
+      <h1 className="text-headline-md font-bold text-on-surface">
         ナレッジエクスプローラ
       </h1>
       <QueryProvider>

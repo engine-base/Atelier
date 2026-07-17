@@ -2,7 +2,7 @@
  * S-L02 クライアントサインイン コンテナ — T-UC-21 (R-T08)
  *
  * ClientSigninForm の onSubmit を実 /client/auth/signin に配線。成功で
- * client_portal cookie を設定し /client/s_l03?project={id} へ遷移。
+ * client_portal cookie を設定し /portal?project={id} へ遷移。
  * 401(invalid_token)/410(expired) を文言化して表示。
  * signin / 遷移はテスト用に注入可能。
  */
@@ -27,7 +27,7 @@ export interface ClientSigninContainerProps {
     token: string,
     displayName?: string,
   ) => Promise<ClientSigninResult>;
-  /** サインイン成功時の遷移。既定は /client/s_l03?project={id} へ push。 */
+  /** サインイン成功時の遷移。既定は /portal?project={id} へ push。 */
   readonly onSignedIn?: (projectId: string) => void;
 }
 
@@ -57,7 +57,7 @@ export function ClientSigninContainer({
       if (onSignedIn) onSignedIn(result.project.id);
       else
         router.push(
-          `/client/s_l03?project=${encodeURIComponent(result.project.id)}`,
+          `/portal?project=${encodeURIComponent(result.project.id)}`,
         );
     } catch (error) {
       setServerError(messageFor(error));

@@ -1,7 +1,8 @@
 /**
- * S-C01 AI 社員組織図画面 — T-UC-06
+ * S-C01 AI 社員組織図画面 — T-UC-06 / F-VIS 是正
  *
  * 実 ai-employees API (GET /ai-employees) に配線。社員クリックで S-C02 編集へ遷移。
+ * モック 06_mockups/employee/S-C01-org.html に忠実な本文(見出し + 組織図 + 注記)で描画する。
  */
 
 "use client";
@@ -9,6 +10,7 @@
 import * as React from "react";
 
 import { useRouter } from "next/navigation";
+import { LayoutDashboard, ListChecks, Sparkles } from "lucide-react";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { OrgChartContainer } from "./_components/OrgChartContainer";
@@ -16,13 +18,54 @@ import { OrgChartContainer } from "./_components/OrgChartContainer";
 function SC01Inner() {
   const router = useRouter();
   return (
-    <div className="mx-auto w-full max-w-5xl px-md py-lg">
-      <h1 className="mb-lg text-headline-md font-bold text-on-surface">
-        AI 社員組織図
-      </h1>
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+            AI Organization
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-on-surface">
+            AI 社員組織図
+          </h1>
+          <p className="mt-2 text-sm text-on-surface-variant">
+            10 名のデフォルト編成 · COO + 5 部署 + 横断スタッフ
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-md bg-surface-variant p-1">
+          <button
+            type="button"
+            aria-pressed="true"
+            className="inline-flex items-center gap-1.5 rounded-[6px] bg-white px-3 py-1.5 text-xs font-semibold text-on-surface shadow-sm"
+          >
+            <LayoutDashboard size={12} aria-hidden="true" />
+            組織図
+          </button>
+          {/* リスト表示は未実装のため非活性(組織図が唯一の実ビュー)。 */}
+          <button
+            type="button"
+            aria-pressed="false"
+            disabled
+            title="リスト表示は準備中です"
+            className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant opacity-50"
+          >
+            <ListChecks size={12} aria-hidden="true" />
+            リスト
+          </button>
+        </div>
+      </div>
+
       <OrgChartContainer
-        onSelect={(id) => router.push(`/employees/s_c02?employee=${id}`)}
+        onSelect={(id) => router.push(`/employees/detail?employee=${id}`)}
       />
+
+      <div className="mt-10 flex items-start gap-3 rounded-md border-l-[3px] border-primary bg-primary-container p-3 text-sm text-primary-container-fg">
+        <Sparkles size={18} aria-hidden="true" className="mt-0.5 shrink-0" />
+        <p>
+          AI 社員 10 名は <strong className="font-bold">運営側で全て整えられた構成</strong> です。追加・削除はできません。各社員の{" "}
+          <strong className="font-bold">名前・アイコン・口調プリセット・カスタム文章</strong>{" "}
+          のみユーザーが編集できます。
+        </p>
+      </div>
     </div>
   );
 }

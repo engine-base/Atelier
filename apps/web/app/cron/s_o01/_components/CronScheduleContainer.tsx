@@ -80,6 +80,27 @@ export function CronScheduleContainer({
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.delete("/cron-schedules/{schedule_id}", {
+        params: { path: { schedule_id: id } },
+      }),
+    onMutate: async (id) => {
+      const key = KEY(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ApiCron[]>(key);
+      queryClient.setQueryData<ApiCron[]>(key, (old) =>
+        (old ?? []).filter((j) => j.id !== id),
+      );
+      return { prev };
+    },
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(KEY(projectId), ctx.prev);
+    },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
+  });
+
   if (isForbidden(list.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -121,6 +142,7 @@ export function CronScheduleContainer({
     <CronSchedule
       jobs={jobs}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
+      onDelete={(id) => deleteMut.mutate(id)}
     />
   );
 }

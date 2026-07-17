@@ -12,18 +12,23 @@ import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { CronScheduleContainer } from "./_components/CronScheduleContainer";
+import { ScheduleRoleCard } from "./_components/ScheduleRoleCard";
+import { ScheduleBuilderContainer } from "./_components/ScheduleBuilderContainer";
 
 function SO01Inner() {
   const params = useSearchParams();
   const projectId = params.get("project");
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-md py-lg">
-      <h1 className="mb-md text-headline-md font-bold text-on-surface">
-        自動スケジュール
-      </h1>
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
+      <ScheduleRoleCard />
       {projectId ? (
-        <CronScheduleContainer projectId={projectId} />
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_380px]">
+          <div>
+            <CronScheduleContainer projectId={projectId} />
+          </div>
+          <ScheduleBuilderContainer projectId={projectId} />
+        </div>
       ) : (
         <p className="text-body-md text-on-surface-variant">
           プロジェクトを選択するとスケジュールを表示します。

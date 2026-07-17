@@ -102,7 +102,7 @@ export function SkillForm({
           type="text"
           disabled={isEdit}
           {...form.register("name")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm font-mono text-body-md text-on-surface disabled:opacity-60"
+          className="h-10 rounded-md border border-border bg-surface px-sm font-mono text-body-md text-on-surface disabled:opacity-60"
         />
       </Field>
       <Field
@@ -120,14 +120,14 @@ export function SkillForm({
           placeholder="1.0.0"
           disabled={isEdit}
           {...form.register("version")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface disabled:opacity-60"
+          className="h-10 rounded-md border border-border bg-surface px-sm text-body-md text-on-surface disabled:opacity-60"
         />
       </Field>
       <Field label="説明" error={form.formState.errors.description?.message}>
         <input
           type="text"
           {...form.register("description")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="h-10 rounded-md border border-border bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>
       <Field
@@ -138,7 +138,7 @@ export function SkillForm({
           type="text"
           placeholder="lead, member"
           {...form.register("allowed_employee_roles")}
-          className="h-10 rounded-md border border-surface-variant bg-surface px-sm text-body-md text-on-surface"
+          className="h-10 rounded-md border border-border bg-surface px-sm text-body-md text-on-surface"
         />
       </Field>
       <Field
@@ -149,7 +149,7 @@ export function SkillForm({
         <textarea
           rows={8}
           {...form.register("content_md")}
-          className="rounded-md border border-surface-variant bg-surface px-sm py-sm font-mono text-body-md text-on-surface"
+          className="rounded-md border border-border bg-surface px-sm py-sm font-mono text-body-md text-on-surface"
         />
       </Field>
       <label className="flex items-center gap-sm text-label-lg text-on-surface">

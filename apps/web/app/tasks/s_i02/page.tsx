@@ -18,7 +18,7 @@ function SI02Inner() {
   const taskId = params.get("task");
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {taskId ? (
         <TaskDetailContainer taskId={taskId} />
       ) : (

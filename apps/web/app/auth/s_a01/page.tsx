@@ -30,7 +30,7 @@ function SA01Inner() {
   const [serverError, setServerError] = useState<string | null>(null);
   const router = useRouter();
   const params = useSearchParams();
-  const redirectTo = params.get('redirect') || '/projects/s_b01';
+  const redirectTo = params.get('redirect') || '/projects';
 
   const onSignin = async (v: SigninValues): Promise<void> => {
     setServerError(null);
@@ -54,33 +54,68 @@ function SA01Inner() {
   };
 
   return (
-    <div className="flex min-h-dvh w-full items-center justify-center bg-surface px-md py-lg">
-      <div className="w-full max-w-md rounded-lg border border-surface-variant bg-surface p-lg shadow-[var(--shadow-e2)]">
-        <div role="tablist" aria-label={t('auth.signin')} className="mb-md flex border-b border-surface-variant">
-          {(['signin', 'signup'] as const).map((m) => (
-            <button
-              key={m}
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={cn(
-                'flex-1 py-xs text-label-lg',
-                mode === m
-                  ? 'border-b-2 border-primary font-semibold text-primary'
-                  : 'text-on-surface-variant',
-              )}
-            >
-              {t(`auth.${m}`)}
-            </button>
-          ))}
+    <main className="flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-surface to-surface-variant px-md py-xl">
+      <div className="w-full max-w-[440px]">
+        {/* ブランドロゴ + マーク */}
+        <div className="mb-lg flex items-center justify-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-[17px] font-bold text-on-primary"
+          >
+            A
+          </span>
+          <span className="text-[22px] font-extrabold tracking-tight text-on-surface">
+            Atelier
+          </span>
         </div>
-        {mode === 'signin' ? (
-          <SigninForm onSubmit={onSignin} serverError={serverError} />
-        ) : (
-          <SignupForm onSubmit={onSignup} serverError={serverError} />
-        )}
+
+        {/* 中央カード */}
+        <div className="rounded-lg border border-border bg-white px-8 py-9 shadow-sm">
+          <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-on-surface">
+            Atelier へようこそ
+          </h1>
+          <p className="mb-lg text-sm text-on-surface-variant">
+            AI 社員と一緒に、複数案件を並行運用する作業環境へ。
+          </p>
+
+          {/* サインイン ⇄ サインアップ 切替タブ (セグメント) */}
+          <div
+            role="tablist"
+            aria-label={t('auth.signin')}
+            className="mb-lg flex gap-1 rounded-md bg-surface-variant p-1"
+          >
+            {(['signin', 'signup'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                className={cn(
+                  'flex-1 rounded-md py-2 text-center text-[13px] font-semibold transition-colors',
+                  mode === m
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface',
+                )}
+              >
+                {t(`auth.${m}`)}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'signin' ? (
+            <SigninForm onSubmit={onSignin} serverError={serverError} />
+          ) : (
+            <SignupForm onSubmit={onSignup} serverError={serverError} />
+          )}
+        </div>
+
+        {/* フッターノート */}
+        <p className="mt-lg text-center text-xs text-on-surface-variant">
+          アカウント作成で特商法表記も同意したとみなされます
+        </p>
       </div>
-    </div>
+    </main>
   );
 }
 

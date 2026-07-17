@@ -24,7 +24,7 @@ function SA03Inner() {
   const workspaceId = params.get("workspace") ?? readCurrentWorkspace();
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-md py-lg">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {workspaceId ? (
         <WorkspaceSettingsContainer workspaceId={workspaceId} />
       ) : (

@@ -59,8 +59,14 @@ export interface EmployeeIconProps {
   readonly className?: string;
 }
 
+/** 既定ペルソナ外の id (実 API の任意の name 等) でも落ちないための安全なフォールバック。 */
+const FALLBACK_BG = 'bg-primary-container text-primary-container-fg';
+
 export function EmployeeIcon({ employeeId, size = 'md', src, className }: EmployeeIconProps) {
-  const label = EMPLOYEE_LABEL[employeeId];
+  // 実データの社員 name は固定ペルソナキーとは限らない。未知キーでも
+  // Avatar に undefined を渡して落とさないよう、id 文字列自体をラベルにフォールバック。
+  const label = EMPLOYEE_LABEL[employeeId] ?? (employeeId ? String(employeeId) : 'AI');
+  const bg = EMPLOYEE_BG[employeeId] ?? FALLBACK_BG;
   if (src) {
     return (
       <Avatar
@@ -77,7 +83,7 @@ export function EmployeeIcon({ employeeId, size = 'md', src, className }: Employ
       name={label}
       size={size}
       alt={`AI 社員 ${label}`}
-      className={cn(EMPLOYEE_BG[employeeId], className)}
+      className={cn(bg, className)}
     />
   );
 }

@@ -28,8 +28,8 @@ function SK02Inner() {
   }, []);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-md py-lg">
-      <h1 className="mb-md text-headline-md font-bold text-on-surface">
+    <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
+      <h1 className="mb-md text-3xl font-bold tracking-tight text-on-surface">
         ナレッジ昇格レビュー
       </h1>
       {accountId && workspaceId ? (
