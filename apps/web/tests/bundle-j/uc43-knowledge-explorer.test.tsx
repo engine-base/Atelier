@@ -169,6 +169,40 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     expect(init.body.title).toBe("新ノード");
   });
 
+  it("edits the selected node via PATCH /knowledge/{id}", async () => {
+    // 子取得(parent_id)では空を返す。ルートを子として返すと自己再帰で無限展開する。
+    const get = vi.fn(async (_path: string, init: GetInit) =>
+      init.params.query.parent_id
+        ? { data: [] }
+        : { data: [knode({ id: "r1", title: "旧タイトル" })] },
+    );
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <KnowledgeExplorer
+        client={fakeClient({ get, patch })}
+        workspaceId="w1"
+      />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "旧タイトル" }));
+    // 選択で中央に本文が出る → 編集へ。
+    fireEvent.click(await screen.findByRole("button", { name: "編集" }));
+    fireEvent.change(screen.getByLabelText("タイトル"), {
+      target: { value: "新タイトル" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [path, init] = patch.mock.calls[0]! as unknown as [
+      string,
+      {
+        params: { path: { knowledge_id: string } };
+        body: { title: string; content_md: string };
+      },
+    ];
+    expect(path).toBe("/knowledge/{knowledge_id}");
+    expect(init.params.path.knowledge_id).toBe("r1");
+    expect(init.body.title).toBe("新タイトル");
+  });
+
   it("toggles left and right panels independently", async () => {
     const get = vi.fn(async () => ({
       data: [knode({ id: "r1", title: "X" })],

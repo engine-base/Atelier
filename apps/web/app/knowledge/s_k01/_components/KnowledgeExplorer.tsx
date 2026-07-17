@@ -200,6 +200,33 @@ export function KnowledgeExplorer({
     },
   });
 
+  // 本文編集 (title / content_md) → PATCH /knowledge/{id}。以前は「編集」ボタンが非機能だった。
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+
+  const editMut = useMutation({
+    mutationFn: (v: { id: string; title: string; content_md: string }) =>
+      client.patch("/knowledge/{knowledge_id}", {
+        params: { path: { knowledge_id: v.id } },
+        body: { title: v.title, content_md: v.content_md },
+      }),
+    onSuccess: (_res, v) => {
+      setSelected((prev) =>
+        prev ? { ...prev, title: v.title, content_md: v.content_md } : prev,
+      );
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: rootKey });
+    },
+  });
+
+  const startEdit = (): void => {
+    if (!selected) return;
+    setEditTitle(selected.title);
+    setEditContent(selected.content_md);
+    setEditing(true);
+  };
+
   if (isForbidden(rootQuery.error)) return <KbDenied />;
 
   const roots = rootQuery.data ?? [];
@@ -375,7 +402,12 @@ export function KnowledgeExplorer({
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               Obsidian で開く
             </KbButton>
-            <KbButton variant="outlined" size="sm">
+            <KbButton
+              variant="outlined"
+              size="sm"
+              onClick={startEdit}
+              disabled={!selected || editing}
+            >
               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
               編集
             </KbButton>
@@ -398,7 +430,59 @@ export function KnowledgeExplorer({
         </div>
 
         <article className="flex-1 overflow-y-auto px-6 py-8 lg:px-12">
-          {selected ? (
+          {selected && editing ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (editTitle.trim()) {
+                  editMut.mutate({
+                    id: selected.id,
+                    title: editTitle.trim(),
+                    content_md: editContent,
+                  });
+                }
+              }}
+              className="flex flex-col gap-4"
+            >
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
+                  タイトル
+                </span>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="h-11 rounded-md border border-border bg-surface px-3 text-[18px] font-bold text-on-surface focus:border-primary focus:outline-none"
+                />
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-on-surface-variant">
+                  本文
+                </span>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={16}
+                  className="rounded-md border border-border bg-surface px-3 py-2 text-[14px] leading-[1.85] text-on-surface focus:border-primary focus:outline-none"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="inline-flex h-10 items-center rounded-md px-4 text-sm font-semibold text-on-surface hover:bg-surface-variant"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editTitle.trim() || editMut.isPending}
+                  className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+                >
+                  {editMut.isPending ? "保存中…" : "保存"}
+                </button>
+              </div>
+            </form>
+          ) : selected ? (
             <>
               <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
                 {selected.category}
