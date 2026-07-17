@@ -187,6 +187,19 @@ export function KnowledgeExplorer({
     },
   });
 
+  // 共通ナレッジへ昇格 (user/その他 scope → workspace common)。成功でツリー再取得。
+  const promoteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.post("/knowledge/{knowledge_id}/promote", {
+        params: { path: { knowledge_id: id } },
+        body: { target_workspace_id: accountId },
+      }),
+    onSuccess: () => {
+      setSelected(null);
+      void queryClient.invalidateQueries({ queryKey: rootKey });
+    },
+  });
+
   if (isForbidden(rootQuery.error)) return <KbDenied />;
 
   const roots = rootQuery.data ?? [];
@@ -439,7 +452,11 @@ export function KnowledgeExplorer({
           rightCollapsed && "hidden",
         )}
       >
-        <NodeDetail node={selected} />
+        <NodeDetail
+          node={selected}
+          onPromote={(id) => promoteMut.mutate(id)}
+          promoting={promoteMut.isPending}
+        />
       </aside>
 
       <CreateKnowledgeDialog

@@ -25,6 +25,8 @@ import {
   PromotionReview,
   type PromotionItem,
 } from "../../app/knowledge/s_k02/_components/PromotionReview";
+import { NodeDetail } from "../../app/knowledge/s_k01/_components/NodeDetail";
+import { type KnowledgeNode } from "../../app/knowledge/s_k01/_components/types";
 import {
   CronSchedule,
   type CronJob,
@@ -183,6 +185,33 @@ describe("CronSchedule (T-UC-25)", () => {
     render(<CronSchedule jobs={jobs} onToggle={() => undefined} />);
     expect(
       screen.queryByRole("button", { name: /job-A を削除/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("NodeDetail 昇格 (T-UC-19)", () => {
+  const node: KnowledgeNode = {
+    id: "k1",
+    account_id: "w1",
+    account_type: "workspace",
+    scope: "project",
+    category: "spec",
+    title: "認証仕様",
+    content_md: "本文",
+    tags: [],
+  };
+
+  it("invokes onPromote with the node id", () => {
+    const onPromote = vi.fn();
+    render(<NodeDetail node={node} onPromote={onPromote} />);
+    fireEvent.click(screen.getByRole("button", { name: "共通ナレッジに昇格" }));
+    expect(onPromote).toHaveBeenCalledWith("k1");
+  });
+
+  it("hides the promote action when onPromote is absent", () => {
+    render(<NodeDetail node={node} />);
+    expect(
+      screen.queryByRole("button", { name: "共通ナレッジに昇格" }),
     ).not.toBeInTheDocument();
   });
 });

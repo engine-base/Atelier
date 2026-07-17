@@ -8,7 +8,7 @@
 "use client";
 
 import * as React from "react";
-import { ExternalLink, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 import { KbButton } from "./ui";
 import type { KnowledgeNode, KnowledgeScope } from "./types";
@@ -28,6 +28,9 @@ function confidenceLabel(score: number): string {
 
 export interface NodeDetailProps {
   readonly node: KnowledgeNode | null;
+  /** 共通ナレッジへ昇格 (POST /knowledge/{id}/promote)。未指定ならボタンを出さない。 */
+  readonly onPromote?: (id: string) => void;
+  readonly promoting?: boolean;
 }
 
 /** メタ・タイトル (uppercase の小見出し)。 */
@@ -39,7 +42,7 @@ function MetaTitle({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-export function NodeDetail({ node }: NodeDetailProps) {
+export function NodeDetail({ node, onPromote, promoting }: NodeDetailProps) {
   if (!node) {
     return (
       <p className="text-body-md text-on-surface-variant">
@@ -124,19 +127,23 @@ export function NodeDetail({ node }: NodeDetailProps) {
       ) : null}
 
       {/* アクション */}
-      <section>
-        <MetaTitle>アクション</MetaTitle>
-        <div className="flex flex-col gap-2">
-          <KbButton variant="outlined" size="sm" className="w-full">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            共通ナレッジに昇格
-          </KbButton>
-          <KbButton variant="ghost" size="sm" className="w-full">
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            Obsidian Vault に書出
-          </KbButton>
-        </div>
-      </section>
+      {onPromote ? (
+        <section>
+          <MetaTitle>アクション</MetaTitle>
+          <div className="flex flex-col gap-2">
+            <KbButton
+              variant="outlined"
+              size="sm"
+              className="w-full"
+              onClick={() => onPromote(node.id)}
+              disabled={promoting}
+            >
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              {promoting ? "昇格中…" : "共通ナレッジに昇格"}
+            </KbButton>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
