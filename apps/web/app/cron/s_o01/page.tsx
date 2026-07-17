@@ -13,7 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { QueryProvider } from "../../../providers/query-provider";
 import { CronScheduleContainer } from "./_components/CronScheduleContainer";
 import { ScheduleRoleCard } from "./_components/ScheduleRoleCard";
-import { ScheduleBuilder } from "./_components/ScheduleBuilder";
+import { ScheduleBuilderContainer } from "./_components/ScheduleBuilderContainer";
 
 function SO01Inner() {
   const params = useSearchParams();
@@ -27,7 +27,7 @@ function SO01Inner() {
           <div>
             <CronScheduleContainer projectId={projectId} />
           </div>
-          <ScheduleBuilder />
+          <ScheduleBuilderContainer projectId={projectId} />
         </div>
       ) : (
         <p className="text-body-md text-on-surface-variant">
