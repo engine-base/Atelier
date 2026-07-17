@@ -17,12 +17,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SalesDocDraftContainer } from "../../app/sales/s_n01/_components/SalesDocDraftContainer";
 
-function fakeClient(post: unknown): ApiClient {
+function fakeClient(post: unknown, patch?: unknown): ApiClient {
   const noop = vi.fn(async () => ({ data: {} }));
   return {
     get: noop,
     post,
-    patch: noop,
+    patch: patch ?? noop,
     delete: noop,
     put: noop,
     request: noop,
@@ -61,5 +61,39 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
     expect(draft).toHaveTextContent("基幹システム刷新");
     expect(draft).toHaveTextContent("保存しました");
     expect(draft).toHaveTextContent("doc-1");
+  });
+
+  it("edits the generated draft via PATCH /sales-docs/{id}", async () => {
+    const post = vi.fn(async () => ({ data: { id: "doc-1" } }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    render(
+      <SalesDocDraftContainer projectId="p1" client={fakeClient(post, patch)} />,
+    );
+    fireEvent.change(screen.getByLabelText(/顧客名/), {
+      target: { value: "顧客X" },
+    });
+    fireEvent.change(screen.getByLabelText(/案件/), {
+      target: { value: "刷新" },
+    });
+    fireEvent.change(screen.getByLabelText(/商談概要/), {
+      target: { value: "全面刷新を提案する商談メモ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "ドラフト生成" }));
+    await screen.findByLabelText("生成ドラフト");
+
+    // 編集 → 本文を書き換えて保存 → PATCH。
+    fireEvent.click(screen.getByRole("button", { name: "編集" }));
+    fireEvent.change(screen.getByLabelText("ドラフト本文"), {
+      target: { value: "手直しした提案本文" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [path, init] = patch.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { doc_id: string } }; body: { summary: string } },
+    ];
+    expect(path).toBe("/sales-docs/{doc_id}");
+    expect(init.params.path.doc_id).toBe("doc-1");
+    expect(init.body.summary).toBe("手直しした提案本文");
   });
 });

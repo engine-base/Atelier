@@ -20,6 +20,7 @@ import { z } from "zod";
 import { Field } from "../../../../components/forms/Field";
 import { Form, useAtelierForm } from "../../../../components/forms/Form";
 import { Loading } from "../../../../components/Loading";
+import { cn } from "../../../../lib/cn";
 
 const Schema = z.object({
   customer: z.string().min(1, "入力必須"),
@@ -30,6 +31,8 @@ export type SalesDraftValues = z.infer<typeof Schema>;
 
 export interface SalesDocDraftProps {
   readonly onDraft: (v: SalesDraftValues) => Promise<string>;
+  /** 生成済みドラフト本文の編集を保存 (PATCH /sales-docs/{id})。未指定なら編集不可。 */
+  readonly onEdit?: (content: string) => Promise<void>;
 }
 
 const INPUT_CLASS =
@@ -144,8 +147,33 @@ function SendHistoryCard() {
   );
 }
 
-/** 生成済みドキュメントのプレビュー (toolbar + アクション + 本文)。 */
-function DocPreview({ draft }: { readonly draft: string }) {
+/** 生成済みドキュメントのプレビュー (toolbar + アクション + 本文)。
+ *  onEdit 指定時は「編集」ボタンで本文を編集して PATCH /sales-docs/{id} に保存できる。 */
+function DocPreview({
+  draft,
+  onEdit,
+}: {
+  readonly draft: string;
+  readonly onEdit?: (content: string) => Promise<void> | void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(draft);
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (): void => {
+    setContent(draft);
+    setEditing(true);
+  };
+  const save = async (): Promise<void> => {
+    setSaving(true);
+    try {
+      await onEdit?.(content);
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-variant px-[18px] py-3">
@@ -156,15 +184,33 @@ function DocPreview({ draft }: { readonly draft: string }) {
           AI 補助ドラフト · 提案ドキュメントとして保存済み
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {TOOLBAR_ACTIONS.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              className={toolbarBtnClass(action.variant)}
-            >
-              {action.label}
-            </button>
-          ))}
+          {TOOLBAR_ACTIONS.map((action) => {
+            // 「編集」は onEdit 配線時のみ機能。他(修正依頼/PDF/送信)は API 無し
+            // のため onEdit 未配線時と同じく非活性の視覚クロームとして残す。
+            if (action.label === "編集") {
+              if (!onEdit) return null;
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={editing ? () => setEditing(false) : startEdit}
+                  className={toolbarBtnClass(action.variant)}
+                >
+                  {editing ? "編集をやめる" : "編集"}
+                </button>
+              );
+            }
+            return (
+              <button
+                key={action.label}
+                type="button"
+                disabled
+                className={cn(toolbarBtnClass(action.variant), "opacity-50")}
+              >
+                {action.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -175,9 +221,41 @@ function DocPreview({ draft }: { readonly draft: string }) {
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
           Proposal / 提案ドラフト
         </div>
-        <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.8] text-on-surface">
-          {draft}
-        </pre>
+        {editing ? (
+          <div className="flex flex-col gap-3">
+            <label className="sr-only" htmlFor="sales-draft-edit">
+              ドラフト本文
+            </label>
+            <textarea
+              id="sales-draft-edit"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={18}
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 font-sans text-[14px] leading-[1.8] text-on-surface focus:border-primary focus:outline-none"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="inline-flex h-9 items-center rounded-md px-3 text-[13px] font-semibold text-on-surface hover:bg-surface-variant"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving}
+                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+              >
+                {saving ? "保存中…" : "保存"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.8] text-on-surface">
+            {draft}
+          </pre>
+        )}
         <p className="mt-6 text-[13px] text-on-surface-variant">
           ※ 本ドラフトは AI 補助で作成されています。最終版は人間レビュー後に確定されます。
         </p>
@@ -186,13 +264,20 @@ function DocPreview({ draft }: { readonly draft: string }) {
   );
 }
 
-export function SalesDocDraft({ onDraft }: SalesDocDraftProps) {
+export function SalesDocDraft({ onDraft, onEdit }: SalesDocDraftProps) {
   const form = useAtelierForm({
     schema: Schema,
     defaultValues: { customer: "", opportunity: "", summary: "" },
   });
   const [draft, setDraft] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const handleEditSave = onEdit
+    ? async (content: string): Promise<void> => {
+        await onEdit(content);
+        setDraft(content); // 保存成功で表示も更新
+      }
+    : undefined;
 
   return (
     <section className="flex flex-col gap-7">
@@ -267,7 +352,9 @@ export function SalesDocDraft({ onDraft }: SalesDocDraftProps) {
           </div>
 
           {loading ? <Loading /> : null}
-          {draft && !loading ? <DocPreview draft={draft} /> : null}
+          {draft && !loading ? (
+            <DocPreview draft={draft} onEdit={handleEditSave} />
+          ) : null}
         </div>
 
         <aside className="flex flex-col gap-4">
