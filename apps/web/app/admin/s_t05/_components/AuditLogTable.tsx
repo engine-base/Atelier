@@ -131,29 +131,29 @@ function LogRow({ entry }: { readonly entry: AuditEntry }) {
           {entry.ip_address ?? "—"}
         </span>
       </div>
-      <div>
-        <button
-          type="button"
-          aria-label="操作メニュー"
-          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-variant"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
-            <circle cx="5" cy="12" r="1.6" />
-            <circle cx="12" cy="12" r="1.6" />
-            <circle cx="19" cy="12" r="1.6" />
-          </svg>
-        </button>
-      </div>
+      {/* 監査ログは読み取り専用のため行アクション(⋯)は持たない。 */}
+      <div />
     </div>
   );
 }
 
 export function AuditLogTable({ entries }: AuditLogTableProps) {
   const [query, setQuery] = useState("");
-  const filtered = entries.filter(
-    (e) =>
-      query === "" || e.action.includes(query) || e.actor_id.includes(query),
+  // データは取得済みのため actor / action 絞り込みはクライアント側で実行(API不要)。
+  const [actorType, setActorType] = useState<"all" | AuditEntry["actor_type"]>(
+    "all",
   );
+  const [actionType, setActionType] = useState("all");
+  const [dateFilter, setDateFilter] = useState(""); // YYYY-MM-DD
+  const filtered = entries.filter((e) => {
+    const matchesQuery =
+      query === "" || e.action.includes(query) || e.actor_id.includes(query);
+    const matchesActor = actorType === "all" || e.actor_type === actorType;
+    const matchesAction = actionType === "all" || e.action.includes(actionType);
+    // created_at は ISO のため先頭10文字(YYYY-MM-DD)で日付一致を見る。
+    const matchesDate = dateFilter === "" || e.created_at.slice(0, 10) === dateFilter;
+    return matchesQuery && matchesActor && matchesAction && matchesDate;
+  });
 
   const aiCount = entries.filter((e) => e.actor_type === "ai").length;
   const userCount = entries.filter((e) => e.actor_type === "user").length;
@@ -200,7 +200,10 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         </label>
         <select
           aria-label="アクターで絞り込み"
-          defaultValue="all"
+          value={actorType}
+          onChange={(e) =>
+            setActorType(e.target.value as "all" | AuditEntry["actor_type"])
+          }
           className="rounded-md border border-border bg-white px-3 py-1.5 text-[12px] text-on-surface"
         >
           <option value="all">全アクター</option>
@@ -210,7 +213,8 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         </select>
         <select
           aria-label="アクションで絞り込み"
-          defaultValue="all"
+          value={actionType}
+          onChange={(e) => setActionType(e.target.value)}
           className="rounded-md border border-border bg-white px-3 py-1.5 text-[12px] text-on-surface"
         >
           <option value="all">全アクション</option>
@@ -231,26 +235,26 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         <input
           type="date"
           aria-label="日付で絞り込み"
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
           className="rounded-md border border-border bg-white px-2.5 py-1.5 text-[12px] text-on-surface"
         />
-        <button
-          type="button"
-          aria-label="フィルタ"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-on-surface transition-colors hover:bg-surface-variant"
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {dateFilter || actorType !== "all" || actionType !== "all" || query ? (
+          <button
+            type="button"
+            aria-label="絞り込みをクリア"
+            title="絞り込みをクリア"
+            onClick={() => {
+              setQuery("");
+              setActorType("all");
+              setActionType("all");
+              setDateFilter("");
+            }}
+            className="inline-flex h-8 items-center rounded-md px-2 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
           >
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-        </button>
+            クリア
+          </button>
+        ) : null}
       </div>
 
       {/* ログ表 */}
@@ -276,9 +280,9 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
 
         <div className="border-t border-border px-[18px] py-3 text-center text-[13px] text-on-surface-variant">
           <span className="tabular-nums">
-            {entries.length.toLocaleString()} 件中 {filtered.length.toLocaleString()} 件表示 ·{" "}
+            {entries.length.toLocaleString()} 件中{" "}
+            {filtered.length.toLocaleString()} 件表示
           </span>
-          <span className="font-semibold text-primary">次のページ →</span>
         </div>
       </div>
     </section>

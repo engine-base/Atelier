@@ -11,7 +11,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -76,6 +76,33 @@ describe("S-T05 AuditLogContainer (T-UC-34)", () => {
     expect(
       await screen.findByText("監査ログがありません。"),
     ).toBeInTheDocument();
+  });
+
+  it("filters rows client-side by actor type", async () => {
+    const get = vi.fn(async () => ({
+      data: [
+        LOGS[0],
+        {
+          id: "a2",
+          action: "task.create",
+          actor_type: "ai",
+          actor_id: "ai:tony",
+          target_type: "task",
+          target_id: "t1",
+          ip_address: null,
+          created_at: "2026-05-30T06:00:00Z",
+        },
+      ],
+    }));
+    renderWithQuery(<AuditLogContainer client={fakeClient(get)} />);
+    // 両方表示 → アクター=AI で user 行が消える。
+    expect(await screen.findByText("task.create")).toBeInTheDocument();
+    expect(screen.getByText("auth.signin")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("アクターで絞り込み"), {
+      target: { value: "ai" },
+    });
+    expect(screen.getByText("task.create")).toBeInTheDocument();
+    expect(screen.queryByText("auth.signin")).not.toBeInTheDocument();
   });
 
   it("shows a forbidden message on 403 (admin only)", async () => {
