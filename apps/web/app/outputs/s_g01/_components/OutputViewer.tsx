@@ -95,18 +95,23 @@ export function OutputViewer({
                 <span className="inline-flex items-center rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
                   最新版
                 </span>
+                {/* 成果物は GET のみ(編集APIなし)。機能を偽らないよう編集は非活性。 */}
                 <button
                   type="button"
-                  className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+                  disabled
+                  title="この成果物は閲覧専用です"
+                  className="cursor-not-allowed rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface opacity-50"
                 >
                   編集
                 </button>
-                <button
-                  type="button"
+                <a
+                  href={contentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="rounded-md border border-primary px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary-container"
                 >
                   原本
-                </button>
+                </a>
               </div>
             </div>
 

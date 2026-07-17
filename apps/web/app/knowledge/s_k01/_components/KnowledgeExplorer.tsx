@@ -394,11 +394,17 @@ export function KnowledgeExplorer({
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
-            <KbButton variant="ghost" size="sm">
+            {/* 複製 / Obsidian 連携は対応API無し。機能を偽らないよう非活性。 */}
+            <KbButton variant="ghost" size="sm" disabled title="準備中です">
               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
               複製
             </KbButton>
-            <KbButton variant="ghost" size="sm">
+            <KbButton
+              variant="ghost"
+              size="sm"
+              disabled
+              title="Obsidian 連携は準備中です"
+            >
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               Obsidian で開く
             </KbButton>

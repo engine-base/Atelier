@@ -168,17 +168,22 @@ export function EmployeeEditor({
                 <span className="text-label-lg font-semibold text-on-surface">
                   アイコン
                 </span>
+                {/* 画像アップロードAPI・アイコンピッカーが未提供のため、機能を偽らず非活性。 */}
                 <div className="flex items-center gap-3">
                   <EmployeeIcon employeeId={employeeId} size="lg" />
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center rounded-md border border-primary px-4 text-sm font-semibold text-primary hover:bg-primary-container"
+                    disabled
+                    title="アイコン画像のアップロードは準備中です"
+                    className="inline-flex h-9 cursor-not-allowed items-center rounded-md border border-border px-4 text-sm font-semibold text-on-surface-variant opacity-50"
                   >
                     画像アップロード
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center rounded-md px-4 text-sm font-semibold text-on-surface hover:bg-surface-variant"
+                    disabled
+                    title="アイコンの選択は準備中です"
+                    className="inline-flex h-9 cursor-not-allowed items-center rounded-md px-4 text-sm font-semibold text-on-surface-variant opacity-50"
                   >
                     Lucide から選ぶ
                   </button>
