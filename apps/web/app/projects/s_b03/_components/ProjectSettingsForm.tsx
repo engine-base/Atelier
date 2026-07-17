@@ -37,6 +37,9 @@ export interface ProjectSettingsFormProps {
   readonly onSubmit: (v: ProjectSettingsValues) => Promise<void> | void;
   readonly onDelete?: () => void;
   readonly serverError?: string | null;
+  /** AI 学習「利用を許可」トグルの現在値(既定 false=学習しない)と即時変更ハンドラ。 */
+  readonly aiLearningOptIn?: boolean;
+  readonly onAiLearningChange?: (optIn: boolean) => void;
 }
 
 const FIELD_CLASS =
@@ -55,7 +58,7 @@ const EXPORT_STEPS = [
   "機能分解",
 ] as const;
 
-/** 表示専用トグル (モックの非対話 `.toggle` を忠実再現)。 */
+/** 表示専用トグル (対応 API が無い項目の状態表示)。 */
 function ToggleVisual({ on }: { readonly on: boolean }) {
   return (
     <span
@@ -75,11 +78,39 @@ function ToggleVisual({ on }: { readonly on: boolean }) {
   );
 }
 
+/** 実操作トグル: checkbox を隠し、track/knob を peer-checked で駆動。onChange で即時適用。
+ *  track と knob は checkbox の直後の兄弟にして peer-checked が両方に効くようにする。 */
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  readonly checked: boolean;
+  readonly onChange: (next: boolean) => void;
+  readonly label: string;
+}) {
+  return (
+    <label className="relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer items-center">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer sr-only"
+      />
+      <span className="absolute inset-0 rounded-full bg-surface-variant transition-colors peer-checked:bg-primary peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary" />
+      <span className="absolute left-0.5 top-0.5 h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-all peer-checked:left-5" />
+    </label>
+  );
+}
+
 export function ProjectSettingsForm({
   defaultValues,
   onSubmit,
   onDelete,
   serverError,
+  aiLearningOptIn = false,
+  onAiLearningChange,
 }: ProjectSettingsFormProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
   return (
@@ -166,7 +197,11 @@ export function ProjectSettingsForm({
               ONにすると、改善のためのモデル学習に匿名データが提供されます。
             </div>
           </div>
-          <ToggleVisual on={false} />
+          <ToggleSwitch
+            label="AI 学習への利用を許可"
+            checked={aiLearningOptIn}
+            onChange={(next) => onAiLearningChange?.(next)}
+          />
         </div>
         <div className="mt-2 flex items-center justify-between border-t border-border py-3">
           <div>

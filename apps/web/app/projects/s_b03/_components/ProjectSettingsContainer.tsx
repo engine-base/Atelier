@@ -62,6 +62,26 @@ export function ProjectSettingsContainer({
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
+  // AI 学習「利用を許可」= opt-in。取得 API が無いため既定 false(学習しない/絶対ルール#6)。
+  const [aiLearningOptIn, setAiLearningOptIn] = useState(false);
+
+  const aiLearningMut = useMutation({
+    mutationFn: (optIn: boolean) =>
+      client.post("/projects/{project_id}/ai-learning", {
+        params: { path: { project_id: projectId } },
+        body: { opt_out: !optIn },
+      }),
+    onMutate: (optIn: boolean) => {
+      const prev = aiLearningOptIn;
+      setAiLearningOptIn(optIn); // 楽観更新
+      return { prev };
+    },
+    onError: (_e, _optIn, ctx) => {
+      if (ctx) setAiLearningOptIn(ctx.prev); // 失敗時ロールバック
+      setServerError("AI 学習設定の変更に失敗しました。");
+    },
+    onSuccess: () => setServerError(null),
+  });
 
   const detail = useQuery({
     queryKey: ["project", "settings", projectId],
@@ -135,6 +155,8 @@ export function ProjectSettingsContainer({
       serverError={serverError}
       onSubmit={(v) => updateMut.mutate(v)}
       onDelete={() => deleteMut.mutate()}
+      aiLearningOptIn={aiLearningOptIn}
+      onAiLearningChange={(optIn) => aiLearningMut.mutate(optIn)}
     />
   );
 }
