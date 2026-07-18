@@ -17,10 +17,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   AtSign,
   Brain,
+  CircleAlert,
   Paperclip,
   SendHorizontal,
   ShieldCheck,
   Terminal,
+  X,
   Zap,
 } from "lucide-react";
 
@@ -46,6 +48,9 @@ export interface ChatPanelProps {
   readonly disabled?: boolean;
   /** 対話相手の AI 社員 (アバター/名前/placeholder 用)。 */
   readonly employee?: ChatEmployeeInfo;
+  /** 送信エラー (コンポーザ直上に 1 箇所だけ表示、閉じるで消える)。 */
+  readonly errorNotice?: string | null;
+  readonly onDismissError?: () => void;
 }
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
@@ -156,7 +161,14 @@ const TOOL_BUTTONS: readonly {
   { icon: <Zap size={12} aria-hidden="true" />, label: "/コマンド" },
 ];
 
-export function ChatPanel({ messages, onSend, disabled, employee }: ChatPanelProps) {
+export function ChatPanel({
+  messages,
+  onSend,
+  disabled,
+  employee,
+  errorNotice,
+  onDismissError,
+}: ChatPanelProps) {
   const [input, setInput] = useState("");
   const viewportRef = useRef<HTMLUListElement>(null);
 
@@ -197,6 +209,25 @@ export function ChatPanel({ messages, onSend, disabled, employee }: ChatPanelPro
         }}
         className="shrink-0 border-t border-border bg-surface px-md pb-4 pt-3 sm:px-[24px]"
       >
+        {errorNotice ? (
+          <div
+            role="alert"
+            className="mb-2 flex items-start gap-2 rounded-md border border-error/30 bg-error/5 px-3 py-2 text-[12px] leading-[1.5] text-error"
+          >
+            <CircleAlert size={14} aria-hidden="true" className="mt-[1px] shrink-0" />
+            <span className="flex-1">{errorNotice}</span>
+            {onDismissError ? (
+              <button
+                type="button"
+                aria-label="エラーを閉じる"
+                onClick={onDismissError}
+                className="shrink-0 rounded-sm p-[2px] hover:bg-error/10"
+              >
+                <X size={13} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="rounded-lg border border-border bg-white px-[14px] py-3 transition-all focus-within:border-primary focus-within:shadow-[0_0_0_3px_#DBEAFE]">
           <label htmlFor="chat-input" className="sr-only">
             メッセージを入力

@@ -16,7 +16,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Brain } from "lucide-react";
 
-import { Toast } from "../../../../components/ui/toast";
 import { ChatPanel, type ChatEmployeeInfo, type ChatMessage } from "./ChatPanel";
 import {
   fetchThreadMessages,
@@ -95,6 +94,7 @@ export function ChatContainer({
   useEffect(() => {
     let cancelled = false;
     setMessages([]);
+    setError(null);
     fetchThreadMessages(threadId)
       .then((history) => {
         if (cancelled || history.length === 0) return;
@@ -195,23 +195,10 @@ export function ChatContainer({
           onSend={(t) => void handleSend(t)}
           disabled={sending}
           employee={employee}
+          errorNotice={error}
+          onDismissError={() => setError(null)}
         />
       </div>
-
-      {error ? (
-        <p role="alert" className="text-body-sm text-error">
-          {error}
-        </p>
-      ) : null}
-
-      {error ? (
-        <Toast
-          id="chat-error"
-          tone="error"
-          message={error}
-          onClose={() => setError(null)}
-        />
-      ) : null}
     </div>
   );
 }
