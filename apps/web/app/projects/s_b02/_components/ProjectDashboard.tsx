@@ -14,6 +14,7 @@ import { Check } from "lucide-react";
 
 import { Skeleton } from "../../../../components/Skeleton";
 import { cn } from "../../../../lib/cn";
+import { CANONICAL_PHASES } from "../../../../lib/workflowPhases";
 
 export interface DashboardKpi {
   readonly id: string;
@@ -30,18 +31,8 @@ export interface ProjectDashboardProps {
   readonly loading?: boolean;
 }
 
-/** モックの「工程の流れ（9 工程）」に対応する canonical 9 工程。 */
-const PHASES: readonly { key: string; label: string }[] = [
-  { key: "hearing", label: "ヒアリング" },
-  { key: "requirements", label: "要件定義" },
-  { key: "architecture", label: "アーキ設計" },
-  { key: "design", label: "デザイン" },
-  { key: "breakdown", label: "機能分解" },
-  { key: "tasks", label: "タスク分解" },
-  { key: "implementation", label: "実装" },
-  { key: "verification", label: "検証" },
-  { key: "delivery", label: "納品" },
-];
+/** 「工程の流れ（9 工程）」は共有 canonical (工程画面 S-F01 と一致させる)。 */
+const PHASES = CANONICAL_PHASES;
 
 // ラベルを tone 色 (例 error #DC2626 on tinted 面 = 4.05) にすると AA(4.5) を割る実バグが
 // axe 実機で出たため、ラベルは中立色・数値 (28px bold, AA=3.0) のみ tone アクセント色。

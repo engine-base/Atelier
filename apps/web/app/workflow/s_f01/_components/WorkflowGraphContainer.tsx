@@ -16,6 +16,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import {
+  CANONICAL_PHASES,
+  phaseStatusByCurrent,
+} from "../../../../lib/workflowPhases";
 import { WorkflowGraph, type PhaseEdge, type PhaseNode } from "./WorkflowGraph";
 
 interface ApiPhase {
@@ -59,6 +63,19 @@ export function WorkflowGraphContainer({
     retry: false,
   });
 
+  // DB に明示的な工程レコードが無い場合に備え、プロジェクトの current_phase を取得して
+  // ダッシュボード(S-B02)と同じ canonical 9 工程を描くためのフォールバックに使う。
+  const projectQuery = useQuery({
+    queryKey: ["project", "current-phase", projectId],
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}", {
+        params: { path: { project_id: projectId } },
+      });
+      return (res as { data?: { current_phase?: string } }).data ?? {};
+    },
+    retry: false,
+  });
+
   if (isForbidden(list.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -81,12 +98,20 @@ export function WorkflowGraphContainer({
     (a, b) => (a.order_index ?? a.order ?? 0) - (b.order_index ?? b.order ?? 0),
   );
 
+  // 明示的な工程レコードが無ければ、current_phase から canonical 9 工程を描く
+  // (ダッシュボードの「工程の流れ（9 工程）」と表示を一致させる)。
   if (phases.length === 0) {
-    return (
-      <p className="text-body-md text-on-surface-variant">
-        工程がまだ登録されていません。
-      </p>
-    );
+    const current = projectQuery.data?.current_phase;
+    const nodes: PhaseNode[] = CANONICAL_PHASES.map((p, i) => ({
+      id: p.key,
+      label: p.label,
+      status: phaseStatusByCurrent(i, current),
+    }));
+    const edges: PhaseEdge[] = CANONICAL_PHASES.slice(1).map((p, i) => ({
+      from: CANONICAL_PHASES[i]!.key,
+      to: p.key,
+    }));
+    return <WorkflowGraph nodes={nodes} edges={edges} />;
   }
 
   const nodes: PhaseNode[] = phases.map((p) => ({
