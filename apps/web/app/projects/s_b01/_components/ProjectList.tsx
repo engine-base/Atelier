@@ -15,7 +15,7 @@ import { ListChecks, Plus, Search } from "lucide-react";
 
 import { Pagination } from "../../../../components/data-table/Pagination";
 import { cn } from "../../../../lib/cn";
-import { formatDate } from "../../../../lib/i18n";
+import { relTime } from "../../../../lib/format";
 
 export type ProjectType = "client_project" | "self_product" | "personal";
 
@@ -157,7 +157,7 @@ function ProjectCard({
           <ListChecks className="h-3 w-3" aria-hidden="true" />
           工程 {doneUpto + 1} / {PHASE_ORDER.length}
         </span>
-        <span className="tabular-nums">{formatDate(row.updated_at, "short-date")} 更新</span>
+        <span className="tabular-nums">{relTime(row.updated_at)}更新</span>
       </div>
     </button>
   );

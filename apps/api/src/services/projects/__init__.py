@@ -78,8 +78,25 @@ _SELECT_COLS = (
 )
 
 
+# phases.name は日本語 (seed の canonical 9) で入るが、API 契約の current_phase は
+# 英語キー。従来この変換が無く、実工程が進んでも常に 'hearing' へフォールバックして
+# 一覧/詳細のフェーズ表示が古いままになるバグがあった (design-audit R3 で検出)。
+_PHASE_NAME_TO_KEY = {
+    "ヒアリング": "hearing",
+    "要件定義": "requirements",
+    "アーキ設計": "architecture",
+    "デザイン": "design",
+    "機能分解": "breakdown",
+    "タスク分解": "tasks",
+    "実装": "implementation",
+    "検証": "verification",
+    "納品": "delivery",
+}
+
+
 def _row_to_response(row: Any) -> ProjectResponse:
-    phase = str(row.current_phase)
+    raw_phase = str(row.current_phase)
+    phase = _PHASE_NAME_TO_KEY.get(raw_phase, raw_phase)
     return ProjectResponse(
         id=str(row.id),
         workspace_id=str(row.workspace_id),
