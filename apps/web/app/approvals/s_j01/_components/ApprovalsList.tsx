@@ -1,11 +1,12 @@
 /**
- * S-J01 承認待ち (5 種統合) — T-UC-17 / モック忠実再構築
+ * S-J01 承認待ち (5 種統合) — T-UC-17 / モック忠実再構築 v2
  *
  * 06_mockups/inbox/S-J01-list.html の inbox-list を忠実に再構築する:
  *   - 緊急(スコープ変更) / 通常 の 2 セクションに分けて表示
- *   - 各カード = チェックボックス枠 + 種別アイコン面 + 種別 badge + 優先度 pill(緊急のみ)
- *     + 依頼者アバター + タイトル + 着信日時 + 承認 / 却下 クイックアクション
- * - 承認 / 却下 アクションは onApprove / onReject prop で外部に委譲(楽観更新は container 側)
+ *   - 各カード = 選択チェック + 種別アイコン面 + 種別 badge + スコア badge +
+ *     依頼者 + タイトル + 2行プレビュー + 相対時刻 + クイックアクション
+ *   - 行クリック (タイトルボタン) で詳細ペイン選択 (selectedId / onSelect)
+ * - 承認 / 却下は onApprove / onReject prop で外部に委譲 (楽観更新は container 側)
  */
 
 "use client";
@@ -33,7 +34,12 @@ export interface ApprovalRow {
   readonly kind: ApprovalKind;
   readonly title: string;
   readonly requester: string;
+  /** 表示用時刻 (相対時刻 or 日付文字列)。 */
   readonly created_at: string;
+  /** 2 行クランプのプレビュー本文 (payload.preview / description)。 */
+  readonly preview?: string;
+  /** AI 評価スコア (payload.score, 0..1)。0.95 以上は自動承認帯なので通常来ない。 */
+  readonly score?: number;
 }
 
 interface KindMeta {
@@ -70,6 +76,10 @@ export interface ApprovalsListProps {
   readonly rows: readonly ApprovalRow[];
   readonly onApprove: (id: string) => void;
   readonly onReject: (id: string) => void;
+  /** 詳細ペインで開いている項目 (選択スタイル + チェック表示)。 */
+  readonly selectedId?: string | null;
+  /** 行選択 (詳細ペインを開く)。未指定なら選択 UI を出さない。 */
+  readonly onSelect?: (id: string) => void;
 }
 
 function isEmployeeId(value: string): value is EmployeeId {
@@ -133,30 +143,65 @@ function KindIcon({ kind }: { readonly kind: ApprovalKind }) {
   }
 }
 
+function ScoreBadge({ score }: { readonly score: number }) {
+  const high = score >= 0.9;
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-[2px] text-[11.5px] font-bold tabular-nums",
+        high
+          ? "bg-tertiary-container text-tertiary-container-fg"
+          : "bg-secondary-container text-secondary-container-fg",
+      )}
+    >
+      スコア {score.toFixed(2)}
+    </span>
+  );
+}
+
 function ApprovalItem({
   row,
   urgent,
+  selected,
+  onSelect,
   onApprove,
   onReject,
 }: {
   readonly row: ApprovalRow;
   readonly urgent: boolean;
+  readonly selected: boolean;
+  readonly onSelect?: (id: string) => void;
   readonly onApprove: (id: string) => void;
   readonly onReject: (id: string) => void;
 }) {
   const meta = KIND_META[row.kind];
   return (
     <article
+      onClick={onSelect ? () => onSelect(row.id) : undefined}
       className={cn(
-        "grid grid-cols-[20px_44px_1fr_auto] items-center gap-[14px] border-b border-border px-[18px] py-4 transition-colors last:border-b-0 hover:bg-surface-variant",
+        "grid grid-cols-[44px_1fr_auto] items-center gap-3 border-b border-border px-4 py-4 transition-colors last:border-b-0 hover:bg-surface-variant sm:grid-cols-[20px_44px_1fr_auto] sm:gap-[14px] sm:px-[18px]",
+        onSelect && "cursor-pointer",
         urgent && "border-l-[3px] border-l-error pl-[15px]",
+        selected && !urgent && "bg-primary-container/60",
+        selected && urgent && "bg-[#FEE2E2]/60",
       )}
     >
-      {/* チェックボックス枠 (装飾) */}
+      {/* 選択チェック (詳細ペインで開いている項目)。モバイルでは列ごと畳む。 */}
       <span
         aria-hidden="true"
-        className="h-[18px] w-[18px] rounded-[4px] border-[1.5px] border-border bg-white"
-      />
+        className={cn(
+          "hidden h-[18px] w-[18px] items-center justify-center rounded-[4px] border-[1.5px] sm:flex",
+          selected
+            ? "border-primary bg-primary text-on-primary"
+            : "border-border bg-white",
+        )}
+      >
+        {selected ? (
+          <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        ) : null}
+      </span>
 
       {/* 種別アイコン面 */}
       <span
@@ -180,6 +225,7 @@ function ApprovalItem({
           >
             {meta.label}
           </span>
+          {typeof row.score === "number" ? <ScoreBadge score={row.score} /> : null}
           {urgent ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FEE2E2] px-2.5 py-1 text-[11px] font-semibold text-[#991B1B]">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-error" />
@@ -195,61 +241,100 @@ function ApprovalItem({
             <span>{row.requester}</span>
           </span>
         </div>
-        <div className="text-[14.5px] font-bold leading-[1.45] text-on-surface">
-          {row.title}
-        </div>
+        {onSelect ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(row.id);
+            }}
+            aria-expanded={selected}
+            className="block w-full text-left text-[14.5px] font-bold leading-[1.45] text-on-surface hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            {row.title}
+          </button>
+        ) : (
+          <div className="text-[14.5px] font-bold leading-[1.45] text-on-surface">
+            {row.title}
+          </div>
+        )}
+        {row.preview ? (
+          <p className="mt-1 line-clamp-2 text-[12.5px] leading-[1.6] text-on-surface-variant">
+            {row.preview}
+          </p>
+        ) : null}
       </div>
 
       {/* 右カラム: 日時 + クイックアクション */}
-      <div className="flex flex-col items-end gap-2">
+      <div className="flex flex-col items-end gap-2 self-start">
         <span className="text-[11px] tabular-nums text-on-surface-variant">
           {row.created_at}
         </span>
-        <div className="flex gap-1">
+        {row.kind === "scope_change" && onSelect ? (
           <button
             type="button"
-            onClick={() => onApprove(row.id)}
-            aria-label={`${row.title} を承認`}
-            title="承認"
-            className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md bg-tertiary text-tertiary-fg transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-tertiary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(row.id);
+            }}
+            aria-label={`${row.title} を判断する`}
+            className="inline-flex h-[30px] items-center rounded-md bg-primary px-3.5 text-[12px] font-bold text-on-primary transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
           >
-            <svg
-              width={16}
-              height={16}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 6 9 17l-5-5" />
-            </svg>
+            判断する
           </button>
-          <button
-            type="button"
-            onClick={() => onReject(row.id)}
-            aria-label={`${row.title} を却下`}
-            title="差し戻し"
-            className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-white text-on-surface-variant transition hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
-          >
-            <svg
-              width={14}
-              height={14}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+        ) : (
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onApprove(row.id);
+              }}
+              aria-label={`${row.title} を承認`}
+              title="承認"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md bg-tertiary text-tertiary-fg transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-tertiary"
             >
-              <path d="M9 14 4 9l5-5" />
-              <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
-            </svg>
-          </button>
-        </div>
+              <svg
+                width={16}
+                height={16}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReject(row.id);
+              }}
+              aria-label={`${row.title} を却下`}
+              title="差し戻し"
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-white text-on-surface-variant transition hover:bg-surface-variant focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+            >
+              <svg
+                width={14}
+                height={14}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 14 4 9l5-5" />
+                <path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -290,6 +375,8 @@ export function ApprovalsList({
   rows,
   onApprove,
   onReject,
+  selectedId,
+  onSelect,
 }: ApprovalsListProps) {
   // スコープ変更(仕様変更の取り込み判断)は他工程をブロックするため最優先セクションへ。
   const urgentRows = rows.filter((r) => r.kind === "scope_change");
@@ -297,19 +384,14 @@ export function ApprovalsList({
 
   if (rows.length === 0) {
     return (
-      <div className="mx-auto w-full max-w-[1200px]">
-        <div className="rounded-lg border border-dashed border-border px-md py-12 text-center text-body-md text-on-surface-variant">
-          承認待ち項目はありません
-        </div>
+      <div className="rounded-lg border border-dashed border-border px-md py-12 text-center text-body-md text-on-surface-variant">
+        承認待ち項目はありません
       </div>
     );
   }
 
   return (
-    <section
-      aria-label="承認待ち一覧"
-      className="mx-auto w-full max-w-[1200px]"
-    >
+    <section aria-label="承認待ち一覧" className="w-full">
       <div className="overflow-hidden rounded-lg border border-border bg-white">
         {urgentRows.length > 0 ? (
           <>
@@ -321,6 +403,8 @@ export function ApprovalsList({
                 key={r.id}
                 row={r}
                 urgent
+                selected={r.id === selectedId}
+                onSelect={onSelect}
                 onApprove={onApprove}
                 onReject={onReject}
               />
@@ -338,6 +422,8 @@ export function ApprovalsList({
                 key={r.id}
                 row={r}
                 urgent={false}
+                selected={r.id === selectedId}
+                onSelect={onSelect}
                 onApprove={onApprove}
                 onReject={onReject}
               />

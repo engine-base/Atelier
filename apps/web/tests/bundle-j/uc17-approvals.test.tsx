@@ -117,3 +117,116 @@ describe("S-J01 ApprovalsContainer (T-UC-17)", () => {
     );
   });
 });
+
+// ── v2 (モック忠実再構築) の追加カバレッジ ──────────────────────
+
+const RICH_INBOX = [
+  {
+    id: "s1",
+    type: "scope_change",
+    title: "仕様変更X",
+    status: "pending",
+    payload: {
+      requested_by: "tony",
+      preview: "プレビュー文",
+      description: "何が起きたかの説明",
+      impact: [{ label: "影響タスクの数", value: "7 件", warn: true }],
+      stages: [
+        { key: "req", label: "要件定義", checked: true },
+        { key: "arch", label: "アーキ設計", disabled: true },
+      ],
+    },
+    created_at: "2026-07-18T00:00:00Z",
+  },
+  {
+    id: "t1",
+    type: "task_approval",
+    title: "タスクY",
+    status: "pending",
+    payload: { requested_by: "vision", score: 0.87 },
+    created_at: "2026-07-18T01:00:00Z",
+  },
+  {
+    id: "r1",
+    type: "task_approval",
+    title: "済みZ",
+    status: "approved",
+    payload: {},
+    created_at: "2026-07-18T02:00:00Z",
+    resolved_at: "2026-07-18T02:01:00Z",
+  },
+];
+
+describe("S-J01 v2: KPI / チップ絞り込み / 詳細ペイン", () => {
+  it("renders KPI from real counts (urgent=1, pending=2)", async () => {
+    const get = vi.fn(async () => ({ data: RICH_INBOX }));
+    renderWithQuery(<ApprovalsContainer client={fakeClient({ get })} />);
+    const kpi = await screen.findByLabelText("承認 KPI");
+    expect(kpi).toHaveTextContent("緊急（仕様変更）");
+    expect(kpi).toHaveTextContent("未処理");
+    // 処理済 (approved) は pending リストに出ない
+    expect(screen.queryByText("済みZ")).toBeNull();
+  });
+
+  it("filters the list by kind chip and shows counts", async () => {
+    const get = vi.fn(async () => ({ data: RICH_INBOX }));
+    renderWithQuery(<ApprovalsContainer client={fakeClient({ get })} />);
+    await screen.findByText("仕様変更X");
+    fireEvent.click(screen.getByRole("button", { name: /^タスク承認/ }));
+    expect(screen.queryByText("仕様変更X")).toBeNull();
+    expect(screen.getByText("タスクY")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^すべて/ }));
+    expect(await screen.findByText("仕様変更X")).toBeInTheDocument();
+  });
+
+  it("opens the detail pane with impact and stage chips on select", async () => {
+    const get = vi.fn(async () => ({ data: RICH_INBOX }));
+    renderWithQuery(<ApprovalsContainer client={fakeClient({ get })} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "仕様変更X を判断する" }),
+    );
+    const pane = screen.getByLabelText("承認詳細");
+    expect(pane).toHaveTextContent("何が起きたかの説明");
+    expect(pane).toHaveTextContent("影響タスクの数");
+    // disabled 工程はチェック不可
+    const arch = screen.getByRole("checkbox", { name: /アーキ設計/ });
+    expect(arch).toBeDisabled();
+  });
+
+  it("sends note (stages + memo) in the decide body from the detail pane", async () => {
+    const get = vi.fn(async () => ({ data: RICH_INBOX }));
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(<ApprovalsContainer client={fakeClient({ get, post })} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "仕様変更X を判断する" }),
+    );
+    fireEvent.change(screen.getByPlaceholderText(/差し戻し理由/), {
+      target: { value: "条件付き承認" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "承認して再実行を開始" }),
+    );
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { body: { decision: string; note?: string } },
+    ];
+    expect(init.body.decision).toBe("approve");
+    expect(init.body.note).toContain("要件定義");
+    expect(init.body.note).toContain("条件付き承認");
+  });
+
+  it("defer (あとで判断する) clears the detail pane without calling the API", async () => {
+    const get = vi.fn(async () => ({ data: RICH_INBOX }));
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(<ApprovalsContainer client={fakeClient({ get, post })} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "仕様変更X を判断する" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "あとで判断する" }));
+    expect(
+      screen.getByText(/リストから案件を選ぶと/),
+    ).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+});

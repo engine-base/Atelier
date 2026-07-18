@@ -19,6 +19,6 @@
 
 | ID | 内容 | 現状 | 解消に必要なもの | 起票日 |
 |---|---|---|---|---|
-| GAP-101 | QA 仕様書の欠落 13 画面 | completion_gate.sh の画面台帳突合で検出: S-B03 / S-B04 / S-N01 / S-PUB01〜04 / S-T01〜06 (S-E01 は 2026-07-18 作成済) | 各画面の監査ラウンドで `screens/<ID>.md` を作成 (design-audit の画面順に消化) | 2026-07-18 |
+| GAP-101 | QA 仕様書の欠落 13 画面 | completion_gate.sh の画面台帳突合で検出: S-B03 / S-B04 / S-N01 / S-PUB01〜04 / S-T01〜06 (S-E01 は 2026-07-18 作成済、S-J01 は既存仕様に design-audit v2 節を追記済) | 各画面の監査ラウンドで `screens/<ID>.md` を作成 (design-audit の画面順に消化) | 2026-07-18 |
 | GAP-102 | CI Gate #6 (mock-impl diff) がスタブ | 「Phase 0 なので構造のみ確認して PASS」のままファイル数を数えて常時 PASS | モック要素 ↔ 実装の実照合 (human-grade-qa の mock-fidelity 軸を CI 化) | 2026-07-18 |
 | GAP-103 | tickets.json の UI タスク AC がテンプレコピペ | 全 UI タスクの tier_2 が同一文言で画面固有の actions が AC 化されていない (T-UC-08 と T-UC-09 が一字一句同じ) | task-decomposition 絶対ルール10 に従い screens.json の fields/actions/states を 1要素=1AC で転写する tickets.json 改訂 PR | 2026-07-18 |
