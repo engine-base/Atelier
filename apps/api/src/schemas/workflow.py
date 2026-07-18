@@ -20,6 +20,10 @@ class PhaseCreate(BaseModel):
     description: str | None = None
 
 
+class PhaseSeedRequest(BaseModel):
+    project_id: str
+
+
 class PhaseUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
