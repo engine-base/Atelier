@@ -6,7 +6,10 @@
  *   - user: 右寄せ primary バブル + 「あなた + 時刻」メタ
  *   - assistant: AI 社員アバター + 名前 + 時刻 + 本文
  *   - tool: モックの .tool-card (monospace ツール名 + 本文)
- *   - composer: 「<社員名>にメッセージ…」placeholder / Enter 送信 / Shift+Enter 改行
+ *   - composer: 「<社員名>にメッセージ…」placeholder / Enter 送信 / Shift+Enter 改行 /
+ *     @メンション(社員ピッカー→本文挿入) / ナレッジ参照(実ナレッジピッカー→本文挿入)
+ * 添付・/コマンドは対応バックエンドが無いためボタン自体を描画しない (Rule 10:
+ * 死にボタン/飾りUIを置かない — 未実装機能は見せず gap tracker に起票する)。
  * データ配線・props・a11y 契約 (log role / aria-live / メッセージを入力 label) は不変。
  */
 
@@ -18,12 +21,10 @@ import {
   AtSign,
   Brain,
   CircleAlert,
-  Paperclip,
   SendHorizontal,
   ShieldCheck,
   Terminal,
   X,
-  Zap,
 } from "lucide-react";
 
 import { fmtTime } from "../../../../lib/format";
@@ -42,6 +43,17 @@ export interface ChatEmployeeInfo {
   readonly color: string;
 }
 
+export interface MentionCandidate {
+  readonly id: string;
+  readonly name: string;
+  readonly color?: string;
+}
+
+export interface KnowledgeCandidate {
+  readonly id: string;
+  readonly title: string;
+}
+
 export interface ChatPanelProps {
   readonly messages: readonly ChatMessage[];
   readonly onSend: (text: string) => void;
@@ -51,6 +63,10 @@ export interface ChatPanelProps {
   /** 送信エラー (コンポーザ直上に 1 箇所だけ表示、閉じるで消える)。 */
   readonly errorNotice?: string | null;
   readonly onDismissError?: () => void;
+  /** @メンション候補 (他の AI 社員)。 */
+  readonly mentionCandidates?: readonly MentionCandidate[];
+  /** ナレッジ参照候補 (プロジェクトの実ナレッジ)。 */
+  readonly knowledgeCandidates?: readonly KnowledgeCandidate[];
 }
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
@@ -151,16 +167,6 @@ function MessageRow({
   );
 }
 
-const TOOL_BUTTONS: readonly {
-  readonly icon: React.ReactNode;
-  readonly label: string;
-}[] = [
-  { icon: <Paperclip size={12} aria-hidden="true" />, label: "添付" },
-  { icon: <AtSign size={12} aria-hidden="true" />, label: "@メンション" },
-  { icon: <Brain size={12} aria-hidden="true" />, label: "ナレッジ参照" },
-  { icon: <Zap size={12} aria-hidden="true" />, label: "/コマンド" },
-];
-
 export function ChatPanel({
   messages,
   onSend,
@@ -168,9 +174,40 @@ export function ChatPanel({
   employee,
   errorNotice,
   onDismissError,
+  mentionCandidates = [],
+  knowledgeCandidates = [],
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
   const viewportRef = useRef<HTMLUListElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // カーソル位置にテキストを挿入してフォーカスを戻す
+  const insertAtCursor = (text: string) => {
+    const ta = textareaRef.current;
+    if (!ta) {
+      setInput((v) => v + text);
+      return;
+    }
+    const start = ta.selectionStart ?? input.length;
+    const end = ta.selectionEnd ?? input.length;
+    const next = input.slice(0, start) + text + input.slice(end);
+    setInput(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const pos = start + text.length;
+      ta.setSelectionRange(pos, pos);
+    });
+  };
+
+  useEffect(() => {
+    if (!picker) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPicker(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [picker]);
 
   // 新着で最下部へ自動スクロール
   useEffect(() => {
@@ -186,8 +223,8 @@ export function ChatPanel({
   };
 
   const placeholder = employee
-    ? `${employee.name}にメッセージ… · @ で他のAI社員をメンション · / でコマンド呼出`
-    : "AI 社員にメッセージ… · @ でメンション · / でコマンド呼出";
+    ? `${employee.name}にメッセージ… · @ で他のAI社員をメンション`
+    : "AI 社員にメッセージ… · @ でメンション";
 
   return (
     <section aria-label="チャット" className="flex h-full min-h-0 flex-col">
@@ -233,6 +270,7 @@ export function ChatPanel({
             メッセージを入力
           </label>
           <textarea
+            ref={textareaRef}
             id="chat-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -252,20 +290,87 @@ export function ChatPanel({
             placeholder={placeholder}
             className="max-h-[200px] min-h-[44px] w-full resize-none border-0 bg-transparent text-[14px] leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant"
           />
-          <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
-            {/* 添付/@メンション/ナレッジ参照/コマンドは対応API未提供のため非活性(機能を偽らない)。 */}
-            {TOOL_BUTTONS.map((t) => (
-              <button
-                key={t.label}
-                type="button"
-                disabled
-                title="準備中です"
-                className="inline-flex cursor-not-allowed items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant opacity-50"
+          <div className="relative mt-2 flex items-center gap-1 border-t border-border pt-2">
+            {/* 添付・/コマンドは対応バックエンド未実装のためボタン自体を出さない (Rule 10 / gap 起票済)。 */}
+            <button
+              type="button"
+              aria-expanded={picker === "mention"}
+              onClick={() => setPicker((v) => (v === "mention" ? null : "mention"))}
+              className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+            >
+              <AtSign size={12} aria-hidden="true" />
+              <span className="hidden sm:inline">@メンション</span>
+            </button>
+            <button
+              type="button"
+              aria-expanded={picker === "knowledge"}
+              onClick={() => setPicker((v) => (v === "knowledge" ? null : "knowledge"))}
+              className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+            >
+              <Brain size={12} aria-hidden="true" />
+              <span className="hidden sm:inline">ナレッジ参照</span>
+            </button>
+
+            {picker ? (
+              <div
+                role="listbox"
+                aria-label={picker === "mention" ? "メンションする AI 社員" : "参照するナレッジ"}
+                className="absolute bottom-[calc(100%+6px)] left-0 z-10 max-h-[220px] w-[260px] overflow-y-auto rounded-md border border-border bg-white py-1 shadow-lg"
               >
-                {t.icon}
-                <span className="hidden sm:inline">{t.label}</span>
-              </button>
-            ))}
+                {picker === "mention" ? (
+                  mentionCandidates.length === 0 ? (
+                    <p className="px-3 py-2 text-[12px] text-on-surface-variant">
+                      メンションできる AI 社員がいません。
+                    </p>
+                  ) : (
+                    mentionCandidates.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        onClick={() => {
+                          insertAtCursor(`@${c.name} `);
+                          setPicker(null);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12.5px] text-on-surface hover:bg-surface-variant"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                          style={{ backgroundColor: c.color ?? "#2563EB" }}
+                        >
+                          {c.name.charAt(0)}
+                        </span>
+                        {c.name}
+                      </button>
+                    ))
+                  )
+                ) : knowledgeCandidates.length === 0 ? (
+                  <p className="px-3 py-2 text-[12px] text-on-surface-variant">
+                    このプロジェクトのナレッジはまだありません。送信時の自動 RAG
+                    検索は常時有効です。
+                  </p>
+                ) : (
+                  knowledgeCandidates.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      onClick={() => {
+                        insertAtCursor(`[ナレッジ: ${c.title}] `);
+                        setPicker(null);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12.5px] text-on-surface hover:bg-surface-variant"
+                    >
+                      <Brain size={12} aria-hidden="true" className="shrink-0 text-primary" />
+                      <span className="truncate">{c.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
             <button
               type="submit"
               disabled={disabled || !input.trim()}

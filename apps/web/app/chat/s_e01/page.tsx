@@ -19,6 +19,7 @@ import { cn } from "../../../lib/cn";
 import { useProjectId } from "../../../lib/useProjectId";
 import type { EmployeeLike } from "../../../lib/aiEmployees";
 import { employeeColor, employeeName } from "../../../lib/aiEmployees";
+import type { KnowledgeCandidate, MentionCandidate } from "./_components/ChatPanel";
 import { ChatContainer, type ChatContextSummary } from "./_components/ChatContainer";
 import { ChatHeader } from "./_components/ChatHeader";
 import { ContextPane } from "./_components/ContextPane";
@@ -91,6 +92,38 @@ function SE01Inner() {
       ),
     [phasesQuery.data],
   );
+  // ナレッジ参照ピッカー候補 (ContextPane の参照タブと同じ実 API)
+  const knowledgeQuery = useQuery({
+    queryKey: ["chat-knowledge", projectId ?? "none"],
+    enabled: !!projectId,
+    queryFn: async () =>
+      (
+        await api.getJson<{ id: string; title?: string }[]>(
+          `/knowledge?source_project_id=${projectId}`,
+        )
+      ).data,
+    retry: false,
+  });
+  const mentionCandidates: MentionCandidate[] = useMemo(
+    () =>
+      (employeesQuery.data ?? [])
+        .filter((e) => e.id !== thread?.ai_employee_id)
+        .map((e) => ({
+          id: e.id,
+          name: employeeName(e) ?? "AI 社員",
+          color: employeeColor(e),
+        })),
+    [employeesQuery.data, thread?.ai_employee_id],
+  );
+  const knowledgeCandidates: KnowledgeCandidate[] = useMemo(
+    () =>
+      (knowledgeQuery.data ?? []).map((k) => ({
+        id: k.id,
+        title: k.title ?? "ナレッジ",
+      })),
+    [knowledgeQuery.data],
+  );
+
   const currentPhase =
     phases.find((p) => p.status === "in_progress") ?? phases[0];
   const currentPhaseIdx = currentPhase
@@ -169,6 +202,8 @@ function SE01Inner() {
                 onBusyChange={setBusy}
                 onContext={handleContext}
                 onMessageCount={setMessageCount}
+                mentionCandidates={mentionCandidates}
+                knowledgeCandidates={knowledgeCandidates}
               />
             </div>
           </>

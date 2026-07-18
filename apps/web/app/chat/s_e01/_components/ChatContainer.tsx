@@ -16,7 +16,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Brain } from "lucide-react";
 
-import { ChatPanel, type ChatEmployeeInfo, type ChatMessage } from "./ChatPanel";
+import {
+  ChatPanel,
+  type ChatEmployeeInfo,
+  type ChatMessage,
+  type KnowledgeCandidate,
+  type MentionCandidate,
+} from "./ChatPanel";
 import {
   fetchThreadMessages,
   streamChatThread,
@@ -45,6 +51,8 @@ export interface ChatContainerProps {
   readonly onContext?: (ctx: ChatContextSummary) => void;
   /** メッセージ件数の変化 (右ペイン用)。 */
   readonly onMessageCount?: (count: number) => void;
+  readonly mentionCandidates?: readonly MentionCandidate[];
+  readonly knowledgeCandidates?: readonly KnowledgeCandidate[];
 }
 
 let _seq = 0;
@@ -72,6 +80,8 @@ export function ChatContainer({
   onBusyChange,
   onContext,
   onMessageCount,
+  mentionCandidates,
+  knowledgeCandidates,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -197,6 +207,8 @@ export function ChatContainer({
           employee={employee}
           errorNotice={error}
           onDismissError={() => setError(null)}
+          mentionCandidates={mentionCandidates}
+          knowledgeCandidates={knowledgeCandidates}
         />
       </div>
     </div>
