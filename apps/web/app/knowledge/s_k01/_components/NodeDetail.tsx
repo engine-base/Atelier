@@ -8,7 +8,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 
 import { KbButton } from "./ui";
 import type { KnowledgeNode, KnowledgeScope } from "./types";
@@ -31,6 +31,9 @@ export interface NodeDetailProps {
   /** 共通ナレッジへ昇格 (POST /knowledge/{id}/promote)。未指定ならボタンを出さない。 */
   readonly onPromote?: (id: string) => void;
   readonly promoting?: boolean;
+  /** 論理削除 (DELETE /knowledge/{id})。未指定ならボタンを出さない。 */
+  readonly onDelete?: (id: string) => void;
+  readonly deleting?: boolean;
 }
 
 /** メタ・タイトル (uppercase の小見出し)。 */
@@ -42,7 +45,19 @@ function MetaTitle({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
-export function NodeDetail({ node, onPromote, promoting }: NodeDetailProps) {
+export function NodeDetail({
+  node,
+  onPromote,
+  promoting,
+  onDelete,
+  deleting,
+}: NodeDetailProps) {
+  // 削除は破壊的なため 2 段階確認 (誤クリック防止)。選択ノードが変わったら解除する。
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
+  React.useEffect(() => {
+    setConfirmingDelete(false);
+  }, [node?.id]);
+
   if (!node) {
     return (
       <p className="text-body-md text-on-surface-variant">
@@ -127,20 +142,61 @@ export function NodeDetail({ node, onPromote, promoting }: NodeDetailProps) {
       ) : null}
 
       {/* アクション */}
-      {onPromote ? (
+      {onPromote || onDelete ? (
         <section>
           <MetaTitle>アクション</MetaTitle>
           <div className="flex flex-col gap-2">
-            <KbButton
-              variant="outlined"
-              size="sm"
-              className="w-full"
-              onClick={() => onPromote(node.id)}
-              disabled={promoting}
-            >
-              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              {promoting ? "昇格中…" : "共通ナレッジに昇格"}
-            </KbButton>
+            {onPromote ? (
+              <KbButton
+                variant="outlined"
+                size="sm"
+                className="w-full"
+                onClick={() => onPromote(node.id)}
+                disabled={promoting}
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                {promoting ? "昇格中…" : "共通ナレッジに昇格"}
+              </KbButton>
+            ) : null}
+            {onDelete ? (
+              confirmingDelete ? (
+                <div className="flex flex-col gap-1.5">
+                  <p className="text-[12px] text-on-surface-variant">
+                    「{node.title}」を削除します。よろしいですか？
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onDelete(node.id)}
+                      disabled={deleting}
+                      className="inline-flex h-9 flex-1 items-center justify-center gap-1 rounded-md bg-error px-3 text-[12px] font-semibold text-on-error hover:opacity-90 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      {deleting ? "削除中…" : "削除する"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleting}
+                      className="inline-flex h-9 items-center justify-center rounded-md px-3 text-[12px] font-semibold text-on-surface hover:bg-surface-variant disabled:opacity-50"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <KbButton
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-error hover:bg-error/10"
+                  onClick={() => setConfirmingDelete(true)}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  削除
+                </KbButton>
+              )
+            ) : null}
           </div>
         </section>
       ) : null}

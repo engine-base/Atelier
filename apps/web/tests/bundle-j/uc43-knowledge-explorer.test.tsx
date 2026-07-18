@@ -203,6 +203,33 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     expect(init.body.title).toBe("新タイトル");
   });
 
+  it("deletes the selected node via DELETE /knowledge/{id} after confirm", async () => {
+    const get = vi.fn(async (_path: string, init: GetInit) =>
+      init.params.query.parent_id
+        ? { data: [] }
+        : { data: [knode({ id: "r1", title: "消す対象" })] },
+    );
+    const del = vi.fn(async () => undefined);
+    renderWithQuery(
+      <KnowledgeExplorer
+        client={fakeClient({ get, delete: del })}
+        workspaceId="w1"
+      />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "消す対象" }));
+    // 右パネルの「削除」→ 2 段階確認 →「削除する」で初めて DELETE が飛ぶ。
+    fireEvent.click(await screen.findByRole("button", { name: "削除" }));
+    expect(del).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "削除する" }));
+    await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
+    const [path, init] = del.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { knowledge_id: string } } },
+    ];
+    expect(path).toBe("/knowledge/{knowledge_id}");
+    expect(init.params.path.knowledge_id).toBe("r1");
+  });
+
   it("toggles left and right panels independently", async () => {
     const get = vi.fn(async () => ({
       data: [knode({ id: "r1", title: "X" })],
