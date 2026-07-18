@@ -157,7 +157,8 @@ describe("a11y 追加: 配線済み画面 axe (0 critical/serious)", () => {
     const { container } = renderWithQuery(
       <ProjectDashboardContainer projectId="p1" client={fakeClient(get)} />,
     );
-    await screen.findByRole("heading", { name: "Atelier" });
+    // 新デザイン: プロジェクト名はサブタイトル側
+    await screen.findByText("Atelier");
     await expectNoSeriousViolations(container);
   });
 

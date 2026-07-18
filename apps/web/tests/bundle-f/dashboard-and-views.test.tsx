@@ -28,7 +28,11 @@ describe('ProjectDashboard (T-UC-04)', () => {
 
   it('renders project name and KPIs', () => {
     render(<ProjectDashboard projectName="X" kpis={kpis} />);
-    expect(screen.getByRole('heading', { name: 'X' })).toBeInTheDocument();
+    // 新デザイン: h1 は「プロジェクトダッシュボード」、プロジェクト名はサブタイトル
+    expect(
+      screen.getByRole('heading', { name: 'プロジェクトダッシュボード' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('X')).toBeInTheDocument();
     expect(screen.getByText('A')).toBeInTheDocument();
     expect(screen.getByText('B')).toBeInTheDocument();
   });

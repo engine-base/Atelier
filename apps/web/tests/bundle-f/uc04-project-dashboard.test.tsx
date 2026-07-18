@@ -71,12 +71,13 @@ describe("S-B02 ProjectDashboardContainer (T-UC-04)", () => {
     );
 
     expect(await screen.findByText("受託案件A")).toBeInTheDocument();
+    // モック S-B02 準拠の KPI 4 枚 (task_counts.total は「今日の活動」の sub に出る)
     const kpis = screen.getByRole("region", { name: "KPI 一覧" });
-    expect(kpis).toHaveTextContent("総タスク");
-    expect(kpis).toHaveTextContent("10");
-    expect(kpis).toHaveTextContent("完了");
-    expect(kpis).toHaveTextContent("5");
-    expect(kpis).toHaveTextContent("ブロック");
+    expect(kpis).toHaveTextContent("全体進捗率");
+    expect(kpis).toHaveTextContent("未承認 INBOX 件数");
+    expect(kpis).toHaveTextContent("今日の活動");
+    expect(kpis).toHaveTextContent("確定事項");
+    expect(kpis).toHaveTextContent("タスク 10");
   });
 
   it("shows a forbidden message on 403", async () => {
