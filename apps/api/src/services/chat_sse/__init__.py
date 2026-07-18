@@ -365,10 +365,14 @@ async def _real_stream_chunks(
     from .tools import ATELIER_TOOL_NAMES, execute_atelier_tool
 
     assert tool_ctx is not None
+    # save_deliverable は成果物全文を content_md(tool 入力)として emit するため出力が長い。
+    # 2048 だと文書 + 前置き + 次の tool 呼び出しで上限に達し stop_reason="max_tokens" で
+    # 切れ、tool_use にならず保存前に break していた。文書 1 本 + 継続に十分な枠を確保する。
+    _AGENTIC_MAX_TOKENS = 8192
     for _round in range(5):
         async with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=_AGENTIC_MAX_TOKENS,
             system=system_param,  # type: ignore[arg-type]
             messages=msgs,  # type: ignore[arg-type]
             tools=tools,  # type: ignore[arg-type]
