@@ -33,13 +33,14 @@ describe('KanbanBoard (T-UC-14)', () => {
     render(<KanbanBoard tasks={tasks} />);
     expect(STAGE_ORDER.length).toBe(6);
     for (const stage of STAGE_ORDER) {
+      // レーン名は凡例と同一語に統一 (モック準拠。旧: バックログ/実行可/進行中/ブロック)
       const label = {
-        backlog: 'バックログ',
-        ready: '実行可',
-        in_progress: '進行中',
+        backlog: '準備中',
+        ready: '着手可',
+        in_progress: '実装中',
         awaiting: '承認待ち',
         done: '完了',
-        blocked: 'ブロック',
+        blocked: '要対応',
       }[stage];
       expect(screen.getByRole('region', { name: label })).toBeInTheDocument();
     }

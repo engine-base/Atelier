@@ -70,7 +70,7 @@ describe("S-I01 TaskBoardContainer (T-UC-14)", () => {
       <TaskBoardContainer projectId="p1" client={fakeClient({ get })} />,
     );
     // triage タスクはバックログ列に出る
-    const backlog = await screen.findByRole("region", { name: "バックログ" });
+    const backlog = await screen.findByRole("region", { name: "準備中" });
     expect(within(backlog).getByText("要件 hearing")).toBeInTheDocument();
     // GET は project_id 付きで呼ばれる
     const init = (
