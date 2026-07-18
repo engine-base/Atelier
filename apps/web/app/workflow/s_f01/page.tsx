@@ -8,14 +8,13 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useProjectId } from "../../../lib/useProjectId";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { WorkflowGraphContainer } from "./_components/WorkflowGraphContainer";
 
 function SF01Inner() {
-  const params = useSearchParams();
-  const projectId = params.get("project");
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-lg px-md py-lg">

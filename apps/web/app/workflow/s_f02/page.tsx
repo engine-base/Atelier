@@ -8,14 +8,13 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useProjectId } from "../../../lib/useProjectId";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { PhaseListContainer } from "./_components/PhaseListContainer";
 
 function SF02Inner() {
-  const params = useSearchParams();
-  const projectId = params.get("project");
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">

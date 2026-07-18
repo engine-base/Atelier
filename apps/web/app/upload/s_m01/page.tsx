@@ -9,13 +9,12 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useProjectId } from "../../../lib/useProjectId";
 
 import { MeetingUploadContainer } from "./_components/MeetingUploadContainer";
 
 function SM01Inner() {
-  const params = useSearchParams();
-  const projectId = params.get("project");
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
