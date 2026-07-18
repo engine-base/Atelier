@@ -1,9 +1,12 @@
 /**
- * PhaseDetail — S-F01 の選択工程ヘッダー + タブ (成果物/議論中/関連タスク) + 右レール
- * (モック .stage-header / .tabs-row / .side-card 準拠)
+ * PhaseDetail — S-F01 の選択工程ヘッダー + タブ + 右レール
+ * (モック 06_mockups/workflow/S-F01-flow.html の
+ *  .stage-header / .tabs-row / .decision-item / .preview-card / .thread-item /
+ *  .unresolved-item / .side-card を実データで忠実再現)
  *
- * データは実 API から container が取得して渡す。決定事項/未確認タブは
- * バックエンド (decisions テーブル) 未実装のため本 MVP では出さない — gap tracker 対象。
+ * タブ構成はモックと同一: 確定事項 / 成果物 / 議論中 / 未確認 (+実装追加の関連タスク)。
+ * 確定事項・未確認は /decisions API (T-D-101)、議論中は /chat/threads
+ * (message_count 付き)、成果物は /outputs。
  */
 
 "use client";
@@ -13,7 +16,10 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   Check,
+  Download,
   ExternalLink,
+  Eye,
+  FileCode,
   FileText,
   GitBranch,
   Kanban,
@@ -36,6 +42,9 @@ export interface PhaseOutput {
   readonly version: number;
   readonly created_at?: string;
   readonly phase_id?: string | null;
+  readonly html_path?: string | null;
+  readonly json_path?: string | null;
+  readonly md_path?: string | null;
 }
 
 export interface PhaseThread {
@@ -44,6 +53,7 @@ export interface PhaseThread {
   readonly employeeName?: string;
   readonly employeeColor?: string;
   readonly updated_at?: string;
+  readonly messageCount?: number;
 }
 
 export interface PhaseTask {
@@ -52,6 +62,24 @@ export interface PhaseTask {
   readonly priority?: string;
   readonly lifecycle_stage?: string;
   readonly status?: string;
+}
+
+export interface PhaseDecision {
+  readonly id: string;
+  readonly status: "decided" | "unresolved";
+  readonly body: string;
+  readonly reflected_to?: string | null;
+  readonly resolve_note?: string | null;
+  readonly created_at?: string;
+  readonly employeeName?: string;
+  readonly employeeColor?: string;
+  readonly with_user?: boolean;
+}
+
+export interface PhaseEmployee {
+  readonly id: string;
+  readonly name: string;
+  readonly color: string;
 }
 
 export interface PhaseInfo {
@@ -76,6 +104,22 @@ export function fmtDateTime(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** モックの「8 分前」「昨日」表示。 */
+export function relTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "";
+  const mins = Math.floor((Date.now() - t) / 60000);
+  if (mins < 1) return "たった今";
+  if (mins < 60) return `${mins} 分前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} 時間前`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "昨日";
+  if (days < 7) return `${days} 日前`;
+  return fmtDateTime(iso).slice(0, 10);
+}
+
 function elapsedLabel(iso: string | null | undefined): string {
   if (!iso) return "";
   const start = new Date(iso).getTime();
@@ -94,6 +138,31 @@ const STATUS_BADGE: Record<StageNode["status"], { label: string; cls: string }> 
   blocked: { label: "ブロック", cls: "bg-error text-on-error" },
 };
 
+function EmployeeAvatar({
+  name,
+  color,
+  size = 24,
+}: {
+  readonly name?: string;
+  readonly color?: string;
+  readonly size?: number;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white"
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.round(size * 0.46),
+        backgroundColor: color ?? "#2563EB",
+      }}
+    >
+      {(name ?? "A").charAt(0)}
+    </span>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* 工程ヘッダー (モック .stage-header)                                  */
 /* ------------------------------------------------------------------ */
@@ -101,9 +170,11 @@ const STATUS_BADGE: Record<StageNode["status"], { label: string; cls: string }> 
 export function StageHeader({
   phase,
   progressPct,
+  employees = [],
 }: {
   readonly phase: PhaseInfo;
   readonly progressPct: number;
+  readonly employees?: readonly PhaseEmployee[];
 }) {
   const badge = STATUS_BADGE[phase.status];
   return (
@@ -116,6 +187,12 @@ export function StageHeader({
         {phase.label}
       </h1>
       <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2 text-[13px] text-on-primary-container">
+        {employees.map((emp) => (
+          <span key={emp.id} className="flex items-center gap-2">
+            <EmployeeAvatar name={emp.name} color={emp.color} />
+            {emp.name}
+          </span>
+        ))}
         <span
           className={cn(
             "inline-flex items-center rounded-full px-[10px] py-[2px] text-[11px] font-bold",
@@ -151,16 +228,20 @@ export function StageHeader({
 }
 
 /* ------------------------------------------------------------------ */
-/* タブ (モック .tabs-row)                                             */
+/* タブ (モック .tabs-row / 4 タブ + 関連タスク)                        */
 /* ------------------------------------------------------------------ */
 
-type TabKey = "outputs" | "discussion" | "tasks";
+type TabKey = "decisions" | "outputs" | "discussion" | "unresolved" | "tasks";
 
 const TAB_DEFS: readonly { key: TabKey; label: string }[] = [
+  { key: "decisions", label: "確定事項" },
   { key: "outputs", label: "成果物" },
   { key: "discussion", label: "議論中" },
+  { key: "unresolved", label: "未確認" },
   { key: "tasks", label: "関連タスク" },
 ];
+
+const DECISIONS_PREVIEW_COUNT = 6;
 
 function EmptyState({ children }: { readonly children: React.ReactNode }) {
   return (
@@ -170,23 +251,157 @@ function EmptyState({ children }: { readonly children: React.ReactNode }) {
   );
 }
 
+/** 確定事項 1 件 (モック .decision-item: tertiary の左ボーダー)。 */
+function DecisionItem({ decision }: { readonly decision: PhaseDecision }) {
+  return (
+    <div className="rounded-md border border-border border-l-[3px] border-l-tertiary bg-white px-[18px] py-[14px] transition-shadow duration-100 hover:shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] text-on-surface-variant">
+        <span className="inline-flex items-center rounded-full bg-tertiary-container px-2 py-[1px] text-[10.5px] font-bold text-on-tertiary-container">
+          確定
+        </span>
+        <span className="tabular-nums">{fmtDateTime(decision.created_at)}</span>
+        {decision.employeeName ? (
+          <>
+            <EmployeeAvatar name={decision.employeeName} color={decision.employeeColor} />
+            <span>
+              {decision.employeeName}
+              {decision.with_user ? " + あなた" : ""}
+            </span>
+          </>
+        ) : decision.with_user ? (
+          <span>あなた</span>
+        ) : null}
+      </div>
+      <div className="mb-1 text-[14px] font-semibold leading-[1.5] text-on-surface">
+        {decision.body}
+      </div>
+      {decision.reflected_to ? (
+        <div className="text-[12px] tabular-nums text-on-surface-variant">
+          反映先：{decision.reflected_to}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 未確認 1 件 (モック .unresolved-item: secondary-container の警告行)。 */
+function UnresolvedItem({ decision }: { readonly decision: PhaseDecision }) {
+  return (
+    <div className="mb-[6px] flex items-start gap-[10px] rounded-md bg-secondary-container px-[14px] py-[10px] text-on-secondary-container">
+      <span
+        aria-hidden="true"
+        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-bold text-on-secondary"
+      >
+        !
+      </span>
+      <div>
+        <div className="text-[13px] font-semibold">{decision.body}</div>
+        {decision.resolve_note ? (
+          <div className="text-[13px] opacity-[0.85]">{decision.resolve_note}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** 成果物プレビュー (モック .preview-card: 形式タブ + doc プレビュー)。 */
+function OutputPreviewCard({
+  output,
+  projectId,
+}: {
+  readonly output: PhaseOutput;
+  readonly projectId: string;
+}) {
+  const formats = [
+    { key: "html", label: "HTML", icon: Eye, available: !!output.html_path },
+    { key: "json", label: "JSON", icon: FileCode, available: !!output.json_path },
+    { key: "md", label: "MD", icon: FileText, available: !!output.md_path },
+  ] as const;
+  const first = formats.find((f) => f.available)?.key ?? "html";
+  const [fmt, setFmt] = useState<string>(first);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-white">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border bg-surface-variant px-3 py-2">
+        {formats.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            disabled={!f.available}
+            onClick={() => setFmt(f.key)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-[6px] px-3 py-[5px] text-[11.5px] font-semibold",
+              fmt === f.key && f.available
+                ? "bg-white text-on-surface shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                : "text-on-surface-variant",
+              !f.available && "opacity-40",
+            )}
+          >
+            <f.icon className="h-[11px] w-[11px]" aria-hidden="true" />
+            {f.label}
+          </button>
+        ))}
+        <div className="ml-auto flex gap-1">
+          <Link
+            href={`/outputs?project=${projectId}&output=${output.id}`}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-semibold text-on-surface-variant hover:bg-white hover:text-on-surface"
+          >
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            全画面
+          </Link>
+          <Link
+            href={`/outputs?project=${projectId}&output=${output.id}`}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11.5px] font-semibold text-on-surface-variant hover:bg-white hover:text-on-surface"
+          >
+            <Download className="h-3 w-3" aria-hidden="true" />
+            DL
+          </Link>
+        </div>
+      </div>
+      <div className="max-h-[540px] min-h-[120px] overflow-auto bg-surface-variant">
+        <div className="m-4 rounded-md border border-border bg-white px-[28px] py-[24px] text-[13px] leading-[1.85] sm:px-[44px] sm:py-[32px]">
+          <h3 className="mb-2 text-[22px] font-bold leading-[1.3] tracking-[-0.02em] text-on-surface">
+            {output.summary?.split("—")[0]?.trim() ?? output.stage}
+          </h3>
+          <div className="mb-[18px] border-b border-border pb-[14px] text-[12px] text-on-surface-variant">
+            v{output.version ?? 1}
+            {output.created_at ? ` · ${fmtDateTime(output.created_at)}` : ""} ·{" "}
+            {fmt.toUpperCase()} プレビュー
+          </div>
+          <p className="text-on-surface">{output.summary ?? "サマリー未生成の成果物です。"}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PhaseTabs({
   projectId,
   outputs,
   threads,
   tasks,
+  decisions,
+  unresolved,
 }: {
   readonly projectId: string;
   readonly outputs: readonly PhaseOutput[];
   readonly threads: readonly PhaseThread[];
   readonly tasks: readonly PhaseTask[];
+  readonly decisions: readonly PhaseDecision[];
+  readonly unresolved: readonly PhaseDecision[];
 }) {
-  const [active, setActive] = useState<TabKey>("outputs");
+  const [active, setActive] = useState<TabKey>("decisions");
+  const [showAllDecisions, setShowAllDecisions] = useState(false);
   const counts: Record<TabKey, number> = {
+    decisions: decisions.length,
     outputs: outputs.length,
     discussion: threads.length,
+    unresolved: unresolved.length,
     tasks: tasks.length,
   };
+  const visibleDecisions = showAllDecisions
+    ? decisions
+    : decisions.slice(0, DECISIONS_PREVIEW_COUNT);
 
   return (
     <section aria-label="工程の詳細">
@@ -229,6 +444,37 @@ export function PhaseTabs({
         })}
       </div>
 
+      {/* 確定事項 */}
+      <div
+        role="tabpanel"
+        id="panel-decisions"
+        aria-labelledby="tab-decisions"
+        hidden={active !== "decisions"}
+      >
+        {decisions.length === 0 ? (
+          <EmptyState>
+            この工程の確定事項はまだありません。AI 社員との議論で決まった事項がここに積み上がります。
+          </EmptyState>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {visibleDecisions.map((d) => (
+              <DecisionItem key={d.id} decision={d} />
+            ))}
+            {decisions.length > DECISIONS_PREVIEW_COUNT && !showAllDecisions ? (
+              <div className="py-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllDecisions(true)}
+                  className="text-[13px] font-semibold text-primary hover:underline"
+                >
+                  他 {decisions.length - DECISIONS_PREVIEW_COUNT} 件を見る →
+                </button>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
       {/* 成果物 */}
       <div
         role="tabpanel"
@@ -241,33 +487,41 @@ export function PhaseTabs({
             この工程の成果物はまだありません。AI 社員が作業を進めるとここに成果物が届きます。
           </EmptyState>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {outputs.map((o) => (
-              <div
-                key={o.id}
-                className="rounded-md border border-border bg-white px-[14px] py-3 transition-shadow hover:shadow-[0_1px_3px_rgba(15,23,42,0.06)]"
-              >
-                <div className="mb-1 flex items-center gap-2">
-                  <FileText className="h-[13px] w-[13px] shrink-0 text-on-surface-variant" aria-hidden="true" />
-                  <strong className="truncate text-[13px] font-semibold text-on-surface">
-                    {o.summary ?? o.stage ?? "成果物"}
-                  </strong>
-                </div>
-                <div className="text-[12px] text-on-surface-variant">
-                  v{o.version ?? 1}
-                  {o.created_at ? ` · ${fmtDateTime(o.created_at)}` : ""}
-                </div>
-                <div className="mt-2">
-                  <Link
-                    href={`/outputs?project=${projectId}&output=${o.id}`}
-                    className="inline-flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline"
+          <div className="flex flex-col gap-4">
+            <OutputPreviewCard output={outputs[0]!} projectId={projectId} />
+            {outputs.length > 1 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {outputs.slice(1).map((o) => (
+                  <div
+                    key={o.id}
+                    className="rounded-md border border-border bg-white px-[14px] py-3"
                   >
-                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    ビューアで開く
-                  </Link>
-                </div>
+                    <div className="mb-1 flex items-center gap-2">
+                      <FileText
+                        className="h-[13px] w-[13px] shrink-0 text-on-surface-variant"
+                        aria-hidden="true"
+                      />
+                      <strong className="truncate text-[13px] font-semibold text-on-surface">
+                        {o.summary ?? o.stage ?? "成果物"}
+                      </strong>
+                    </div>
+                    <div className="text-[12px] text-on-surface-variant">
+                      v{o.version ?? 1}
+                      {o.created_at ? ` · ${fmtDateTime(o.created_at)}` : ""}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <Link
+                        href={`/outputs?project=${projectId}&output=${o.id}`}
+                        className="inline-flex items-center gap-1 text-[12px] font-semibold text-primary hover:underline"
+                      >
+                        <Eye className="h-3 w-3" aria-hidden="true" />
+                        表示
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : null}
           </div>
         )}
       </div>
@@ -289,20 +543,17 @@ export function PhaseTabs({
                 href={`/chat?project=${projectId}&thread=${th.id}`}
                 className="flex items-center gap-3 rounded-md border border-border bg-white px-[14px] py-3 transition-colors hover:border-primary hover:bg-surface-variant"
               >
-                <span
-                  aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
-                  style={{ backgroundColor: th.employeeColor ?? "#2563EB" }}
-                >
-                  {(th.employeeName ?? "A").charAt(0)}
-                </span>
+                <EmployeeAvatar name={th.employeeName} color={th.employeeColor} size={36} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-semibold text-on-surface">
                     {th.title ?? "無題スレッド"}
                   </span>
                   <span className="block text-[11.5px] text-on-surface-variant">
                     {th.employeeName ?? "AI社員"}
-                    {th.updated_at ? ` · ${fmtDateTime(th.updated_at)}` : ""}
+                    {typeof th.messageCount === "number"
+                      ? ` · ${th.messageCount} 件のメッセージ`
+                      : ""}
+                    {th.updated_at ? ` · ${relTime(th.updated_at)}` : ""}
                   </span>
                 </span>
               </Link>
@@ -316,6 +567,24 @@ export function PhaseTabs({
           <Plus className="h-4 w-4" aria-hidden="true" />
           この工程で新規チャット
         </Link>
+      </div>
+
+      {/* 未確認 */}
+      <div
+        role="tabpanel"
+        id="panel-unresolved"
+        aria-labelledby="tab-unresolved"
+        hidden={active !== "unresolved"}
+      >
+        {unresolved.length === 0 ? (
+          <EmptyState>未確認事項はありません。</EmptyState>
+        ) : (
+          <div className="flex flex-col">
+            {unresolved.map((d) => (
+              <UnresolvedItem key={d.id} decision={d} />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 関連タスク */}
@@ -397,8 +666,11 @@ export interface SideRailProps {
   readonly nextPhaseLabel?: string;
   readonly prevPhaseLabel?: string;
   readonly prevSummary?: string;
+  /** 議論相手候補 (モックの「スティーブと議論」「ピーターに依頼」) */
+  readonly employees?: readonly PhaseEmployee[];
   readonly threadCount: number;
   readonly taskCount: number;
+  readonly knowledgeCount?: number;
   readonly onComplete?: () => void;
   readonly completing?: boolean;
 }
@@ -410,8 +682,10 @@ export function SideRail({
   nextPhaseLabel,
   prevPhaseLabel,
   prevSummary,
+  employees = [],
   threadCount,
   taskCount,
+  knowledgeCount,
   onComplete,
   completing = false,
 }: SideRailProps) {
@@ -423,8 +697,26 @@ export function SideRail({
   return (
     <aside aria-label="工程のサイド情報">
       <SideCard title="クイックアクション">
+        {employees.slice(0, 2).map((emp, i) => (
+          <Link key={emp.id} href={`/chat?project=${projectId}`} className={quickBtn}>
+            <MessageSquare className="h-[14px] w-[14px]" aria-hidden="true" />
+            {emp.name}
+            {i === 0 ? "と議論" : "に依頼"}
+          </Link>
+        ))}
+        {employees.length === 0 ? (
+          <Link href={`/chat?project=${projectId}`} className={quickBtn}>
+            <MessageSquare className="h-[14px] w-[14px]" aria-hidden="true" />
+            AI社員と議論する
+          </Link>
+        ) : null}
         {onComplete && currentPhase?.status === "in_progress" ? (
-          <button type="button" onClick={onComplete} disabled={completing} className={cn(quickBtn, "disabled:opacity-50")}>
+          <button
+            type="button"
+            onClick={onComplete}
+            disabled={completing}
+            className={cn(quickBtn, "disabled:opacity-50")}
+          >
             <Check className="h-[14px] w-[14px]" aria-hidden="true" />
             {completing
               ? "更新中…"
@@ -433,10 +725,6 @@ export function SideRail({
                 : "この工程を完了"}
           </button>
         ) : null}
-        <Link href={`/chat?project=${projectId}`} className={quickBtn}>
-          <MessageSquare className="h-[14px] w-[14px]" aria-hidden="true" />
-          AI社員と議論する
-        </Link>
         <Link href={`/workflow/phases?project=${projectId}`} className={quickBtn}>
           <GitBranch className="h-[14px] w-[14px]" aria-hidden="true" />
           フェーズ管理を開く
@@ -466,6 +754,32 @@ export function SideRail({
           </Link>
           <span className="text-[11.5px] tabular-nums text-on-surface-variant">
             {taskCount} 件
+          </span>
+        </div>
+        {typeof knowledgeCount === "number" ? (
+          <div className={linkRow}>
+            <Link
+              href={`/knowledge?project=${projectId}`}
+              className="flex flex-1 items-center gap-[6px] text-on-surface hover:text-primary"
+            >
+              <FileText className="h-[14px] w-[14px]" aria-hidden="true" />
+              参照ナレッジ
+            </Link>
+            <span className="text-[11.5px] tabular-nums text-on-surface-variant">
+              {knowledgeCount} 件
+            </span>
+          </div>
+        ) : null}
+        <div className={linkRow}>
+          <Link
+            href={`/workflow/phases?project=${projectId}`}
+            className="flex flex-1 items-center gap-[6px] text-on-surface hover:text-primary"
+          >
+            <GitBranch className="h-[14px] w-[14px]" aria-hidden="true" />
+            フェーズ管理
+          </Link>
+          <span className="text-[11.5px] tabular-nums text-on-surface-variant">
+            {currentPhase ? `Stage ${currentPhase.index + 1}` : "—"}
           </span>
         </div>
         <div className={linkRow}>

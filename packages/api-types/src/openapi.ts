@@ -4607,6 +4607,171 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 確定事項/未確認 一覧 */
+        get: {
+            parameters: {
+                query?: {
+                    project_id?: string;
+                    phase_id?: string;
+                    status?: "decided" | "unresolved";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Decision"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 確定事項 作成 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DecisionCreate"];
+                };
+            };
+            responses: {
+                /** @description 作成 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Decision"];
+                        };
+                    };
+                };
+                /** @description 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/decisions/{decision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        /** 確定事項 取得 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    decision_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取得 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Decision"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 確定事項 更新 (状態遷移含む) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    decision_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DecisionUpdate"];
+                };
+            };
+            responses: {
+                /** @description 更新 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Decision"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/cron-schedules": {
         parameters: {
             query?: never;
@@ -9265,6 +9430,11 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+            /**
+             * @description 一覧表示用のメッセージ件数 (S-F01/S-E01)
+             * @default 0
+             */
+            message_count: number;
         };
         ChatMessage: {
             /** Format: uuid */
@@ -9329,6 +9499,53 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        Decision: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            project_id?: string;
+            /** Format: uuid */
+            phase_id?: string | null;
+            /** @enum {string} */
+            status?: "decided" | "unresolved";
+            body?: string;
+            reflected_to?: string | null;
+            resolve_note?: string | null;
+            /** Format: uuid */
+            decided_by?: string | null;
+            with_user?: boolean;
+            /** Format: date-time */
+            deleted_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        DecisionCreate: {
+            /** Format: uuid */
+            project_id: string;
+            /** Format: uuid */
+            phase_id?: string | null;
+            /**
+             * @default decided
+             * @enum {string}
+             */
+            status: "decided" | "unresolved";
+            body: string;
+            reflected_to?: string | null;
+            resolve_note?: string | null;
+            /** Format: uuid */
+            decided_by?: string | null;
+            /** @default false */
+            with_user: boolean;
+        };
+        DecisionUpdate: {
+            /** @enum {string} */
+            status?: "decided" | "unresolved";
+            body?: string;
+            reflected_to?: string | null;
+            resolve_note?: string | null;
         };
         Comment: {
             /** Format: uuid */

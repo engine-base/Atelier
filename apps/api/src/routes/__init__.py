@@ -21,6 +21,7 @@ from src.routes.client_signin import router as client_signin_router
 from src.routes.comments import router as comments_router
 from src.routes.contract import router as contract_router
 from src.routes.cron import router as cron_router
+from src.routes.decisions import router as decisions_router
 from src.routes.dispatcher import router as dispatcher_router
 from src.routes.exec_logs import router as exec_logs_router
 from src.routes.executions import router as executions_router
@@ -56,6 +57,7 @@ api_router.include_router(client_invitations_router)
 api_router.include_router(chat_router)
 api_router.include_router(workflow_router)
 api_router.include_router(outputs_router)
+api_router.include_router(decisions_router)
 api_router.include_router(comments_router)
 api_router.include_router(public_router)
 api_router.include_router(impact_router)

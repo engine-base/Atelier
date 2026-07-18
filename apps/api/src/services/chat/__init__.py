@@ -52,6 +52,7 @@ def _row_to_response(row: Any) -> ThreadResponse:
         deleted_at=row.deleted_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        message_count=int(getattr(row, "message_count", 0) or 0),
     )
 
 
@@ -67,7 +68,10 @@ async def list_threads(
         where.append("archived = false")
     res = await session.execute(
         text(
-            f"select {_COLS} from public.chat_threads where {' and '.join(where)} order by created_at desc"
+            f"select {_COLS}, "
+            "(select count(*) from public.chat_messages m "
+            " where m.thread_id = chat_threads.id and m.deleted_at is null) as message_count "
+            f"from public.chat_threads where {' and '.join(where)} order by created_at desc"
         ),
         params,
     )

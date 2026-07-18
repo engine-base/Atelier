@@ -721,6 +721,7 @@ components:
         deleted_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        message_count: { type: integer, default: 0, description: '一覧表示用のメッセージ件数 (S-F01/S-E01)' }
 
     ChatMessage:
       type: object
@@ -771,6 +772,43 @@ components:
         deleted_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+
+    Decision:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        phase_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, enum: [decided, unresolved] }
+        body: { type: string }
+        reflected_to: { type: string, nullable: true }
+        resolve_note: { type: string, nullable: true }
+        decided_by: { type: string, format: uuid, nullable: true }
+        with_user: { type: boolean }
+        deleted_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    DecisionCreate:
+      type: object
+      required: [project_id, body]
+      properties:
+        project_id: { type: string, format: uuid }
+        phase_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, enum: [decided, unresolved], default: decided }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        reflected_to: { type: string, nullable: true, maxLength: 500 }
+        resolve_note: { type: string, nullable: true, maxLength: 500 }
+        decided_by: { type: string, format: uuid, nullable: true }
+        with_user: { type: boolean, default: false }
+
+    DecisionUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [decided, unresolved] }
+        body: { type: string, minLength: 1, maxLength: 2000 }
+        reflected_to: { type: string, nullable: true, maxLength: 500 }
+        resolve_note: { type: string, nullable: true, maxLength: 500 }
 
     Comment:
       type: object
@@ -3630,6 +3668,88 @@ paths:
         '409': { description: HTML 未生成, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # 確定事項/未確認 (T-D-101, S-F01)
+  # ==========================================================================
+  /decisions:
+    get:
+      tags: [decisions]
+      summary: 確定事項/未確認 一覧
+      x-implementation-path: apps/api/src/routes/decisions/__init__.py::list_decisions
+      x-screen-ids: [S-F01]
+      parameters:
+        - { name: project_id, in: query, schema: { type: string, format: uuid } }
+        - { name: phase_id, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [decided, unresolved] } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Decision' } }
+    post:
+      tags: [decisions]
+      summary: 確定事項 作成
+      x-implementation-path: apps/api/src/routes/decisions/__init__.py::create_decision
+      x-screen-ids: [S-F01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionCreate' }
+      responses:
+        '201':
+          description: 作成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Decision' }
+        '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /decisions/{decision_id}:
+    parameters:
+      - { name: decision_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [decisions]
+      summary: 確定事項 取得
+      x-implementation-path: apps/api/src/routes/decisions/__init__.py::get_decision
+      x-screen-ids: [S-F01]
+      responses:
+        '200':
+          description: 取得
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Decision' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [decisions]
+      summary: 確定事項 更新 (状態遷移含む)
+      x-implementation-path: apps/api/src/routes/decisions/__init__.py::update_decision
+      x-screen-ids: [S-F01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionUpdate' }
+      responses:
+        '200':
+          description: 更新
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Decision' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # cron スケジュール (T-A-40)

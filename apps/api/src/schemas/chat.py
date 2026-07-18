@@ -36,6 +36,8 @@ class ThreadResponse(BaseModel):
     deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    # 一覧表示用のメッセージ件数 (S-F01 議論中タブ / S-E01 スレッド一覧)
+    message_count: int = 0
 
 
 class MessageCreate(BaseModel):

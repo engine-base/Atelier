@@ -31,6 +31,8 @@ import {
   PhaseTabs,
   SideRail,
   StageHeader,
+  type PhaseDecision,
+  type PhaseEmployee,
   type PhaseInfo,
   type PhaseOutput,
   type PhaseTask,
@@ -52,6 +54,19 @@ interface ApiThread {
   title?: string | null;
   ai_employee_id?: string;
   updated_at?: string;
+  message_count?: number;
+}
+
+interface ApiDecision {
+  id: string;
+  phase_id?: string | null;
+  status?: string;
+  body?: string;
+  reflected_to?: string | null;
+  resolve_note?: string | null;
+  decided_by?: string | null;
+  with_user?: boolean;
+  created_at?: string;
 }
 
 interface ApiEmployee {
@@ -213,6 +228,26 @@ export function WorkflowGraphContainer({
     },
     retry: false,
   });
+  const decisionsQuery = useQuery({
+    queryKey: ["workflow-decisions", projectId],
+    queryFn: async () => {
+      const res = await client.get("/decisions", {
+        params: { query: { project_id: projectId } },
+      });
+      return (res as { data?: ApiDecision[] }).data ?? [];
+    },
+    retry: false,
+  });
+  const knowledgeQuery = useQuery({
+    queryKey: ["workflow-knowledge", projectId],
+    queryFn: async () => {
+      const res = await client.get("/knowledge", {
+        params: { query: { source_project_id: projectId } },
+      });
+      return (res as { data?: { id: string }[] }).data ?? [];
+    },
+    retry: false,
+  });
 
   if (isForbidden(list.error)) {
     return (
@@ -308,6 +343,9 @@ export function WorkflowGraphContainer({
 
   const employees = employeesQuery.data ?? [];
   const employeeById = new Map(employees.map((e) => [e.id, e]));
+  const empName = (e?: ApiEmployee) => e?.display_name ?? e?.name;
+  const empColor = (e?: ApiEmployee) =>
+    (e?.name ? EMPLOYEE_COLORS[e.name] : undefined) ?? "#2563EB";
   const threads: PhaseThread[] = (threadsQuery.data ?? []).map((th) => {
     const emp = th.ai_employee_id
       ? employeeById.get(th.ai_employee_id)
@@ -315,12 +353,52 @@ export function WorkflowGraphContainer({
     return {
       id: th.id,
       title: th.title ?? null,
-      employeeName: emp?.display_name ?? emp?.name,
-      employeeColor: emp?.name ? EMPLOYEE_COLORS[emp.name] : undefined,
+      employeeName: empName(emp),
+      employeeColor: empColor(emp),
       updated_at: th.updated_at,
+      messageCount: th.message_count,
     };
   });
   const tasks = tasksQuery.data ?? [];
+
+  // 確定事項/未確認: 選択工程のもの (phase_id 無しは全工程共通として常に表示)。
+  const allDecisions = (decisionsQuery.data ?? []).filter(
+    (d) => !d.phase_id || d.phase_id === selected.id,
+  );
+  const toDecision = (d: ApiDecision): PhaseDecision => {
+    const emp = d.decided_by ? employeeById.get(d.decided_by) : undefined;
+    return {
+      id: d.id,
+      status: d.status === "unresolved" ? "unresolved" : "decided",
+      body: d.body ?? "",
+      reflected_to: d.reflected_to,
+      resolve_note: d.resolve_note,
+      created_at: d.created_at,
+      employeeName: empName(emp),
+      employeeColor: empColor(emp),
+      with_user: d.with_user,
+    };
+  };
+  const decisions = allDecisions
+    .filter((d) => d.status !== "unresolved")
+    .map(toDecision);
+  const unresolved = allDecisions
+    .filter((d) => d.status === "unresolved")
+    .map(toDecision);
+
+  // 工程に関与する AI 社員 (スレッド + 確定事項の担当から集計、モックのヘッダーアバター)。
+  const involvedIds = new Set<string>();
+  for (const th of threadsQuery.data ?? []) {
+    if (th.ai_employee_id) involvedIds.add(th.ai_employee_id);
+  }
+  for (const d of allDecisions) {
+    if (d.decided_by) involvedIds.add(d.decided_by);
+  }
+  const involved: PhaseEmployee[] = [...involvedIds]
+    .map((id) => employeeById.get(id))
+    .filter((e): e is ApiEmployee => !!e)
+    .slice(0, 3)
+    .map((e) => ({ id: e.id, name: empName(e) ?? "AI", color: empColor(e) }));
 
   // 前工程のサマリー (直前工程の最新成果物 summary)。
   const prevPhase = selectedIdx > 0 ? phases[selectedIdx - 1] : undefined;
@@ -337,7 +415,11 @@ export function WorkflowGraphContainer({
       />
       <DependencyList nodes={nodes} />
 
-      <StageHeader phase={phaseInfo} progressPct={progressPct} />
+      <StageHeader
+        phase={phaseInfo}
+        progressPct={progressPct}
+        employees={involved}
+      />
 
       {allSettled ? (
         <p className="px-md pb-2 text-[13px] font-semibold text-tertiary sm:px-[32px]">
@@ -351,6 +433,8 @@ export function WorkflowGraphContainer({
           outputs={outputs}
           threads={threads}
           tasks={tasks}
+          decisions={decisions}
+          unresolved={unresolved}
         />
         <SideRail
           projectId={projectId}
@@ -371,8 +455,10 @@ export function WorkflowGraphContainer({
           nextPhaseLabel={phases[selectedIdx + 1]?.name}
           prevPhaseLabel={prevPhase?.name}
           prevSummary={prevSummary}
+          employees={involved}
           threadCount={threads.length}
           taskCount={tasks.length}
+          knowledgeCount={knowledgeQuery.data?.length}
           onComplete={
             current ? () => void advance(current.id, next?.id) : undefined
           }

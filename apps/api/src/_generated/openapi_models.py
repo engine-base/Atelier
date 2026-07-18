@@ -729,6 +729,10 @@ class ChatThread(BaseModel):
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
+    message_count: int | None = 0
+    """
+    一覧表示用のメッセージ件数 (S-F01/S-E01)
+    """
 
 
 class Role4(StrEnum):
@@ -796,6 +800,44 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Status2(StrEnum):
+    decided = "decided"
+    unresolved = "unresolved"
+
+
+class Decision(BaseModel):
+    id: UUID | None = None
+    project_id: UUID | None = None
+    phase_id: UUID | None = None
+    status: Status2 | None = None
+    body: str | None = None
+    reflected_to: str | None = None
+    resolve_note: str | None = None
+    decided_by: UUID | None = None
+    with_user: bool | None = None
+    deleted_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
+class DecisionCreate(BaseModel):
+    project_id: UUID
+    phase_id: UUID | None = None
+    status: Status2 | None = "decided"
+    body: Annotated[str, Field(max_length=2000, min_length=1)]
+    reflected_to: Annotated[str | None, Field(max_length=500)] = None
+    resolve_note: Annotated[str | None, Field(max_length=500)] = None
+    decided_by: UUID | None = None
+    with_user: bool | None = False
+
+
+class DecisionUpdate(BaseModel):
+    status: Status2 | None = None
+    body: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
+    reflected_to: Annotated[str | None, Field(max_length=500)] = None
+    resolve_note: Annotated[str | None, Field(max_length=500)] = None
+
+
 class TargetType(StrEnum):
     workflow_output = "workflow_output"
     mock = "mock"
@@ -803,7 +845,7 @@ class TargetType(StrEnum):
     acceptance_criteria = "acceptance_criteria"
 
 
-class Status2(StrEnum):
+class Status5(StrEnum):
     open = "open"
     resolved = "resolved"
     deleted = "deleted"
@@ -817,7 +859,7 @@ class Comment(BaseModel):
     author_user_id: UUID | None = None
     author_invitation_id: UUID | None = None
     content: str | None = None
-    status: Status2 | None = None
+    status: Status5 | None = None
     parent_comment_id: UUID | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
@@ -994,14 +1036,14 @@ class MeetingTranscribeRequest(PlayTaskRequest):
     pass
 
 
-class Status3(StrEnum):
+class Status6(StrEnum):
     queued = "queued"
     already_parsed = "already_parsed"
 
 
 class MeetingTranscribeResponse(BaseModel):
     id: UUID
-    status: Status3
+    status: Status6
     queued_at: AwareDatetime
 
 
@@ -1169,7 +1211,7 @@ class KnowledgePatternResponse(BaseModel):
     patterns: list[KnowledgePattern]
 
 
-class Status4(StrEnum):
+class Status7(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
@@ -1185,7 +1227,7 @@ class Execution(BaseModel):
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     duration_seconds: float | None = None
-    status: Status4
+    status: Status7
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1215,7 +1257,7 @@ class BridgeStatus(BaseModel):
 class ExecLogMeta(BaseModel):
     execution_id: UUID
     task_id: UUID
-    status: Status4
+    status: Status7
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     logs_storage_path: str | None = None
@@ -1471,7 +1513,7 @@ class Type7(StrEnum):
     scope_change = "scope_change"
 
 
-class Status6(StrEnum):
+class Status9(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1489,20 +1531,20 @@ class ApprovalInboxEntry(BaseModel):
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status6 | None = None
+    status: Status9 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
 
 
-class Decision(StrEnum):
+class Decision1(StrEnum):
     approve = "approve"
     reject = "reject"
 
 
 class ApprovalDecideRequest(BaseModel):
-    decision: Decision
+    decision: Decision1
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 
