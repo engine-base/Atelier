@@ -18,13 +18,16 @@ import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.chat_sse import ChatContextPreviewResponse
+
+if TYPE_CHECKING:
+    from .tools import ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -290,17 +293,24 @@ def _build_system_param(system_prompt: str) -> str | list[dict[str, Any]]:
     return blocks if blocks else system_prompt
 
 
-def _build_stream_tools() -> list[dict[str, Any]] | None:
+def _build_stream_tools(*, include_atelier: bool = False) -> list[dict[str, Any]] | None:
     """T-A-51: 実 stream に注入する tools を組み立てる。
 
-    T-F-21 の build_web_search_tool() を唯一の組立元とする (独自 dict 直書き禁止)。
-    ATELIER_WEB_SEARCH_DISABLED=1 で注入を無効化できる (既定は有効)。
+    - web_search: Anthropic server-side tool (T-F-21 build_web_search_tool が唯一の組立元)。
+      ATELIER_WEB_SEARCH_DISABLED=1 で無効化。
+    - Atelier ツール (save_deliverable 等): include_atelier=True のとき追加。agentic ループが
+      tool_use を受けてサーバ側で実行する (chat がアプリ操作を実行できるようにする)。
     """
-    if os.environ.get("ATELIER_WEB_SEARCH_DISABLED") == "1":
-        return None
-    from src.tools.web_search import build_web_search_tool
+    stream_tools: list[dict[str, Any]] = []
+    if os.environ.get("ATELIER_WEB_SEARCH_DISABLED") != "1":
+        from src.tools.web_search import build_web_search_tool
 
-    return [build_web_search_tool()]
+        stream_tools.append(build_web_search_tool())
+    if include_atelier:
+        from src.services.chat_sse.tools import atelier_tool_defs
+
+        stream_tools.extend(atelier_tool_defs())
+    return stream_tools or None
 
 
 async def _real_stream_chunks(
@@ -308,36 +318,96 @@ async def _real_stream_chunks(
     system_prompt: str,
     history: list[tuple[str, str]],
     user_message: str,
+    tool_ctx: ToolContext | None = None,
 ) -> AsyncIterator[str]:
     """Anthropic SDK で実 stream。chunk text delta を yield する。
 
-    web_search は Anthropic server-side tool のため、tool 実行は provider 側で
-    完結し、text_stream は text delta のみを yield する (SSE 整形は不変)。
+    - 既定 (ATELIER_CHAT_TOOLS_ENABLED != "1" / tool_ctx 無し): text delta のみ。
+      web_search は Anthropic server-side tool のため provider 側で完結する (従来動作)。
+    - ATELIER_CHAT_TOOLS_ENABLED="1" かつ tool_ctx あり: Atelier ツールを注入し、
+      tool_use → サーバ側実行 → tool_result で継続する agentic ループを回す
+      (チャットがアプリ操作＝成果物保存 等を実行できるようになる)。
     """
     from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
 
     client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-    msgs: list[dict[str, str]] = []
+    tools_enabled = os.environ.get("ATELIER_CHAT_TOOLS_ENABLED") == "1" and tool_ctx is not None
+
+    msgs: list[dict[str, Any]] = []
     for role, content in history:
         if role in ("user", "assistant"):
             msgs.append({"role": role, "content": content})
     msgs.append({"role": "user", "content": user_message})
 
-    kwargs: dict[str, Any] = {}
-    tools = _build_stream_tools()
-    if tools is not None:
-        kwargs["tools"] = tools
+    tools = _build_stream_tools(include_atelier=tools_enabled)
+    system_param = _build_system_param(system_prompt)
 
-    async with client.messages.stream(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        system=_build_system_param(system_prompt),  # type: ignore[arg-type]
-        messages=msgs,  # type: ignore[arg-type]
-        **kwargs,
-    ) as stream:
-        async for delta in stream.text_stream:  # type: ignore[union-attr]
-            if delta:
-                yield delta
+    if not tools_enabled:
+        kwargs: dict[str, Any] = {}
+        if tools is not None:
+            kwargs["tools"] = tools
+        async with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=system_param,  # type: ignore[arg-type]
+            messages=msgs,  # type: ignore[arg-type]
+            **kwargs,
+        ) as stream:
+            async for delta in stream.text_stream:  # type: ignore[union-attr]
+                if delta:
+                    yield delta
+        return
+
+    # agentic ループ: tool_use を実行して継続。無限ループ防止に上限を設ける。
+    from .tools import ATELIER_TOOL_NAMES, execute_atelier_tool
+
+    assert tool_ctx is not None
+    for _round in range(5):
+        async with client.messages.stream(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=system_param,  # type: ignore[arg-type]
+            messages=msgs,  # type: ignore[arg-type]
+            tools=tools,  # type: ignore[arg-type]
+        ) as stream:
+            async for delta in stream.text_stream:  # type: ignore[union-attr]
+                if delta:
+                    yield delta
+            final = await stream.get_final_message()
+
+        if getattr(final, "stop_reason", None) != "tool_use":
+            break
+
+        # assistant のツール呼び出しをそのまま積み、client-side ツールを実行して結果を返す。
+        # ブロックは union 型のため属性は getattr で安全に取り出す。
+        msgs.append(
+            {
+                "role": "assistant",
+                "content": [b.model_dump() for b in final.content],
+            }
+        )
+        results: list[dict[str, Any]] = []
+        for b in final.content:
+            if getattr(b, "type", None) != "tool_use":
+                continue
+            name: str = str(getattr(b, "name", ""))
+            if name not in ATELIER_TOOL_NAMES:
+                continue
+            raw_input = getattr(b, "input", None)
+            tool_input: dict[str, Any] = (
+                cast("dict[str, Any]", raw_input) if isinstance(raw_input, dict) else {}
+            )
+            out = await execute_atelier_tool(tool_ctx, name, tool_input)
+            results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": str(getattr(b, "id", "")),
+                    "content": out,
+                }
+            )
+        if not results:  # server-side tool のみ等、実行対象が無ければ終了
+            break
+        msgs.append({"role": "user", "content": results})
 
 
 async def stream_chat(
@@ -404,6 +474,27 @@ async def stream_chat(
             }
         )
         return
+    # agentic ツール実行 (ATELIER_CHAT_TOOLS_ENABLED=1 時) 用の文脈: thread→project→workspace。
+    tool_ctx: ToolContext | None = None
+    if use_real and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED") == "1":
+        from .tools import ToolContext as _ToolContext
+
+        _, project_id = await _load_thread_meta(session, thread_id=thread_id)
+        workspace_id: str | None = None
+        if project_id is not None:
+            ws_res = await session.execute(
+                text("select workspace_id from public.projects where id = cast(:p as uuid)"),
+                {"p": project_id},
+            )
+            ws_row = ws_res.first()
+            workspace_id = None if ws_row is None else str(ws_row.workspace_id)
+        tool_ctx = _ToolContext(
+            session=session,
+            actor_id=actor_id,
+            project_id=project_id,
+            workspace_id=workspace_id,
+        )
+
     accumulated: list[str] = []
     try:
         if use_real:
@@ -411,6 +502,7 @@ async def stream_chat(
                 system_prompt=system_prompt,
                 history=history,
                 user_message=user_message,
+                tool_ctx=tool_ctx,
             )
         else:
             chunks = _fake_stream_chunks(user_message)
