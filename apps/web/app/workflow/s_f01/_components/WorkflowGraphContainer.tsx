@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { Loading } from "../../../../components/Loading";
+import { EMPLOYEE_COLORS } from "../../../../lib/aiEmployees";
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import {
   CANONICAL_PHASES,
@@ -74,20 +75,6 @@ interface ApiEmployee {
   name?: string;
   display_name?: string;
 }
-
-/** モック atelier.css .avatar-* の社員カラー。 */
-const EMPLOYEE_COLORS: Record<string, string> = {
-  tony: "#DC2626",
-  natasha: "#7C3AED",
-  steve: "#1E40AF",
-  peter: "#DC2626",
-  strange: "#C7A04A",
-  wanda: "#BE185D",
-  thor: "#0891B2",
-  vision: "#16A34A",
-  tchalla: "#1F2937",
-  jarvis: "#2563EB",
-};
 
 function toUi(status: string): StageNode["status"] {
   if (status === "completed") return "done";

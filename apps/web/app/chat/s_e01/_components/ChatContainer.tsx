@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Brain } from "lucide-react";
 
 import { Toast } from "../../../../components/ui/toast";
-import { ChatPanel, type ChatMessage } from "./ChatPanel";
+import { ChatPanel, type ChatEmployeeInfo, type ChatMessage } from "./ChatPanel";
 import {
   fetchThreadMessages,
   streamChatThread,
@@ -38,6 +38,14 @@ export interface ChatContainerProps {
   /** 注入用 (省略時は実 SSE)。 */
   readonly streamFn?: StreamFn;
   readonly initialMessages?: readonly ChatMessage[];
+  /** 対話相手の AI 社員 (バブルの名前/アバター/placeholder)。 */
+  readonly employee?: ChatEmployeeInfo;
+  /** ストリーミング状態の変化 (ヘッダーのステータス行用)。 */
+  readonly onBusyChange?: (busy: boolean) => void;
+  /** F-CTX01 実測値の変化 (右ペインのコンテキストタブ用)。 */
+  readonly onContext?: (ctx: ChatContextSummary) => void;
+  /** メッセージ件数の変化 (右ペイン用)。 */
+  readonly onMessageCount?: (count: number) => void;
 }
 
 let _seq = 0;
@@ -61,6 +69,10 @@ export function ChatContainer({
   ragAccountId,
   streamFn = streamChatThread,
   initialMessages = [],
+  employee,
+  onBusyChange,
+  onContext,
+  onMessageCount,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -68,10 +80,21 @@ export function ChatContainer({
   const [context, setContext] = useState<ChatContextSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    onBusyChange?.(sending);
+  }, [sending, onBusyChange]);
+  useEffect(() => {
+    if (context) onContext?.(context);
+  }, [context, onContext]);
+  useEffect(() => {
+    onMessageCount?.(messages.length);
+  }, [messages.length, onMessageCount]);
+
   // バグ #23 対応: 既存スレッドの履歴をマウント時にロードする
   // (これが無いとリロードで会話が消え、cron ダイジェスト等の既存メッセージが不可視)。
   useEffect(() => {
     let cancelled = false;
+    setMessages([]);
     fetchThreadMessages(threadId)
       .then((history) => {
         if (cancelled || history.length === 0) return;
@@ -171,6 +194,7 @@ export function ChatContainer({
           messages={messages}
           onSend={(t) => void handleSend(t)}
           disabled={sending}
+          employee={employee}
         />
       </div>
 

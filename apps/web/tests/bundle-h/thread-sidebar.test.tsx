@@ -58,7 +58,7 @@ describe("S-E01 ThreadSidebar", () => {
     const onSelect = vi.fn();
     renderWithQuery(<ThreadSidebar selectedId={null} onSelect={onSelect} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "＋ 新規" }));
+    fireEvent.click(await screen.findByRole("button", { name: "新規スレッド" }));
     // 選択肢が揃うのを待つ
     await screen.findByRole("option", { name: "小松案件" });
     fireEvent.change(screen.getByLabelText("プロジェクト"), { target: { value: "p1" } });

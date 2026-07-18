@@ -20,6 +20,8 @@ class ThreadCreate(BaseModel):
     project_id: str
     ai_employee_id: str
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    # スレッドが属する工程 (S-E01 グルーピング)。None = 工程横断。
+    phase_id: str | None = None
 
 
 class ThreadUpdate(BaseModel):
@@ -38,6 +40,10 @@ class ThreadResponse(BaseModel):
     updated_at: datetime
     # 一覧表示用のメッセージ件数 (S-F01 議論中タブ / S-E01 スレッド一覧)
     message_count: int = 0
+    # スレッドが属する工程 (S-E01 グルーピング)。None = 工程横断。
+    phase_id: str | None = None
+    # 一覧の最終メッセージ抜粋 (S-E01 スレッドカード)
+    last_message_preview: str | None = None
 
 
 class MessageCreate(BaseModel):

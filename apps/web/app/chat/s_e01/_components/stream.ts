@@ -96,14 +96,25 @@ export async function streamChatThread(args: StreamChatArgs): Promise<void> {
   if (tail) args.onChunk(tail);
 }
 
+export type ThreadMessageRole = "user" | "assistant" | "system" | "tool";
+
 export interface ThreadMessage {
   readonly id: string;
-  readonly role: "user" | "assistant";
+  readonly role: ThreadMessageRole;
   readonly content: string;
+  readonly created_at?: string;
 }
+
+const KNOWN_ROLES: ReadonlySet<string> = new Set([
+  "user",
+  "assistant",
+  "system",
+  "tool",
+]);
 
 /**
  * 既存スレッドの過去メッセージを取得する (バグ #23 対応)。
+ * tool / system メッセージも返す (モックのツールカード描画用)。
  * 失敗時は throw — 呼び出し側でエラー表示する。
  */
 export async function fetchThreadMessages(
@@ -123,13 +134,19 @@ export async function fetchThreadMessages(
     throw new Error(`messages fetch failed: ${res.status}`);
   }
   const json = (await res.json()) as {
-    data: readonly { id: string; role: string; content: string }[];
+    data: readonly {
+      id: string;
+      role: string;
+      content: string;
+      created_at?: string;
+    }[];
   };
   return json.data
-    .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => KNOWN_ROLES.has(m.role))
     .map((m) => ({
       id: m.id,
-      role: m.role as "user" | "assistant",
+      role: m.role as ThreadMessageRole,
       content: m.content,
+      created_at: m.created_at,
     }));
 }

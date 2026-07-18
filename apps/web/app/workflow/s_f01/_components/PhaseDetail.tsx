@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
+import { fmtDateTime, relTime } from "../../../../lib/format";
 import type { StageNode } from "./StageBar";
 
 /* ------------------------------------------------------------------ */
@@ -96,29 +97,7 @@ export interface PhaseInfo {
 /* 共通ヘルパー                                                        */
 /* ------------------------------------------------------------------ */
 
-export function fmtDateTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** モックの「8 分前」「昨日」表示。 */
-export function relTime(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return "";
-  const mins = Math.floor((Date.now() - t) / 60000);
-  if (mins < 1) return "たった今";
-  if (mins < 60) return `${mins} 分前`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} 時間前`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "昨日";
-  if (days < 7) return `${days} 日前`;
-  return fmtDateTime(iso).slice(0, 10);
-}
+export { fmtDateTime } from "../../../../lib/format";
 
 function elapsedLabel(iso: string | null | undefined): string {
   if (!iso) return "";

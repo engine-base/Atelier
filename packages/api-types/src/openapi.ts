@@ -6719,6 +6719,11 @@ export interface paths {
                         /** Format: uuid */
                         ai_employee_id: string;
                         title?: string;
+                        /**
+                         * Format: uuid
+                         * @description スレッドの属する工程。null=工程横断
+                         */
+                        phase_id?: string | null;
                     };
                 };
             };
@@ -9435,6 +9440,13 @@ export interface components {
              * @default 0
              */
             message_count: number;
+            /**
+             * Format: uuid
+             * @description スレッドの属する工程。null=工程横断 (S-E01 グルーピング)
+             */
+            phase_id?: string | null;
+            /** @description 一覧の最終メッセージ抜粋 (S-E01 スレッドカード) */
+            last_message_preview?: string | null;
         };
         ChatMessage: {
             /** Format: uuid */

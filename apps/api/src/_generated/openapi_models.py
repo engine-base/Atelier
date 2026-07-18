@@ -733,6 +733,14 @@ class ChatThread(BaseModel):
     """
     一覧表示用のメッセージ件数 (S-F01/S-E01)
     """
+    phase_id: UUID | None = None
+    """
+    スレッドの属する工程。null=工程横断 (S-E01 グルーピング)
+    """
+    last_message_preview: str | None = None
+    """
+    一覧の最終メッセージ抜粋 (S-E01 スレッドカード)
+    """
 
 
 class Role4(StrEnum):

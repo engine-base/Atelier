@@ -722,6 +722,8 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         message_count: { type: integer, default: 0, description: '一覧表示用のメッセージ件数 (S-F01/S-E01)' }
+        phase_id: { type: string, format: uuid, nullable: true, description: 'スレッドの属する工程。null=工程横断 (S-E01 グルーピング)' }
+        last_message_preview: { type: string, nullable: true, description: '一覧の最終メッセージ抜粋 (S-E01 スレッドカード)' }
 
     ChatMessage:
       type: object
@@ -4555,6 +4557,7 @@ paths:
                 project_id: { type: string, format: uuid }
                 ai_employee_id: { type: string, format: uuid }
                 title: { type: string, maxLength: 200 }
+                phase_id: { type: string, format: uuid, nullable: true, description: 'スレッドの属する工程。null=工程横断' }
       responses:
         '201':
           description: 作成成功

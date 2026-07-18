@@ -24,7 +24,9 @@ from src.schemas.chat import (
     ThreadUpdate,
 )
 
-_COLS = "id, project_id, ai_employee_id, title, archived, created_at, updated_at, deleted_at"
+_COLS = (
+    "id, project_id, ai_employee_id, phase_id, title, archived, created_at, updated_at, deleted_at"
+)
 
 _MSG_COLS = "id, thread_id, role, content, parent_message_id, token_count, created_at, updated_at"
 
@@ -53,6 +55,12 @@ def _row_to_response(row: Any) -> ThreadResponse:
         created_at=row.created_at,
         updated_at=row.updated_at,
         message_count=int(getattr(row, "message_count", 0) or 0),
+        phase_id=(None if getattr(row, "phase_id", None) is None else str(row.phase_id)),
+        last_message_preview=(
+            None
+            if getattr(row, "last_message_preview", None) is None
+            else str(row.last_message_preview)[:120]
+        ),
     )
 
 
@@ -70,8 +78,11 @@ async def list_threads(
         text(
             f"select {_COLS}, "
             "(select count(*) from public.chat_messages m "
-            " where m.thread_id = chat_threads.id and m.deleted_at is null) as message_count "
-            f"from public.chat_threads where {' and '.join(where)} order by created_at desc"
+            " where m.thread_id = chat_threads.id and m.deleted_at is null) as message_count, "
+            "(select m.content from public.chat_messages m "
+            " where m.thread_id = chat_threads.id and m.deleted_at is null "
+            " order by m.created_at desc limit 1) as last_message_preview "
+            f"from public.chat_threads where {' and '.join(where)} order by updated_at desc"
         ),
         params,
     )
@@ -95,10 +106,16 @@ async def create_thread(
     new_id = str(uuid.uuid4())
     await session.execute(
         text(
-            "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
-            "values (cast(:id as uuid), cast(:pid as uuid), cast(:eid as uuid), :title)"
+            "insert into public.chat_threads (id, project_id, ai_employee_id, title, phase_id) "
+            "values (cast(:id as uuid), cast(:pid as uuid), cast(:eid as uuid), :title, cast(:phid as uuid))"
         ),
-        {"id": new_id, "pid": data.project_id, "eid": data.ai_employee_id, "title": data.title},
+        {
+            "id": new_id,
+            "pid": data.project_id,
+            "eid": data.ai_employee_id,
+            "title": data.title,
+            "phid": data.phase_id,
+        },
     )
     await AuditWriter(session).write(
         AuditEvent(
