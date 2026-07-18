@@ -320,8 +320,12 @@ _LOCKOUT_THRESHOLD = 5
 _LOCKOUT_WINDOW_MINUTES = 15
 """ロック判定の時間窓。直近 N 分の失敗回数を数える。"""
 
-_ACCESS_TOKEN_TTL_SECONDS = 3600
-"""access_token (HS256 JWT) の有効期限。"""
+_ACCESS_TOKEN_TTL_SECONDS = int(os.environ.get("ATELIER_ACCESS_TOKEN_TTL_SECONDS", "28800"))
+"""access_token (HS256 JWT) の有効期限(秒)。
+
+既定 8h。1h だと長い作業(通し検証・長い商談チャット)の途中でセッションが切れ、
+クライアント側 refresh が未配線のため強制再ログインになっていた。env
+ATELIER_ACCESS_TOKEN_TTL_SECONDS で調整可能(短命化してリスクを下げることも可能)。"""
 
 
 class SigninError(Exception):

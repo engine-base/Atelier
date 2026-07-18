@@ -200,6 +200,19 @@ export function KnowledgeExplorer({
     },
   });
 
+  // 論理削除 → DELETE /knowledge/{id}。DELETE API は存在したが UI に未配線で、
+  // 誤保存・重複ノートを画面から消せなかった (削除ボタンが無かった)。成功でツリー再取得。
+  const deleteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.delete("/knowledge/{knowledge_id}", {
+        params: { path: { knowledge_id: id } },
+      }),
+    onSuccess: () => {
+      setSelected(null);
+      void queryClient.invalidateQueries({ queryKey: rootKey });
+    },
+  });
+
   // 本文編集 (title / content_md) → PATCH /knowledge/{id}。以前は「編集」ボタンが非機能だった。
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -550,6 +563,8 @@ export function KnowledgeExplorer({
           node={selected}
           onPromote={(id) => promoteMut.mutate(id)}
           promoting={promoteMut.isPending}
+          onDelete={(id) => deleteMut.mutate(id)}
+          deleting={deleteMut.isPending}
         />
       </aside>
 
