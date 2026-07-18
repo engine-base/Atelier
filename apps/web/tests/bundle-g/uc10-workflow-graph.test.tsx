@@ -68,14 +68,22 @@ describe("S-F01 WorkflowGraphContainer (T-UC-10)", () => {
     expect(deps).toHaveTextContent("要件定義 → 設計");
   });
 
-  it("shows an empty message when there are no phases", async () => {
-    const get = vi.fn(async () => ({ data: [] }));
+  it("falls back to the canonical 9 phases from current_phase when none are registered", async () => {
+    // 工程レコードが無い場合はダッシュボードと同じ canonical 9 工程を current_phase から描く。
+    const get = vi.fn(async (path: string) =>
+      path.includes("/workflow/phases")
+        ? { data: [] }
+        : { data: { current_phase: "requirements" } },
+    );
     renderWithQuery(
       <WorkflowGraphContainer projectId="prj1" client={fakeClient(get)} />,
     );
-    expect(
-      await screen.findByText("工程がまだ登録されていません。"),
-    ).toBeInTheDocument();
+    // 9 工程が描画される(先頭ヒアリング・末尾納品)。
+    expect(await screen.findByText("ヒアリング")).toBeInTheDocument();
+    expect(screen.getByText("納品")).toBeInTheDocument();
+    // current=要件定義 が進行中、依存エッジも canonical 順。
+    const deps = screen.getByLabelText("依存関係");
+    expect(deps).toHaveTextContent("ヒアリング → 要件定義");
   });
 
   it("shows a forbidden message on 403", async () => {

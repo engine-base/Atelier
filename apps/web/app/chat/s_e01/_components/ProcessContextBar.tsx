@@ -15,7 +15,8 @@ import { cn } from "../../../../lib/cn";
 export interface ProcessContextBarProps {
   readonly phases: readonly string[];
   readonly currentPhaseId: string;
-  readonly onChange: (phaseId: string) => void;
+  /** 指定時のみ工程をクリックで切替可能。未指定なら読み取り専用(実 current_phase の反映)。 */
+  readonly onChange?: (phaseId: string) => void;
   readonly className?: string;
 }
 
@@ -43,21 +44,28 @@ export function ProcessContextBar({
       <ul role="list" className="flex gap-xs">
         {phases.map((p) => {
           const active = p === currentPhaseId;
+          const cls = cn(
+            "inline-flex h-7 items-center rounded-full px-sm text-[11px] font-semibold transition-colors",
+            active
+              ? "bg-primary text-on-primary"
+              : "bg-white/40 text-on-primary-container",
+          );
           return (
             <li key={p}>
-              <button
-                type="button"
-                onClick={() => onChange(p)}
-                aria-current={active ? "true" : undefined}
-                className={cn(
-                  "inline-flex h-7 items-center rounded-full px-sm text-[11px] font-semibold transition-colors",
-                  active
-                    ? "bg-primary text-on-primary"
-                    : "bg-white/40 text-on-primary-container hover:bg-white/70",
-                )}
-              >
-                {p}
-              </button>
+              {onChange ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(p)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(cls, !active && "hover:bg-white/70")}
+                >
+                  {p}
+                </button>
+              ) : (
+                <span aria-current={active ? "true" : undefined} className={cls}>
+                  {p}
+                </span>
+              )}
             </li>
           );
         })}
