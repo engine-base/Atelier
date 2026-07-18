@@ -132,7 +132,8 @@ describe("a11y 追加: 配線済み画面 axe (0 critical/serious)", () => {
     const { container } = renderWithQuery(
       <WorkflowGraphContainer projectId="p1" client={fakeClient(get)} />,
     );
-    await screen.findByText("要件定義");
+    // 要件定義 = 選択中工程: フローバーのノードと工程ヘッダー h1 の両方に出る
+    await screen.findAllByText("要件定義");
     await expectNoSeriousViolations(container);
   });
 

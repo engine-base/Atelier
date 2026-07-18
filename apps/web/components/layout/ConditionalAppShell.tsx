@@ -1,13 +1,14 @@
 /**
  * ConditionalAppShell — F-VIS-01 是正: メインアプリ全ルートに AppShell(Sidebar+TopBar) を配線する。
  *
- * 従来 AppShell はどのルートにも配線されておらず、メイン画面がナビ無しの素コンテンツで
- * 描画されていた (モックは全画面がナビレール+トップバー構成)。root layout から本コンポーネントで
- * 包み、パスに応じて shell を適用/除外する:
- *   - /auth, /client, /admin, /public, /t-uc-* : 自前 shell or shell 不要 → bare
- *   - それ以外 (/, /projects, /chat, /employees ...) : AppShell を適用
+ * ナビは 06_mockups/_shared/appshell.js の正準構造に準拠:
+ *   - 「ワークスペース · <ws>」: プロジェクト / AI社員 / ナレッジ / 承認待ち / WS設定
+ *   - 「プロジェクト · <name>」: ダッシュボード / 工程 / タスク / チャット / 議事録 / シークレット / 設定
+ *     (現在プロジェクト = useProjectId と同じ localStorage 永続値。未選択時は非表示)
  *
- * ナビ項目は 06_mockups/_shared/appshell.js のワークスペース系ナビに準拠。
+ * パスに応じて shell を適用/除外する:
+ *   - /signin, /signup, /admin, 法務ページ, /portal, /t-uc-* : 自前 shell or shell 不要 → bare
+ *   - それ以外 (/projects, /chat, /workflow ...) : AppShell を適用
  */
 
 'use client';
@@ -16,11 +17,13 @@ import * as React from 'react';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Bell,
-  Bot,
   Brain,
   FileText,
-  FolderKanban,
+  Folder,
   Inbox,
+  Kanban,
+  KeyRound,
+  LayoutDashboard,
   MessageSquare,
   Settings,
   Users,
@@ -29,34 +32,37 @@ import {
 import { usePathname } from 'next/navigation';
 
 import { getJson } from '../../lib/auth/connector';
+import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
 import { AppShell } from './AppShell';
-import type { NavItem } from './Sidebar';
+import type { NavItem, NavSection } from './Sidebar';
 
 const ICON = 'h-4 w-4';
 
-/** モック appshell.js のワークスペース系ナビに準拠 (labelKey は literal ラベル: t() 未登録キーは自身を返す)。 */
-// href は各セクションの主画面の実ルート (index ルートは存在しないため子ルートを直指定)。
-// match はセクション prefix — sub-route (例 /projects/dashboard) でも active になるようにする。
-const MAIN_NAV: readonly NavItem[] = [
-  { id: 'projects', labelKey: 'プロジェクト', href: '/projects', match: '/projects', icon: <FolderKanban className={ICON} /> },
+/** モック appshell.js GLOBAL 準拠 (labelKey は literal ラベル: t() 未登録キーは自身を返す)。 */
+const WS_NAV: readonly NavItem[] = [
+  { id: 'projects', labelKey: 'プロジェクト', href: '/projects', match: '/projects', icon: <Folder className={ICON} /> },
   { id: 'employees', labelKey: 'AI社員', href: '/employees', match: '/employees', icon: <Users className={ICON} /> },
-  { id: 'chat', labelKey: 'チャット', href: '/chat', match: '/chat', icon: <MessageSquare className={ICON} /> },
-  { id: 'tasks', labelKey: 'タスク', href: '/tasks', match: '/tasks', icon: <Bot className={ICON} /> },
-  { id: 'workflow', labelKey: '工程', href: '/workflow', match: '/workflow', icon: <Workflow className={ICON} /> },
   { id: 'knowledge', labelKey: 'ナレッジ', href: '/knowledge', match: '/knowledge', icon: <Brain className={ICON} /> },
   { id: 'approvals', labelKey: '承認待ち', href: '/approvals', match: '/approvals', icon: <Inbox className={ICON} /> },
-  { id: 'meetings', labelKey: '議事録', href: '/meetings', match: '/upload', icon: <FileText className={ICON} /> },
   { id: 'ws-settings', labelKey: 'WS設定', href: '/workspace-settings', match: '/workspace-settings', icon: <Settings className={ICON} /> },
 ];
 
-/**
- * 主 AppShell を付けない意味的パス。URL 是正で pathname は意味的URL(/signin 等)になったため
- * 旧 内部prefix(/auth /client…) 判定では signin 等に誤ってシェルが付いていた。
- *   - auth / landing / 法務ページ / デモ : 単体ページ (シェル不要)
- *   - /admin/* : 専用 AdminShell を持つ
- *   - 外部クライアントポータル(/portal, /portal/signin) : 専用 ClientShell / サインイン単体
- * 社内向けの招待管理(/portal/invitations)と WS設定(/workspace-settings)はモック通り主シェルを付ける。
- */
+/** モック appshell.js PROJECT 準拠。href に ?project= を付与して project 文脈を保持する。 */
+function projectNav(projectId: string): readonly NavItem[] {
+  const q = `?project=${projectId}`;
+  return [
+    { id: 'p-dashboard', labelKey: 'ダッシュボード', href: `/projects/dashboard${q}`, match: '/projects/dashboard', icon: <LayoutDashboard className={ICON} /> },
+    { id: 'p-workflow', labelKey: '工程', href: `/workflow${q}`, match: '/workflow', icon: <Workflow className={ICON} /> },
+    { id: 'p-tasks', labelKey: 'タスク', href: `/tasks${q}`, match: '/tasks', icon: <Kanban className={ICON} /> },
+    { id: 'p-chat', labelKey: 'チャット', href: `/chat${q}`, match: '/chat', icon: <MessageSquare className={ICON} /> },
+    { id: 'p-meetings', labelKey: '議事録', href: `/meetings${q}`, match: '/meetings', icon: <FileText className={ICON} /> },
+    { id: 'p-vault', labelKey: 'シークレット', href: `/projects/vault${q}`, match: '/projects/vault', icon: <KeyRound className={ICON} /> },
+    { id: 'p-settings', labelKey: '設定', href: `/projects/settings${q}`, match: '/projects/settings', icon: <Settings className={ICON} /> },
+  ];
+}
+
+/** プロジェクト文脈のセクション判定: PROJECT nav の match に一致するパスでは
+ * ワークスペース側の同名セクション (tasks/workflow/chat 等) より project 側を active にする。 */
 const BARE_EXACT: ReadonlySet<string> = new Set(['/', '/signin', '/signup']);
 const BARE_PREFIXES: readonly string[] = [
   '/admin',
@@ -66,6 +72,9 @@ const BARE_PREFIXES: readonly string[] = [
   '/data-deletion',
   '/t-uc',
 ];
+
+/** main の既定 padding を外すフルブリード画面 (自前でヘッダー/余白を持つ)。 */
+const FULL_BLEED_PREFIXES: readonly string[] = ['/workflow', '/chat'];
 
 function isBare(pathname: string): boolean {
   if (BARE_EXACT.has(pathname)) return true;
@@ -78,6 +87,11 @@ function isBare(pathname: string): boolean {
 }
 
 interface WorkspaceLite {
+  readonly id: string;
+  readonly name: string;
+}
+
+interface ProjectLite {
   readonly id: string;
   readonly name: string;
 }
@@ -107,6 +121,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const pathname = usePathname() ?? '/';
   const bare = isBare(pathname);
   const [workspaceName, setWorkspaceName] = useState<string | undefined>();
+  const [project, setProject] = useState<ProjectLite | undefined>();
 
   useEffect(() => {
     if (bare) return;
@@ -123,17 +138,61 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
     };
   }, [bare]);
 
+  // 現在プロジェクト (useProjectId と同じ永続値 + URL ?project= 優先) の名前を引く。
+  useEffect(() => {
+    if (bare || typeof window === 'undefined') return;
+    const fromUrl = new URLSearchParams(window.location.search).get('project');
+    const id = fromUrl ?? window.localStorage.getItem(CURRENT_PROJECT_KEY);
+    if (!id) {
+      setProject(undefined);
+      return;
+    }
+    let cancelled = false;
+    getJson<ProjectLite>(`/projects/${id}`)
+      .then((res) => {
+        if (!cancelled) setProject({ id, name: res.data.name });
+      })
+      .catch(() => {
+        if (!cancelled) setProject(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bare, pathname]);
+
   if (bare) return <>{children}</>;
-  const activeNav = MAIN_NAV.find(
+
+  const sections: NavSection[] = [
+    {
+      id: 'workspace',
+      label: `ワークスペース · ${workspaceName ?? '…'}`,
+      items: WS_NAV,
+    },
+  ];
+  if (project) {
+    sections.push({
+      id: 'project',
+      label: `プロジェクト · ${project.name}`,
+      items: projectNav(project.id),
+    });
+  }
+
+  const allNav = sections.flatMap((s) => s.items);
+  const activeNav = allNav.find(
     (n) => pathname === n.match || pathname.startsWith(`${n.match}/`),
   );
+  const fullBleed = FULL_BLEED_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+
   return (
     <AppShell
       currentPath={pathname}
-      navItems={MAIN_NAV}
+      navSections={sections}
       workspaceName={workspaceName}
       breadcrumb={activeNav?.labelKey}
       topBarTrailing={<TopBarTrailing />}
+      fullBleed={fullBleed}
     >
       {children}
     </AppShell>

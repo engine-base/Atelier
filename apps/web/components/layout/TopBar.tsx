@@ -13,7 +13,7 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Menu } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -31,6 +31,7 @@ export interface TopBarProps {
 }
 
 export function TopBar({
+  onToggleSidebar,
   workspaceName,
   breadcrumb,
   trailing,
@@ -43,12 +44,22 @@ export function TopBar({
     <header
       role="banner"
       className={cn(
-        'sticky top-0 z-sticky flex h-14 items-center justify-between border-b border-border bg-surface/95 px-8 backdrop-blur',
+        'sticky top-0 z-[100] flex h-14 items-center justify-between border-b border-border bg-surface/95 px-4 backdrop-blur sm:px-8',
         className,
       )}
-      style={{ zIndex: 'var(--z-sticky)' as unknown as number }}
     >
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+        {/* モバイル: サイドバードロワー開閉 (lg 以上は常設サイドバーなので非表示) */}
+        {onToggleSidebar ? (
+          <button
+            type="button"
+            aria-label="メニュー"
+            onClick={onToggleSidebar}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-variant lg:hidden"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : null}
         {/* ワークスペースピッカー pill */}
         <button
           type="button"

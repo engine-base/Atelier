@@ -64,7 +64,8 @@ describe("S-F01 WorkflowGraphContainer (T-UC-10)", () => {
     );
 
     expect(await screen.findByText("要件定義")).toBeInTheDocument();
-    expect(screen.getByText("設計")).toBeInTheDocument();
+    // 設計 = 選択中工程: フローバーのノードと工程ヘッダー h1 の両方に出る
+    expect(screen.getAllByText("設計").length).toBeGreaterThanOrEqual(1);
     // completed → UI「完了」, 依存エッジ「要件定義 → 設計」
     expect(screen.getByText("完了")).toBeInTheDocument();
     const deps = screen.getByLabelText("依存関係");

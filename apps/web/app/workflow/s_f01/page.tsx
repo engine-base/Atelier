@@ -1,7 +1,9 @@
 /**
  * S-F01 工程ワークフロー（司令塔）画面 — T-UC-10
  *
- * 実 workflow API (GET /workflow/phases) に配線。projectId は URL ?project=。
+ * モック 06_mockups/workflow/S-F01-flow.html 準拠のフルブリード構成:
+ * 上部フローバー + 工程ヘッダー + タブ/右レール。projectId は URL ?project=
+ * (無ければ localStorage の最後に開いたプロジェクト)。
  */
 
 "use client";
@@ -17,14 +19,12 @@ function SF01Inner() {
   const projectId = useProjectId();
 
   return (
-    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-lg px-md py-lg">
-      <h1 className="text-headline-md font-bold text-on-surface">
-        工程ワークフロー
-      </h1>
+    <div className="flex w-full flex-col">
+      <h1 className="sr-only">工程ワークフロー</h1>
       {projectId ? (
         <WorkflowGraphContainer projectId={projectId} />
       ) : (
-        <p className="text-body-md text-on-surface-variant">
+        <p className="px-md py-lg text-body-md text-on-surface-variant sm:px-[32px]">
           プロジェクトを選択すると工程フローを表示します。
         </p>
       )}
