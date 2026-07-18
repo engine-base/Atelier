@@ -17,6 +17,20 @@ from src.schemas.workflow import PhaseCreate, PhaseResponse, PhaseUpdate
 
 _COLS = 'id, project_id, "order", name, description, status, started_at, completed_at, created_at'
 
+# Atelier 標準 9 工程 (canonical)。フロント lib/workflowPhases.ts CANONICAL_PHASES の
+# label と 1:1 で一致させる (ダッシュボード S-B02 / 工程画面 S-F01 と表示を揃えるため)。
+CANONICAL_PHASE_NAMES: tuple[str, ...] = (
+    "ヒアリング",
+    "要件定義",
+    "アーキ設計",
+    "デザイン",
+    "機能分解",
+    "タスク分解",
+    "実装",
+    "検証",
+    "納品",
+)
+
 
 def _row_to_response(row: Any) -> PhaseResponse:
     return PhaseResponse(
@@ -85,6 +99,54 @@ async def create_phase(session: AsyncSession, *, actor_id: str, data: PhaseCreat
     if created is None:  # pragma: no cover
         raise RuntimeError("created phase not visible after insert")
     return created
+
+
+async def seed_default_phases(
+    session: AsyncSession, *, actor_id: str, project_id: str
+) -> list[PhaseResponse]:
+    """project に canonical 9 工程を投入する (T-UC-10)。
+
+    冪等: 既に phases が存在すれば何もせず現状を返す (二重投入しない)。
+    先頭 (order 1 / ヒアリング) を in_progress + started_at=now()、残りは pending。
+    """
+    existing = await list_phases(session, project_id=project_id)
+    if existing:
+        return existing
+
+    for i, name in enumerate(CANONICAL_PHASE_NAMES):
+        params: dict[str, object] = {
+            "id": str(uuid.uuid4()),
+            "pid": project_id,
+            "ord": i + 1,
+            "name": name,
+        }
+        if i == 0:
+            # 先頭工程は着手済みとして in_progress + started_at をセット
+            sql = (
+                'insert into public.phases (id, project_id, "order", name, status, started_at) '
+                "values (cast(:id as uuid), cast(:pid as uuid), :ord, :name, "
+                "        cast(:st as phase_status_enum), now())"
+            )
+            params["st"] = "in_progress"
+        else:
+            # 残りは DB 既定 (status=pending / started_at=null) に委ねる
+            sql = (
+                'insert into public.phases (id, project_id, "order", name) '
+                "values (cast(:id as uuid), cast(:pid as uuid), :ord, :name)"
+            )
+        await session.execute(text(sql), params)
+
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="workflow.phases.seed",
+            target_type="project",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=project_id,
+            after={"count": len(CANONICAL_PHASE_NAMES)},
+        )
+    )
+    return await list_phases(session, project_id=project_id)
 
 
 async def update_phase(

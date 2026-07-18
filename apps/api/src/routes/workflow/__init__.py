@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
-from src.schemas.workflow import PhaseCreate, PhaseResponse, PhaseUpdate
+from src.schemas.workflow import PhaseCreate, PhaseResponse, PhaseSeedRequest, PhaseUpdate
 from src.services import workflow as svc
 
 router = APIRouter(tags=["workflow"])
@@ -34,6 +34,19 @@ async def create_phase(
     body: PhaseCreate, session: SessionDep, user: UserDep
 ) -> dict[str, PhaseResponse]:
     return {"data": await svc.create_phase(session, actor_id=user.id, data=body)}
+
+
+@router.post(
+    "/workflow/phases/seed",
+    status_code=status.HTTP_201_CREATED,
+    summary="工程一括投入 (canonical 9)",
+)
+async def seed_phases(
+    body: PhaseSeedRequest, session: SessionDep, user: UserDep
+) -> dict[str, list[PhaseResponse]]:
+    return {
+        "data": await svc.seed_default_phases(session, actor_id=user.id, project_id=body.project_id)
+    }
 
 
 @router.get("/workflow/phases/{phase_id}", summary="工程詳細")

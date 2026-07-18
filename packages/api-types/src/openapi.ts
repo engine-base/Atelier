@@ -4244,6 +4244,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workflow/phases/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 工程一括投入 (canonical 9) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 投入成功 (既存があれば現状を返す・冪等) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Phase"][];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workflow/phases/{phase_id}": {
         parameters: {
             query?: never;

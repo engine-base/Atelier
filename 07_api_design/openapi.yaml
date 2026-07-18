@@ -3490,6 +3490,31 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Phase' }
 
+  /workflow/phases/seed:
+    post:
+      tags: [workflow]
+      summary: 工程一括投入 (canonical 9)
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::seed_phases
+      x-screen-ids: [S-G01, S-F01, S-F02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id]
+              properties:
+                project_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: 投入成功 (既存があれば現状を返す・冪等)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Phase' } }
+
   /workflow/phases/{phase_id}:
     parameters:
       - { name: phase_id, in: path, required: true, schema: { type: string, format: uuid } }

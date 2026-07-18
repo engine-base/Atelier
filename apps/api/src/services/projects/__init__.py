@@ -206,6 +206,12 @@ async def create_project(
             after={"name": data.name, "type": data.type},
         )
     )
+    # 新規 project は canonical 9 工程の実レコードを持って開始する (T-UC-10)。
+    # workflow サービスは projects に依存しないため循環は無いが、層の独立性を保つため
+    # 関数内 import に留める。seed は冪等なので再入時も安全。
+    from src.services.workflow import seed_default_phases
+
+    await seed_default_phases(session, actor_id=actor_id, project_id=new_id)
     created = await get_project(session, new_id)
     if created is None:  # pragma: no cover - 直前に作成済
         raise RuntimeError("created project not visible after insert")

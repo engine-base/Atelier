@@ -183,6 +183,47 @@ class TestWorkflowPhases:
             assert client.delete(f"/workflow/phases/{pid}", headers=h).status_code == 204
             assert client.get(f"/workflow/phases/{pid}", headers=h).status_code == 404
 
+    def test_seed_default_phases_and_idempotent(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/workflow/phases/seed", json={"project_id": seeded["proj_a"]}, headers=h
+            )
+            assert r.status_code == 201, r.text
+            data = r.json()["data"]
+            # 9 工程が order 1..9 で作られる
+            assert len(data) == 9
+            assert [p["order"] for p in data] == list(range(1, 10))
+            assert [p["name"] for p in data] == [
+                "ヒアリング",
+                "要件定義",
+                "アーキ設計",
+                "デザイン",
+                "機能分解",
+                "タスク分解",
+                "実装",
+                "検証",
+                "納品",
+            ]
+            # 先頭のみ in_progress + started_at、残りは pending
+            assert data[0]["status"] == "in_progress"
+            assert data[0]["started_at"] is not None
+            assert all(p["status"] == "pending" for p in data[1:])
+            assert all(p["started_at"] is None for p in data[1:])
+
+            # 冪等: 2 回目でも重複せず 9 件のまま
+            r2 = client.post(
+                "/workflow/phases/seed", json={"project_id": seeded["proj_a"]}, headers=h
+            )
+            assert r2.status_code == 201, r2.text
+            data2 = r2.json()["data"]
+            assert len(data2) == 9
+            assert {p["id"] for p in data2} == {p["id"] for p in data}
+
+            # cleanup
+            for p in data:
+                client.delete(f"/workflow/phases/{p['id']}", headers=h)
+
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
         with TestClient(app) as client:

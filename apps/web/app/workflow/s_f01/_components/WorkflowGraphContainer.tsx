@@ -11,7 +11,7 @@
 import * as React from "react";
 import { Loading } from "../../../../components/Loading";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -51,6 +51,48 @@ export function WorkflowGraphContainer({
   client: injected,
 }: WorkflowGraphContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
+
+  const invalidatePhases = (): void => {
+    void queryClient.invalidateQueries({
+      queryKey: ["workflow-phases", projectId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["project", "current-phase", projectId],
+    });
+  };
+
+  // 工程レコードが無い project に canonical 9 工程を投入する (POST /workflow/phases/seed)。
+  const seedMut = useMutation({
+    mutationFn: () =>
+      client.post("/workflow/phases/seed", {
+        body: { project_id: projectId },
+      }),
+    onSuccess: invalidatePhases,
+  });
+
+  // 工程遷移: 現在の in_progress を completed に、次の pending を in_progress にする。
+  const transitionMut = useMutation({
+    mutationFn: (v: {
+      phaseId: string;
+      status: "completed" | "in_progress";
+    }) =>
+      client.patch("/workflow/phases/{phase_id}", {
+        params: { path: { phase_id: v.phaseId } },
+        body: { status: v.status },
+      }),
+  });
+
+  const advance = async (currentId: string, nextId?: string): Promise<void> => {
+    await transitionMut.mutateAsync({ phaseId: currentId, status: "completed" });
+    if (nextId !== undefined) {
+      await transitionMut.mutateAsync({
+        phaseId: nextId,
+        status: "in_progress",
+      });
+    }
+    invalidatePhases();
+  };
 
   const list = useQuery({
     queryKey: ["workflow-phases", projectId],
@@ -111,7 +153,21 @@ export function WorkflowGraphContainer({
       from: CANONICAL_PHASES[i]!.key,
       to: p.key,
     }));
-    return <WorkflowGraph nodes={nodes} edges={edges} />;
+    return (
+      <div className="flex flex-col gap-4">
+        <div>
+          <button
+            type="button"
+            onClick={() => seedMut.mutate()}
+            disabled={seedMut.isPending}
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+          >
+            {seedMut.isPending ? "開始中…" : "工程を開始する"}
+          </button>
+        </div>
+        <WorkflowGraph nodes={nodes} edges={edges} />
+      </div>
+    );
   }
 
   const nodes: PhaseNode[] = phases.map((p) => ({
@@ -123,5 +179,37 @@ export function WorkflowGraphContainer({
     .slice(1)
     .map((p, i) => ({ from: phases[i]!.id, to: p.id }));
 
-  return <WorkflowGraph nodes={nodes} edges={edges} />;
+  // 現在の進行中工程と、その次の未着手工程を割り出して遷移コントロールを描く。
+  const currentIdx = phases.findIndex((p) => p.status === "in_progress");
+  const current = currentIdx >= 0 ? phases[currentIdx] : undefined;
+  const next = current
+    ? phases.slice(currentIdx + 1).find((p) => p.status === "pending")
+    : undefined;
+  const allSettled = phases.every(
+    (p) => p.status === "completed" || p.status === "skipped",
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      {current ? (
+        <div>
+          <button
+            type="button"
+            onClick={() => void advance(current.id, next?.id)}
+            disabled={transitionMut.isPending}
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+          >
+            {transitionMut.isPending
+              ? "更新中…"
+              : next
+                ? "この工程を完了して次へ"
+                : "この工程を完了"}
+          </button>
+        </div>
+      ) : allSettled ? (
+        <p className="text-body-sm text-on-surface-variant">全工程完了</p>
+      ) : null}
+      <WorkflowGraph nodes={nodes} edges={edges} />
+    </div>
+  );
 }
