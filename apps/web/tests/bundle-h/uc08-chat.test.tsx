@@ -46,7 +46,13 @@ describe("S-E01 ChatContainer (T-UC-08)", () => {
       ];
       for (const c of chunks) args.onChunk(c);
     });
-    render(<ChatContainer threadId="t1" streamFn={streamFn} />);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+      />,
+    );
     send("やあ");
 
     expect(await screen.findByText("やあ")).toBeInTheDocument();
@@ -66,7 +72,13 @@ describe("S-E01 ChatContainer (T-UC-08)", () => {
     const streamFn = vi.fn(async (args: StreamChatArgs) => {
       args.onChunk({ type: "error", content: "LLM 未接続" });
     });
-    render(<ChatContainer threadId="t1" streamFn={streamFn} />);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+      />,
+    );
     send("test");
     expect(await screen.findByRole("alert")).toHaveTextContent("LLM 未接続");
   });
@@ -75,7 +87,13 @@ describe("S-E01 ChatContainer (T-UC-08)", () => {
     const streamFn = vi.fn(async () => {
       throw new Error("network down");
     });
-    render(<ChatContainer threadId="t1" streamFn={streamFn} />);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+      />,
+    );
     send("test");
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(

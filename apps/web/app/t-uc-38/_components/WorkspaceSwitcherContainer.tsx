@@ -16,6 +16,10 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../lib/auth/connector";
 import {
+  readCurrentWorkspace,
+  writeCurrentWorkspace,
+} from "../../../lib/currentWorkspace";
+import {
   WorkspacePicker,
   type WorkspaceOption,
 } from "../../../components/WorkspacePicker";
@@ -23,13 +27,6 @@ import {
 interface ApiWorkspace {
   id: string;
   name: string;
-}
-
-const CURRENT_WS_KEY = "atelier_current_workspace";
-
-function readCurrent(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.localStorage.getItem(CURRENT_WS_KEY) ?? undefined;
 }
 
 export interface WorkspaceSwitcherContainerProps {
@@ -57,7 +54,7 @@ export function WorkspaceSwitcherContainer({
 
   // 初期選択: localStorage → 先頭 WS。
   useEffect(() => {
-    const saved = readCurrent();
+    const saved = readCurrentWorkspace();
     if (saved) {
       setCurrent(saved);
     } else if (list.data && list.data.length > 0) {
@@ -67,8 +64,7 @@ export function WorkspaceSwitcherContainer({
 
   const onChange = (id: string): void => {
     setCurrent(id);
-    if (typeof window !== "undefined")
-      window.localStorage.setItem(CURRENT_WS_KEY, id);
+    writeCurrentWorkspace(id);
   };
 
   if (isForbidden(list.error)) {

@@ -17,9 +17,8 @@ import { useRouter } from 'next/navigation';
 
 import { ProjectList, type ProjectRow } from './_components/ProjectList';
 import * as api from '../../../lib/auth/connector';
+import { CURRENT_WS_KEY } from '../../../lib/currentWorkspace';
 import { writeCurrentProject } from '../../../lib/useProjectId';
-
-const CURRENT_WS_KEY = 'atelier_current_workspace';
 
 interface ApiProject {
   id: string;
@@ -66,6 +65,16 @@ export default function SB01Page() {
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState<ApiProject['type']>('client_project');
   const [creatingProject, setCreatingProject] = useState(false);
+
+  // ダイアログの標準操作: Escape で新規プロジェクトモーダルを閉じる
+  useEffect(() => {
+    if (!newOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNewOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [newOpen]);
 
   const load = useCallback(
     async (c: string | null): Promise<void> => {

@@ -17,7 +17,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { t } from '../../lib/i18n';
 import { cn } from '../../lib/cn';
 import { Sidebar, type NavItem, type NavSection } from './Sidebar';
-import { TopBar } from './TopBar';
+import { TopBar, type WorkspaceLite } from './TopBar';
 
 export interface AppShellProps {
   /** main 領域に出すコンテンツ */
@@ -30,6 +30,10 @@ export interface AppShellProps {
   readonly navSections?: readonly NavSection[];
   /** サイドバー上部のワークスペース名 */
   readonly workspaceName?: string;
+  /** TopBar ワークスペースピッカー (一覧 + 現在 + 切替) */
+  readonly workspaces?: readonly WorkspaceLite[];
+  readonly currentWorkspaceId?: string;
+  readonly onSelectWorkspace?: (id: string) => void;
   /** TopBar のパンくず末尾ラベル (現在セクション名) */
   readonly breadcrumb?: string;
   /** TopBar 右端 slot (通知/ユーザー) */
@@ -45,6 +49,9 @@ export function AppShell({
   navItems,
   navSections,
   workspaceName,
+  workspaces,
+  currentWorkspaceId,
+  onSelectWorkspace,
   breadcrumb,
   topBarTrailing,
   fullBleed = false,
@@ -115,6 +122,9 @@ export function AppShell({
             }
           }}
           workspaceName={workspaceName}
+          workspaces={workspaces}
+          currentWorkspaceId={currentWorkspaceId}
+          onSelectWorkspace={onSelectWorkspace}
           breadcrumb={breadcrumb}
           trailing={topBarTrailing}
         />

@@ -13,7 +13,7 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
@@ -92,6 +92,16 @@ export function TaskBoardContainer({
   const [addType, setAddType] =
     useState<(typeof TASK_TYPES)[number]>("feature");
   const [addError, setAddError] = useState<string | null>(null);
+
+  // ダイアログの標準操作: Escape でタスク追加モーダルを閉じる
+  useEffect(() => {
+    if (!adding) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAdding(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [adding]);
 
   const list = useQuery({
     queryKey: KEY(projectId),
@@ -244,8 +254,10 @@ export function TaskBoardContainer({
           aria-modal="true"
           aria-label="タスクを追加"
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setAdding(false)}
         >
           <form
+            onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => {
               e.preventDefault();
               if (addTitle.trim()) addMut.mutate();

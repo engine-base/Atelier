@@ -1,0 +1,16 @@
+import { chromium } from '@playwright/test';
+import fs from 'fs';
+const SCRATCH = '/tmp/claude-0/-home-user-Atelier/bc7559f9-cc1e-5410-be06-ff8dd9ba00be/scratchpad';
+const token = fs.readFileSync(`${SCRATCH}/token.txt`, 'utf8').trim();
+const PID = '0a651a74-5dd8-4850-8c65-f1d92381d14e';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await ctx.addCookies([{ name: 'atelier_access', value: token, domain: 'localhost', path: '/' }]);
+const page = await ctx.newPage();
+await page.goto(`http://localhost:3100/workflow?project=${PID}`, { waitUntil: 'networkidle' });
+const link = page.locator('a', { hasText: '進行中チャット' }).first();
+console.log('href =', await link.getAttribute('href'));
+await link.click();
+await page.waitForURL('**/chat**', { timeout: 15000 });
+console.log('navigated to', page.url());
+await browser.close();

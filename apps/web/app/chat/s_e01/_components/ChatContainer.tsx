@@ -42,6 +42,8 @@ export interface ChatContainerProps {
   readonly ragAccountId?: string;
   /** 注入用 (省略時は実 SSE)。 */
   readonly streamFn?: StreamFn;
+  /** 履歴ロードの注入用 (省略時は実 GET。テストでは stub を渡し実 fetch を避ける)。 */
+  readonly fetchMessagesFn?: typeof fetchThreadMessages;
   readonly initialMessages?: readonly ChatMessage[];
   /** 対話相手の AI 社員 (バブルの名前/アバター/placeholder)。 */
   readonly employee?: ChatEmployeeInfo;
@@ -75,6 +77,7 @@ export function ChatContainer({
   threadId,
   ragAccountId,
   streamFn = streamChatThread,
+  fetchMessagesFn = fetchThreadMessages,
   initialMessages = [],
   employee,
   onBusyChange,
@@ -105,7 +108,7 @@ export function ChatContainer({
     let cancelled = false;
     setMessages([]);
     setError(null);
-    fetchThreadMessages(threadId)
+    fetchMessagesFn(threadId)
       .then((history) => {
         if (cancelled || history.length === 0) return;
         // 履歴は先頭に置く。stream 中 (送信中) の楽観行は維持する。
@@ -123,7 +126,7 @@ export function ChatContainer({
     return () => {
       cancelled = true;
     };
-  }, [threadId]);
+  }, [threadId, fetchMessagesFn]);
 
   const handleSend = useCallback(
     async (text: string) => {

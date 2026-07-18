@@ -16,7 +16,6 @@
 import * as React from 'react';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  Bell,
   Brain,
   FileText,
   Folder,
@@ -32,6 +31,10 @@ import {
 import { usePathname } from 'next/navigation';
 
 import { getJson } from '../../lib/auth/connector';
+import {
+  readCurrentWorkspace,
+  writeCurrentWorkspace,
+} from '../../lib/currentWorkspace';
 import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
 import { AppShell } from './AppShell';
 import type { NavItem, NavSection } from './Sidebar';
@@ -96,31 +99,34 @@ interface ProjectLite {
   readonly name: string;
 }
 
-/** トップバー右端: 通知ベル + ユーザーアバター (モックのトップバー右側)。 */
-function TopBarTrailing() {
+interface MeLite {
+  readonly display_name?: string | null;
+  readonly email?: string | null;
+}
+
+/** トップバー右端: ユーザーアバター (GET /me の実プロフィール)。
+ * 通知ベルは通知 API が存在しないため撤去 (Rule 10 / GAP-007)。 */
+function TopBarTrailing({ me }: { readonly me?: MeLite }) {
+  const label = me?.display_name || me?.email || undefined;
+  if (!label) return null;
   return (
-    <>
-      <button
-        type="button"
-        aria-label="通知"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-variant"
-      >
-        <Bell className="h-5 w-5" aria-hidden="true" />
-      </button>
-      <span
-        aria-hidden="true"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant"
-      >
-        Q
-      </span>
-    </>
+    <span
+      role="img"
+      aria-label={`サインイン中: ${label}`}
+      title={label}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant"
+    >
+      {label.charAt(0).toUpperCase()}
+    </span>
   );
 }
 
 export function ConditionalAppShell({ children }: { readonly children: ReactNode }) {
   const pathname = usePathname() ?? '/';
   const bare = isBare(pathname);
-  const [workspaceName, setWorkspaceName] = useState<string | undefined>();
+  const [workspaces, setWorkspaces] = useState<readonly WorkspaceLite[]>([]);
+  const [currentWsId, setCurrentWsId] = useState<string | undefined>();
+  const [me, setMe] = useState<MeLite | undefined>();
   const [project, setProject] = useState<ProjectLite | undefined>();
 
   useEffect(() => {
@@ -128,10 +134,22 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
     let cancelled = false;
     getJson<readonly WorkspaceLite[]>('/workspaces')
       .then((res) => {
-        if (!cancelled) setWorkspaceName(res.data[0]?.name);
+        if (cancelled) return;
+        setWorkspaces(res.data);
+        // 現在 WS: localStorage 永続値 (T-UC-38 と同一キー) → 先頭フォールバック
+        const saved = readCurrentWorkspace();
+        const valid = res.data.find((w) => w.id === saved);
+        setCurrentWsId((valid ?? res.data[0])?.id);
       })
       .catch(() => {
         /* シェル表示は WS 名取得失敗でも継続 */
+      });
+    getJson<MeLite>('/me')
+      .then((res) => {
+        if (!cancelled) setMe(res.data);
+      })
+      .catch(() => {
+        /* アバターはプロフィール取得失敗時は出さない */
       });
     return () => {
       cancelled = true;
@@ -162,6 +180,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
 
   if (bare) return <>{children}</>;
 
+  const workspaceName = workspaces.find((w) => w.id === currentWsId)?.name;
   const sections: NavSection[] = [
     {
       id: 'workspace',
@@ -190,8 +209,14 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       currentPath={pathname}
       navSections={sections}
       workspaceName={workspaceName}
+      workspaces={workspaces}
+      currentWorkspaceId={currentWsId}
+      onSelectWorkspace={(id) => {
+        writeCurrentWorkspace(id);
+        setCurrentWsId(id);
+      }}
       breadcrumb={activeNav?.labelKey}
-      topBarTrailing={<TopBarTrailing />}
+      topBarTrailing={<TopBarTrailing me={me} />}
       fullBleed={fullBleed}
     >
       {children}
