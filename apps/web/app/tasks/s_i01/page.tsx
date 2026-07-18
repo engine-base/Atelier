@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { PlayCircle } from "lucide-react";
 
 import { QueryProvider } from "../../../providers/query-provider";
+import { useProjectId } from "../../../lib/useProjectId";
 import { TaskBoardContainer } from "./_components/TaskBoardContainer";
 
 /** モックの「役割カード」— AI 社員に作業を任せる場所であることの説明。 */
@@ -91,8 +91,7 @@ function LaneLegend() {
 }
 
 function SI01Inner() {
-  const params = useSearchParams();
-  const projectId = params.get("project");
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-4 px-md py-lg">

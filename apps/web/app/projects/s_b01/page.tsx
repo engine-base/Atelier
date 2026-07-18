@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 
 import { ProjectList, type ProjectRow } from './_components/ProjectList';
 import * as api from '../../../lib/auth/connector';
+import { writeCurrentProject } from '../../../lib/useProjectId';
 
 const CURRENT_WS_KEY = 'atelier_current_workspace';
 
@@ -252,7 +253,10 @@ export default function SB01Page() {
         nextCursor={nextCursor}
         onPrev={() => setCursor(null)}
         onNext={() => setCursor(nextCursor)}
-        onSelect={(id) => router.push(`/projects/dashboard?project=${id}`)}
+        onSelect={(id) => {
+          writeCurrentProject(id); // nav でプロジェクト文脈を保持するため永続化
+          router.push(`/projects/dashboard?project=${id}`);
+        }}
         onNew={handleNew}
       />
 
