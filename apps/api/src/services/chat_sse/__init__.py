@@ -322,16 +322,19 @@ async def _real_stream_chunks(
 ) -> AsyncIterator[str]:
     """Anthropic SDK で実 stream。chunk text delta を yield する。
 
-    - 既定 (ATELIER_CHAT_TOOLS_ENABLED != "1" / tool_ctx 無し): text delta のみ。
-      web_search は Anthropic server-side tool のため provider 側で完結する (従来動作)。
-    - ATELIER_CHAT_TOOLS_ENABLED="1" かつ tool_ctx あり: Atelier ツールを注入し、
-      tool_use → サーバ側実行 → tool_result で継続する agentic ループを回す
-      (チャットがアプリ操作＝成果物保存 等を実行できるようになる)。
+    - tool_ctx あり (既定): Atelier ツールを注入し、tool_use → サーバ側実行 →
+      tool_result で継続する agentic ループを回す (チャットがアプリ操作＝成果物保存
+      等を実行できるようになる)。チャットを Claude 同等のツール実行主体にするのが標準。
+    - tool_ctx 無し / ATELIER_CHAT_TOOLS_ENABLED="0" で明示 OFF: text delta のみ。
+      web_search は Anthropic server-side tool のため provider 側で完結する。
     """
     from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
 
     client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-    tools_enabled = os.environ.get("ATELIER_CHAT_TOOLS_ENABLED") == "1" and tool_ctx is not None
+    # 既定 ON。緊急時のみ ATELIER_CHAT_TOOLS_ENABLED="0" で従来動作(text のみ)へ退避できる。
+    tools_enabled = (
+        os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0" and tool_ctx is not None
+    )
 
     msgs: list[dict[str, Any]] = []
     for role, content in history:
@@ -474,9 +477,10 @@ async def stream_chat(
             }
         )
         return
-    # agentic ツール実行 (ATELIER_CHAT_TOOLS_ENABLED=1 時) 用の文脈: thread→project→workspace。
+    # agentic ツール実行 (既定 ON) 用の文脈: thread→project→workspace。
+    # ATELIER_CHAT_TOOLS_ENABLED="0" の明示 OFF 時のみ文脈を作らず従来動作に退避する。
     tool_ctx: ToolContext | None = None
-    if use_real and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED") == "1":
+    if use_real and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0":
         from .tools import ToolContext as _ToolContext
 
         _, project_id = await _load_thread_meta(session, thread_id=thread_id)
