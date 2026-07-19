@@ -67,35 +67,74 @@ describe('InvitationsList (T-UC-20)', () => {
 });
 
 describe('DataDeletionForm (T-UC-29)', () => {
-  it('blocks submit on mismatched emails and shows mismatch error', async () => {
+  const base = { email: 'you@example.com' };
+
+  it('shows the logged-in email as display-only (mock parity)', () => {
+    render(<DataDeletionForm {...base} onSubmit={vi.fn()} />);
+    const email = screen.getByLabelText(
+      'メールアドレス（ログイン中のアカウント）',
+    ) as HTMLInputElement;
+    expect(email.value).toBe('you@example.com');
+    expect(email).toBeDisabled();
+  });
+
+  it('blocks submit until 「削除する」 is typed and consent is checked', async () => {
     const onSubmit = vi.fn();
-    render(<DataDeletionForm onSubmit={onSubmit} />);
-    const [emailInput, emailConfirmInput] = screen.getAllByLabelText(/^メールアドレス/);
-    fireEvent.change(emailInput!, { target: { value: 'a@example.com' } });
-    fireEvent.change(emailConfirmInput!, { target: { value: 'different@example.com' } });
-    // consent も check して email mismatch だけが残るようにする
-    fireEvent.click(screen.getByRole('checkbox'));
+    render(<DataDeletionForm {...base} onSubmit={onSubmit} />);
+    // 確認テキスト未入力 + 同意なし → 送信不可
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '削除請求を送信' }));
+      fireEvent.click(screen.getByRole('button', { name: '削除を申請する' }));
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(onSubmit).not.toHaveBeenCalled();
-    // role=alert で error メッセージを取る
-    const alerts = await screen.findAllByRole('alert');
-    expect(alerts.some((a) => a.textContent?.includes('一致しません'))).toBe(true);
-  });
-
-  it('submits with valid input', async () => {
-    const onSubmit = vi.fn();
-    render(<DataDeletionForm onSubmit={onSubmit} />);
-    const [emailInput, emailConfirmInput] = screen.getAllByLabelText(/^メールアドレス/);
-    fireEvent.change(emailInput!, { target: { value: 'a@example.com' } });
-    fireEvent.change(emailConfirmInput!, { target: { value: 'a@example.com' } });
+    // 誤テキストでも不可
+    fireEvent.change(screen.getByLabelText(/確認のため/), {
+      target: { value: '削除' },
+    });
     fireEvent.click(screen.getByRole('checkbox'));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '削除請求を送信' }));
+      fireEvent.click(screen.getByRole('button', { name: '削除を申請する' }));
       await new Promise((r) => setTimeout(r, 0));
     });
-    expect(onSubmit).toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    const alerts = await screen.findAllByRole('alert');
+    expect(
+      alerts.some((a) => a.textContent?.includes('「削除する」と入力')),
+    ).toBe(true);
+  });
+
+  it('submits with 「削除する」 typed + consent, passing the optional reason', async () => {
+    const onSubmit = vi.fn();
+    render(<DataDeletionForm {...base} onSubmit={onSubmit} />);
+    fireEvent.change(screen.getByLabelText(/削除を希望する理由/), {
+      target: { value: '利用終了のため' },
+    });
+    fireEvent.change(screen.getByLabelText(/確認のため/), {
+      target: { value: '削除する' },
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '削除を申請する' }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0]![0]).toMatchObject({
+      reason: '利用終了のため',
+      confirm_text: '削除する',
+      consent: true,
+    });
+  });
+
+  it('renders the danger checklist and schedule (mock parity)', () => {
+    render(<DataDeletionForm {...base} onSubmit={vi.fn()} />);
+    expect(screen.getByText('削除される内容')).toBeInTheDocument();
+    expect(
+      screen.getByText('アカウント情報（メール・名前・アバター）'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('削除スケジュール')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'キャンセル' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
   });
 });
