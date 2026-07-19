@@ -42,8 +42,8 @@ describe("OrgChart (T-UC-06)", () => {
 
   it("groups by department", () => {
     render(<OrgChart nodes={nodes} />);
-    expect(screen.getByLabelText("開発・QA")).toBeInTheDocument();
-    expect(screen.getByLabelText("デザイン")).toBeInTheDocument();
+    expect(screen.getByLabelText("開発・検証部")).toBeInTheDocument();
+    expect(screen.getByLabelText("デザイン部")).toBeInTheDocument();
   });
 
   it("invokes onSelect on member click", () => {

@@ -1,25 +1,44 @@
-"""スキル管理 ルータ (T-A-49 / F-007) — 運営 admin 専用の write。
+"""スキル管理 ルータ (T-A-49 / F-007)。
 
-GET /admin/skills[/{id}] は routes/admin (read-only, T-A-42) に存在する。
-本ルータは write (POST/PATCH/DELETE/attach) を担当し、is_admin gate (403) +
-service_role write (services.skills 内) + audit を行う。
+- GET /skills: 認証ユーザー向けカタログ一覧 (read-only, RLS skills_select_all。
+  S-C01/S-C02 が社員の attached_skills uuid を名前解決するのに使う)
+- write (POST/PATCH/DELETE/attach) は運営 admin 専用: is_admin gate (403) +
+  service_role write (services.skills 内) + audit。
+- GET /admin/skills[/{id}] は routes/admin (read-only, T-A-42) に存在する。
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.dependencies import CurrentUser, get_current_user
+from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.admin import AdminSkillResponse
-from src.schemas.skills import SkillAttachRequest, SkillCreate, SkillUpdate
+from src.schemas.skills import (
+    SkillAttachRequest,
+    SkillCreate,
+    SkillLiteResponse,
+    SkillUpdate,
+)
 from src.services import admin as admin_svc
 from src.services import skills as svc
 
 router = APIRouter(tags=["skills"])
 
+SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+@router.get("/skills", summary="スキルカタログ一覧（認証ユーザー read-only）")
+async def list_skills(
+    session: SessionDep,
+    _user: UserDep,
+    active_only: Annotated[bool, Query()] = True,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+) -> dict[str, list[SkillLiteResponse]]:
+    return {"data": await svc.list_skills(session, active_only=active_only, limit=limit)}
 
 
 def _require_admin(user: CurrentUser) -> None:

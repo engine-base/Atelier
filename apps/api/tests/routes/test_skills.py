@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -17,8 +18,8 @@ import json
 import os
 import time
 import uuid
-from collections.abc import Iterator
-from typing import Any
+from collections.abc import AsyncGenerator, Iterator
+from typing import Annotated, Any
 
 import pytest
 
@@ -32,10 +33,13 @@ os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", JWT_SECRET)
 os.environ.setdefault("ATELIER_DB_URL", PG_ASYNC)
 
 import sqlalchemy  # noqa: E402
-from fastapi import FastAPI  # noqa: E402
+from fastapi import Depends, FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
+
+from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -87,9 +91,33 @@ def app() -> Iterator[FastAPI]:
     _service_session_factory.cache_clear()
     from src.routes import api_router
 
+    # GET /skills (get_rls_session) 用: TestClient ブロック毎に event loop が変わる
+    # ため、テスト専用 engine + RLS claims 設定の session override を張る
+    # (test_decisions と同じパターン。共有 engine 再利用は loop 跨ぎで壊れる)。
+    test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+
+    async def _override_session(
+        user: Annotated[CurrentUser, Depends(get_current_user)],
+    ) -> AsyncGenerator[AsyncSession, None]:
+        claims = json.dumps({"sub": user.id, "role": user.role})
+        async with AsyncSession(test_engine) as session:
+            await session.execute(
+                text("select set_config('request.jwt.claims', :c, true)"), {"c": claims}
+            )
+            await session.execute(text("set local role authenticated"))
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            else:
+                await session.commit()
+
     application = FastAPI()
     application.include_router(api_router)
+    application.dependency_overrides[get_rls_session] = _override_session
     yield application
+    asyncio.run(test_engine.dispose())
     _service_session_factory.cache_clear()
 
 
@@ -117,6 +145,12 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
         c.execute(
             text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
             {"i": ws, "o": admin_u, "n": f"ws-{ws[:6]}"},
+        )
+        # ローカル dev DB は workspace 作成トリガーが 10 名を自動シードするため
+        # (CI のクリーン DB では no-op)、先に消してから固定 id の tony を入れる。
+        c.execute(
+            text("delete from public.ai_employees where workspace_id = cast(:w as uuid)"),
+            {"w": ws},
         )
         c.execute(
             text(
@@ -307,3 +341,57 @@ def test_attach_does_not_regress_ai_employee(
         after.department,
         after.is_default,
     )
+
+
+# ── GET /skills (認証ユーザー read-only カタログ, S-C01/S-C02) ──────────
+
+
+def test_list_skills_unauthenticated_401(app: FastAPI) -> None:
+    with TestClient(app) as cl:
+        assert cl.get("/skills").status_code == 401
+
+
+def test_list_skills_member_can_read_catalog(app: FastAPI, seeded: dict[str, str]) -> None:
+    """一般メンバーでもカタログを読める (RLS skills_select_all)。
+
+    admin write で 1 件登録 → member の GET /skills に名前が出る。
+    重量級カラム (content_md) は返さない。
+    """
+    body = _create_body()
+    with TestClient(app) as cl:
+        r = cl.post("/admin/skills", json=body, headers=_h(seeded["admin"], admin=True))
+        assert r.status_code == 201, r.text
+        r2 = cl.get("/skills", headers=_h(seeded["member"]))
+        assert r2.status_code == 200, r2.text
+        rows = r2.json()["data"]
+        mine = [s for s in rows if s["name"] == body["name"]]
+        assert len(mine) == 1
+        assert mine[0]["version"] == "1.0.0"
+        assert "content_md" not in mine[0]
+
+
+def test_list_skills_active_only_filter(app: FastAPI, seeded: dict[str, str]) -> None:
+    """無効化 (is_active=false) されたスキルは既定で出ず、active_only=false なら出る。"""
+    body = _create_body()
+    with TestClient(app) as cl:
+        r = cl.post("/admin/skills", json=body, headers=_h(seeded["admin"], admin=True))
+        sid = r.json()["data"]["id"]
+        assert (
+            cl.patch(
+                f"/admin/skills/{sid}",
+                json={"is_active": False},
+                headers=_h(seeded["admin"], admin=True),
+            ).status_code
+            == 200
+        )
+        names_default = [
+            s["name"] for s in cl.get("/skills", headers=_h(seeded["member"])).json()["data"]
+        ]
+        assert body["name"] not in names_default
+        names_all = [
+            s["name"]
+            for s in cl.get(
+                "/skills", params={"active_only": "false"}, headers=_h(seeded["member"])
+            ).json()["data"]
+        ]
+        assert body["name"] in names_all

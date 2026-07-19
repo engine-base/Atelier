@@ -14,6 +14,16 @@ from pydantic import BaseModel, Field, field_validator
 _SEMVER = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$")
 
 
+class SkillLiteResponse(BaseModel):
+    """認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only)。"""
+
+    id: str
+    name: str
+    version: str
+    description: str | None
+    is_active: bool
+
+
 class SkillCreate(BaseModel):
     """スキル新規登録（SKILL.md upload）。name+version は unique・version は semver。"""
 

@@ -35,6 +35,12 @@ export interface OrgNode {
   readonly selectId: string;
   readonly displayName: string;
   readonly department: Department;
+  /** 英名表記 (name の capitalize)。モックの .org-en。 */
+  readonly enName?: string;
+  /** 役割ライン (COO · 全社統括 / 部長 / メンバー / ナレッジ統括)。モックの .org-role。 */
+  readonly roleLabel?: string;
+  /** 装着スキル名 (実 attached_skills を /skills で名前解決したもの)。 */
+  readonly skills?: readonly string[];
 }
 
 export interface OrgChartProps {
@@ -43,14 +49,15 @@ export interface OrgChartProps {
   readonly onSelect?: (id: string) => void;
 }
 
-const DEPT_LABEL = {
+/** モック S-C01-org.html の部署名に一致させる (dept-name)。 */
+export const DEPT_LABEL = {
   executive: "経営",
-  sales: "営業",
-  product: "プロダクト",
-  architecture: "アーキテクチャ",
-  design: "デザイン",
-  dev_qa: "開発・QA",
-  cross_functional: "横断",
+  sales: "営業・契約部",
+  product: "プロダクト企画部",
+  architecture: "設計部",
+  design: "デザイン部",
+  dev_qa: "開発・検証部",
+  cross_functional: "全社横断",
 } as const;
 
 /** モックの中央 5 列グリッドに並ぶ部署(COO/横断を除く)。 */
@@ -91,6 +98,12 @@ interface EmployeeCardProps {
 
 function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) {
   const t = TONE_CLASS[tone];
+  const skillsLine =
+    node.skills === undefined
+      ? null
+      : node.skills.length === 0
+        ? "スキル未装着"
+        : `${node.skills.length} skills · ${node.skills.slice(0, 3).join(", ")}${node.skills.length > 3 ? ` +${node.skills.length - 3}` : ""}`;
   return (
     <button
       type="button"
@@ -107,6 +120,29 @@ function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) 
       <span className={cn("text-[15px] font-bold leading-tight", t.name)}>
         {node.displayName}
       </span>
+      {node.enName ? (
+        <span className="-mt-1 text-[11px] italic text-on-surface-variant">
+          {node.enName}
+        </span>
+      ) : null}
+      {node.roleLabel ? (
+        <span
+          className={cn(
+            "text-[11px] font-semibold",
+            tone === "coo" || node.roleLabel !== "メンバー"
+              ? "text-primary"
+              : "text-on-surface",
+            tone === "cross" && "text-tertiary",
+          )}
+        >
+          {node.roleLabel}
+        </span>
+      ) : null}
+      {skillsLine ? (
+        <span className="text-[10.5px] leading-snug text-on-surface-variant">
+          {skillsLine}
+        </span>
+      ) : null}
     </button>
   );
 }

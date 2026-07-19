@@ -17,6 +17,7 @@ import { OrgChartContainer } from "./_components/OrgChartContainer";
 
 function SC01Inner() {
   const router = useRouter();
+  const [view, setView] = React.useState<"org" | "list">("org");
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       <div className="mb-8 flex items-start justify-between gap-4">
@@ -34,19 +35,26 @@ function SC01Inner() {
         <div className="flex items-center gap-1 rounded-md bg-surface-variant p-1">
           <button
             type="button"
-            aria-pressed="true"
-            className="inline-flex items-center gap-1.5 rounded-[6px] bg-white px-3 py-1.5 text-xs font-semibold text-on-surface shadow-sm"
+            aria-pressed={view === "org"}
+            onClick={() => setView("org")}
+            className={
+              view === "org"
+                ? "inline-flex items-center gap-1.5 rounded-[6px] bg-white px-3 py-1.5 text-xs font-semibold text-on-surface shadow-sm"
+                : "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface"
+            }
           >
             <LayoutDashboard size={12} aria-hidden="true" />
             組織図
           </button>
-          {/* リスト表示は未実装のため非活性(組織図が唯一の実ビュー)。 */}
           <button
             type="button"
-            aria-pressed="false"
-            disabled
-            title="リスト表示は準備中です"
-            className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant opacity-50"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+            className={
+              view === "list"
+                ? "inline-flex items-center gap-1.5 rounded-[6px] bg-white px-3 py-1.5 text-xs font-semibold text-on-surface shadow-sm"
+                : "inline-flex items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface"
+            }
           >
             <ListChecks size={12} aria-hidden="true" />
             リスト
@@ -55,6 +63,7 @@ function SC01Inner() {
       </div>
 
       <OrgChartContainer
+        view={view}
         onSelect={(id) => router.push(`/employees/detail?employee=${id}`)}
       />
 

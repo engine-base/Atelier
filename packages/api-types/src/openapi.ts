@@ -7540,6 +7540,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** スキルカタログ一覧（認証ユーザー read-only） */
+        get: {
+            parameters: {
+                query?: {
+                    active_only?: boolean;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SkillLite"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/skills": {
         parameters: {
             query?: never;
@@ -9309,6 +9350,15 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description 認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。 */
+        SkillLite: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            version?: string;
+            description?: string | null;
+            is_active?: boolean;
         };
         /** @description スキル新規登録（SKILL.md upload, T-A-49 / F-007）。name+version unique・version semver。 */
         SkillCreate: {

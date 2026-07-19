@@ -602,6 +602,18 @@ class AdminSkill(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class SkillLite(BaseModel):
+    """
+    認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。
+    """
+
+    id: UUID | None = None
+    name: str | None = None
+    version: str | None = None
+    description: str | None = None
+    is_active: bool | None = None
+
+
 class SkillCreate(BaseModel):
     """
     スキル新規登録（SKILL.md upload, T-A-49 / F-007）。name+version unique・version semver。

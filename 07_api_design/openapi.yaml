@@ -606,6 +606,16 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    SkillLite:
+      type: object
+      description: 認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: string }
+        description: { type: string, nullable: true }
+        is_active: { type: boolean }
+
     SkillCreate:
       type: object
       description: スキル新規登録（SKILL.md upload, T-A-49 / F-007）。name+version unique・version semver。
@@ -4882,6 +4892,25 @@ paths:
                 properties:
                   data: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /skills:
+    get:
+      tags: [skills]
+      summary: スキルカタログ一覧（認証ユーザー read-only）
+      x-implementation-path: apps/api/src/routes/skills/__init__.py::list_skills
+      x-screen-ids: [S-C01, S-C02]
+      parameters:
+        - { name: active_only, in: query, schema: { type: boolean, default: true } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 100 } }
+      responses:
+        '200':
+          description: 一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/SkillLite' } }
 
   /admin/skills:
     get:

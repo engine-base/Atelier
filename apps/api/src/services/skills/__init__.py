@@ -19,7 +19,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.audit import AuditEvent, AuditWriter
 from src.db.session import create_engine, create_session_factory
 from src.schemas.admin import AdminSkillResponse
-from src.schemas.skills import SkillAttachRequest, SkillCreate, SkillUpdate
+from src.schemas.skills import (
+    SkillAttachRequest,
+    SkillCreate,
+    SkillLiteResponse,
+    SkillUpdate,
+)
 
 _COLS = (
     "id, name, version, description, content_md, assets_storage_path, "
@@ -217,3 +222,30 @@ async def attach_skill(*, actor_id: str, skill_id: str, data: SkillAttachRequest
         )
         await session.commit()
     return True
+
+
+async def list_skills(
+    session: AsyncSession, *, active_only: bool = True, limit: int = 100
+) -> list[SkillLiteResponse]:
+    """認証ユーザー向けスキルカタログ一覧 (RLS セッション / skills_select_all)。
+
+    content_md 等の重量級カラムは返さない (S-C01/S-C02 の表示用)。
+    """
+    where = "where is_active" if active_only else ""
+    res = await session.execute(
+        text(
+            "select id, name, version, description, is_active "
+            f"from public.skills {where} order by name limit :limit"
+        ),
+        {"limit": limit},
+    )
+    return [
+        SkillLiteResponse(
+            id=str(r.id),
+            name=r.name,
+            version=r.version,
+            description=r.description,
+            is_active=r.is_active,
+        )
+        for r in res
+    ]
