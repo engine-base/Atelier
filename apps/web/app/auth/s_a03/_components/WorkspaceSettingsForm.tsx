@@ -24,7 +24,7 @@ import { cn } from "../../../../lib/cn";
 import { t } from "../../../../lib/i18n";
 
 const Schema = z.object({
-  name: z.string().min(1, "入力必須").max(100),
+  name: z.string().min(2, "2 文字以上で入力してください").max(50),
   // UI は「利用する (optIn)」で持つ。optOut を直バインドすると
   // 既定 OFF なのに checked 表示になり、操作の意味も反転する実バグがあった。
   aiLearningOptIn: z.boolean(),
@@ -41,24 +41,23 @@ export interface WorkspaceSettingsFormProps {
   readonly tokensSlot?: React.ReactNode;
 }
 
-/** モックの settings-tabs (7 セクション、基本情報が active)。表示専用。 */
-const SETTINGS_TABS = [
-  "基本情報",
-  "メンバー",
-  "招待管理",
-  "MCPトークン",
-  "AI学習",
-  "プラン",
-  "退会",
-] as const;
+/** モックの settings-tabs を実リンク化 (design-audit v2 — 死にタブ 7 個を是正)。
+ * 同一ページ内セクションはアンカー、招待管理/退会は実ページへ。
+ * 「プラン」は課金 API 不在のため撤去 (GAP-021)。 */
+const SETTINGS_TABS: ReadonlyArray<{ label: string; href: string }> = [
+  { label: "基本情報", href: "#ws-basic" },
+  { label: "メンバー", href: "#ws-members" },
+  { label: "招待管理", href: "/portal/invitations" },
+  { label: "MCPトークン", href: "#ws-tokens" },
+  { label: "AI学習", href: "#ws-ai" },
+  { label: "退会", href: "/data-deletion" },
+];
 
 const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
 
 const BTN_PRIMARY =
   "inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
-const BTN_OUTLINED_SM =
-  "inline-flex w-fit items-center justify-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-label-md font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 function ShieldCheckIcon() {
   return (
@@ -89,6 +88,7 @@ export function WorkspaceSettingsForm({
   tokensSlot,
 }: WorkspaceSettingsFormProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const nameValue = form.watch("name");
   const iconInitial = (nameValue?.trim()?.charAt(0) ?? "W").toUpperCase();
 
@@ -99,26 +99,30 @@ export function WorkspaceSettingsForm({
           ワークスペース設定
         </h1>
         <p className="mt-1 text-body-md text-on-surface-variant">
-          ENGINE BASE の基本情報・メンバー・MCPトークン・退会設定。
+          {nameValue || "ワークスペース"} の基本情報・メンバー・MCPトークン・退会設定。
         </p>
       </header>
 
-      <div className="flex gap-1 overflow-x-auto border-b border-border">
+      <nav
+        aria-label="設定セクション"
+        className="flex gap-1 overflow-x-auto border-b border-border"
+      >
         {SETTINGS_TABS.map((tab, i) => (
-          <span
-            key={tab}
+          <a
+            key={tab.label}
+            href={tab.href}
             aria-current={i === 0 ? "page" : undefined}
             className={cn(
-              "whitespace-nowrap border-b-2 px-4 py-2.5 text-label-lg font-semibold",
+              "whitespace-nowrap border-b-2 px-4 py-2.5 text-label-lg font-semibold transition",
               i === 0
                 ? "border-primary text-primary"
-                : "border-transparent text-on-surface-variant",
+                : "border-transparent text-on-surface-variant hover:text-on-surface",
             )}
           >
-            {tab}
-          </span>
+            {tab.label}
+          </a>
         ))}
-      </div>
+      </nav>
 
       {serverError ? (
         <p role="alert" className="text-label-lg text-error">
@@ -128,6 +132,7 @@ export function WorkspaceSettingsForm({
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* 基本情報 — フォーム本体 (name + アイコン + 保存) */}
+        <section id="ws-basic" className="contents">
         <Form form={form} onValid={onSubmit} className={cn(CARD, "gap-4")}>
           <h2 className={SECTION_TITLE}>基本情報</h2>
           <Field
@@ -151,24 +156,31 @@ export function WorkspaceSettingsForm({
               >
                 {iconInitial}
               </span>
-              <button type="button" className={BTN_OUTLINED_SM}>
-                変更
-              </button>
+              <span className="text-body-sm text-on-surface-variant">
+                名前の頭文字を自動表示します
+              </span>
+              {/* モックの「変更」ボタンは icon 更新 API が無い死にボタンだったため撤去 (GAP-021) */}
             </div>
           </div>
           <button type="submit" className={BTN_PRIMARY}>
             {t("common.save")}
           </button>
         </Form>
+        </section>
 
         {/* メンバー (実 API 配線 section) */}
-        {membersSlot}
+        <div id="ws-members" className="contents">
+          {membersSlot}
+        </div>
 
         {/* MCPトークン (実 API 配線 section) */}
-        {tokensSlot}
+        <div id="ws-tokens" className="contents">
+          {tokensSlot}
+        </div>
 
         {/* AI 学習設定 */}
         <section
+          id="ws-ai"
           className={cn(CARD, "md:col-span-2")}
           aria-label="AI 学習設定"
         >
@@ -208,13 +220,38 @@ export function WorkspaceSettingsForm({
               ワークスペース削除は 30 日後にハード削除されます。30
               日以内であればキャンセル可能。
             </p>
-            <button
-              type="button"
-              onClick={onDelete}
-              className="inline-flex w-fit items-center justify-center rounded-md bg-error px-4 py-2 text-label-lg font-semibold text-on-error transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error"
-            >
-              ワークスペースを削除
-            </button>
+            {confirmingDelete ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-body-sm font-semibold text-[#991B1B]">
+                  本当に削除しますか？
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                    onDelete();
+                  }}
+                  className="inline-flex w-fit items-center rounded-md bg-error px-4 py-2 text-label-lg font-semibold text-on-error transition-colors hover:opacity-90"
+                >
+                  削除を確定
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(false)}
+                  className="inline-flex w-fit items-center rounded-md border border-border px-4 py-2 text-label-lg font-semibold text-on-surface transition hover:bg-surface-variant"
+                >
+                  キャンセル
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(true)}
+                className="inline-flex w-fit items-center justify-center rounded-md bg-error px-4 py-2 text-label-lg font-semibold text-on-error transition-colors hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error"
+              >
+                ワークスペースを削除
+              </button>
+            )}
           </section>
         ) : null}
       </div>

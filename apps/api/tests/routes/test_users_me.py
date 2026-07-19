@@ -31,13 +31,20 @@ def _app() -> FastAPI:
 def test_get_me_returns_profile(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_get_me(_session: Any, user_id: str) -> MeResponse:
         assert user_id == "u1"
-        return MeResponse(id="u1", email="a@example.com", display_name="山田")
+        return MeResponse(
+            id="u1", email="a@example.com", display_name="山田", ai_learning_opt_out=True
+        )
 
     monkeypatch.setattr(users_svc, "get_me", _fake_get_me)
     with TestClient(_app()) as client:
         res = client.get("/me")
     assert res.status_code == 200
-    assert res.json()["data"] == {"id": "u1", "email": "a@example.com", "display_name": "山田"}
+    assert res.json()["data"] == {
+        "id": "u1",
+        "email": "a@example.com",
+        "display_name": "山田",
+        "ai_learning_opt_out": True,
+    }
 
 
 def test_get_me_404_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -56,7 +63,9 @@ def test_patch_me_updates_display_name(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_update_me(_session: Any, *, user_id: str, display_name: str) -> MeResponse:
         captured["user_id"] = user_id
         captured["display_name"] = display_name
-        return MeResponse(id=user_id, email="a@example.com", display_name=display_name)
+        return MeResponse(
+            id=user_id, email="a@example.com", display_name=display_name, ai_learning_opt_out=True
+        )
 
     monkeypatch.setattr(users_svc, "update_me", _fake_update_me)
     with TestClient(_app()) as client:

@@ -11,6 +11,7 @@ class MeResponse(BaseModel):
     id: str
     email: str
     display_name: str | None
+    ai_learning_opt_out: bool
 
 
 class MeUpdate(BaseModel):

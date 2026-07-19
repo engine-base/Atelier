@@ -1,12 +1,10 @@
 /**
- * S-A03 ワークスペース設定 コンテナ — T-UC-02 (実 workspaces / ai-learning API 配線)
+ * S-A03 ワークスペース設定 コンテナ — T-UC-02 (design-audit v2: 実 API 全配線)
  *
- * GET /workspaces/{id} で名称を取得し、保存で:
- *   - PATCH /workspaces/{id} {name}
- *   - POST  /account/ai-learning {opt_out}   （AI 学習オプトアウト, 既定 ON = rule #6）
- * を実行する。WS 削除 API は無いため削除ボタンは出さない。
- * AI 学習状態の取得 API は無く、既定は opt-out=true（学習に使わない）。
- * api client は注入可能。
+ * GET /workspaces/{id} で名称、GET /me で AI 学習の実値 (ai_learning_opt_out) を取得。
+ * 保存で PATCH /workspaces/{id} {name} + POST /account/ai-learning {opt_out}。
+ * 削除は DELETE /workspaces/{id} (論理・30日 grace) — v2 で UI 断線を解消
+ * (API が実在するのに削除ボタンが無かった)。api client は注入可能。
  */
 
 "use client";
@@ -30,9 +28,15 @@ interface ApiWorkspace {
   name: string;
 }
 
+interface MeLite {
+  ai_learning_opt_out?: boolean;
+}
+
 export interface WorkspaceSettingsContainerProps {
   readonly workspaceId: string;
   readonly client?: ApiClient;
+  /** 削除成功後の遷移 (現在 WS の解除は呼び出し側で)。 */
+  readonly onDeleted?: () => void;
 }
 
 function isForbidden(error: unknown): boolean {
@@ -42,11 +46,35 @@ function isForbidden(error: unknown): boolean {
 export function WorkspaceSettingsContainer({
   workspaceId,
   client: injected,
+  onDeleted,
 }: WorkspaceSettingsContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
   const KEY = ["workspace", workspaceId] as const;
+
+  const me = useQuery({
+    queryKey: ["me", "ai-learning"],
+    queryFn: async () => {
+      const res = await client.get("/me");
+      return (res as { data?: MeLite }).data ?? {};
+    },
+    retry: false,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: () =>
+      client.delete("/workspaces/{workspace_id}", {
+        params: { path: { workspace_id: workspaceId } },
+      }),
+    onSuccess: () => onDeleted?.(),
+    onError: (error) =>
+      setServerError(
+        error instanceof ApiError && error.status === 403
+          ? "ワークスペースを削除できるのはオーナーのみです。"
+          : "削除に失敗しました。",
+      ),
+  });
 
   const ws = useQuery({
     queryKey: KEY,
@@ -109,14 +137,15 @@ export function WorkspaceSettingsContainer({
       </p>
     );
   }
-  if (ws.isLoading || !ws.data) {
+  if (ws.isLoading || !ws.data || me.isLoading) {
     return <Loading className="py-md" />;
   }
 
-  // AI 学習は既定でオプトアウト（学習に使わない）。取得 API が無いため true 初期化。
+  // AI 学習は GET /me の実値で初期化 (常に OFF 表示だった S-B03 と同型の実バグを是正)。
+  // 取得失敗時は安全側 (OFF = opt-out) に倒す。
   const initial: WorkspaceSettingsValues = {
     name: ws.data.name,
-    aiLearningOptIn: false, // 既定 OFF (絶対ルール #6)
+    aiLearningOptIn: me.data ? me.data.ai_learning_opt_out === false : false,
   };
 
   return (
@@ -124,6 +153,7 @@ export function WorkspaceSettingsContainer({
       defaultValues={initial}
       onSubmit={onSubmit}
       serverError={serverError}
+      onDelete={() => deleteMut.mutate()}
       membersSlot={<MembersSection workspaceId={workspaceId} client={client} />}
       tokensSlot={<McpTokensSection workspaceId={workspaceId} client={client} />}
     />

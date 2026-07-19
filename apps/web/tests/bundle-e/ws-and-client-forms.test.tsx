@@ -36,7 +36,7 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
     expect(screen.getByText('Danger Zone')).toBeInTheDocument();
   });
 
-  it('invokes onDelete on click', () => {
+  it('invokes onDelete only after 2-step confirmation (design-audit v2)', () => {
     const onDelete = vi.fn();
     render(
       <WorkspaceSettingsForm
@@ -45,8 +45,25 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
         onDelete={onDelete}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /削除/ }));
-    expect(onDelete).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを削除' }));
+    // 1 クリック目は確認表示のみ
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '削除を確定' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancel aborts the delete confirmation', () => {
+    const onDelete = vi.fn();
+    render(
+      <WorkspaceSettingsForm
+        defaultValues={defaults}
+        onSubmit={() => undefined}
+        onDelete={onDelete}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを削除' }));
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
   it('blocks submit when name is empty', async () => {

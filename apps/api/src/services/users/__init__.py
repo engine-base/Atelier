@@ -19,13 +19,14 @@ def _row_to_response(row: Any) -> MeResponse:
         id=str(row.id),
         email=str(row.email),
         display_name=(None if row.display_name is None else str(row.display_name)),
+        ai_learning_opt_out=bool(row.ai_learning_opt_out),
     )
 
 
 async def get_me(session: AsyncSession, user_id: str) -> MeResponse | None:
     res = await session.execute(
         text(
-            "select id, email, display_name from public.users "
+            "select id, email, display_name, ai_learning_opt_out from public.users "
             "where id = cast(:id as uuid) and deleted_at is null"
         ),
         {"id": user_id},
@@ -39,7 +40,7 @@ async def update_me(session: AsyncSession, *, user_id: str, display_name: str) -
         text(
             "update public.users set display_name = :dn "
             "where id = cast(:id as uuid) and deleted_at is null "
-            "returning id, email, display_name"
+            "returning id, email, display_name, ai_learning_opt_out"
         ),
         {"id": user_id, "dn": display_name},
     )
