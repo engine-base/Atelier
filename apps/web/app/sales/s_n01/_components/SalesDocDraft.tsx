@@ -1,20 +1,24 @@
 /**
- * S-N01 商談ドラフト — T-UC-24
+ * S-N01 商談ドラフト — T-UC-24 (design-audit v2)
  *
- * 商談メモから AI 提案ドラフトを生成する UI。
- * - 顧客名 / 案件 / 概要 入力
- * - "ドラフト生成" ボタン → loading → ドラフト表示
+ * 見た目は 06_mockups/sales/S-N01-drafts.html に忠実:
+ *   page-header → 種別タブ → (フォーム + ドキュメント一覧/プレビュー | サイドバー)。
  *
- * 見た目は 06_mockups/sales/S-N01-drafts.html に忠実。
- * 種別タブ / 生成フォーム / ドキュメントプレビュー / アクション /
- * 生成プロセス・参照ナレッジ・送信履歴サイドバーで構成する。
- * データ配線 (form / draft / loading / onDraft) は不変。
+ * design-audit v2 での是正:
+ *   - 死にタブ 5 → API が持つ 提案書/見積書 の実タブ (件数バッジは実データ)。
+ *     業務委託契約/NDA/請求書 は doc_type 未対応のため撤去 + GAP-018
+ *   - disabled placeholder (修正依頼/PDF/送信) は Rule 10 違反 → 修正依頼=チャットへの実リンク、
+ *     PDF/送信/送信履歴カードは API 不在のため撤去 + GAP-018
+ *   - 保存済みドキュメントが一覧されずリロードで消えた → GET /sales-docs 実一覧 (版数つき)
+ *   - 削除 (論理) を 2 段階確認で追加
  */
 
 "use client";
 
 import * as React from "react";
 import { useState } from "react";
+import Link from "next/link";
+import { MessageSquare, Trash2 } from "lucide-react";
 import { z } from "zod";
 
 import { Field } from "../../../../components/forms/Field";
@@ -29,28 +33,25 @@ const Schema = z.object({
 });
 export type SalesDraftValues = z.infer<typeof Schema>;
 
-export interface SalesDocDraftProps {
-  readonly onDraft: (v: SalesDraftValues) => Promise<string>;
-  /** 生成済みドラフト本文の編集を保存 (PATCH /sales-docs/{id})。未指定なら編集不可。 */
-  readonly onEdit?: (content: string) => Promise<void>;
+export type DocType = "proposal" | "estimate";
+
+export interface SalesDocRow {
+  readonly id: string;
+  readonly docType: DocType;
+  readonly summary: string;
+  readonly version: number;
+  readonly createdAt: string;
 }
+
+export const DOC_TYPE_LABEL: Readonly<Record<DocType, string>> = {
+  proposal: "提案書",
+  estimate: "見積書",
+};
 
 const INPUT_CLASS =
   "w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-[14px] text-on-surface transition focus:border-primary focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-primary-container";
 
-/** 種別タブ (ドキュメント種別)。proposal を active 表示。
- *  以前は "v3/v2/draft" 等の版数バッジをべた書きしていたが、実ドキュメントの
- *  有無に関係なく既存版があるように見える虚偽表示だったため撤去した。 */
-const DOC_TABS: ReadonlyArray<{ label: string; active: boolean }> = [
-  { label: "提案書", active: true },
-  { label: "見積書", active: false },
-  { label: "業務委託契約", active: false },
-  { label: "NDA", active: false },
-  { label: "請求書", active: false },
-];
-
-/** 生成の流れ (参考)。以前は "過去類似3案件"/"35機能87タスク" 等の具体数を
- *  実行済みかのように出していたが、生成トレース API が無く虚偽のため汎用手順に是正。 */
+/** 生成の流れ (参考手順)。実行トレース API は無いため、具体数の虚偽表示はしない。 */
 const PROCESS_STEPS: readonly string[] = [
   "過去の類似案件・ナレッジを参照",
   "機能分解から工数を算出",
@@ -59,46 +60,73 @@ const PROCESS_STEPS: readonly string[] = [
   "人間レビューで承認・確定",
 ];
 
-const TOOLBAR_ACTIONS: ReadonlyArray<{ label: string; variant: string }> = [
-  { label: "修正依頼", variant: "ghost" },
-  { label: "PDF", variant: "ghost" },
-  { label: "編集", variant: "outlined" },
-  { label: "送信", variant: "primary" },
-];
-
-function toolbarBtnClass(variant: string): string {
-  const base =
-    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold transition";
-  if (variant === "primary") {
-    return `${base} bg-primary text-on-primary hover:bg-[#1E54D8]`;
-  }
-  if (variant === "outlined") {
-    return `${base} border border-primary text-primary hover:bg-primary-container`;
-  }
-  return `${base} text-on-surface hover:bg-surface-variant`;
+function dateLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function DocTabs() {
+export interface SalesDocDraftProps {
+  readonly docType: DocType;
+  readonly onDocTypeChange: (t: DocType) => void;
+  readonly docs: readonly SalesDocRow[];
+  readonly docsLoading?: boolean;
+  readonly docsError?: boolean;
+  readonly counts: Readonly<Record<DocType, number>>;
+  readonly onDraft: (v: SalesDraftValues) => Promise<SalesDocRow>;
+  readonly onEdit: (id: string, content: string) => Promise<void>;
+  readonly onDelete: (id: string) => void;
+  /** 「修正依頼」の遷移先 (プロジェクトチャット)。 */
+  readonly chatHref: string;
+}
+
+function DocTabs({
+  active,
+  counts,
+  onChange,
+}: {
+  readonly active: DocType;
+  readonly counts: Readonly<Record<DocType, number>>;
+  readonly onChange: (t: DocType) => void;
+}) {
   return (
-    <div className="mb-6 flex gap-1 overflow-x-auto border-b border-border">
-      {DOC_TABS.map((tab) => (
-        <span
-          key={tab.label}
+    <div
+      role="tablist"
+      aria-label="ドキュメント種別"
+      className="mb-6 flex gap-1 overflow-x-auto border-b border-border"
+    >
+      {(Object.keys(DOC_TYPE_LABEL) as DocType[]).map((t) => (
+        <button
+          key={t}
+          type="button"
+          role="tab"
+          aria-selected={active === t}
+          onClick={() => onChange(t)}
           className={
-            "flex items-center gap-2 whitespace-nowrap border-b-2 px-[18px] py-3 text-[13px] font-semibold " +
-            (tab.active
+            "flex items-center gap-2 whitespace-nowrap border-b-2 px-[18px] py-3 text-[13px] font-semibold transition " +
+            (active === t
               ? "border-primary text-primary"
-              : "border-transparent text-on-surface-variant")
+              : "border-transparent text-on-surface-variant hover:text-on-surface")
           }
         >
-          {tab.label}
-        </span>
+          {DOC_TYPE_LABEL[t]}
+          <span
+            className={
+              "rounded-full px-[7px] py-px text-[10.5px] font-bold " +
+              (active === t
+                ? "bg-primary-container text-on-primary-container"
+                : "bg-surface-variant text-on-surface-variant")
+            }
+          >
+            {counts[t]}
+          </span>
+        </button>
       ))}
     </div>
   );
 }
 
-/** 生成の流れ (参考手順)。実行トレースではなく、AI 提案ドラフトの作り方の説明。 */
 function ProcessCard() {
   return (
     <div className="rounded-lg border border-border bg-white p-5">
@@ -128,46 +156,132 @@ function ProcessCard() {
   );
 }
 
-function SendHistoryCard() {
+/** 保存済みドキュメント一覧 (版数つき)。クリックでプレビュー、削除は 2 段階。 */
+function DocHistory({
+  docs,
+  loading,
+  error,
+  selectedId,
+  onSelect,
+  onDelete,
+}: {
+  readonly docs: readonly SalesDocRow[];
+  readonly loading?: boolean;
+  readonly error?: boolean;
+  readonly selectedId: string | null;
+  readonly onSelect: (row: SalesDocRow) => void;
+  readonly onDelete: (id: string) => void;
+}) {
+  const [confirming, setConfirming] = useState<string | null>(null);
   return (
     <div className="rounded-lg border border-border bg-white p-5">
       <h3 className="mb-3 text-[14px] font-bold tracking-tight text-on-surface">
-        送信履歴
+        保存済みドキュメント
       </h3>
-      <p className="text-[13px] text-on-surface-variant">
-        まだ送信されていません
-      </p>
-      <button
-        type="button"
-        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8]"
-      >
-        クライアントにメール送信
-      </button>
+      {error ? (
+        <p role="alert" className="text-[13px] text-error">
+          一覧の取得に失敗しました。
+        </p>
+      ) : loading ? (
+        <p className="text-[13px] text-on-surface-variant">読み込み中…</p>
+      ) : docs.length === 0 ? (
+        <p className="text-[13px] text-on-surface-variant">
+          まだドキュメントがありません。
+        </p>
+      ) : (
+        <ul className="flex flex-col">
+          {docs.map((d, i) => (
+            <li
+              key={d.id}
+              className={
+                "flex items-center gap-2 py-2 " +
+                (i < docs.length - 1 ? "border-b border-border" : "")
+              }
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(d)}
+                aria-current={selectedId === d.id ? "true" : undefined}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1.5 py-1 text-left transition hover:bg-surface-variant",
+                  selectedId === d.id && "bg-primary-container/40",
+                )}
+              >
+                <span className="rounded-sm bg-surface-variant px-1.5 py-0.5 text-[10.5px] font-bold text-on-surface-variant">
+                  v{d.version}
+                </span>
+                <span className="truncate text-[13px] font-medium text-on-surface">
+                  {d.summary.split("\n")[0]?.replace(/^#\s*/, "") || "(無題)"}
+                </span>
+                <span className="ml-auto shrink-0 text-[11.5px] text-on-surface-variant">
+                  {dateLabel(d.createdAt)}
+                </span>
+              </button>
+              {confirming === d.id ? (
+                <span className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirming(null);
+                      onDelete(d.id);
+                    }}
+                    className="rounded-sm px-1.5 py-1 text-[12px] font-semibold text-error hover:bg-surface-variant"
+                  >
+                    削除する
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(null)}
+                    className="rounded-sm px-1.5 py-1 text-[12px] text-on-surface-variant hover:bg-surface-variant"
+                  >
+                    取消
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label={`v${d.version} を削除`}
+                  onClick={() => setConfirming(d.id)}
+                  className="shrink-0 rounded-sm p-1.5 text-error transition hover:bg-surface-variant"
+                >
+                  <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
-/** 生成済みドキュメントのプレビュー (toolbar + アクション + 本文)。
- *  onEdit 指定時は「編集」ボタンで本文を編集して PATCH /sales-docs/{id} に保存できる。 */
+/** ドキュメントプレビュー (toolbar + 本文 + 編集)。 */
 function DocPreview({
-  draft,
+  doc,
+  chatHref,
   onEdit,
 }: {
-  readonly draft: string;
-  readonly onEdit?: (content: string) => Promise<void> | void;
+  readonly doc: SalesDocRow;
+  readonly chatHref: string;
+  readonly onEdit: (id: string, content: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  const [content, setContent] = useState(draft);
+  const [content, setContent] = useState(doc.summary);
   const [saving, setSaving] = useState(false);
+  const [view, setView] = useState(doc.summary);
 
-  const startEdit = (): void => {
-    setContent(draft);
-    setEditing(true);
-  };
+  // 別ドキュメント選択時に表示を差し替える
+  React.useEffect(() => {
+    setView(doc.summary);
+    setContent(doc.summary);
+    setEditing(false);
+  }, [doc.id, doc.summary]);
+
   const save = async (): Promise<void> => {
     setSaving(true);
     try {
-      await onEdit?.(content);
+      await onEdit(doc.id, content);
+      setView(content);
       setEditing(false);
     } finally {
       setSaving(false);
@@ -178,48 +292,35 @@ function DocPreview({
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-variant px-[18px] py-3">
         <span className="inline-flex items-center gap-1 rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-semibold text-on-primary-container">
-          提案 · ドラフト
+          v{doc.version} · {DOC_TYPE_LABEL[doc.docType]}
         </span>
         <span className="text-[13px] text-on-surface-variant">
-          AI 補助ドラフト · 提案ドキュメントとして保存済み
+          {dateLabel(doc.createdAt)} 作成 · AI 補助ドラフト
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {TOOLBAR_ACTIONS.map((action) => {
-            // 「編集」は onEdit 配線時のみ機能。他(修正依頼/PDF/送信)は API 無し
-            // のため onEdit 未配線時と同じく非活性の視覚クロームとして残す。
-            if (action.label === "編集") {
-              if (!onEdit) return null;
-              return (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={editing ? () => setEditing(false) : startEdit}
-                  className={toolbarBtnClass(action.variant)}
-                >
-                  {editing ? "編集をやめる" : "編集"}
-                </button>
-              );
-            }
-            return (
-              <button
-                key={action.label}
-                type="button"
-                disabled
-                className={cn(toolbarBtnClass(action.variant), "opacity-50")}
-              >
-                {action.label}
-              </button>
-            );
-          })}
+          <Link
+            href={chatHref}
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface transition hover:bg-white"
+          >
+            <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" />
+            修正依頼
+          </Link>
+          <button
+            type="button"
+            onClick={() => (editing ? setEditing(false) : setEditing(true))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-[12px] font-semibold text-primary transition hover:bg-primary-container"
+          >
+            {editing ? "編集をやめる" : "編集"}
+          </button>
         </div>
       </div>
 
       <article
         aria-label="生成ドラフト"
-        className="max-h-[720px] overflow-y-auto px-14 py-10"
+        className="max-h-[720px] overflow-y-auto px-6 py-8 lg:px-14 lg:py-10"
       >
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-          Proposal / 提案ドラフト
+          {doc.docType === "estimate" ? "Estimate / 見積書" : "Proposal / 提案書"}
         </div>
         {editing ? (
           <div className="flex flex-col gap-3">
@@ -253,7 +354,7 @@ function DocPreview({
           </div>
         ) : (
           <pre className="whitespace-pre-wrap font-sans text-[14px] leading-[1.8] text-on-surface">
-            {draft}
+            {view}
           </pre>
         )}
         <p className="mt-6 text-[13px] text-on-surface-variant">
@@ -264,20 +365,34 @@ function DocPreview({
   );
 }
 
-export function SalesDocDraft({ onDraft, onEdit }: SalesDocDraftProps) {
+export function SalesDocDraft({
+  docType,
+  onDocTypeChange,
+  docs,
+  docsLoading,
+  docsError,
+  counts,
+  onDraft,
+  onEdit,
+  onDelete,
+  chatHref,
+}: SalesDocDraftProps) {
   const form = useAtelierForm({
     schema: Schema,
     defaultValues: { customer: "", opportunity: "", summary: "" },
   });
-  const [draft, setDraft] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SalesDocRow | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleEditSave = onEdit
-    ? async (content: string): Promise<void> => {
-        await onEdit(content);
-        setDraft(content); // 保存成功で表示も更新
-      }
-    : undefined;
+  // 一覧が更新されたら selected を最新の同 id 行へ追従する。
+  // (作成直後は一覧再取得前で不在になり得るため、不在でも選択は解除しない —
+  //  削除時の解除は onDelete ハンドラ側で行う)
+  React.useEffect(() => {
+    if (!selected) return;
+    const cur = docs.find((d) => d.id === selected.id);
+    if (cur && cur.summary !== selected.summary) setSelected(cur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs]);
 
   return (
     <section className="flex flex-col gap-7">
@@ -285,82 +400,96 @@ export function SalesDocDraft({ onDraft, onEdit }: SalesDocDraftProps) {
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
           Sales Drafts · トニー + ナターシャ
         </p>
-        <h1 className="mb-2 text-[28px] font-bold leading-tight tracking-tight text-on-surface">
-          商談ドラフト
+        <h1 className="mb-2 text-[24px] font-bold leading-tight tracking-tight text-on-surface lg:text-[28px]">
+          提案 / 見積ドラフト
         </h1>
         <p className="text-[14px] text-on-surface-variant">
           ナレッジの過去成約パターンから自動生成。修正はチャットで行えます。
         </p>
       </header>
 
-      <DocTabs />
+      <div>
+        <DocTabs active={docType} counts={counts} onChange={onDocTypeChange} />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="flex flex-col gap-5">
-          <div className="rounded-lg border border-border bg-white p-5">
-            <h2 className="mb-4 text-[16px] font-bold tracking-tight text-on-surface">
-              商談メモから生成
-            </h2>
-            <Form
-              form={form}
-              onValid={async (v) => {
-                setLoading(true);
-                try {
-                  setDraft(await onDraft(v));
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="gap-md"
-            >
-              <Field
-                label="顧客名"
-                required
-                error={form.formState.errors.customer?.message}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+          <div className="flex flex-col gap-5">
+            <div className="rounded-lg border border-border bg-white p-5">
+              <h2 className="mb-4 text-[16px] font-bold tracking-tight text-on-surface">
+                商談メモから{DOC_TYPE_LABEL[docType]}を生成
+              </h2>
+              <Form
+                form={form}
+                onValid={async (v) => {
+                  setLoading(true);
+                  try {
+                    const row = await onDraft(v);
+                    setSelected(row);
+                    form.reset({ customer: "", opportunity: "", summary: "" });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                className="gap-md"
               >
-                <input {...form.register("customer")} className={INPUT_CLASS} />
-              </Field>
-              <Field
-                label="案件"
-                required
-                error={form.formState.errors.opportunity?.message}
-              >
-                <input
-                  {...form.register("opportunity")}
-                  className={INPUT_CLASS}
-                />
-              </Field>
-              <Field
-                label="商談概要"
-                required
-                error={form.formState.errors.summary?.message}
-              >
-                <textarea
-                  {...form.register("summary")}
-                  rows={5}
-                  className={INPUT_CLASS}
-                />
-              </Field>
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8] disabled:opacity-50"
-              >
-                ドラフト生成
-              </button>
-            </Form>
+                <Field
+                  label="顧客名"
+                  required
+                  error={form.formState.errors.customer?.message}
+                >
+                  <input {...form.register("customer")} className={INPUT_CLASS} />
+                </Field>
+                <Field
+                  label="案件"
+                  required
+                  error={form.formState.errors.opportunity?.message}
+                >
+                  <input
+                    {...form.register("opportunity")}
+                    className={INPUT_CLASS}
+                  />
+                </Field>
+                <Field
+                  label="商談概要"
+                  required
+                  error={form.formState.errors.summary?.message}
+                >
+                  <textarea
+                    {...form.register("summary")}
+                    rows={5}
+                    className={INPUT_CLASS}
+                  />
+                </Field>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8] disabled:opacity-50"
+                >
+                  ドラフト生成
+                </button>
+              </Form>
+            </div>
+
+            {loading ? <Loading /> : null}
+            {selected && !loading ? (
+              <DocPreview doc={selected} chatHref={chatHref} onEdit={onEdit} />
+            ) : null}
           </div>
 
-          {loading ? <Loading /> : null}
-          {draft && !loading ? (
-            <DocPreview draft={draft} onEdit={handleEditSave} />
-          ) : null}
+          <aside className="flex flex-col gap-4">
+            <DocHistory
+              docs={docs}
+              loading={docsLoading}
+              error={docsError}
+              selectedId={selected?.id ?? null}
+              onSelect={setSelected}
+              onDelete={(id) => {
+                onDelete(id);
+                if (selected?.id === id) setSelected(null);
+              }}
+            />
+            <ProcessCard />
+          </aside>
         </div>
-
-        <aside className="flex flex-col gap-4">
-          <ProcessCard />
-          <SendHistoryCard />
-        </aside>
       </div>
     </section>
   );

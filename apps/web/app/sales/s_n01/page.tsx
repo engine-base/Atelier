@@ -10,6 +10,7 @@ import * as React from "react";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { QueryProvider } from "../../../providers/query-provider";
 import { SalesDocDraftContainer } from "./_components/SalesDocDraftContainer";
 
 function SN01Inner() {
@@ -30,6 +31,14 @@ function SN01Inner() {
 }
 
 export default function SN01Page() {
+  return (
+    <QueryProvider>
+      <SN01Suspense />
+    </QueryProvider>
+  );
+}
+
+function SN01Suspense() {
   return (
     <Suspense
       fallback={

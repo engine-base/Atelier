@@ -158,9 +158,19 @@ describe("TranscriptUpload (T-UC-23)", () => {
 });
 
 describe("SalesDocDraft (T-UC-24)", () => {
+  const baseProps = {
+    docType: "proposal" as const,
+    onDocTypeChange: vi.fn(),
+    docs: [],
+    counts: { proposal: 0, estimate: 0 },
+    onEdit: vi.fn(async () => undefined),
+    onDelete: vi.fn(),
+    chatHref: "/chat?project=p1",
+  };
+
   it("blocks submit when required fields are empty", async () => {
     const onDraft = vi.fn();
-    render(<SalesDocDraft onDraft={onDraft} />);
+    render(<SalesDocDraft {...baseProps} onDraft={onDraft} />);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "ドラフト生成" }));
       await new Promise((r) => setTimeout(r, 0));
@@ -169,8 +179,14 @@ describe("SalesDocDraft (T-UC-24)", () => {
   });
 
   it("generates and displays draft on submit", async () => {
-    const onDraft = vi.fn(async () => "# generated");
-    render(<SalesDocDraft onDraft={onDraft} />);
+    const onDraft = vi.fn(async () => ({
+      id: "d1",
+      docType: "proposal" as const,
+      summary: "# generated",
+      version: 1,
+      createdAt: "2026-07-19T00:00:00Z",
+    }));
+    render(<SalesDocDraft {...baseProps} onDraft={onDraft} />);
     fireEvent.change(screen.getByLabelText(/顧客名/), {
       target: { value: "ACME" },
     });
@@ -186,5 +202,73 @@ describe("SalesDocDraft (T-UC-24)", () => {
     });
     expect(onDraft).toHaveBeenCalled();
     expect(screen.getByText("# generated")).toBeInTheDocument();
+  });
+
+  it("tabs switch doc type and show real counts", () => {
+    const onDocTypeChange = vi.fn();
+    render(
+      <SalesDocDraft
+        {...baseProps}
+        counts={{ proposal: 3, estimate: 1 }}
+        onDocTypeChange={onDocTypeChange}
+        onDraft={vi.fn()}
+      />,
+    );
+    const estTab = screen.getByRole("tab", { name: /見積書/ });
+    expect(estTab).toHaveAttribute("aria-selected", "false");
+    fireEvent.click(estTab);
+    expect(onDocTypeChange).toHaveBeenCalledWith("estimate");
+    expect(screen.getByRole("tab", { name: /提案書/ })).toHaveTextContent("3");
+  });
+
+  it("history delete is 2-step", () => {
+    const onDelete = vi.fn();
+    render(
+      <SalesDocDraft
+        {...baseProps}
+        docs={[
+          {
+            id: "d1",
+            docType: "proposal",
+            summary: "# 提案A",
+            version: 2,
+            createdAt: "2026-07-01T00:00:00Z",
+          },
+        ]}
+        onDelete={onDelete}
+        onDraft={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "v2 を削除" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "削除する" }));
+    expect(onDelete).toHaveBeenCalledWith("d1");
+  });
+
+  it("selecting a history row opens it in the preview", () => {
+    render(
+      <SalesDocDraft
+        {...baseProps}
+        docs={[
+          {
+            id: "d1",
+            docType: "proposal",
+            summary: "# 提案A\n\n本文",
+            version: 1,
+            createdAt: "2026-07-01T00:00:00Z",
+          },
+        ]}
+        onDraft={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /提案A/ }));
+    expect(
+      screen.getByRole("article", { name: "生成ドラフト" }),
+    ).toHaveTextContent("本文");
+    // 修正依頼はチャットへの実リンク
+    expect(screen.getByRole("link", { name: /修正依頼/ })).toHaveAttribute(
+      "href",
+      "/chat?project=p1",
+    );
   });
 });
