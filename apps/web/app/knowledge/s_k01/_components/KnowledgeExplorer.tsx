@@ -27,10 +27,8 @@ import {
   ChevronRight,
   Clock,
   Copy,
-  ExternalLink,
   FileText,
   Folder,
-  GitBranch,
   Globe,
   LayoutDashboard,
   Pencil,
@@ -38,10 +36,15 @@ import {
   Search,
   ShieldCheck,
   Users,
+  X,
 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+import {
+  EmployeeIcon,
+  type EmployeeId,
+} from "../../../../components/EmployeeIcon";
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 import { KbButton, KbDenied } from "./ui";
@@ -51,7 +54,9 @@ import {
   CreateKnowledgeDialog,
   type KnowledgeDraft,
 } from "./CreateKnowledgeDialog";
+import { NoteMarkdown } from "./NoteMarkdown";
 import { SCOPES, type KnowledgeNode, type KnowledgeScope } from "./types";
+import { fmtDateTime } from "../../../../lib/format";
 
 /** scope ごとのツリーグループ・アイコン (モックの globe / users / folder 見出し)。 */
 const SCOPE_ICON: Record<KnowledgeScope, typeof Globe> = {
@@ -77,6 +82,34 @@ function unwrap(res: unknown): KnowledgeNode[] {
   return (res as { data?: KnowledgeNode[] }).data ?? [];
 }
 
+interface SearchHit {
+  readonly node: KnowledgeNode;
+  readonly score: number;
+}
+
+function unwrapHits(res: unknown): SearchHit[] {
+  const data = (res as {
+    data?: { hits?: { knowledge?: KnowledgeNode; score?: number }[] };
+  }).data;
+  return (data?.hits ?? [])
+    .filter((h): h is { knowledge: KnowledgeNode; score: number } =>
+      Boolean(h.knowledge),
+    )
+    .map((h) => ({ node: h.knowledge, score: h.score ?? 0 }));
+}
+
+interface EmployeeLite {
+  readonly id: string;
+  readonly name?: string;
+  readonly display_name?: string;
+  readonly icon?: string | null;
+}
+
+interface ProjectLite {
+  readonly id: string;
+  readonly name: string;
+}
+
 export function KnowledgeExplorer({
   client: injected,
   workspaceId,
@@ -97,6 +130,9 @@ export function KnowledgeExplorer({
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [view, setView] = useState<"note" | "list">("note");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
 
   const rootKey = ["knowledge", "tree", accountId, scope] as const;
 
@@ -119,6 +155,71 @@ export function KnowledgeExplorer({
     retry: false,
   });
 
+  // 名前解決 (ツリーの社員グルーピング / プロジェクト見出し / オーナー表示)
+  const employeesQuery = useQuery({
+    queryKey: ["knowledge-employees"],
+    queryFn: async () => {
+      const res = await client.get("/ai-employees");
+      return (res as { data?: EmployeeLite[] }).data ?? [];
+    },
+    retry: false,
+  });
+  const projectsQuery = useQuery({
+    queryKey: ["knowledge-projects"],
+    queryFn: async () => {
+      const res = await client.get("/projects", {
+        params: { query: { limit: 50 } },
+      });
+      return (res as { data?: ProjectLite[] }).data ?? [];
+    },
+    retry: false,
+  });
+
+  // RAG 検索 (POST /knowledge/search)。Voyage 未設定環境では text 検索に degrade する実 API。
+  const searchMut = useMutation({
+    mutationFn: async (q: string) => {
+      const res = await client.post("/knowledge/search", {
+        body: { query: q, account_id: accountId, limit: 20 },
+      });
+      return unwrapHits(res);
+    },
+    onSuccess: (hits) => setSearchHits(hits),
+  });
+
+  const runSearch = (): void => {
+    const q = searchInput.trim();
+    if (q) searchMut.mutate(q);
+  };
+  const clearSearch = (): void => {
+    setSearchInput("");
+    setSearchHits(null);
+  };
+
+  // 関連ナレッジ (RAG): タイトル → タグの順で類似検索し、自分自身を除く上位 3 件。
+  // (embedding 未設定環境は text 部分一致に degrade するため、タイトルだけだと
+  //  自己ヒットのみになりがち — タグでの追撃検索で関連を実データから拾う)
+  const relatedQuery = useQuery({
+    queryKey: ["knowledge", "related", selected?.id ?? "none"],
+    enabled: Boolean(selected),
+    queryFn: async () => {
+      const node = selected!;
+      const queries = [node.title, ...node.tags.slice(0, 3)];
+      const found = new Map<string, SearchHit>();
+      for (const q of queries) {
+        const res = await client.post("/knowledge/search", {
+          body: { query: q, account_id: accountId, limit: 6 },
+        });
+        for (const h of unwrapHits(res)) {
+          if (h.node.id !== node.id && !found.has(h.node.id))
+            found.set(h.node.id, h);
+        }
+        if (found.size >= 3) break;
+      }
+      return [...found.values()].slice(0, 3);
+    },
+    retry: false,
+  });
+
   // ノード展開時: 子を parent_id で遅延取得し、childrenByParent にキャッシュする。
   const fetchChildren = async (node: KnowledgeNode): Promise<void> => {
     if (childrenByParent[node.id] !== undefined) return;
@@ -135,7 +236,12 @@ export function KnowledgeExplorer({
           },
         },
       });
-      setChildrenByParent((prev) => ({ ...prev, [node.id]: unwrap(res) }));
+      // 循環ガード: parent_id が一致する行だけを子として採用する
+      // (自己参照や無関係行が混ざると TreeNode が無限再帰し得る)。
+      const children = unwrap(res).filter(
+        (c) => c.parent_id === node.id && c.id !== node.id,
+      );
+      setChildrenByParent((prev) => ({ ...prev, [node.id]: children }));
     } finally {
       setLoadingIds((prev) => {
         const next = new Set(prev);
@@ -240,11 +346,78 @@ export function KnowledgeExplorer({
     setEditing(true);
   };
 
+  // 複製: 選択ノートを実 POST /knowledge でコピー (Rule 10: 死にボタン化を許さない)。
+  const duplicateMut = useMutation({
+    mutationFn: (node: KnowledgeNode) =>
+      client.post("/knowledge", {
+        body: {
+          account_type: "workspace",
+          account_id: accountId,
+          scope: node.scope,
+          category: node.category,
+          title: `${node.title}（複製）`,
+          content_md: node.content_md,
+          tags: [...node.tags],
+          ...(node.owner_employee_id
+            ? { owner_employee_id: node.owner_employee_id }
+            : {}),
+          visible_in_tree: true,
+          source_type: "manual",
+          confidence_score: node.confidence_score ?? 0.5,
+          is_anonymized: false,
+        },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: rootKey }),
+  });
+
   if (isForbidden(rootQuery.error)) return <KbDenied />;
 
-  const roots = rootQuery.data ?? [];
+  const all = rootQuery.data ?? [];
+  // GET /knowledge (parent_id なし) は子ノードも返すため、ツリーのルートは
+  // parent_id 無しの行だけに絞る (子がルートにも重複表示される実バグの是正)。
+  const roots = all.filter((n) => !n.parent_id);
   const currentScope = SCOPES.find((s) => s.id === scope);
   const ScopeIcon = SCOPE_ICON[scope];
+
+  const employees = employeesQuery.data ?? [];
+  const employeeById = new Map(employees.map((e) => [e.id, e]));
+  const projects = projectsQuery.data ?? [];
+  const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+  const ownerName = (id: string | null | undefined): string | undefined =>
+    id ? (employeeById.get(id)?.display_name ?? id) : undefined;
+
+  // モック準拠のグルーピング: AI社員別 scope は社員ごと、プロジェクト別 scope は案件ごと。
+  const treeGroups: { key: string; header: React.ReactNode | null; nodes: KnowledgeNode[] }[] =
+    scope === "employee_specific"
+      ? [...new Set(roots.map((n) => n.owner_employee_id ?? ""))].map((eid) => {
+          const emp = employeeById.get(eid);
+          return {
+            key: eid || "none",
+            header: emp ? (
+              <span className="flex items-center gap-2 px-2.5 py-1 text-[12px] font-semibold text-on-surface">
+                <EmployeeIcon
+                  employeeId={(emp.name ?? "tony") as EmployeeId}
+                  size="sm"
+                  {...(emp.icon ? { iconName: emp.icon } : {})}
+                />
+                {emp.display_name}
+              </span>
+            ) : null,
+            nodes: roots.filter((n) => (n.owner_employee_id ?? "") === eid),
+          };
+        })
+      : scope === "project"
+        ? [...new Set(roots.map((n) => n.source_project_id ?? ""))].map((pid) => ({
+            key: pid || "none",
+            header: pid ? (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-semibold text-on-surface">
+                <Folder className="h-3.5 w-3.5 text-on-surface-variant" aria-hidden="true" />
+                {projectNameById.get(pid) ?? pid}
+              </span>
+            ) : null,
+            nodes: roots.filter((n) => (n.source_project_id ?? "") === pid),
+          }))
+        : [{ key: "all", header: null, nodes: roots }];
 
   return (
     <section
@@ -267,22 +440,42 @@ export function KnowledgeExplorer({
       <aside
         className={cn(
           "flex min-w-0 flex-col overflow-y-auto bg-white p-3 lg:border-r lg:border-border",
-          leftCollapsed && "hidden",
+          // display:none にすると grid の列割当がずれて main が 0 幅列に落ちるため
+          // (モック panels.js と同じく) lg では DOM に残して 0 幅 + overflow hidden で畳む。
+          leftCollapsed && "hidden lg:flex lg:overflow-hidden lg:border-0 lg:p-0",
         )}
       >
-        {/* RAG 検索 (表示のみ) */}
-        <div className="mb-3 flex items-center gap-2 rounded-md bg-surface-variant px-2.5 py-2">
+        {/* RAG 検索 (実 POST /knowledge/search — Enter で実行) */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            runSearch();
+          }}
+          className="mb-3 flex items-center gap-2 rounded-md bg-surface-variant px-2.5 py-2"
+        >
           <Search
             className="h-3.5 w-3.5 shrink-0 text-on-surface-variant"
             aria-hidden="true"
           />
           <input
             type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             aria-label="ナレッジを検索（RAG）"
             placeholder="ナレッジを検索（RAG）…"
             className="w-full min-w-0 border-none bg-transparent text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant"
           />
-        </div>
+          {searchHits !== null ? (
+            <button
+              type="button"
+              aria-label="検索をクリア"
+              onClick={clearSearch}
+              className="shrink-0 rounded p-0.5 text-on-surface-variant hover:text-on-surface"
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </form>
 
         {/* 新規追加 */}
         <KbButton
@@ -327,32 +520,75 @@ export function KnowledgeExplorer({
           <span className="ml-auto tabular-nums">{roots.length}</span>
         </div>
 
-        {rootQuery.isLoading ? (
+        {searchHits !== null ? (
+          /* 検索結果モード: ツリーの代わりにヒット一覧 (スコア付き) */
+          <div aria-label="検索結果" className="flex flex-col gap-px">
+            <p className="px-2.5 py-1 text-[11px] text-on-surface-variant">
+              検索結果 {searchHits.length} 件
+            </p>
+            {searchMut.isPending ? (
+              <Loading className="py-sm" />
+            ) : searchHits.length === 0 ? (
+              <p className="px-2.5 py-2 text-[13px] text-on-surface-variant">
+                一致するナレッジがありません
+              </p>
+            ) : (
+              searchHits.map((h) => (
+                <button
+                  key={h.node.id}
+                  type="button"
+                  onClick={() => setSelected(h.node)}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2.5 py-[5px] text-left text-[13px]",
+                    selected?.id === h.node.id
+                      ? "bg-primary-container font-semibold text-primary-container-fg"
+                      : "text-on-surface hover:bg-surface-variant",
+                  )}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-on-surface-variant" aria-hidden="true" />
+                  <span className="truncate">{h.node.title}</span>
+                  <span className="ml-auto shrink-0 text-[10.5px] tabular-nums text-on-surface-variant">
+                    {h.score.toFixed(2)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        ) : rootQuery.isLoading ? (
           <Loading className="py-md" />
         ) : roots.length === 0 ? (
           <p className="px-2.5 py-2 text-[13px] text-on-surface-variant">
             ナレッジがありません
           </p>
         ) : (
-          <ul
-            role="tree"
-            aria-label={`${scope} ナレッジツリー`}
-            className="flex flex-col gap-px"
-          >
-            {roots.map((node) => (
-              <TreeNode
-                key={node.id}
-                node={node}
-                depth={0}
-                selectedId={selected?.id ?? null}
-                expandedIds={expandedIds}
-                childrenByParent={childrenByParent}
-                loadingIds={loadingIds}
-                onToggle={toggleNode}
-                onSelect={setSelected}
-              />
-            ))}
-          </ul>
+          <div className="flex flex-col gap-2">
+            {treeGroups
+              .filter((g) => g.nodes.length > 0)
+              .map((g) => (
+                <div key={g.key}>
+                  {g.header}
+                  <ul
+                    role="tree"
+                    aria-label={`${scope} ナレッジツリー`}
+                    className="flex flex-col gap-px"
+                  >
+                    {g.nodes.map((node) => (
+                      <TreeNode
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        selectedId={selected?.id ?? null}
+                        expandedIds={expandedIds}
+                        childrenByParent={childrenByParent}
+                        loadingIds={loadingIds}
+                        onToggle={toggleNode}
+                        onSelect={setSelected}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+          </div>
         )}
 
         <p className="mt-auto flex items-center gap-2 border-t border-border pt-2.5 text-[11px] text-on-surface-variant">
@@ -380,50 +616,49 @@ export function KnowledgeExplorer({
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
 
-          {/* view-toggle: ノートのみ実装。リスト/グラフは未実装のため非活性(機能を偽らない)。 */}
+          {/* view-toggle: ノート / リスト (両方実ビュー)。グラフはグラフ描画未実装のため
+              未描画 (GAP-010)。Obsidian 連携も API 不在のため未描画 (GAP-011)。 */}
           <div className="flex gap-1 rounded-md bg-surface-variant p-1">
             <button
               type="button"
-              aria-pressed="true"
-              className="inline-flex items-center gap-1 rounded-md bg-white px-3 py-1.5 text-[12px] font-semibold text-on-surface shadow-sm"
+              aria-pressed={view === "note"}
+              onClick={() => setView("note")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold",
+                view === "note"
+                  ? "bg-white text-on-surface shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface",
+              )}
             >
               <FileText className="h-3 w-3" aria-hidden="true" />
               ノート
             </button>
             <button
               type="button"
-              disabled
-              title="リスト表示は準備中です"
-              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
+              aria-pressed={view === "list"}
+              onClick={() => setView("list")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold",
+                view === "list"
+                  ? "bg-white text-on-surface shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface",
+              )}
             >
               <LayoutDashboard className="h-3 w-3" aria-hidden="true" />
               リスト
             </button>
-            <button
-              type="button"
-              disabled
-              title="グラフ表示は準備中です"
-              className="inline-flex cursor-not-allowed items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant opacity-50"
-            >
-              <GitBranch className="h-3 w-3" aria-hidden="true" />
-              グラフ
-            </button>
           </div>
 
           <div className="ml-auto flex items-center gap-1.5">
-            {/* 複製 / Obsidian 連携は対応API無し。機能を偽らないよう非活性。 */}
-            <KbButton variant="ghost" size="sm" disabled title="準備中です">
-              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-              複製
-            </KbButton>
             <KbButton
               variant="ghost"
               size="sm"
-              disabled
-              title="Obsidian 連携は準備中です"
+              onClick={() => selected && duplicateMut.mutate(selected)}
+              disabled={!selected || duplicateMut.isPending}
+              title={selected ? "選択中のノートを複製" : "ノートを選択してください"}
             >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-              Obsidian で開く
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+              {duplicateMut.isPending ? "複製中…" : "複製"}
             </KbButton>
             <KbButton
               variant="outlined"
@@ -453,7 +688,58 @@ export function KnowledgeExplorer({
         </div>
 
         <article className="flex-1 overflow-y-auto px-6 py-8 lg:px-12">
-          {selected && editing ? (
+          {view === "list" ? (
+            /* リストビュー: 現 scope の全ノード (フォルダ含む) をフラット表で。行クリックで選択。 */
+            <div className="overflow-x-auto rounded-lg border border-border bg-white">
+              <table className="w-full min-w-[640px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-border bg-surface-variant text-[11.5px] font-bold text-on-surface-variant">
+                    <th scope="col" className="px-4 py-2.5">タイトル</th>
+                    <th scope="col" className="px-4 py-2.5">カテゴリ</th>
+                    <th scope="col" className="px-4 py-2.5">タグ</th>
+                    <th scope="col" className="px-4 py-2.5">信頼度</th>
+                    <th scope="col" className="px-4 py-2.5">参照</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {all.map((n) => (
+                    <tr
+                      key={n.id}
+                      className={cn(
+                        "border-b border-border last:border-b-0",
+                        selected?.id === n.id
+                          ? "bg-primary-container/50"
+                          : "hover:bg-surface-variant",
+                      )}
+                    >
+                      <td className="px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelected(n);
+                            setView("note");
+                          }}
+                          className="text-[13px] font-semibold text-on-surface hover:text-primary"
+                        >
+                          {n.title}
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px] text-on-surface-variant">{n.category}</td>
+                      <td className="px-4 py-2.5 text-[11.5px] text-on-surface-variant">
+                        {n.tags.join(", ")}
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px] tabular-nums text-on-surface">
+                        {(n.confidence_score ?? 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px] tabular-nums text-on-surface">
+                        {n.usage_count ?? 0}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : selected && editing ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -517,7 +803,7 @@ export function KnowledgeExplorer({
                 {selected.updated_at ? (
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" aria-hidden="true" />
-                    {selected.updated_at} 更新
+                    {fmtDateTime(selected.updated_at)} 更新
                   </span>
                 ) : null}
                 <span>
@@ -540,9 +826,7 @@ export function KnowledgeExplorer({
                   </div>
                 ) : null}
               </div>
-              <p className="whitespace-pre-wrap text-[14px] leading-[1.85] text-on-surface">
-                {selected.content_md}
-              </p>
+              <NoteMarkdown content={selected.content_md} />
             </>
           ) : (
             <p className="py-12 text-center text-body-md text-on-surface-variant">
@@ -556,11 +840,14 @@ export function KnowledgeExplorer({
       <aside
         className={cn(
           "min-w-0 overflow-y-auto bg-white p-[18px] lg:border-l lg:border-border",
-          rightCollapsed && "hidden",
+          rightCollapsed && "hidden lg:block lg:overflow-hidden lg:border-0 lg:p-0",
         )}
       >
         <NodeDetail
           node={selected}
+          ownerName={ownerName(selected?.owner_employee_id)}
+          related={relatedQuery.data ?? []}
+          onSelectRelated={(node) => setSelected(node)}
           onPromote={(id) => promoteMut.mutate(id)}
           promoting={promoteMut.isPending}
           onDelete={(id) => deleteMut.mutate(id)}

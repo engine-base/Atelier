@@ -10,30 +10,44 @@
 "use client";
 
 import * as React from "react";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { getJson } from "../../../lib/auth/connector";
+import { readCurrentWorkspace } from "../../../lib/currentWorkspace";
 import { QueryProvider } from "../../../providers/query-provider";
 import { KnowledgeExplorer } from "./_components/KnowledgeExplorer";
 
-/** T-UC-38 WorkspaceSwitcher と共有する現在 WS の localStorage キー。 */
-const CURRENT_WS_KEY = "atelier_current_workspace";
-
-function storedWorkspaceId(): string | undefined {
-  if (typeof window === "undefined") return undefined;
-  return window.localStorage.getItem(CURRENT_WS_KEY) ?? undefined;
-}
-
 function SK01Inner() {
   const params = useSearchParams();
-  const workspaceId = params.get("workspace") ?? storedWorkspaceId();
+  const explicit = params.get("workspace") ?? readCurrentWorkspace();
+  // 未選択でも所属 WS の先頭に自動フォールバックする (シェルの現在 WS 解決と同じ)。
+  // 以前は選択が無いと恒久的に空表示で、初回訪問者が必ず行き止まりになっていた。
+  const [fallback, setFallback] = useState<string | undefined>();
+  const [checked, setChecked] = useState(false);
+  useEffect(() => {
+    if (explicit) return;
+    let cancelled = false;
+    getJson<readonly { id: string }[]>("/workspaces")
+      .then((res) => {
+        if (!cancelled) setFallback(res.data[0]?.id);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [explicit]);
 
-  return workspaceId ? (
-    <KnowledgeExplorer workspaceId={workspaceId} />
-  ) : (
+  const workspaceId = explicit ?? fallback;
+  if (workspaceId) return <KnowledgeExplorer workspaceId={workspaceId} />;
+  return (
     <p className="text-body-md text-on-surface-variant">
-      ワークスペースを選択するとナレッジを表示します（?workspace= または
-      ワークスペース切替から選択）。
+      {explicit === undefined && !checked
+        ? "読み込み中…"
+        : "所属ワークスペースがありません。まずワークスペースを作成してください。"}
     </p>
   );
 }

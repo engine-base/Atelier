@@ -26,8 +26,18 @@ function confidenceLabel(score: number): string {
   return "低";
 }
 
+export interface RelatedHit {
+  readonly node: KnowledgeNode;
+  readonly score: number;
+}
+
 export interface NodeDetailProps {
   readonly node: KnowledgeNode | null;
+  /** オーナー AI 社員の表示名 (owner_employee_id の実名前解決)。 */
+  readonly ownerName?: string;
+  /** 関連ナレッジ (実 RAG 検索の上位、自分自身を除く)。 */
+  readonly related?: readonly RelatedHit[];
+  readonly onSelectRelated?: (node: KnowledgeNode) => void;
   /** 共通ナレッジへ昇格 (POST /knowledge/{id}/promote)。未指定ならボタンを出さない。 */
   readonly onPromote?: (id: string) => void;
   readonly promoting?: boolean;
@@ -47,6 +57,9 @@ function MetaTitle({ children }: { readonly children: React.ReactNode }) {
 
 export function NodeDetail({
   node,
+  ownerName,
+  related = [],
+  onSelectRelated,
   onPromote,
   promoting,
   onDelete,
@@ -87,7 +100,7 @@ export function NodeDetail({
             <div className="flex items-center justify-between gap-2">
               <dt className="text-on-surface-variant">オーナー</dt>
               <dd className="truncate font-semibold text-on-surface">
-                {node.owner_employee_id}
+                {ownerName ?? node.owner_employee_id}
               </dd>
             </div>
           ) : null}
@@ -138,6 +151,30 @@ export function NodeDetail({
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {/* 関連ナレッジ (実 RAG 検索の上位。バックリンクは参照元 API 不在のため未描画 — GAP-012) */}
+      {related.length > 0 ? (
+        <section>
+          <MetaTitle>関連ナレッジ（RAG）</MetaTitle>
+          <div className="flex flex-col gap-1">
+            {related.map((h) => (
+              <button
+                key={h.node.id}
+                type="button"
+                onClick={() => onSelectRelated?.(h.node)}
+                className="rounded-md bg-surface-variant px-2.5 py-2 text-left transition-colors hover:bg-primary-container"
+              >
+                <strong className="block truncate text-[12px] font-bold text-on-surface">
+                  {h.node.title}
+                </strong>
+                <span className="text-[11px] tabular-nums text-on-surface-variant">
+                  類似度 {h.score.toFixed(2)}
+                </span>
+              </button>
+            ))}
+          </div>
         </section>
       ) : null}
 

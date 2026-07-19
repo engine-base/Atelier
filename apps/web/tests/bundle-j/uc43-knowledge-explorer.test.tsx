@@ -15,7 +15,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -108,17 +108,17 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
       expect(
         get.mock.calls.some(
           (c) =>
-            (c as unknown as [string, GetInit])[1].params.query.scope ===
-            "project",
+            (c as unknown as [string, GetInit | undefined])[1]?.params?.query
+              ?.scope === "project",
         ),
       ).toBe(true),
     );
   });
 
   it("expands a node and fetches children via parent_id", async () => {
-    const get = vi.fn(async (_path: string, init: GetInit) => {
-      if (init.params.query.parent_id === "r1") {
-        return { data: [knode({ id: "c1", title: "子ノード" })] };
+    const get = vi.fn(async (_path: string, init?: GetInit) => {
+      if (init?.params?.query?.parent_id === "r1") {
+        return { data: [knode({ id: "c1", title: "子ノード", parent_id: "r1" })] };
       }
       return { data: [knode({ id: "r1", title: "親ノード" })] };
     });
@@ -132,8 +132,8 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     expect(
       get.mock.calls.some(
         (c) =>
-          (c as unknown as [string, GetInit])[1].params.query.parent_id ===
-          "r1",
+          (c as unknown as [string, GetInit | undefined])[1]?.params?.query
+            ?.parent_id === "r1",
       ),
     ).toBe(true);
   });
@@ -258,5 +258,119 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     expect(
       await screen.findByText("ナレッジを表示できません"),
     ).toBeInTheDocument();
+  });
+});
+
+// ── v2 (RAG 検索 / リストビュー / 複製 / 関連ナレッジ) ─────────────────────
+
+describe("S-K01 v2: 検索・リスト・複製・関連", () => {
+  it("runs real RAG search on submit and lists hits with scores", async () => {
+    const get = vi.fn(async () => ({
+      data: [knode({ id: "r1", title: "ルート" })],
+    }));
+    const post = vi.fn(async (path: string) => {
+      if (path === "/knowledge/search")
+        return {
+          data: {
+            query: "RLS",
+            total: 1,
+            hits: [
+              { knowledge: knode({ id: "h1", title: "RLS パターン" }), score: 0.91 },
+            ],
+          },
+        };
+      return { data: {} };
+    });
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get, post })} workspaceId="w1" />,
+    );
+    await screen.findByRole("treeitem", { name: "ルート" });
+    fireEvent.change(screen.getByLabelText("ナレッジを検索（RAG）"), {
+      target: { value: "RLS" },
+    });
+    fireEvent.submit(screen.getByLabelText("ナレッジを検索（RAG）"));
+    expect(await screen.findByText("RLS パターン")).toBeInTheDocument();
+    expect(screen.getByText("0.91")).toBeInTheDocument();
+    const call = post.mock.calls.find((c) => c[0] === "/knowledge/search");
+    expect(
+      (call as unknown as [string, { body: { query: string } }])[1].body.query,
+    ).toBe("RLS");
+    // クリアでツリーに戻る
+    fireEvent.click(screen.getByRole("button", { name: "検索をクリア" }));
+    expect(await screen.findByRole("treeitem", { name: "ルート" })).toBeInTheDocument();
+  });
+
+  it("switches to list view showing a flat table of the scope", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/knowledge")
+        return {
+          data: [
+            knode({ id: "r1", title: "親", usage_count: 4, confidence_score: 0.8 }),
+            knode({ id: "c1", title: "子", parent_id: "r1" }),
+          ],
+        };
+      return { data: [] };
+    });
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    await screen.findByRole("treeitem", { name: "親" });
+    // 子はツリーのルートに出ない (parent_id フィルタの是正)
+    expect(screen.queryByRole("treeitem", { name: "子" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /リスト/ }));
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("親")).toBeInTheDocument();
+    expect(within(table).getByText("子")).toBeInTheDocument(); // リストはフラット全件
+  });
+
+  it("duplicates the selected note via POST /knowledge", async () => {
+    const get = vi.fn(async () => ({
+      data: [knode({ id: "r1", title: "複製元", tags: ["a"] })],
+    }));
+    const post = vi.fn(async (..._args: unknown[]) => ({ data: {} }));
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get, post })} workspaceId="w1" />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "複製元" }));
+    fireEvent.click(screen.getByRole("button", { name: /複製/ }));
+    await waitFor(() =>
+      expect(post.mock.calls.some((c) => (c as unknown[])[0] === "/knowledge")).toBe(true),
+    );
+    const call = post.mock.calls.find(
+      (c) => (c as unknown[])[0] === "/knowledge",
+    );
+    const body = (
+      call as unknown as [string, { body: { title: string; tags: string[] } }]
+    )[1].body;
+    expect(body.title).toBe("複製元（複製）");
+    expect(body.tags).toEqual(["a"]);
+  });
+
+  it("shows related knowledge from RAG search excluding self", async () => {
+    const get = vi.fn(async () => ({
+      data: [knode({ id: "r1", title: "選択ノート" })],
+    }));
+    const post = vi.fn(async (path: string) => {
+      if (path === "/knowledge/search")
+        return {
+          data: {
+            query: "選択ノート",
+            total: 2,
+            hits: [
+              { knowledge: knode({ id: "r1", title: "選択ノート" }), score: 1 },
+              { knowledge: knode({ id: "k2", title: "関連ノート" }), score: 0.84 },
+            ],
+          },
+        };
+      return { data: {} };
+    });
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get, post })} workspaceId="w1" />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "選択ノート" }));
+    expect(await screen.findByText("関連ノート")).toBeInTheDocument();
+    expect(screen.getByText("類似度 0.84")).toBeInTheDocument();
+    // 自分自身は関連に出ない (関連セクション内に「選択ノート」ボタンが無い)
+    expect(screen.queryByRole("button", { name: /類似度 1\.00/ })).toBeNull();
   });
 });
