@@ -28,7 +28,10 @@ from src.schemas.project_credentials import (
     CredentialUpdate,
 )
 
-_COLS = "id, project_id, name, kind, last4, created_at, updated_at"
+_COLS = (
+    "c.id, c.project_id, c.name, c.kind, c.last4, c.created_at, c.updated_at, "
+    "u.display_name AS created_by_name"
+)
 
 
 @lru_cache(maxsize=1)
@@ -73,6 +76,7 @@ def _row_to_response(row: Any) -> CredentialResponse:
         name=str(row.name),
         kind=str(row.kind),
         last4=(None if row.last4 is None else str(row.last4)),
+        created_by_name=(None if row.created_by_name is None else str(row.created_by_name)),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -82,9 +86,10 @@ async def list_credentials(session: AsyncSession, *, project_id: str) -> list[Cr
     """project のシークレット一覧 (RLS で workspace member に scope)。値は含まない。"""
     res = await session.execute(
         text(
-            f"select {_COLS} from public.project_credentials "
-            "where project_id = cast(:pid as uuid) and deleted_at is null "
-            "order by created_at desc"
+            f"select {_COLS} from public.project_credentials c "
+            "left join public.users u on u.id = c.created_by "
+            "where c.project_id = cast(:pid as uuid) and c.deleted_at is null "
+            "order by c.created_at desc"
         ),
         {"pid": project_id},
     )
@@ -96,9 +101,10 @@ async def get_credential(
 ) -> CredentialResponse | None:
     res = await session.execute(
         text(
-            f"select {_COLS} from public.project_credentials "
-            "where id = cast(:id as uuid) and project_id = cast(:pid as uuid) "
-            "and deleted_at is null"
+            f"select {_COLS} from public.project_credentials c "
+            "left join public.users u on u.id = c.created_by "
+            "where c.id = cast(:id as uuid) and c.project_id = cast(:pid as uuid) "
+            "and c.deleted_at is null"
         ),
         {"id": credential_id, "pid": project_id},
     )

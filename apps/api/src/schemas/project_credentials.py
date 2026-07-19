@@ -40,6 +40,7 @@ class CredentialResponse(BaseModel):
     name: str
     kind: str
     last4: str | None
+    created_by_name: str | None
     created_at: datetime
     updated_at: datetime
 

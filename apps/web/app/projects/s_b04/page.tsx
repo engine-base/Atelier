@@ -72,7 +72,7 @@ function SB04Inner() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-6 py-8">
+    <div className="mx-auto w-full max-w-[880px] px-6 py-8">
       <header className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight text-on-surface">
           プロジェクト・シークレット
@@ -82,7 +82,7 @@ function SB04Inner() {
         </p>
       </header>
 
-      <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-secondary-container border-l-[3px] border-l-secondary bg-secondary-container p-4 text-secondary-container-fg">
+      <div className="mb-6 flex items-start gap-2.5 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-4 text-[#78350F]">
         <ShieldCheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="text-sm">
           <strong className="font-bold">平文は保存・表示しません。</strong>{' '}

@@ -28,7 +28,7 @@ interface CredentialFormProps {
 
 export function CredentialForm({ onSubmit }: CredentialFormProps) {
   const [name, setName] = useState("");
-  const [kind, setKind] = useState("other");
+  const [kind, setKind] = useState("token");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
     try {
       await onSubmit({ name: name.trim(), kind, value });
       setName("");
-      setKind("other");
+      setKind("token");
       setValue("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存に失敗しました");

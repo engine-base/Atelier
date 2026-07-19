@@ -1,6 +1,9 @@
 /**
  * S-B04 シークレット一覧 — 値はマスク表示 (●●●●last4)。
  * 「表示」で reveal API を叩いて一時的に平文を見せる (クリップボードコピー可)。
+ *
+ * design-audit v2: 作成者列 (created_by_name, モック準拠)・作成日の人間可読整形・
+ * 削除の 2 段階確認・reveal 失敗の明示エラーを追加。
  */
 
 "use client";
@@ -15,7 +18,16 @@ export interface CredentialRow {
   readonly name: string;
   readonly kind: string;
   readonly last4: string | null;
+  readonly created_by_name?: string | null;
   readonly created_at: string;
+}
+
+/** ISO タイムスタンプ → YYYY-MM-DD (モック表記)。生 ISO をユーザーに見せない。 */
+function dateLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -39,12 +51,19 @@ export function CredentialList({
 }: CredentialListProps) {
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   const reveal = async (id: string): Promise<void> => {
     setBusy(id);
+    setRevealError(null);
     try {
       const value = await onReveal(id);
       setRevealed((p) => ({ ...p, [id]: value }));
+    } catch {
+      setRevealError(
+        "復号に失敗しました（権限がないか、サーバー側で問題が発生しました）。",
+      );
     } finally {
       setBusy(null);
     }
@@ -73,12 +92,21 @@ export function CredentialList({
 
   return (
     <div className="overflow-x-auto">
+      {revealError ? (
+        <p
+          role="alert"
+          className="mb-3 rounded-md border-l-[3px] border-l-error bg-error/10 p-3 text-sm text-error"
+        >
+          {revealError}
+        </p>
+      ) : null}
       <table className="w-full border-collapse">
         <thead>
           <tr>
             <th className={thClass}>名称</th>
             <th className={thClass}>種別</th>
             <th className={thClass}>値</th>
+            <th className={thClass}>作成者</th>
             <th className={thClass}>作成日</th>
             <th className={`${thClass} text-right`}>操作</th>
           </tr>
@@ -101,8 +129,11 @@ export function CredentialList({
                     {shown ?? `••••••••${r.last4 ?? ""}`}
                   </code>
                 </td>
+                <td className={`${tdClass} whitespace-nowrap text-sm text-on-surface`}>
+                  {r.created_by_name ?? "—"}
+                </td>
                 <td className={`${tdClass} whitespace-nowrap text-sm text-on-surface-variant`}>
-                  {r.created_at}
+                  {dateLabel(r.created_at)}
                 </td>
                 <td className={`${tdClass} whitespace-nowrap text-right`}>
                   {shown ? (
@@ -133,14 +164,36 @@ export function CredentialList({
                       {busy === r.id ? "復号中…" : "表示"}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    aria-label="削除"
-                    onClick={() => onDelete(r.id)}
-                    className={cn(ghostBtn, "text-error")}
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
+                  {confirming === r.id ? (
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirming(null);
+                          onDelete(r.id);
+                        }}
+                        className={cn(ghostBtn, "font-semibold text-error")}
+                      >
+                        削除する
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirming(null)}
+                        className={cn(ghostBtn, "text-on-surface-variant")}
+                      >
+                        キャンセル
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`${r.name} を削除`}
+                      onClick={() => setConfirming(r.id)}
+                      className={cn(ghostBtn, "text-error")}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
                 </td>
               </tr>
             );
