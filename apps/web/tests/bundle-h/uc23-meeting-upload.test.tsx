@@ -12,18 +12,24 @@ import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { type ApiClient } from "@atelier/api-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createQueryClient } from "../../lib/query-client";
 import { MeetingUploadContainer } from "../../app/upload/s_m01/_components/MeetingUploadContainer";
 
-function fakeClient(impl: { get?: unknown; post?: unknown }): ApiClient {
+function fakeClient(impl: {
+  get?: unknown;
+  post?: unknown;
+  delete?: unknown;
+}): ApiClient {
   const noop = vi.fn(async () => ({ data: {} }));
   return {
     get: impl.get ?? noop,
     post: impl.post ?? noop,
     patch: noop,
-    delete: noop,
+    delete: impl.delete ?? noop,
     put: noop,
     request: noop,
   } as unknown as ApiClient;
@@ -71,13 +77,15 @@ describe("S-M01 MeetingUploadContainer (T-UC-23)", () => {
     const fetchText = vi.fn(async () => "これは文字起こし本文です。");
 
     render(
+      <QueryClientProvider client={createQueryClient()}>
       <MeetingUploadContainer
         projectId="p1"
         client={fakeClient({ get, post })}
         uploadFile={uploadFile}
         fetchText={fetchText}
         pollIntervalMs={5}
-      />,
+      />
+      </QueryClientProvider>,
     );
 
     selectFile();
@@ -128,12 +136,14 @@ describe("S-M01 MeetingUploadContainer (T-UC-23)", () => {
     }));
 
     render(
+      <QueryClientProvider client={createQueryClient()}>
       <MeetingUploadContainer
         projectId="p1"
         client={fakeClient({ get, post })}
         uploadFile={vi.fn(async () => undefined)}
         pollIntervalMs={5}
-      />,
+      />
+      </QueryClientProvider>,
     );
 
     selectFile();
@@ -141,5 +151,109 @@ describe("S-M01 MeetingUploadContainer (T-UC-23)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "文字起こしに失敗しました",
     );
+  });
+});
+
+// ── v2 (モック忠実再構築): 履歴 / 開く / 削除 ─────────────────────────────
+
+const HISTORY = [
+  {
+    id: "m1",
+    type: "audio",
+    file_name: "kickoff_call.m4a",
+    file_size_bytes: 42 * 1024 * 1024,
+    parsed_at: null,
+    parse_error: null,
+  },
+  {
+    id: "m2",
+    type: "video",
+    file_name: "komatsu_meeting.mp4",
+    file_size_bytes: 218 * 1024 * 1024,
+    parsed_at: "2026-07-18T00:00:00Z",
+    parse_error: null,
+  },
+  {
+    id: "m3",
+    type: "audio",
+    file_name: "team_sync.mp3",
+    file_size_bytes: 18 * 1024 * 1024,
+    parsed_at: null,
+    parse_error: "音声が不明瞭です",
+  },
+];
+
+describe("S-M01 v2: アップロード履歴", () => {
+  it("renders history rows with status pills from GET /meetings", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/meetings") return { data: HISTORY };
+      return { data: {} };
+    });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MeetingUploadContainer projectId="p1" client={fakeClient({ get })} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("kickoff_call.m4a")).toBeInTheDocument();
+    expect(screen.getByText("解析中")).toBeInTheDocument();
+    expect(screen.getByText("完了")).toBeInTheDocument();
+    expect(screen.getByText("エラー")).toBeInTheDocument();
+    expect(screen.getByText(/42\.0 MB/)).toBeInTheDocument();
+  });
+
+  it("opens a completed transcript via transcript-url + fetchText", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/meetings") return { data: [HISTORY[1]] };
+      if (path === "/meetings/{meeting_id}/transcript-url")
+        return { data: { url: "https://signed/m2" } };
+      return { data: {} };
+    });
+    const fetchText = vi.fn(async () => "過去の文字起こし本文");
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MeetingUploadContainer
+          projectId="p1"
+          client={fakeClient({ get })}
+          fetchText={fetchText}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "komatsu_meeting.mp4" }),
+    );
+    expect(await screen.findByText("過去の文字起こし本文")).toBeInTheDocument();
+    expect(fetchText).toHaveBeenCalledWith("https://signed/m2");
+    // アクション: MD 保存 / スティーブで深掘り
+    expect(screen.getByRole("button", { name: "MD 保存" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "スティーブで深掘り" }),
+    ).toHaveAttribute("href", "/chat?project=p1");
+  });
+
+  it("deletes a meeting after two-step confirm via DELETE", async () => {
+    let deleted = false;
+    const get = vi.fn(async (path: string) => {
+      if (path === "/meetings") return { data: deleted ? [] : [HISTORY[2]] };
+      return { data: {} };
+    });
+    const del = vi.fn(async () => {
+      deleted = true;
+      return {};
+    });
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <MeetingUploadContainer
+          projectId="p1"
+          client={fakeClient({ get, delete: del })}
+        />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "team_sync.mp3 を削除" }),
+    );
+    expect(del).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "team_sync.mp3 を削除" }));
+    await screen.findByText("ファイルをアップロードすると、ここに解析状況が表示されます。");
+    expect(del).toHaveBeenCalledTimes(1);
   });
 });

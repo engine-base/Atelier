@@ -10,6 +10,7 @@
 import * as React from "react";
 import { Suspense } from "react";
 import { useProjectId } from "../../../lib/useProjectId";
+import { QueryProvider } from "../../../providers/query-provider";
 
 import { MeetingUploadContainer } from "./_components/MeetingUploadContainer";
 
@@ -19,7 +20,9 @@ function SM01Inner() {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {projectId ? (
-        <MeetingUploadContainer projectId={projectId} />
+        <QueryProvider>
+          <MeetingUploadContainer projectId={projectId} />
+        </QueryProvider>
       ) : (
         <p className="rounded-md border-l-[3px] border-primary bg-primary-container px-4 py-3 text-body-md text-primary-container-fg">
           プロジェクトを選択すると議事録をアップロードできます。

@@ -15,8 +15,25 @@
 import * as React from "react";
 import { useState } from "react";
 
+export interface MeetingRow {
+  readonly id: string;
+  readonly fileName: string;
+  readonly sizeLabel: string;
+  readonly typeIcon: "audio" | "video" | "document";
+  readonly status: "processing" | "done" | "error";
+  readonly errorText?: string | null;
+}
+
 export interface TranscriptUploadProps {
   readonly onUpload: (file: File) => Promise<string>;
+  /** アップロード履歴 (実 GET /meetings)。未指定なら履歴セクションは空状態のまま。 */
+  readonly history?: readonly MeetingRow[];
+  /** 完了済み議事録の文字起こしを開く (署名付き URL → 本文)。 */
+  readonly onOpen?: (id: string) => Promise<string>;
+  /** 議事録の論理削除。 */
+  readonly onDelete?: (id: string) => void;
+  /** 「スティーブで深掘り」の遷移先 (チャット)。 */
+  readonly chatHref?: string;
 }
 
 const ACCEPTED_FORMATS = [
@@ -90,18 +107,26 @@ function StatusPill({
   );
 }
 
-export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
+export function TranscriptUpload({
+  onUpload,
+  history = [],
+  onOpen,
+  onDelete,
+  chatHref,
+}: TranscriptUploadProps) {
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">(
     "idle",
   );
   const [transcript, setTranscript] = useState<string>("");
+  const [previewName, setPreviewName] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const runUpload = async (f: File) => {
     setStatus("uploading");
     setError(null);
+    setPreviewName(f.name);
     try {
       const text = await onUpload(f);
       setTranscript(text);
@@ -110,6 +135,41 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
       setError((err as Error).message);
       setStatus("error");
     }
+  };
+
+  const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    await runUpload(f);
+  };
+
+  // 完了済み履歴の文字起こしを開く
+  const openMeeting = async (row: MeetingRow) => {
+    if (!onOpen) return;
+    setStatus("uploading");
+    setError(null);
+    setPreviewName(row.fileName);
+    try {
+      const text = await onOpen(row.id);
+      setTranscript(text);
+      setStatus("done");
+    } catch (err) {
+      setError((err as Error).message);
+      setStatus("error");
+    }
+  };
+
+  // MD 保存 (クライアント側で transcript を .md ダウンロード)
+  const saveMd = () => {
+    const blob = new Blob([`# ${previewName || "transcript"}\n\n${transcript}`], {
+      type: "text/markdown;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(previewName || "transcript").replace(/\.[^.]+$/, "")}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -130,13 +190,26 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
 
       {/* dropzone (ラベルがネイティブに file input を開く) */}
       <label
-        className="group block cursor-pointer rounded-lg border-2 border-dashed border-border bg-white px-8 py-12 text-center transition-colors hover:border-primary hover:bg-primary-container aria-disabled:cursor-not-allowed"
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (status !== "uploading") setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          const f = e.dataTransfer.files?.[0];
+          if (f && status !== "uploading") void runUpload(f);
+        }}
+        className={`group block cursor-pointer rounded-lg border-2 border-dashed bg-white px-8 py-12 text-center transition-colors hover:border-primary hover:bg-primary-container aria-disabled:cursor-not-allowed ${
+          dragOver ? "border-primary bg-primary-container" : "border-border"
+        }`}
         aria-disabled={status === "uploading"}
       >
         <input
           type="file"
-          accept="audio/*,video/*"
-          aria-label="音声・動画ファイルを選択"
+          accept="audio/*,video/*,.txt,.md,.docx,text/plain"
+          aria-label="音声・動画・テキストファイルを選択"
           onChange={onChange}
           disabled={status === "uploading"}
           className="sr-only"
@@ -176,11 +249,11 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
             アップロード状況
           </h2>
 
-          {status === "idle" ? (
+          {status === "idle" && history.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border bg-white px-5 py-12 text-center text-body-sm text-on-surface-variant">
               ファイルをアップロードすると、ここに解析状況が表示されます。
             </p>
-          ) : (
+          ) : status === "idle" ? null : (
             <div className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-lg border border-border bg-white px-5 py-4">
               <div
                 className={`flex h-9 w-9 items-center justify-center rounded-md ${
@@ -242,6 +315,101 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
               )}
             </div>
           )}
+
+          {/* アップロード履歴 (実 GET /meetings) */}
+          {history.length > 0 ? (
+            <ul aria-label="アップロード履歴" className="flex flex-col gap-2.5">
+              {history.map((row) => (
+                <li
+                  key={row.id}
+                  className="grid grid-cols-[36px_1fr_auto] items-center gap-3 rounded-lg border border-border bg-white px-5 py-4"
+                >
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-md ${
+                      row.typeIcon === "audio"
+                        ? "bg-primary-container text-primary-container-fg"
+                        : row.typeIcon === "video"
+                          ? "bg-secondary-container text-secondary-container-fg"
+                          : "bg-tertiary-container text-tertiary-container-fg"
+                    }`}
+                  >
+                    {row.typeIcon === "document" ? (
+                      <FileTextIcon className="h-4 w-4" />
+                    ) : (
+                      <UploadIcon className="h-4 w-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    {row.status === "done" && onOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => void openMeeting(row)}
+                        className="block max-w-full truncate text-left text-[13px] font-bold text-on-surface hover:text-primary"
+                      >
+                        {row.fileName}
+                      </button>
+                    ) : (
+                      <div className="truncate text-[13px] font-bold text-on-surface">
+                        {row.fileName}
+                      </div>
+                    )}
+                    <div className="text-[11.5px] tabular-nums text-on-surface-variant">
+                      {row.sizeLabel}
+                      {row.status === "error" && row.errorText
+                        ? ` · ${row.errorText}`
+                        : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {row.status === "processing" ? (
+                      <StatusPill tone="bg-primary-container text-primary-container-fg">
+                        解析中
+                      </StatusPill>
+                    ) : row.status === "done" ? (
+                      <StatusPill tone="bg-tertiary-container text-tertiary-container-fg">
+                        完了
+                      </StatusPill>
+                    ) : (
+                      <StatusPill tone="bg-error/10 text-error">エラー</StatusPill>
+                    )}
+                    {onDelete ? (
+                      confirmDeleteId === row.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDelete(row.id);
+                              setConfirmDeleteId(null);
+                            }}
+                            aria-label={`${row.fileName} を削除`}
+                            className="inline-flex h-7 items-center rounded-md bg-error px-2 text-[11px] font-semibold text-on-error hover:opacity-90"
+                          >
+                            削除
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="inline-flex h-7 items-center rounded-md px-1.5 text-[11px] font-semibold text-on-surface hover:bg-surface-variant"
+                          >
+                            取消
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(row.id)}
+                          aria-label={`${row.fileName} を削除`}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-on-surface-variant hover:bg-surface-variant hover:text-error"
+                        >
+                          ×
+                        </button>
+                      )
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
 
         {/* 右: 解析結果プレビュー */}
@@ -251,8 +419,8 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
               解析結果プレビュー
             </h2>
             {status === "done" ? (
-              <span className="inline-flex items-center rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
-                Whisper 生成
+              <span className="inline-flex max-w-[220px] items-center truncate rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
+                {previewName || "Whisper 生成"}
               </span>
             ) : null}
           </div>
@@ -268,6 +436,25 @@ export function TranscriptUpload({ onUpload }: TranscriptUploadProps) {
                   <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-md bg-surface-variant/40 p-4 text-body-sm leading-relaxed text-on-surface">
                     {transcript}
                   </pre>
+                </div>
+                {/* アクション: 深掘り (チャット遷移) / MD 保存 (client 側 DL)。
+                    サマリー/話者分離/要件抽出はモックにあるが解析 API 不在 (GAP-015)。 */}
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+                  {chatHref ? (
+                    <a
+                      href={chatHref}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-[#1E54D8]"
+                    >
+                      スティーブで深掘り
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={saveMd}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-semibold text-on-surface hover:border-primary"
+                  >
+                    MD 保存
+                  </button>
                 </div>
               </article>
             ) : status === "error" ? (

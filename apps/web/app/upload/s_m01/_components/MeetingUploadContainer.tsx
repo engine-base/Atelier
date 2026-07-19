@@ -17,11 +17,12 @@
 
 import * as React from "react";
 import { useMemo } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { TranscriptUpload } from "./TranscriptUpload";
+import { TranscriptUpload, type MeetingRow } from "./TranscriptUpload";
 
 interface UploadUrlData {
   upload_url: string;
@@ -34,6 +35,22 @@ interface MeetingStatus {
   parsed_at?: string | null;
   parse_error?: string | null;
   parse_result_path?: string | null;
+}
+
+interface ApiMeeting {
+  id: string;
+  type?: string;
+  file_name: string;
+  file_size_bytes?: number;
+  parsed_at?: string | null;
+  parse_error?: string | null;
+}
+
+function sizeLabel(bytes: number | undefined): string {
+  if (!bytes) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const POLL_INTERVAL_MS = 2500;
@@ -94,6 +111,47 @@ export function MeetingUploadContainer({
   maxPolls = MAX_POLLS,
 }: MeetingUploadContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
+  const listKey = ["meetings", projectId] as const;
+
+  // アップロード履歴 (実 GET /meetings)
+  const listQuery = useQuery({
+    queryKey: listKey,
+    queryFn: async () => {
+      const res = await client.get("/meetings", {
+        params: { query: { project_id: projectId } },
+      });
+      const rows = (res as { data?: ApiMeeting[] }).data;
+      return Array.isArray(rows) ? rows : [];
+    },
+    retry: false,
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.delete("/meetings/{meeting_id}", {
+        params: { path: { meeting_id: id } },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: listKey }),
+  });
+
+  // 完了済み議事録の文字起こしを開く (署名付き URL → 本文)
+  const openMeeting = async (id: string): Promise<string> => {
+    let urlRes: unknown;
+    try {
+      urlRes = await client.get("/meetings/{meeting_id}/transcript-url", {
+        params: { path: { meeting_id: id } },
+      });
+    } catch {
+      // storage backend 未設定 (503) 等。原因を握り潰さず明示する。
+      throw new Error(
+        "文字起こし結果の取得に失敗しました（storage が未設定か、権限がありません）。",
+      );
+    }
+    const signed = (urlRes as { data?: { url: string } }).data;
+    if (!signed) throw new Error("文字起こし結果の取得に失敗しました。");
+    return fetchText(signed.url);
+  };
 
   const runFlow = async (file: File): Promise<string> => {
     // 1. 署名付きアップロード URL
@@ -158,5 +216,27 @@ export function MeetingUploadContainer({
     );
   };
 
-  return <TranscriptUpload onUpload={runFlow} />;
+  const history: MeetingRow[] = (listQuery.data ?? []).map((m) => ({
+    id: m.id,
+    fileName: m.file_name,
+    sizeLabel: sizeLabel(m.file_size_bytes),
+    typeIcon:
+      m.type === "audio" ? "audio" : m.type === "video" ? "video" : "document",
+    status: m.parse_error ? "error" : m.parsed_at ? "done" : "processing",
+    errorText: m.parse_error ?? null,
+  }));
+
+  return (
+    <TranscriptUpload
+      onUpload={async (file) => {
+        const text = await runFlow(file);
+        void queryClient.invalidateQueries({ queryKey: listKey });
+        return text;
+      }}
+      history={history}
+      onOpen={openMeeting}
+      onDelete={(id) => deleteMut.mutate(id)}
+      chatHref={`/chat?project=${projectId}`}
+    />
+  );
 }
