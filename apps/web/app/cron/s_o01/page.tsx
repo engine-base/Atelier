@@ -11,13 +11,16 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
+import { useProjectId } from "../../../lib/useProjectId";
 import { CronScheduleContainer } from "./_components/CronScheduleContainer";
 import { ScheduleRoleCard } from "./_components/ScheduleRoleCard";
 import { ScheduleBuilderContainer } from "./_components/ScheduleBuilderContainer";
 
 function SO01Inner() {
   const params = useSearchParams();
-  const projectId = params.get("project");
+  // ?project= 優先、無ければ現在プロジェクト (localStorage) — 初回訪問の行き止まり防止
+  const stored = useProjectId();
+  const projectId = params.get("project") ?? stored;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">

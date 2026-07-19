@@ -17,6 +17,7 @@ import * as React from 'react';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   Brain,
+  Clock,
   FileText,
   Folder,
   Inbox,
@@ -59,6 +60,8 @@ function projectNav(projectId: string): readonly NavItem[] {
     { id: 'p-tasks', labelKey: 'タスク', href: `/tasks${q}`, match: '/tasks', icon: <Kanban className={ICON} /> },
     { id: 'p-chat', labelKey: 'チャット', href: `/chat${q}`, match: '/chat', icon: <MessageSquare className={ICON} /> },
     { id: 'p-meetings', labelKey: '議事録', href: `/meetings${q}`, match: '/meetings', icon: <FileText className={ICON} /> },
+    // モック appshell.js には無いが、S-O01 への UI 導線が皆無 (到達不能画面) だったため追加
+    { id: 'p-schedules', labelKey: 'スケジュール', href: `/schedules${q}`, match: '/schedules', icon: <Clock className={ICON} /> },
     { id: 'p-vault', labelKey: 'シークレット', href: `/projects/vault${q}`, match: '/projects/vault', icon: <KeyRound className={ICON} /> },
     { id: 'p-settings', labelKey: '設定', href: `/projects/settings${q}`, match: '/projects/settings', icon: <Settings className={ICON} /> },
   ];

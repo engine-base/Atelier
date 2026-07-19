@@ -24,6 +24,7 @@ interface ApiCron {
   cron_expression: string;
   enabled: boolean;
   next_run_at?: string | null;
+  target_action?: string;
 }
 
 const KEY = (projectId: string) => ["cron-schedules", projectId] as const;
@@ -136,6 +137,8 @@ export function CronScheduleContainer({
     nextRunAt: j.next_run_at
       ? j.next_run_at.slice(0, 16).replace("T", " ")
       : "—",
+    ...(j.target_action ? { targetAction: j.target_action } : {}),
+    nextRunIso: j.next_run_at ?? null,
   }));
 
   return (
@@ -143,6 +146,7 @@ export function CronScheduleContainer({
       jobs={jobs}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
       onDelete={(id) => deleteMut.mutate(id)}
+      onRefresh={() => void list.refetch()}
     />
   );
 }

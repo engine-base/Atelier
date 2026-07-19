@@ -68,7 +68,8 @@ describe("S-O01 CronScheduleContainer (T-UC-25)", () => {
     renderWithQuery(
       <CronScheduleContainer projectId="p1" client={fakeClient({ get })} />,
     );
-    expect(await screen.findByText("昇格レビュー集約")).toBeInTheDocument();
+    // v2: 次に動くスケジュール (upcoming) とグループ行の両方に出る
+    expect((await screen.findAllByText("昇格レビュー集約")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /今すぐ実行/ })).toBeNull();
     const init = (
       get.mock.calls[0] as unknown as [
@@ -121,5 +122,68 @@ describe("S-O01 CronScheduleContainer (T-UC-25)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
     );
+  });
+});
+
+// ── v2 (モック忠実再構築): cron 日本語ラベル / グループ / upcoming ────────
+
+import { cronLabel } from "../../app/cron/s_o01/_components/CronSchedule";
+
+describe("S-O01 v2: cronLabel", () => {
+  it("translates common cron patterns to Japanese", () => {
+    expect(cronLabel("0 2 * * *")).toBe("毎日 深夜 2:00");
+    expect(cronLabel("30 3 * * *")).toBe("毎日 深夜 3:30");
+    expect(cronLabel("0 5 * * *")).toBe("毎日 朝 5:00");
+    expect(cronLabel("0 4 * * 1")).toBe("毎週 月曜 4:00");
+    expect(cronLabel("0 9 1 * *")).toBe("毎月 1 日 朝 9:00");
+    expect(cronLabel("0 * * * *")).toBe("毎時 0 分");
+    expect(cronLabel("*/5 * * * *")).toBe("*/5 * * * *"); // 未対応は素通し
+  });
+});
+
+describe("S-O01 v2: グループ + upcoming", () => {
+  const RICH = [
+    {
+      id: "j1",
+      name: "夜間タスク再生",
+      cron_expression: "0 2 * * *",
+      enabled: true,
+      next_run_at: "2099-01-01T02:00:00Z",
+      target_action: "task_replay",
+    },
+    {
+      id: "j2",
+      name: "ナレッジ整理",
+      cron_expression: "30 3 * * *",
+      enabled: true,
+      next_run_at: "2099-01-01T03:30:00Z",
+      target_action: "knowledge_organize",
+    },
+    {
+      id: "j3",
+      name: "月次レポート",
+      cron_expression: "0 9 1 * *",
+      enabled: false,
+      next_run_at: null,
+      target_action: "report_summary",
+    },
+  ];
+
+  it("groups rows by action category and shows upcoming for enabled jobs", async () => {
+    const get = vi.fn(async () => ({ data: RICH }));
+    renderWithQuery(
+      <CronScheduleContainer projectId="p1" client={fakeClient({ get })} />,
+    );
+    await screen.findByText("次に動くスケジュール");
+    // グループ見出し
+    expect(screen.getByText("実装の夜間自動進行")).toBeInTheDocument();
+    expect(screen.getByText("ナレッジ整理（ティチャラ）")).toBeInTheDocument();
+    expect(screen.getByText("通知・レポート配信")).toBeInTheDocument();
+    // 無効ジョブ (j3) は upcoming に出ない = 「月次レポート」は 1 箇所のみ
+    expect(screen.getAllByText("月次レポート")).toHaveLength(1);
+    // 有効ジョブは upcoming + 行の 2 箇所
+    expect(screen.getAllByText("夜間タスク再生")).toHaveLength(2);
+    // 人間可読ラベル
+    expect(screen.getAllByText("毎日 深夜 2:00").length).toBeGreaterThan(0);
   });
 });
