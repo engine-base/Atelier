@@ -26,6 +26,12 @@ interface ApiDashboard {
   workspace_count?: number;
   project_count?: number;
   ai_employee_count?: number;
+  audit_log_count_24h?: number;
+}
+
+interface ApiAdminUser {
+  id: string;
+  email: string;
 }
 
 interface ApiAudit {
@@ -66,6 +72,16 @@ export function AdminDashboardContainer({
     retry: false,
   });
 
+  // actor_id (UUID) をメールに解決する (生 UUID の羅列は読めない — 鉄則5)
+  const users = useQuery({
+    queryKey: ["admin", "users", "for-actor"],
+    queryFn: async () => {
+      const res = await client.get("/admin/users");
+      return (res as { data?: ApiAdminUser[] }).data ?? [];
+    },
+    retry: false,
+  });
+
   if (isForbidden(dashboard.error) || isForbidden(activity.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -93,7 +109,16 @@ export function AdminDashboardContainer({
     },
     { id: "projects", label: "プロジェクト数", value: d.project_count ?? 0 },
     { id: "employees", label: "AI 社員数", value: d.ai_employee_count ?? 0 },
+    {
+      id: "audit24",
+      label: "監査イベント (24h)",
+      value: d.audit_log_count_24h ?? 0,
+    },
   ];
+
+  const emailOf = new Map(
+    (users.data ?? []).map((u) => [u.id, u.email] as const),
+  );
 
   const recent: AdminActivity[] = (activity.data ?? [])
     .slice(0, 10)
@@ -101,7 +126,7 @@ export function AdminDashboardContainer({
       id: a.id,
       ts: a.created_at.slice(0, 16).replace("T", " "),
       action: a.action,
-      actor: a.actor_id,
+      actor: emailOf.get(a.actor_id) ?? a.actor_id.slice(0, 8),
     }));
 
   return <AdminDashboard kpis={kpis} recent={recent} />;

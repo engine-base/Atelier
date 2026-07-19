@@ -91,6 +91,15 @@ export function PlatformKnowledgeManager({
     },
   });
 
+  const [confirming, setConfirming] = React.useState<string | null>(null);
+  const deleteMut = useMutation({
+    mutationFn: (id: string) =>
+      client.delete("/admin/knowledge/{knowledge_id}", {
+        params: { path: { knowledge_id: id } },
+      }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+  });
+
   const toggleMut = useMutation({
     mutationFn: (node: KnowledgeNode) =>
       client.patch("/admin/knowledge/{knowledge_id}", {
@@ -174,6 +183,7 @@ export function PlatformKnowledgeManager({
                 <th className="px-3.5 py-3 font-bold">参照テナント</th>
                 <th className="px-3.5 py-3 font-bold">ツリー表示</th>
                 <th className="px-3.5 py-3 font-bold">更新日</th>
+                <th className="px-3.5 py-3 text-right font-bold">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -223,6 +233,38 @@ export function PlatformKnowledgeManager({
                     </td>
                     <td className="px-3.5 py-3.5 text-body-sm text-on-surface-variant">
                       {k.updated_at?.slice(0, 10) ?? "—"}
+                    </td>
+                    <td className="whitespace-nowrap px-3.5 py-3.5 text-right">
+                      {confirming === k.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirming(null);
+                              deleteMut.mutate(k.id);
+                            }}
+                            className="rounded-sm px-2 py-1 text-[12px] font-semibold text-error hover:bg-surface-variant"
+                          >
+                            削除する
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirming(null)}
+                            className="rounded-sm px-2 py-1 text-[12px] text-on-surface-variant hover:bg-surface-variant"
+                          >
+                            取消
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`${k.title} を削除`}
+                          onClick={() => setConfirming(k.id)}
+                          className="rounded-sm px-2 py-1 text-[12px] font-semibold text-error hover:bg-surface-variant"
+                        >
+                          削除
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

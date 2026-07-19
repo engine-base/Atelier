@@ -353,6 +353,20 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
         title={dialog?.mode === "edit" ? "スキル編集" : "新規スキル登録"}
         className="max-w-2xl"
       >
+        {dialog && (createMut.isError || updateMut.isError) ? (
+          <p role="alert" className="mb-3 text-label-lg text-error">
+            {(() => {
+              const e = createMut.error ?? updateMut.error;
+              const detail =
+                e instanceof ApiError &&
+                typeof (e.payload as { detail?: unknown } | undefined)?.detail ===
+                  "string"
+                  ? ((e.payload as { detail: string }).detail)
+                  : null;
+              return detail ?? "保存に失敗しました。時間をおいて再試行してください。";
+            })()}
+          </p>
+        ) : null}
         {dialog ? (
           <SkillForm
             mode={dialog.mode}

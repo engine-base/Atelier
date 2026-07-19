@@ -13,7 +13,9 @@ import uuid
 from functools import lru_cache
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
@@ -75,41 +77,48 @@ def _to_response(row: Any) -> AdminSkillResponse:
 
 
 async def create_skill(*, actor_id: str, data: SkillCreate) -> AdminSkillResponse:
+    """新規スキル登録。name+version 重複は 409 (500 に落とさない)。"""
     new_id = str(uuid.uuid4())
     async with _service_session_factory()() as session:
-        res = await session.execute(
-            text(
-                "insert into public.skills "
-                "(id, name, version, description, content_md, assets_storage_path, "
-                "allowed_employee_roles, allowed_employee_ids, is_active) "
-                "values (cast(:id as uuid), :nm, :ver, :desc, :cm, :asp, "
-                "cast(:roles as text[]), cast(:ids as uuid[]), :act) "
-                f"returning {_COLS}"
-            ),
-            {
-                "id": new_id,
-                "nm": data.name,
-                "ver": data.version,
-                "desc": data.description,
-                "cm": data.content_md,
-                "asp": data.assets_storage_path,
-                "roles": data.allowed_employee_roles,
-                "ids": data.allowed_employee_ids,
-                "act": data.is_active,
-            },
-        )
-        row = res.first()
-        await AuditWriter(session).write(
-            AuditEvent(
-                action="skill.create",
-                target_type="skill",
-                actor_type="user",
-                actor_id=actor_id,
-                target_id=new_id,
-                after={"name": data.name, "version": data.version},
+        try:
+            res = await session.execute(
+                text(
+                    "insert into public.skills "
+                    "(id, name, version, description, content_md, assets_storage_path, "
+                    "allowed_employee_roles, allowed_employee_ids, is_active) "
+                    "values (cast(:id as uuid), :nm, :ver, :desc, :cm, :asp, "
+                    "cast(:roles as text[]), cast(:ids as uuid[]), :act) "
+                    f"returning {_COLS}"
+                ),
+                {
+                    "id": new_id,
+                    "nm": data.name,
+                    "ver": data.version,
+                    "desc": data.description,
+                    "cm": data.content_md,
+                    "asp": data.assets_storage_path,
+                    "roles": data.allowed_employee_roles,
+                    "ids": data.allowed_employee_ids,
+                    "act": data.is_active,
+                },
             )
-        )
-        await session.commit()
+            row = res.first()
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="skill.create",
+                    target_type="skill",
+                    actor_type="user",
+                    actor_id=actor_id,
+                    target_id=new_id,
+                    after={"name": data.name, "version": data.version},
+                )
+            )
+            await session.commit()
+        except IntegrityError as exc:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "同じ名前・バージョンのスキルが既に存在します",
+            ) from exc
     return _to_response(row)
 
 

@@ -395,3 +395,29 @@ def test_list_skills_active_only_filter(app: FastAPI, seeded: dict[str, str]) ->
             ).json()["data"]
         ]
         assert body["name"] in names_all
+
+
+def test_admin_create_skill_duplicate_409(app, seeded) -> None:  # type: ignore[no-untyped-def]
+    """S-T02: name+version 重複の登録は 500 でなく 409 を返す (design-audit v2 実バグ修正)。"""
+    import uuid as _uuid
+
+    h = {"Authorization": f"Bearer {_mint_jwt(seeded['admin'], admin=True)}"}
+    from fastapi.testclient import TestClient as _TC
+
+    name = f"dup-skill-{str(_uuid.uuid4())[:8]}"
+    body = {
+        "name": name,
+        "version": "1.0.0",
+        "content_md": "# dup",
+        "is_active": True,
+        "allowed_employee_roles": [],
+    }
+    with _TC(app) as client:
+        r1 = client.post("/admin/skills", json=body, headers=h)
+        assert r1.status_code == 201, r1.text
+        r2 = client.post("/admin/skills", json=body, headers=h)
+        assert r2.status_code == 409, r2.text
+        assert "既に存在" in r2.json()["detail"]
+        # cleanup
+        sid = r1.json()["data"]["id"]
+        client.delete(f"/admin/skills/{sid}", headers=h)

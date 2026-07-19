@@ -161,7 +161,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
   return (
     <section className="flex flex-col">
       {/* 集計カード */}
-      <div className="mb-6 grid grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {/* 当日絞り込みは未実装のため「本日の操作」ではなく総件数として表示 */}
         <StatCard label="操作件数" value={entries.length.toLocaleString()} />
         <StatCard label="AI 操作" value={aiCount.toLocaleString()} tone="text-tertiary" />
@@ -174,8 +174,8 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
       </div>
 
       {/* フィルタバー */}
-      <div className="mb-[14px] grid grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-[10px] rounded-md border border-border bg-white px-4 py-3">
-        <label className="flex flex-1 items-center gap-2">
+      <div className="mb-[14px] flex flex-wrap items-center gap-[10px] rounded-md border border-border bg-white px-4 py-3">
+        <label className="flex min-w-[200px] flex-1 items-center gap-2">
           <span className="sr-only">action / actor 検索</span>
           <svg
             aria-hidden="true"
@@ -223,15 +223,8 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
           <option value="delete">delete</option>
           <option value="access">access</option>
         </select>
-        {/* WS 絞り込み: 実テナント名のハードコード(ENGINE BASE/マツリデハッピー)は
-            虚偽表示だったため撤去。WS 一覧 API を配線するまで既定の「全 WS」のみ。 */}
-        <select
-          aria-label="WS で絞り込み"
-          defaultValue="all"
-          className="rounded-md border border-border bg-white px-3 py-1.5 text-[12px] text-on-surface"
-        >
-          <option value="all">全 WS</option>
-        </select>
+        {/* WS 絞り込み select は選択肢が「全 WS」1 個だけの死に要素だったため撤去
+            (Rule 10)。WS 一覧 API を audit-logs のフィルタに配線する時に復活させる。 */}
         <input
           type="date"
           aria-label="日付で絞り込み"
@@ -257,8 +250,9 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
         ) : null}
       </div>
 
-      {/* ログ表 */}
-      <div className="overflow-hidden rounded-lg border border-border bg-white">
+      {/* ログ表 (幅が要る表なので、はみ出しは body でなく表自身が横スクロールする) */}
+      <div className="overflow-x-auto rounded-lg border border-border bg-white">
+        <div className="min-w-[720px]">
         <div
           className={`${ROW_GRID} border-b border-border bg-surface-variant px-[18px] py-3 text-[10.5px] font-bold uppercase tracking-[0.06em] text-on-surface-variant`}
         >
@@ -283,6 +277,7 @@ export function AuditLogTable({ entries }: AuditLogTableProps) {
             {entries.length.toLocaleString()} 件中{" "}
             {filtered.length.toLocaleString()} 件表示
           </span>
+        </div>
         </div>
       </div>
     </section>
