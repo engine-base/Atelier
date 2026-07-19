@@ -8,19 +8,23 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { EmployeeEditorContainer } from "./_components/EmployeeEditorContainer";
 
 function SC02Inner() {
   const params = useSearchParams();
+  const router = useRouter();
   const employeeId = params.get("employee");
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       {employeeId ? (
-        <EmployeeEditorContainer employeeId={employeeId} />
+        <EmployeeEditorContainer
+          employeeId={employeeId}
+          onStartChat={() => router.push("/chat")}
+        />
       ) : (
         <p className="text-body-md text-on-surface-variant">
           AI 社員を選択すると詳細・編集を表示します。

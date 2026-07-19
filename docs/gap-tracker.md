@@ -14,6 +14,8 @@
 | GAP-005 | S-B02 の「未解決コメント」KPI | 「確定事項」KPI に置換して表示中 | プロジェクト横断の未解決コメント集計 API (comments は target 単位のみ) | 2026-07-18 |
 | GAP-006 | S-I01 の「依存グラフ」ビュー | 表示トグル自体を出していない | タスク依存 (depends_on) の API 公開 + グラフ描画 | 2026-07-18 |
 | GAP-007 | TopBar の通知ベル (通知センター) | ボタン未描画 (死にクリック総当たりスイープで検出 → 撤去) | 通知 API (一覧/既読) + 通知生成イベント設計 + ドロップダウン UI | 2026-07-18 |
+| GAP-008 | S-C02 の「活動履歴」タブ + 「最近の活動」カード | 未描画 (per-employee 活動 API が存在しない。executions/audit_logs に employee 紐付けの公開 read なし) | AI 社員別活動フィード API (tasks/decisions/executions の employee 横断集計) | 2026-07-19 |
+| GAP-009 | S-C02 の「画像アップロード」(アイコン画像) | ボタン未描画 (storage アップロード API 未提供。「Lucide から選ぶ」は実装済で icon 変更自体は可能) | アイコン画像 storage アップロード + ai_employees.icon への URL 格納 + 描画 | 2026-07-19 |
 
 ## プロセス gap (計画・ゲートの構造欠陥)
 

@@ -76,9 +76,11 @@ describe("EmployeeEditor (T-UC-07)", () => {
     expect((screen.getByLabelText(/表示名/) as HTMLInputElement).value).toBe(
       "Tony",
     );
+    // 口調はモック準拠のラジオカードに変更
     expect(
-      (screen.getByLabelText(/口調プリセット/) as HTMLSelectElement).value,
-    ).toBe("friendly");
+      (screen.getByRole("radio", { name: /ですます調・親しみ/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
   });
 });
 

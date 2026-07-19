@@ -42,6 +42,7 @@ interface ApiEmployee {
   template_id?: string | null;
   attached_skills?: readonly string[];
   tone_preset?: string;
+  icon?: string | null;
 }
 
 interface ApiSkill {
@@ -180,6 +181,7 @@ export function OrgChartContainer({
       // /skills 未取得 (エラー等) の間は行を出さない (undefined = 非表示)
       ...(skillsQuery.data !== undefined ? { skills } : {}),
       ...(e.tone_preset ? { tonePreset: e.tone_preset } : {}),
+      ...(e.icon ? { iconName: e.icon } : {}),
     };
   });
 

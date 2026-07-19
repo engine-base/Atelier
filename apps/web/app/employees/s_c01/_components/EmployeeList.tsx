@@ -64,7 +64,11 @@ export function EmployeeList({ rows, onSelect }: EmployeeListProps) {
                   className="flex items-center gap-2.5 text-left hover:text-primary"
                 >
                   {isEmployeeId(r.id) ? (
-                    <EmployeeIcon employeeId={r.id} size="sm" />
+                    <EmployeeIcon
+                      employeeId={r.id}
+                      size="sm"
+                      {...(r.iconName ? { iconName: r.iconName } : {})}
+                    />
                   ) : null}
                   <span>
                     <span className="block text-[13.5px] font-bold text-on-surface">

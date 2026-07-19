@@ -41,6 +41,8 @@ export interface OrgNode {
   readonly roleLabel?: string;
   /** 装着スキル名 (実 attached_skills を /skills で名前解決したもの)。 */
   readonly skills?: readonly string[];
+  /** ai_employees.icon (S-C02 で選んだ lucide 名)。頭文字の代わりに描画。 */
+  readonly iconName?: string;
 }
 
 export interface OrgChartProps {
@@ -116,7 +118,11 @@ function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) 
           "cursor-pointer hover:-translate-y-px hover:border-primary hover:shadow-sm",
       )}
     >
-      <EmployeeIcon employeeId={node.id} size={size} />
+      <EmployeeIcon
+        employeeId={node.id}
+        size={size}
+        {...(node.iconName ? { iconName: node.iconName } : {})}
+      />
       <span className={cn("text-[15px] font-bold leading-tight", t.name)}>
         {node.displayName}
       </span>

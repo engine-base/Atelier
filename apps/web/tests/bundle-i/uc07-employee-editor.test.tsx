@@ -71,8 +71,9 @@ describe("S-C02 EmployeeEditorContainer (T-UC-07)", () => {
     const name = (await screen.findByLabelText(/表示名/)) as HTMLInputElement;
     expect(name.value).toBe("トニー");
     expect(
-      (screen.getByLabelText(/口調プリセット/) as HTMLSelectElement).value,
-    ).toBe("coaching");
+      (screen.getByRole("radio", { name: /コーチング・前向き/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
   });
 
   it("saves via PATCH /ai-employees/{id}", async () => {
@@ -110,5 +111,99 @@ describe("S-C02 EmployeeEditorContainer (T-UC-07)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
     );
+  });
+});
+
+// ── v2 (モック忠実再構築): スキル名前解決 / タブ / アイコンピッカー ────────
+
+const RICH_EMP = {
+  id: "e1",
+  name: "tony",
+  display_name: "トニー",
+  role: "lead",
+  department: "sales",
+  tone_preset: "polite",
+  custom_tone_text: "",
+  icon: "",
+  template_id: "tp1",
+  attached_skills: ["s1"],
+  attached_knowledge_cats: ["sales-docs"],
+};
+
+function richGet() {
+  return vi.fn(async (path: string) => {
+    if (path === "/ai-employees/{employee_id}") return { data: RICH_EMP };
+    if (path === "/skills")
+      return { data: [{ id: "s1", name: "sales-email" }] };
+    if (path === "/ai-employees")
+      return {
+        data: [
+          RICH_EMP,
+          {
+            id: "e0",
+            name: "jarvis",
+            display_name: "ジャービス",
+            role: "coo",
+            department: "executive",
+          },
+          {
+            id: "e2",
+            name: "natasha",
+            display_name: "ナターシャ",
+            role: "member",
+            department: "sales",
+          },
+        ],
+      };
+    if (path === "/ai-employees/templates")
+      return { data: [{ id: "tp1", specialty: "営業・提案・見積" }] };
+    return { data: [] };
+  });
+}
+
+describe("S-C02 v2: 実データ表示 + アイコンピッカー", () => {
+  it("resolves skill names, dept label, and org relations", async () => {
+    renderWithQuery(
+      <EmployeeEditorContainer employeeId="e1" client={fakeClient({ get: richGet() })} />,
+    );
+    await screen.findByLabelText(/表示名/);
+    // できること: uuid ではなく実スキル名
+    expect(screen.getByText("sales-email")).toBeInTheDocument();
+    // 担当範囲: 表示ラベル + 組織関係の実算出
+    expect(screen.getByText("営業・契約部")).toBeInTheDocument();
+    expect(screen.getAllByText("部長").length).toBeGreaterThan(0); // ヘッダバッジ + 担当範囲
+    expect(screen.getByText("ジャービス")).toBeInTheDocument(); // レポート対象 = COO
+    expect(screen.getByText("メンバー 1 名")).toBeInTheDocument(); // 直属の部下
+  });
+
+  it("switches to the knowledge tab and shows real categories", async () => {
+    renderWithQuery(
+      <EmployeeEditorContainer employeeId="e1" client={fakeClient({ get: richGet() })} />,
+    );
+    await screen.findByLabelText(/表示名/);
+    fireEvent.click(screen.getByRole("tab", { name: /ナレッジ/ }));
+    expect(screen.getByText("sales-docs")).toBeInTheDocument();
+    // フォームはプロフィールタブ側なので非表示に
+    expect(screen.queryByLabelText(/表示名/)).toBeNull();
+  });
+
+  it("picks a lucide icon and saves it via PATCH icon", async () => {
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <EmployeeEditorContainer
+        employeeId="e1"
+        client={fakeClient({ get: richGet(), patch })}
+      />,
+    );
+    await screen.findByLabelText(/表示名/);
+    fireEvent.click(screen.getByRole("button", { name: "Lucide から選ぶ" }));
+    fireEvent.click(screen.getByRole("option", { name: "アイコン bot" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [, init] = patch.mock.calls[0]! as unknown as [
+      string,
+      { body: { icon?: string } },
+    ];
+    expect(init.body.icon).toBe("bot");
   });
 });
