@@ -53,13 +53,14 @@ describe('ProjectSettingsForm (T-UC-05)', () => {
     name: 'P1',
     client_name: 'ACME',
     description: '',
+    type: 'client_project',
     lifecycle: 'active',
   };
 
   it('renders with default values', () => {
     render(<ProjectSettingsForm defaultValues={defaults} onSubmit={() => undefined} />);
     expect((screen.getByLabelText(/プロジェクト名/) as HTMLInputElement).value).toBe('P1');
-    expect((screen.getByLabelText(/ライフサイクル/) as HTMLSelectElement).value).toBe('active');
+    expect((screen.getByLabelText(/ステータス/) as HTMLSelectElement).value).toBe('active');
   });
 
   it('shows Danger Zone only with onDelete', () => {

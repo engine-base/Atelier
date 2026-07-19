@@ -235,6 +235,52 @@ class TestProjectsCrud:
         with TestClient(app) as client:
             assert client.post(f"/projects/{uuid.uuid4()}/restore", headers=h).status_code == 404
 
+    def test_update_client_name_and_type(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """S-B03: client_name / type を PATCH で更新でき GET に反映される (契約 enum で往復)。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            pid = client.post(
+                "/projects",
+                json={"workspace_id": seeded["ws_a"], "name": "設定対象", "type": "personal"},
+                headers=h,
+            ).json()["data"]["id"]
+
+            # 作成直後は client_name 未設定 (null) で返る
+            g0 = client.get(f"/projects/{pid}", headers=h).json()["data"]
+            assert g0["client_name"] is None
+
+            r = client.patch(
+                f"/projects/{pid}",
+                json={"client_name": "ENGINE BASE（内製）", "type": "client_project"},
+                headers=h,
+            )
+            assert r.status_code == 200, r.text
+            body = r.json()["data"]
+            assert body["client_name"] == "ENGINE BASE（内製）"
+            assert body["type"] == "client_project"  # 契約 enum (DB は client_work)
+
+            # 別 GET 再取得でも永続している (作成レスポンスだけで PASS にしない)
+            g1 = client.get(f"/projects/{pid}", headers=h).json()["data"]
+            assert g1["client_name"] == "ENGINE BASE（内製）"
+            assert g1["type"] == "client_project"
+            client.delete(f"/projects/{pid}", headers=h)
+
+    def test_update_status_draft_roundtrip(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """S-B03: ステータス draft (下書き) が PATCH → GET で丸められず往復する。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            pid = client.post(
+                "/projects",
+                json={"workspace_id": seeded["ws_a"], "name": "下書き往復", "type": "personal"},
+                headers=h,
+            ).json()["data"]["id"]
+            r = client.patch(f"/projects/{pid}", json={"status": "draft"}, headers=h)
+            assert r.status_code == 200
+            assert r.json()["data"]["status"] == "draft"
+            g = client.get(f"/projects/{pid}", headers=h).json()["data"]
+            assert g["status"] == "draft"
+            client.delete(f"/projects/{pid}", headers=h)
+
     def test_dashboard(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:

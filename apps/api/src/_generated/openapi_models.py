@@ -302,6 +302,7 @@ class Project(BaseModel):
     id: UUID | None = None
     workspace_id: UUID | None = None
     name: str | None = None
+    client_name: Annotated[str | None, Field(max_length=200)] = None
     description: str | None = None
     type: Type | None = None
     status: Status | None = None

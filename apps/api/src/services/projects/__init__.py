@@ -68,7 +68,7 @@ _VALID_PHASES = {
 }
 
 _SELECT_COLS = (
-    "p.id, p.workspace_id, p.name, p.project_type, p.status, p.ai_training_optout, "
+    "p.id, p.workspace_id, p.name, p.client_name, p.project_type, p.status, p.ai_training_optout, "
     "p.settings ->> 'description' AS description, "
     "p.created_at, p.updated_at, p.deleted_at, "
     "coalesce("
@@ -101,6 +101,7 @@ def _row_to_response(row: Any) -> ProjectResponse:
         id=str(row.id),
         workspace_id=str(row.workspace_id),
         name=str(row.name),
+        client_name=(None if row.client_name is None else str(row.client_name)),
         description=(None if row.description is None else str(row.description)),
         type=_TYPE_TO_API.get(str(row.project_type), "personal"),
         status=_STATUS_TO_API.get(str(row.status), "draft"),
@@ -243,6 +244,12 @@ async def update_project(
     if data.name is not None:
         sets.append("name = :name")
         params["name"] = data.name
+    if data.client_name is not None:
+        sets.append("client_name = :cname")
+        params["cname"] = data.client_name
+    if data.type is not None:
+        sets.append("project_type = cast(:ptype as project_type_enum)")
+        params["ptype"] = _TYPE_TO_DB[data.type]
     if data.status is not None:
         sets.append("status = cast(:st as project_status_enum)")
         params["st"] = _STATUS_TO_DB[data.status]

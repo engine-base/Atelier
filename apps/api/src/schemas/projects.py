@@ -27,7 +27,9 @@ class ProjectCreate(BaseModel):
 
 class ProjectUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    client_name: str | None = Field(default=None, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+    type: ProjectType | None = None
     status: ProjectStatus | None = None
 
 
@@ -35,6 +37,7 @@ class ProjectResponse(BaseModel):
     id: str
     workspace_id: str
     name: str
+    client_name: str | None
     description: str | None
     type: ProjectType
     status: ProjectStatus

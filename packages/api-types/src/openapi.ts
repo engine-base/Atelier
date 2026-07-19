@@ -1701,7 +1701,10 @@ export interface paths {
                 content: {
                     "application/json": {
                         name?: string;
+                        client_name?: string;
                         description?: string;
+                        /** @enum {string} */
+                        type?: "self_product" | "client_project" | "personal";
                         /** @enum {string} */
                         status?: "in_progress" | "draft" | "paused" | "archived";
                     };
@@ -9111,6 +9114,7 @@ export interface components {
             /** Format: uuid */
             workspace_id?: string;
             name?: string;
+            client_name?: string | null;
             description?: string | null;
             /** @enum {string} */
             type?: "self_product" | "client_project" | "personal";
