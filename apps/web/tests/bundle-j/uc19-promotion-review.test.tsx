@@ -36,13 +36,15 @@ function apiError(status: number): ApiError {
   });
 }
 
-function fakeClient(impl: Partial<Record<"get" | "post", unknown>>): ApiClient {
+function fakeClient(
+  impl: Partial<Record<"get" | "post" | "patch" | "delete", unknown>>,
+): ApiClient {
   const noop = vi.fn(async () => ({ data: [] }));
   return {
     get: impl.get ?? noop,
     post: impl.post ?? noop,
-    patch: noop,
-    delete: noop,
+    patch: impl.patch ?? noop,
+    delete: impl.delete ?? noop,
     put: noop,
     request: noop,
   } as unknown as ApiClient;
@@ -104,17 +106,89 @@ describe("S-K02 PromotionReviewContainer (T-UC-19)", () => {
     expect(init.body.target_workspace_id).toBe("w1");
   });
 
-  it("dismisses a candidate on reject (client-side)", async () => {
-    const get = vi.fn(async () => ({ data: CANDIDATES }));
+  it("rejects via real DELETE /knowledge/{id} after confirm", async () => {
+    // v2: 却下はクライアント dismiss ではなく実 DELETE (リロードで復活しない)
+    let deleted = false;
+    const get = vi.fn(async () => ({ data: deleted ? [] : CANDIDATES }));
+    const del = vi.fn(async () => {
+      deleted = true;
+      return {};
+    });
     renderWithQuery(
-      <PromotionReviewContainer {...props({ client: fakeClient({ get }) })} />,
+      <PromotionReviewContainer
+        {...props({ client: fakeClient({ get, delete: del }) })}
+      />,
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "遷移ルール を却下" }),
     );
+    // 2 段階確認
+    expect(del).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "却下して削除" }));
+    await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
+    const [path, init] = del.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { knowledge_id: string } } },
+    ];
+    expect(path).toBe("/knowledge/{knowledge_id}");
+    expect(init.params.path.knowledge_id).toBe("k1");
     await waitFor(() =>
       expect(screen.getByText("昇格候補はありません。")).toBeInTheDocument(),
     );
+  });
+
+  it("edits then promotes: PATCH with draft before promote", async () => {
+    const get = vi.fn(async () => ({ data: CANDIDATES }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <PromotionReviewContainer
+        {...props({ client: fakeClient({ get, patch, post }) })}
+      />,
+    );
+    await screen.findByLabelText("昇格候補タイトル");
+    fireEvent.change(screen.getByLabelText("昇格候補タイトル"), {
+      target: { value: "編集済タイトル" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "遷移ルール を昇格" }),
+    );
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledTimes(1);
+    const body = (
+      patch.mock.calls[0] as unknown as [string, { body: { title: string } }]
+    )[1].body;
+    expect(body.title).toBe("編集済タイトル");
+  });
+
+  it("adds and removes tags in the editor", async () => {
+    const get = vi.fn(async () => ({
+      data: [{ ...CANDIDATES[0], tags: ["auth"] }],
+    }));
+    renderWithQuery(
+      <PromotionReviewContainer {...props({ client: fakeClient({ get }) })} />,
+    );
+    await screen.findByLabelText("タグを追加");
+    fireEvent.change(screen.getByLabelText("タグを追加"), {
+      target: { value: "oauth" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("タグを追加"), { key: "Enter" });
+    expect(screen.getByText("oauth")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "タグ auth を削除" }));
+    expect(screen.queryByText("auth")).toBeNull();
+  });
+
+  it("marks employee_specific candidates as non-promotable", async () => {
+    const get = vi.fn(async () => ({
+      data: [
+        { ...CANDIDATES[0], id: "k9", title: "社員別X", scope: "employee_specific" },
+      ],
+    }));
+    renderWithQuery(
+      <PromotionReviewContainer {...props({ client: fakeClient({ get }) })} />,
+    );
+    expect(await screen.findByText("社員別 (昇格不可)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "社員別X を昇格" })).toBeNull();
   });
 
   it("shows empty state when there are no candidates", async () => {

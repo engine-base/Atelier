@@ -115,8 +115,10 @@ describe("PromotionReview (T-UC-19)", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "X を昇格" }));
+    // v2: 却下は 2 段階確認 (実 DELETE のため誤爆防止)
     fireEvent.click(screen.getByRole("button", { name: "X を却下" }));
-    expect(onApprove).toHaveBeenCalledWith("p1");
+    fireEvent.click(screen.getByRole("button", { name: "却下して削除" }));
+    expect(onApprove).toHaveBeenCalledWith("p1", undefined);
     expect(onReject).toHaveBeenCalledWith("p1");
   });
 });

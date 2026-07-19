@@ -1,9 +1,11 @@
 /**
- * S-K02 ナレッジ昇格レビュー コンテナ — T-UC-19 (実 knowledge API 配線)
+ * S-K02 ナレッジ昇格レビュー コンテナ — T-UC-19 (実 knowledge API 配線) v2
  *
  * 本人の user-scope ナレッジ（昇格候補）を GET /knowledge?account_type=user で取得し、
- * 「昇格」で POST /knowledge/{id}/promote {target_workspace_id} を呼ぶ（user → workspace common）。
- * 「却下」は提案の dismiss（サーバ側 reject endpoint が無いためクライアント側で一覧から除外）。
+ *   - 採用して書込: (編集があれば PATCH /knowledge/{id} →) POST /knowledge/{id}/promote
+ *   - 却下: DELETE /knowledge/{id} (論理削除。以前は client 側 dismiss のみで
+ *     リロードすると復活する偽装だった)
+ * employee_specific は promote API 制約で昇格不可のため promotable=false で渡す。
  * api client は prop 注入可能 (テスト時に fake を渡す)。
  */
 
@@ -17,7 +19,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { PromotionReview, type PromotionItem } from "./PromotionReview";
+import {
+  PromotionReview,
+  type PromotionDraft,
+  type PromotionItem,
+} from "./PromotionReview";
 
 interface ApiKnowledge {
   id: string;
@@ -26,10 +32,20 @@ interface ApiKnowledge {
   confidence_score?: number;
   source_type?: string;
   category?: string;
+  scope?: string;
+  tags?: readonly string[];
+  created_at?: string;
 }
 
 const KEY = (accountId: string) =>
   ["knowledge", "promotion-candidates", accountId] as const;
+
+const SOURCE_LABEL: Record<string, string> = {
+  manual: "手動登録",
+  ai_extracted: "AI 自動抽出",
+  import: "インポート",
+  mem0: "会話メモリ",
+};
 
 export interface PromotionReviewContainerProps {
   readonly accountId: string;
@@ -48,7 +64,7 @@ export function PromotionReviewContainer({
 }: PromotionReviewContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
-  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: KEY(accountId),
@@ -61,14 +77,46 @@ export function PromotionReviewContainer({
     retry: false,
   });
 
-  const promoteMut = useMutation({
-    mutationFn: (id: string) =>
-      client.post("/knowledge/{knowledge_id}/promote", {
-        params: { path: { knowledge_id: id } },
+  const invalidate = (): void =>
+    void queryClient.invalidateQueries({ queryKey: KEY(accountId) });
+
+  const approveMut = useMutation({
+    mutationFn: async (vars: { id: string; draft?: PromotionDraft }) => {
+      if (vars.draft) {
+        await client.patch("/knowledge/{knowledge_id}", {
+          params: { path: { knowledge_id: vars.id } },
+          body: {
+            title: vars.draft.title,
+            content_md: vars.draft.content_md,
+            tags: [...vars.draft.tags],
+            category: vars.draft.category,
+          },
+        });
+      }
+      return client.post("/knowledge/{knowledge_id}/promote", {
+        params: { path: { knowledge_id: vars.id } },
         body: { target_workspace_id: targetWorkspaceId },
+      });
+    },
+    onSuccess: () => {
+      setError(null);
+      invalidate();
+    },
+    onError: () =>
+      setError("昇格に失敗しました。時間をおいて再試行してください。"),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: (id: string) =>
+      client.delete("/knowledge/{knowledge_id}", {
+        params: { path: { knowledge_id: id } },
       }),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: KEY(accountId) }),
+    onSuccess: () => {
+      setError(null);
+      invalidate();
+    },
+    onError: () =>
+      setError("却下に失敗しました。時間をおいて再試行してください。"),
   });
 
   if (isForbidden(list.error)) {
@@ -89,15 +137,18 @@ export function PromotionReviewContainer({
     return <Loading className="py-md" />;
   }
 
-  const items: PromotionItem[] = (list.data ?? [])
-    .filter((k) => !dismissed.has(k.id))
-    .map((k) => ({
-      id: k.id,
-      title: k.title,
-      confidence: k.confidence_score ?? 0,
-      content: k.content_md,
-      source: k.source_type ?? k.category ?? "—",
-    }));
+  const rows = list.data ?? [];
+  const items: PromotionItem[] = rows.map((k) => ({
+    id: k.id,
+    title: k.title,
+    confidence: k.confidence_score ?? 0,
+    content: k.content_md,
+    source: SOURCE_LABEL[k.source_type ?? ""] ?? (k.source_type || "—"),
+    ...(k.category ? { category: k.category } : {}),
+    ...(k.tags ? { tags: k.tags } : {}),
+    ...(k.created_at ? { createdAt: k.created_at } : {}),
+    promotable: k.scope !== "employee_specific",
+  }));
 
   if (items.length === 0) {
     return (
@@ -107,11 +158,24 @@ export function PromotionReviewContainer({
     );
   }
 
+  const categories = [
+    ...new Set(rows.map((k) => k.category).filter((c): c is string => Boolean(c))),
+  ];
+
   return (
-    <PromotionReview
-      items={items}
-      onApprove={(id) => promoteMut.mutate(id)}
-      onReject={(id) => setDismissed((prev) => new Set(prev).add(id))}
-    />
+    <>
+      {error ? (
+        <p role="alert" className="mb-3 text-body-sm text-error">
+          {error}
+        </p>
+      ) : null}
+      <PromotionReview
+        items={items}
+        categories={categories}
+        busy={approveMut.isPending || rejectMut.isPending}
+        onApprove={(id, draft) => approveMut.mutate({ id, ...(draft ? { draft } : {}) })}
+        onReject={(id) => rejectMut.mutate(id)}
+      />
+    </>
   );
 }
