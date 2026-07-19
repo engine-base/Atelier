@@ -10,6 +10,8 @@
 import * as React from "react";
 import { z } from "zod";
 
+import Link from "next/link";
+
 import { Field } from "../../../../components/forms/Field";
 import { Form, useAtelierForm } from "../../../../components/forms/Form";
 import { t } from "../../../../lib/i18n";
@@ -101,7 +103,17 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
             {...form.register("consent")}
             className="mt-0.5 shrink-0"
           />
-          <span>{t("auth.consent")}</span>
+          <span>
+            <Link href="/terms" className="font-semibold text-primary hover:underline">
+              利用規約
+            </Link>
+            、
+            <Link href="/privacy" className="font-semibold text-primary hover:underline">
+              プライバシーポリシー
+            </Link>
+            、およびデータの一部処理が海外サーバー（Anthropic / Voyage /
+            Whisper）経由となる<strong>越境同意</strong>に同意します。
+          </span>
         </label>
         {form.formState.errors.consent?.message ? (
           <span role="alert" className="mt-1 block text-xs text-error">

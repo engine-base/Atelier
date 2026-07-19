@@ -17,6 +17,8 @@ import * as React from 'react';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+import Link from 'next/link';
+
 import { SigninForm, type SigninValues } from './_components/SigninForm';
 import { SignupForm, type SignupValues } from './_components/SignupForm';
 import { t } from '../../../lib/i18n';
@@ -28,6 +30,7 @@ type Mode = 'signin' | 'signup';
 function SA01Inner() {
   const [mode, setMode] = useState<Mode>('signin');
   const [serverError, setServerError] = useState<string | null>(null);
+  const [magicSent, setMagicSent] = useState(false);
   const router = useRouter();
   const params = useSearchParams();
   const redirectTo = params.get('redirect') || '/projects';
@@ -42,6 +45,18 @@ function SA01Inner() {
       setServerError(e instanceof Error ? e.message : 'サインインに失敗しました');
     }
   };
+  // Magic Link (API は登録有無を秘匿して常に 202)
+  const onMagicLink = async (email: string): Promise<void> => {
+    setServerError(null);
+    setMagicSent(false);
+    try {
+      await auth.sendJson('POST', '/auth/magic-link/request', { email });
+      setMagicSent(true);
+    } catch {
+      setServerError('マジックリンクの送信に失敗しました。時間をおいて再度お試しください。');
+    }
+  };
+
   const onSignup = async (v: SignupValues): Promise<void> => {
     setServerError(null);
     try {
@@ -103,8 +118,20 @@ function SA01Inner() {
             ))}
           </div>
 
+          {magicSent ? (
+            <p
+              role="status"
+              className="mb-4 rounded-md border-l-[3px] border-primary bg-primary-container px-3 py-2 text-xs text-on-primary-container"
+            >
+              登録済みのメールアドレスであれば、サインイン用リンクを送信しました。メールをご確認ください。
+            </p>
+          ) : null}
           {mode === 'signin' ? (
-            <SigninForm onSubmit={onSignin} serverError={serverError} />
+            <SigninForm
+              onSubmit={onSignin}
+              onMagicLink={(email) => void onMagicLink(email)}
+              serverError={serverError}
+            />
           ) : (
             <SignupForm onSubmit={onSignup} serverError={serverError} />
           )}
@@ -112,7 +139,11 @@ function SA01Inner() {
 
         {/* フッターノート */}
         <p className="mt-lg text-center text-xs text-on-surface-variant">
-          アカウント作成で特商法表記も同意したとみなされます
+          アカウント作成で{' '}
+          <Link href="/tokushoho" className="font-semibold text-primary hover:underline">
+            特商法表記
+          </Link>{' '}
+          も同意したとみなされます
         </p>
       </div>
     </main>
