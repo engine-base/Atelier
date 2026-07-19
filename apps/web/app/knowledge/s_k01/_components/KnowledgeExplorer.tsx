@@ -131,6 +131,16 @@ export function KnowledgeExplorer({
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [view, setView] = useState<"note" | "list">("note");
+  // モバイル (1 カラム積み) では本文が画面外に出るため、選択時にスクロールする
+  const noteRef = React.useRef<HTMLElement | null>(null);
+  const selectAndReveal = (node: KnowledgeNode): void => {
+    setSelected(node);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      requestAnimationFrame(() => {
+        noteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
   const [searchInput, setSearchInput] = useState("");
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
 
@@ -537,7 +547,7 @@ export function KnowledgeExplorer({
                 <button
                   key={h.node.id}
                   type="button"
-                  onClick={() => setSelected(h.node)}
+                  onClick={() => selectAndReveal(h.node)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-[5px] text-left text-[13px]",
                     selected?.id === h.node.id
@@ -582,7 +592,7 @@ export function KnowledgeExplorer({
                         childrenByParent={childrenByParent}
                         loadingIds={loadingIds}
                         onToggle={toggleNode}
-                        onSelect={setSelected}
+                        onSelect={selectAndReveal}
                       />
                     ))}
                   </ul>
@@ -599,7 +609,7 @@ export function KnowledgeExplorer({
 
       {/* 中央: ノート本文 + ツールバー */}
       <div className="flex min-w-0 flex-col overflow-hidden bg-surface">
-        <div className="flex items-center gap-2 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
           <button
             type="button"
             aria-label="ツリーパネルを開閉"
@@ -618,13 +628,13 @@ export function KnowledgeExplorer({
 
           {/* view-toggle: ノート / リスト (両方実ビュー)。グラフはグラフ描画未実装のため
               未描画 (GAP-010)。Obsidian 連携も API 不在のため未描画 (GAP-011)。 */}
-          <div className="flex gap-1 rounded-md bg-surface-variant p-1">
+          <div className="flex shrink-0 gap-1 rounded-md bg-surface-variant p-1">
             <button
               type="button"
               aria-pressed={view === "note"}
               onClick={() => setView("note")}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold",
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-semibold",
                 view === "note"
                   ? "bg-white text-on-surface shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface",
@@ -638,7 +648,7 @@ export function KnowledgeExplorer({
               aria-pressed={view === "list"}
               onClick={() => setView("list")}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-[12px] font-semibold",
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-semibold",
                 view === "list"
                   ? "bg-white text-on-surface shadow-sm"
                   : "text-on-surface-variant hover:text-on-surface",
@@ -649,7 +659,7 @@ export function KnowledgeExplorer({
             </button>
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             <KbButton
               variant="ghost"
               size="sm"
@@ -687,7 +697,7 @@ export function KnowledgeExplorer({
           </div>
         </div>
 
-        <article className="flex-1 overflow-y-auto px-6 py-8 lg:px-12">
+        <article ref={noteRef} className="flex-1 scroll-mt-[64px] overflow-y-auto px-6 py-8 lg:px-12">
           {view === "list" ? (
             /* リストビュー: 現 scope の全ノード (フォルダ含む) をフラット表で。行クリックで選択。 */
             <div className="overflow-x-auto rounded-lg border border-border bg-white">
@@ -716,7 +726,7 @@ export function KnowledgeExplorer({
                         <button
                           type="button"
                           onClick={() => {
-                            setSelected(n);
+                            selectAndReveal(n);
                             setView("note");
                           }}
                           className="text-[13px] font-semibold text-on-surface hover:text-primary"
@@ -830,7 +840,7 @@ export function KnowledgeExplorer({
             </>
           ) : (
             <p className="py-12 text-center text-body-md text-on-surface-variant">
-              左のツリーからナレッジを選択してください
+              ツリーからナレッジを選択してください
             </p>
           )}
         </article>
