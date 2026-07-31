@@ -24,6 +24,9 @@ interface ApiPhase {
   status: string;
   order_index?: number;
   order?: number;
+  started_at?: string | null;
+  completed_at?: string | null;
+  description?: string | null;
 }
 
 const KEY = (projectId: string) => ["workflow-phases", projectId] as const;
@@ -117,6 +120,9 @@ export function PhaseListContainer({
     name: p.name,
     status: toUi(p.status),
     order: p.order_index ?? p.order ?? i + 1,
+    startedAt: p.started_at ?? null,
+    completedAt: p.completed_at ?? null,
+    description: p.description ?? null,
   }));
 
   return (

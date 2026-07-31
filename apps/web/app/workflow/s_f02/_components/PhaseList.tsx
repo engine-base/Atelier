@@ -17,6 +17,27 @@ export interface PhaseRow {
   readonly name: string;
   readonly status: PhaseStatus;
   readonly order: number;
+  readonly startedAt?: string | null;
+  readonly completedAt?: string | null;
+  readonly description?: string | null;
+}
+
+/** ISO → YYYY-MM-DD。null は返さない。 */
+function dateLabel(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 期間表示 (開始〜完了 / 開始〜 / 未着手)。 */
+function periodLabel(row: PhaseRow): string {
+  const s = dateLabel(row.startedAt);
+  const e = dateLabel(row.completedAt);
+  if (s && e) return `${s} 〜 ${e}`;
+  if (s) return `${s} 〜`;
+  return "未着手";
 }
 
 export interface PhaseListProps {
@@ -93,7 +114,10 @@ function PhaseCard({ row, onTransition }: PhaseCardProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="font-bold">{row.name}</div>
-          <div className={metaClass}>第 {row.order} 段階</div>
+          <div className={metaClass}>
+            第 {row.order} 段階 · {periodLabel(row)}
+            {row.description ? ` · ${row.description}` : ""}
+          </div>
         </div>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${pill.pill}`}
