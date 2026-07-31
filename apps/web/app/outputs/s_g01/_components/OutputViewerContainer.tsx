@@ -26,7 +26,10 @@ interface ApiOutput {
 interface ApiComment {
   id: string;
   author_user_id?: string | null;
+  author_invitation_id?: string | null;
   content: string;
+  status?: string;
+  parent_comment_id?: string | null;
   created_at?: string;
 }
 
@@ -80,6 +83,17 @@ export function OutputViewerContainer({
       return (res as { data?: ApiComment[] }).data ?? [];
     },
     retry: false,
+  });
+
+  // コメントを解決済みにする (PATCH status=resolved)。
+  const resolveMut = useMutation({
+    mutationFn: (id: string) =>
+      client.patch("/comments/{comment_id}", {
+        params: { path: { comment_id: id } },
+        body: { status: "resolved" },
+      }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
   });
 
   // コメント追加: 楽観的に一覧へ差し込み、失敗時に元へ戻す。
@@ -147,11 +161,18 @@ export function OutputViewerContainer({
   }
 
   const title = meta.data?.summary || meta.data?.stage || "成果物";
+  const authorLabel = (c: ApiComment): string => {
+    if (c.author_invitation_id) return "クライアント（招待）";
+    if (c.author_user_id) return `メンバー ${c.author_user_id.slice(0, 8)}`;
+    return "匿名";
+  };
   const outputComments: OutputComment[] = (comments.data ?? []).map((c) => ({
     id: c.id,
-    author: c.author_user_id ?? "匿名",
+    author: c.author_user_id === "あなた" ? "あなた" : authorLabel(c),
     content: c.content,
     createdAt: c.created_at ? c.created_at.slice(0, 16).replace("T", " ") : "",
+    resolved: c.status === "resolved",
+    isReply: Boolean(c.parent_comment_id),
   }));
 
   return (
@@ -160,6 +181,7 @@ export function OutputViewerContainer({
       contentUrl={content.data.url}
       comments={outputComments}
       onAddComment={(text) => addMut.mutate(text)}
+      onResolve={(id) => resolveMut.mutate(id)}
     />
   );
 }

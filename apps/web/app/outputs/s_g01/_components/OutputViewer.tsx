@@ -23,6 +23,8 @@ export interface OutputComment {
   readonly author: string;
   readonly content: string;
   readonly createdAt: string;
+  readonly resolved?: boolean;
+  readonly isReply?: boolean;
 }
 
 export interface OutputViewerProps {
@@ -31,6 +33,8 @@ export interface OutputViewerProps {
   readonly comments: readonly OutputComment[];
   /** コメント追加。未指定なら追加フォームを出さない。 */
   readonly onAddComment?: (content: string) => void;
+  /** コメントを解決済みにする (PATCH status=resolved)。 */
+  readonly onResolve?: (id: string) => void;
   readonly className?: string;
 }
 
@@ -46,8 +50,10 @@ export function OutputViewer({
   contentUrl,
   comments,
   onAddComment,
+  onResolve,
   className,
 }: OutputViewerProps) {
+  const openCount = comments.filter((c) => !c.resolved).length;
   const [draft, setDraft] = useState("");
 
   return (
@@ -95,15 +101,8 @@ export function OutputViewer({
                 <span className="inline-flex items-center rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
                   最新版
                 </span>
-                {/* 成果物は GET のみ(編集APIなし)。機能を偽らないよう編集は非活性。 */}
-                <button
-                  type="button"
-                  disabled
-                  title="この成果物は閲覧専用です"
-                  className="cursor-not-allowed rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface opacity-50"
-                >
-                  編集
-                </button>
+                {/* 成果物は閲覧専用 (編集 API なし)。モックの「編集」死にボタンは撤去 (GAP-023)。
+                    原本を新タブで開くリンクのみ提供する。 */}
                 <a
                   href={contentUrl}
                   target="_blank"
@@ -150,9 +149,13 @@ export function OutputViewer({
               <h2 className="text-[13px] font-bold text-on-surface">
                 コメント（{comments.length}）
               </h2>
-              {comments.length > 0 ? (
+              {openCount > 0 ? (
                 <span className="inline-flex items-center rounded-sm bg-secondary-container px-2 py-0.5 text-[10.5px] font-semibold text-secondary-container-fg">
-                  {comments.length} 件
+                  未解決 {openCount}
+                </span>
+              ) : comments.length > 0 ? (
+                <span className="inline-flex items-center rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
+                  すべて解決済み
                 </span>
               ) : null}
             </div>
@@ -172,7 +175,13 @@ export function OutputViewer({
                   {comments.map((c) => (
                     <li
                       key={c.id}
-                      className="rounded-md bg-surface-variant p-3"
+                      className={cn(
+                        "rounded-md p-3",
+                        c.resolved
+                          ? "bg-tertiary-container text-tertiary-container-fg"
+                          : "bg-surface-variant",
+                        c.isReply && "ml-4 border-l-2 border-border",
+                      )}
                     >
                       <div className="mb-1.5 flex items-center gap-2">
                         <span
@@ -181,16 +190,26 @@ export function OutputViewer({
                         >
                           {authorInitial(c.author)}
                         </span>
-                        <span className="text-[12.5px] font-bold text-on-surface">
+                        <span className="text-[12.5px] font-bold">
                           {c.author}
                         </span>
-                        <span className="ml-auto text-[11px] tabular-nums text-on-surface-variant">
+                        <span className="ml-auto text-[11px] tabular-nums opacity-80">
+                          {c.resolved ? "解決済み · " : ""}
                           {c.createdAt}
                         </span>
                       </div>
-                      <p className="text-[13px] leading-relaxed text-on-surface">
-                        {c.content}
-                      </p>
+                      <p className="text-[13px] leading-relaxed">{c.content}</p>
+                      {!c.resolved && onResolve ? (
+                        <div className="mt-2 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => onResolve(c.id)}
+                            className="rounded-sm px-2 py-1 text-[11px] font-semibold text-tertiary hover:bg-white/60"
+                          >
+                            解決にする
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

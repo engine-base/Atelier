@@ -123,6 +123,65 @@ describe("S-G01 OutputViewerContainer (T-UC-12)", () => {
     expect(screen.getByText("要修正です")).toBeInTheDocument();
   });
 
+  it("resolves an open comment via PATCH /comments/{id} status=resolved", async () => {
+    let status = "open";
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/out.html?token=x" } };
+      if (path === "/comments")
+        return {
+          data: [
+            { id: "c1", author_user_id: "u1", content: "要修正", status },
+          ],
+        };
+      return { data: { summary: "見積書 v2" } };
+    });
+    const patch = vi.fn(async () => {
+      status = "resolved";
+      return { data: {} };
+    });
+    const client = {
+      get,
+      post: vi.fn(),
+      patch,
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={client as never} />,
+    );
+    // 未解決バッジが出る
+    expect(await screen.findByText("未解決 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "解決にする" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [path, init] = patch.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { comment_id: string } }; body: { status: string } },
+    ];
+    expect(path).toBe("/comments/{comment_id}");
+    expect(init.params.path.comment_id).toBe("c1");
+    expect(init.body.status).toBe("resolved");
+    // 再取得で解決済み表示に
+    expect(await screen.findByText("すべて解決済み")).toBeInTheDocument();
+  });
+
+  it("does not render a disabled 編集 button (Rule 10)", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/out.html" } };
+      if (path === "/comments") return { data: [] };
+      return { data: { summary: "見積書 v2" } };
+    });
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={fakeClient(get)} />,
+    );
+    await screen.findByTitle("見積書 v2");
+    expect(screen.queryByRole("button", { name: "編集" })).not.toBeInTheDocument();
+    // 原本リンクは残る
+    expect(screen.getByRole("link", { name: "原本" })).toBeInTheDocument();
+  });
+
   it("shows a not-generated message on 409", async () => {
     const get = vi.fn(async (path: string) => {
       if (path.includes("content-url")) throw apiError(409);
