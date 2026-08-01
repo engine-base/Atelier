@@ -31,6 +31,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
+from src.txn_commit import current_rls_session
 
 
 class AuthSettings(BaseSettings):
@@ -146,10 +147,17 @@ async def get_rls_session(
             {"claims": claims},
         )
         await session.execute(text("set local role authenticated"))
+        # CommitBeforeResponseMiddleware がレスポンス送信「前」に commit できるよう
+        # 現リクエストのセッションを contextvar へ登録する (read-your-own-write 整合)。
+        token = current_rls_session.set(session)
         try:
             yield session
         except Exception:
             await session.rollback()
             raise
         else:
+            # 通常応答は middleware が commit 済み (ここは空 txn で無害)。
+            # SSE 等の除外経路はここが実 commit になる。
             await session.commit()
+        finally:
+            current_rls_session.reset(token)

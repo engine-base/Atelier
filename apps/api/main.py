@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src import __version__
 from src.health import router as health_router
 from src.routes import api_router
+from src.txn_commit import CommitBeforeResponseMiddleware
 
 
 @asynccontextmanager
@@ -51,6 +52,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# レスポンス送信前に RLS セッションを commit する (read-your-own-write 整合)。
+# yield 依存の teardown commit はレスポンス送信後のため、直後のリクエストが
+# 未コミット行を読めない race があった (S-H01 design-audit で検出)。
+app.add_middleware(CommitBeforeResponseMiddleware)
 
 app.include_router(health_router)
 app.include_router(api_router)

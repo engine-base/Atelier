@@ -2,6 +2,7 @@
  * S-H01 モックビューア画面 — T-UC-13
  *
  * 実 mocks API に配線（署名付き閲覧 URL を iframe 表示）。mockId は URL ?mock=。
+ * ?mock= 無しでは現在プロジェクトのモック一覧ピッカーを出す (到達不能是正)。
  */
 
 "use client";
@@ -11,6 +12,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
+import { MockListContainer } from "./_components/MockListContainer";
 import { MockViewerContainer } from "./_components/MockViewerContainer";
 
 function SH01Inner() {
@@ -19,13 +21,7 @@ function SH01Inner() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
-      {mockId ? (
-        <MockViewerContainer mockId={mockId} />
-      ) : (
-        <p className="rounded-lg border border-dashed border-border py-2xl text-center text-body-md text-on-surface-variant">
-          モックを選択すると表示します。
-        </p>
-      )}
+      {mockId ? <MockViewerContainer mockId={mockId} /> : <MockListContainer />}
     </div>
   );
 }

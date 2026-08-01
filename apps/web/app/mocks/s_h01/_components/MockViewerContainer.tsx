@@ -1,25 +1,59 @@
 /**
- * S-H01 モックビューア コンテナ — T-UC-13 (実 mocks API 配線)
+ * S-H01 モックビューア コンテナ — T-UC-13 (実 mocks / comments API 配線)
  *
- * GET /mocks/{id} で screen_name（タイトル）、GET /mocks/{id}/content-url で
- * HTML の署名付き閲覧 URL を取得し、MockViewer の iframe src に渡す。
- * storage 未設定(503)時はその旨を表示する。api client は注入可能。
+ * GET /mocks/{id}（メタ: screen_name / version / project_id）、
+ * GET /mocks/{id}/content-url（署名付き閲覧 URL）、
+ * GET /mocks/{id}/versions（バージョンチェーン）、
+ * GET /comments (target_type=mock) を取得し MockViewer に渡す。
+ * コメント追加は POST /comments（楽観追加 + 失敗ロールバック）、
+ * 解決は PATCH /comments/{id} status=resolved。
+ * storage 未設定 (content-url 503) はメタ系 API が生きているため全面エラーにせず、
+ * frame 領域のみ honest メッセージにしてバージョン/コメントは操作可能に保つ。
+ * api client は注入可能。
  */
 
 "use client";
 
 import * as React from "react";
-import { Loading } from "../../../../components/Loading";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { MockViewer } from "./MockViewer";
+import { Loading } from "../../../../components/Loading";
+import {
+  MockViewer,
+  type MockCommentItem,
+  type MockVersionItem,
+} from "./MockViewer";
 
 interface ApiMock {
+  id: string;
+  project_id: string;
   screen_name: string;
+  version: number;
+  meta_tags?: Record<string, unknown> | null;
+  created_at?: string;
+}
+
+interface ApiComment {
+  id: string;
+  author_user_id?: string | null;
+  author_invitation_id?: string | null;
+  content: string;
+  status?: string;
+  parent_comment_id?: string | null;
+  created_at?: string;
+}
+
+function statusOf(error: unknown): number | null {
+  return error instanceof ApiError ? error.status : null;
+}
+
+/** ISO → "YYYY-MM-DD HH:mm" (鉄則: 生 ISO を画面に出さない)。 */
+function dateLabel(iso: string | undefined): string {
+  return iso ? iso.slice(0, 16).replace("T", " ") : "";
 }
 
 export interface MockViewerContainerProps {
@@ -27,15 +61,13 @@ export interface MockViewerContainerProps {
   readonly client?: ApiClient;
 }
 
-function statusOf(error: unknown): number | null {
-  return error instanceof ApiError ? error.status : null;
-}
-
 export function MockViewerContainer({
   mockId,
   client: injected,
 }: MockViewerContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
+  const COMMENTS_KEY = ["mock", mockId, "comments"] as const;
 
   const meta = useQuery({
     queryKey: ["mock", mockId],
@@ -59,6 +91,69 @@ export function MockViewerContainer({
     retry: false,
   });
 
+  const versions = useQuery({
+    queryKey: ["mock", mockId, "versions"],
+    queryFn: async () => {
+      const res = await client.get("/mocks/{mock_id}/versions", {
+        params: { path: { mock_id: mockId } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiMock[]) : [];
+    },
+    retry: false,
+  });
+
+  const comments = useQuery({
+    queryKey: COMMENTS_KEY,
+    queryFn: async () => {
+      const res = await client.get("/comments", {
+        params: { query: { target_type: "mock", target_id: mockId } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiComment[]) : [];
+    },
+    retry: false,
+  });
+
+  // コメントを解決済みにする (PATCH status=resolved)。
+  const resolveMut = useMutation({
+    mutationFn: (id: string) =>
+      client.patch("/comments/{comment_id}", {
+        params: { path: { comment_id: id } },
+        body: { status: "resolved" },
+      }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
+  });
+
+  // コメント追加: 楽観的に一覧へ差し込み、失敗時に元へ戻す。
+  const addMut = useMutation({
+    mutationFn: (text: string) =>
+      client.post("/comments", {
+        body: { target_type: "mock", target_id: mockId, content: text },
+      }),
+    onMutate: async (text) => {
+      await queryClient.cancelQueries({ queryKey: COMMENTS_KEY });
+      const prev = queryClient.getQueryData<ApiComment[]>(COMMENTS_KEY);
+      const optimistic: ApiComment = {
+        id: `optimistic-${prev?.length ?? 0}`,
+        author_user_id: "あなた",
+        content: text,
+        created_at: new Date().toISOString(),
+      };
+      queryClient.setQueryData<ApiComment[]>(COMMENTS_KEY, (old) => [
+        ...(old ?? []),
+        optimistic,
+      ]);
+      return { prev };
+    },
+    onError: (_e, _text, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(COMMENTS_KEY, ctx.prev);
+    },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
+  });
+
   if (statusOf(meta.error) === 403 || statusOf(content.error) === 403) {
     return (
       <p
@@ -69,17 +164,7 @@ export function MockViewerContainer({
       </p>
     );
   }
-  if (statusOf(content.error) === 503) {
-    return (
-      <p
-        role="alert"
-        className="rounded-md border-l-[3px] border-error bg-error/10 px-md py-sm text-body-md text-error"
-      >
-        モックの保存先が未設定のため表示できません。
-      </p>
-    );
-  }
-  if (meta.error || content.error) {
+  if (meta.error) {
     return (
       <p
         role="alert"
@@ -89,14 +174,68 @@ export function MockViewerContainer({
       </p>
     );
   }
-  if (meta.isLoading || content.isLoading || !content.data) {
+  if (meta.isLoading || content.isLoading) {
     return <Loading className="py-md" />;
   }
 
+  // storage 未設定 (503) / 取得失敗は frame 領域のみのフォールバックに落とす。
+  const src = content.data?.url ?? null;
+  const srcError =
+    statusOf(content.error) === 503
+      ? "モックの保存先が未設定のため表示できません。"
+      : content.error
+        ? "モック本体の取得に失敗しました。"
+        : undefined;
+
+  const versionRows = versions.data ?? [];
+  const maxVersion = versionRows.length
+    ? Math.max(...versionRows.map((v) => v.version))
+    : (meta.data?.version ?? 1);
+  const versionItems: MockVersionItem[] = [...versionRows]
+    .sort((a, b) => b.version - a.version)
+    .map((v) => ({
+      id: v.id,
+      version: v.version,
+      createdAt: dateLabel(v.created_at),
+      note:
+        typeof v.meta_tags?.note === "string" ? v.meta_tags.note : undefined,
+      href: `/mocks?mock=${v.id}`,
+      current: v.id === mockId,
+    }));
+
+  const authorLabel = (c: ApiComment): string => {
+    if (c.author_invitation_id) return "クライアント（招待）";
+    if (c.author_user_id) return `メンバー ${c.author_user_id.slice(0, 8)}`;
+    return "匿名";
+  };
+  const commentItems: MockCommentItem[] = (comments.data ?? []).map((c) => ({
+    id: c.id,
+    author: c.author_user_id === "あなた" ? "あなた" : authorLabel(c),
+    content: c.content,
+    createdAt: dateLabel(c.created_at),
+    resolved: c.status === "resolved",
+    isReply: Boolean(c.parent_comment_id),
+  }));
+
+  const currentVersion = meta.data?.version ?? 1;
+  const versionLabel =
+    currentVersion >= maxVersion
+      ? `v${currentVersion} · 最新`
+      : `v${currentVersion}`;
+
   return (
     <MockViewer
-      src={content.data.url}
+      src={src}
+      srcError={srcError}
       title={meta.data?.screen_name ?? "モック"}
+      versionLabel={versionLabel}
+      chatHref={
+        meta.data?.project_id ? `/chat?project=${meta.data.project_id}` : undefined
+      }
+      versions={versions.error ? undefined : versionItems}
+      comments={comments.error ? undefined : commentItems}
+      onAddComment={(text) => addMut.mutate(text)}
+      onResolve={(id) => resolveMut.mutate(id)}
     />
   );
 }
