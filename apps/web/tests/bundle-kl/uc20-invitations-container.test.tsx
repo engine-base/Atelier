@@ -88,6 +88,9 @@ describe("S-L01 InvitationsListContainer (T-UC-20)", () => {
       />,
     );
     await screen.findByText("a@example.com");
+    fireEvent.change(screen.getByLabelText("クライアント表示名"), {
+      target: { value: "小松 太郎" },
+    });
     fireEvent.change(screen.getByLabelText("招待メールアドレス"), {
       target: { value: "new@example.com" },
     });
@@ -101,10 +104,17 @@ describe("S-L01 InvitationsListContainer (T-UC-20)", () => {
     ).toBeInTheDocument();
     const [path, init] = post.mock.calls[0]! as unknown as [
       string,
-      { body: { project_id: string; email: string } },
+      { body: Record<string, unknown> },
     ];
     expect(path).toBe("/client-invitations");
-    expect(init.body).toEqual({ project_id: "p1", email: "new@example.com" });
+    // 表示名 / ttl / scopes も実 API パラメータへ (design-audit v2)
+    expect(init.body).toEqual({
+      project_id: "p1",
+      email: "new@example.com",
+      client_display_name: "小松 太郎",
+      scopes: ["view", "comment"],
+      ttl_days: 7,
+    });
   });
 
   it("revokes an invitation via POST revoke", async () => {
@@ -118,6 +128,10 @@ describe("S-L01 InvitationsListContainer (T-UC-20)", () => {
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "a@example.com を失効" }),
+    );
+    // 2 段階確認 (design-audit v2)
+    fireEvent.click(
+      screen.getByRole("button", { name: "a@example.com の失効を確定" }),
     );
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     const [path, init] = post.mock.calls[0]! as unknown as [

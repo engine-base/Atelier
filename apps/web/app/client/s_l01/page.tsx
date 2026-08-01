@@ -10,9 +10,9 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
+import { useProjectId } from "../../../lib/useProjectId";
 import { InvitationsListContainer } from "./_components/InvitationsListContainer";
 
 function ShieldCheckIcon() {
@@ -34,8 +34,9 @@ function ShieldCheckIcon() {
 }
 
 function SL01Inner() {
-  const params = useSearchParams();
-  const projectId = params.get("project");
+  // ?project= 優先 + 最後に開いたプロジェクトへフォールバック
+  // (WS 設定からの導線は ?project 無しで来るため、従来は行き止まりだった)。
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">

@@ -1,15 +1,18 @@
 /**
- * S-L01 クライアント招待管理 — T-UC-20 / F-VIS 是正
+ * S-L01 クライアント招待管理 — T-UC-20 / design-audit v2
  *
- * client_invitations の管理。発行 / 失効 / 再送。R-T08 関連: 招待トークンは
+ * client_invitations の管理。発行 / 失効 / 再発行。R-T08 関連: 招待トークンは
  * 発行時にしか平文表示せず token_hash で保存。
  *
  * モック 06_mockups/client/S-L01-invite-mgmt.html に忠実な本文構成:
- *   1. 新規招待を発行フォーム (invite-form カード)
- *   2. アクティブな招待テーブル (状態 = 未使用 / 使用中)
+ *   1. 新規招待を発行フォーム (表示名 / メール / 有効期限 / スコープ —
+ *      すべて実 API (client_display_name / ttl_days / scopes) に配線。
+ *      旧実装は email 以外が「黙って捨てられる死に入力」だった)
+ *   2. アクティブな招待テーブル (状態 = 未使用 / 使用済)
  *   3. 履歴テーブル (状態 = 失効 / 期限切れ, surface-variant カード)
- * 状態 pill は atelier.css の .pill-* を踏襲。データは実 props にバインドする
- * (表示名・招待リンク平文・使用回数は API 契約に存在しないため中立表示)。
+ * 失効は 2 段階確認。モックの「再送」ボタンは再送 API が無いため出さない
+ * (GAP)。「使用回数」列は使用回数 API が無いため「使用日」(used_at 実データ)
+ * に置換。招待リンク平文は発行時のみ (R-T08) のため一覧では中立表示。
  */
 
 "use client";
@@ -24,8 +27,21 @@ export type InvitationStatus = "pending" | "used" | "revoked" | "expired";
 export interface Invitation {
   readonly id: string;
   readonly email: string;
+  readonly displayName?: string | null;
   readonly status: InvitationStatus;
   readonly expires_at: string;
+  /** 使用日 (used_at, YYYY-MM-DD)。未使用なら undefined。 */
+  readonly usedAt?: string;
+  /** 履歴の終了日 (revoked_at ?? expires_at, YYYY-MM-DD)。 */
+  readonly endDate?: string;
+}
+
+/** 発行フォームの入力一式 (POST /client-invitations の body に対応)。 */
+export interface IssueInput {
+  readonly email: string;
+  readonly displayName?: string;
+  readonly ttlDays: number;
+  readonly scopes: readonly string[];
 }
 
 const STATUS_LABEL: Record<InvitationStatus, string> = {
@@ -54,10 +70,8 @@ const ACTIVE_STATUSES: readonly InvitationStatus[] = ["pending", "used"];
 
 export interface InvitationsListProps {
   readonly invitations: readonly Invitation[];
-  readonly onIssue: (email: string) => void;
+  readonly onIssue: (input: IssueInput) => void;
   readonly onRevoke: (id: string) => void;
-  /** 再送 API が無いため optional。未指定なら再送ボタンは表示しない。 */
-  readonly onResend?: (id: string) => void;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -173,6 +187,22 @@ function InviteLinkCell({ dimmed }: { readonly dimmed?: boolean }) {
   );
 }
 
+/** クライアント列: 表示名 (client_display_name) + メール。 */
+function ClientCell({ row }: { readonly row: Invitation }) {
+  return (
+    <>
+      <div className="truncate font-semibold text-on-surface">
+        {row.displayName || row.email}
+      </div>
+      {row.displayName ? (
+        <div className="truncate text-[12px] text-on-surface-variant">
+          {row.email}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 const TH_CLASS =
   "bg-surface-variant px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-on-surface-variant";
 const TD_CLASS = "px-4 py-3.5 align-middle text-body-sm text-on-surface";
@@ -182,12 +212,12 @@ const GHOST_BTN =
 function InviteColgroup() {
   return (
     <colgroup>
-      <col className="w-[22%]" />
-      <col className="w-[28%]" />
+      <col className="w-[24%]" />
+      <col className="w-[24%]" />
       <col className="w-[14%]" />
       <col className="w-[14%]" />
       <col className="w-[12%]" />
-      <col className="w-[10%]" />
+      <col className="w-[12%]" />
     </colgroup>
   );
 }
@@ -195,15 +225,14 @@ function InviteColgroup() {
 function ActiveTable({
   rows,
   onRevoke,
-  onResend,
 }: {
   readonly rows: readonly Invitation[];
   readonly onRevoke: (id: string) => void;
-  readonly onResend?: (id: string) => void;
 }) {
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-white">
-      <table className="w-full table-fixed border-collapse">
+    <div className="overflow-x-auto rounded-lg border border-border bg-white">
+      <table className="w-full min-w-[720px] table-fixed border-collapse">
         <caption className="sr-only">アクティブな招待</caption>
         <InviteColgroup />
         <thead>
@@ -212,22 +241,21 @@ function ActiveTable({
             <th className={TH_CLASS}>招待リンク</th>
             <th className={TH_CLASS}>状態</th>
             <th className={TH_CLASS}>有効期限</th>
-            <th className={TH_CLASS}>使用回数</th>
+            <th className={TH_CLASS}>使用日</th>
             <th className={TH_CLASS} aria-label="操作" />
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => {
             const remaining = daysRemaining(r.expires_at);
+            const confirming = confirmingId === r.id;
             return (
               <tr
                 key={r.id}
                 className="border-t border-border transition-colors hover:bg-surface-variant/40"
               >
                 <td className={TD_CLASS}>
-                  <div className="truncate font-semibold text-on-surface">
-                    {r.email}
-                  </div>
+                  <ClientCell row={r} />
                 </td>
                 <td className={TD_CLASS}>
                   <InviteLinkCell />
@@ -241,34 +269,46 @@ function ActiveTable({
                 <td
                   className={cn(TD_CLASS, "tabular-nums text-on-surface-variant")}
                 >
-                  —
+                  {r.usedAt ?? "—"}
                 </td>
                 <td className={TD_CLASS}>
-                  <div className="flex justify-end gap-1">
-                    {onResend && r.status === "pending" ? (
+                  {confirming ? (
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
-                        onClick={() => onResend(r.id)}
-                        aria-label={`${r.email} に再送`}
-                        title="再送"
-                        className={GHOST_BTN}
+                        onClick={() => setConfirmingId(null)}
+                        className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-on-surface hover:bg-surface-variant"
                       >
-                        <MailIcon />
+                        キャンセル
                       </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => onRevoke(r.id)}
-                      aria-label={`${r.email} を失効`}
-                      title="失効"
-                      className={cn(
-                        GHOST_BTN,
-                        "hover:bg-[#FEE2E2] hover:text-error",
-                      )}
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRevoke(r.id);
+                          setConfirmingId(null);
+                        }}
+                        aria-label={`${r.email} の失効を確定`}
+                        className="rounded-md bg-error px-2.5 py-1 text-[11px] font-bold text-white hover:brightness-110"
+                      >
+                        失効する
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingId(r.id)}
+                        aria-label={`${r.email} を失効`}
+                        title="失効"
+                        className={cn(
+                          GHOST_BTN,
+                          "hover:bg-[#FEE2E2] hover:text-error",
+                        )}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             );
@@ -281,14 +321,14 @@ function ActiveTable({
 
 function HistoryTable({
   rows,
-  onIssue,
+  onReissue,
 }: {
   readonly rows: readonly Invitation[];
-  readonly onIssue: (email: string) => void;
+  readonly onReissue: (row: Invitation) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-white">
-      <table className="w-full table-fixed border-collapse">
+    <div className="overflow-x-auto rounded-md border border-border bg-white">
+      <table className="w-full min-w-[720px] table-fixed border-collapse">
         <caption className="sr-only">履歴（失効・期限切れ）</caption>
         <InviteColgroup />
         <thead>
@@ -297,7 +337,7 @@ function HistoryTable({
             <th className={TH_CLASS}>招待リンク</th>
             <th className={TH_CLASS}>状態</th>
             <th className={TH_CLASS}>終了日</th>
-            <th className={TH_CLASS}>使用回数</th>
+            <th className={TH_CLASS}>使用日</th>
             <th className={TH_CLASS} aria-label="操作" />
           </tr>
         </thead>
@@ -308,9 +348,7 @@ function HistoryTable({
               className="border-t border-border transition-colors hover:bg-surface-variant/40"
             >
               <td className={TD_CLASS}>
-                <div className="truncate font-semibold text-on-surface">
-                  {r.email}
-                </div>
+                <ClientCell row={r} />
               </td>
               <td className={TD_CLASS}>
                 <InviteLinkCell dimmed />
@@ -321,16 +359,16 @@ function HistoryTable({
               <td
                 className={cn(TD_CLASS, "tabular-nums text-on-surface-variant")}
               >
-                {r.expires_at}
+                {r.endDate ?? r.expires_at}
               </td>
               <td className={cn(TD_CLASS, "tabular-nums text-on-surface-variant")}>
-                —
+                {r.usedAt ?? "—"}
               </td>
               <td className={TD_CLASS}>
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => onIssue(r.email)}
+                    onClick={() => onReissue(r)}
                     aria-label={`${r.email} を再発行`}
                     title="再発行"
                     className={GHOST_BTN}
@@ -351,14 +389,19 @@ export function InvitationsList({
   invitations,
   onIssue,
   onRevoke,
-  onResend,
 }: InvitationsListProps) {
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [ttlDays, setTtlDays] = useState(7);
+  const [scope, setScope] = useState<"view_comment" | "view">("view_comment");
 
   const active = invitations.filter((i) => ACTIVE_STATUSES.includes(i.status));
   const history = invitations.filter(
     (i) => !ACTIVE_STATUSES.includes(i.status),
   );
+
+  const scopesOf = (s: "view_comment" | "view"): readonly string[] =>
+    s === "view" ? ["view"] : ["view", "comment"];
 
   const inputClass =
     "h-10 rounded-md border border-border bg-surface px-3 text-body-md text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none";
@@ -366,7 +409,7 @@ export function InvitationsList({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* 1. 新規招待を発行 */}
+      {/* 1. 新規招待を発行 (全入力を実 API パラメータへ配線) */}
       <section className="rounded-lg border border-border bg-white p-6">
         <h2 className="mb-4 text-base font-bold text-on-surface">
           新規招待を発行
@@ -375,8 +418,14 @@ export function InvitationsList({
           onSubmit={(e) => {
             e.preventDefault();
             if (!email) return;
-            onIssue(email);
+            onIssue({
+              email,
+              displayName: displayName.trim() || undefined,
+              ttlDays,
+              scopes: scopesOf(scope),
+            });
             setEmail("");
+            setDisplayName("");
           }}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -384,6 +433,8 @@ export function InvitationsList({
               <span className={labelTextClass}>クライアント表示名</span>
               <input
                 type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="例：小松 太郎"
                 className={inputClass}
               />
@@ -400,7 +451,11 @@ export function InvitationsList({
             </label>
             <label className="flex flex-col gap-1.5">
               <span className={labelTextClass}>有効期限（日）</span>
-              <select className={inputClass} defaultValue="7">
+              <select
+                value={String(ttlDays)}
+                onChange={(e) => setTtlDays(Number(e.target.value))}
+                className={inputClass}
+              >
                 <option value="3">3 日</option>
                 <option value="7">7 日（推奨）</option>
                 <option value="14">14 日</option>
@@ -409,7 +464,13 @@ export function InvitationsList({
             </label>
             <label className="flex flex-col gap-1.5">
               <span className={labelTextClass}>スコープ</span>
-              <select className={inputClass} defaultValue="view_comment">
+              <select
+                value={scope}
+                onChange={(e) =>
+                  setScope(e.target.value === "view" ? "view" : "view_comment")
+                }
+                className={inputClass}
+              >
                 <option value="view_comment">閲覧 + コメント（推奨）</option>
                 <option value="view">閲覧のみ</option>
               </select>
@@ -443,7 +504,7 @@ export function InvitationsList({
             アクティブな招待がありません
           </div>
         ) : (
-          <ActiveTable rows={active} onRevoke={onRevoke} onResend={onResend} />
+          <ActiveTable rows={active} onRevoke={onRevoke} />
         )}
       </section>
 
@@ -467,7 +528,17 @@ export function InvitationsList({
             終了した招待はありません
           </div>
         ) : (
-          <HistoryTable rows={history} onIssue={onIssue} />
+          <HistoryTable
+            rows={history}
+            onReissue={(row) =>
+              onIssue({
+                email: row.email,
+                displayName: row.displayName ?? undefined,
+                ttlDays: 7,
+                scopes: ["view", "comment"],
+              })
+            }
+          />
         )}
       </section>
     </div>

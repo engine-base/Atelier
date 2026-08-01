@@ -21,11 +21,13 @@ import {
   InvitationsList,
   type Invitation,
   type InvitationStatus,
+  type IssueInput,
 } from "./InvitationsList";
 
 interface ApiInvitation {
   id: string;
   email: string;
+  client_display_name?: string | null;
   expires_at: string;
   used_at?: string | null;
   revoked_at?: string | null;
@@ -69,9 +71,18 @@ export function InvitationsListContainer({
   });
 
   const issueMut = useMutation({
-    mutationFn: async (email: string) => {
+    mutationFn: async (input: IssueInput) => {
+      // 表示名/有効期限/スコープも実 API パラメータへ (旧実装は email 以外を黙って捨てていた)。
       const res = await client.post("/client-invitations", {
-        body: { project_id: projectId, email },
+        body: {
+          project_id: projectId,
+          email: input.email,
+          scopes: [...input.scopes],
+          ttl_days: input.ttlDays,
+          ...(input.displayName
+            ? { client_display_name: input.displayName }
+            : {}),
+        },
       });
       return (res as { data?: { token?: string } }).data ?? {};
     },
@@ -128,8 +139,11 @@ export function InvitationsListContainer({
   const invitations: Invitation[] = (list.data ?? []).map((inv) => ({
     id: inv.id,
     email: inv.email,
+    displayName: inv.client_display_name ?? null,
     status: deriveStatus(inv),
     expires_at: inv.expires_at.slice(0, 10),
+    usedAt: inv.used_at ? inv.used_at.slice(0, 10) : undefined,
+    endDate: (inv.revoked_at ?? inv.expires_at).slice(0, 10),
   }));
 
   return (
@@ -180,7 +194,7 @@ export function InvitationsListContainer({
       ) : null}
       <InvitationsList
         invitations={invitations}
-        onIssue={(email) => issueMut.mutate(email)}
+        onIssue={(input) => issueMut.mutate(input)}
         onRevoke={(id) => revokeMut.mutate(id)}
       />
     </div>

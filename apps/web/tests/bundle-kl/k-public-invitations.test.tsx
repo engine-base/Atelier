@@ -18,51 +18,122 @@ import { DataDeletionForm } from '../../app/public/s_pub04/_components/DataDelet
 
 describe('InvitationsList (T-UC-20)', () => {
   const invs: Invitation[] = [
-    { id: 'i1', email: 'a@x.com', status: 'pending', expires_at: '2026-06-30' },
-    { id: 'i2', email: 'b@x.com', status: 'used', expires_at: '2026-06-30' },
+    {
+      id: 'i1',
+      email: 'a@x.com',
+      displayName: '小松 太郎',
+      status: 'pending',
+      expires_at: '2999-06-30',
+    },
+    {
+      id: 'i2',
+      email: 'b@x.com',
+      status: 'used',
+      expires_at: '2999-06-30',
+      usedAt: '2026-06-01',
+    },
+    {
+      id: 'i3',
+      email: 'c@x.com',
+      status: 'revoked',
+      expires_at: '2026-05-05',
+      endDate: '2026-05-01',
+    },
   ];
 
-  it('renders status labels', () => {
+  it('renders status labels, display names and used dates', () => {
     render(
       <InvitationsList
         invitations={invs}
         onIssue={() => undefined}
         onRevoke={() => undefined}
-        onResend={() => undefined}
       />,
     );
     expect(screen.getByText('未使用')).toBeInTheDocument();
     expect(screen.getByText('使用済')).toBeInTheDocument();
+    expect(screen.getByText('失効')).toBeInTheDocument();
+    // 表示名 + メール (client_display_name 実データ)
+    expect(screen.getByText('小松 太郎')).toBeInTheDocument();
+    expect(screen.getByText('a@x.com')).toBeInTheDocument();
+    // 使用日 / 終了日 (used_at / revoked_at 実データ)
+    expect(screen.getByText('2026-06-01')).toBeInTheDocument();
+    expect(screen.getByText('2026-05-01')).toBeInTheDocument();
+    // 再送 API は無いため再送ボタンを出さない (Rule 10)
+    expect(screen.queryByRole('button', { name: /再送/ })).toBeNull();
   });
 
-  it('shows resend/revoke only for pending', () => {
-    render(
-      <InvitationsList
-        invitations={invs}
-        onIssue={() => undefined}
-        onRevoke={() => undefined}
-        onResend={() => undefined}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'a@x.com に再送' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'b@x.com に再送' })).toBeNull();
-  });
-
-  it('issues invitation on form submit', () => {
+  it('issues invitation with all form params (display name / ttl / scopes)', () => {
     const onIssue = vi.fn();
     render(
       <InvitationsList
         invitations={[]}
         onIssue={onIssue}
         onRevoke={() => undefined}
-        onResend={() => undefined}
       />,
     );
+    fireEvent.change(screen.getByLabelText(/クライアント表示名/), {
+      target: { value: '福浦 様' },
+    });
     fireEvent.change(screen.getByLabelText(/招待メールアドレス/), {
       target: { value: 'new@example.com' },
     });
+    fireEvent.change(screen.getByLabelText(/有効期限/), {
+      target: { value: '14' },
+    });
+    fireEvent.change(screen.getByLabelText(/スコープ/), {
+      target: { value: 'view' },
+    });
     fireEvent.click(screen.getByRole('button', { name: '招待を発行' }));
-    expect(onIssue).toHaveBeenCalledWith('new@example.com');
+    expect(onIssue).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      displayName: '福浦 様',
+      ttlDays: 14,
+      scopes: ['view'],
+    });
+  });
+
+  it('revokes only after a 2-step confirmation', () => {
+    const onRevoke = vi.fn();
+    render(
+      <InvitationsList
+        invitations={invs}
+        onIssue={() => undefined}
+        onRevoke={onRevoke}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'a@x.com を失効' }));
+    expect(onRevoke).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'a@x.com の失効を確定' }),
+    );
+    expect(onRevoke).toHaveBeenCalledWith('i1');
+  });
+
+  it('reissues from history with the original display name', () => {
+    const onIssue = vi.fn();
+    render(
+      <InvitationsList
+        invitations={[
+          {
+            id: 'i9',
+            email: 'old@x.com',
+            displayName: '山田 様',
+            status: 'expired',
+            expires_at: '2026-05-10',
+            endDate: '2026-05-10',
+          },
+        ]}
+        onIssue={onIssue}
+        onRevoke={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'old@x.com を再発行' }));
+    expect(onIssue).toHaveBeenCalledWith({
+      email: 'old@x.com',
+      displayName: '山田 様',
+      ttlDays: 7,
+      scopes: ['view', 'comment'],
+    });
   });
 });
 

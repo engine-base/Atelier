@@ -34,6 +34,7 @@
 | 27 | S-A03 WS 設定 | **死にタブ 7** → 実リンク化 (プラン撤去 GAP-021)。**UI 断線: WS 削除 API 実在なのに非表示** → 2 段階削除実装。**API 契約違反: GET /me が required の ai_learning_opt_out を返さない** → API 修正 (pytest 更新)。AI 学習トグルのレース (me 未解決で常に OFF) 修正。アイコン変更死にボタン撤去。サブタイトルの WS 名ハードコード是正。WS フォールバック追加。検証 WS 実作成→改名→招待→トークン→削除の DB 突合 | 11/11 | f8d7fff |
 | 28 | S-F02 フェーズ管理 | 未使用の started_at/completed_at を期間表示化 (モック準拠)。状態遷移 select を PATCH→DB 突合(往復)で実証。AI 提案フェーズ/F-IMP01 影響範囲解析/per-phase タスク数「8/24」は供給 API 不在で honest 撤去 (GAP-022) | 7/7 | d68019e |
 | 29 | S-G01 成果物ビューア | disabled「編集」死にボタン撤去 (GAP-023)。コメント status(未解決/解決) 配線 + 解決ボタン (PATCH)。返信インデント表示。作成者の生 UUID → ラベル化 (鉄則5)。コメントパイプを API で e2e 実証 (POST→GET→PATCH resolve→DB)。storage 503 は honest 表示 (iframe は dev 制約) | 9/9 | (this) |
+| 33 | S-L01 クライアント招待 | **死に入力 3 (表示名/有効期限/スコープ — API 全対応済みなのに黙って捨てられる)** → IssueInput で全配線 (DB 突合)。表示名列 (契約 client_display_name 未使用) 追加。失効 2 段階化。?project 無し行き止まり→useProjectId フォールバック。使用回数→使用日 (used_at 実データ) 置換・再送ボタン不描画 (GAP-027)。R-T08 平文不保存を DB 突合で実証 | 14/14 ×3 | (this) |
 | 32 | S-I03 実行モニタ | **主機能欠落**: モックのフリートビュー (統計/要対応/進行中/順番待ち) が丸ごと無く単一 SSE ログのみだった → FleetMonitorContainer 新設 (lifecycle/dispatch で実分類・統計実算出)。カード上の承認/差戻/再試行 (DB 突合)。かんばんに導線追加 (到達不能是正)。担当/ステータス生コード→日本語化。ダークテーマ再現。Bridge 接続/一時停止/枠数/停止/キュー取消は API 不在で未描画 (GAP-026) | 18/18 ×3 | (this) |
 | 31 | S-I02 タスク詳細 | **到達不能** (かんばんから詳細への導線ゼロ) → カード/リスト行を実リンク化。**UI 断線: approve/reject/retry API (x-screen-ids: S-I02) が UI 皆無** → 操作バー実装 (2 段階確認・状態限定描画)。**API 契約違反: Task.dependencies/prerequisites/blocks 欠落** → サービス修正 + 依存タブ新設。**実バグ: 実行 status 判定が completed 比較 (実 enum は succeeded) で永遠に灰色** → 修正 + 日本語ラベル。死にタブ 2 (入出力/添付) 撤去→モック準拠 5 タブ。担当 AI 生コード→表示名解決。コメント投稿実装。スコアサークル実データ化 (GAP-025) | 23/23 ×3 | (this) |
 | 30 | S-H01 モックビューア | **到達不能画面** (導線ゼロ・S-N01 同型) → ナビ「モック」+ 一覧ピッカー新設。**UI 断線 2: バージョン履歴 (GET /mocks/{id}/versions 実在) とコメント (target_type=mock 対応済) が未実装** → 実 API 配線 (表示中マーク/note/旧版リンク/最新ピル/追加/解決)。修正依頼→チャット実リンク。storage 503 を全面エラー→frame 限定 honest 化 (パネルは稼働)。390px トグル縦折れ修正。**API 全体の構造バグ検出: read-your-own-write レース (commit がレスポンス送信後) → CommitBeforeResponseMiddleware で全エンドポイント是正** (pytest 5 件 + 3 連続 25/25 で実証)。編集/…メニューは API 不在で未描画 (GAP-024) | 25/25 ×3 | (this) |
@@ -50,12 +51,12 @@
 5. QA 仕様書 `screens/<ID>.md` に v2 節追記 → completion_gate.sh で台帳突合
 6. 1 画面 = 1 commit + push、証跡スクリーンショットをユーザーへ送付
 
-## 残り 10 画面 (全画面に仕様書あり — v2 監査の続行のみ)
+## 残り 9 画面 (全画面に仕様書あり — v2 監査の続行のみ)
 
-- **次:** S-L01 招待管理 → S-L02/L03 → T-UC-36〜40 ほか (残 10)
-- 仕様書ありで未監査: S-L01/L02/L03/T-UC-36〜40 ほか
+- **次:** S-L02 ポータルサインイン → S-L03 → T-UC-36〜40 ほか (残 9)
+- 仕様書ありで未監査: S-L02/L03/T-UC-36〜40 ほか
 
 ## 未解消 gap (正本: docs/gap-tracker.md)
 
-- 機能 gap: GAP-001〜026 (26 件) — バックエンド API 不在により UI から撤去/未描画にしたもの。**GAP-016 (Whisper worker 不在) は S-M01 の主機能を塞ぐ最重要 gap**
+- 機能 gap: GAP-001〜027 (27 件) — バックエンド API 不在により UI から撤去/未描画にしたもの。**GAP-016 (Whisper worker 不在) は S-M01 の主機能を塞ぐ最重要 gap**
 - プロセス gap: GAP-101 (仕様書 13 画面) / GAP-102 (CI Gate#6 スタブ) / GAP-103 (tickets.json テンプレ AC)
