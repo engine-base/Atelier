@@ -43,7 +43,11 @@ describe("S-L02 ClientSigninContainer (T-UC-21)", () => {
         onSignedIn={onSignedIn}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "プロジェクトを開く" }));
+    // 同意 2 種 (design-audit v2: モックの consent-row) をチェックしてから送信
+    for (const cb of screen.getAllByRole("checkbox")) fireEvent.click(cb);
+    fireEvent.click(
+      screen.getByRole("button", { name: "同意してサインイン" }),
+    );
     await waitFor(() =>
       expect(signinFn).toHaveBeenCalledWith("tok-1234567890", ""),
     );
@@ -61,7 +65,10 @@ describe("S-L02 ClientSigninContainer (T-UC-21)", () => {
         onSignedIn={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "プロジェクトを開く" }));
+    for (const cb of screen.getAllByRole("checkbox")) fireEvent.click(cb);
+    fireEvent.click(
+      screen.getByRole("button", { name: "同意してサインイン" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "招待トークンが無効です",
     );
@@ -78,7 +85,10 @@ describe("S-L02 ClientSigninContainer (T-UC-21)", () => {
         onSignedIn={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "プロジェクトを開く" }));
+    for (const cb of screen.getAllByRole("checkbox")) fireEvent.click(cb);
+    fireEvent.click(
+      screen.getByRole("button", { name: "同意してサインイン" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "有効期限が切れています",
     );

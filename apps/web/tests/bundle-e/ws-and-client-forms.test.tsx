@@ -94,19 +94,40 @@ describe('ClientSigninForm (T-UC-21)', () => {
     const onSubmit = vi.fn();
     render(<ClientSigninForm onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText(/招待トークン/), { target: { value: 'short' } });
+    for (const cb of screen.getAllByRole('checkbox')) fireEvent.click(cb);
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'プロジェクトを開く' }));
+      fireEvent.click(screen.getByRole('button', { name: '同意してサインイン' }));
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('blocks submit until both consents are checked (design-audit v2)', async () => {
+    const onSubmit = vi.fn();
+    render(<ClientSigninForm defaultToken="invite-12345678" onSubmit={onSubmit} />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '同意してサインイン' }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(/利用規約・プライバシーポリシー・越境同意への同意が必要です/),
+    ).toBeInTheDocument();
+    for (const cb of screen.getAllByRole('checkbox')) fireEvent.click(cb);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '同意してサインイン' }));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(onSubmit).toHaveBeenCalled();
   });
 
   it('accepts optional display_name', async () => {
     const onSubmit = vi.fn();
     render(<ClientSigninForm defaultToken="invite-12345678" onSubmit={onSubmit} />);
     fireEvent.change(screen.getByLabelText(/表示名/), { target: { value: 'Client A' } });
+    for (const cb of screen.getAllByRole('checkbox')) fireEvent.click(cb);
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'プロジェクトを開く' }));
+      fireEvent.click(screen.getByRole('button', { name: '同意してサインイン' }));
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(onSubmit).toHaveBeenCalled();

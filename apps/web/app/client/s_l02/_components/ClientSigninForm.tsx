@@ -1,17 +1,21 @@
 /**
- * S-L02 クライアントサインインフォーム — T-UC-21
+ * S-L02 クライアントサインインフォーム — T-UC-21 / design-audit v2
  *
  * 招待トークン (URL クエリ ?token=...) を入力 or 自動展開、display_name 任意。
  * R-T08 互換: 専用 client_portal JWT を発行 (T-A-35)、別 cookie 分離。
  *
  * 見た目は 06_mockups/client/S-L02-signin.html の白い auth-card に忠実:
- *   有効期限バー → 見出し → 説明 → 入力 → 「プロジェクトを開く」ボタン。
+ *   有効期限バー → 見出し → 説明 → 入力 → 同意 2 種 → 「同意してサインイン」。
+ * モックの同意 2 種 (規約/プライバシー/越境・機密保持) を必須チェックとして
+ * 実装 (法務ページは実ルート /terms /privacy へのリンク)。同意のサーバー永続は
+ * client 用 consents API が無いため UI ゲートのみ (GAP-028)。
  * 認証機構 (フィールド・register・onSubmit・バリデーション・error 表示) は不変。
  */
 
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { z } from "zod";
 
 import { Field } from "../../../../components/forms/Field";
@@ -20,6 +24,12 @@ import { Form, useAtelierForm } from "../../../../components/forms/Form";
 const Schema = z.object({
   invitation_token: z.string().min(10).max(200),
   display_name: z.string().max(100).optional(),
+  agree_legal: z.literal(true, {
+    errorMap: () => ({ message: "利用規約・プライバシーポリシー・越境同意への同意が必要です" }),
+  }),
+  agree_confidential: z.literal(true, {
+    errorMap: () => ({ message: "機密保持への同意が必要です" }),
+  }),
 });
 export type ClientSigninValues = z.infer<typeof Schema>;
 
@@ -79,7 +89,12 @@ export function ClientSigninForm({
 }: ClientSigninFormProps) {
   const form = useAtelierForm({
     schema: Schema,
-    defaultValues: { invitation_token: defaultToken ?? "", display_name: "" },
+    defaultValues: {
+      invitation_token: defaultToken ?? "",
+      display_name: "",
+      agree_legal: false as unknown as true,
+      agree_confidential: false as unknown as true,
+    },
   });
 
   return (
@@ -132,12 +147,54 @@ export function ClientSigninForm({
         <input {...form.register("display_name")} className={INPUT_CLASS} />
       </Field>
 
+      {/* 同意 2 種 (モック .consent-row 準拠 — 実ルートの法務ページへリンク) */}
+      <label className="flex items-start gap-2.5 rounded-md bg-surface-variant p-3 text-[13px] leading-relaxed text-on-surface">
+        <input
+          type="checkbox"
+          {...form.register("agree_legal")}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#2563EB]"
+        />
+        <span>
+          <Link href="/terms" target="_blank" className="font-bold text-primary underline">
+            利用規約
+          </Link>
+          、
+          <Link href="/privacy" target="_blank" className="font-bold text-primary underline">
+            プライバシーポリシー
+          </Link>
+          、およびデータの一部処理が海外サーバー経由となる
+          <strong className="font-bold">越境同意</strong>に同意します。
+        </span>
+      </label>
+      {form.formState.errors.agree_legal ? (
+        <p role="alert" className="text-label-md text-error">
+          {form.formState.errors.agree_legal.message}
+        </p>
+      ) : null}
+      <label className="flex items-start gap-2.5 rounded-md bg-surface-variant p-3 text-[13px] leading-relaxed text-on-surface">
+        <input
+          type="checkbox"
+          {...form.register("agree_confidential")}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#2563EB]"
+        />
+        <span>
+          本プロジェクトのデータ・成果物は
+          <strong className="font-bold">機密情報</strong>
+          として扱い、招待元の許諾なく外部に共有しないことに同意します。
+        </span>
+      </label>
+      {form.formState.errors.agree_confidential ? (
+        <p role="alert" className="text-label-md text-error">
+          {form.formState.errors.agree_confidential.message}
+        </p>
+      ) : null}
+
       <button
         type="submit"
         disabled={form.formState.isSubmitting}
         className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-label-lg font-semibold text-primary-fg transition-colors hover:bg-[#1E54D8] focus-visible:outline-none disabled:opacity-50"
       >
-        <span>プロジェクトを開く</span>
+        <span>同意してサインイン</span>
         <ArrowRightIcon />
       </button>
     </Form>
