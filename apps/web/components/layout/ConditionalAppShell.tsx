@@ -14,8 +14,10 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  Bell,
   Brain,
   Briefcase,
   Clock,
@@ -27,6 +29,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   MonitorSmartphone,
+  Search,
   Settings,
   Users,
   Workflow,
@@ -113,19 +116,50 @@ interface MeLite {
   readonly email?: string | null;
 }
 
-/** トップバー右端: ユーザーアバター (GET /me の実プロフィール)。
- * 通知ベルは通知 API が存在しないため撤去 (Rule 10 / GAP-007)。 */
-function TopBarTrailing({ me }: { readonly me?: MeLite }) {
+/** トップバー右端: 検索 / 通知ベル (承認待ち未処理数 = 実データ) / ユーザーアバター。
+ * 通知ベルは通知センター (T-UC-36 = 承認待ち集約) への実リンク。専用通知 API の
+ * ドロップダウン化は GAP-007 のまま。アバターはプロフィール (T-UC-37) への実リンク。 */
+function TopBarTrailing({
+  me,
+  pendingCount,
+}: {
+  readonly me?: MeLite;
+  readonly pendingCount: number;
+}) {
   const label = me?.display_name || me?.email || undefined;
-  if (!label) return null;
   return (
-    <span
-      role="img"
-      aria-label={`サインイン中: ${label}`}
-      title={label}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant"
-    >
-      {label.charAt(0).toUpperCase()}
+    <span className="flex items-center gap-1.5">
+      <Link
+        href="/t-uc-40"
+        aria-label="検索"
+        title="検索"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
+      >
+        <Search className="h-4 w-4" aria-hidden="true" />
+      </Link>
+      <Link
+        href="/t-uc-36"
+        aria-label={`通知センター (未処理の承認待ち ${pendingCount} 件)`}
+        title="通知センター"
+        className="relative inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
+      >
+        <Bell className="h-4 w-4" aria-hidden="true" />
+        {pendingCount > 0 ? (
+          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9.5px] font-bold text-white tabular-nums">
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </span>
+        ) : null}
+      </Link>
+      {label ? (
+        <Link
+          href="/t-uc-37"
+          aria-label={`プロフィール: ${label}`}
+          title={label}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant transition-shadow hover:ring-2 hover:ring-primary-container"
+        >
+          {label.charAt(0).toUpperCase()}
+        </Link>
+      ) : null}
     </span>
   );
 }
@@ -137,6 +171,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const [currentWsId, setCurrentWsId] = useState<string | undefined>();
   const [me, setMe] = useState<MeLite | undefined>();
   const [project, setProject] = useState<ProjectLite | undefined>();
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     if (bare) return;
@@ -159,6 +194,14 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       })
       .catch(() => {
         /* アバターはプロフィール取得失敗時は出さない */
+      });
+    // 通知ベルの未読バッジ = 本人の未処理承認待ち件数 (実データ)。失敗時は 0 のまま。
+    getJson<readonly unknown[]>('/approval-inbox?status=pending')
+      .then((res) => {
+        if (!cancelled) setPendingCount(Array.isArray(res.data) ? res.data.length : 0);
+      })
+      .catch(() => {
+        /* バッジ非表示のまま */
       });
     return () => {
       cancelled = true;
@@ -225,7 +268,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
         setCurrentWsId(id);
       }}
       breadcrumb={activeNav?.labelKey}
-      topBarTrailing={<TopBarTrailing me={me} />}
+      topBarTrailing={<TopBarTrailing me={me} pendingCount={pendingCount} />}
       fullBleed={fullBleed}
     >
       {children}

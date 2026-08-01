@@ -5,11 +5,11 @@
 > design-audit v2 節、機能欠落は `docs/gap-tracker.md`、機械判定は
 > `human-grade-qa/completion_gate.sh` が正。
 >
-> 状態: **35/42 画面 完了** / ゲート実測: 全 TC 547 (PASS 534 / BLOCKED 13 / FAIL 0 / 未 0)。
+> 状態: **42/42 画面 完了 — design-audit v2 ラウンド全画面完走** / ゲート実測: 全 TC 547 (PASS 534 / BLOCKED 13 / FAIL 0 / 未 0)。
 > **completion_gate 判定: 完了** (画面台帳一致 — 仕様書なし画面 0、GAP-101 解消)。
-> ※ design-audit v2 ラウンド自体は残 7 画面 (仕様書は既存・v2 監査が未実施)。
+> ※ 正準台帳 (04_functional_breakdown/screens.json) の 35 画面 + 横断ユーティリティ 5 (T-UC-36〜40 = S-U01/U02 ほか)。残 2 は監査済み画面のエイリアス (S-A04→S-A03 内 AI 学習設定 / S-D01→S-E01 スレッド一覧、S-G02→成果物一覧は B02/B03/G01 で被覆、S-AD01/02→S-T01〜06)。
 
-## 監査済み画面 (35) — 各画面とも 実操作全 PASS / vitest / tsc / lint 緑で commit 済
+## 監査済み画面 (42) — 各画面とも 実操作全 PASS / vitest / tsc / lint 緑で commit 済
 
 | # | 画面 | ラウンド成果 (検出 → 是正) | 実操作 | commit |
 |---|---|---|---|---|
@@ -34,6 +34,7 @@
 | 27 | S-A03 WS 設定 | **死にタブ 7** → 実リンク化 (プラン撤去 GAP-021)。**UI 断線: WS 削除 API 実在なのに非表示** → 2 段階削除実装。**API 契約違反: GET /me が required の ai_learning_opt_out を返さない** → API 修正 (pytest 更新)。AI 学習トグルのレース (me 未解決で常に OFF) 修正。アイコン変更死にボタン撤去。サブタイトルの WS 名ハードコード是正。WS フォールバック追加。検証 WS 実作成→改名→招待→トークン→削除の DB 突合 | 11/11 | f8d7fff |
 | 28 | S-F02 フェーズ管理 | 未使用の started_at/completed_at を期間表示化 (モック準拠)。状態遷移 select を PATCH→DB 突合(往復)で実証。AI 提案フェーズ/F-IMP01 影響範囲解析/per-phase タスク数「8/24」は供給 API 不在で honest 撤去 (GAP-022) | 7/7 | d68019e |
 | 29 | S-G01 成果物ビューア | disabled「編集」死にボタン撤去 (GAP-023)。コメント status(未解決/解決) 配線 + 解決ボタン (PATCH)。返信インデント表示。作成者の生 UUID → ラベル化 (鉄則5)。コメントパイプを API で e2e 実証 (POST→GET→PATCH resolve→DB)。storage 503 は honest 表示 (iframe は dev 制約) | 9/9 | (this) |
+| 36-40 | T-UC-36〜40 横断ユーティリティ | **到達不能 3 件是正**: TopBar に通知ベル (未読バッジ = approval-inbox pending 実件数・GAP-007 の導線部分を解消)・検索アイコン・プロフィール (アバター実リンク化) を新設。通知→承認への実リンク。切替 2 画面は listbox 実操作で localStorage 永続検証 (テキストクリック偽陽性を排除)。表示名変更 DB 突合・横断検索実ヒット・5 画面 390px。既読ボタン縦折れ修正 | 16/16 ×3 | (this) |
 | 35 | S-L03 クライアントポータル | **R-T08 実バグ: client JWT が staff API で 401 でなく 500** (署名検証を通過し uuid cast で爆発) → decode_supabase_jwt で明示拒否 + pytest 回帰。ログアウト実装 (cookie 破棄→signin、Playwright 突合)。越境 403 (API+UI)・JWT 系統分離・ガード (リダイレクト/改ざん 401) を通しで実証。コンテンツ系は client read API 不在で honest (GAP-029) | 13/13 ×3 | (this) |
 | 34 | S-L02 ポータルサインイン | **同意ゲート丸ごと欠落 (規約/プライバシー/越境・機密保持)** → 必須チェック 2 種 + 実法務リンク実装、未同意ブロックを DB 突合で実証。招待発行→署名→/portal の通しで used_at/R-T08 cookie 分離/410/401 文言を実証。招待プレビュー・同意永続は API 不在 (GAP-028) | 12/12 ×3 | (this) |
 | 33 | S-L01 クライアント招待 | **死に入力 3 (表示名/有効期限/スコープ — API 全対応済みなのに黙って捨てられる)** → IssueInput で全配線 (DB 突合)。表示名列 (契約 client_display_name 未使用) 追加。失効 2 段階化。?project 無し行き止まり→useProjectId フォールバック。使用回数→使用日 (used_at 実データ) 置換・再送ボタン不描画 (GAP-027)。R-T08 平文不保存を DB 突合で実証 | 14/14 ×3 | (this) |
@@ -53,10 +54,9 @@
 5. QA 仕様書 `screens/<ID>.md` に v2 節追記 → completion_gate.sh で台帳突合
 6. 1 画面 = 1 commit + push、証跡スクリーンショットをユーザーへ送付
 
-## 残り 7 画面 (全画面に仕様書あり — v2 監査の続行のみ)
+## 残り画面: なし — v2 ラウンド完走
 
-- **次:** T-UC-36 通知 → T-UC-37〜40 ほか (残 7)
-- 仕様書ありで未監査: T-UC-36〜40 ほか
+- 次フェーズ候補: GAP-104 (e2e-journey-walkthrough 通し) の実施、GAP-016 (Whisper worker) の起票実装、CI Gate #6 実照合化 (GAP-102)
 
 ## 未解消 gap (正本: docs/gap-tracker.md)
 

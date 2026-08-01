@@ -10,6 +10,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Loading } from "../../../components/Loading";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -155,7 +156,13 @@ export function NotificationsContainer({
               )}
             >
               <div className="flex flex-col">
-                <p className="text-body-sm text-on-surface">{n.message}</p>
+                {/* 通知の実体は承認待ち → 承認インボックス (S-J01) への実リンク */}
+                <Link
+                  href="/approvals"
+                  className="text-body-sm text-on-surface hover:text-primary hover:underline"
+                >
+                  {n.message}
+                </Link>
                 <time className="text-label-sm text-on-surface-variant">
                   {n.createdAt}
                 </time>
@@ -165,7 +172,7 @@ export function NotificationsContainer({
                   type="button"
                   onClick={() => markRead(n.id)}
                   aria-label={`${n.message} を既読にする`}
-                  className="inline-flex h-7 items-center rounded-sm border border-surface-variant px-sm text-label-sm"
+                  className="inline-flex h-7 shrink-0 items-center whitespace-nowrap rounded-sm border border-surface-variant px-sm text-label-sm"
                 >
                   既読
                 </button>
