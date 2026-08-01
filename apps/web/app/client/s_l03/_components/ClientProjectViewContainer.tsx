@@ -9,6 +9,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Loading } from "../../../../components/Loading";
 import { useQuery } from "@tanstack/react-query";
 
@@ -17,6 +18,7 @@ import {
   type ClientProjectViewData,
 } from "./ClientProjectView";
 import {
+  clearClientAccessToken,
   getClientProject as defaultGetClientProject,
   readClientAccessToken as defaultReadToken,
   ClientPortalError,
@@ -36,6 +38,7 @@ export function ClientProjectViewContainer({
   getToken = defaultReadToken,
   fetchProject = defaultGetClientProject,
 }: ClientProjectViewContainerProps) {
+  const router = useRouter();
   const token = getToken();
 
   const query = useQuery({
@@ -102,5 +105,13 @@ export function ClientProjectViewContainer({
     return <Loading className="mx-auto w-full max-w-[1100px] px-6 py-8" />;
   }
 
-  return <ClientProjectView data={query.data} />;
+  return (
+    <ClientProjectView
+      data={query.data}
+      onSignOut={() => {
+        clearClientAccessToken();
+        router.push("/portal/signin");
+      }}
+    />
+  );
 }

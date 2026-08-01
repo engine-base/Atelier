@@ -15,6 +15,10 @@ import { render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 import { createQueryClient } from "../../lib/query-client";
 import { ClientProjectViewContainer } from "../../app/client/s_l03/_components/ClientProjectViewContainer";
 import {

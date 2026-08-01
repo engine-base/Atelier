@@ -114,6 +114,24 @@ describe('ClientProjectView (T-UC-22)', () => {
     expect(screen.getByText('山田 太郎')).toBeInTheDocument();
   });
 
+  it('renders a working sign-out button when onSignOut is provided (design-audit v2)', () => {
+    const onSignOut = vi.fn();
+    render(
+      <ClientProjectView
+        data={{
+          id: 'p1',
+          name: 'Test Project',
+          description: null,
+          scopes: ['view'],
+          viewed_as_client_display_name: '山田 太郎',
+        }}
+        onSignOut={onSignOut}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'サインアウト' }));
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
   it('omits description when null', () => {
     render(
       <ClientProjectView

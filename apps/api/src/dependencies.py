@@ -95,6 +95,11 @@ def decode_supabase_jwt(token: str, secret: str, *, now: int | None = None) -> C
     if not isinstance(sub, str) or not sub:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing sub claim")
     role = payload.get("role")
+    # R-T08: client_portal JWT (sub="client:<invitation_id>") は同一 secret で署名
+    # されるため署名検証を通過してしまう。staff 経路では明示拒否しないと、後段の
+    # uuid cast で 500 になる (design-audit S-L03 で検出した実バグ)。
+    if role == "client_portal" or sub.startswith("client:"):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "client portal token is not valid here")
     return CurrentUser(
         id=sub,
         role=role if isinstance(role, str) else "authenticated",

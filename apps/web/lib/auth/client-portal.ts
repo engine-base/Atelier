@@ -40,6 +40,12 @@ function setClientAccessCookie(token: string, expiresAt: string): void {
   document.cookie = `${COOKIE_NAMES.clientAccess}=${token}; path=/; expires=${expires}; SameSite=Lax`;
 }
 
+/** クライアントポータルからサインアウトする (cookie 破棄)。 */
+export function clearClientAccessToken(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${COOKIE_NAMES.clientAccess}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+}
+
 /** document.cookie から atelier_client_access を読む。無ければ null。 */
 export function readClientAccessToken(): string | null {
   if (typeof document === "undefined") return null;

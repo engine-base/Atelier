@@ -27,6 +27,8 @@ export interface ClientProjectViewData {
 
 export interface ClientProjectViewProps {
   readonly data: ClientProjectViewData;
+  /** ログアウト (client cookie 破棄 → サインインへ)。未指定なら出さない。 */
+  readonly onSignOut?: () => void;
   readonly className?: string;
 }
 
@@ -47,7 +49,11 @@ function firstChar(value: string | null): string {
   return trimmed ? trimmed.slice(0, 1) : "?";
 }
 
-export function ClientProjectView({ data, className }: ClientProjectViewProps) {
+export function ClientProjectView({
+  data,
+  onSignOut,
+  className,
+}: ClientProjectViewProps) {
   const displayName = data.viewed_as_client_display_name;
   const permissionLabel =
     data.scopes.map((s) => SCOPE_LABEL[s] ?? s).join(" + ") || "閲覧";
@@ -69,21 +75,34 @@ export function ClientProjectView({ data, className }: ClientProjectViewProps) {
             </div>
           </div>
         </div>
-        {displayName ? (
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-on-primary">
-              {firstChar(displayName)}
-            </div>
-            <div className="text-right">
-              <div className="text-sm font-semibold text-on-surface">
-                {displayName}
+        <div className="flex items-center gap-3">
+          {displayName ? (
+            <>
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[13px] font-bold text-on-primary">
+                {firstChar(displayName)}
               </div>
-              <div className="text-sm text-on-surface-variant">
-                {permissionLabel} 可
+              <div className="text-right">
+                <div className="text-sm font-semibold text-on-surface">
+                  {displayName}
+                </div>
+                <div className="text-sm text-on-surface-variant">
+                  {permissionLabel} 可
+                </div>
               </div>
-            </div>
-          </div>
-        ) : null}
+            </>
+          ) : null}
+          {onSignOut ? (
+            <button
+              type="button"
+              onClick={onSignOut}
+              aria-label="サインアウト"
+              title="サインアウト"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <LogOutIcon />
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {/* 限定アクセスバナー */}
@@ -130,7 +149,7 @@ export function ClientProjectView({ data, className }: ClientProjectViewProps) {
                 <ul className="flex flex-col gap-4">
                   {data.scopes.map((s) => (
                     <li key={s} className="flex items-start gap-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-container px-2.5 py-1 text-[11px] font-semibold text-primary-container-fg">
+                      <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-primary-container px-2.5 py-1 text-[11px] font-semibold text-primary-container-fg">
                         <span
                           aria-hidden="true"
                           className="h-1.5 w-1.5 rounded-full bg-current"
@@ -174,6 +193,26 @@ export function ClientProjectView({ data, className }: ClientProjectViewProps) {
         </div>
       </div>
     </article>
+  );
+}
+
+function LogOutIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" x2="9" y1="12" y2="12" />
+    </svg>
   );
 }
 

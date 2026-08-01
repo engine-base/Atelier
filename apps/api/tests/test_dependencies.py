@@ -203,3 +203,18 @@ def test_get_rls_session_rolls_back_on_error(monkeypatch: pytest.MonkeyPatch) ->
     asyncio.run(run())
     assert session.rolled_back is True
     assert session.committed is False
+
+
+def test_decode_rejects_client_portal_token() -> None:
+    """R-T08 回帰: client_portal JWT は同一 secret 署名のため署名検証を通過するが、
+    staff 経路では 401 で明示拒否する (放置すると uuid cast で 500 になる実バグ)。"""
+    tok = _mint(
+        {
+            "sub": "client:824162e4-2201-402e-a2d5-cd4d70c7b406",
+            "role": "client_portal",
+            "exp": int(time.time()) + 3600,
+        }
+    )
+    with pytest.raises(HTTPException) as ei:
+        deps.decode_supabase_jwt(tok, "test-jwt-secret")
+    assert ei.value.status_code == 401

@@ -16,6 +16,11 @@ import { type ApiClient } from "@atelier/api-client";
 import { axe } from "vitest-axe";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(""),
+}));
+
 import { createQueryClient } from "../../lib/query-client";
 import { ApprovalsContainer } from "../../app/approvals/s_j01/_components/ApprovalsContainer";
 import { CronScheduleContainer } from "../../app/cron/s_o01/_components/CronScheduleContainer";
