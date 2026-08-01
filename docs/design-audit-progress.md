@@ -56,9 +56,23 @@
 
 ## 残り画面: なし — v2 ラウンド完走
 
-- 次フェーズ候補: GAP-104 (e2e-journey-walkthrough 通し) の実施、GAP-016 (Whisper worker) の起票実装、CI Gate #6 実照合化 (GAP-102)
+## e2e-journey-walkthrough (GAP-104) — 2026-08-01 完走 ✅
+
+19 行の代表業務ジャーニー (登録→WS 作成→プロジェクト→AI チャット→ナレッジ→見積 (作成/編集/改訂)→
+タスク→**Bridge 実実行 (headless dispatcher + 実 `claude -p`)**→人間承認→差戻し/再試行→メンバー招待→
+コメント越境反映→クライアント招待→限定ポータル閲覧→R-T08 越境遮断→通知ベル/検索→最終成果→GAP-016 確認)
+を実 UI (Playwright) + DB 突合で **連続 3 回 19/19 全 PASS** (鉄則6-5 再現性証明)。
+
+- 台帳: `.qa/e2e-journey/journey-20260801.xlsx` (status exit 0 / 100% PASS) + `evidence-20260801/` 19 点
+- 実行スクリプト: `apps/web/.journey-e2e.mjs` (再実行可能。使い捨てデータは journey-*@example.com で作成し実行後 SQL で削除)
+- **通しでのみ検出できた製品バグ 2 件を修正 (57f14f5)**: ① play_task→Bridge pick の dispatch_status
+  パイプ断絶 (spawning 直セットで pick が永久に claim できない) ② approval_inbox プロデューサ不在
+  (承認通知が構造的に常に空)。どちらも画面単位 QA 全 PASS の裏で生存していた — スキル絶対原則 9.5 の実証
+- 画面到達カバレッジ (絶対原則 9): 台帳 35 画面中 **15 画面を実走で踏破** (S-A01/A03/B01/B02/C01/E01/
+  I01/I02/I03/K01/L01/L02/L03/M01/N01 + 通知センター T-UC-36/検索 T-UC-40)。未踏 20 画面
+  (S-B03/B04/C02/F01/F02/G01/H01/J01/K02/O01/T01〜T06/PUB01〜04) は human-grade-qa v2 (42 画面完走済) が網羅済
 
 ## 未解消 gap (正本: docs/gap-tracker.md)
 
-- 機能 gap: GAP-001〜029 (29 件) — バックエンド API 不在により UI から撤去/未描画にしたもの。**GAP-016 (Whisper worker 不在) は S-M01 の主機能を塞ぐ最重要 gap**
-- プロセス gap: GAP-101 (仕様書 13 画面) / GAP-102 (CI Gate#6 スタブ) / GAP-103 (tickets.json テンプレ AC)
+- 機能 gap: GAP-001〜030 (30 件) — バックエンド API 不在により UI から撤去/未描画にしたもの。**GAP-016 (Whisper worker 不在) は S-M01 の主機能を塞ぐ最重要 gap**。GAP-030 (Bridge プロンプトにタスク内容が渡らない) は通しで新規検出
+- プロセス gap: GAP-102 (CI Gate#6 スタブ) / GAP-103 (tickets.json テンプレ AC)。GAP-101/104 は解消済
