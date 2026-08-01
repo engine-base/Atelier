@@ -110,15 +110,29 @@ async def pick_task(
     if row is None:
         return None, None, None
     task_id = str(row.id)
-    exec_res = await session.execute(
+    # play_task が投入時に作成した running execution があれば再利用する
+    # (pick が常に新規作成すると 1 回の再生で execution が二重に残る)。
+    existing = await session.execute(
         text(
-            "insert into public.task_executions "
-            "(task_id, started_at, retry_count, status) "
-            "values (cast(:tid as uuid), now(), :rc, 'running') returning id"
+            "select id from public.task_executions "
+            "where task_id = cast(:tid as uuid) and status = 'running' "
+            "order by started_at desc limit 1"
         ),
-        {"tid": task_id, "rc": int(row.retry_count)},
+        {"tid": task_id},
     )
-    exec_id = str(exec_res.scalar_one())
+    exec_id_row = existing.scalar_one_or_none()
+    if exec_id_row is not None:
+        exec_id = str(exec_id_row)
+    else:
+        exec_res = await session.execute(
+            text(
+                "insert into public.task_executions "
+                "(task_id, started_at, retry_count, status) "
+                "values (cast(:tid as uuid), now(), :rc, 'running') returning id"
+            ),
+            {"tid": task_id, "rc": int(row.retry_count)},
+        )
+        exec_id = str(exec_res.scalar_one())
     await _audit(
         session,
         action="kanban.pick",
@@ -252,6 +266,26 @@ async def complete_task(
             "tid": task_id,
         },
     )
+    # awaiting になったら承認インボックス (approval_inbox) に通知行を作成する。
+    # e2e 通しで検出: approval_inbox には従来 producer が存在せず、S-J01/通知
+    # ベルには何も届かなかった。承認者 = ワークスペースオーナー。
+    if new_lifecycle == "awaiting":
+        await session.execute(
+            text(
+                "insert into public.approval_inbox "
+                "(user_id, type, target_type, target_id, title, payload) "
+                "select w.owner_user_id, 'task_approval', 'task', t.id, "
+                "       t.title, cast(:pl as jsonb) "
+                "from public.tasks t "
+                "join public.projects p on p.id = t.project_id "
+                "join public.workspaces w on w.id = p.workspace_id "
+                "where t.id = cast(:tid as uuid)"
+            ),
+            {
+                "tid": task_id,
+                "pl": json.dumps({"execution_id": execution_id, "score": metadata.score}),
+            },
+        )
     await _audit(
         session,
         action="kanban.complete",

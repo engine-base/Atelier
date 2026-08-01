@@ -318,6 +318,26 @@ class TestKanbanTools:
             )
             assert r.status_code == 200
             assert r.json()["data"]["lifecycle_stage"] == "awaiting"
+        # e2e 通しで検出した producer 欠落の回帰: awaiting 遷移で承認インボックス
+        # (approval_inbox) に WS オーナー宛の task_approval 通知が作成される。
+        with sync_engine.begin() as c:
+            inbox = (
+                c.execute(
+                    text(
+                        "select status from public.approval_inbox "
+                        "where target_type='task' and target_id=cast(:t as uuid) "
+                        "and type='task_approval'"
+                    ),
+                    {"t": seeded["running_id"]},
+                )
+                .scalars()
+                .all()
+            )
+            assert inbox == ["pending"]
+            c.execute(
+                text("delete from public.approval_inbox where target_id=cast(:t as uuid)"),
+                {"t": seeded["running_id"]},
+            )
 
     def test_request_change_moves_to_blocked_with_reason(
         self,

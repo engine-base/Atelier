@@ -63,6 +63,10 @@ export interface KanbanBoardProps {
   readonly onPlaySelected?: (taskIds: readonly string[]) => void;
   /** 要対応カードの再試行 (POST /tasks/{id}/retry)。 */
   readonly onRetry?: (taskId: string) => void;
+  /** 準備中カードを着手可へ進める (PATCH lifecycle_stage=ready)。
+   * e2e 通しで検出した UI 断線の是正: これが無いと人が作ったタスクは
+   * 再生 (dispatch) に到達できない。 */
+  readonly onReady?: (taskId: string) => void;
   /** タスク追加モーダルを開く (未指定なら「タスクを追加」を出さない)。 */
   readonly onAddTask?: () => void;
   readonly playing?: boolean;
@@ -115,12 +119,14 @@ function TaskCardItem({
   task,
   onPlay,
   onRetry,
+  onReady,
   selected,
   onToggleSelect,
 }: {
   readonly task: TaskCard;
   readonly onPlay?: (taskId: string) => void;
   readonly onRetry?: (taskId: string) => void;
+  readonly onReady?: (taskId: string) => void;
   readonly selected: boolean;
   readonly onToggleSelect?: (taskId: string) => void;
 }) {
@@ -182,6 +188,19 @@ function TaskCardItem({
           {task.assignee ?? "AI 社員"} が実装中 · {task.dispatchStatus}
         </p>
       ) : null}
+      {task.stage === "backlog" && onReady ? (
+        <div className="mt-1.5 border-t border-border pt-1.5">
+          <button
+            type="button"
+            onClick={() => onReady(task.id)}
+            aria-label={`${task.title} を着手可にする`}
+            className="inline-flex items-center gap-1 rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-bold text-on-primary-container hover:bg-primary hover:text-on-primary"
+          >
+            <Play aria-hidden="true" className="h-3 w-3" />
+            着手可にする
+          </button>
+        </div>
+      ) : null}
       {task.stage === "blocked" ? (
         <div className="mt-1.5 border-t border-error/30 pt-1.5">
           {task.blockedReason ? (
@@ -224,12 +243,14 @@ function LaneGrid({
   tasks,
   onPlay,
   onRetry,
+  onReady,
   selectedIds,
   onToggleSelect,
 }: {
   readonly tasks: readonly TaskCard[];
   readonly onPlay?: (taskId: string) => void;
   readonly onRetry?: (taskId: string) => void;
+  readonly onReady?: (taskId: string) => void;
   readonly selectedIds: ReadonlySet<string>;
   readonly onToggleSelect?: (taskId: string) => void;
 }) {
@@ -262,6 +283,7 @@ function LaneGrid({
                   task={t}
                   onPlay={onPlay}
                   onRetry={onRetry}
+                  onReady={onReady}
                   selected={selectedIds.has(t.id)}
                   onToggleSelect={onToggleSelect}
                 />
@@ -279,6 +301,7 @@ export function KanbanBoard({
   onPlay,
   onPlaySelected,
   onRetry,
+  onReady,
   onAddTask,
   playing = false,
 }: KanbanBoardProps) {
@@ -511,6 +534,7 @@ export function KanbanBoard({
                   tasks={ts}
                   onPlay={onPlay}
                   onRetry={onRetry}
+                  onReady={onReady}
                   selectedIds={selectedIds}
                   onToggleSelect={onPlaySelected ? toggleSelect : undefined}
                 />

@@ -384,6 +384,15 @@ async def approve_task(
     )
     if res.scalar_one_or_none() is None:
         return None
+    # 対応する承認インボックス通知 (kanban.complete が作成) を解決済みにする。
+    await session.execute(
+        text(
+            "update public.approval_inbox set status = 'approved', resolved_at = now() "
+            "where target_type = 'task' and target_id = cast(:id as uuid) "
+            "and type = 'task_approval' and status = 'pending'"
+        ),
+        {"id": task_id},
+    )
     await AuditWriter(session).write(
         AuditEvent(
             action="task.approve",
@@ -413,6 +422,16 @@ async def reject_task(
     )
     if res.scalar_one_or_none() is None:
         return None
+    # 対応する承認インボックス通知を却下として解決する。
+    await session.execute(
+        text(
+            "update public.approval_inbox set status = 'rejected', resolved_at = now(), "
+            "resolution_note = :note "
+            "where target_type = 'task' and target_id = cast(:id as uuid) "
+            "and type = 'task_approval' and status = 'pending'"
+        ),
+        {"id": task_id, "note": data.note},
+    )
     await AuditWriter(session).write(
         AuditEvent(
             action="task.reject",
@@ -525,9 +544,10 @@ async def play_task(
     1. visibility 確認 (RLS): 不可視なら NOT_FOUND
     2. lifecycle_stage が ready / blocked のみ受理 (それ以外は INVALID_STATE)
     3. force=False かつ依存未完なら DEPS_UNMET
-    4. 並列上限超過なら queue_position を返す (queued)
-    5. それ以外は task を in_progress + dispatch_status=spawning に遷移、
-       task_executions に running 行を作成して PlayTaskResponse を返す
+    4. 並列上限超過なら queue_position を返す
+    5. task を in_progress + dispatch_status=queued に遷移し、task_executions に
+       running 行を作成して PlayTaskResponse を返す (queued→spawning は Bridge の
+       kanban.pick が行う — e2e 通しで検出した契約不一致の是正)
     6. 全分岐で audit_logs に記録 (state-changing audit)
     """
     cur = await session.execute(
@@ -549,8 +569,10 @@ async def play_task(
     running = await _running_execution_count(session)
     queue_position = max(0, running + 1 - _PARALLEL_LIMIT)
 
-    # task を in_progress + queued/spawning に遷移
-    new_dispatch = "queued" if queue_position > 0 else "spawning"
+    # task は常に queued で投入する。spawning への遷移は Bridge の kanban.pick の
+    # 責務 (pick は dispatch_status='queued' しか claim しないため、ここで spawning に
+    # すると誰にも拾われず永遠に実行されない — e2e 通しで検出したパイプ断絶)。
+    new_dispatch = "queued"
     await session.execute(
         text(
             "update public.tasks "

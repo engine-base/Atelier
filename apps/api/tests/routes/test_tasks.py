@@ -608,7 +608,9 @@ class TestTaskPlay:
             data = r.json()["data"]
             assert data["task_id"] == task_id
             assert data["lifecycle_stage"] == "in_progress"
-            assert data["dispatch_status"] in ("queued", "spawning")
+            # e2e 通しで検出したパイプ断絶の回帰: play は常に queued
+            # (spawning にすると Bridge pick が拾えず永遠に実行されない)
+            assert data["dispatch_status"] == "queued"
             exec_id = data["execution_id"]
         with sync_engine.begin() as c:
             row = c.execute(

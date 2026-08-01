@@ -61,6 +61,24 @@ describe('KanbanBoard (T-UC-14)', () => {
   });
 });
 
+describe('KanbanBoard onReady (e2e 通し是正)', () => {
+  it('shows 着手可にする only on backlog cards and fires onReady', () => {
+    const onReady = vi.fn();
+    render(
+      <KanbanBoard
+        tasks={[
+          { id: 't1', title: 'A', stage: 'backlog' },
+          { id: 't2', title: 'B', stage: 'ready' },
+        ]}
+        onReady={onReady}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'A を着手可にする' }));
+    expect(onReady).toHaveBeenCalledWith('t1');
+    expect(screen.queryByRole('button', { name: 'B を着手可にする' })).toBeNull();
+  });
+});
+
 describe('TaskDetailTabs (T-UC-15)', () => {
   // design-audit v2: タブはモック準拠 + 実 API 裏付けのある 5 枚
   // (受入条件 / 進捗・スコア / 依存タスク / 実行履歴 / コメント)。
