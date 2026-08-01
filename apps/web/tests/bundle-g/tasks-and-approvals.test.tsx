@@ -62,11 +62,13 @@ describe('KanbanBoard (T-UC-14)', () => {
 });
 
 describe('TaskDetailTabs (T-UC-15)', () => {
-  it('renders 6 tabs and switches on click', () => {
+  // design-audit v2: タブはモック準拠 + 実 API 裏付けのある 5 枚
+  // (受入条件 / 進捗・スコア / 依存タスク / 実行履歴 / コメント)。
+  it('renders 5 tabs and switches on click', () => {
     render(<TaskDetailTabs title="X" />);
     const tablist = screen.getByRole('tablist');
     const tabs = tablist.querySelectorAll('[role="tab"]');
-    expect(tabs.length).toBe(6);
+    expect(tabs.length).toBe(5);
     expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
     fireEvent.click(tabs[2]!);
     expect(tabs[2]!.getAttribute('aria-selected')).toBe('true');

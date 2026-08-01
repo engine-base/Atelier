@@ -176,6 +176,11 @@ class TestTasksCrud:
             assert t["type"] == "feature"
             assert t["priority"] == "critical"  # 契約 (DB は urgent)
             assert t["lifecycle_stage"] == "triage"  # DB default
+            # 契約 Task.dependencies/prerequisites/blocks は必須フィールド
+            # (design-audit: 実装が返しておらず S-I02 依存タブが空になる契約違反だった)
+            assert t["dependencies"] == []
+            assert t["prerequisites"] == []
+            assert t["blocks"] == []
             tid = t["id"]
 
             assert any(

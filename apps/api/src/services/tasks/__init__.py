@@ -50,6 +50,7 @@ _SELECT_COLS = (
     "t.id, t.project_id, t.category, t.title, t.description, t.type, t.estimated_hours, "
     "t.priority, t.lifecycle_stage, t.dispatch_status, t.summary, t.metadata, "
     "t.blocked_reason, t.retry_count, t.worktree_path, t.worker_pid, "
+    "t.dependencies, t.prerequisites, t.blocks, "
     "t.acceptance_criteria_id, t.created_at, t.updated_at, t.deleted_at, "
     "(select ph.name from public.phases ph where ph.id = t.phase_id) AS phase_name, "
     "(select e.name from public.ai_employees e where e.id = t.assigned_employee_id) AS assignee_name"
@@ -82,6 +83,9 @@ def _row_to_response(row: Any) -> TaskResponse:
         metadata=_jsonb(row.metadata, {}),
         blocked_reason=(None if row.blocked_reason is None else str(row.blocked_reason)),
         retry_count=int(row.retry_count),
+        dependencies=[str(x) for x in list(row.dependencies or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        prerequisites=[str(x) for x in list(row.prerequisites or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        blocks=[str(x) for x in list(row.blocks or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         worktree_path=(None if row.worktree_path is None else str(row.worktree_path)),
         worker_pid=(None if row.worker_pid is None else int(row.worker_pid)),
         acceptance_criteria_id=(

@@ -58,6 +58,10 @@ class TaskResponse(BaseModel):
     metadata: dict[str, object]
     blocked_reason: str | None
     retry_count: int
+    # 依存関係 (契約 Task.dependencies/prerequisites/blocks — S-I02 依存タブが参照)
+    dependencies: list[str]
+    prerequisites: list[str]
+    blocks: list[str]
     worktree_path: str | None
     worker_pid: int | None
     acceptance_criteria_id: str | None

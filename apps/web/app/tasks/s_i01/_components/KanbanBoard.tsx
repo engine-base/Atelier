@@ -18,6 +18,7 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Filter,
   Kanban as KanbanIcon,
@@ -146,9 +147,13 @@ function TaskCardItem({
             className="mt-0.5 h-3.5 w-3.5 accent-[#2563EB]"
           />
         ) : null}
-        <p className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-on-surface">
+        {/* タスク詳細 (S-I02) への導線。従来はどこからも詳細に到達できなかった */}
+        <Link
+          href={`/tasks/detail?task=${task.id}`}
+          className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-on-surface hover:text-primary hover:underline"
+        >
           {task.title}
-        </p>
+        </Link>
       </div>
       <div className="flex items-center gap-1.5 text-[10.5px] text-on-surface-variant">
         <span className="font-mono text-[10px]" title={task.id}>
@@ -441,7 +446,14 @@ export function KanbanBoard({
             <tbody>
               {filtered.map((t) => (
                 <tr key={t.id} className="border-b border-border last:border-b-0 hover:bg-surface-variant/60">
-                  <td className="px-3 py-2 font-medium text-on-surface">{t.title}</td>
+                  <td className="px-3 py-2 font-medium text-on-surface">
+                    <Link
+                      href={`/tasks/detail?task=${t.id}`}
+                      className="hover:text-primary hover:underline"
+                    >
+                      {t.title}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">
                     <span className="inline-flex items-center gap-1.5">
                       <span aria-hidden="true" className={cn("h-2 w-2 rounded-full", STAGE_DOT[t.stage])} />

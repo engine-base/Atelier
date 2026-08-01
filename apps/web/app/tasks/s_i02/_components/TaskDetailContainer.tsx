@@ -1,23 +1,28 @@
 /**
- * S-I02 タスク詳細 コンテナ — T-UC-15 / F-VIS 是正 (実 tasks/comments API 配線)
+ * S-I02 タスク詳細 コンテナ — T-UC-15 / design-audit v2 (実 API 全面配線)
  *
- * 概要(GET /tasks/{id}) / 仕様(/acceptance-criteria) / 実行履歴(/executions) /
- * コメント(GET /comments?target_type=task) を取得し、モック
- * 06_mockups/task/S-I02-detail.html に忠実な「画面の役割カード + タスクヘッダ
- * (ID/タグ/ステッパー/メタ) + 6 タブ」で描画する。
- * 入出力・添付は単一の裏付け API が無いため「情報なし」を表示する。
- * api client は prop 注入可能 (テスト時に fake を渡す)。
- *
- * データ配線・props・型・container/presentational 分割は不変。JSX/className のみ
- * モック忠実へ再構築し、既存の実データ/props にバインドしている。
+ * モック 06_mockups/task/S-I02-detail.html 準拠:
+ *   役割カード → タスクヘッダ (ID/タグ/ステッパー/メタ) → 5 タブ → 操作バー。
+ * 配線 (すべて実 API):
+ *   - GET /tasks/{id} (title/stage/priority/type/依存/blocked_reason/retry_count)
+ *   - GET /tasks/{id}/acceptance-criteria (404=未登録は正常)
+ *   - GET /tasks/{id}/executions (スコア/AC 達成率 → 進捗タブ + ヘッダメタ)
+ *   - GET /tasks?project_id= (依存タスクのタイトル/状態解決)
+ *   - GET /ai-employees (assigned_employee_id コード → 表示名解決。鉄則5)
+ *   - GET/POST /comments (target_type=task) — 一覧 + 追加コンポーザ
+ *   - POST /tasks/{id}/approve|reject|retry — 操作バー (2 段階確認、409 契約に
+ *     従い awaiting/blocked のときだけ描画。死にボタンを置かない Rule 10)
+ * モックの「あなたへの確認 (仕様変更 3 択)」「テスト結果」「関連資料」タブは
+ * 供給 API が無いため未描画 (GAP-025)。
  */
 
 "use client";
 
 import * as React from "react";
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Check, ClipboardCheck } from "lucide-react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, ClipboardCheck, RotateCcw, Undo2 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -28,6 +33,8 @@ import { cn } from "../../../../lib/cn";
 import { TaskDetailTabs, type TaskTabId } from "./TaskDetailTabs";
 
 interface ApiTask {
+  id?: string;
+  project_id?: string;
   title: string;
   description?: string | null;
   summary?: string | null;
@@ -36,6 +43,11 @@ interface ApiTask {
   type?: string;
   estimated_hours?: number;
   assigned_employee_id?: string | null;
+  blocked_reason?: string | null;
+  retry_count?: number;
+  dependencies?: readonly string[];
+  prerequisites?: readonly string[];
+  blocks?: readonly string[];
 }
 interface ApiAc {
   items?: readonly unknown[];
@@ -51,8 +63,18 @@ interface ApiExecution {
 interface ApiComment {
   id: string;
   author_user_id?: string | null;
+  author_invitation_id?: string | null;
   content: string;
   created_at: string;
+}
+interface ApiEmployee {
+  name: string;
+  display_name?: string | null;
+}
+interface TaskLite {
+  id: string;
+  title: string;
+  lifecycle_stage?: string;
 }
 
 export interface TaskDetailContainerProps {
@@ -66,15 +88,16 @@ function isForbidden(error: unknown): boolean {
 
 /** 種別コード → 日本語ラベル (未知はそのまま表示)。 */
 const TYPE_LABEL: Record<string, string> = {
+  foundation: "基盤",
   feature: "機能実装",
   screen: "画面実装",
-  bug: "不具合修正",
-  chore: "保守作業",
-  infra: "基盤整備",
-  docs: "ドキュメント",
+  verification: "検証",
+  infrastructure: "インフラ",
+  migration: "移行",
 };
 /** 優先度コード → 日本語ラベル。 */
 const PRIORITY_LABEL: Record<string, string> = {
+  critical: "致命",
   high: "高",
   medium: "中",
   low: "低",
@@ -100,6 +123,44 @@ function currentStepIndex(stage: string | undefined): number {
 function fmtTs(iso: string): string {
   return iso.slice(0, 16).replace("T", " ");
 }
+
+/** 実行ステータス (task_execution_status_enum) → 日本語ラベル。
+ * 旧実装は "completed" と比較しており実 enum (succeeded) で常に灰色になる実バグだった。 */
+const EXEC_STATUS_LABEL: Record<string, string> = {
+  running: "実行中",
+  succeeded: "成功",
+  failed: "失敗",
+  cancelled: "中止",
+  timeout: "タイムアウト",
+};
+
+/** AC item は文字列 or 自由形式オブジェクト。表示文字列に落とす。 */
+function acItemText(item: unknown): string {
+  if (typeof item === "string") return item;
+  if (item && typeof item === "object") {
+    const o = item as Record<string, unknown>;
+    for (const key of ["text", "title", "description", "criteria"]) {
+      if (typeof o[key] === "string") return o[key];
+    }
+    return JSON.stringify(item);
+  }
+  return String(item);
+}
+
+/** AC item の tier (1 構造 / 2 機能 / 3 再発防止)。無ければ null。 */
+function acItemTier(item: unknown): number | null {
+  if (item && typeof item === "object") {
+    const t = (item as Record<string, unknown>).tier;
+    if (typeof t === "number" && t >= 1 && t <= 3) return t;
+  }
+  return null;
+}
+
+const TIER_META: Record<number, { title: string; desc: string }> = {
+  1: { title: "構造の条件", desc: "画面・要素が正しく存在するか" },
+  2: { title: "機能の条件", desc: "想定どおりに動くか" },
+  3: { title: "再発防止の条件", desc: "既存機能が壊れていないか" },
+};
 
 /** 画面の役割カード (モック section 1)。静的説明。 */
 function RoleCard() {
@@ -165,11 +226,13 @@ function Meta({
 function TaskHero({
   taskId,
   task,
+  assigneeLabel,
   latestScore,
   execCount,
 }: {
   readonly taskId: string;
   readonly task: ApiTask;
+  readonly assigneeLabel: string | null;
   readonly latestScore: number | null;
   readonly execCount: number;
 }) {
@@ -214,6 +277,11 @@ function TaskHero({
       {summary ? (
         <p className="mt-1.5 text-body-sm leading-relaxed text-on-surface-variant">
           {summary}
+        </p>
+      ) : null}
+      {isBlocked && task.blocked_reason ? (
+        <p className="mt-2 rounded-md border-l-[3px] border-error bg-error/10 px-3 py-2 text-body-sm text-error">
+          {task.blocked_reason}
         </p>
       ) : null}
 
@@ -269,14 +337,10 @@ function TaskHero({
         <Meta
           label="実装担当"
           value={
-            task.assigned_employee_id ? (
+            assigneeLabel ? (
               <>
-                <Avatar
-                  name={task.assigned_employee_id}
-                  size="sm"
-                  decorative
-                />
-                {task.assigned_employee_id}
+                <Avatar name={assigneeLabel} size="sm" decorative />
+                {assigneeLabel}
               </>
             ) : (
               <span className="text-on-surface-variant">未割当</span>
@@ -300,8 +364,39 @@ function TaskHero({
           }
         />
         <Meta label="実行回数" value={`${execCount} 回`} />
+        <Meta label="再試行" value={`${task.retry_count ?? 0} / 3 回`} />
       </div>
     </section>
+  );
+}
+
+/** 依存チップ (モック .dep-chip)。 */
+function DepChip({
+  taskRef,
+  current,
+}: {
+  readonly taskRef: TaskLite | { id: string; title: null };
+  readonly current?: boolean;
+}) {
+  const stage = "lifecycle_stage" in taskRef ? taskRef.lifecycle_stage : undefined;
+  const done = stage === "done";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-md border px-3.5 py-2 text-[12.5px] font-semibold",
+        current
+          ? "border-primary bg-primary text-on-primary shadow-sm"
+          : done
+            ? "border-tertiary bg-tertiary-container text-tertiary-container-fg"
+            : "border-border bg-white text-on-surface",
+      )}
+    >
+      {done ? <Check size={12} strokeWidth={3} aria-hidden="true" /> : null}
+      <span className="font-mono text-[11px] opacity-70">
+        #{taskRef.id.slice(0, 8)}
+      </span>
+      {current ? "このタスク" : (taskRef.title ?? "（参照不可）")}
+    </span>
   );
 }
 
@@ -310,6 +405,14 @@ export function TaskDetailContainer({
   client: injected,
 }: TaskDetailContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
+  const queryClient = useQueryClient();
+  const COMMENTS_KEY = ["task", taskId, "comments"] as const;
+  const [commentDraft, setCommentDraft] = useState("");
+  const [confirming, setConfirming] = useState<
+    "approve" | "reject" | "retry" | null
+  >(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [decisionError, setDecisionError] = useState<string | null>(null);
 
   const task = useQuery({
     queryKey: ["task", taskId],
@@ -343,19 +446,86 @@ export function TaskDetailContainer({
       const res = await client.get("/tasks/{task_id}/executions", {
         params: { path: { task_id: taskId } },
       });
-      return (res as { data?: ApiExecution[] }).data ?? [];
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiExecution[]) : [];
     },
     retry: false,
   });
   const comments = useQuery({
-    queryKey: ["task", taskId, "comments"],
+    queryKey: COMMENTS_KEY,
     queryFn: async () => {
       const res = await client.get("/comments", {
         params: { query: { target_type: "task", target_id: taskId } },
       });
-      return (res as { data?: ApiComment[] }).data ?? [];
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiComment[]) : [];
     },
     retry: false,
+  });
+  // 担当 AI 社員コード (thor 等) → 表示名 (ソー) の解決 (鉄則5: 生コードを出さない)。
+  const employees = useQuery({
+    queryKey: ["ai-employees", "for-task-detail"],
+    queryFn: async () => {
+      const res = await client.get("/ai-employees", { params: { query: {} } });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiEmployee[]) : [];
+    },
+    retry: false,
+  });
+  // 依存タスクのタイトル/状態解決 (同一プロジェクトの一覧から引く)。
+  const projectId = task.data?.project_id;
+  const projectTasks = useQuery({
+    queryKey: ["tasks", "of-project", projectId],
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      const res = await client.get("/tasks", {
+        params: { query: { project_id: projectId, limit: 200 } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as (TaskLite & ApiTask)[]) : [];
+    },
+    retry: false,
+  });
+
+  // 操作バー: 承認 (awaiting→done) / 差戻 (awaiting→blocked) / 再試行 (blocked→ready)。
+  const decide = useMutation({
+    mutationFn: ({
+      action,
+      note,
+    }: {
+      action: "approve" | "reject" | "retry";
+      note?: string;
+    }) =>
+      client.post(`/tasks/{task_id}/${action}` as "/tasks/{task_id}/approve", {
+        params: { path: { task_id: taskId } },
+        body: note ? { note } : {},
+      }),
+    onSuccess: () => {
+      setConfirming(null);
+      setRejectNote("");
+      setDecisionError(null);
+      void queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (error: unknown) => {
+      setDecisionError(
+        error instanceof ApiError && error.status === 409
+          ? "タスクの状態が変わったため実行できませんでした。再読み込みしてください。"
+          : "操作に失敗しました。時間をおいて再試行してください。",
+      );
+    },
+  });
+
+  // コメント追加 (POST /comments target_type=task)。
+  const addComment = useMutation({
+    mutationFn: (text: string) =>
+      client.post("/comments", {
+        body: { target_type: "task", target_id: taskId, content: text },
+      }),
+    onSuccess: () => {
+      setCommentDraft("");
+      void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY });
+    },
   });
 
   if (isForbidden(task.error)) {
@@ -379,10 +549,14 @@ export function TaskDetailContainer({
   const t = task.data;
   const acItemsRaw = ac.data?.items ?? [];
   const acItems = Array.isArray(acItemsRaw) ? acItemsRaw : [];
-  const execsRaw = executions.data ?? [];
-  const execs = Array.isArray(execsRaw) ? execsRaw : [];
-  const cmtsRaw = comments.data ?? [];
-  const cmts = Array.isArray(cmtsRaw) ? cmtsRaw : [];
+  const execs = executions.data ?? [];
+  const cmts = comments.data ?? [];
+
+  const employeeName = (code: string | null | undefined): string | null => {
+    if (!code) return null;
+    const hit = (employees.data ?? []).find((e) => e.name === code);
+    return hit?.display_name || code;
+  };
 
   // 最新実行のスコア (started_at 最大)。
   const latest = execs.reduce<ApiExecution | null>((acc, e) => {
@@ -390,46 +564,30 @@ export function TaskDetailContainer({
     return e.started_at > acc.started_at ? e : acc;
   }, null);
   const latestScore = latest?.score ?? null;
+  const latestAcRate = latest?.ac_pass_rate ?? null;
+
+  const taskById = new Map<string, TaskLite>(
+    (projectTasks.data ?? []).map((pt) => [pt.id, pt]),
+  );
+  const resolveDep = (id: string): TaskLite | { id: string; title: null } =>
+    taskById.get(id) ?? { id, title: null };
+  const prereqIds = [
+    ...new Set([...(t.prerequisites ?? []), ...(t.dependencies ?? [])]),
+  ];
+  const blockIds = [...new Set(t.blocks ?? [])];
+
+  const stage = t.lifecycle_stage;
+  const canDecide = stage === "awaiting";
+  const canRetry = stage === "blocked" && (t.retry_count ?? 0) < 3;
+
+  const authorLabel = (c: ApiComment): string => {
+    if (c.author_invitation_id) return "クライアント（招待）";
+    if (c.author_user_id) return `メンバー ${c.author_user_id.slice(0, 8)}`;
+    return "匿名";
+  };
 
   const content: Partial<Record<TaskTabId, React.ReactNode>> = {
-    overview: (
-      <div>
-        <div className="text-base font-bold tracking-tight text-on-surface">
-          概要
-        </div>
-        <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
-          このタスクの基本情報です。
-        </p>
-        <dl className="grid gap-2.5 sm:grid-cols-2">
-          {(
-            [
-              ["ステータス", t.lifecycle_stage ?? "—"],
-              ["優先度", t.priority ?? "—"],
-              ["種別", t.type ?? "—"],
-              ["見積(h)", t.estimated_hours ?? "—"],
-              ["担当 AI 社員", t.assigned_employee_id ?? "未割当"],
-              ...(t.summary ? ([["サマリ", t.summary]] as const) : []),
-            ] as const
-          ).map(([label, value]) => (
-            <div
-              key={label}
-              className="flex flex-col gap-0.5 rounded-md border border-border bg-white px-3.5 py-2.5"
-            >
-              <dt className="text-label-sm text-on-surface-variant">{label}</dt>
-              <dd className="text-body-md font-semibold text-on-surface">
-                {value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {t.description ? (
-          <p className="mt-4 whitespace-pre-wrap text-body-md leading-relaxed text-on-surface">
-            {t.description}
-          </p>
-        ) : null}
-      </div>
-    ),
-    spec: acItems.length ? (
+    ac: acItems.length ? (
       <div>
         <div className="text-base font-bold tracking-tight text-on-surface">
           受入条件（{acItems.length} 項目）
@@ -437,25 +595,71 @@ export function TaskDetailContainer({
         <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
           このタスクが「完了」とみなされるための条件です。
         </p>
-        <ul className="flex flex-col gap-1.5">
-          {acItems.map((item, i) => (
-            <li
-              key={i}
-              className="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3"
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-border"
-              />
-              <span className="text-body-md leading-relaxed text-on-surface">
-                {typeof item === "string" ? item : JSON.stringify(item)}
-              </span>
-              <span className="font-mono text-label-sm text-on-surface-variant">
-                条件 {i + 1}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {([1, 2, 3] as const).map((tier) => {
+          const items = acItems
+            .map((item, i) => ({ item, i }))
+            .filter(({ item }) => acItemTier(item) === tier);
+          if (!items.length) return null;
+          return (
+            <div key={tier} className="mb-5 last:mb-0">
+              <div className="mb-2.5 flex items-center gap-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-on-surface text-label-sm font-bold text-white">
+                  {tier}
+                </span>
+                <span className="text-body-md font-bold text-on-surface">
+                  {TIER_META[tier]!.title}
+                </span>
+                <span className="ml-auto text-label-sm text-on-surface-variant">
+                  {TIER_META[tier]!.desc}
+                </span>
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {items.map(({ item, i }) => (
+                  <li
+                    key={i}
+                    className="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-border"
+                    />
+                    <span className="text-body-md leading-relaxed text-on-surface">
+                      {acItemText(item)}
+                    </span>
+                    <span className="font-mono text-label-sm text-on-surface-variant">
+                      条件 {i + 1}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+        {/* tier 情報が無い item は通しで並べる */}
+        {acItems.some((item) => acItemTier(item) === null) ? (
+          <ul className="flex flex-col gap-1.5">
+            {acItems
+              .map((item, i) => ({ item, i }))
+              .filter(({ item }) => acItemTier(item) === null)
+              .map(({ item, i }) => (
+                <li
+                  key={i}
+                  className="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-border"
+                  />
+                  <span className="text-body-md leading-relaxed text-on-surface">
+                    {acItemText(item)}
+                  </span>
+                  <span className="font-mono text-label-sm text-on-surface-variant">
+                    条件 {i + 1}
+                  </span>
+                </li>
+              ))}
+          </ul>
+        ) : null}
         {ac.data?.version != null ? (
           <p className="mt-3 text-label-sm text-on-surface-variant">
             受入条件バージョン {ac.data.version}
@@ -467,48 +671,207 @@ export function TaskDetailContainer({
         受入条件は登録されていません。
       </p>
     ),
+    progress: (
+      <div>
+        <div className="text-base font-bold tracking-tight text-on-surface">
+          いまの達成スコア
+        </div>
+        <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
+          検証 AI による最新実行の評価です。
+        </p>
+        {latest ? (
+          <div className="grid gap-7 rounded-lg border border-border bg-surface p-6 sm:grid-cols-[220px_1fr]">
+            <div className="text-center">
+              <div
+                role="img"
+                aria-label={`達成スコア ${latestScore != null ? latestScore.toFixed(2) : "未評価"}`}
+                className="relative mx-auto flex h-[180px] w-[180px] items-center justify-center rounded-full"
+                style={{
+                  background: `conic-gradient(#B45309 0% ${Math.round((latestScore ?? 0) * 100)}%, #E7E5E4 ${Math.round((latestScore ?? 0) * 100)}% 100%)`,
+                }}
+              >
+                <span className="absolute inset-3.5 rounded-full bg-white" />
+                <span className="relative text-center">
+                  <span className="block text-[44px] font-black leading-none tracking-tight text-secondary tabular-nums">
+                    {latestScore != null ? latestScore.toFixed(2) : "—"}
+                  </span>
+                  <span className="mt-1 block text-label-sm font-semibold text-on-surface-variant">
+                    / 1.00
+                  </span>
+                </span>
+              </div>
+              <p className="mt-3 text-body-sm font-bold text-secondary">
+                {stage === "awaiting"
+                  ? "承認待ち（要・人間の確認）"
+                  : stage === "done"
+                    ? "完了"
+                    : stage === "blocked"
+                      ? "要対応"
+                      : "実行中"}
+              </p>
+            </div>
+            <div className="flex flex-col justify-center gap-3.5">
+              <div className="grid grid-cols-[110px_1fr_64px] items-center gap-3">
+                <span className="text-body-sm font-semibold text-on-surface">
+                  受入条件の達成
+                </span>
+                <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
+                  <span
+                    className="block h-full rounded-full bg-tertiary"
+                    style={{
+                      width: `${Math.round((latestAcRate ?? 0) * 100)}%`,
+                    }}
+                  />
+                </span>
+                <span className="text-right text-body-md font-bold tabular-nums text-on-surface">
+                  {latestAcRate != null
+                    ? `${Math.round(latestAcRate * 100)}%`
+                    : "—"}
+                </span>
+              </div>
+              <div className="grid grid-cols-[110px_1fr_64px] items-center gap-3">
+                <span className="text-body-sm font-semibold text-on-surface">
+                  検証 AI の評価
+                </span>
+                <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
+                  <span
+                    className="block h-full rounded-full bg-secondary"
+                    style={{
+                      width: `${Math.round((latestScore ?? 0) * 100)}%`,
+                    }}
+                  />
+                </span>
+                <span className="text-right text-body-md font-bold tabular-nums text-on-surface">
+                  {latestScore != null ? latestScore.toFixed(2) : "—"}
+                </span>
+              </div>
+              <p className="mt-1 flex items-center gap-2.5 rounded-md bg-primary-container px-4 py-3 text-body-sm text-primary-container-fg">
+                再試行は最大 3 回まで実行可能（現在 {t.retry_count ?? 0} / 3
+                回）。最新実行: {fmtTs(latest.started_at)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="py-12 text-center text-body-md text-on-surface-variant">
+            まだ実行がありません。実行後にスコアが表示されます。
+          </p>
+        )}
+      </div>
+    ),
+    deps: (
+      <div>
+        <div className="text-base font-bold tracking-tight text-on-surface">
+          前後のタスクとのつながり
+        </div>
+        <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
+          このタスクを始めるために必要なタスク、そしてこのタスクの完了を待っているタスクです。
+        </p>
+        <div className="mb-5">
+          <div className="mb-2 flex items-baseline gap-2.5">
+            <span className="text-body-md font-bold text-on-surface">
+              前提タスク
+            </span>
+            <span className="text-label-sm text-on-surface-variant">
+              先に終わっている必要があるタスク（{prereqIds.length} 件）
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-4 py-3.5">
+            {prereqIds.length ? (
+              <>
+                {prereqIds.map((id) => (
+                  <React.Fragment key={id}>
+                    <DepChip taskRef={resolveDep(id)} />
+                    <span
+                      aria-hidden="true"
+                      className="text-on-surface-variant"
+                    >
+                      →
+                    </span>
+                  </React.Fragment>
+                ))}
+                <DepChip taskRef={{ id: taskId, title: null }} current />
+              </>
+            ) : (
+              <span className="text-body-sm text-on-surface-variant">
+                前提タスクはありません。
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="mb-2 flex items-baseline gap-2.5">
+            <span className="text-body-md font-bold text-on-surface">
+              後続タスク
+            </span>
+            <span className="text-label-sm text-on-surface-variant">
+              このタスクの完了を待っているタスク（{blockIds.length} 件）
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface px-4 py-3.5">
+            {blockIds.length ? (
+              <>
+                <DepChip taskRef={{ id: taskId, title: null }} current />
+                <span aria-hidden="true" className="text-on-surface-variant">
+                  →
+                </span>
+                {blockIds.map((id) => (
+                  <DepChip key={id} taskRef={resolveDep(id)} />
+                ))}
+              </>
+            ) : (
+              <span className="text-body-sm text-on-surface-variant">
+                後続タスクはありません。
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    ),
     history: execs.length ? (
       <div>
         <div className="text-base font-bold tracking-tight text-on-surface">
           実行履歴（{execs.length} 回）
         </div>
         <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
-          このタスクに対する AI 社員の実行結果です。
+          このタスクに対する AI 社員の実行結果です。行を開くと実行モニター
+          (S-I03) でログを確認できます。
         </p>
         <ul className="flex flex-col gap-1.5">
           {execs.map((e) => {
-            const passed = e.status === "completed" || e.status === "passed";
+            const passed = e.status === "succeeded";
             return (
-              <li
-                key={e.id}
-                className="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3"
-              >
-                <span
-                  className={cn(
-                    "flex h-[22px] w-[22px] items-center justify-center rounded-full",
-                    passed
-                      ? "bg-tertiary text-on-tertiary"
-                      : "bg-surface-variant text-on-surface-variant",
-                  )}
+              <li key={e.id}>
+                <Link
+                  href={`/tasks/monitor?execution=${e.id}`}
+                  className="grid grid-cols-[28px_1fr_auto] items-center gap-3 rounded-md border border-border bg-white px-3.5 py-3 transition-colors hover:border-primary hover:bg-primary-container/20"
                 >
-                  {passed ? (
-                    <Check size={12} strokeWidth={3} aria-hidden="true" />
-                  ) : null}
-                </span>
-                <div>
-                  <div className="text-body-md font-semibold text-on-surface">
-                    {e.status}
-                  </div>
-                  <div className="text-label-sm text-on-surface-variant">
-                    スコア {e.score ?? "—"} / AC{" "}
-                    {e.ac_pass_rate != null
-                      ? `${Math.round(e.ac_pass_rate * 100)}%`
-                      : "—"}
-                  </div>
-                </div>
-                <time className="font-mono text-label-sm text-on-surface-variant">
-                  {fmtTs(e.started_at)}
-                </time>
+                  <span
+                    className={cn(
+                      "flex h-[22px] w-[22px] items-center justify-center rounded-full",
+                      passed
+                        ? "bg-tertiary text-on-tertiary"
+                        : "bg-surface-variant text-on-surface-variant",
+                    )}
+                  >
+                    {passed ? (
+                      <Check size={12} strokeWidth={3} aria-hidden="true" />
+                    ) : null}
+                  </span>
+                  <span>
+                    <span className="block text-body-md font-semibold text-on-surface">
+                      {EXEC_STATUS_LABEL[e.status] ?? e.status}
+                    </span>
+                    <span className="block text-label-sm text-on-surface-variant">
+                      スコア {e.score ?? "—"} / AC{" "}
+                      {e.ac_pass_rate != null
+                        ? `${Math.round(e.ac_pass_rate * 100)}%`
+                        : "—"}
+                    </span>
+                  </span>
+                  <time className="font-mono text-label-sm text-on-surface-variant">
+                    {fmtTs(e.started_at)}
+                  </time>
+                </Link>
               </li>
             );
           })}
@@ -519,42 +882,77 @@ export function TaskDetailContainer({
         実行履歴はまだありません。
       </p>
     ),
-    comments: cmts.length ? (
+    comments: (
       <div>
         <div className="text-base font-bold tracking-tight text-on-surface">
           コメント（{cmts.length} 件）
         </div>
-        <ul className="mt-4 flex flex-col gap-2.5">
-          {cmts.map((c) => (
-            <li
-              key={c.id}
-              className="rounded-md border border-border bg-white px-4 py-3.5"
+        {cmts.length ? (
+          <ul className="mt-4 flex flex-col gap-2.5">
+            {cmts.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-border bg-white px-4 py-3.5"
+              >
+                <div className="flex items-center gap-2">
+                  <Avatar name={authorLabel(c)} size="sm" decorative />
+                  <span className="text-label-sm font-semibold text-on-surface">
+                    {authorLabel(c)}
+                  </span>
+                  <span className="text-label-sm tabular-nums text-on-surface-variant">
+                    {fmtTs(c.created_at)}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-body-md leading-relaxed text-on-surface">
+                  {c.content}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="py-8 text-center text-body-md text-on-surface-variant">
+            コメントはまだありません。
+          </p>
+        )}
+        <form
+          className="mt-4 rounded-md bg-surface-variant p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const text = commentDraft.trim();
+            if (text) addComment.mutate(text);
+          }}
+        >
+          <label className="block">
+            <span className="sr-only">コメントを追加</span>
+            <textarea
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              rows={2}
+              placeholder="コメントを追加…"
+              className="w-full resize-none border-0 bg-transparent text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant"
+            />
+          </label>
+          <div className="mt-2 flex justify-end">
+            <button
+              type="submit"
+              disabled={!commentDraft.trim() || addComment.isPending}
+              className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
             >
-              <div className="flex items-center gap-2">
-                <Avatar
-                  name={c.author_user_id ?? "匿名"}
-                  size="sm"
-                  decorative
-                />
-                <span className="text-label-sm font-semibold text-on-surface">
-                  {c.author_user_id ?? "匿名"}
-                </span>
-                <span className="text-label-sm text-on-surface-variant">
-                  {fmtTs(c.created_at)}
-                </span>
-              </div>
-              <p className="mt-2 whitespace-pre-wrap text-body-md leading-relaxed text-on-surface">
-                {c.content}
-              </p>
-            </li>
-          ))}
-        </ul>
+              コメント
+            </button>
+          </div>
+        </form>
       </div>
-    ) : (
-      <p className="py-12 text-center text-body-md text-on-surface-variant">
-        コメントはまだありません。
-      </p>
     ),
+  };
+
+  const counts: Partial<Record<TaskTabId, string>> = {
+    ...(acItems.length ? { ac: String(acItems.length) } : {}),
+    ...(prereqIds.length + blockIds.length
+      ? { deps: String(prereqIds.length + blockIds.length) }
+      : {}),
+    ...(execs.length ? { history: String(execs.length) } : {}),
+    ...(cmts.length ? { comments: String(cmts.length) } : {}),
   };
 
   return (
@@ -563,10 +961,118 @@ export function TaskDetailContainer({
       <TaskHero
         taskId={taskId}
         task={t}
+        assigneeLabel={employeeName(t.assigned_employee_id)}
         latestScore={latestScore}
         execCount={execs.length}
       />
-      <TaskDetailTabs title={t.title} content={content} />
+      <TaskDetailTabs title={t.title} content={content} counts={counts} />
+
+      {/* ── 操作バー (モック .action-bar)。awaiting/blocked のときだけ描画 — 死にボタンを置かない ── */}
+      {canDecide || canRetry ? (
+        <div className="sticky bottom-5 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-white px-5 py-3.5 shadow-md">
+          <div className="min-w-0">
+            <div className="text-[12.5px] font-bold text-on-surface">
+              このタスクに対するあなたの判断
+            </div>
+            <div className="text-[11.5px] text-on-surface-variant">
+              {canDecide
+                ? latestScore != null
+                  ? `スコア ${latestScore.toFixed(2)} は「人間の確認が必要」な水準です。`
+                  : "承認するか、差し戻すかを選んでください。"
+                : `要対応のタスクです（再試行 ${t.retry_count ?? 0} / 3 回）。`}
+            </div>
+            {decisionError ? (
+              <p role="alert" className="mt-1 text-[11.5px] text-error">
+                {decisionError}
+              </p>
+            ) : null}
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {confirming === null ? (
+              <>
+                {canRetry ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirming("retry")}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary-container px-4 py-2.5 text-[13px] font-bold text-primary-container-fg transition-colors hover:bg-primary hover:text-on-primary"
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    再試行
+                  </button>
+                ) : null}
+                {canDecide ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setConfirming("reject")}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-4 py-2.5 text-[13px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+                    >
+                      <Undo2 size={14} aria-hidden="true" />
+                      差し戻し
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirming("approve")}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-tertiary px-5 py-2.5 text-[13.5px] font-bold text-on-tertiary transition-[filter] hover:brightness-110"
+                    >
+                      <Check size={16} aria-hidden="true" />
+                      承認する
+                    </button>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                {confirming === "reject" ? (
+                  <input
+                    value={rejectNote}
+                    onChange={(e) => setRejectNote(e.target.value)}
+                    placeholder="差し戻し理由 (任意)"
+                    aria-label="差し戻し理由"
+                    className="w-[220px] rounded-md border border-border px-3 py-2 text-[12.5px] text-on-surface outline-none focus:border-primary"
+                  />
+                ) : null}
+                <span className="text-[12px] font-semibold text-on-surface">
+                  {confirming === "approve"
+                    ? "承認して完了にしますか？"
+                    : confirming === "reject"
+                      ? "差し戻して要対応にしますか？"
+                      : "再試行して着手可に戻しますか？"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirming(null);
+                    setRejectNote("");
+                  }}
+                  className="rounded-md border border-border px-3 py-2 text-[12.5px] font-semibold text-on-surface hover:bg-surface-variant"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  disabled={decide.isPending}
+                  onClick={() =>
+                    decide.mutate({
+                      action: confirming,
+                      note:
+                        confirming === "reject" && rejectNote.trim()
+                          ? rejectNote.trim()
+                          : undefined,
+                    })
+                  }
+                  className={cn(
+                    "rounded-md px-4 py-2 text-[12.5px] font-bold text-white transition-[filter] hover:brightness-110 disabled:opacity-50",
+                    confirming === "approve" ? "bg-tertiary" : "bg-error",
+                  )}
+                >
+                  {decide.isPending ? "実行中…" : "確定"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
