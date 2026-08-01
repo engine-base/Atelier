@@ -20,6 +20,7 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  Activity,
   Filter,
   Kanban as KanbanIcon,
   List,
@@ -418,6 +419,14 @@ export function KanbanBoard({
         <span className="ml-auto text-[12px] font-semibold tabular-nums text-on-surface-variant">
           全 {tasks.length} 件のタスク
         </span>
+        {/* 実行モニター (S-I03) への導線 (モック topbar 相当。従来は S-I02 経由でしか到達できなかった) */}
+        <Link
+          href="/tasks/monitor"
+          className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+        >
+          <Activity aria-hidden="true" className="h-3.5 w-3.5" />
+          実行モニター
+        </Link>
         {onAddTask ? (
           <button
             type="button"

@@ -1,9 +1,11 @@
 /**
- * S-I03 実行モニター画面 — T-UC-16
+ * S-I03 実行モニター画面 — T-UC-16 / design-audit v2
  *
- * 実 exec-logs SSE (GET /executions/{id}/logs/stream) に配線。executionId は URL ?execution=。
+ * ?execution= あり: 実 exec-logs SSE (GET /executions/{id}/logs/stream) のライブログ。
+ * ?execution= なし: 現在プロジェクトのフリートビュー (要対応/進行中/順番待ち +
+ *   承認・差戻・再試行 — 実 tasks API)。
  * 本文はモック 06_mockups/task/S-I03-monitor.html を踏襲:
- *   役割カード(説明 + リアルタイム更新中バッジ + 3 ポイント) → 統計/セッション/ライブログ。
+ *   役割カード(説明 + 3 ポイント) → 統計/セッション/順番待ち or ライブログ。
  */
 
 "use client";
@@ -13,7 +15,10 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Cpu } from "lucide-react";
 
+import { QueryProvider } from "../../../providers/query-provider";
+import { useProjectId } from "../../../lib/useProjectId";
 import { ExecutionMonitorContainer } from "./_components/ExecutionMonitorContainer";
+import { FleetMonitorContainer } from "./_components/FleetMonitorContainer";
 
 /** モックの role-point (1/2/3) — 画面の役割を説明する静的コピー。 */
 const ROLE_POINTS = [
@@ -34,6 +39,7 @@ const ROLE_POINTS = [
 function SI03Inner() {
   const params = useSearchParams();
   const executionId = params.get("execution");
+  const projectId = useProjectId();
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-lg px-md py-lg">
@@ -88,9 +94,11 @@ function SI03Inner() {
 
       {executionId ? (
         <ExecutionMonitorContainer executionId={executionId} />
+      ) : projectId ? (
+        <FleetMonitorContainer projectId={projectId} />
       ) : (
         <p className="rounded-md border border-dashed border-border px-md py-lg text-center text-body-md text-on-surface-variant">
-          実行を選択するとログをリアルタイム表示します。
+          プロジェクトを選択すると実行状況を表示します。
         </p>
       )}
     </div>
@@ -99,14 +107,16 @@ function SI03Inner() {
 
 export default function SI03Page() {
   return (
-    <Suspense
-      fallback={
-        <div className="p-lg text-body-md text-on-surface-variant">
-          読み込み中…
-        </div>
-      }
-    >
-      <SI03Inner />
-    </Suspense>
+    <QueryProvider>
+      <Suspense
+        fallback={
+          <div className="p-lg text-body-md text-on-surface-variant">
+            読み込み中…
+          </div>
+        }
+      >
+        <SI03Inner />
+      </Suspense>
+    </QueryProvider>
   );
 }
