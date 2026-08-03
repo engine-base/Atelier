@@ -30,6 +30,8 @@ class DecisionUpdate(BaseModel):
     body: str | None = Field(default=None, min_length=1, max_length=2000)
     reflected_to: str | None = Field(default=None, max_length=500)
     resolve_note: str | None = Field(default=None, max_length=500)
+    # GAP-003: ピン留め切替 (S-E01 主力決定カード)
+    pinned: bool | None = None
 
 
 class DecisionResponse(BaseModel):
@@ -42,6 +44,7 @@ class DecisionResponse(BaseModel):
     resolve_note: str | None
     decided_by: str | None
     with_user: bool
+    pinned: bool
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None

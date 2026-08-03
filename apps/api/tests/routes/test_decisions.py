@@ -208,6 +208,31 @@ class TestDecisions:
             assert patched.json()["data"]["status"] == "decided"
             assert patched.json()["data"]["reflected_to"] == "pricing.json"
 
+    def test_pin_toggle_and_pinned_first_ordering(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-003: PATCH pinned=true → 応答/一覧に反映され、一覧はピン留め先頭。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            # 新しい決定を追加 (created_at 降順では dec_a より先頭に来る)
+            newer = client.post(
+                "/decisions",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "body": "後から入った決定"},
+            ).json()["data"]["id"]
+            # 既定は pinned=false
+            assert client.get(f"/decisions/{newer}", headers=h).json()["data"]["pinned"] is False
+            # 古い dec_a をピン留め → 一覧先頭に来る
+            up = client.patch(f"/decisions/{seeded['dec_a']}", headers=h, json={"pinned": True})
+            assert up.status_code == 200
+            assert up.json()["data"]["pinned"] is True
+            data = client.get(f"/decisions?project_id={seeded['proj_a']}", headers=h).json()["data"]
+            ids = [x["id"] for x in data]
+            assert ids.index(seeded["dec_a"]) < ids.index(newer)
+            # ピン解除で false に戻る
+            down = client.patch(f"/decisions/{seeded['dec_a']}", headers=h, json={"pinned": False})
+            assert down.json()["data"]["pinned"] is False
+
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         hb = _h(seeded["u_b"])
         with TestClient(app) as client:

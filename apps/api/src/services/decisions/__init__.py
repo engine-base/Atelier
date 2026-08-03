@@ -16,7 +16,7 @@ from src.schemas.decisions import DecisionCreate, DecisionResponse, DecisionUpda
 
 _COLS = (
     "id, project_id, phase_id, status, body, reflected_to, resolve_note, "
-    "decided_by, with_user, created_at, updated_at, deleted_at"
+    "decided_by, with_user, pinned, created_at, updated_at, deleted_at"
 )
 
 
@@ -31,6 +31,7 @@ def _row_to_response(row: Any) -> DecisionResponse:
         resolve_note=(None if row.resolve_note is None else str(row.resolve_note)),
         decided_by=(None if row.decided_by is None else str(row.decided_by)),
         with_user=bool(row.with_user),
+        pinned=bool(row.pinned),
         created_at=row.created_at,
         updated_at=row.updated_at,
         deleted_at=row.deleted_at,
@@ -58,7 +59,8 @@ async def list_decisions(
     res = await session.execute(
         text(
             f"select {_COLS} from public.decisions "
-            f"where {' and '.join(where)} order by created_at desc"
+            # ピン留め (GAP-003) を先頭に、その後は新しい順
+            f"where {' and '.join(where)} order by pinned desc, created_at desc"
         ),
         params,
     )
@@ -130,6 +132,9 @@ async def update_decision(
     if data.resolve_note is not None:
         sets.append("resolve_note = :note")
         params["note"] = data.resolve_note
+    if data.pinned is not None:
+        sets.append("pinned = :pin")
+        params["pin"] = data.pinned
     res = await session.execute(
         text(
             f"update public.decisions set {', '.join(sets)} "

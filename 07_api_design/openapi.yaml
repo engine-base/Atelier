@@ -798,6 +798,8 @@ components:
         resolve_note: { type: string, nullable: true }
         decided_by: { type: string, format: uuid, nullable: true }
         with_user: { type: boolean }
+        # GAP-003: ピン留め (一覧はピン留め先頭)
+        pinned: { type: boolean }
         deleted_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
@@ -822,6 +824,8 @@ components:
         body: { type: string, minLength: 1, maxLength: 2000 }
         reflected_to: { type: string, nullable: true, maxLength: 500 }
         resolve_note: { type: string, nullable: true, maxLength: 500 }
+        # GAP-003: ピン留め切替
+        pinned: { type: boolean }
 
     Comment:
       type: object

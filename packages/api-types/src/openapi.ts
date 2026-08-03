@@ -9581,6 +9581,7 @@ export interface components {
             /** Format: uuid */
             decided_by?: string | null;
             with_user?: boolean;
+            pinned?: boolean;
             /** Format: date-time */
             deleted_at?: string | null;
             /** Format: date-time */
@@ -9612,6 +9613,7 @@ export interface components {
             body?: string;
             reflected_to?: string | null;
             resolve_note?: string | null;
+            pinned?: boolean;
         };
         Comment: {
             /** Format: uuid */

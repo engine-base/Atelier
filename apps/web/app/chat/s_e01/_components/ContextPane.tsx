@@ -9,8 +9,8 @@
 
 import * as React from "react";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Brain, Check, LayoutDashboard, Link2, Zap } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Brain, Check, LayoutDashboard, Link2, Pin, Zap } from "lucide-react";
 
 import * as api from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
@@ -23,6 +23,8 @@ interface DecisionLite {
   readonly reflected_to?: string | null;
   readonly created_at?: string;
   readonly phase_id?: string | null;
+  /** GAP-003: ピン留め (一覧はサーバー側でピン留め先頭)。 */
+  readonly pinned?: boolean;
 }
 
 interface KnowledgeLite {
@@ -59,6 +61,19 @@ export function ContextPane({
   ctxRagHitCount,
 }: ContextPaneProps) {
   const [tab, setTab] = useState<CtxTab>("decisions");
+  const queryClient = useQueryClient();
+
+  // GAP-003: ピン留め切替 (PATCH /decisions/{id})。成功で一覧を再取得
+  // (サーバー側 order by pinned desc が並びの正)。
+  const pinMut = useMutation({
+    mutationFn: async (d: { id: string; pinned: boolean }) =>
+      api.sendJson("PATCH", `/decisions/${d.id}`, { pinned: d.pinned }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["ctx-decisions", projectId ?? "none"],
+      });
+    },
+  });
 
   const decisionsQuery = useQuery({
     queryKey: ["ctx-decisions", projectId ?? "none"],
@@ -176,6 +191,29 @@ export function ContextPane({
                     <div className="mb-1 flex items-center gap-1 text-[9.5px] font-bold uppercase tracking-[0.08em] text-secondary">
                       <Check size={10} aria-hidden="true" />
                       確定{d.created_at ? ` · ${fmtTime(d.created_at)}` : ""}
+                      {/* GAP-003: ピン留め切替 (モック .decision-pin-btn 準拠) */}
+                      <button
+                        type="button"
+                        disabled={pinMut.isPending}
+                        onClick={() =>
+                          pinMut.mutate({ id: d.id, pinned: !d.pinned })
+                        }
+                        aria-pressed={!!d.pinned}
+                        aria-label={
+                          d.pinned
+                            ? `${d.body} のピン留めを外す`
+                            : `${d.body} をピン留め`
+                        }
+                        className={cn(
+                          "ml-auto inline-flex items-center gap-[3px] rounded-full border px-[7px] py-[1px] text-[9.5px] font-bold transition-colors",
+                          d.pinned
+                            ? "border-secondary bg-secondary text-white"
+                            : "border-border bg-white text-on-surface-variant hover:border-secondary hover:text-secondary",
+                        )}
+                      >
+                        <Pin size={9} aria-hidden="true" />
+                        {d.pinned ? "ピン留め済み" : "ピン留め"}
+                      </button>
                     </div>
                     <div className="text-[12.5px] font-semibold leading-[1.5] text-on-surface">
                       {d.body}

@@ -9,11 +9,11 @@
 |---|---|---|---|---|
 | GAP-001 | S-E01 チャット添付 | ボタン未描画 (Rule 10: 死にボタンで置かない) | チャット添付アップロード API + storage 配線 + messages への添付関連付け | 2026-07-18 |
 | GAP-002 | S-E01 /コマンド | ボタン未描画・placeholder 文言からも削除 | コマンド体系の設計 (例: /summary, /タスク化) + API + コマンドパレット UI | 2026-07-18 |
-| GAP-003 | S-F01 確定事項の「ピン留め」操作 | 表示のみ (モックにあるピン操作は未実装) | decisions への pin フラグ + PATCH 配線 | 2026-07-18 |
+| ~~GAP-003~~ ✅解消 (2026-08-03) | 確定事項の「ピン留め」操作 (モック現物は S-E01 主力決定カードの .decision-pin-btn) | **実装済**: decisions.pinned 列 (migration t-d-99z、冪等) + PATCH /decisions/{id} {pinned} + 一覧 order by pinned desc + S-E01 主力決定カードのトグル UI (aria-pressed)。pytest 回帰 + 実操作監査 .audit-e01-pin.mjs 3 連続 ALL PASS (DB 突合往復) | — | 2026-07-18 |
 | GAP-004 | phases への担当 AI 社員割当 | S-F01 ヘッダーのアバターはスレッド/確定事項からの実集計で代替中 | phases.assignee 群 or phase_assignments テーブル | 2026-07-18 |
 | GAP-005 | S-B02 の「未解決コメント」KPI | 「確定事項」KPI に置換して表示中 | プロジェクト横断の未解決コメント集計 API (comments は target 単位のみ) | 2026-07-18 |
 | GAP-006 | S-I01 の「依存グラフ」ビュー | 表示トグル自体を出していない | タスク依存 (depends_on) の API 公開 + グラフ描画 | 2026-07-18 |
-| GAP-007 | TopBar の通知ベル (通知センター) | ボタン未描画 (死にクリック総当たりスイープで検出 → 撤去) | 通知 API (一覧/既読) + 通知生成イベント設計 + ドロップダウン UI | 2026-07-18 |
+| ~~GAP-007~~ ✅解消 (2026-08-01) | TopBar の通知ベル (通知センター) | **実装済**: T-UC-36 監査で TopBar ベル (未処理承認待ち件数バッジ + aria-label) → 通知センター /t-uc-36 実リンクを実装。通知の実体は approval_inbox (e2e 通しでプロデューサ欠落も是正済 — complete_task が挿入・approve/reject が resolve)。journey J-17 で「pending=1 がベルバッジ+通知センターに実表示」を 4 回の全 PASS 実走で確認 | — | 2026-07-18 |
 | GAP-008 | S-C02 の「活動履歴」タブ + 「最近の活動」カード | 未描画 (per-employee 活動 API が存在しない。executions/audit_logs に employee 紐付けの公開 read なし) | AI 社員別活動フィード API (tasks/decisions/executions の employee 横断集計) | 2026-07-19 |
 | GAP-009 | S-C02 の「画像アップロード」(アイコン画像) | ボタン未描画 (storage アップロード API 未提供。「Lucide から選ぶ」は実装済で icon 変更自体は可能) | アイコン画像 storage アップロード + ai_employees.icon への URL 格納 + 描画 | 2026-07-19 |
 | GAP-010 | S-K01 の「グラフ」ビュー | トグル未描画 (グラフ描画・ノード関係 API 未実装) | ナレッジ間リンク構造の API + グラフ描画コンポーネント | 2026-07-19 |

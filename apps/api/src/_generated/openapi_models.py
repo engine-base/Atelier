@@ -836,6 +836,7 @@ class Decision(BaseModel):
     resolve_note: str | None = None
     decided_by: UUID | None = None
     with_user: bool | None = None
+    pinned: bool | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
@@ -857,6 +858,7 @@ class DecisionUpdate(BaseModel):
     body: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
+    pinned: bool | None = None
 
 
 class TargetType(StrEnum):
