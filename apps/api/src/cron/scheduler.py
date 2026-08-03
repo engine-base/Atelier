@@ -43,6 +43,12 @@ CRON_SCHEDULES: tuple[CronSchedule, ...] = (
         cron="0 0 * * 1",
         description="週次バーンダウン: Sprint 進捗をクライアントに送付",
     ),
+    CronSchedule(
+        name="transcribe-queue",
+        # 毎分: queue_transcribe が積んだ議事録を Whisper で処理 (GAP-016 消費者)
+        cron="* * * * *",
+        description="議事録 transcription キュー消費: storage DL → Whisper → 結果書込",
+    ),
 )
 
 

@@ -55,9 +55,33 @@ async def _weekly_burndown_body(ctx: Any, step: Any) -> dict[str, str]:
     return {"status": "ok", "name": "weekly-burndown"}
 
 
+async def _transcribe_queue_body(ctx: Any, step: Any) -> dict[str, str]:
+    """議事録 transcription キュー消費 (GAP-016 解消の実体)。
+
+    services/meetings/worker.run_once を呼び、queued 行を Whisper で処理する。
+    """
+    del ctx, step
+    from src.db import create_engine, create_session_factory
+    from src.services.meetings.worker import run_once
+
+    factory = create_session_factory(create_engine())
+    async with factory() as session:
+        result = await run_once(session)
+    if result["queued"]:
+        logger.info("transcribe-queue cron done: %s", result)
+    return {
+        "status": "ok",
+        "name": "transcribe-queue",
+        "queued": str(result["queued"]),
+        "processed": str(result["processed"]),
+        "failed": str(result["failed"]),
+    }
+
+
 _HANDLER_MAP: dict[str, Any] = {
     "daily-digest": _daily_digest_body,
     "weekly-burndown": _weekly_burndown_body,
+    "transcribe-queue": _transcribe_queue_body,
 }
 
 
