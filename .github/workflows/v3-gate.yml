@@ -427,50 +427,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
-      - name: Mock-implementation diff
-        run: |
-          python3 - <<'PY'
-          import json, sys
-          from pathlib import Path
-
-          root = Path(".")
-          mock_dir = root / "06_mockups"
-          if not mock_dir.exists():
-              print("::warning::06_mockups directory missing")
-              sys.exit(0)
-
-          # screens.json or entities.json から screen_id → mock 紐付けを読む
-          screens_path = root / "04_functional_breakdown" / "screens.json"
-          declared_screens = {}
-          if screens_path.exists():
-              try:
-                  data = json.loads(screens_path.read_text())
-                  if isinstance(data, list):
-                      for s in data:
-                          sid = s.get("id") or s.get("screen_id")
-                          if sid:
-                              declared_screens[sid] = s
-                  elif isinstance(data, dict):
-                      for sid, s in (data.get("screens") or data).items():
-                          declared_screens[sid] = s
-              except Exception as e:
-                  print(f"::notice::screens.json parse skipped: {e}")
-
-          mock_files = sorted([p.name for p in mock_dir.glob("*.html") if not p.name.startswith(".")])
-          print(f"  Mockup files: {len(mock_files)}")
-          print(f"  Declared screens: {len(declared_screens)}")
-
-          # mock-contract-hints.json があれば API の存在も後で Gate #9 が検証する。
-          # ここでは drift = 実装側の screen route が mockup に対応しないケース、を将来検出する。
-          # Phase 0 では web 実装が placeholder のみなので、構造のみ確認して PASS。
-
-          web_app = root / "apps" / "web" / "app"
-          if web_app.exists():
-              tsx_pages = list(web_app.rglob("page.tsx"))
-              print(f"  Implemented pages (page.tsx): {len(tsx_pages)}")
-
-          print("Gate #6 PASS — mock/impl structural consistency check passed.")
-          PY
+      - name: Mock-implementation diff (実照合 — GAP-102 解消)
+        run: python3 scripts/ci/mock-impl-diff.py
 
   # ─────────────────────────────────────────────────────────────────────────
   # Gate #7 — type drift (openapi.yaml ↔ types.ts / Pydantic)
