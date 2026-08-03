@@ -10150,6 +10150,9 @@ export interface components {
             execution_id?: string | null;
             worktree_path?: string | null;
             no_available_task: boolean;
+            task_title?: string | null;
+            task_description?: string | null;
+            assigned_employee?: string | null;
         };
         KanbanStartRequest: {
             /** Format: uuid */

@@ -1418,6 +1418,10 @@ components:
         execution_id: { type: string, format: uuid, nullable: true }
         worktree_path: { type: string, nullable: true }
         no_available_task: { type: boolean }
+        # GAP-030: Bridge 子プロセスへのプロンプト材料 (タスク内容)
+        task_title: { type: string, nullable: true }
+        task_description: { type: string, nullable: true }
+        assigned_employee: { type: string, nullable: true }
 
     KanbanStartRequest:
       type: object

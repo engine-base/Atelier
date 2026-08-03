@@ -38,7 +38,32 @@ describe('ApiClient (T-F-41)', () => {
       executionId: 'e1',
       worktreePath: null,
       noAvailableTask: false,
+      // GAP-030: タスク内容フィールドは旧 API 応答 (欠落) では null に落ちる
+      taskTitle: null,
+      taskDescription: null,
+      assignedEmployee: null,
     });
+  });
+
+  it('pick: タスク内容 (GAP-030) を camelCase に写像する', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(200, {
+        data: {
+          task_id: 't1',
+          execution_id: 'e1',
+          worktree_path: null,
+          no_available_task: false,
+          task_title: '見積画面',
+          task_description: '一覧を作る',
+          assigned_employee: 'wanda',
+        },
+      }),
+    );
+    const r = await client().pick(123);
+    expect(r.taskTitle).toBe('見積画面');
+    expect(r.taskDescription).toBe('一覧を作る');
+    expect(r.assignedEmployee).toBe('wanda');
   });
 
   it('pick: X-Bridge-Token を送る', async () => {

@@ -207,6 +207,10 @@ class TestKanbanTools:
             assert data["no_available_task"] is False
             assert data["task_id"] == seeded["queued_id"]
             assert data["execution_id"] is not None
+            # GAP-030 回帰: pick 応答にタスク内容 (プロンプト材料) が含まれる
+            assert data["task_title"] == "queued"
+            assert data["task_description"] is None
+            assert data["assigned_employee"] is None
         with sync_engine.begin() as c:
             row = c.execute(
                 text(

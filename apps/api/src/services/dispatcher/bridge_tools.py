@@ -82,11 +82,14 @@ async def pick_task(
     *,
     worker_pid: int,
     project_id: str | None = None,
-) -> tuple[KanbanResponse | None, str | None, str | None]:
+) -> tuple[KanbanResponse | None, str | None, str | None, dict[str, str | None]]:
     """次に処理可能な queued task を 1 件 atomic に確保 (queued→spawning)。
 
-    返り値: (KanbanResponse | None, execution_id | None, worktree_path | None)。
-    no_available_task の時は (None, None, None) を返す。
+    返り値: (KanbanResponse | None, execution_id | None, worktree_path | None,
+    task_context)。task_context はタスク内容 (title / description / 担当 AI 社員名)
+    で、Bridge が子プロセスへ渡すプロンプトの材料になる (GAP-030: ID だけでは
+    子 Claude が仕様を探して長考しタイムアウトする)。no_available_task の時は
+    (None, None, None, {}) を返す。
     """
     where = ["dispatch_status = 'queued'", "deleted_at is null"]
     params: dict[str, object] = {"pid_w": worker_pid}
@@ -99,17 +102,24 @@ async def pick_task(
             "  select id from public.tasks "
             f"  where {' and '.join(where)} "
             "  order by created_at limit 1 for update skip locked"
-            ") update public.tasks set dispatch_status = 'spawning', "
+            ") update public.tasks t set dispatch_status = 'spawning', "
             "worker_pid = :pid_w, updated_at = now() "
-            "where id in (select id from picked) returning id, project_id, "
-            "retry_count, worktree_path"
+            "where t.id in (select id from picked) returning t.id, t.project_id, "
+            "t.retry_count, t.worktree_path, t.title, t.description, "
+            "(select e.name from public.ai_employees e "
+            " where e.id = t.assigned_employee_id) as employee_name"
         ),
         params,
     )
     row = res.first()
     if row is None:
-        return None, None, None
+        return None, None, None, {}
     task_id = str(row.id)
+    task_context: dict[str, str | None] = {
+        "title": None if row.title is None else str(row.title),
+        "description": None if row.description is None else str(row.description),
+        "assigned_employee": None if row.employee_name is None else str(row.employee_name),
+    }
     # play_task が投入時に作成した running execution があれば再利用する
     # (pick が常に新規作成すると 1 回の再生で execution が二重に残る)。
     existing = await session.execute(
@@ -149,6 +159,7 @@ async def pick_task(
         ),
         exec_id,
         (None if row.worktree_path is None else str(row.worktree_path)),
+        task_context,
     )
 
 

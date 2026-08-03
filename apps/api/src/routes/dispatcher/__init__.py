@@ -98,7 +98,7 @@ def _raise_for(code: str, message: str) -> NoReturn:
 async def kanban_pick(
     body: KanbanPickRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanPickResponse]:
-    result, exec_id, wt = await svc.pick_task(
+    result, exec_id, wt, task_context = await svc.pick_task(
         session, worker_pid=body.worker_pid, project_id=body.project_id
     )
     if result is None:
@@ -109,6 +109,9 @@ async def kanban_pick(
             execution_id=exec_id,
             worktree_path=wt,
             no_available_task=False,
+            task_title=task_context.get("title"),
+            task_description=task_context.get("description"),
+            assigned_employee=task_context.get("assigned_employee"),
         )
     }
 

@@ -1437,6 +1437,9 @@ class KanbanPickResponse(BaseModel):
     execution_id: UUID | None = None
     worktree_path: str | None = None
     no_available_task: bool
+    task_title: str | None = None
+    task_description: str | None = None
+    assigned_employee: str | None = None
 
 
 class KanbanStartRequest(BaseModel):

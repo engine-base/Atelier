@@ -21,13 +21,21 @@ export type CycleOutcome =
   | 'no-task'
   | 'auth-error';
 
+/** buildArgs へ渡すタスク文脈 (GAP-030: pick 応答のタスク内容)。 */
+export interface TaskPromptContext {
+  readonly taskId: string;
+  readonly taskTitle: string | null;
+  readonly taskDescription: string | null;
+  readonly assignedEmployee: string | null;
+}
+
 export interface DispatcherConfig {
   readonly workerPid: number;
   readonly projectId?: string;
   /** 実行コマンド。既定 'claude'。テストでは 'echo' 等に差し替える。 */
   readonly command: string;
   /** コマンド引数を組み立てる。既定は ['-p', prompt]。 */
-  readonly buildArgs: (taskId: string) => readonly string[];
+  readonly buildArgs: (task: TaskPromptContext) => readonly string[];
   /** 実行ログの出力ディレクトリ。 */
   readonly logDir: string;
   /** child timeout (ms)。超過で kill → request-change。 */
@@ -36,12 +44,32 @@ export interface DispatcherConfig {
   readonly heartbeatMs: number;
 }
 
+/**
+ * 既定プロンプト (GAP-030 是正)。
+ *
+ * 旧実装はタスク ID のみを渡しており、子 Claude が仕様を探して長考し
+ * タイムアウトしていた (e2e 通しで実測)。pick 応答のタスク内容
+ * (title / description / 担当社員) を本文に含め、参照不能な情報を
+ * 探しに行かないことを明示する。
+ */
+export function buildDefaultPrompt(task: TaskPromptContext): string {
+  const lines = [
+    `Atelier のタスクを担当 AI 社員として遂行してください。`,
+    `タスク ID: ${task.taskId}`,
+  ];
+  if (task.taskTitle) lines.push(`タイトル: ${task.taskTitle}`);
+  if (task.assignedEmployee) lines.push(`担当 AI 社員: ${task.assignedEmployee}`);
+  if (task.taskDescription) lines.push(`内容:\n${task.taskDescription}`);
+  lines.push(
+    '上記がこのタスクについて参照できる全情報です。追加の仕様書やリポジトリを探しに行かず、' +
+      'この内容に基づいて実施方針と実施内容の要約を日本語で出力して終了してください。',
+  );
+  return lines.join('\n');
+}
+
 export const DEFAULT_DISPATCHER_CONFIG: Omit<DispatcherConfig, 'workerPid'> = {
   command: 'claude',
-  buildArgs: (taskId: string) => [
-    '-p',
-    `Atelier のタスク ${taskId} を担当 AI 社員として遂行し、実施内容の要約を日本語で出力してください。`,
-  ],
+  buildArgs: (task: TaskPromptContext) => ['-p', buildDefaultPrompt(task)],
   logDir: '/tmp/atelier-bridge-logs',
   timeoutMs: 10 * 60 * 1000,
   heartbeatMs: 30 * 1000,
@@ -81,6 +109,12 @@ export class Dispatcher {
       return 'no-task';
     }
     const { taskId, executionId } = picked;
+    const taskContext: TaskPromptContext = {
+      taskId,
+      taskTitle: picked.taskTitle,
+      taskDescription: picked.taskDescription,
+      assignedEmployee: picked.assignedEmployee,
+    };
     await this.api.start(taskId, executionId, this.config.workerPid);
 
     const heartbeat = setInterval(() => {
@@ -90,7 +124,7 @@ export class Dispatcher {
     }, this.config.heartbeatMs);
 
     try {
-      const result = await this.runChild(taskId);
+      const result = await this.runChild(taskContext);
       if (result.exitCode === 0) {
         await this.api.complete(taskId, executionId, result.outputTail || '(出力なし)', {
           score: 1.0,
@@ -113,10 +147,10 @@ export class Dispatcher {
   }
 
   /** claude -p を child process で実行し、出力をログファイルへ書く。 */
-  private runChild(taskId: string): Promise<RunResult> {
+  private runChild(task: TaskPromptContext): Promise<RunResult> {
     mkdirSync(this.config.logDir, { recursive: true });
-    const logPath = join(this.config.logDir, `${taskId}.log`);
-    const args = this.config.buildArgs(taskId);
+    const logPath = join(this.config.logDir, `${task.taskId}.log`);
+    const args = this.config.buildArgs(task);
     return new Promise<RunResult>((resolve) => {
       const child = spawn(this.config.command, args, {
         stdio: ['ignore', 'pipe', 'pipe'],

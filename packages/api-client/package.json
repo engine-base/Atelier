@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "lint": "echo 'placeholder — root ESLint で集約' && exit 0",
+    "lint": "eslint --no-eslintrc -c ../../.eslintrc.workspace.json --ext .ts src --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "clean": "rm -rf dist .turbo"

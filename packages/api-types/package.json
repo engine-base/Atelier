@@ -10,7 +10,7 @@
     ".": "./src/openapi.ts"
   },
   "scripts": {
-    "lint": "echo 'placeholder' && exit 0",
+    "lint": "eslint --no-eslintrc -c ../../.eslintrc.workspace.json --ext .ts src --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "echo 'no runtime — generated types only' && exit 0",
     "clean": "rm -rf dist"

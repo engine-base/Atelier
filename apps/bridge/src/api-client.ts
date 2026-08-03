@@ -10,6 +10,10 @@ export interface KanbanPickResult {
   readonly executionId: string | null;
   readonly worktreePath: string | null;
   readonly noAvailableTask: boolean;
+  /** GAP-030: 子プロセスへ渡すプロンプト材料 (pick 応答のタスク内容)。 */
+  readonly taskTitle: string | null;
+  readonly taskDescription: string | null;
+  readonly assignedEmployee: string | null;
 }
 
 export interface CompleteMetadata {
@@ -78,6 +82,9 @@ export class ApiClient implements BridgeApi {
         execution_id: string | null;
         worktree_path: string | null;
         no_available_task: boolean;
+        task_title?: string | null;
+        task_description?: string | null;
+        assigned_employee?: string | null;
       };
     };
     const d = json.data;
@@ -86,6 +93,9 @@ export class ApiClient implements BridgeApi {
       executionId: d.execution_id,
       worktreePath: d.worktree_path,
       noAvailableTask: d.no_available_task,
+      taskTitle: d.task_title ?? null,
+      taskDescription: d.task_description ?? null,
+      assignedEmployee: d.assigned_employee ?? null,
     };
   }
 

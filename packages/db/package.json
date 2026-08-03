@@ -7,7 +7,7 @@
   "scripts": {
     "studio": "drizzle-kit studio --config=./drizzle.config.ts",
     "generate": "drizzle-kit generate --config=./drizzle.config.ts",
-    "lint": "echo 'placeholder' && exit 0",
+    "lint": "eslint --no-eslintrc -c ../../.eslintrc.workspace.json --ext .ts src --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "clean": "rm -rf dist drizzle"

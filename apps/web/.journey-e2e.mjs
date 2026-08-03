@@ -214,7 +214,7 @@ await row('J-08', owner, async () => {
 // ── J-09 Bridge headless が claude -p を実実行 ────────
 await row('J-09', null, async () => {
   const out = execSync(
-    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_CMD=/tmp/claude-0/-home-user-Atelier/bc7559f9-cc1e-5410-be06-ff8dd9ba00be/scratchpad/journey-claude.sh ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
+    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
     { encoding: 'utf8', timeout: 300000 },
   );
   const stage = sql(`select lifecycle_stage || '|' || coalesce(dispatch_status::text,'-') from tasks where id='${S.taskIds[0]}'`);
@@ -243,7 +243,7 @@ await row('J-11', owner, async () => {
   await owner.getByRole('button', { name: `問い合わせフォーム実装 ${mark} を実行` }).click({ force: true });
   await owner.waitForTimeout(1500);
   execSync(
-    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_CMD=/tmp/claude-0/-home-user-Atelier/bc7559f9-cc1e-5410-be06-ff8dd9ba00be/scratchpad/journey-claude.sh ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
+    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
     { encoding: 'utf8', timeout: 300000 },
   );
   expect(sql(`select lifecycle_stage from tasks where id='${S.taskIds[1]}'`) === 'awaiting', '2件目が awaiting でない');
@@ -265,7 +265,7 @@ await row('J-11', owner, async () => {
   await owner.getByRole('button', { name: `問い合わせフォーム実装 ${mark} を実行` }).click({ force: true });
   await owner.waitForTimeout(1500);
   execSync(
-    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_CMD=/tmp/claude-0/-home-user-Atelier/bc7559f9-cc1e-5410-be06-ff8dd9ba00be/scratchpad/journey-claude.sh ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
+    `cd /home/user/Atelier/apps/bridge && ATELIER_API_URL=http://127.0.0.1:8000 ATELIER_BRIDGE_TOKEN=journey-bridge-token-0123456789 ATELIER_BRIDGE_PROJECT=${S.pid} ATELIER_BRIDGE_TIMEOUT_MS=240000 node dist/headless.js 2>&1`,
     { encoding: 'utf8', timeout: 300000 },
   );
   expect(sql(`select lifecycle_stage from tasks where id='${S.taskIds[1]}'`) === 'awaiting', '再実行後 awaiting でない');
@@ -395,9 +395,14 @@ await row('J-19', owner, async () => {
   await owner.waitForTimeout(4000);
   const honest = await vis(owner.getByText(/解析に失敗|503|保存先が未設定|アップロードに失敗/).first(), 10000);
   expect(honest, 'storage 未設定の明示エラーが出ない (黙って受け付けたら偽装)');
-  // 終端の断絶 (Whisper worker 不在) は GAP-016 として起票済 — queued 消費者はリポジトリに不在のまま
-  const consumer = execSync(`grep -rl 'transcripts/queued' /home/user/Atelier/apps --include='*.py' --include='*.ts' | grep -v test | wc -l`, { encoding: 'utf8' }).trim();
-  return `storage 未設定は honest エラー表示。queued 消費 worker は依然不在 (GAP-016 起票済, 参照ファイル数=${consumer})`;
+  // 終端 (Whisper worker) は GAP-016 解消で実装済 — queued 消費者の実在を検証する
+  // (worker 本体 + cron 登録の両方。実 Whisper 呼出は OPENAI key + storage 設定が前提)
+  const workerExists = execSync(
+    `test -f /home/user/Atelier/apps/api/src/services/meetings/worker.py && grep -c 'transcribe-queue' /home/user/Atelier/apps/api/src/cron/scheduler.py`,
+    { encoding: 'utf8' },
+  ).trim();
+  expect(Number(workerExists) >= 1, 'queued 消費 worker が不在 (GAP-016 再発)');
+  return `storage 未設定は honest エラー表示。queued 消費 worker 実在確認 (GAP-016 解消済: worker.py + cron transcribe-queue 登録=${workerExists})`;
 });
 
 await ownerCtx.close(); await memberCtx.close(); await clientCtx.close();

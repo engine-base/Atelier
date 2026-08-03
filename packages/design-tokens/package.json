@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "echo 'tokens は TS / CSS をそのまま consume されるため build 不要' && exit 0",
-    "lint": "echo 'placeholder' && exit 0",
+    "lint": "eslint --no-eslintrc -c ../../.eslintrc.workspace.json --ext .ts src --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "echo 'placeholder — T-F-24 で vitest に置き換え' && exit 0",
     "clean": "rm -rf dist"

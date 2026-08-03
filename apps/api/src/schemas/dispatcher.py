@@ -31,6 +31,12 @@ class KanbanPickResponse(BaseModel):
     execution_id: str | None = None
     worktree_path: str | None = None
     no_available_task: bool = False
+    # GAP-030: Bridge が子プロセスへ渡すプロンプト材料 (タスク内容)。
+    # ID だけでは子 Claude が仕様を探して長考しタイムアウトするため、
+    # pick 応答でタスクの中身を返す。
+    task_title: str | None = None
+    task_description: str | None = None
+    assigned_employee: str | None = None
 
 
 class KanbanStartRequest(BaseModel):

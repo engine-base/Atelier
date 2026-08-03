@@ -51,7 +51,7 @@ type SuccessResponse<P extends keyof Paths, M extends HttpMethod> =
     responses: infer R;
   }
     ? R extends {
-        [K in 200 | 201 | 202 | 204]?: { content?: { 'application/json'?: infer B } };
+        [K in 200 | 201 | 202 | 204]?: { content?: { 'application/json'?: infer _B } };
       }
       ? NonNullable<R[Extract<keyof R, 200 | 201 | 202 | 204>]> extends {
           content?: { 'application/json'?: infer B2 };
