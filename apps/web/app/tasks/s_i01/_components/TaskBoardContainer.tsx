@@ -38,6 +38,7 @@ interface ApiTask {
   assigned_employee_id?: string | null;
   blocked_reason?: string | null;
   dispatch_status?: string | null;
+  dependencies?: string[] | null;
 }
 
 const KEY = (projectId: string) => ["tasks", "board", projectId] as const;
@@ -237,6 +238,7 @@ export function TaskBoardContainer({
       priority: t.priority ?? undefined,
       blockedReason: t.blocked_reason ?? null,
       dispatchStatus: t.dispatch_status ?? null,
+      dependencies: t.dependencies ?? [],
       ...(emp
         ? {
             assignee: employeeName(emp) ?? "AI 社員",

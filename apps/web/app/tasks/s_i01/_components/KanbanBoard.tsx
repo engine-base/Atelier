@@ -22,6 +22,7 @@ import Link from "next/link";
 import {
   Activity,
   Filter,
+  GitBranch,
   Kanban as KanbanIcon,
   List,
   Play,
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "../../../../lib/cn";
+import { DependencyGraph } from "./DependencyGraph";
 
 export type TaskStage =
   | "backlog"
@@ -51,9 +53,11 @@ export interface TaskCard {
   readonly priority?: string;
   readonly blockedReason?: string | null;
   readonly dispatchStatus?: string | null;
+  /** 前提タスク ID 群 (GAP-006 依存グラフ用)。 */
+  readonly dependencies?: readonly string[];
 }
 
-export type BoardView = "kanban" | "list";
+export type BoardView = "kanban" | "list" | "deps";
 export type BoardGrouping = "none" | "category" | "assignee" | "phase";
 
 export interface KanbanBoardProps {
@@ -83,7 +87,7 @@ export const STAGE_ORDER: readonly TaskStage[] = [
 ];
 
 /** レーン名 = 凡例と同一語 (モック準拠。旧ラベルは凡例と食い違っていた)。 */
-const STAGE_LABEL: Record<TaskStage, string> = {
+export const STAGE_LABEL: Record<TaskStage, string> = {
   backlog: "準備中",
   ready: "着手可",
   in_progress: "実装中",
@@ -391,6 +395,7 @@ export function KanbanBoard({
             [
               { key: "kanban", label: "かんばん", icon: KanbanIcon },
               { key: "list", label: "リスト", icon: List },
+              { key: "deps", label: "依存グラフ", icon: GitBranch },
             ] as const
           ).map((v) => (
             <button
@@ -463,7 +468,9 @@ export function KanbanBoard({
       </div>
 
       {/* 本体 */}
-      {view === "list" ? (
+      {view === "deps" ? (
+        <DependencyGraph tasks={filtered} />
+      ) : view === "list" ? (
         <div className="overflow-x-auto rounded-lg border border-border bg-white">
           <table className="w-full text-[12.5px]">
             <thead>

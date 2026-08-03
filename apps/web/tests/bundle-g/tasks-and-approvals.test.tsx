@@ -15,6 +15,10 @@ import {
   STAGE_ORDER,
   type TaskCard,
 } from '../../app/tasks/s_i01/_components/KanbanBoard';
+import {
+  DependencyGraph,
+  layoutGraph,
+} from '../../app/tasks/s_i01/_components/DependencyGraph';
 import { TaskDetailTabs } from '../../app/tasks/s_i02/_components/TaskDetailTabs';
 import { ExecutionMonitor, type LogLine } from '../../app/tasks/s_i03/_components/ExecutionMonitor';
 import {
@@ -149,5 +153,48 @@ describe('ApprovalsList (T-UC-17)', () => {
   it('shows empty message when no rows', () => {
     render(<ApprovalsList rows={[]} onApprove={() => undefined} onReject={() => undefined} />);
     expect(screen.getByText('承認待ち項目はありません')).toBeInTheDocument();
+  });
+});
+
+describe('DependencyGraph (GAP-006 依存グラフ)', () => {
+  const graphTasks: TaskCard[] = [
+    { id: 'a', title: 'DB 設計', stage: 'done' },
+    { id: 'b', title: 'API 実装', stage: 'in_progress', dependencies: ['a'] },
+    { id: 'c', title: 'UI 実装', stage: 'ready', dependencies: ['a', 'b'] },
+  ];
+
+  it('層別レイアウト: 依存の最長距離で層が決まり、辺は存在依存のみ描画', () => {
+    const { nodes, edges } = layoutGraph(graphTasks);
+    const layerOf = Object.fromEntries(nodes.map((n) => [n.task.id, n.layer]));
+    expect(layerOf).toEqual({ a: 0, b: 1, c: 2 });
+    expect(edges).toHaveLength(3); // a→b, a→c, b→c
+  });
+
+  it('循環依存は安全側 (層0) + inCycle フラグで明示', () => {
+    const { nodes } = layoutGraph([
+      { id: 'x', title: 'X', stage: 'ready', dependencies: ['y'] },
+      { id: 'y', title: 'Y', stage: 'ready', dependencies: ['x'] },
+    ]);
+    expect(nodes.some((n) => n.inCycle)).toBe(true);
+  });
+
+  it('ノードは詳細への実リンク・辺は SVG path で描画される', () => {
+    render(<DependencyGraph tasks={graphTasks} />);
+    expect(screen.getByRole('link', { name: /API 実装/ })).toHaveAttribute(
+      'href',
+      '/tasks/detail?task=b',
+    );
+    expect(screen.getAllByTestId('deps-edge')).toHaveLength(3);
+    expect(
+      screen.getByRole('img', { name: '依存グラフ: タスク 3 件 / 依存 3 本' }),
+    ).toBeInTheDocument();
+  });
+
+  it('KanbanBoard の表示トグルに 依存グラフ があり切替できる', () => {
+    render(<KanbanBoard tasks={graphTasks} />);
+    const toggle = screen.getByRole('button', { name: /依存グラフ/ });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getAllByTestId('deps-edge')).toHaveLength(3);
   });
 });
