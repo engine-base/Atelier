@@ -150,3 +150,28 @@ export async function fetchThreadMessages(
       created_at: m.created_at,
     }));
 }
+
+/**
+ * メッセージへのフィードバック (T-A-19: POST /chat/messages/{id}/feedback)。
+ * audit_logs に記録される。失敗時は throw — 呼び出し側で通知する。
+ */
+export async function postMessageFeedback(
+  messageId: string,
+  value: "up" | "down",
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/messages/${messageId}/feedback`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ value }),
+  });
+  if (!res.ok) {
+    throw new Error(`feedback failed: ${res.status}`);
+  }
+}

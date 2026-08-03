@@ -105,3 +105,78 @@ describe("S-E01 ChatContainer (T-UC-08)", () => {
     expect(screen.queryByText("AI 社員")).toBeNull();
   });
 });
+
+describe("S-E01 メッセージフィードバック (GAP-031 ① 役立った)", () => {
+  const history = [
+    { id: "m-user", role: "user" as const, content: "質問" },
+    { id: "m-asst", role: "assistant" as const, content: "回答です" },
+  ];
+
+  it("persisted な assistant メッセージに 役立った / コピー が出て POST される", async () => {
+    const feedbackFn = vi.fn(async () => undefined);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => history}
+        feedbackFn={feedbackFn}
+      />,
+    );
+    const btn = await screen.findByRole("button", {
+      name: /フィードバック: 役立った/,
+    });
+    expect(
+      screen.getByRole("button", { name: "メッセージをコピー" }),
+    ).toBeInTheDocument();
+    fireEvent.click(btn);
+    await waitFor(() => expect(feedbackFn).toHaveBeenCalledWith("m-asst", "up"));
+    // 送信済み表示 (二重送信防止の disabled + ✓)
+    await waitFor(() => expect(btn).toBeDisabled());
+    expect(btn).toHaveTextContent("役立った ✓");
+  });
+
+  it("ストリーミング中の楽観行 (ローカル ID) にはアクション行を出さない", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({ type: "delta", content: "生成中" });
+      await gate;
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+      />,
+    );
+    send("q");
+    await screen.findByText("生成中");
+    // 楽観 assistant 行は persisted でないため 役立った は無い
+    expect(screen.queryByRole("button", { name: /役立った/ })).toBeNull();
+    release();
+  });
+
+  it("フィードバック失敗時は inline error を表示する", async () => {
+    const feedbackFn = vi.fn(async () => {
+      throw new Error("500");
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => history}
+        feedbackFn={feedbackFn}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /フィードバック: 役立った/ }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "フィードバックの送信に失敗しました",
+      ),
+    );
+  });
+});

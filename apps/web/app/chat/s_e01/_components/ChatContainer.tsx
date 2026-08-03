@@ -25,6 +25,7 @@ import {
 } from "./ChatPanel";
 import {
   fetchThreadMessages,
+  postMessageFeedback,
   streamChatThread,
   type ChatStreamChunk,
   type StreamChatArgs,
@@ -55,6 +56,8 @@ export interface ChatContainerProps {
   readonly onMessageCount?: (count: number) => void;
   readonly mentionCandidates?: readonly MentionCandidate[];
   readonly knowledgeCandidates?: readonly KnowledgeCandidate[];
+  /** フィードバック送信の注入用 (省略時は実 POST)。 */
+  readonly feedbackFn?: typeof postMessageFeedback;
 }
 
 let _seq = 0;
@@ -85,12 +88,16 @@ export function ChatContainer({
   onMessageCount,
   mentionCandidates,
   knowledgeCandidates,
+  feedbackFn = postMessageFeedback,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
   const [sending, setSending] = useState(false);
   const [context, setContext] = useState<ChatContextSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
 
   useEffect(() => {
     onBusyChange?.(sending);
@@ -112,9 +119,12 @@ export function ChatContainer({
       .then((history) => {
         if (cancelled || history.length === 0) return;
         // 履歴は先頭に置く。stream 中 (送信中) の楽観行は維持する。
+        // 履歴行はサーバー実 ID を持つので persisted (フィードバック可能)。
         setMessages((prev) => {
           const existing = new Set(prev.map((m) => m.id));
-          const fresh = history.filter((m) => !existing.has(m.id));
+          const fresh = history
+            .filter((m) => !existing.has(m.id))
+            .map((m) => ({ ...m, persisted: true }));
           return [...fresh, ...prev];
         });
       })
@@ -161,6 +171,16 @@ export function ChatContainer({
 
       try {
         await streamFn({ threadId, userMessage: text, ragAccountId, onChunk });
+        // stream 完了後に履歴を再取得し、楽観行 (ローカル ID) をサーバー実 ID の
+        // 行に載せ替える (フィードバック等 per-message API は実 ID が必要)。
+        try {
+          const history = await fetchMessagesFn(threadId);
+          if (history.length > 0) {
+            setMessages(history.map((m) => ({ ...m, persisted: true })));
+          }
+        } catch {
+          // 再取得失敗は致命ではない (表示済みの楽観行を維持)。
+        }
       } catch {
         setError(
           "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
@@ -173,7 +193,20 @@ export function ChatContainer({
         setSending(false);
       }
     },
-    [threadId, ragAccountId, streamFn],
+    [threadId, ragAccountId, streamFn, fetchMessagesFn],
+  );
+
+  const handleFeedback = useCallback(
+    (messageId: string) => {
+      feedbackFn(messageId, "up")
+        .then(() => {
+          setFeedbackDoneIds((prev) => new Set([...prev, messageId]));
+        })
+        .catch(() => {
+          setError("フィードバックの送信に失敗しました。");
+        });
+    },
+    [feedbackFn],
   );
 
   return (
@@ -212,6 +245,8 @@ export function ChatContainer({
           onDismissError={() => setError(null)}
           mentionCandidates={mentionCandidates}
           knowledgeCandidates={knowledgeCandidates}
+          onFeedback={handleFeedback}
+          feedbackDoneIds={feedbackDoneIds}
         />
       </div>
     </div>

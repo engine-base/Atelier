@@ -20,7 +20,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   AtSign,
   Brain,
+  Check,
   CircleAlert,
+  Copy,
   SendHorizontal,
   ShieldCheck,
   Terminal,
@@ -36,6 +38,12 @@ export interface ChatMessage {
   readonly role: ChatRole;
   readonly content: string;
   readonly created_at?: string;
+  /**
+   * サーバーに永続化済み (= id が実 ID)。フィードバック等の per-message API は
+   * 実 ID が必要なため、true のときだけアクション行を描画する
+   * (ストリーミング中の楽観行はローカル ID なので対象外)。
+   */
+  readonly persisted?: boolean;
 }
 
 export interface ChatEmployeeInfo {
@@ -67,6 +75,13 @@ export interface ChatPanelProps {
   readonly mentionCandidates?: readonly MentionCandidate[];
   /** ナレッジ参照候補 (プロジェクトの実ナレッジ)。 */
   readonly knowledgeCandidates?: readonly KnowledgeCandidate[];
+  /**
+   * 「役立った」フィードバック (persisted な assistant メッセージのみ描画)。
+   * 未指定なら feedback ボタン自体を出さない (Rule 10)。
+   */
+  readonly onFeedback?: (messageId: string) => void;
+  /** フィードバック送信済みメッセージ ID (ボタンを「済」表示にする)。 */
+  readonly feedbackDoneIds?: ReadonlySet<string>;
 }
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
@@ -85,11 +100,23 @@ function toolNameOf(content: string): string {
 function MessageRow({
   message,
   employee,
+  onFeedback,
+  feedbackDone,
 }: {
   readonly message: ChatMessage;
   readonly employee?: ChatEmployeeInfo;
+  readonly onFeedback?: (messageId: string) => void;
+  readonly feedbackDone?: boolean;
 }) {
   const time = fmtTime(message.created_at);
+  const [copied, setCopied] = useState(false);
+
+  const copyContent = () => {
+    void navigator.clipboard?.writeText(message.content).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   if (message.role === "user") {
     return (
@@ -162,6 +189,33 @@ function MessageRow({
         <div className="whitespace-pre-wrap text-[14px] leading-[1.75] text-on-surface">
           {message.content}
         </div>
+        {message.persisted ? (
+          // モック .msg-action-row 準拠 (役立った / コピー)。分岐は SSE 側が
+          // parent_message_id 非対応のため未描画 (Rule 10 / GAP-031 ①)。
+          <div className="mt-1.5 flex items-center gap-1">
+            {onFeedback ? (
+              <button
+                type="button"
+                disabled={feedbackDone}
+                onClick={() => onFeedback(message.id)}
+                aria-label={`このメッセージにフィードバック: 役立った`}
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-[3px] text-[11px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface disabled:text-primary disabled:hover:bg-transparent"
+              >
+                <Check size={11} aria-hidden="true" />
+                {feedbackDone ? "役立った ✓" : "役立った"}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={copyContent}
+              aria-label="メッセージをコピー"
+              className="inline-flex items-center gap-1 rounded-sm px-2 py-[3px] text-[11px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+            >
+              <Copy size={11} aria-hidden="true" />
+              {copied ? "コピーしました" : "コピー"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </li>
   );
@@ -176,6 +230,8 @@ export function ChatPanel({
   onDismissError,
   mentionCandidates = [],
   knowledgeCandidates = [],
+  onFeedback,
+  feedbackDoneIds,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
@@ -235,7 +291,13 @@ export function ChatPanel({
         className="flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-md py-5 sm:px-[32px]"
       >
         {messages.map((m) => (
-          <MessageRow key={m.id} message={m} employee={employee} />
+          <MessageRow
+            key={m.id}
+            message={m}
+            employee={employee}
+            onFeedback={m.role === "assistant" ? onFeedback : undefined}
+            feedbackDone={feedbackDoneIds?.has(m.id)}
+          />
         ))}
       </ul>
 
