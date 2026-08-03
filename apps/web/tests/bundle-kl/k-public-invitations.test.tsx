@@ -109,6 +109,44 @@ describe('InvitationsList (T-UC-20)', () => {
     expect(onRevoke).toHaveBeenCalledWith('i1');
   });
 
+  it('resends only after a 2-step confirmation, pending rows only (GAP-027)', () => {
+    const onResend = vi.fn();
+    render(
+      <InvitationsList
+        invitations={invs}
+        onIssue={() => undefined}
+        onRevoke={() => undefined}
+        onResend={onResend}
+      />,
+    );
+    // used 行 (b@x.com) には再送ボタンが出ない
+    expect(
+      screen.queryByRole('button', { name: 'b@x.com へ招待メールを再送' }),
+    ).toBeNull();
+    // pending 行は 2 段階確認 (旧リンク失効を伴うため)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'a@x.com へ招待メールを再送' }),
+    );
+    expect(onResend).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'a@x.com へ再送を確定 (旧リンクは失効)',
+      }),
+    );
+    expect(onResend).toHaveBeenCalledWith('i1');
+  });
+
+  it('hides resend buttons when onResend is not provided (Rule 10)', () => {
+    render(
+      <InvitationsList
+        invitations={invs}
+        onIssue={() => undefined}
+        onRevoke={() => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /再送/ })).toBeNull();
+  });
+
   it('reissues from history with the original display name', () => {
     const onIssue = vi.fn();
     render(

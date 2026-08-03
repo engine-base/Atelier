@@ -14,7 +14,8 @@ import json
 import os
 import secrets
 import uuid
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,10 +84,12 @@ def _scopes(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
-        loaded: Any = json.loads(value)
-        return [str(x) for x in loaded] if isinstance(loaded, list) else []
+        loaded: object = json.loads(value)
+        if isinstance(loaded, list):
+            return [str(x) for x in cast("list[object]", loaded)]
+        return []
     if isinstance(value, list):
-        return [str(x) for x in value]
+        return [str(x) for x in cast("list[object]", value)]
     return []
 
 
@@ -181,6 +184,73 @@ async def create_invitation(
         )
 
     return InvitationCreateResponse(**created.model_dump(), token=raw_token)
+
+
+class ResendError(Exception):
+    """再送不可の理由 (code: not_found / not_pending)。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+async def resend_invitation(
+    session: AsyncSession, *, actor_id: str, invitation_id: str
+) -> InvitationCreateResponse:
+    """招待メール再送 (GAP-027)。
+
+    token は hash しか保存していないため「元リンクの再送」は不可能。
+    再送 = 新 token へローテーション (旧リンク失効) + 新リンクをメール送信。
+    pending (未使用・未失効・未期限切れ) の招待のみ対象 — 期限切れ/失効は
+    既存の再発行 (新規 POST) を使う。
+    """
+    cur = await session.execute(
+        text(
+            "select email, client_display_name, used_at, revoked_at, expires_at "
+            "from public.client_invitations where id = cast(:id as uuid)"
+        ),
+        {"id": invitation_id},
+    )
+    row = cur.first()
+    if row is None:
+        raise ResendError("not_found", "invitation not found")
+    if row.used_at is not None or row.revoked_at is not None:
+        raise ResendError("not_pending", "invitation already used or revoked")
+    if row.expires_at is not None and row.expires_at < datetime.now(UTC):
+        raise ResendError("not_pending", "invitation expired — create a new one")
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    await session.execute(
+        text("update public.client_invitations set token_hash = :th where id = cast(:id as uuid)"),
+        {"id": invitation_id, "th": token_hash},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="client_invitation.resend",
+            target_type="client_invitation",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=invitation_id,
+            after={"email": str(row.email), "token_rotated": True},
+        )
+    )
+    updated = await get_invitation(session, invitation_id)
+    if updated is None:  # pragma: no cover
+        raise RuntimeError("invitation not visible after resend")
+
+    # 新リンクをメール送信 (best-effort、作成時と同じ dry-run 挙動)。
+    with contextlib.suppress(Exception):
+        await _send_invitation_email(
+            email=str(row.email),
+            link=_invitation_link(raw_token),
+            client_display_name=(
+                None if row.client_display_name is None else str(row.client_display_name)
+            ),
+        )
+
+    return InvitationCreateResponse(**updated.model_dump(), token=raw_token)
 
 
 async def revoke_invitation(

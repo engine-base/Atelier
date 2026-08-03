@@ -197,6 +197,57 @@ class TestClientInvitations:
                 ).json()["data"]
             )
 
+    def test_resend_rotates_token_and_audits(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-027: 再送 = token ローテーション + 新 raw token 返却 + audit。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            created = client.post(
+                "/client-invitations",
+                json={"project_id": seeded["proj_a"], "email": "resend@ext.example"},
+                headers=h,
+            ).json()["data"]
+            iid, old_raw = created["id"], created["token"]
+
+            rs = client.post(f"/client-invitations/{iid}/resend", headers=h)
+            assert rs.status_code == 200, rs.text
+            new_raw = rs.json()["data"]["token"]
+            assert new_raw and new_raw != old_raw
+
+            # DB の hash は新 token のものへ差し替わる (旧リンク失効)
+            with sync_engine.connect() as c:
+                stored = c.execute(
+                    text(
+                        "select token_hash from public.client_invitations "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": iid},
+                ).scalar_one()
+            assert stored == hashlib.sha256(new_raw.encode()).hexdigest()
+            assert stored != hashlib.sha256(old_raw.encode()).hexdigest()
+
+            # audit 記録
+            with sync_engine.connect() as c:
+                cnt = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='client_invitation.resend' "
+                        "and target_id = cast(:i as uuid)"
+                    ),
+                    {"i": iid},
+                ).scalar_one()
+            assert int(cnt) == 1
+
+            # 失効済みは 409 (再送不可 — 新規発行を使う)
+            client.post(f"/client-invitations/{iid}/revoke", headers=h)
+            assert client.post(f"/client-invitations/{iid}/resend", headers=h).status_code == 409
+            # 不在は 404
+            assert (
+                client.post(f"/client-invitations/{uuid.uuid4()}/resend", headers=h).status_code
+                == 404
+            )
+
     def test_token_stored_as_hash(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:

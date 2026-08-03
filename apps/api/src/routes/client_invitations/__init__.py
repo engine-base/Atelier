@@ -53,6 +53,22 @@ async def get_invitation(
     return {"data": inv}
 
 
+@router.post(
+    "/client-invitations/{invitation_id}/resend",
+    summary="クライアント招待メール再送 (GAP-027: token ローテーション + 新リンク送付)",
+)
+async def resend_invitation(
+    invitation_id: str, session: SessionDep, user: UserDep
+) -> dict[str, InvitationCreateResponse]:
+    try:
+        resent = await svc.resend_invitation(session, actor_id=user.id, invitation_id=invitation_id)
+    except svc.ResendError as e:
+        if e.code == "not_found":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, e.message) from e
+        raise HTTPException(status.HTTP_409_CONFLICT, e.message) from e
+    return {"data": resent}
+
+
 @router.post("/client-invitations/{invitation_id}/revoke", summary="クライアント招待失効")
 async def revoke_invitation(
     invitation_id: str, session: SessionDep, user: UserDep

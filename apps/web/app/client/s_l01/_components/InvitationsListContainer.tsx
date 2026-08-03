@@ -92,6 +92,21 @@ export function InvitationsListContainer({
     },
   });
 
+  // GAP-027: 再送 = token ローテーション + 新リンク送付。新 raw token は
+  // 発行時と同じバナーで 1 度だけ表示する (旧リンクは失効)。
+  const resendMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await client.post("/client-invitations/{invitation_id}/resend", {
+        params: { path: { invitation_id: id } },
+      });
+      return (res as { data?: { token?: string } }).data ?? {};
+    },
+    onSuccess: (data) => {
+      if (data.token) setIssuedToken(data.token);
+      void queryClient.invalidateQueries({ queryKey: KEY(projectId) });
+    },
+  });
+
   const revokeMut = useMutation({
     mutationFn: (id: string) =>
       client.post("/client-invitations/{invitation_id}/revoke", {
@@ -196,6 +211,7 @@ export function InvitationsListContainer({
         invitations={invitations}
         onIssue={(input) => issueMut.mutate(input)}
         onRevoke={(id) => revokeMut.mutate(id)}
+        onResend={(id) => resendMut.mutate(id)}
       />
     </div>
   );

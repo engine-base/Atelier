@@ -4175,6 +4175,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client-invitations/{invitation_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** クライアント招待メール再送 (GAP-027 — token ローテーション + 新リンク送付) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    invitation_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 再送成功 (raw token を 1 度だけ返す — 旧リンクは失効) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientInvitationWithToken"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 使用済/失効済/期限切れは再送不可 (新規発行を使う) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workflow/phases": {
         parameters: {
             query?: never;

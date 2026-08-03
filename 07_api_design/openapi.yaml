@@ -3504,6 +3504,26 @@ paths:
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 既に失効済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /client-invitations/{invitation_id}/resend:
+    post:
+      tags: [client-invitations]
+      summary: クライアント招待メール再送 (GAP-027 — token ローテーション + 新リンク送付)
+      x-implementation-path: apps/api/src/routes/client_invitations/__init__.py::resend_invitation
+      x-screen-ids: [S-L01]
+      parameters:
+        - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 再送成功 (raw token を 1 度だけ返す — 旧リンクは失効)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitationWithToken' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 使用済/失効済/期限切れは再送不可 (新規発行を使う), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # workflow (工程一覧・遷移) / outputs (成果物)
   # ==========================================================================

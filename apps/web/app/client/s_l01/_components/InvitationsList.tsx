@@ -10,9 +10,11 @@
  *      旧実装は email 以外が「黙って捨てられる死に入力」だった)
  *   2. アクティブな招待テーブル (状態 = 未使用 / 使用済)
  *   3. 履歴テーブル (状態 = 失効 / 期限切れ, surface-variant カード)
- * 失効は 2 段階確認。モックの「再送」ボタンは再送 API が無いため出さない
- * (GAP)。「使用回数」列は使用回数 API が無いため「使用日」(used_at 実データ)
- * に置換。招待リンク平文は発行時のみ (R-T08) のため一覧では中立表示。
+ * 失効・再送は 2 段階確認。再送 (GAP-027 解消) は POST
+ * /client-invitations/{id}/resend — token ローテーション (旧リンク失効) +
+ * 新リンクをメール送付し、新 raw token を発行バナーで 1 度だけ表示する。
+ * 「使用回数」列は使用回数 API が無いため「使用日」(used_at 実データ)
+ * に置換。招待リンク平文は発行/再送時のみ (R-T08) のため一覧では中立表示。
  */
 
 "use client";
@@ -72,6 +74,11 @@ export interface InvitationsListProps {
   readonly invitations: readonly Invitation[];
   readonly onIssue: (input: IssueInput) => void;
   readonly onRevoke: (id: string) => void;
+  /**
+   * 招待メール再送 (GAP-027)。token ローテーションを伴うため 2 段階確認で呼ぶ。
+   * 未指定なら再送ボタンを出さない (Rule 10)。pending 行のみ対象。
+   */
+  readonly onResend?: (id: string) => void;
 }
 
 const MS_PER_DAY = 86_400_000;
@@ -225,11 +232,14 @@ function InviteColgroup() {
 function ActiveTable({
   rows,
   onRevoke,
+  onResend,
 }: {
   readonly rows: readonly Invitation[];
   readonly onRevoke: (id: string) => void;
+  readonly onResend?: (id: string) => void;
 }) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-white">
       <table className="w-full min-w-[720px] table-fixed border-collapse">
@@ -293,8 +303,41 @@ function ActiveTable({
                         失効する
                       </button>
                     </div>
+                  ) : resendingId === r.id ? (
+                    // GAP-027: 再送は token ローテーション (旧リンク失効) を伴うため 2 段階確認
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setResendingId(null)}
+                        className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-on-surface hover:bg-surface-variant"
+                      >
+                        キャンセル
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onResend?.(r.id);
+                          setResendingId(null);
+                        }}
+                        aria-label={`${r.email} へ再送を確定 (旧リンクは失効)`}
+                        className="rounded-md bg-primary px-2.5 py-1 text-[11px] font-bold text-on-primary hover:opacity-90"
+                      >
+                        再送する
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex justify-end gap-1">
+                      {onResend && r.status === "pending" ? (
+                        <button
+                          type="button"
+                          onClick={() => setResendingId(r.id)}
+                          aria-label={`${r.email} へ招待メールを再送`}
+                          title="再送 (新しいリンクを発行して送付)"
+                          className={cn(GHOST_BTN, "hover:bg-primary-container hover:text-primary")}
+                        >
+                          <MailIcon />
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => setConfirmingId(r.id)}
@@ -389,6 +432,7 @@ export function InvitationsList({
   invitations,
   onIssue,
   onRevoke,
+  onResend,
 }: InvitationsListProps) {
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -504,7 +548,7 @@ export function InvitationsList({
             アクティブな招待がありません
           </div>
         ) : (
-          <ActiveTable rows={active} onRevoke={onRevoke} />
+          <ActiveTable rows={active} onRevoke={onRevoke} onResend={onResend} />
         )}
       </section>
 
