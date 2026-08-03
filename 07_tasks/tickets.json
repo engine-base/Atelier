@@ -14151,11 +14151,100 @@
         "tier_2_functional": [
           {
             "type": "UBIQUITOUS",
-            "text": "The shared component shall be reusable across all consuming screens"
+            "text": "The deliverable of T-US-15 「クライアントポータル用別レイアウト」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
-            "type": "UBIQUITOUS",
-            "text": "The component shall pass WCAG 2.2 AA contrast and keyboard nav"
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is rendered, the system shall display the 「プロジェクト名/オーナー名表示」 element per mocks/client/S-L02-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is rendered, the system shall display the 「規約・PP・データ取扱同意チェック」 element per mocks/client/S-L02-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is rendered, the system shall display the 「サインインボタン」 element per mocks/client/S-L02-signin.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「同意してサインイン→S-L03」 on S-L02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「signing_in」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「expired」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「サインイン成功」 is activated on S-L02, the system shall navigate to S-L03"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「フェーズ進捗バー」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「成果物リンク（S-G01の限定UI）」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「モックリンク（S-H01の限定UI）」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「コメント一覧」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「編集禁止表示」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「成果物プレビュー」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「モックプレビュー」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「コメント投稿」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「自分のコメント編集/削除」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「成果物（限定UI）」 is activated on S-L03, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モック（限定UI）」 is activated on S-L03, the system shall navigate to S-H01"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the API returns 4xx/5xx, the system shall show an inline error and emit a toast",
+            "critical": true
           }
         ],
         "tier_3_regression": [
@@ -14251,11 +14340,184 @@
         "tier_2_functional": [
           {
             "type": "UBIQUITOUS",
-            "text": "The shared component shall be reusable across all consuming screens"
+            "text": "The deliverable of T-US-16 「運営 admin 用別レイアウト（ダーク）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
-            "type": "UBIQUITOUS",
-            "text": "The component shall pass WCAG 2.2 AA contrast and keyboard nav"
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is rendered, the system shall display the 「KPIカード×6」 element per mocks/admin/S-T01-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is rendered, the system shall display the 「成長グラフ」 element per mocks/admin/S-T01-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is rendered, the system shall display the 「アクティビティフィード」 element per mocks/admin/S-T01-dashboard.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「期間切替」 on S-T01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「スキル一覧（名前/version/有効）」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「アップロードフォーム」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「許可AI社員リスト編集」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「アップロード」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「版管理」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「有効化/無効化」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「許可リスト編集」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「uploading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「デフォルト10名テンプレ一覧」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「system_prompt 編集」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「デフォルトスキル/ナレッジカテゴリ」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「version」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規追加」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「全WS反映」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「ユーザー一覧」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「検索」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「ステータス」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「サポート対応メモ」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「詳細閲覧」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ロール変更（admin昇格等）」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「強制ログアウト」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is rendered, the system shall display the 「ログテーブル」 element per mocks/admin/S-T05-audit.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is rendered, the system shall display the 「フィルタ（actor/action/target/period）」 element per mocks/admin/S-T05-audit.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is rendered, the system shall display the 「エクスポート」 element per mocks/admin/S-T05-audit.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「フィルタ」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「詳細展開」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「CSVエクスポート」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the API returns 4xx/5xx, the system shall show an inline error and emit a toast",
+            "critical": true
           }
         ],
         "tier_3_regression": [
@@ -14549,16 +14811,128 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-01 「S-A01 サインイン/サインアップ画面」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-A01 is rendered, the system shall display the 「email入力」 element per mocks/auth/S-A01-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is rendered, the system shall display the 「password入力（任意・Magic Link優先）」 element per mocks/auth/S-A01-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is rendered, the system shall display the 「OAuthボタン×2」 element per mocks/auth/S-A01-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is rendered, the system shall display the 「規約/PP/越境同意チェックボックス×3」 element per mocks/auth/S-A01-signin.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「メール送信→OTP/Magic Link」 on S-A01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「Google OAuth」 on S-A01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「GitHub OAuth」 on S-A01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「サインアップ切替」 on S-A01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「フォーム入力中」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「OTP送信中」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「OTP入力待ち」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「OAuth リダイレクト中」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「エラー」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A01 is in the 「成功→S-A02 へ」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「サインイン成功」 is activated on S-A01, the system shall navigate to S-B01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-001 (認証（Supabase Auth + RLS）) happy path step 1: メール入力"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-001 (認証（Supabase Auth + RLS）) happy path step 2: OTP受信 or OAuth flow"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-001 (認証（Supabase Auth + RLS）) happy path step 3: JWT発行→HTTP-only Cookie"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-001 (認証（Supabase Auth + RLS）) happy path step 4: session開始"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/signup and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/login and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/magic-link and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/auth/oauth/:provider and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/auth/callback/:provider and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/logout and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/account/delete and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/auth/account/restore and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-LEGAL-004 (同意取得+ログ保存) happy path step 1: サインアップ時に規約/PP/越境同意を取得→consentsテーブルに記録"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/consents and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/consents/latest and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -14682,16 +15056,100 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-02 「S-A03 ワークスペース設定」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-A03 is rendered, the system shall display the 「WS名/アイコン」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「メンバー一覧+ロール変更」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「招待発行フォーム」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「MCPトークン一覧/発行/失効」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「プラン情報」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「AI学習可否」 element per mocks/workspace/S-A03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is rendered, the system shall display the 「退会ボタン」 element per mocks/workspace/S-A03-settings.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「WS情報更新」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メンバー招待」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メンバー除名」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ロール変更」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「MCPトークン発行」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「MCPトークン失効」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「退会申請」 on S-A03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-A03 is in the 「error」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-003 (メンバー招待・ロール管理) happy path step 1: 招待発行→メール送信→受諾→membership作成"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/workspaces/:id/invitations and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/invitations/:token/accept and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/workspaces/:id/members/:user_id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/workspaces/:id/members/:user_id/role and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -14820,16 +15278,88 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-03 「S-B01 プロジェクト一覧」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-B01 is rendered, the system shall display the 「プロジェクトカード×N（名前/クライアント/フェーズ進捗/最終更新）」 element per mocks/project/S-B01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is rendered, the system shall display the 「フィルタ（種別/ステータス）」 element per mocks/project/S-B01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is rendered, the system shall display the 「ソート」 element per mocks/project/S-B01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is rendered, the system shall display the 「検索」 element per mocks/project/S-B01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is rendered, the system shall display the 「新規作成ボタン」 element per mocks/project/S-B01-list.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「プロジェクト選択→S-B02」 on S-B01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規作成」 on S-B01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「フィルタ/ソート」 on S-B01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「アーカイブ」 on S-B01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is in the 「empty」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B01 is in the 「error」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「プロジェクト選択」 is activated on S-B01, the system shall navigate to S-B02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-002 (ワークスペース管理) happy path step 1: WS作成→デフォルトAI社員10名複製→ナレッジ初期化→URL発行"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/workspaces/:id and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -14949,16 +15479,88 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-04 「S-B02 プロジェクトダッシュボード」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-B02 is rendered, the system shall display the 「進捗バー×9工程」 element per mocks/project/S-B02-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is rendered, the system shall display the 「AI活動カード」 element per mocks/project/S-B02-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is rendered, the system shall display the 「Inbox件数バッジ」 element per mocks/project/S-B02-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is rendered, the system shall display the 「最新成果物リンク×N」 element per mocks/project/S-B02-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is rendered, the system shall display the 「コメント件数」 element per mocks/project/S-B02-dashboard.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「フェーズクリック→S-F01」 on S-B02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「Inboxクリック→S-J01」 on S-B02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「成果物クリック→S-G01」 on S-B02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B02 is in the 「empty」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「工程ボタン」 is activated on S-B02, the system shall navigate to S-F01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「タスクボタン」 is activated on S-B02, the system shall navigate to S-I01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「Inboxバッジ」 is activated on S-B02, the system shall navigate to S-J01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-002 (ワークスペース管理) happy path step 1: WS作成→デフォルトAI社員10名複製→ナレッジ初期化→URL発行"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/workspaces/:id and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15078,16 +15680,76 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-05 「S-B03 プロジェクト設定」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-B03 is rendered, the system shall display the 「プロジェクト名/クライアント名/種別」 element per mocks/project/S-B03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is rendered, the system shall display the 「ai_training_optout チェックボックス」 element per mocks/project/S-B03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is rendered, the system shall display the 「招待管理（S-L01へリンク）」 element per mocks/project/S-B03-settings.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is rendered, the system shall display the 「削除ボタン」 element per mocks/project/S-B03-settings.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「保存」 on S-B03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「AI学習可否切替」 on S-B03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除→30日カウントダウン」 on S-B03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B03 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「クライアント招待管理」 is activated on S-B03, the system shall navigate to S-L01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-002 (ワークスペース管理) happy path step 1: WS作成→デフォルトAI社員10名複製→ナレッジ初期化→URL発行"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/workspaces and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/workspaces/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/workspaces/:id and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15224,16 +15886,64 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-06 「S-C01 AI 社員組織図」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-C01 is rendered, the system shall display the 「三階層組織図（COO→部長×5→メンバー×N）」 element per mocks/employee/S-C01-org.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C01 is rendered, the system shall display the 「ビュー切替（組織図/リスト）」 element per mocks/employee/S-C01-org.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C01 is rendered, the system shall display the 「雇用ボタン」 element per mocks/employee/S-C01-org.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「AI社員選択→S-C02」 on S-C01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「雇用→S-C03」 on S-C01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ビュー切替」 on S-C01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「AI社員カード」 is activated on S-C01, the system shall navigate to S-C02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「雇用ボタン」 is activated on S-C01, the system shall navigate to S-C03"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-006 (AI社員 人格カスタマイズ（管理側固定編成）) happy path step 1: AI社員一覧表示（運営側固定10名）→ 名前/アイコン/口調プリセット/カスタム文章を編集 → 下部固定バーで保存"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/workspaces/:ws_id/employees and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/employees/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/employees/:id and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15353,16 +16063,80 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-07 「S-C02 AI 社員詳細・編集」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-C02 is rendered, the system shall display the 「display_name 編集」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「icon 編集（Lucide または画像）」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「tone_preset セレクタ×5」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「custom_tone_text」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「「できること」表示（読み取り専用・能力ベース）」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「担当範囲表示」 element per mocks/employee/S-C02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is rendered, the system shall display the 「最近の活動表示」 element per mocks/employee/S-C02-detail.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「保存（下部固定バー）」 on S-C02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「チャット開始→S-E01」 on S-C02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-C02 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「チャットボタン」 is activated on S-C02, the system shall navigate to S-E01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「ナレッジリンク」 is activated on S-C02, the system shall navigate to S-K01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-007 (スキル管理（管理者専用・ユーザーには非表示）) happy path step 1: 管理者がスキルをアップロード → 各AI社員に装着 → 全WSに自動同期"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/admin/skills and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/admin/skills and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/admin/employees/:id/skills and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15504,16 +16278,112 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-08 「S-E01 チャット（assistant-ui + SSE + tool-ui）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-E01 is rendered, the system shall display the 「assistant-ui Thread コンポーネント」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Composer（添付・@メンション・Lucide送信アイコン）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Status 表示（Thinking/Analyzing/Calling tool）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Context Panel（参照ナレッジ・関連エンティティ）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Tool Call カード（tool-ui）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「BranchPicker」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「EditComposer（人間直編集）」 element per mocks/chat/S-E01-thread.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「送信」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「添付」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「@メンション」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メッセージ編集」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メッセージ削除」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規スレッド」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「スレッド切替」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「スレッド/コンテキストパネル開閉」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「streaming」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「tool_calling」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「compressing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「error」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「idle」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「成果物リンク」 is activated on S-E01, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モックリンク」 is activated on S-E01, the system shall navigate to S-H01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「ナレッジ書込候補」 is activated on S-E01, the system shall navigate to S-K02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-CTX01 (Hybrid Context Construction Layer) happy path step 1: 1.ペルソナ(自前) → 2.直近5-10件(LlamaIndex ChatMemoryBuffer) → 3.プロジェクト状態(Supabase SELECT、DB-as-truth) → 4.セマンティック関連メッセージ(LlamaIndex VectorMemory + Voyage Reranker) → 5.RAGナレッジ(LlamaIndex+Cognee+Voyage) → 6.mem0で長期記憶 → 7.言及エンティティ最新値 → 8.必要時LLMLingua圧縮"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/context/build and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15625,16 +16495,112 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-09 「S-E01 工程文脈バー（工程連動）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-E01 is rendered, the system shall display the 「assistant-ui Thread コンポーネント」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Composer（添付・@メンション・Lucide送信アイコン）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Status 表示（Thinking/Analyzing/Calling tool）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Context Panel（参照ナレッジ・関連エンティティ）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「Tool Call カード（tool-ui）」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「BranchPicker」 element per mocks/chat/S-E01-thread.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is rendered, the system shall display the 「EditComposer（人間直編集）」 element per mocks/chat/S-E01-thread.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「送信」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「添付」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「@メンション」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メッセージ編集」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「メッセージ削除」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規スレッド」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「スレッド切替」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「スレッド/コンテキストパネル開閉」 on S-E01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「streaming」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「tool_calling」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「compressing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「error」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-E01 is in the 「idle」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「成果物リンク」 is activated on S-E01, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モックリンク」 is activated on S-E01, the system shall navigate to S-H01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「ナレッジ書込候補」 is activated on S-E01, the system shall navigate to S-K02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-CTX01 (Hybrid Context Construction Layer) happy path step 1: 1.ペルソナ(自前) → 2.直近5-10件(LlamaIndex ChatMemoryBuffer) → 3.プロジェクト状態(Supabase SELECT、DB-as-truth) → 4.セマンティック関連メッセージ(LlamaIndex VectorMemory + Voyage Reranker) → 5.RAGナレッジ(LlamaIndex+Cognee+Voyage) → 6.mem0で長期記憶 → 7.言及エンティティ最新値 → 8.必要時LLMLingua圧縮"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/context/build and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15776,16 +16742,64 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-10 「S-F01 工程ワークフロー（司令塔）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-F01 is rendered, the system shall display the 「9工程タイムライン（hearing→requirements→architecture→design→breakdown→tasks→implementation→verification→delivery）」 element per mocks/workflow/S-F01-flow.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F01 is rendered, the system shall display the 「各工程のステータス」 element per mocks/workflow/S-F01-flow.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F01 is rendered, the system shall display the 「成果物リンク（HTML/JSON/MD）」 element per mocks/workflow/S-F01-flow.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「工程選択→チャット」 on S-F01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「成果物プレビュー→S-G01」 on S-F01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「工程チャット」 is activated on S-F01, the system shall navigate to S-E01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「成果物」 is activated on S-F01, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「フェーズ管理」 is activated on S-F01, the system shall navigate to S-F02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-CUC01 (要件変更検知 → 影響工程の自動再起動) happy path step 1: 変更トリガー（チャット/出力編集/議事録）→ F-IMP01 起点 → 影響工程特定 → AI再実行提案 → ユーザー承認 → 該当工程の AI 社員が再実行"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/projects/:p_id/scope-change/detect and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/scope-change/:id/propose-rerun and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/scope-change/:id/approve and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -15904,16 +16918,68 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-11 「S-F02 フェーズ管理」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-F02 is rendered, the system shall display the 「フェーズタイムライン」 element per mocks/workflow/S-F02-phases.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F02 is rendered, the system shall display the 「AI提案カード（承認/却下）」 element per mocks/workflow/S-F02-phases.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F02 is rendered, the system shall display the 「影響範囲ビジュアル（NetworkX グラフ）」 element per mocks/workflow/S-F02-phases.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「AI提案を承認」 on S-F02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「却下」 on S-F02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「タスクをフェーズ移動」 on S-F02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「影響範囲確認」 on S-F02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-F02 is in the 「analyzing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「承認待ち」 is activated on S-F02, the system shall navigate to S-J01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-CUC01 (要件変更検知 → 影響工程の自動再起動) happy path step 1: 変更トリガー（チャット/出力編集/議事録）→ F-IMP01 起点 → 影響工程特定 → AI再実行提案 → ユーザー承認 → 該当工程の AI 社員が再実行"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/projects/:p_id/scope-change/detect and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/scope-change/:id/propose-rerun and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/scope-change/:id/approve and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -16034,16 +17100,76 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-12 「S-G01 成果物ビューア（コメントピン）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-G01 is rendered, the system shall display the 「3層タブ切替（HTML/JSON/MD）」 element per mocks/output/S-G01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is rendered, the system shall display the 「iframe HTML プレビュー」 element per mocks/output/S-G01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is rendered, the system shall display the 「JSON/MD ビューア」 element per mocks/output/S-G01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is rendered, the system shall display the 「ダウンロードボタン」 element per mocks/output/S-G01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is rendered, the system shall display the 「コメントサイドパネル（要素単位）」 element per mocks/output/S-G01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is rendered, the system shall display the 「バージョン履歴セレクタ（F-CUC03 旧版閲覧）」 element per mocks/output/S-G01-viewer.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「タブ切替」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ダウンロード」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「コメント投稿」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集（メンバー）」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「バージョン切替」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「旧版との差分表示」 on S-G01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is in the 「editing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-G01 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「AI修正提案リンク」 is activated on S-G01, the system shall navigate to S-E01"
           },
           {
             "type": "UNWANTED",
@@ -16169,16 +17295,56 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-13 「S-H01 モックビューア」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-H01 is rendered, the system shall display the 「iframe モックプレビュー」 element per mocks/mock/S-H01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is rendered, the system shall display the 「デバイス切替（mobile/tablet/desktop）」 element per mocks/mock/S-H01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is rendered, the system shall display the 「バージョン履歴」 element per mocks/mock/S-H01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is rendered, the system shall display the 「コメントサイドパネル」 element per mocks/mock/S-H01-viewer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is rendered, the system shall display the 「修正依頼ボタン→チャット」 element per mocks/mock/S-H01-viewer.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「デバイス切替」 on S-H01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「バージョン切替」 on S-H01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「コメント投稿」 on S-H01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「修正依頼→S-E01」 on S-H01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-H01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「修正依頼」 is activated on S-H01, the system shall navigate to S-E01"
           },
           {
             "type": "UNWANTED",
@@ -16299,16 +17465,128 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-14 「S-I01 タスクボード（6 列・再生バー）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-I01 is rendered, the system shall display the 「役割カード（タスクを選ぶ→再生する→承認待ちに進むのを待つの 3 ポイント）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「再生バー（選択件数・合計見積・並列実行枠・大きな再生ボタン）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「ツールバー（表示 [かんばん/リスト/依存グラフ] × 分類 [機能/画面/担当 AI/フェーズ] × 絞り込み）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「凡例（6 レーンの色分け説明）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「カテゴリ別グループ（各グループに 6 レーン）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「6 レーン：準備中（Triage）/ 着手可（Ready）/ 実装中（In Progress）/ 要対応（Blocked）/ 承認待ち（Awaiting）/ 完了（Done）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「タスクカード（チェックボックス・タイトル・タスク ID・担当 AI・見積/進捗・スコア）」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「カード hover で個別再生ボタン」 element per mocks/task/S-I01-kanban.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is rendered, the system shall display the 「実装中カードに走査アニメ + 進捗テキスト」 element per mocks/task/S-I01-kanban.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「タスククリック→S-I02」 on S-I01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「再生」 on S-I01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「D&D移動」 on S-I01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ビュー切替」 on S-I01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I01 is in the 「running」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「タスクカード」 is activated on S-I01, the system shall navigate to S-I02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モニターモード」 is activated on S-I01, the system shall navigate to S-I03"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 1: 1. ユーザーがタスク選択→▶再生 (Web UI)"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 2: 2. FastAPI Dispatcher (Hermes port) が依存解消→Ready 列のタスクを並列枠まで pop"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 3: 3. Dispatcher が Atelier Bridge (Vibeyard fork) へ WebSocket で worker spawn 指示"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 4: 4. Bridge が git worktree add → PTY で claude CLI を HERMES_KANBAN_TASK env 付き起動"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 5: 5. claude プロセスが kanban_show() で自身のタスク取得→自走→kanban_complete(summary, metadata)"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-018 (並列実行エンジン（5-10並列）— Vibeyard Bridge + Hermes Dispatcher) happy path step 6: 6. Bridge が SSE で結果を Atelier クラウドへ送信→ Dispatcher が状態遷移 (Awaiting / Done)"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/projects/:p_id/execute/play and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/executions/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/executions/:id/logs and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/executions/:id/cancel and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/claude-code-bridge/authenticate and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call WS /api/v1/claude-code-bridge/ws and render the documented success response"
           },
           {
             "type": "UNWANTED",
@@ -16430,16 +17708,100 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-15 「S-I02 タスク詳細（6 タブ）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-I02 is rendered, the system shall display the 「タスクメタ（ID/タイトル/担当AI/状態/スコア/origin_type）」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「spec_html プレビュー」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「mock リンク」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「AC チェックリスト」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「依存タスクグラフ」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「API/DB 参照」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「ナレッジ」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「実行ログ」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「parent_task リンク（リファクタ起源時）」 element per mocks/task/S-I02-detail.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is rendered, the system shall display the 「F-CUC02 in_progress時の3択判断モーダル（取り込み継続/現状完了/破棄して再分解）」 element per mocks/task/S-I02-detail.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「実行開始/停止」 on S-I02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「再分解」 on S-I02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-I02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「コメント投稿」 on S-I02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「scope_change時の3択判断」 on S-I02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is in the 「running」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is in the 「verifying」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I02 is in the 「awaiting_approval」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「実行ログ詳細」 is activated on S-I02, the system shall navigate to S-I03"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「spec リンク」 is activated on S-I02, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モックリンク」 is activated on S-I02, the system shall navigate to S-H01"
           },
           {
             "type": "UNWANTED",
@@ -16558,16 +17920,36 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-16 「S-I03 実行モニター（ダーク・SSE ログ）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-I03 is rendered, the system shall display the 「5-10並列セッションのタイル表示」 element per mocks/task/S-I03-monitor.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I03 is rendered, the system shall display the 「リアルタイムログストリーム（オプション）」 element per mocks/task/S-I03-monitor.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I03 is rendered, the system shall display the 「スコア表示」 element per mocks/task/S-I03-monitor.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「セッション選択」 on S-I03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「停止」 on S-I03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I03 is in the 「streaming」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-I03 is in the 「idle」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -16684,16 +18066,76 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-17 「S-J01 承認待ち（5 種統合）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-J01 is rendered, the system shall display the 「種別フィルタ（task_approval / phase_approval / knowledge_write / comment_response / scope_change）」 element per mocks/inbox/S-J01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is rendered, the system shall display the 「Inboxアイテム×N（種別/対象/詳細プレビュー/承認・却下ボタン）」 element per mocks/inbox/S-J01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is rendered, the system shall display the 「一括承認ボタン」 element per mocks/inbox/S-J01-list.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is rendered, the system shall display the 「scope_change詳細パネル（影響工程リスト/影響タスク件数/再実行対象選択）」 element per mocks/inbox/S-J01-list.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「承認」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「却下」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「詳細展開」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「一括承認」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「scope_change承認→該当工程の再実行」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「scope_change却下」 on S-J01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-J01 is in the 「empty」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「タスク詳細」 is activated on S-J01, the system shall navigate to S-I02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「ナレッジ書込」 is activated on S-J01, the system shall navigate to S-K02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「フェーズ承認」 is activated on S-J01, the system shall navigate to S-F02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「scope_change承認後の再実行チャット」 is activated on S-J01, the system shall navigate to S-E01"
           },
           {
             "type": "UNWANTED",
@@ -16805,16 +18247,76 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-18 「S-K01 ナレッジエクスプローラ」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-K01 is rendered, the system shall display the 「scope切替（共通/社員別）」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「カテゴリツリー」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「ノードリスト/グラフ」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「検索バー（ハイブリッド検索）」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「MDプレビュー」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「編集ボタン」 element per mocks/knowledge/S-K01-explorer.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「検索」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ノード選択」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規作成」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ビュー切替（リスト/グラフ）」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ツリー/詳細パネル開閉」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「searching」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「owner社員リンク」 is activated on S-K01, the system shall navigate to S-C02"
           },
           {
             "type": "UNWANTED",
@@ -16931,16 +18433,48 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-19 「S-K02 ナレッジ昇格レビュー」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-K02 is rendered, the system shall display the 「候補リスト×N」 element per mocks/knowledge/S-K02-review.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K02 is rendered, the system shall display the 「候補プレビュー（MD）」 element per mocks/knowledge/S-K02-review.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K02 is rendered, the system shall display the 「編集エディタ」 element per mocks/knowledge/S-K02-review.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K02 is rendered, the system shall display the 「採用/編集/却下ボタン」 element per mocks/knowledge/S-K02-review.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「採用」 on S-K02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集して採用」 on S-K02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「却下」 on S-K02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「採用後」 is activated on S-K02, the system shall navigate to S-K01"
           },
           {
             "type": "UNWANTED",
@@ -17076,16 +18610,40 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-20 「S-L01 クライアント招待管理」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-L01 is rendered, the system shall display the 「新規招待フォーム（email、表示名、有効期限日数）」 element per mocks/client/S-L01-invite-mgmt.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L01 is rendered, the system shall display the 「招待一覧（クライアント名/メール/期限/状態/失効ボタン）」 element per mocks/client/S-L01-invite-mgmt.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「招待発行」 on S-L01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「失効」 on S-L01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「再送」 on S-L01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L01 is in the 「sending」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -17206,16 +18764,44 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-21 「S-L02 クライアントサインイン」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-L02 is rendered, the system shall display the 「プロジェクト名/オーナー名表示」 element per mocks/client/S-L02-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is rendered, the system shall display the 「規約・PP・データ取扱同意チェック」 element per mocks/client/S-L02-signin.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is rendered, the system shall display the 「サインインボタン」 element per mocks/client/S-L02-signin.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「同意してサインイン→S-L03」 on S-L02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「signing_in」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L02 is in the 「expired」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「サインイン成功」 is activated on S-L02, the system shall navigate to S-L03"
           },
           {
             "type": "UNWANTED",
@@ -17329,16 +18915,60 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-22 「S-L03 クライアントプロジェクトビュー」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-L03 is rendered, the system shall display the 「フェーズ進捗バー」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「成果物リンク（S-G01の限定UI）」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「モックリンク（S-H01の限定UI）」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「コメント一覧」 element per mocks/client/S-L03-project.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is rendered, the system shall display the 「編集禁止表示」 element per mocks/client/S-L03-project.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「成果物プレビュー」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「モックプレビュー」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「コメント投稿」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「自分のコメント編集/削除」 on S-L03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-L03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「成果物（限定UI）」 is activated on S-L03, the system shall navigate to S-G01"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「モック（限定UI）」 is activated on S-L03, the system shall navigate to S-H01"
           },
           {
             "type": "UNWANTED",
@@ -17462,16 +19092,68 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-23 「S-M01 議事録アップロード + transcript」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-M01 is rendered, the system shall display the 「ドロップゾーン（mp3/m4a/mp4/txt）」 element per mocks/upload/S-M01-meeting.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is rendered, the system shall display the 「アップロード進捗」 element per mocks/upload/S-M01-meeting.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is rendered, the system shall display the 「解析進捗（Whisper等）」 element per mocks/upload/S-M01-meeting.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is rendered, the system shall display the 「解析結果サマリープレビュー」 element per mocks/upload/S-M01-meeting.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is rendered, the system shall display the 「対話開始ボタン」 element per mocks/upload/S-M01-meeting.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「アップロード」 on S-M01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「解析待ち」 on S-M01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「解析結果確認」 on S-M01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「スティーブに渡す→S-E01」 on S-M01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is in the 「empty」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is in the 「uploading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is in the 「parsing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is in the 「parsed」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-M01 is in the 「error」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「対話開始」 is activated on S-M01, the system shall navigate to S-E01"
           },
           {
             "type": "UNWANTED",
@@ -17588,16 +19270,60 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-24 「S-N01 商談ドラフト」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-N01 is rendered, the system shall display the 「ドラフト種別タブ×5」 element per mocks/sales/S-N01-drafts.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is rendered, the system shall display the 「ドラフトHTMLプレビュー」 element per mocks/sales/S-N01-drafts.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is rendered, the system shall display the 「編集ボタン→S-E01」 element per mocks/sales/S-N01-drafts.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is rendered, the system shall display the 「PDF出力」 element per mocks/sales/S-N01-drafts.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is rendered, the system shall display the 「送信履歴」 element per mocks/sales/S-N01-drafts.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「生成依頼」 on S-N01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-N01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「PDF出力」 on S-N01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ダウンロード」 on S-N01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-N01 is in the 「generating」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「編集→チャット」 is activated on S-N01, the system shall navigate to S-E01"
           },
           {
             "type": "UNWANTED",
@@ -17715,16 +19441,44 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-25 「S-O01 自動スケジュール」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-O01 is rendered, the system shall display the 「スケジュール一覧（名前/cron式/対象/次回実行）」 element per mocks/cron/S-O01-schedule.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-O01 is rendered, the system shall display the 「新規フォーム（cron GUI 助手）」 element per mocks/cron/S-O01-schedule.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-O01 is rendered, the system shall display the 「有効/無効スイッチ」 element per mocks/cron/S-O01-schedule.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「新規作成」 on S-O01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-O01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「有効化/無効化」 on S-O01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除」 on S-O01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-O01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-O01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -17834,16 +19588,16 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-26 「S-PUB01 利用規約」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-PUB01 is rendered, the system shall display the 「規約本文（バージョン管理）」 element per mocks/public/S-PUB01-terms.html"
           },
           {
-            "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB01 is in the 「static」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -17953,16 +19707,36 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-27 「S-PUB02 プライバシーポリシー」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-PUB02 is rendered, the system shall display the 「ポリシー本文」 element per mocks/public/S-PUB02-privacy.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB02 is rendered, the system shall display the 「保有個人情報」 element per mocks/public/S-PUB02-privacy.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB02 is rendered, the system shall display the 「第三者提供」 element per mocks/public/S-PUB02-privacy.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB02 is rendered, the system shall display the 「越境通知」 element per mocks/public/S-PUB02-privacy.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB02 is rendered, the system shall display the 「削除要求窓口リンク」 element per mocks/public/S-PUB02-privacy.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB02 is in the 「static」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When 「削除要求リンク」 is activated on S-PUB02, the system shall navigate to S-PUB04"
           },
           {
             "type": "UNWANTED",
@@ -18072,16 +19846,36 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-28 「S-PUB03 特商法表記」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-PUB03 is rendered, the system shall display the 「事業者名」 element per mocks/public/S-PUB03-tokushoho.html"
           },
           {
-            "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is rendered, the system shall display the 「所在地」 element per mocks/public/S-PUB03-tokushoho.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is rendered, the system shall display the 「連絡先」 element per mocks/public/S-PUB03-tokushoho.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is rendered, the system shall display the 「販売価格」 element per mocks/public/S-PUB03-tokushoho.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is rendered, the system shall display the 「解約方法」 element per mocks/public/S-PUB03-tokushoho.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is rendered, the system shall display the 「返金条件」 element per mocks/public/S-PUB03-tokushoho.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB03 is in the 「static」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18191,16 +19985,56 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-29 「S-PUB04 データ削除請求」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-PUB04 is rendered, the system shall display the 「削除対象内容」 element per mocks/public/S-PUB04-data-deletion.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is rendered, the system shall display the 「理由入力」 element per mocks/public/S-PUB04-data-deletion.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is rendered, the system shall display the 「確認テキスト入力」 element per mocks/public/S-PUB04-data-deletion.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is rendered, the system shall display the 「申請ボタン」 element per mocks/public/S-PUB04-data-deletion.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is rendered, the system shall display the 「キャンセルボタン（既申請者）」 element per mocks/public/S-PUB04-data-deletion.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「削除申請」 on S-PUB04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「キャンセル」 on S-PUB04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is in the 「submitting」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is in the 「scheduled」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-PUB04 is in the 「cancelled」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18337,16 +20171,32 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-30 「S-T01 運営ダッシュボード（ダーク）」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-T01 is rendered, the system shall display the 「KPIカード×6」 element per mocks/admin/S-T01-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is rendered, the system shall display the 「成長グラフ」 element per mocks/admin/S-T01-dashboard.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is rendered, the system shall display the 「アクティビティフィード」 element per mocks/admin/S-T01-dashboard.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「期間切替」 on S-T01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18458,16 +20308,48 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-31 「S-T02 スキル管理」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-T02 is rendered, the system shall display the 「スキル一覧（名前/version/有効）」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「アップロードフォーム」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「許可AI社員リスト編集」 element per mocks/admin/S-T02-skills.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「アップロード」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「版管理」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「有効化/無効化」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「許可リスト編集」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「uploading」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18585,16 +20467,48 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-32 「S-T03 AI 社員テンプレ」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-T03 is rendered, the system shall display the 「デフォルト10名テンプレ一覧」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「system_prompt 編集」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「デフォルトスキル/ナレッジカテゴリ」 element per mocks/admin/S-T03-templates.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is rendered, the system shall display the 「version」 element per mocks/admin/S-T03-templates.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「編集」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規追加」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「全WS反映」 on S-T03, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T03 is in the 「saving」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18712,16 +20626,44 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-33 「S-T04 ユーザー管理」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-T04 is rendered, the system shall display the 「ユーザー一覧」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「検索」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「ステータス」 element per mocks/admin/S-T04-users.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is rendered, the system shall display the 「サポート対応メモ」 element per mocks/admin/S-T04-users.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「詳細閲覧」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ロール変更（admin昇格等）」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「強制ログアウト」 on S-T04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T04 is in the 「loaded」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -18838,16 +20780,40 @@
         ],
         "tier_2_functional": [
           {
-            "type": "STATE-DRIVEN",
-            "text": "While loading, the system shall show a skeleton/loading state"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-34 「S-T05 監査ログ」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
           },
           {
             "type": "STATE-DRIVEN",
-            "text": "When data is empty, the system shall show an empty-state message"
+            "text": "While S-T05 is rendered, the system shall display the 「ログテーブル」 element per mocks/admin/S-T05-audit.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is rendered, the system shall display the 「フィルタ（actor/action/target/period）」 element per mocks/admin/S-T05-audit.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is rendered, the system shall display the 「エクスポート」 element per mocks/admin/S-T05-audit.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When the user performs an action, the system shall reflect changes optimistically and rollback on failure"
+            "text": "When the user invokes 「フィルタ」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「詳細展開」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「CSVエクスポート」 on S-T05, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T05 is in the 「loaded」 state, the system shall render that state distinctly per mock"
           },
           {
             "type": "UNWANTED",
@@ -22676,30 +24642,81 @@
         ],
         "tier_2_functional": [
           {
-            "type": "EVENT-DRIVEN",
-            "text": "When an authorized project member stores a credential, the system shall encrypt it with Fernet and persist only the ciphertext"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-41 「プロジェクト・シークレット: S-B04 シークレットタブ画面」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is rendered, the system shall display the 「クレデンシャル一覧（name + kind + ●●●●last4 マスク）」 element per mocks/project/S-B04-vault.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is rendered, the system shall display the 「追加フォーム: name / kind / value（入力時のみ・保存後は非表示）」 element per mocks/project/S-B04-vault.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is rendered, the system shall display the 「表示(reveal)ボタン: 一時的に平文表示 + クリップボードコピー」 element per mocks/project/S-B04-vault.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is rendered, the system shall display the 「削除ボタン」 element per mocks/project/S-B04-vault.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When listing credentials, the system shall return masked values (name/kind/last4 only)"
+            "text": "When the user invokes 「追加（暗号化保存・応答に平文なし）」 on S-B04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「表示（reveal API・権限者のみ・audit記録）」 on S-B04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除（owner のみ・soft delete）」 on S-B04, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-B04 is in the 「revealing」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-041 (プロジェクト・クレデンシャルシークレット) happy path step 1: プロジェクト・シークレットタブで機密クレデンシャル(APIキー/パスワード/トークン/接続文字列)を Fernet 暗号化保存→一覧はマスク表示→権限者が reveal で一時復号"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/projects/:id/credentials and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/projects/:id/credentials and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/projects/:id/credentials/:cid and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/projects/:id/credentials/:cid and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/projects/:id/credentials/:cid/reveal and render the documented success response"
           },
           {
             "type": "UNWANTED",
-            "text": "If the user is not a member of the credential's project workspace, the system shall return 403 Forbidden (RLS 越境=0)",
+            "text": "If the API returns 4xx/5xx, the system shall show an inline error and emit a toast",
             "critical": true
-          },
-          {
-            "type": "UNWANTED",
-            "text": "If the request is unauthenticated, the system shall return 401 Unauthorized",
-            "critical": true
-          },
-          {
-            "type": "UBIQUITOUS",
-            "text": "The system shall write a row to audit_logs for every store/update/delete/reveal (誰がいつ復号したか)"
-          },
-          {
-            "type": "UBIQUITOUS",
-            "text": "シークレットデータを AI 学習に使わない (絶対ルール #6 準拠)"
           }
         ],
         "tier_3_regression": [
@@ -23164,16 +25181,140 @@
         ],
         "tier_2_functional": [
           {
-            "type": "EVENT-DRIVEN",
-            "text": "When an admin saves a skill on S-T02, the system shall call the skills API and reflect the result on a fresh GET"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-42 「運営UI配線：S-T02 スキル管理(upload/edit/新規) + S-T06 運営デフォルトナレッジ管理」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「スキル一覧（名前/version/有効）」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「アップロードフォーム」 element per mocks/admin/S-T02-skills.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is rendered, the system shall display the 「許可AI社員リスト編集」 element per mocks/admin/S-T02-skills.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When an admin creates platform knowledge on S-T06, the system shall call POST /knowledge with account_type=platform"
+            "text": "When the user invokes 「アップロード」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「版管理」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「有効化/無効化」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「許可リスト編集」 on S-T02, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T02 is in the 「uploading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is rendered, the system shall display the 「プラットフォームナレッジ一覧（タイトル/カテゴリ/参照テナント数/visible_in_tree/更新日）」 element per mocks/admin/S-T06-platform-knowledge.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is rendered, the system shall display the 「新規追加・SKILL.md 取込フォーム」 element per mocks/admin/S-T06-platform-knowledge.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is rendered, the system shall display the 「visible_in_tree トグル（既定 false=ツリー非表示・参照のみ）」 element per mocks/admin/S-T06-platform-knowledge.html"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規追加（account_type=platform で保存）」 on S-T06, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「SKILL.md 取込」 on S-T06, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-T06, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除」 on S-T06, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ツリー表示 ON/OFF 切替」 on S-T06, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-T06 is in the 「saving」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-007 (スキル管理（管理者専用・ユーザーには非表示）) happy path step 1: 管理者がスキルをアップロード → 各AI社員に装着 → 全WSに自動同期"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/admin/skills and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/admin/skills and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/admin/employees/:id/skills and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-023 (ナレッジ管理（共通+社員別2層）) happy path step 1: AI候補生成→ユーザー承認→DB書込+埋め込み生成"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/knowledge and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/knowledge/proposals and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge/:id/approve and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/knowledge/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/knowledge/:id and render the documented success response"
           },
           {
             "type": "UNWANTED",
-            "text": "If a non-admin opens S-T02/S-T06, the system shall redirect/deny (admin gate)",
+            "text": "If the API returns 4xx/5xx, the system shall show an inline error and emit a toast",
             "critical": true
           }
         ],
@@ -23268,16 +25409,124 @@
         ],
         "tier_2_functional": [
           {
-            "type": "EVENT-DRIVEN",
-            "text": "When a node with children is expanded, the system shall fetch children via parent_id"
+            "type": "UBIQUITOUS",
+            "text": "The deliverable of T-UC-43 「ナレッジUI配線：S-K01 3層ツリー(project層) + 構造ツリー + パネル開閉」 shall satisfy the screen/feature ACs below within this task's scope (files_changed_predicted)"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「scope切替（共通/社員別）」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「カテゴリツリー」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「ノードリスト/グラフ」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「検索バー（ハイブリッド検索）」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「MDプレビュー」 element per mocks/knowledge/S-K01-explorer.html"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is rendered, the system shall display the 「編集ボタン」 element per mocks/knowledge/S-K01-explorer.html"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When a member adds knowledge, the system shall call POST /knowledge and reflect on a fresh GET"
+            "text": "When the user invokes 「検索」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ノード選択」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「編集」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「削除」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「新規作成」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ビュー切替（リスト/グラフ）」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user invokes 「ツリー/詳細パネル開閉」 on S-K01, the system shall perform the bound real behavior (API call / navigation) and reflect the result in the UI"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「loading」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「loaded」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While S-K01 is in the 「searching」 state, the system shall render that state distinctly per mock"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When 「owner社員リンク」 is activated on S-K01, the system shall navigate to S-C02"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-023 (ナレッジ管理（共通+社員別2層）) happy path step 1: AI候補生成→ユーザー承認→DB書込+埋め込み生成"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/knowledge and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call GET /api/v1/knowledge/proposals and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge/:id/approve and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call PATCH /api/v1/knowledge/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call DELETE /api/v1/knowledge/:id and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "The implementation shall realize F-024 (ナレッジ検索（RAG）) happy path step 1: クエリ→Voyage埋め込み→pgvector検索+FTS+リランカー→出典付き結果"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge/search and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge/embed and render the documented success response"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the corresponding UI action fires, the screen shall call POST /api/v1/knowledge/rerank and render the documented success response"
           },
           {
             "type": "UNWANTED",
-            "text": "If the user is not a workspace member, the system shall not display other tenants' knowledge (RLS 越境=0)",
+            "text": "If the API returns 4xx/5xx, the system shall show an inline error and emit a toast",
             "critical": true
           }
         ],
