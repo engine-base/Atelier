@@ -19,7 +19,7 @@
 | GAP-010 | S-K01 の「グラフ」ビュー | トグル未描画 (グラフ描画・ノード関係 API 未実装) | ナレッジ間リンク構造の API + グラフ描画コンポーネント | 2026-07-19 |
 | GAP-011 | S-K01 の「Obsidian で開く / Vault に書出」 | ボタン未描画 (Obsidian 連携 API 不在) | Vault export API + URI scheme 連携 | 2026-07-19 |
 | GAP-012 | S-K01 の「バックリンク」セクション | 未描画 (参照元逆引き API 不在。関連ナレッジ(RAG) は実装済) | knowledge 参照元 (tasks/ADR/機能仕様) の逆引き API | 2026-07-19 |
-| GAP-013 | S-O01 の「実行履歴」テーブル | 未描画 (cron 実行履歴 API 不在) | cron 実行結果の記録テーブル + 一覧 API | 2026-07-19 |
+| ~~GAP-013~~ ✅解消 (2026-08-03) | S-O01 の「実行履歴」テーブル | **実装済**: cron_run_history テーブル (migration t-d-99za — RLS: platform 行は authenticated / project 行は member、INSERT policy 無しで API 改竄不可) + Inngest handler wrapper が全 cron 発火を running→success/error で記録 (履歴失敗でも cron を止めない best-effort、unit 3 件) + GET /cron-runs + S-O01 実行履歴テーブル (モック .history-card 準拠)。実操作監査 3 連続 ALL PASS。スケジュール別履歴は project cron 実行エンジン (T-F-20) 配線時に schedule_id/project_id 列でそのまま拡張可 | — | 2026-07-19 |
 | GAP-014 | S-O01 の「法令・運用バックエンド (必須)」セクション | 未描画 (プラットフォーム必須ジョブの可視化 API 不在 — 偽の稼働状況を出さない) | 退会データ削除等プラットフォームジョブの実装 + read-only 可視化 API | 2026-07-19 |
 | GAP-015 | S-M01 の解析結果構造化 (サマリー/話者分離/要件抽出/アクションアイテム) | 文字起こし本文のみ表示 (構造化解析 API 不在。モックのナターシャ/スティーブ解析ブロックは未描画) | 議事録構造化解析 API (要約・話者分離・要件抽出) + 要件承認フロー連携 | 2026-07-19 |
 | GAP-017 | S-B03 の「プロジェクト跨ぎナレッジ参照」トグル | 未描画 (モックの ON 固定トグルは見た目だけの偽トグルだったため撤去。参照設定の read/write API が存在しない) | プロジェクト設定 (settings JSONB 等) への参照許可フラグ + read/write API + ナレッジ検索側での適用 | 2026-07-19 |

@@ -107,7 +107,10 @@ def build_cron_function(
         # SDK は handler を ctx 1 引数で呼ぶ (step は ctx.step)。
         # 2 引数シグネチャは serve 実行時に TypeError 500 になる
         # (潜在バグ #22 — 2026-07-15 実発火検証で検出)。
-        return await handler(ctx, getattr(ctx, "step", None))
+        # GAP-013: 実行履歴 (cron_run_history) を running→success/error で記録。
+        from src.services.cron.history import record_run
+
+        return await record_run(schedule.name, lambda: handler(ctx, getattr(ctx, "step", None)))
 
     return _fn
 

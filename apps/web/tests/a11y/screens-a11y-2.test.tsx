@@ -102,7 +102,7 @@ describe("a11y 追加: 配線済み画面 axe (0 critical/serious)", () => {
     const { container } = renderWithQuery(
       <CronScheduleContainer projectId="p1" client={fakeClient(get)} />,
     );
-    await screen.findByText("JobA");
+    await screen.findAllByText("JobA");
     await expectNoSeriousViolations(container);
   });
 

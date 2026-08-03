@@ -4833,6 +4833,62 @@ export interface paths {
         };
         trace?: never;
     };
+    "/cron-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** cron 実行履歴一覧 (GAP-013 — S-O01 実行履歴) */
+        get: {
+            parameters: {
+                query?: {
+                    name?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行履歴 (新しい順。platform 行 + 所属 project 行のみ可視) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                id: string;
+                                name: string;
+                                /** Format: uuid */
+                                schedule_id?: string | null;
+                                /** Format: uuid */
+                                project_id?: string | null;
+                                /** Format: date-time */
+                                started_at: string;
+                                /** Format: date-time */
+                                finished_at?: string | null;
+                                /** @enum {string} */
+                                status: "running" | "success" | "error";
+                                detail: Record<string, never>;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cron-schedules": {
         parameters: {
             query?: never;

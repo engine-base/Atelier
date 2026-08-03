@@ -51,3 +51,16 @@ class CronScheduleResponse(BaseModel):
     next_run_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class CronRunResponse(BaseModel):
+    """cron 実行履歴 1 件 (GAP-013)。detail は運用メタのみ (テナントデータ無し)。"""
+
+    id: str
+    name: str
+    schedule_id: str | None
+    project_id: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    status: Literal["running", "success", "error"]
+    detail: dict[str, object]

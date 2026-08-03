@@ -15,11 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.cron import (
+    CronRunResponse,
     CronScheduleCreate,
     CronScheduleResponse,
     CronScheduleUpdate,
 )
 from src.services import cron as svc
+from src.services.cron import history as history_svc
 
 router = APIRouter(tags=["cron-schedules"])
 
@@ -35,6 +37,16 @@ async def list_schedules(
     enabled: Annotated[bool | None, Query()] = None,
 ) -> dict[str, list[CronScheduleResponse]]:
     return {"data": await svc.list_schedules(session, project_id=project_id, enabled=enabled)}
+
+
+@router.get("/cron-runs", summary="cron 実行履歴一覧 (GAP-013 / S-O01 実行履歴)")
+async def list_cron_runs(
+    session: SessionDep,
+    _user: UserDep,
+    name: Annotated[str | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict[str, list[CronRunResponse]]:
+    return {"data": await history_svc.list_runs(session, name=name, limit=limit)}
 
 
 @router.post(

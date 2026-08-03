@@ -3797,6 +3797,38 @@ paths:
   # ==========================================================================
   # cron スケジュール (T-A-40)
   # ==========================================================================
+  /cron-runs:
+    get:
+      tags: [cron-schedules]
+      summary: cron 実行履歴一覧 (GAP-013 — S-O01 実行履歴)
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::list_cron_runs
+      x-screen-ids: [S-O01]
+      parameters:
+        - { name: name, in: query, required: false, schema: { type: string } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: 実行履歴 (新しい順。platform 行 + 所属 project 行のみ可視)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, started_at, status, detail]
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        schedule_id: { type: string, format: uuid, nullable: true }
+                        project_id: { type: string, format: uuid, nullable: true }
+                        started_at: { type: string, format: date-time }
+                        finished_at: { type: string, format: date-time, nullable: true }
+                        status: { type: string, enum: [running, success, error] }
+                        detail: { type: object }
+
   /cron-schedules:
     get:
       tags: [cron-schedules]

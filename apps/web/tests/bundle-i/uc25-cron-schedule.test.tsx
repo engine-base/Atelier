@@ -20,6 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createQueryClient } from "../../lib/query-client";
 import { CronScheduleContainer } from "../../app/cron/s_o01/_components/CronScheduleContainer";
+import { CronSchedule } from "../../app/cron/s_o01/_components/CronSchedule";
 
 function renderWithQuery(ui: React.ReactElement) {
   const qc = createQueryClient();
@@ -170,7 +171,9 @@ describe("S-O01 v2: グループ + upcoming", () => {
   ];
 
   it("groups rows by action category and shows upcoming for enabled jobs", async () => {
-    const get = vi.fn(async () => ({ data: RICH }));
+    const get = vi.fn(async (path: unknown) =>
+      path === "/cron-runs" ? { data: [] } : { data: RICH },
+    );
     renderWithQuery(
       <CronScheduleContainer projectId="p1" client={fakeClient({ get })} />,
     );
@@ -185,5 +188,52 @@ describe("S-O01 v2: グループ + upcoming", () => {
     expect(screen.getAllByText("夜間タスク再生")).toHaveLength(2);
     // 人間可読ラベル
     expect(screen.getAllByText("毎日 深夜 2:00").length).toBeGreaterThan(0);
+  });
+});
+
+describe("S-O01 実行履歴 (GAP-013)", () => {
+  it("runs prop で履歴テーブルを描画 (成功/失敗/実行中 + 所要時間)", () => {
+    render(
+      <CronSchedule
+        jobs={[]}
+        onToggle={() => undefined}
+        runs={[
+          {
+            id: "r1",
+            name: "transcribe-queue",
+            startedAt: "2026-08-03T02:00:00Z",
+            finishedAt: "2026-08-03T02:00:12Z",
+            status: "success",
+          },
+          {
+            id: "r2",
+            name: "daily-digest",
+            startedAt: "2026-08-03T01:00:00Z",
+            finishedAt: "2026-08-03T01:00:03Z",
+            status: "error",
+          },
+          {
+            id: "r3",
+            name: "weekly-burndown",
+            startedAt: "2026-08-03T03:00:00Z",
+            finishedAt: null,
+            status: "running",
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/実行履歴（直近 3 件）/)).toBeInTheDocument();
+    expect(screen.getByText("transcribe-queue")).toBeInTheDocument();
+    expect(screen.getByText("12 秒")).toBeInTheDocument();
+    expect(screen.getByText("成功")).toBeInTheDocument();
+    expect(screen.getByText("失敗")).toBeInTheDocument();
+    expect(screen.getByText("実行中")).toBeInTheDocument();
+  });
+
+  it("runs 未指定なら履歴セクションを出さない (Rule 10) / 空配列は空状態", () => {
+    const { rerender } = render(<CronSchedule jobs={[]} onToggle={() => undefined} />);
+    expect(screen.queryByText(/実行履歴/)).toBeNull();
+    rerender(<CronSchedule jobs={[]} onToggle={() => undefined} runs={[]} />);
+    expect(screen.getByText(/実行履歴はまだありません/)).toBeInTheDocument();
   });
 });

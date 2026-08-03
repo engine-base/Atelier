@@ -102,6 +102,35 @@ export function CronScheduleContainer({
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
   });
 
+  // GAP-013: 実行履歴 (GET /cron-runs)
+  const runsQuery = useQuery({
+    queryKey: ["cron-runs"],
+    queryFn: async () => {
+      const res = await client.get("/cron-runs", {
+        params: { query: { limit: 6 } },
+      });
+      return (
+        (res as {
+          data?: {
+            id: string;
+            name: string;
+            started_at: string;
+            finished_at?: string | null;
+            status: "running" | "success" | "error";
+          }[];
+        }).data ?? []
+      );
+    },
+    retry: false,
+  });
+  const runs = (runsQuery.data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    startedAt: r.started_at,
+    finishedAt: r.finished_at ?? null,
+    status: r.status,
+  }));
+
   if (isForbidden(list.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -144,6 +173,7 @@ export function CronScheduleContainer({
   return (
     <CronSchedule
       jobs={jobs}
+      runs={runs}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
       onDelete={(id) => deleteMut.mutate(id)}
       onRefresh={() => void list.refetch()}

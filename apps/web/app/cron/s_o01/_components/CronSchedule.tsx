@@ -7,7 +7,8 @@
  *   - 各行: アイコン + 名前 + 説明 + コスト/担当タグ + cron 日本語ラベル + cron 式 +
  *     次回 + トグル + 削除 (2 段階)
  *
- * 実行履歴 (mock) は cron 実行履歴 API が無いため未描画 (GAP-013)。
+ * 実行履歴 (GAP-013 解消): GET /cron-runs の実データを「実行履歴」テーブルで描画
+ * (スケジュール名/実行日時/所要時間/結果 — モック .history-card 準拠)。
  * 法令・運用の必須ジョブ (mock) はプラットフォーム側ジョブの可視化 API が無いため
  * 未描画 (GAP-014) — 偽の稼働状況を出さない。
  * データ配線・props・export・aria-label は不変（vitest / e2e が参照）。
@@ -43,8 +44,18 @@ export interface CronJob {
   readonly nextRunIso?: string | null;
 }
 
+export interface CronRun {
+  readonly id: string;
+  readonly name: string;
+  readonly startedAt: string;
+  readonly finishedAt?: string | null;
+  readonly status: "running" | "success" | "error";
+}
+
 export interface CronScheduleProps {
   readonly jobs: readonly CronJob[];
+  /** 実行履歴 (GAP-013)。未指定なら履歴セクションを出さない (Rule 10)。 */
+  readonly runs?: readonly CronRun[];
   readonly onToggle: (id: string, enabled: boolean) => void;
   /** 即時実行。未指定なら「即時実行」ボタンを出さない（バックエンド未対応時など）。 */
   readonly onRunNow?: (id: string) => void;
@@ -380,6 +391,7 @@ export function CronSchedule({
   onRunNow,
   onDelete,
   onRefresh,
+  runs,
 }: CronScheduleProps) {
   // 次に動くスケジュール: enabled かつ next_run_at があるものを昇順で最大 5 件
   const upcoming = jobs
@@ -501,6 +513,74 @@ export function CronSchedule({
           </div>
         ))
       )}
+
+      {/* 実行履歴 (GAP-013 — モック .history-card 準拠) */}
+      {runs ? (
+        <div className="rounded-lg border border-border bg-white">
+          <div className="border-b border-border px-4 py-3">
+            <h2 className="text-[13.5px] font-bold text-on-surface">
+              実行履歴（直近 {runs.length} 件）
+            </h2>
+          </div>
+          {runs.length === 0 ? (
+            <p className="px-4 py-8 text-center text-[12.5px] text-on-surface-variant">
+              実行履歴はまだありません。cron が発火すると自動で記録されます。
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12.5px]">
+                <caption className="sr-only">cron 実行履歴</caption>
+                <thead>
+                  <tr className="border-b border-border bg-surface-variant text-left text-[10.5px] uppercase tracking-[0.06em] text-on-surface-variant">
+                    <th className="px-4 py-2 font-bold">スケジュール名</th>
+                    <th className="px-4 py-2 font-bold">実行日時</th>
+                    <th className="px-4 py-2 font-bold">所要時間</th>
+                    <th className="px-4 py-2 font-bold">結果</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((r) => {
+                    const started = new Date(r.startedAt);
+                    const dur =
+                      r.finishedAt != null
+                        ? `${Math.max(0, Math.round((new Date(r.finishedAt).getTime() - started.getTime()) / 1000))} 秒`
+                        : "—";
+                    const label =
+                      r.status === "success"
+                        ? "成功"
+                        : r.status === "error"
+                          ? "失敗"
+                          : "実行中";
+                    return (
+                      <tr key={r.id} className="border-b border-border last:border-b-0">
+                        <td className="px-4 py-2 font-medium text-on-surface">{r.name}</td>
+                        <td className="px-4 py-2 tabular-nums text-on-surface-variant">
+                          {`${started.getMonth() + 1}/${started.getDate()} ${String(started.getHours()).padStart(2, "0")}:${String(started.getMinutes()).padStart(2, "0")}`}
+                        </td>
+                        <td className="px-4 py-2 tabular-nums text-on-surface-variant">{dur}</td>
+                        <td className="px-4 py-2">
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                              r.status === "success" &&
+                                "bg-tertiary-container text-tertiary-container-fg",
+                              r.status === "error" && "bg-[#FEE2E2] text-[#991B1B]",
+                              r.status === "running" &&
+                                "bg-surface-variant text-on-surface-variant",
+                            )}
+                          >
+                            {label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
