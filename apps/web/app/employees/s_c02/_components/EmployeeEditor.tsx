@@ -77,6 +77,13 @@ export interface EmployeeOrgInfo {
   readonly subordinates?: string;
 }
 
+export interface EmployeeActivity {
+  readonly type: "task" | "decision" | "execution" | "thread";
+  readonly title: string;
+  readonly detail?: string | null;
+  readonly at: string;
+}
+
 export interface EmployeeEditorProps {
   readonly employeeId: EmployeeId;
   /** 実 API 由来の識別情報 (name/role/department)。以前は COO 固定のべた書きだった。 */
@@ -86,6 +93,11 @@ export interface EmployeeEditorProps {
   /** 付与済みスキル (表示名 — container が /skills で名前解決) / ナレッジカテゴリ。 */
   readonly attachedSkills: readonly string[];
   readonly attachedKnowledgeCats: readonly string[];
+  /**
+   * 活動履歴 (GAP-008 — GET /ai-employees/{id}/activities)。
+   * 未指定ならタブ自体を出さない (Rule 10)。
+   */
+  readonly activities?: readonly EmployeeActivity[];
   readonly defaultValues: EmployeeValues;
   readonly onSubmit: (v: EmployeeValues) => Promise<void> | void;
   readonly serverError?: string | null;
@@ -100,7 +112,7 @@ export interface EmployeeEditorProps {
 const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold text-on-surface";
 
-type TabKey = "profile" | "knowledge";
+type TabKey = "profile" | "knowledge" | "activities";
 
 export function EmployeeEditor({
   employeeId,
@@ -115,6 +127,7 @@ export function EmployeeEditor({
   specialty,
   orgInfo,
   onStartChat,
+  activities,
 }: EmployeeEditorProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
   const selectedTone = form.watch("tone_preset");
@@ -171,7 +184,7 @@ export function EmployeeEditor({
         ) : null}
       </header>
 
-      {/* タブ (実切替。活動履歴は活動 API 未提供のため未描画 — GAP-008) */}
+      {/* タブ (実切替。活動履歴は GAP-008 解消で実 API 配線) */}
       <div role="tablist" aria-label="社員詳細タブ" className="mb-6 flex gap-1 border-b border-border">
         <button
           type="button"
@@ -204,7 +217,77 @@ export function EmployeeEditor({
             {attachedKnowledgeCats.length}
           </span>
         </button>
+        {activities ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "activities"}
+            onClick={() => setTab("activities")}
+            className={cn(
+              "border-b-2 px-4 py-2.5 text-[13px] font-semibold",
+              tab === "activities"
+                ? "border-primary text-primary"
+                : "border-transparent text-on-surface-variant hover:text-on-surface",
+            )}
+          >
+            活動履歴{" "}
+            <span className="text-on-surface-variant">{activities.length}</span>
+          </button>
+        ) : null}
       </div>
+
+      {tab === "activities" && activities ? (
+        <div className={CARD}>
+          <h2 className={`mb-3 ${SECTION_TITLE}`}>最近の活動</h2>
+          {activities.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">
+              まだ活動がありません。タスク割当・チャット・確定事項がここに並びます。
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-border">
+              {activities.map((a, i) => (
+                <li key={`${a.type}-${i}`} className="flex items-start gap-3 py-2.5">
+                  <span
+                    className={cn(
+                      "mt-0.5 inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                      a.type === "task" && "bg-primary-container text-on-primary-container",
+                      a.type === "decision" &&
+                        "bg-secondary-container text-on-secondary-container",
+                      a.type === "execution" &&
+                        "bg-tertiary-container text-tertiary-container-fg",
+                      a.type === "thread" && "bg-surface-variant text-on-surface-variant",
+                    )}
+                  >
+                    {a.type === "task"
+                      ? "タスク"
+                      : a.type === "decision"
+                        ? "決定"
+                        : a.type === "execution"
+                          ? "実行"
+                          : "チャット"}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] font-medium text-on-surface">
+                      {a.title}
+                    </span>
+                    {a.detail ? (
+                      <span className="block text-[11.5px] text-on-surface-variant">
+                        {a.detail}
+                      </span>
+                    ) : null}
+                  </span>
+                  <time className="shrink-0 text-[11px] tabular-nums text-on-surface-variant">
+                    {new Date(a.at).toLocaleDateString("ja-JP", {
+                      month: "numeric",
+                      day: "numeric",
+                    })}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       {tab === "knowledge" ? (
         <div className={CARD}>

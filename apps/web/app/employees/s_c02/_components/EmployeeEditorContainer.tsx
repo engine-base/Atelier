@@ -118,6 +118,27 @@ export function EmployeeEditorContainer({
     retry: false,
   });
 
+  // GAP-008: 活動履歴 (失敗しても編集フォーム自体は出す)
+  const activitiesQuery = useQuery({
+    queryKey: ["ai-employee-activities", employeeId],
+    queryFn: async () => {
+      const res = await client.get("/ai-employees/{employee_id}/activities", {
+        params: { path: { employee_id: employeeId }, query: { limit: 20 } },
+      });
+      return (
+        (res as {
+          data?: {
+            type: "task" | "decision" | "execution" | "thread";
+            title: string;
+            detail?: string | null;
+            at: string;
+          }[];
+        }).data ?? []
+      );
+    },
+    retry: false,
+  });
+
   // 補助データ (失敗しても編集フォーム自体は出す)
   const skillsQuery = useQuery({
     queryKey: ["skills", "catalog"],
@@ -257,6 +278,7 @@ export function EmployeeEditorContainer({
       specialty={specialty}
       orgInfo={orgInfo}
       onSubmit={(v) => updateMut.mutate(v)}
+      activities={activitiesQuery.data ?? []}
       {...(onStartChat ? { onStartChat } : {})}
     />
   );

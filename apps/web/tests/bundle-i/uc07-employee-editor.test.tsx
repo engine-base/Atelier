@@ -207,3 +207,30 @@ describe("S-C02 v2: 実データ表示 + アイコンピッカー", () => {
     expect(init.body.icon).toBe("bot");
   });
 });
+
+describe("S-C02 活動履歴タブ (GAP-008)", () => {
+  it("活動フィードを実 API から取得してタブ描画 (種別バッジ + 件数)", async () => {
+    const activities = [
+      { type: "task", title: "LP 実装", detail: "状態: done", at: "2026-08-02T10:00:00Z" },
+      { type: "decision", title: "配色を確定", detail: "確定事項", at: "2026-08-01T09:00:00Z" },
+      { type: "execution", title: "LP 実装", detail: "実行 succeeded · score 0.90", at: "2026-07-31T08:00:00Z" },
+      { type: "thread", title: "見積相談", detail: "チャット対応", at: "2026-07-30T07:00:00Z" },
+    ];
+    const get = vi.fn(async (path: unknown) =>
+      path === "/ai-employees/{employee_id}/activities"
+        ? { data: activities }
+        : { data: EMP },
+    );
+    renderWithQuery(
+      <EmployeeEditorContainer employeeId="e1" client={fakeClient({ get })} />,
+    );
+    const tab = await screen.findByRole("tab", { name: /活動履歴/ });
+    expect(tab).toHaveTextContent("4");
+    fireEvent.click(tab);
+    expect(await screen.findByText("最近の活動")).toBeInTheDocument();
+    expect(screen.getByText("配色を確定")).toBeInTheDocument();
+    expect(screen.getByText("実行 succeeded · score 0.90")).toBeInTheDocument();
+    expect(screen.getByText("決定")).toBeInTheDocument();
+    expect(screen.getByText("チャット")).toBeInTheDocument();
+  });
+});

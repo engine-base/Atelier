@@ -17,6 +17,7 @@ from src.schemas.ai_employees import (
     AiEmployeeResponse,
     AiEmployeeTemplateResponse,
     AiEmployeeUpdate,
+    EmployeeActivityResponse,
 )
 
 _COLS = (
@@ -40,8 +41,8 @@ def _tpl_to_response(row: Any) -> AiEmployeeTemplateResponse:
         default_icon=(None if row.default_icon is None else str(row.default_icon)),
         department=str(row.department),
         role=str(row.role),
-        default_skills=[str(x) for x in (row.default_skills or [])],
-        default_knowledge_cats=[str(x) for x in (row.default_knowledge_cats or [])],
+        default_skills=[str(x) for x in (row.default_skills or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        default_knowledge_cats=[str(x) for x in (row.default_knowledge_cats or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         system_prompt=str(row.system_prompt),
         specialty=str(row.specialty),
         version=int(row.version),
@@ -63,8 +64,8 @@ def _row_to_response(row: Any) -> AiEmployeeResponse:
         department=str(row.department),
         tone_preset=str(row.tone_preset),
         custom_tone_text=(None if row.custom_tone_text is None else str(row.custom_tone_text)),
-        attached_skills=[str(x) for x in (row.attached_skills or [])],
-        attached_knowledge_cats=[str(x) for x in (row.attached_knowledge_cats or [])],
+        attached_skills=[str(x) for x in (row.attached_skills or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        attached_knowledge_cats=[str(x) for x in (row.attached_knowledge_cats or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         is_default=bool(row.is_default),
         archived=bool(row.archived),
         created_at=row.created_at,
@@ -169,3 +170,52 @@ async def get_template(
     )
     row = res.first()
     return None if row is None else _tpl_to_response(row)
+
+
+async def list_activities(
+    session: AsyncSession, *, employee_id: str, limit: int = 20
+) -> list[EmployeeActivityResponse]:
+    """AI 社員別の活動フィード (GAP-008)。
+
+    tasks (担当) / decisions (decided_by) / task_executions (担当タスクの実行) /
+    chat_threads (対話相手) を横断して新しい順に返す。可視性は各テーブルの
+    RLS が効く (不可視 workspace の行は現れない)。
+    """
+    limit = max(1, min(limit, 50))
+    res = await session.execute(
+        text(
+            "select * from ("
+            "  select 'task' as type, t.title as title, "
+            "         ('状態: ' || t.lifecycle_stage::text) as detail, t.updated_at as at "
+            "  from public.tasks t "
+            "  where t.assigned_employee_id = cast(:eid as uuid) and t.deleted_at is null "
+            "  union all "
+            "  select 'decision', d.body, "
+            "         case when d.status = 'decided' then '確定事項' else '未確認事項' end, "
+            "         d.created_at "
+            "  from public.decisions d "
+            "  where d.decided_by = cast(:eid as uuid) and d.deleted_at is null "
+            "  union all "
+            "  select 'execution', t2.title, "
+            "         ('実行 ' || e.status::text || coalesce(' · score ' || round(e.score::numeric, 2)::text, '')), "
+            "         e.started_at "
+            "  from public.task_executions e "
+            "  join public.tasks t2 on t2.id = e.task_id "
+            "  where t2.assigned_employee_id = cast(:eid as uuid) and t2.deleted_at is null "
+            "  union all "
+            "  select 'thread', coalesce(ct.title, 'チャットスレッド'), 'チャット対応', ct.created_at "
+            "  from public.chat_threads ct "
+            "  where ct.ai_employee_id = cast(:eid as uuid) and ct.deleted_at is null "
+            ") acts order by at desc limit :lim"
+        ),
+        {"eid": employee_id, "lim": limit},
+    )
+    return [
+        EmployeeActivityResponse(
+            type=str(row.type),  # type: ignore[arg-type]
+            title=str(row.title),
+            detail=(None if row.detail is None else str(row.detail)),
+            at=row.at,
+        )
+        for row in res.all()
+    ]

@@ -18,6 +18,7 @@ from src.schemas.ai_employees import (
     AiEmployeeResponse,
     AiEmployeeTemplateResponse,
     AiEmployeeUpdate,
+    EmployeeActivityResponse,
 )
 from src.services import ai_employees as svc
 
@@ -66,6 +67,21 @@ def _require_uuid(employee_id: str) -> None:
         uuid.UUID(employee_id)
     except ValueError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found") from exc
+
+
+@router.get(
+    "/ai-employees/{employee_id}/activities",
+    summary="AI 社員別 活動フィード (GAP-008 / S-C02 活動履歴)",
+)
+async def list_employee_activities(
+    employee_id: str,
+    session: SessionDep,
+    _user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
+) -> dict[str, list[EmployeeActivityResponse]]:
+    if await svc.get_ai_employee(session, employee_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "employee not found")
+    return {"data": await svc.list_activities(session, employee_id=employee_id, limit=limit)}
 
 
 @router.get("/ai-employees/{employee_id}", summary="AI 社員詳細")

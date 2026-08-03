@@ -3890,6 +3890,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-employees/{employee_id}/activities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI 社員別 活動フィード (GAP-008 — S-C02 活動履歴) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 活動 (tasks/decisions/executions/threads 横断・新しい順・RLS 可視分) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @enum {string} */
+                                type: "task" | "decision" | "execution" | "thread";
+                                title: string;
+                                detail?: string | null;
+                                /** Format: date-time */
+                                at: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description 社員不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-employees/{employee_id}": {
         parameters: {
             query?: never;

@@ -59,3 +59,12 @@ class AiEmployeeTemplateResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class EmployeeActivityResponse(BaseModel):
+    """AI 社員の活動 1 件 (GAP-008)。tasks/decisions/executions/threads の横断集計。"""
+
+    type: Literal["task", "decision", "execution", "thread"]
+    title: str
+    detail: str | None
+    at: datetime

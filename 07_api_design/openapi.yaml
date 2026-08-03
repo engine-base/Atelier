@@ -3371,6 +3371,35 @@ paths:
                   data: { $ref: '#/components/schemas/AiEmployeeTemplate' }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /ai-employees/{employee_id}/activities:
+    get:
+      tags: [ai-employees]
+      summary: AI 社員別 活動フィード (GAP-008 — S-C02 活動履歴)
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::list_employee_activities
+      x-screen-ids: [S-C02]
+      parameters:
+        - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: 活動 (tasks/decisions/executions/threads 横断・新しい順・RLS 可視分)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [type, title, at]
+                      properties:
+                        type: { type: string, enum: [task, decision, execution, thread] }
+                        title: { type: string }
+                        detail: { type: string, nullable: true }
+                        at: { type: string, format: date-time }
+        '404': { description: 社員不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /ai-employees/{employee_id}:
     parameters:
       - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
