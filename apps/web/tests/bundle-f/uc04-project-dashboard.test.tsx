@@ -76,7 +76,7 @@ describe("S-B02 ProjectDashboardContainer (T-UC-04)", () => {
     expect(kpis).toHaveTextContent("全体進捗率");
     expect(kpis).toHaveTextContent("未承認 INBOX 件数");
     expect(kpis).toHaveTextContent("今日の活動");
-    expect(kpis).toHaveTextContent("確定事項");
+    expect(kpis).toHaveTextContent("未解決コメント"); // GAP-005: モック本来の KPI (確定は sub 表示)
     expect(kpis).toHaveTextContent("タスク 10");
   });
 

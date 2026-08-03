@@ -168,6 +168,17 @@ export function ProjectDashboardContainer({
     },
     retry: false,
   });
+  // GAP-005: プロジェクト横断の未解決コメント集計 (モック本来の KPI)
+  const unresolvedCommentsQuery = useQuery({
+    queryKey: ["dash-unresolved-comments", projectId],
+    queryFn: async () => {
+      const res = await client.get("/comments/unresolved-count", {
+        params: { query: { project_id: projectId } },
+      });
+      return ((res as { data?: { count?: number } }).data?.count ?? 0) as number;
+    },
+    retry: false,
+  });
   const outputsQuery = useQuery({
     queryKey: ["dash-outputs", projectId],
     queryFn: async () => {
@@ -373,11 +384,12 @@ export function ProjectDashboardContainer({
       tone: "info",
     },
     {
-      id: "decisions",
-      label: "確定事項",
-      value: decidedCount,
-      sub: `未確認 ${unresolvedCount} 件`,
-      tone: "info",
+      // GAP-005 解消: モック本来の「未解決コメント」KPI (旧: 確定事項で代替)
+      id: "unresolved-comments",
+      label: "未解決コメント",
+      value: unresolvedCommentsQuery.data ?? 0,
+      sub: `確定 ${decidedCount} · 未確認 ${unresolvedCount} 件`,
+      tone: (unresolvedCommentsQuery.data ?? 0) > 0 ? "error" : "success",
     },
   ];
 

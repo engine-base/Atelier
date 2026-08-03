@@ -217,3 +217,26 @@ class TestComments:
                 == 404
             )
             client.delete(f"/comments/{cid}", headers=ha)
+
+    def test_unresolved_count_by_project(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """GAP-005: プロジェクト横断の未解決コメント集計 (open のみ、解決/削除は除外)。"""
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
+        with TestClient(app) as client:
+            url = f"/comments/unresolved-count?project_id={seeded['proj_a']}"
+            base = client.get(url, headers=ha).json()["data"]["count"]
+            c1 = client.post("/comments", json={**tgt, "content": "未解決1"}, headers=ha).json()[
+                "data"
+            ]["id"]
+            c2 = client.post("/comments", json={**tgt, "content": "未解決2"}, headers=ha).json()[
+                "data"
+            ]["id"]
+            assert client.get(url, headers=ha).json()["data"]["count"] == base + 2
+            # 解決すると減る
+            client.patch(f"/comments/{c1}", json={"status": "resolved"}, headers=ha)
+            assert client.get(url, headers=ha).json()["data"]["count"] == base + 1
+            # 削除でも減る
+            client.delete(f"/comments/{c2}", headers=ha)
+            assert client.get(url, headers=ha).json()["data"]["count"] == base
+            # 越境 user は対象が不可視なので 0 (RLS)
+            assert client.get(url, headers=hb).json()["data"]["count"] == 0

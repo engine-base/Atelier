@@ -4508,6 +4508,29 @@ paths:
                   data: { $ref: '#/components/schemas/Comment' }
         '403': { description: 対象に対する権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /comments/unresolved-count:
+    get:
+      tags: [comments]
+      summary: プロジェクト横断の未解決コメント集計 (GAP-005 — S-B02 KPI)
+      x-implementation-path: apps/api/src/routes/comments/__init__.py::unresolved_comment_count
+      x-screen-ids: [S-B02]
+      parameters:
+        - { name: project_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 集計成功 (target 種別ごとに project へ逆引き。RLS 可視分のみ)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [project_id, count]
+                    properties:
+                      project_id: { type: string, format: uuid }
+                      count: { type: integer }
+
   /comments/{comment_id}:
     parameters:
       - { name: comment_id, in: path, required: true, schema: { type: string, format: uuid } }

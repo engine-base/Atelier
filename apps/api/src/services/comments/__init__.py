@@ -206,3 +206,33 @@ async def delete_comment(session: AsyncSession, *, actor_id: str, comment_id: st
         )
     )
     return True
+
+
+async def count_unresolved_by_project(session: AsyncSession, *, project_id: str) -> int:
+    """プロジェクト横断の未解決 (status=open) コメント数 (GAP-005)。
+
+    comments は target 単位のため、target 種別ごとに project へ逆引きして集計する。
+    可視性は各 target テーブルの RLS が効く (不可視 target のコメントは数えない)。
+    """
+    res = await session.execute(
+        text(
+            "select count(*) from public.comments c "
+            "where c.deleted_at is null and c.status = 'open' and ("
+            "  (c.target_type = 'workflow_output' and exists ("
+            "     select 1 from public.workflow_outputs t "
+            "     where t.id = c.target_id and t.project_id = cast(:pid as uuid)))"
+            "  or (c.target_type = 'mock' and exists ("
+            "     select 1 from public.mocks m "
+            "     where m.id = c.target_id and m.project_id = cast(:pid as uuid)))"
+            "  or (c.target_type = 'task' and exists ("
+            "     select 1 from public.tasks tk "
+            "     where tk.id = c.target_id and tk.project_id = cast(:pid as uuid)))"
+            "  or (c.target_type = 'acceptance_criteria' and exists ("
+            "     select 1 from public.acceptance_criteria ac "
+            "     join public.tasks tk2 on tk2.id = ac.task_id "
+            "     where ac.id = c.target_id and tk2.project_id = cast(:pid as uuid)))"
+            ")"
+        ),
+        {"pid": project_id},
+    )
+    return int(res.scalar_one())

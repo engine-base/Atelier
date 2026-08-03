@@ -6591,6 +6591,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/comments/unresolved-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** プロジェクト横断の未解決コメント集計 (GAP-005 — S-B02 KPI) */
+        get: {
+            parameters: {
+                query: {
+                    project_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 集計成功 (target 種別ごとに project へ逆引き。RLS 可視分のみ) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                project_id: string;
+                                count: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/comments/{comment_id}": {
         parameters: {
             query?: never;

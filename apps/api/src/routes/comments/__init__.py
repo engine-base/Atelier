@@ -12,7 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
-from src.schemas.comments import CommentCreate, CommentResponse, CommentTargetType, CommentUpdate
+from src.schemas.comments import (
+    CommentCreate,
+    CommentResponse,
+    CommentTargetType,
+    CommentUnresolvedCountResponse,
+    CommentUpdate,
+)
 from src.services import comments as svc
 
 router = APIRouter(tags=["comments"])
@@ -39,6 +45,19 @@ async def create_comment(
     if created is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to comment on target")
     return {"data": created}
+
+
+@router.get(
+    "/comments/unresolved-count",
+    summary="プロジェクト横断の未解決コメント集計 (GAP-005 / S-B02 KPI)",
+)
+async def unresolved_comment_count(
+    session: SessionDep,
+    _user: UserDep,
+    project_id: Annotated[str, Query()],
+) -> dict[str, CommentUnresolvedCountResponse]:
+    count = await svc.count_unresolved_by_project(session, project_id=project_id)
+    return {"data": CommentUnresolvedCountResponse(project_id=project_id, count=count)}
 
 
 @router.get("/comments/{comment_id}", summary="コメント詳細")

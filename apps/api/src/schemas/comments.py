@@ -41,3 +41,10 @@ class CommentResponse(BaseModel):
     parent_comment_id: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class CommentUnresolvedCountResponse(BaseModel):
+    """GAP-005: プロジェクト横断の未解決 (status=open) コメント集計。"""
+
+    project_id: str
+    count: int
