@@ -72,7 +72,16 @@
   I01/I02/I03/K01/L01/L02/L03/M01/N01 + 通知センター T-UC-36/検索 T-UC-40)。未踏 20 画面
   (S-B03/B04/C02/F01/F02/G01/H01/J01/K02/O01/T01〜T06/PUB01〜04) は human-grade-qa v2 (42 画面完走済) が網羅済
 
+## バックログ 4 件解消 (2026-08-03) ✅
+
+| gap | 解消内容 | commit |
+|---|---|---|
+| GAP-016 | Whisper queue 消費 worker 実装 (`services/meetings/worker.py` + Inngest cron `transcribe-queue` + 単独プロセス経路)。unit 11 本 | bfbe765 |
+| GAP-030 | /kanban/pick にタスク内容を追加し Bridge 既定プロンプトへ注入。ラッパー無しの e2e 通し 19/19 で実証。pty.ts スタブ撤去 + 7 パッケージの lint placeholder を実 ESLint 化 | 4044a2f |
+| GAP-102 | CI Gate #6 を実照合化 (`scripts/ci/mock-impl-diff.py`: 台帳 3-way + モックボタン 153 個の説明責任)。初回実走で記録漏れ 28 要素検出 → GAP-031 起票 | 09b76a6 |
+| GAP-103 | UI 39 タスクの tier_2 を screens/features から機械転写 (`scripts/qa/transcribe-ui-acs.py`)。39/39 相異・validate.sh PASS 維持 | cead2da |
+
 ## 未解消 gap (正本: docs/gap-tracker.md)
 
-- 機能 gap: GAP-001〜030 (30 件) — バックエンド API 不在により UI から撤去/未描画にしたもの。**GAP-016 (Whisper worker 不在) は S-M01 の主機能を塞ぐ最重要 gap**。GAP-030 (Bridge プロンプトにタスク内容が渡らない) は通しで新規検出
-- プロセス gap: GAP-102 (CI Gate#6 スタブ) / GAP-103 (tickets.json テンプレ AC)。GAP-101/104 は解消済
+- 機能 gap: GAP-001〜015 / 017〜029 / 031 — バックエンド API 不在により UI から撤去/未描画にしたもの (GAP-031 は Gate #6 実照合が検出した記録漏れ要素群)
+- 解消済: GAP-016 / 030 / 101 / 102 / 103 / 104
