@@ -129,7 +129,7 @@ describe("MockViewer (T-UC-13)", () => {
 
 describe("TranscriptUpload (T-UC-23)", () => {
   it("shows uploading status and transcript on success", async () => {
-    const onUpload = vi.fn(async () => "transcribed!");
+    const onUpload = vi.fn(async () => ({ text: "transcribed!" }));
     render(<TranscriptUpload onUpload={onUpload} />);
     const file = new File(["x"], "a.wav", { type: "audio/wav" });
     const input = screen.getByLabelText(/音声/) as HTMLInputElement;
@@ -270,5 +270,54 @@ describe("SalesDocDraft (T-UC-24)", () => {
       "href",
       "/chat?project=p1",
     );
+  });
+});
+
+describe("TranscriptUpload 構造化解析 (GAP-015)", () => {
+  const analyzed = {
+    text: "こんにちは。LP の件です。",
+    analysis: {
+      summary: "LP 制作の要件を確認した。",
+      speakers: [{ name: "田中", role: "クライアント" }],
+      requirements: ["トップ + 問い合わせの 2 ページ"],
+      action_items: [{ title: "見積ドラフト作成", owner: "ワンダ" }],
+    },
+  };
+
+  it("analysis があればサマリー/話者/抽出要件/アクションアイテムを描画", async () => {
+    const onUpload = vi.fn(async () => analyzed);
+    render(<TranscriptUpload onUpload={onUpload} />);
+    const input = screen.getByLabelText(/音声/) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { files: [new File(["x"], "a.wav", { type: "audio/wav" })] },
+      });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByText("LP 制作の要件を確認した。")).toBeInTheDocument();
+    expect(screen.getByText("田中")).toBeInTheDocument();
+    expect(screen.getByText("（クライアント）")).toBeInTheDocument();
+    expect(
+      screen.getByText("トップ + 問い合わせの 2 ページ"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("見積ドラフト作成")).toBeInTheDocument();
+  });
+
+  it("analysis_error は誠実な未実行表示 (偽の解析を出さない)", async () => {
+    const onUpload = vi.fn(async () => ({
+      text: "本文",
+      analysisError: "llm_unconfigured",
+    }));
+    render(<TranscriptUpload onUpload={onUpload} />);
+    const input = screen.getByLabelText(/音声/) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, {
+        target: { files: [new File(["x"], "a.wav", { type: "audio/wav" })] },
+      });
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(screen.getByText(/構造化解析は未実行です/)).toBeInTheDocument();
+    expect(screen.getByText(/解析用 LLM が未設定の環境です/)).toBeInTheDocument();
+    expect(screen.queryByText("サマリー")).toBeNull();
   });
 });

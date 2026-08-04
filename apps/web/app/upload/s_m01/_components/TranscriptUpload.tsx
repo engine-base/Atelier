@@ -24,12 +24,27 @@ export interface MeetingRow {
   readonly errorText?: string | null;
 }
 
+/** GAP-015: 構造化解析 (worker の LLM 後段が result JSON に載せる)。 */
+export interface MeetingAnalysis {
+  readonly summary: string;
+  readonly speakers: readonly { name: string; role?: string | null }[];
+  readonly requirements: readonly string[];
+  readonly action_items: readonly { title: string; owner?: string | null }[];
+}
+
+/** onUpload/onOpen の戻り値 (本文 + 任意の解析結果/解析エラー分類)。 */
+export interface TranscriptResult {
+  readonly text: string;
+  readonly analysis?: MeetingAnalysis | null;
+  readonly analysisError?: string | null;
+}
+
 export interface TranscriptUploadProps {
-  readonly onUpload: (file: File) => Promise<string>;
+  readonly onUpload: (file: File) => Promise<TranscriptResult>;
   /** アップロード履歴 (実 GET /meetings)。未指定なら履歴セクションは空状態のまま。 */
   readonly history?: readonly MeetingRow[];
   /** 完了済み議事録の文字起こしを開く (署名付き URL → 本文)。 */
-  readonly onOpen?: (id: string) => Promise<string>;
+  readonly onOpen?: (id: string) => Promise<TranscriptResult>;
   /** 議事録の論理削除。 */
   readonly onDelete?: (id: string) => void;
   /** 「スティーブで深掘り」の遷移先 (チャット)。 */
@@ -118,6 +133,8 @@ export function TranscriptUpload({
     "idle",
   );
   const [transcript, setTranscript] = useState<string>("");
+  const [analysis, setAnalysis] = useState<MeetingAnalysis | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -128,8 +145,10 @@ export function TranscriptUpload({
     setError(null);
     setPreviewName(f.name);
     try {
-      const text = await onUpload(f);
-      setTranscript(text);
+      const result = await onUpload(f);
+      setTranscript(result.text);
+      setAnalysis(result.analysis ?? null);
+      setAnalysisError(result.analysisError ?? null);
       setStatus("done");
     } catch (err) {
       setError((err as Error).message);
@@ -150,8 +169,10 @@ export function TranscriptUpload({
     setError(null);
     setPreviewName(row.fileName);
     try {
-      const text = await onOpen(row.id);
-      setTranscript(text);
+      const result = await onOpen(row.id);
+      setTranscript(result.text);
+      setAnalysis(result.analysis ?? null);
+      setAnalysisError(result.analysisError ?? null);
       setStatus("done");
     } catch (err) {
       setError((err as Error).message);
@@ -437,8 +458,95 @@ export function TranscriptUpload({
                     {transcript}
                   </pre>
                 </div>
-                {/* アクション: 深掘り (チャット遷移) / MD 保存 (client 側 DL)。
-                    サマリー/話者分離/要件抽出はモックにあるが解析 API 不在 (GAP-015)。 */}
+
+                {/* GAP-015: 構造化解析ブロック (サマリー/話者/抽出要件/アクションアイテム) */}
+                {analysis ? (
+                  <section aria-label="解析結果" className="flex flex-col gap-3">
+                    <div className="rounded-md border-l-[3px] border-primary bg-primary-container/40 p-4">
+                      <h3 className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-primary">
+                        サマリー
+                      </h3>
+                      <p className="text-body-sm leading-relaxed text-on-surface">
+                        {analysis.summary || "（要約なし）"}
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-md border border-border p-4">
+                        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                          話者
+                        </h3>
+                        {analysis.speakers.length === 0 ? (
+                          <p className="text-[12px] text-on-surface-variant">特定できませんでした</p>
+                        ) : (
+                          <ul className="flex flex-wrap gap-1.5">
+                            {analysis.speakers.map((sp) => (
+                              <li
+                                key={sp.name}
+                                className="rounded-full bg-surface-variant px-2.5 py-1 text-[12px] font-medium text-on-surface"
+                              >
+                                {sp.name}
+                                {sp.role ? (
+                                  <span className="text-on-surface-variant">（{sp.role}）</span>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div className="rounded-md border border-border p-4">
+                        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                          アクションアイテム
+                        </h3>
+                        {analysis.action_items.length === 0 ? (
+                          <p className="text-[12px] text-on-surface-variant">ありません</p>
+                        ) : (
+                          <ul className="flex flex-col gap-1.5">
+                            {analysis.action_items.map((a) => (
+                              <li key={a.title} className="flex items-start gap-2 text-[12.5px] text-on-surface">
+                                <span aria-hidden="true" className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-tertiary" />
+                                <span>
+                                  {a.title}
+                                  {a.owner ? (
+                                    <span className="text-on-surface-variant">（{a.owner}）</span>
+                                  ) : null}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border p-4">
+                      <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                        抽出要件
+                      </h3>
+                      {analysis.requirements.length === 0 ? (
+                        <p className="text-[12px] text-on-surface-variant">抽出されませんでした</p>
+                      ) : (
+                        <ul className="flex flex-col gap-1.5">
+                          {analysis.requirements.map((r) => (
+                            <li key={r} className="flex items-start gap-2 text-[12.5px] text-on-surface">
+                              <span aria-hidden="true" className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                              {r}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </section>
+                ) : analysisError ? (
+                  <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-[12.5px] text-on-surface-variant">
+                    構造化解析は未実行です（
+                    {analysisError === "llm_unconfigured"
+                      ? "解析用 LLM が未設定の環境です"
+                      : analysisError === "empty_transcript"
+                        ? "本文が空のため解析できませんでした"
+                        : `解析に失敗しました: ${analysisError}`}
+                    ）。文字起こし本文は上記の通りです。
+                  </p>
+                ) : null}
+
+                {/* アクション: 深掘り (チャット遷移) / MD 保存 (client 側 DL) */}
                 <div className="flex flex-wrap gap-2 border-t border-border pt-4">
                   {chatHref ? (
                     <a

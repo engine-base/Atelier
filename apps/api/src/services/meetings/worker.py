@@ -140,6 +140,28 @@ async def list_queued(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> lis
     return list(res.all())
 
 
+async def _analyze_result(result: dict[str, Any]) -> dict[str, Any]:
+    """GAP-015: 文字起こしに構造化解析を追記する。
+
+    解析は additive — 失敗しても transcription 自体は成功のまま、
+    analysis_error に分類コードを残す (UI は誠実に「解析未実行」を出す)。
+    """
+    from src.services.meetings.analysis import AnalysisError, analyze_transcript
+
+    transcript = str(result.get("text") or "")
+    if not transcript.strip():
+        return {**result, "analysis_error": "empty_transcript"}
+    try:
+        analysis = await analyze_transcript(transcript)
+    except AnalysisError as e:
+        logger.info("transcript analysis skipped: %s", e.code)
+        return {**result, "analysis_error": e.code}
+    except Exception:
+        logger.exception("transcript analysis failed unexpectedly")
+        return {**result, "analysis_error": "unexpected"}
+    return {**result, "analysis": analysis}
+
+
 async def transcribe_one(session: AsyncSession, row: Any) -> str:
     """キュー 1 件を処理して結果 path を返す。失敗時は例外を投げる。"""
     meeting_id = str(row.id)
@@ -147,6 +169,7 @@ async def transcribe_one(session: AsyncSession, row: Any) -> str:
     result = await _call_whisper(
         media=media, file_name=str(row.file_name), mime_type=str(row.mime_type)
     )
+    result = await _analyze_result(result)
     result_path = f"{_RESULT_PREFIX}{meeting_id}.json"
     await _upload_result(result_path, result)
     await session.execute(
@@ -164,7 +187,11 @@ async def transcribe_one(session: AsyncSession, row: Any) -> str:
             actor_type="system",
             actor_id="transcribe-worker",
             target_id=meeting_id,
-            after={"result_path": result_path, "model": WHISPER_MODEL},
+            after={
+                "result_path": result_path,
+                "model": WHISPER_MODEL,
+                "analysis": "analysis" in result,
+            },
         )
     )
     return result_path

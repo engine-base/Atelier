@@ -22,7 +22,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { TranscriptUpload, type MeetingRow } from "./TranscriptUpload";
+import {
+  TranscriptUpload,
+  type MeetingAnalysis,
+  type MeetingRow,
+  type TranscriptResult,
+} from "./TranscriptUpload";
 
 interface UploadUrlData {
   upload_url: string;
@@ -78,18 +83,33 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** 署名付き URL から文字起こし本文を取得。JSON なら text/transcript フィールドを優先。 */
-async function defaultFetchText(url: string): Promise<string> {
+/** 署名付き URL から文字起こし結果を取得。
+ * JSON なら text/transcript に加え、GAP-015 の analysis / analysis_error も拾う。 */
+async function defaultFetchText(url: string): Promise<TranscriptResult> {
   const res = await fetch(url);
   if (!res.ok)
     throw new Error(`文字起こし結果の取得に失敗しました (HTTP ${res.status})`);
   const raw = await res.text();
   try {
-    const parsed = JSON.parse(raw) as { text?: string; transcript?: string };
-    return parsed.text ?? parsed.transcript ?? raw;
+    const parsed = JSON.parse(raw) as {
+      text?: string;
+      transcript?: string;
+      analysis?: MeetingAnalysis | null;
+      analysis_error?: string | null;
+    };
+    return {
+      text: parsed.text ?? parsed.transcript ?? raw,
+      analysis: parsed.analysis ?? null,
+      analysisError: parsed.analysis_error ?? null,
+    };
   } catch {
-    return raw;
+    return { text: raw };
   }
+}
+
+/** 注入 fetchText が素の string を返しても TranscriptResult に揃える。 */
+function normalizeResult(r: string | TranscriptResult): TranscriptResult {
+  return typeof r === "string" ? { text: r } : r;
 }
 
 export interface MeetingUploadContainerProps {
@@ -97,7 +117,7 @@ export interface MeetingUploadContainerProps {
   readonly client?: ApiClient;
   readonly uploadFile?: (url: string, file: File) => Promise<void>;
   /** 署名付き URL から本文を取得。テスト用に注入可能。 */
-  readonly fetchText?: (url: string) => Promise<string>;
+  readonly fetchText?: (url: string) => Promise<string | TranscriptResult>;
   readonly pollIntervalMs?: number;
   readonly maxPolls?: number;
 }
@@ -136,7 +156,7 @@ export function MeetingUploadContainer({
   });
 
   // 完了済み議事録の文字起こしを開く (署名付き URL → 本文)
-  const openMeeting = async (id: string): Promise<string> => {
+  const openMeeting = async (id: string): Promise<TranscriptResult> => {
     let urlRes: unknown;
     try {
       urlRes = await client.get("/meetings/{meeting_id}/transcript-url", {
@@ -150,10 +170,10 @@ export function MeetingUploadContainer({
     }
     const signed = (urlRes as { data?: { url: string } }).data;
     if (!signed) throw new Error("文字起こし結果の取得に失敗しました。");
-    return fetchText(signed.url);
+    return normalizeResult(await fetchText(signed.url));
   };
 
-  const runFlow = async (file: File): Promise<string> => {
+  const runFlow = async (file: File): Promise<TranscriptResult> => {
     // 1. 署名付きアップロード URL
     const signRes = await client.post("/meetings/upload-url", {
       body: {
@@ -206,8 +226,8 @@ export function MeetingUploadContainer({
         );
         const signed = (urlRes as { data?: { url: string } }).data;
         if (!signed)
-          return "文字起こしは完了しましたが、結果の取得に失敗しました。";
-        return await fetchText(signed.url);
+          return { text: "文字起こしは完了しましたが、結果の取得に失敗しました。" };
+        return normalizeResult(await fetchText(signed.url));
       }
       await sleep(pollIntervalMs);
     }
