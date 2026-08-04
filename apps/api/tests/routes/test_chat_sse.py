@@ -380,3 +380,96 @@ class TestChatSSE:
                 json={"user_message": "x", "include_history": 1000},
             )
             assert r.status_code == 422
+
+
+@pytest.fixture()
+def seeded_knowledge(
+    sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+) -> Iterator[dict[str, str]]:
+    """ws_a に RAG hit する knowledge を 1 件足す (GAP-012 バックリンク検証用)。"""
+    kid = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(id, account_id, account_type, scope, category, title, content_md, tags) "
+                "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                "'tech', 'backlink target note', 'gap012-backlink-keyword content', '{tech}')"
+            ),
+            {"i": kid, "a": seeded["ws_a"]},
+        )
+    yield {**seeded, "kid": kid}
+    with sync_engine.begin() as c:
+        c.execute(
+            text("delete from public.knowledge_nodes where id = cast(:i as uuid)"), {"i": kid}
+        )
+
+
+@pytest.mark.integration
+class TestKnowledgeBacklinks:
+    """GAP-012: チャット RAG 消費 → knowledge_references 永続化 → 逆引き API。"""
+
+    def _stream(self, client: TestClient, seeded: dict[str, str]) -> None:
+        r = client.post(
+            f"/chat/threads/{seeded['thread_a']}/stream",
+            headers=_h(seeded["u_a"]),
+            json={
+                # text fallback は user_message 全文の ilike 部分一致 — content に
+                # そのまま含まれる文字列を送る
+                "user_message": "gap012-backlink-keyword",
+                "use_knowledge_rag": True,
+                "rag_account_id": seeded["ws_a"],
+            },
+        )
+        assert r.status_code == 200
+
+    def test_stream_records_reference_and_lists_backlink(
+        self, app: FastAPI, seeded_knowledge: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        s = seeded_knowledge
+        with TestClient(app) as client:
+            self._stream(client, s)
+            with sync_engine.begin() as c:
+                row = c.execute(
+                    text(
+                        "select referrer_type, referrer_id, reference_count "
+                        "from public.knowledge_references "
+                        "where knowledge_id = cast(:k as uuid)"
+                    ),
+                    {"k": s["kid"]},
+                ).one()
+            assert row.referrer_type == "chat_thread"
+            assert str(row.referrer_id) == s["thread_a"]
+            assert row.reference_count == 1
+
+            r = client.get(f"/knowledge/{s['kid']}/references", headers=_h(s["u_a"]))
+            assert r.status_code == 200
+            data = r.json()["data"]
+            assert data["total"] == 1
+            ref = data["references"][0]
+            assert ref["referrer_type"] == "chat_thread"
+            assert ref["referrer_title"] == "thread-a"
+            assert ref["context"] == "チャット応答で参照（RAG）"
+
+    def test_repeat_reference_dedupes_to_count(
+        self, app: FastAPI, seeded_knowledge: dict[str, str]
+    ) -> None:
+        s = seeded_knowledge
+        with TestClient(app) as client:
+            self._stream(client, s)
+            self._stream(client, s)
+            r = client.get(f"/knowledge/{s['kid']}/references", headers=_h(s["u_a"]))
+            assert r.status_code == 200
+            data = r.json()["data"]
+            assert data["total"] == 1  # 同一スレッドの再参照は 1 行に畳む
+            assert data["references"][0]["reference_count"] == 2
+
+    def test_references_cross_workspace_404(
+        self, app: FastAPI, seeded_knowledge: dict[str, str]
+    ) -> None:
+        """R-T08: 他 workspace の user はバックリンクも見えない (knowledge 可視性を継承)。"""
+        s = seeded_knowledge
+        with TestClient(app) as client:
+            self._stream(client, s)
+            r = client.get(f"/knowledge/{s['kid']}/references", headers=_h(s["u_b"]))
+            assert r.status_code == 404

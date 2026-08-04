@@ -26,6 +26,8 @@ from src.schemas.knowledge import (
     KnowledgeCreate,
     KnowledgePattern,
     KnowledgePatternResponse,
+    KnowledgeReferenceItem,
+    KnowledgeReferencesResponse,
     KnowledgeResponse,
     KnowledgeScope,
     KnowledgeSearchHit,
@@ -391,6 +393,88 @@ async def search_knowledge(
             {"ids": hit_ids},
         )
     return KnowledgeSearchResponse(query=query, hits=hits, total=len(hits))
+
+
+# --------------------------------------------------------------------------- #
+# GAP-012: バックリンク (参照元逆引き)
+# --------------------------------------------------------------------------- #
+async def record_references(
+    session: AsyncSession,
+    *,
+    knowledge_ids: list[str],
+    referrer_type: str,
+    referrer_id: str,
+    context: str,
+) -> None:
+    """参照実体 → ナレッジの参照を upsert する (chat_sse の RAG 消費経路が呼ぶ)。
+
+    同一 (knowledge, referrer) の再参照は reference_count++ と
+    last_referenced_at 更新に畳む。RLS with check により可視ナレッジのみ書ける。
+    """
+    for kid in knowledge_ids:
+        await session.execute(
+            text(
+                "insert into public.knowledge_references "
+                "(knowledge_id, referrer_type, referrer_id, context) "
+                "values (cast(:k as uuid), :rt, cast(:ri as uuid), :ctx) "
+                "on conflict (knowledge_id, referrer_type, referrer_id) do update "
+                "set reference_count = public.knowledge_references.reference_count + 1, "
+                "last_referenced_at = now()"
+            ),
+            {"k": kid, "rt": referrer_type, "ri": referrer_id, "ctx": context},
+        )
+
+
+async def list_references(
+    session: AsyncSession, *, knowledge_id: str, limit: int = 50
+) -> KnowledgeReferencesResponse:
+    """ナレッジのバックリンク (参照元) を新しい順で返す。
+
+    referrer_title は type ごとに実テーブルから解決する。参照元自体が RLS で
+    不可視 (他 workspace のスレッド等) または削除済みの行は除外する —
+    見えない参照元をタイトル無しで匂わせない。
+    """
+    res = await session.execute(
+        text(
+            "select r.id, r.referrer_type, r.referrer_id, r.context, "
+            "r.reference_count, r.last_referenced_at, "
+            "case r.referrer_type "
+            # S-E01 のスレッド作成 UI に題名欄が無く title は null が正規状態 —
+            # 可視だが無題の参照元は fallback 表示し、RLS 不可視 (subquery 0 行 →
+            # null) とは区別する。
+            "  when 'chat_thread' then ("
+            "    select coalesce(ct.title, '無題スレッド') from public.chat_threads ct "
+            "    where ct.id = r.referrer_id and ct.deleted_at is null) "
+            "  when 'task' then ("
+            "    select tk.title from public.tasks tk "
+            "    where tk.id = r.referrer_id and tk.deleted_at is null) "
+            "  when 'decision' then ("
+            "    select left(d.body, 80) from public.decisions d "
+            "    where d.id = r.referrer_id and d.deleted_at is null) "
+            "end as referrer_title "
+            "from public.knowledge_references r "
+            "where r.knowledge_id = cast(:kid as uuid) "
+            "order by r.last_referenced_at desc "
+            "limit :lim"
+        ),
+        {"kid": knowledge_id, "lim": limit},
+    )
+    items = [
+        KnowledgeReferenceItem(
+            id=str(row.id),
+            referrer_type=str(row.referrer_type),  # type: ignore[arg-type]
+            referrer_id=str(row.referrer_id),
+            referrer_title=str(row.referrer_title),
+            context=str(row.context),
+            reference_count=int(row.reference_count),
+            last_referenced_at=row.last_referenced_at,
+        )
+        for row in res.all()
+        if row.referrer_title is not None
+    ]
+    return KnowledgeReferencesResponse(
+        knowledge_id=knowledge_id, references=items, total=len(items)
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -6198,6 +6198,66 @@ export interface paths {
         };
         trace?: never;
     };
+    "/knowledge/{knowledge_id}/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ナレッジ参照元一覧（バックリンク） */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    knowledge_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description バックリンク一覧 (last_referenced_at 降順。RLS 不可視の参照元は除外) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeReferencesResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge/{knowledge_id}/promote": {
         parameters: {
             query?: never;
@@ -10177,6 +10237,28 @@ export interface components {
         KnowledgePatternResponse: {
             total: number;
             patterns: components["schemas"]["KnowledgePattern"][];
+        };
+        /** @description ナレッジを参照した実体 (バックリンク 1 行 — GAP-012) */
+        KnowledgeReferenceItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            referrer_type: "chat_thread" | "task" | "decision" | "feature";
+            /** Format: uuid */
+            referrer_id: string;
+            /** @description 参照元の表示名 (実テーブルから解決) */
+            referrer_title: string;
+            /** @description 参照の文脈 (例: チャット応答で参照（RAG）) */
+            context: string;
+            reference_count: number;
+            /** Format: date-time */
+            last_referenced_at: string;
+        };
+        KnowledgeReferencesResponse: {
+            /** Format: uuid */
+            knowledge_id: string;
+            references: components["schemas"]["KnowledgeReferenceItem"][];
+            total: number;
         };
         Execution: {
             /** Format: uuid */

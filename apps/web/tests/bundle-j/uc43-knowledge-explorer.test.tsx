@@ -373,4 +373,62 @@ describe("S-K01 v2: 検索・リスト・複製・関連", () => {
     // 自分自身は関連に出ない (関連セクション内に「選択ノート」ボタンが無い)
     expect(screen.queryByRole("button", { name: /類似度 1\.00/ })).toBeNull();
   });
+
+  it("shows backlinks from GET /knowledge/{id}/references on node select (GAP-012)", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/knowledge/{knowledge_id}/references"
+        ? {
+            data: {
+              knowledge_id: "r1",
+              total: 2,
+              references: [
+                {
+                  id: "ref1",
+                  referrer_type: "chat_thread",
+                  referrer_id: "t1",
+                  referrer_title: "RLS 設計の相談",
+                  context: "チャット応答で参照（RAG）",
+                  reference_count: 3,
+                  last_referenced_at: "2026-08-04T00:00:00Z",
+                },
+                {
+                  id: "ref2",
+                  referrer_type: "task",
+                  referrer_id: "tk1",
+                  referrer_title: "T-001 Supabase RLS 設計",
+                  context: "タスク実装時に参照",
+                  reference_count: 1,
+                  last_referenced_at: "2026-08-03T00:00:00Z",
+                },
+              ],
+            },
+          }
+        : { data: [knode({ id: "r1", title: "選択ノート" })] },
+    );
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "選択ノート" }));
+    const section = await screen.findByRole("region", { name: "バックリンク" });
+    expect(section).toHaveTextContent("バックリンク（2）");
+    expect(section).toHaveTextContent("RLS 設計の相談");
+    expect(section).toHaveTextContent("チャット · チャット応答で参照（RAG） · 3 回");
+    expect(section).toHaveTextContent("T-001 Supabase RLS 設計");
+    // 再参照 1 回の行は「n 回」を出さない
+    expect(section).toHaveTextContent("タスク · タスク実装時に参照");
+  });
+
+  it("shows honest empty state when a selected node has no backlinks", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/knowledge/{knowledge_id}/references"
+        ? { data: { knowledge_id: "r1", total: 0, references: [] } }
+        : { data: [knode({ id: "r1", title: "孤立ノート" })] },
+    );
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    fireEvent.click(await screen.findByRole("treeitem", { name: "孤立ノート" }));
+    const section = await screen.findByRole("region", { name: "バックリンク" });
+    expect(section).toHaveTextContent("まだ参照されていません");
+  });
 });

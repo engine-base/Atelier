@@ -31,10 +31,28 @@ export interface RelatedHit {
   readonly score: number;
 }
 
+/** バックリンク 1 行 (GET /knowledge/{id}/references — GAP-012)。 */
+export interface BacklinkItem {
+  readonly id: string;
+  readonly referrer_type: "chat_thread" | "task" | "decision" | "feature";
+  readonly referrer_title: string;
+  readonly context: string;
+  readonly reference_count: number;
+}
+
+const REFERRER_TYPE_LABEL: Record<BacklinkItem["referrer_type"], string> = {
+  chat_thread: "チャット",
+  task: "タスク",
+  decision: "ADR",
+  feature: "機能仕様",
+};
+
 export interface NodeDetailProps {
   readonly node: KnowledgeNode | null;
   /** オーナー AI 社員の表示名 (owner_employee_id の実名前解決)。 */
   readonly ownerName?: string;
+  /** バックリンク (このナレッジを参照した実体の逆引き)。undefined なら節を出さない。 */
+  readonly backlinks?: readonly BacklinkItem[];
   /** 関連ナレッジ (実 RAG 検索の上位、自分自身を除く)。 */
   readonly related?: readonly RelatedHit[];
   readonly onSelectRelated?: (node: KnowledgeNode) => void;
@@ -58,6 +76,7 @@ function MetaTitle({ children }: { readonly children: React.ReactNode }) {
 export function NodeDetail({
   node,
   ownerName,
+  backlinks,
   related = [],
   onSelectRelated,
   onPromote,
@@ -154,7 +173,40 @@ export function NodeDetail({
         </section>
       ) : null}
 
-      {/* 関連ナレッジ (実 RAG 検索の上位。バックリンクは参照元 API 不在のため未描画 — GAP-012) */}
+      {/* バックリンク (参照元逆引き — GET /knowledge/{id}/references)。モックの
+          「バックリンク（4）」節に対応。実参照 (チャット RAG 消費等) の永続化データのみを
+          描画し、参照が無ければ誠実に空表示する (GAP-012)。 */}
+      {backlinks !== undefined ? (
+        <section aria-label="バックリンク">
+          <MetaTitle>バックリンク（{backlinks.length}）</MetaTitle>
+          {backlinks.length === 0 ? (
+            <p className="text-[12px] text-on-surface-variant">
+              まだ参照されていません
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {backlinks.map((b) => (
+                <div
+                  key={b.id}
+                  className="rounded-md bg-surface-variant px-2.5 py-2"
+                >
+                  <strong className="block truncate text-[12px] font-bold text-on-surface">
+                    {b.referrer_title}
+                  </strong>
+                  <span className="text-[11px] text-on-surface-variant">
+                    {REFERRER_TYPE_LABEL[b.referrer_type]} · {b.context}
+                    {b.reference_count > 1 ? (
+                      <span className="tabular-nums"> · {b.reference_count} 回</span>
+                    ) : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {/* 関連ナレッジ (実 RAG 検索の上位) */}
       {related.length > 0 ? (
         <section>
           <MetaTitle>関連ナレッジ（RAG）</MetaTitle>

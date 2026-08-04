@@ -538,6 +538,18 @@ async def stream_chat(
     assistant_msg_id = await _insert_message(
         session, thread_id=thread_id, role="assistant", content=final_text
     )
+    if rag_ids:
+        # GAP-012: RAG で実消費したナレッジの参照元 (このスレッド) を永続化し、
+        # S-K01 バックリンクの逆引きデータ源にする。再参照は count++ に畳まれる。
+        from src.services import knowledge as kn
+
+        await kn.record_references(
+            session,
+            knowledge_ids=rag_ids,
+            referrer_type="chat_thread",
+            referrer_id=thread_id,
+            context="チャット応答で参照（RAG）",
+        )
     await AuditWriter(session).write(
         AuditEvent(
             action="chat.message.create",

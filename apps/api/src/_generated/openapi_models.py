@@ -1237,6 +1237,39 @@ class KnowledgePatternResponse(BaseModel):
     patterns: list[KnowledgePattern]
 
 
+class ReferrerType(StrEnum):
+    chat_thread = "chat_thread"
+    task = "task"
+    decision = "decision"
+    feature = "feature"
+
+
+class KnowledgeReferenceItem(BaseModel):
+    """
+    ナレッジを参照した実体 (バックリンク 1 行 — GAP-012)
+    """
+
+    id: UUID
+    referrer_type: ReferrerType
+    referrer_id: UUID
+    referrer_title: str
+    """
+    参照元の表示名 (実テーブルから解決)
+    """
+    context: str
+    """
+    参照の文脈 (例: チャット応答で参照（RAG）)
+    """
+    reference_count: Annotated[int, Field(ge=1)]
+    last_referenced_at: AwareDatetime
+
+
+class KnowledgeReferencesResponse(BaseModel):
+    knowledge_id: UUID
+    references: list[KnowledgeReferenceItem]
+    total: Annotated[int, Field(ge=0)]
+
+
 class Status7(StrEnum):
     running = "running"
     succeeded = "succeeded"

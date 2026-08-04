@@ -23,6 +23,7 @@ from src.schemas.knowledge import (
     KnowledgePatternRequest,
     KnowledgePatternResponse,
     KnowledgePromoteRequest,
+    KnowledgeReferencesResponse,
     KnowledgeResponse,
     KnowledgeScope,
     KnowledgeSearchResponse,
@@ -154,6 +155,24 @@ async def delete_knowledge(knowledge_id: str, session: SessionDep, user: UserDep
         raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
     if not await svc.delete_knowledge(session, actor_id=user.id, knowledge_id=knowledge_id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete knowledge")
+
+
+# --------------------------------------------------------------------------- #
+# GAP-012: バックリンク (参照元逆引き)
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/knowledge/{knowledge_id}/references",
+    summary="ナレッジ参照元一覧（バックリンク）",
+)
+async def list_knowledge_references(
+    knowledge_id: str,
+    session: SessionDep,
+    _user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> dict[str, KnowledgeReferencesResponse]:
+    if await svc.get_knowledge(session, knowledge_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+    return {"data": await svc.list_references(session, knowledge_id=knowledge_id, limit=limit)}
 
 
 # --------------------------------------------------------------------------- #

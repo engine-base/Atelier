@@ -49,7 +49,7 @@ import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 import { KbButton, KbDenied } from "./ui";
 import { TreeNode } from "./TreeNode";
-import { NodeDetail } from "./NodeDetail";
+import { NodeDetail, type BacklinkItem } from "./NodeDetail";
 import {
   CreateKnowledgeDialog,
   type KnowledgeDraft,
@@ -226,6 +226,22 @@ export function KnowledgeExplorer({
         if (found.size >= 3) break;
       }
       return [...found.values()].slice(0, 3);
+    },
+    retry: false,
+  });
+
+  // バックリンク (参照元逆引き — GAP-012): 選択ノードの実参照 (チャット RAG 消費等) を表示。
+  const backlinksQuery = useQuery({
+    queryKey: ["knowledge", "references", selected?.id ?? "none"],
+    enabled: Boolean(selected),
+    queryFn: async () => {
+      const res = await client.get("/knowledge/{knowledge_id}/references", {
+        params: { path: { knowledge_id: selected!.id } },
+      });
+      const data = (res as {
+        data?: { references?: BacklinkItem[] };
+      }).data;
+      return data?.references ?? [];
     },
     retry: false,
   });
@@ -856,6 +872,7 @@ export function KnowledgeExplorer({
         <NodeDetail
           node={selected}
           ownerName={ownerName(selected?.owner_employee_id)}
+          backlinks={selected ? (backlinksQuery.data ?? []) : undefined}
           related={relatedQuery.data ?? []}
           onSelectRelated={(node) => setSelected(node)}
           onPromote={(id) => promoteMut.mutate(id)}

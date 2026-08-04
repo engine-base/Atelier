@@ -91,6 +91,35 @@ class KnowledgeSearchResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# GAP-012: バックリンク (参照元逆引き)
+# --------------------------------------------------------------------------- #
+KnowledgeReferrerType = Literal["chat_thread", "task", "decision", "feature"]
+
+
+class KnowledgeReferenceItem(BaseModel):
+    """ナレッジを参照した実体 (バックリンク 1 行)。
+
+    referrer_title は referrer_type ごとに実テーブルから解決した表示名
+    (chat_thread=スレッド題名 / task=タスク題名 / decision=本文先頭)。
+    RLS で参照元が不可視な行は API 応答から除外される。
+    """
+
+    id: str
+    referrer_type: KnowledgeReferrerType
+    referrer_id: str
+    referrer_title: str
+    context: str
+    reference_count: int
+    last_referenced_at: datetime
+
+
+class KnowledgeReferencesResponse(BaseModel):
+    knowledge_id: str
+    references: list[KnowledgeReferenceItem]
+    total: int
+
+
+# --------------------------------------------------------------------------- #
 # T-A-37: ナレッジ昇格 + 横断パターン抽出 (F-K02, S-K02)
 # --------------------------------------------------------------------------- #
 class KnowledgePromoteRequest(BaseModel):

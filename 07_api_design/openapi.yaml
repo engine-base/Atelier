@@ -1183,6 +1183,27 @@ components:
         total: { type: integer, minimum: 0 }
         patterns: { type: array, items: { $ref: '#/components/schemas/KnowledgePattern' } }
 
+    KnowledgeReferenceItem:
+      type: object
+      description: "ナレッジを参照した実体 (バックリンク 1 行 — GAP-012)"
+      required: [id, referrer_type, referrer_id, referrer_title, context, reference_count, last_referenced_at]
+      properties:
+        id: { type: string, format: uuid }
+        referrer_type: { type: string, enum: [chat_thread, task, decision, feature] }
+        referrer_id: { type: string, format: uuid }
+        referrer_title: { type: string, description: "参照元の表示名 (実テーブルから解決)" }
+        context: { type: string, description: "参照の文脈 (例: チャット応答で参照（RAG）)" }
+        reference_count: { type: integer, minimum: 1 }
+        last_referenced_at: { type: string, format: date-time }
+
+    KnowledgeReferencesResponse:
+      type: object
+      required: [knowledge_id, references, total]
+      properties:
+        knowledge_id: { type: string, format: uuid }
+        references: { type: array, items: { $ref: '#/components/schemas/KnowledgeReferenceItem' } }
+        total: { type: integer, minimum: 0 }
+
     Execution:
       type: object
       required:
@@ -4362,6 +4383,28 @@ paths:
         '204': { description: 削除完了 }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/{knowledge_id}/references:
+    get:
+      tags: [knowledge]
+      summary: ナレッジ参照元一覧（バックリンク）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::list_knowledge_references
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-023]
+      parameters:
+        - { name: knowledge_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: バックリンク一覧 (last_referenced_at 降順。RLS 不可視の参照元は除外)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KnowledgeReferencesResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /knowledge/{knowledge_id}/promote:
