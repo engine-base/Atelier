@@ -302,18 +302,36 @@ async def delete_knowledge(session: AsyncSession, *, actor_id: str, knowledge_id
     return True
 
 
+async def _cross_project_allowed(session: AsyncSession, project_id: str) -> bool:
+    """GAP-017: プロジェクトの跨ぎナレッジ参照設定 (既定 true)。不可視/不在も true 扱い。"""
+    res = await session.execute(
+        text(
+            "select coalesce((settings ->> 'cross_project_knowledge')::boolean, true) "
+            "from public.projects where id = cast(:pid as uuid) and deleted_at is null"
+        ),
+        {"pid": project_id},
+    )
+    row = res.scalar_one_or_none()
+    return True if row is None else bool(row)
+
+
 async def search_knowledge(
     session: AsyncSession,
     *,
     query: str,
     limit: int = 10,
     account_id: str | None = None,
+    project_id: str | None = None,
 ) -> KnowledgeSearchResponse:
     """semantic 検索。
 
     VOYAGE_API_KEY 設定時は query を embed → cosine similarity (1 - <-> distance)
     で検索。未設定時は content_md / title ilike フォールバック (score=0.5)。
     どちらも RLS で account 不可視は自動 skip。
+
+    GAP-017: project_id 指定時はそのプロジェクトの settings.cross_project_knowledge
+    (既定 true) を参照し、false なら「自プロジェクト由来 + プロジェクト無所属 +
+    運営デフォルト」に限定する (他プロジェクトのナレッジを跨ぎ参照しない)。
     """
     where = ["deleted_at is null"]
     params: dict[str, object] = {"lim": limit}
@@ -322,6 +340,12 @@ async def search_knowledge(
         # visible_in_tree は検索では無視する(ツリー非表示でも参照される)。
         where.append("(account_id = cast(:aid as uuid) or account_type = 'platform')")
         params["aid"] = account_id
+    if project_id is not None and not await _cross_project_allowed(session, project_id):
+        where.append(
+            "(source_project_id = cast(:pid as uuid) "
+            "or source_project_id is null or account_type = 'platform')"
+        )
+        params["pid"] = project_id
 
     query_emb = await _embed_text(query, input_type="query")
     hits: list[KnowledgeSearchHit] = []

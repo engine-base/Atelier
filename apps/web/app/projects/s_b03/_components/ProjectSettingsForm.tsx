@@ -74,6 +74,12 @@ export interface ProjectSettingsFormProps {
   /** AI 学習「利用を許可」トグルの現在値 (GET の ai_learning_opt_out 由来) と即時変更ハンドラ。 */
   readonly aiLearningOptIn?: boolean;
   readonly onAiLearningChange?: (optIn: boolean) => void;
+  /**
+   * GAP-017: プロジェクト跨ぎナレッジ参照 (既定 true)。未指定ならトグルを出さない
+   * (Rule 10)。PATCH /projects/{id} {cross_project_knowledge} に配線。
+   */
+  readonly crossProjectKnowledge?: boolean;
+  readonly onCrossProjectKnowledgeChange?: (enabled: boolean) => void;
   /** 招待管理 (S-L01) への導線。意味的 URL + project 文脈を保持する。 */
   readonly inviteHref?: string;
   /** 工程成果物のエクスポート (署名付き URL を開く)。結果メッセージは exportMessage で表示。 */
@@ -122,6 +128,8 @@ export function ProjectSettingsForm({
   onDelete,
   serverError,
   aiLearningOptIn = false,
+  crossProjectKnowledge,
+  onCrossProjectKnowledgeChange,
   onAiLearningChange,
   inviteHref = "/portal/invitations",
   onExport,
@@ -252,8 +260,25 @@ export function ProjectSettingsForm({
             onChange={(next) => onAiLearningChange?.(next)}
           />
         </div>
-        {/* モックの「プロジェクト跨ぎナレッジ参照」トグルは参照設定 API が存在しないため
-            偽トグルを置かず撤去 (Rule 10 / GAP-017)。 */}
+        {/* GAP-017 解消: 跨ぎナレッジ参照トグル (settings.cross_project_knowledge) */}
+        {crossProjectKnowledge !== undefined ? (
+          <div className="flex items-center justify-between gap-4 border-t border-border py-3">
+            <div>
+              <div className="font-semibold text-on-surface">
+                プロジェクト跨ぎナレッジ参照
+              </div>
+              <div className="text-body-sm text-on-surface-variant">
+                OFF にすると、チャット RAG とナレッジ検索がこのプロジェクト由来 +
+                共通ナレッジに限定されます（他プロジェクトのナレッジを参照しません）。
+              </div>
+            </div>
+            <ToggleSwitch
+              label="プロジェクト跨ぎナレッジ参照"
+              checked={crossProjectKnowledge}
+              onChange={(next) => onCrossProjectKnowledgeChange?.(next)}
+            />
+          </div>
+        ) : null}
       </section>
 
       {/* クライアント招待 */}

@@ -31,6 +31,8 @@ class ProjectUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=2000)
     type: ProjectType | None = None
     status: ProjectStatus | None = None
+    # GAP-017: プロジェクト跨ぎナレッジ参照 (settings JSONB 格納、既定 true)
+    cross_project_knowledge: bool | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -42,6 +44,8 @@ class ProjectResponse(BaseModel):
     type: ProjectType
     status: ProjectStatus
     ai_learning_opt_out: bool
+    # GAP-017: プロジェクト跨ぎナレッジ参照 (false で RAG/検索を自プロジェクト+共通に限定)
+    cross_project_knowledge: bool
     current_phase: str
     deleted_at: datetime | None
     created_at: datetime

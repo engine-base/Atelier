@@ -389,6 +389,8 @@ components:
         type: { type: string, enum: [self_product, client_project, personal] }
         status: { type: string, enum: [in_progress, draft, paused, archived] }
         ai_learning_opt_out: { type: boolean }
+        # GAP-017: プロジェクト跨ぎナレッジ参照 (既定 true)
+        cross_project_knowledge: { type: boolean }
         current_phase:
           type: string
           enum: [hearing, requirements, architecture, design, breakdown, tasks, implementation, verification, delivery]
@@ -1126,6 +1128,8 @@ components:
         query: { type: string, minLength: 1 }
         limit: { type: integer, minimum: 1, maximum: 50, default: 10 }
         account_id: { type: string, format: uuid, nullable: true }
+        # GAP-017: 指定時はプロジェクトの跨ぎナレッジ参照設定を適用
+        project_id: { type: string, format: uuid, nullable: true }
 
     KnowledgeSearchHit:
       type: object
@@ -2430,6 +2434,8 @@ paths:
                 description: { type: string }
                 type: { type: string, enum: [self_product, client_project, personal] }
                 status: { type: string, enum: [in_progress, draft, paused, archived] }
+                # GAP-017: プロジェクト跨ぎナレッジ参照の切替
+                cross_project_knowledge: { type: boolean }
       responses:
         '200':
           description: 更新成功

@@ -307,6 +307,7 @@ class Project(BaseModel):
     type: Type | None = None
     status: Status | None = None
     ai_learning_opt_out: bool | None = None
+    cross_project_knowledge: bool | None = None
     current_phase: CurrentPhase | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
@@ -1194,6 +1195,7 @@ class KnowledgeSearchRequest(BaseModel):
     query: Annotated[str, Field(min_length=1)]
     limit: Annotated[int | None, Field(ge=1, le=50)] = 10
     account_id: UUID | None = None
+    project_id: UUID | None = None
 
 
 class KnowledgeSearchHit(BaseModel):

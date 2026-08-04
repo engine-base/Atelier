@@ -52,7 +52,11 @@ async def _load_recent_messages(
 
 
 async def _build_rag_context(
-    session: AsyncSession, *, query: str, account_id: str | None
+    session: AsyncSession,
+    *,
+    query: str,
+    account_id: str | None,
+    project_id: str | None = None,
 ) -> tuple[str, list[str]]:
     """ナレッジ RAG を **本物のベクトル検索** (Voyage 埋め込み + pgvector cosine) で構築する。
 
@@ -62,7 +66,9 @@ async def _build_rag_context(
     """
     from src.services import knowledge as kn
 
-    result = await kn.search_knowledge(session, query=query, limit=5, account_id=account_id)
+    result = await kn.search_knowledge(
+        session, query=query, limit=5, account_id=account_id, project_id=project_id
+    )
     if not result.hits:
         return "", []
     lines = ["以下は関連ナレッジ (意味検索 / RAG):"]
@@ -210,7 +216,7 @@ async def build_context(
     rag_ids: list[str] = []
     if use_rag:
         rag_block, rag_ids = await _build_rag_context(
-            session, query=user_message, account_id=rag_account_id
+            session, query=user_message, account_id=rag_account_id, project_id=project_id
         )
         if rag_block:
             parts.append(rag_block)

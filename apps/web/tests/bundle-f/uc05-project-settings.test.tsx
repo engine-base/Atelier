@@ -307,3 +307,44 @@ describe("S-B03 ProjectSettingsContainer (T-UC-05)", () => {
     );
   });
 });
+
+describe("S-B03 跨ぎナレッジ参照トグル (GAP-017)", () => {
+  it("GET の実値で初期化され、切替で PATCH cross_project_knowledge が飛ぶ", async () => {
+    const get = vi.fn(async () => ({
+      data: { ...PROJECT, cross_project_knowledge: true },
+    }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <ProjectSettingsContainer
+        projectId="p1"
+        client={fakeClient({ get, patch })}
+      />,
+    );
+    const toggle = await screen.findByRole("checkbox", {
+      name: "プロジェクト跨ぎナレッジ参照",
+    });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        "/projects/{project_id}",
+        expect.objectContaining({
+          body: { cross_project_knowledge: false },
+        }),
+      ),
+    );
+    // 楽観更新で即 OFF 表示
+    expect(toggle).not.toBeChecked();
+  });
+
+  it("API が値を返さない間はトグルを出さない (Rule 10)", async () => {
+    const get = vi.fn(async () => ({ data: PROJECT }));
+    renderWithQuery(
+      <ProjectSettingsContainer projectId="p1" client={fakeClient({ get })} />,
+    );
+    await screen.findByRole("checkbox", { name: "AI 学習への利用を許可" });
+    expect(
+      screen.queryByRole("checkbox", { name: "プロジェクト跨ぎナレッジ参照" }),
+    ).toBeNull();
+  });
+});

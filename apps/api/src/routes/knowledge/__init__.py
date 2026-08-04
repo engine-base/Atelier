@@ -104,8 +104,15 @@ async def search_knowledge(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "limit must be int in [1, 50]")
     account_id = body.get("account_id")
     account_id_str: str | None = account_id if isinstance(account_id, str) else None
+    # GAP-017: project_id 指定でプロジェクト設定 (跨ぎ参照) を適用
+    project_id = body.get("project_id")
+    project_id_str: str | None = project_id if isinstance(project_id, str) else None
     result = await svc.search_knowledge(
-        session, query=query, limit=limit_raw, account_id=account_id_str
+        session,
+        query=query,
+        limit=limit_raw,
+        account_id=account_id_str,
+        project_id=project_id_str,
     )
     return {"data": result}
 

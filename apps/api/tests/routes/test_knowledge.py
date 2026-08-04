@@ -693,3 +693,113 @@ class TestKnowledgePatterns:
             )
             # 3 件のうち最大 5 件返却。confidence 降順で並ぶ
             assert 1 <= len(shared["representative_ids"]) <= 5
+
+
+@pytest.mark.integration
+class TestCrossProjectKnowledgeToggle:
+    """GAP-017: settings.cross_project_knowledge=false で検索を自プロジェクト+共通に限定。"""
+
+    @pytest.fixture()
+    def seeded_projects(
+        self, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> Iterator[dict[str, str]]:
+        proj_x, proj_y = str(uuid.uuid4()), str(uuid.uuid4())
+        k_x, k_y = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            for pid, name in ((proj_x, "proj-x"), (proj_y, "proj-y")):
+                c.execute(
+                    text(
+                        "insert into public.projects (id,workspace_id,name,project_type) "
+                        "values (cast(:i as uuid),cast(:w as uuid),:n,'internal_product')"
+                    ),
+                    {"i": pid, "w": seeded["ws_a"], "n": name},
+                )
+            for kid, pid, title in ((k_x, proj_x, "proj-x note"), (k_y, proj_y, "proj-y note")):
+                c.execute(
+                    text(
+                        "insert into public.knowledge_nodes "
+                        "(id, account_id, account_type, scope, category, title, content_md, "
+                        "tags, source_project_id) "
+                        "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                        "'tech', :t, 'matchable content keyword foo', '{tech}', "
+                        "cast(:p as uuid))"
+                    ),
+                    {"i": kid, "a": seeded["ws_a"], "t": title, "p": pid},
+                )
+        yield {"proj_x": proj_x, "proj_y": proj_y, "k_x": k_x, "k_y": k_y}
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.knowledge_nodes where id in (:a,:b)"),
+                {"a": k_x, "b": k_y},
+            )
+            c.execute(
+                text("delete from public.projects where id in (:a,:b)"),
+                {"a": proj_x, "b": proj_y},
+            )
+
+    def test_default_on_searches_across_projects(
+        self, app: FastAPI, seeded: dict[str, str], seeded_projects: dict[str, str]
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/search",
+                headers=h,
+                json={
+                    "query": "keyword foo",
+                    "account_id": seeded["ws_a"],
+                    "project_id": seeded_projects["proj_x"],
+                },
+            )
+            assert r.status_code == 200, r.text
+            ids = {hit["knowledge"]["id"] for hit in r.json()["data"]["hits"]}
+            # 既定 ON: 他プロジェクト (proj_y) 由来もヒットする
+            assert seeded_projects["k_x"] in ids
+            assert seeded_projects["k_y"] in ids
+
+    def test_off_restricts_to_own_project_and_common(
+        self, app: FastAPI, seeded: dict[str, str], seeded_projects: dict[str, str]
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            # トグル OFF (PATCH /projects/{id})
+            up = client.patch(
+                f"/projects/{seeded_projects['proj_x']}",
+                headers=h,
+                json={"cross_project_knowledge": False},
+            )
+            assert up.status_code == 200, up.text
+            assert up.json()["data"]["cross_project_knowledge"] is False
+
+            r = client.post(
+                "/knowledge/search",
+                headers=h,
+                json={
+                    "query": "keyword foo",
+                    "account_id": seeded["ws_a"],
+                    "project_id": seeded_projects["proj_x"],
+                },
+            )
+            ids = {hit["knowledge"]["id"] for hit in r.json()["data"]["hits"]}
+            # OFF: 自プロジェクト + プロジェクト無所属 (k_common_a) のみ。他プロジェクトは除外
+            assert seeded_projects["k_x"] in ids
+            assert seeded["k_common_a"] in ids
+            assert seeded_projects["k_y"] not in ids
+
+            # ON へ戻すと再び跨ぎ参照できる (往復)
+            client.patch(
+                f"/projects/{seeded_projects['proj_x']}",
+                headers=h,
+                json={"cross_project_knowledge": True},
+            )
+            r2 = client.post(
+                "/knowledge/search",
+                headers=h,
+                json={
+                    "query": "keyword foo",
+                    "account_id": seeded["ws_a"],
+                    "project_id": seeded_projects["proj_x"],
+                },
+            )
+            ids2 = {hit["knowledge"]["id"] for hit in r2.json()["data"]["hits"]}
+            assert seeded_projects["k_y"] in ids2

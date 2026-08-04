@@ -36,6 +36,7 @@ interface ApiProject {
   type: ProjectSettingsValues["type"];
   status: ApiStatus;
   ai_learning_opt_out: boolean;
+  cross_project_knowledge?: boolean;
 }
 
 interface ApiOutput {
@@ -96,6 +97,28 @@ export function ProjectSettingsContainer({
   useEffect(() => {
     if (typeof optOutFromApi === "boolean") setAiLearningOptIn(!optOutFromApi);
   }, [optOutFromApi]);
+
+  // GAP-017: 跨ぎナレッジ参照トグル (PATCH /projects/{id}、楽観更新+ロールバック)
+  const [crossKnowledge, setCrossKnowledge] = useState<boolean | undefined>(undefined);
+  const crossFromApi = detail.data?.cross_project_knowledge;
+  useEffect(() => {
+    if (typeof crossFromApi === "boolean") setCrossKnowledge(crossFromApi);
+  }, [crossFromApi]);
+  const crossKnowledgeMut = useMutation({
+    mutationFn: (enabled: boolean) =>
+      client.patch("/projects/{project_id}", {
+        params: { path: { project_id: projectId } },
+        body: { cross_project_knowledge: enabled },
+      }),
+    onMutate: (enabled: boolean) => {
+      const prev = crossKnowledge;
+      setCrossKnowledge(enabled);
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx) setCrossKnowledge(ctx.prev);
+    },
+  });
 
   const aiLearningMut = useMutation({
     mutationFn: (optIn: boolean) =>
@@ -224,6 +247,13 @@ export function ProjectSettingsContainer({
       onDelete={() => deleteMut.mutate()}
       aiLearningOptIn={aiLearningOptIn}
       onAiLearningChange={(optIn) => aiLearningMut.mutate(optIn)}
+      {...(crossKnowledge !== undefined
+        ? {
+            crossProjectKnowledge: crossKnowledge,
+            onCrossProjectKnowledgeChange: (v: boolean) =>
+              crossKnowledgeMut.mutate(v),
+          }
+        : {})}
       inviteHref={`/portal/invitations?project=${projectId}`}
       onExport={(stage) => void runExport(stage)}
       exportingStage={exportingStage}

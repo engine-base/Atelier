@@ -70,6 +70,7 @@ _VALID_PHASES = {
 _SELECT_COLS = (
     "p.id, p.workspace_id, p.name, p.client_name, p.project_type, p.status, p.ai_training_optout, "
     "p.settings ->> 'description' AS description, "
+    "coalesce((p.settings ->> 'cross_project_knowledge')::boolean, true) AS cross_project_knowledge, "
     "p.created_at, p.updated_at, p.deleted_at, "
     "coalesce("
     "  (select ph.name from public.phases ph where ph.project_id = p.id "
@@ -106,6 +107,7 @@ def _row_to_response(row: Any) -> ProjectResponse:
         type=_TYPE_TO_API.get(str(row.project_type), "personal"),
         status=_STATUS_TO_API.get(str(row.status), "draft"),
         ai_learning_opt_out=bool(row.ai_training_optout),
+        cross_project_knowledge=bool(row.cross_project_knowledge),
         current_phase=phase if phase in _VALID_PHASES else "hearing",
         deleted_at=row.deleted_at,
         created_at=row.created_at,
@@ -258,6 +260,13 @@ async def update_project(
             "settings = jsonb_set(settings, '{description}', to_jsonb(cast(:desc as text)))"
         )
         params["desc"] = data.description
+    if data.cross_project_knowledge is not None:
+        # GAP-017: 跨ぎナレッジ参照フラグ (既定 true — false のとき検索/RAG を限定)
+        sets.append(
+            "settings = jsonb_set(settings, '{cross_project_knowledge}', "
+            "to_jsonb(cast(:cpk as boolean)))"
+        )
+        params["cpk"] = data.cross_project_knowledge
     if not sets:
         return await get_project(session, project_id)
 

@@ -1707,6 +1707,7 @@ export interface paths {
                         type?: "self_product" | "client_project" | "personal";
                         /** @enum {string} */
                         status?: "in_progress" | "draft" | "paused" | "archived";
+                        cross_project_knowledge?: boolean;
                     };
                 };
             };
@@ -9337,6 +9338,7 @@ export interface components {
             /** @enum {string} */
             status?: "in_progress" | "draft" | "paused" | "archived";
             ai_learning_opt_out?: boolean;
+            cross_project_knowledge?: boolean;
             /** @enum {string} */
             current_phase?: "hearing" | "requirements" | "architecture" | "design" | "breakdown" | "tasks" | "implementation" | "verification" | "delivery";
             /** Format: date-time */
@@ -10137,6 +10139,8 @@ export interface components {
             limit: number;
             /** Format: uuid */
             account_id?: string | null;
+            /** Format: uuid */
+            project_id?: string | null;
         };
         KnowledgeSearchHit: {
             knowledge: components["schemas"]["Knowledge"];
