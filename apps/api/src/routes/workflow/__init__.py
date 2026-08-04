@@ -63,7 +63,11 @@ async def update_phase(
 ) -> dict[str, PhaseResponse]:
     if await svc.get_phase(session, phase_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
-    updated = await svc.update_phase(session, actor_id=user.id, phase_id=phase_id, data=body)
+    try:
+        updated = await svc.update_phase(session, actor_id=user.id, phase_id=phase_id, data=body)
+    except svc.WorkflowError as e:
+        # GAP-004: 他 WS 社員の割当等は 422 (入力不正)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, e.message) from e
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update phase")
     return {"data": updated}

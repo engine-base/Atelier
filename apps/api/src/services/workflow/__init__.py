@@ -15,7 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.workflow import PhaseCreate, PhaseResponse, PhaseUpdate
 
-_COLS = 'id, project_id, "order", name, description, status, started_at, completed_at, created_at'
+
+class WorkflowError(Exception):
+    """workflow 更新の分類済みエラー (code で route が 4xx に写像)。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+_COLS = (
+    'id, project_id, "order", name, description, status, '
+    "assigned_employee_ids, started_at, completed_at, created_at"
+)
 
 # Atelier 標準 9 工程 (canonical)。フロント lib/workflowPhases.ts CANONICAL_PHASES の
 # label と 1:1 で一致させる (ダッシュボード S-B02 / 工程画面 S-F01 と表示を揃えるため)。
@@ -40,6 +53,7 @@ def _row_to_response(row: Any) -> PhaseResponse:
         name=str(row.name),
         description=(None if row.description is None else str(row.description)),
         status=row.status,
+        assigned_employee_ids=[str(x) for x in list(row.assigned_employee_ids or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         started_at=row.started_at,
         completed_at=row.completed_at,
         created_at=row.created_at,
@@ -160,6 +174,25 @@ async def update_phase(
     if data.description is not None:
         sets.append("description = :desc")
         params["desc"] = data.description
+    if data.assigned_employee_ids is not None:
+        # GAP-004: 担当割当は丸ごと置換 (同一 WS の ai_employees.id を検証)
+        if data.assigned_employee_ids:
+            valid = await session.execute(
+                text(
+                    "select count(*) from public.ai_employees e "
+                    "join public.projects p on p.workspace_id = e.workspace_id "
+                    "join public.phases ph on ph.project_id = p.id "
+                    "where ph.id = cast(:phid as uuid) and e.id = any(cast(:ids as uuid[]))"
+                ),
+                {"phid": phase_id, "ids": data.assigned_employee_ids},
+            )
+            if int(valid.scalar_one()) != len(set(data.assigned_employee_ids)):
+                raise WorkflowError(
+                    "invalid_assignee",
+                    "assigned_employee_ids must be employees of the same workspace",
+                )
+        sets.append("assigned_employee_ids = cast(:emps as uuid[])")
+        params["emps"] = data.assigned_employee_ids
     if data.status is not None:
         sets.append("status = cast(:st as phase_status_enum)")
         params["st"] = data.status

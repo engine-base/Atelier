@@ -135,11 +135,15 @@ describe("a11y: 主要画面 axe (0 critical/serious)", () => {
   });
 
   it("S-F02 フェーズ管理", async () => {
-    const get = vi.fn(async () => ({
-      data: [
-        { id: "ph1", name: "設計", status: "in_progress", order_index: 1 },
-      ],
-    }));
+    const get = vi.fn(async (path: unknown) =>
+      path === "/ai-employees"
+        ? { data: [] }
+        : {
+            data: [
+              { id: "ph1", name: "設計", status: "in_progress", order_index: 1 },
+            ],
+          },
+    );
     const { container } = renderWithQuery(
       <PhaseListContainer projectId="p1" client={fakeClient({ get })} />,
     );

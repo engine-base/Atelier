@@ -28,6 +28,8 @@ class PhaseUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     status: PhaseStatus | None = None
+    # GAP-004: 担当 AI 社員の割当 (ai_employees.id 群、丸ごと置換)
+    assigned_employee_ids: list[str] | None = None
 
 
 class PhaseResponse(BaseModel):
@@ -37,6 +39,8 @@ class PhaseResponse(BaseModel):
     name: str
     description: str | None
     status: PhaseStatus
+    # GAP-004: 担当 AI 社員 (S-F01 ヘッダーアバター / S-F02 割当 UI)
+    assigned_employee_ids: list[str]
     started_at: datetime | None
     completed_at: datetime | None
     created_at: datetime

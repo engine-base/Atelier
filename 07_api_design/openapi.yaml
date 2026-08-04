@@ -768,6 +768,8 @@ components:
         name: { type: string }
         description: { type: string, nullable: true }
         status: { type: string, enum: [pending, in_progress, completed, skipped] }
+        # GAP-004: 担当 AI 社員 (ai_employees.id 群)
+        assigned_employee_ids: { type: array, items: { type: string, format: uuid } }
         started_at: { type: string, format: date-time, nullable: true }
         completed_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
@@ -3664,6 +3666,8 @@ paths:
                 name: { type: string, maxLength: 200 }
                 description: { type: string }
                 status: { type: string, enum: [pending, in_progress, completed, skipped] }
+                # GAP-004: 担当 AI 社員の割当 (丸ごと置換。他 WS 社員は 422)
+                assigned_employee_ids: { type: array, items: { type: string, format: uuid } }
       responses:
         '200':
           description: 更新成功

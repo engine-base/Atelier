@@ -16,7 +16,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { PhaseList, type PhaseRow, type PhaseStatus } from "./PhaseList";
+import {
+  PhaseList,
+  type AssignableEmployee,
+  type PhaseRow,
+  type PhaseStatus,
+} from "./PhaseList";
 
 interface ApiPhase {
   id: string;
@@ -27,6 +32,7 @@ interface ApiPhase {
   started_at?: string | null;
   completed_at?: string | null;
   description?: string | null;
+  assigned_employee_ids?: string[] | null;
 }
 
 const KEY = (projectId: string) => ["workflow-phases", projectId] as const;
@@ -70,6 +76,61 @@ export function PhaseListContainer({
       return (res as { data?: ApiPhase[] }).data ?? [];
     },
     retry: false,
+  });
+
+  // GAP-004: 担当割当 (対象プロジェクトの WS 社員のみ + PATCH assigned_employee_ids)。
+  // 無フィルタの /ai-employees は他 WS の同名社員を混ぜてしまう (実操作監査で
+  // 別 WS のワンダを選び 422 → 検出) ため、project → workspace で絞る。
+  const projectQuery = useQuery({
+    queryKey: ["phase-assign-project", projectId],
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}", {
+        params: { path: { project_id: projectId } },
+      });
+      return (res as { data?: { workspace_id?: string } }).data ?? null;
+    },
+    retry: false,
+  });
+  const workspaceId = projectQuery.data?.workspace_id;
+  const employeesQuery = useQuery({
+    queryKey: ["phase-assign-employees", workspaceId ?? "none"],
+    enabled: !!workspaceId,
+    queryFn: async () => {
+      const res = await client.get("/ai-employees", {
+        params: { query: { workspace_id: workspaceId } },
+      });
+      return (
+        (res as {
+          data?: { id: string; name: string; display_name?: string | null; icon?: string | null }[];
+        }).data ?? []
+      );
+    },
+    retry: false,
+  });
+  const assignMut = useMutation({
+    mutationFn: (vars: { id: string; employeeIds: readonly string[] }) =>
+      client.patch("/workflow/phases/{phase_id}", {
+        params: { path: { phase_id: vars.id } },
+        body: { assigned_employee_ids: [...vars.employeeIds] },
+      }),
+    onMutate: async (vars) => {
+      const key = KEY(projectId);
+      await queryClient.cancelQueries({ queryKey: key });
+      const prev = queryClient.getQueryData<ApiPhase[]>(key);
+      queryClient.setQueryData<ApiPhase[]>(key, (old) =>
+        (old ?? []).map((p) =>
+          p.id === vars.id
+            ? { ...p, assigned_employee_ids: [...vars.employeeIds] }
+            : p,
+        ),
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(KEY(projectId), ctx.prev);
+    },
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
   });
 
   const transitionMut = useMutation({
@@ -123,12 +184,25 @@ export function PhaseListContainer({
     startedAt: p.started_at ?? null,
     completedAt: p.completed_at ?? null,
     description: p.description ?? null,
+    assignedEmployeeIds: p.assigned_employee_ids ?? [],
+  }));
+
+  const employees: AssignableEmployee[] = (employeesQuery.data ?? []).map((e) => ({
+    id: e.id,
+    name: e.display_name || e.name,
   }));
 
   return (
     <PhaseList
       rows={rows}
       onTransition={(id, status) => transitionMut.mutate({ id, status })}
+      {...(employees.length > 0
+        ? {
+            employees,
+            onAssign: (id: string, employeeIds: readonly string[]) =>
+              assignMut.mutate({ id, employeeIds }),
+          }
+        : {})}
     />
   );
 }

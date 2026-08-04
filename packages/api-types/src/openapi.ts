@@ -4512,6 +4512,7 @@ export interface paths {
                         description?: string;
                         /** @enum {string} */
                         status?: "pending" | "in_progress" | "completed" | "skipped";
+                        assigned_employee_ids?: string[];
                     };
                 };
             };
@@ -9757,6 +9758,7 @@ export interface components {
             description?: string | null;
             /** @enum {string} */
             status?: "pending" | "in_progress" | "completed" | "skipped";
+            assigned_employee_ids?: string[];
             /** Format: date-time */
             started_at?: string | null;
             /** Format: date-time */

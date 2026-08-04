@@ -20,6 +20,15 @@ export interface PhaseRow {
   readonly startedAt?: string | null;
   readonly completedAt?: string | null;
   readonly description?: string | null;
+  /** GAP-004: 担当 AI 社員 ID 群 (phases.assigned_employee_ids)。 */
+  readonly assignedEmployeeIds?: readonly string[];
+}
+
+/** 割当ピッカー用の WS 社員 (GAP-004)。 */
+export interface AssignableEmployee {
+  readonly id: string;
+  readonly name: string;
+  readonly color?: string;
 }
 
 /** ISO → YYYY-MM-DD。null は返さない。 */
@@ -44,6 +53,12 @@ export interface PhaseListProps {
   readonly rows: readonly PhaseRow[];
   /** 状態遷移。controlled（コンテナが API 配線して rows を更新する）。 */
   readonly onTransition?: (id: string, status: PhaseStatus) => void;
+  /**
+   * GAP-004: 担当割当。employees と onAssign の両方があるときだけ割当 UI を出す
+   * (Rule 10)。onAssign は新しい ID 配列で丸ごと置換。
+   */
+  readonly employees?: readonly AssignableEmployee[];
+  readonly onAssign?: (id: string, employeeIds: readonly string[]) => void;
 }
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
@@ -92,9 +107,11 @@ const PILL_VARIANT: Record<PhaseStatus, { readonly pill: string; readonly dot: s
 interface PhaseCardProps {
   readonly row: PhaseRow;
   readonly onTransition?: (id: string, status: PhaseStatus) => void;
+  readonly employees?: readonly AssignableEmployee[];
+  readonly onAssign?: (id: string, employeeIds: readonly string[]) => void;
 }
 
-function PhaseCard({ row, onTransition }: PhaseCardProps) {
+function PhaseCard({ row, onTransition, employees, onAssign }: PhaseCardProps) {
   const pill = PILL_VARIANT[row.status];
   const metaClass =
     row.status === "done"
@@ -141,6 +158,67 @@ function PhaseCard({ row, onTransition }: PhaseCardProps) {
             </option>
           ))}
         </select>
+
+        {/* GAP-004: 担当 AI 社員の割当 (チップ + 追加 select) */}
+        {employees && onAssign ? (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+            <span className="text-[11px] font-medium opacity-80">担当</span>
+            {(row.assignedEmployeeIds ?? []).map((eid) => {
+              const emp = employees.find((e) => e.id === eid);
+              if (!emp) return null;
+              return (
+                <span
+                  key={eid}
+                  className="inline-flex items-center gap-1 rounded-full bg-surface-variant py-0.5 pl-1 pr-1.5 text-[11px] font-semibold text-on-surface"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white"
+                    style={{ backgroundColor: emp.color ?? "#2563EB" }}
+                  >
+                    {emp.name.charAt(0)}
+                  </span>
+                  {emp.name}
+                  <button
+                    type="button"
+                    aria-label={`${row.name} の担当から ${emp.name} を外す`}
+                    onClick={() =>
+                      onAssign(
+                        row.id,
+                        (row.assignedEmployeeIds ?? []).filter((x) => x !== eid),
+                      )
+                    }
+                    className="ml-0.5 rounded-full px-0.5 text-on-surface-variant hover:text-error"
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+            <select
+              value=""
+              aria-label={`${row.name} に担当を追加`}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onAssign(row.id, [
+                  ...(row.assignedEmployeeIds ?? []),
+                  e.target.value,
+                ]);
+                e.target.value = "";
+              }}
+              className="h-7 rounded-md border border-border bg-white px-1.5 text-[11px] text-on-surface-variant"
+            >
+              <option value="">+ 追加</option>
+              {employees
+                .filter((e) => !(row.assignedEmployeeIds ?? []).includes(e.id))
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+        ) : null}
       </div>
     </li>
   );
@@ -163,7 +241,7 @@ function StatRow({ label, value, valueClass }: StatRowProps) {
   );
 }
 
-export function PhaseList({ rows, onTransition }: PhaseListProps) {
+export function PhaseList({ rows, onTransition, employees, onAssign }: PhaseListProps) {
   const total = rows.length;
   const done = rows.filter((r) => r.status === "done").length;
   const inProgress = rows.filter((r) => r.status === "in_progress").length;
@@ -185,7 +263,13 @@ export function PhaseList({ rows, onTransition }: PhaseListProps) {
         ) : (
           <ol className="flex flex-col gap-2.5">
             {rows.map((r) => (
-              <PhaseCard key={r.id} row={r} onTransition={onTransition} />
+              <PhaseCard
+                key={r.id}
+                row={r}
+                onTransition={onTransition}
+                employees={employees}
+                onAssign={onAssign}
+              />
             ))}
           </ol>
         )}

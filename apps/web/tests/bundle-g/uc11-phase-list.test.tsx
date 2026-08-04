@@ -57,7 +57,9 @@ afterEach(() => vi.clearAllMocks());
 
 describe("S-F02 PhaseListContainer (T-UC-11)", () => {
   it("lists phases mapped to UI status", async () => {
-    const get = vi.fn(async () => ({ data: PHASES }));
+    const get = vi.fn(async (path: unknown) =>
+      path === "/ai-employees" ? { data: [] } : { data: PHASES },
+    );
     renderWithQuery(
       <PhaseListContainer projectId="p1" client={fakeClient({ get })} />,
     );
@@ -75,7 +77,9 @@ describe("S-F02 PhaseListContainer (T-UC-11)", () => {
   });
 
   it("transitions via PATCH with UI→API status mapping (done→completed)", async () => {
-    const get = vi.fn(async () => ({ data: PHASES }));
+    const get = vi.fn(async (path: unknown) =>
+      path === "/ai-employees" ? { data: [] } : { data: PHASES },
+    );
     const patch = vi.fn(async () => ({ data: {} }));
     renderWithQuery(
       <PhaseListContainer projectId="p1" client={fakeClient({ get, patch })} />,
@@ -103,6 +107,61 @@ describe("S-F02 PhaseListContainer (T-UC-11)", () => {
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
+    );
+  });
+});
+
+describe("S-F02 担当割当 (GAP-004)", () => {
+  const EMPS = [
+    { id: "e1", name: "wanda", display_name: "ワンダ" },
+    { id: "e2", name: "thor", display_name: "ソー" },
+  ];
+
+  it("割当チップ + 追加 select が出て PATCH assigned_employee_ids が飛ぶ", async () => {
+    const get = vi.fn(async (path: unknown) =>
+      path === "/ai-employees"
+        ? { data: EMPS }
+        : path === "/projects/{project_id}"
+          ? { data: { workspace_id: "ws1" } }
+          : {
+              data: [
+                {
+                  id: "ph1",
+                  name: "設計",
+                  status: "in_progress",
+                  order_index: 1,
+                  assigned_employee_ids: ["e1"],
+                },
+              ],
+            },
+    );
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <PhaseListContainer projectId="p1" client={fakeClient({ get, patch })} />,
+    );
+    // 既存割当がチップ表示
+    expect(await screen.findByText("ワンダ")).toBeInTheDocument();
+    // 追加 → PATCH (丸ごと置換で e1+e2)
+    fireEvent.change(screen.getByLabelText("設計 に担当を追加"), {
+      target: { value: "e2" },
+    });
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        "/workflow/phases/{phase_id}",
+        expect.objectContaining({
+          body: { assigned_employee_ids: ["e1", "e2"] },
+        }),
+      ),
+    );
+    // 外す → PATCH (空配列)
+    fireEvent.click(
+      screen.getByRole("button", { name: "設計 の担当から ワンダ を外す" }),
+    );
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        "/workflow/phases/{phase_id}",
+        expect.objectContaining({ body: { assigned_employee_ids: [] } }),
+      ),
     );
   });
 });

@@ -802,6 +802,7 @@ class Phase(BaseModel):
     name: str | None = None
     description: str | None = None
     status: Status1 | None = None
+    assigned_employee_ids: list[UUID] | None = None
     started_at: AwareDatetime | None = None
     completed_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None

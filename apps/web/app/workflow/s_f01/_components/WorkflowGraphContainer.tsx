@@ -48,6 +48,8 @@ interface ApiPhase {
   order?: number;
   started_at?: string | null;
   completed_at?: string | null;
+  /** GAP-004: 実割当 (あればヘッダーアバターはこちらを優先)。 */
+  assigned_employee_ids?: string[] | null;
 }
 
 interface ApiThread {
@@ -373,13 +375,17 @@ export function WorkflowGraphContainer({
     .filter((d) => d.status === "unresolved")
     .map(toDecision);
 
-  // 工程に関与する AI 社員 (スレッド + 確定事項の担当から集計、モックのヘッダーアバター)。
-  const involvedIds = new Set<string>();
-  for (const th of threadsQuery.data ?? []) {
-    if (th.ai_employee_id) involvedIds.add(th.ai_employee_id);
-  }
-  for (const d of allDecisions) {
-    if (d.decided_by) involvedIds.add(d.decided_by);
+  // 工程の担当 AI 社員: 実割当 (GAP-004 phases.assigned_employee_ids) を優先し、
+  // 未割当の工程は従来のスレッド + 確定事項からの実集計にフォールバック。
+  const assignedIds = selected.assigned_employee_ids ?? [];
+  const involvedIds = new Set<string>(assignedIds);
+  if (involvedIds.size === 0) {
+    for (const th of threadsQuery.data ?? []) {
+      if (th.ai_employee_id) involvedIds.add(th.ai_employee_id);
+    }
+    for (const d of allDecisions) {
+      if (d.decided_by) involvedIds.add(d.decided_by);
+    }
   }
   const involved: PhaseEmployee[] = [...involvedIds]
     .map((id) => employeeById.get(id))

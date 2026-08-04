@@ -234,3 +234,82 @@ class TestWorkflowPhases:
             ).json()["data"]["id"]
             assert client.get(f"/workflow/phases/{pid}", headers=hb).status_code == 404
             client.delete(f"/workflow/phases/{pid}", headers=ha)
+
+
+@pytest.mark.integration
+class TestPhaseAssignees:
+    """GAP-004: phases.assigned_employee_ids の割当・検証・返却。"""
+
+    def test_assign_and_replace_and_clear(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with sync_engine.connect() as c:
+            emps = [
+                str(x)
+                for (x,) in c.execute(
+                    text(
+                        "select id from public.ai_employees "
+                        "where workspace_id = cast(:w as uuid) order by name limit 2"
+                    ),
+                    {"w": seeded["ws_a"]},
+                ).all()
+            ]
+        assert len(emps) == 2  # WS 自動シード (T-A-54) 前提
+        with TestClient(app) as client:
+            ph = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "order": 90, "name": "assign-test"},
+            ).json()["data"]
+            assert ph["assigned_employee_ids"] == []
+            # 割当
+            up = client.patch(
+                f"/workflow/phases/{ph['id']}",
+                headers=h,
+                json={"assigned_employee_ids": emps},
+            )
+            assert up.status_code == 200, up.text
+            assert sorted(up.json()["data"]["assigned_employee_ids"]) == sorted(emps)
+            # 置換 (1 名に)
+            up2 = client.patch(
+                f"/workflow/phases/{ph['id']}",
+                headers=h,
+                json={"assigned_employee_ids": [emps[0]]},
+            )
+            assert up2.json()["data"]["assigned_employee_ids"] == [emps[0]]
+            # クリア
+            up3 = client.patch(
+                f"/workflow/phases/{ph['id']}",
+                headers=h,
+                json={"assigned_employee_ids": []},
+            )
+            assert up3.json()["data"]["assigned_employee_ids"] == []
+            client.delete(f"/workflow/phases/{ph['id']}", headers=h)
+
+    def test_cross_workspace_employee_rejected_422(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """他 WS の社員 ID は 422 (R-T08 系の越境割当を拒否)。"""
+        h = _h(seeded["u_a"])
+        with sync_engine.connect() as c:
+            other = c.execute(
+                text(
+                    "select e.id from public.ai_employees e "
+                    "where e.workspace_id <> cast(:w as uuid) limit 1"
+                ),
+                {"w": seeded["ws_a"]},
+            ).scalar_one()
+        with TestClient(app) as client:
+            ph = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "order": 91, "name": "assign-xws"},
+            ).json()["data"]
+            r = client.patch(
+                f"/workflow/phases/{ph['id']}",
+                headers=h,
+                json={"assigned_employee_ids": [str(other)]},
+            )
+            assert r.status_code == 422
+            client.delete(f"/workflow/phases/{ph['id']}", headers=h)
