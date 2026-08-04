@@ -361,6 +361,7 @@ export function PhaseTabs({
   tasks,
   decisions,
   unresolved,
+  tabRequest,
 }: {
   readonly projectId: string;
   readonly outputs: readonly PhaseOutput[];
@@ -368,8 +369,13 @@ export function PhaseTabs({
   readonly tasks: readonly PhaseTask[];
   readonly decisions: readonly PhaseDecision[];
   readonly unresolved: readonly PhaseDecision[];
+  /** 親からのタブ切替要求 (GAP-031② 「前工程の成果物を見る」→ 成果物タブ)。 */
+  readonly tabRequest?: { readonly tab: TabKey; readonly nonce: number };
 }) {
   const [active, setActive] = useState<TabKey>("decisions");
+  React.useEffect(() => {
+    if (tabRequest) setActive(tabRequest.tab);
+  }, [tabRequest]);
   const [showAllDecisions, setShowAllDecisions] = useState(false);
   const counts: Record<TabKey, number> = {
     decisions: decisions.length,
@@ -639,8 +645,6 @@ function SideCard({
 export interface SideRailProps {
   readonly projectId: string;
   readonly currentPhase?: PhaseInfo;
-  /** 進行中工程の次 (クイックアクションのボタン文言用) */
-  readonly hasNext?: boolean;
   /** 選択工程の次 (「次工程への引き継ぎ予告」カード用) */
   readonly nextPhaseLabel?: string;
   readonly prevPhaseLabel?: string;
@@ -650,14 +654,24 @@ export interface SideRailProps {
   readonly threadCount: number;
   readonly taskCount: number;
   readonly knowledgeCount?: number;
-  readonly onComplete?: () => void;
-  readonly completing?: boolean;
+  /**
+   * GAP-031②: モックの 2 ボタンを分離配線。
+   * onApprove = 「この工程を完了として承認」(進行中工程を completed に)。
+   * onStartNext = 「次工程（X）を開始」(次の pending を in_progress に)。
+   * 進行中工程がある間は開始を disabled にする (二重進行の防止)。
+   */
+  readonly onApprove?: () => void;
+  readonly onStartNext?: () => void;
+  readonly startNextLabel?: string;
+  readonly startNextDisabled?: boolean;
+  readonly transitioning?: boolean;
+  /** 「前工程の成果物を見る」— 選択を前工程へ切替え成果物タブを実表示する。 */
+  readonly onShowPrevOutputs?: () => void;
 }
 
 export function SideRail({
   projectId,
   currentPhase,
-  hasNext = false,
   nextPhaseLabel,
   prevPhaseLabel,
   prevSummary,
@@ -665,8 +679,12 @@ export function SideRail({
   threadCount,
   taskCount,
   knowledgeCount,
-  onComplete,
-  completing = false,
+  onApprove,
+  onStartNext,
+  startNextLabel,
+  startNextDisabled = false,
+  transitioning = false,
+  onShowPrevOutputs,
 }: SideRailProps) {
   const linkRow =
     "flex items-center gap-2 border-b border-border py-[6px] text-[12.5px] last:border-b-0";
@@ -689,19 +707,31 @@ export function SideRail({
             AI社員と議論する
           </Link>
         ) : null}
-        {onComplete && currentPhase?.status === "in_progress" ? (
+        {onApprove && currentPhase?.status === "in_progress" ? (
           <button
             type="button"
-            onClick={onComplete}
-            disabled={completing}
+            onClick={onApprove}
+            disabled={transitioning}
             className={cn(quickBtn, "disabled:opacity-50")}
           >
             <Check className="h-[14px] w-[14px]" aria-hidden="true" />
-            {completing
-              ? "更新中…"
-              : hasNext
-                ? "この工程を完了して次へ"
-                : "この工程を完了"}
+            {transitioning ? "更新中…" : "この工程を完了として承認"}
+          </button>
+        ) : null}
+        {onStartNext && startNextLabel ? (
+          <button
+            type="button"
+            onClick={onStartNext}
+            disabled={transitioning || startNextDisabled}
+            title={
+              startNextDisabled
+                ? "進行中の工程を完了として承認してから開始できます"
+                : undefined
+            }
+            className={cn(quickBtn, "disabled:opacity-50")}
+          >
+            <GitBranch className="h-[14px] w-[14px]" aria-hidden="true" />
+            {transitioning ? "更新中…" : `次工程（${startNextLabel}）を開始`}
           </button>
         ) : null}
         <Link href={`/workflow/phases?project=${projectId}`} className={quickBtn}>
@@ -784,6 +814,16 @@ export function SideRail({
               </span>
             )}
           </div>
+          {onShowPrevOutputs ? (
+            <button
+              type="button"
+              onClick={onShowPrevOutputs}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+            >
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              前工程の成果物を見る
+            </button>
+          ) : null}
         </SideCard>
       ) : null}
 

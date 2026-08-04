@@ -7,9 +7,12 @@
  *   - 左: 成果物 / 議論中 / 関連タスク タブ (実 outputs / chat / tasks API)
  *   - 右: クイックアクション / 関連リンク / 前工程サマリー / 次工程予告
  *
- * 遷移: 現在の in_progress を completed に、次の pending を in_progress にする
- * (PATCH /workflow/phases/{phase_id} ×2)。工程レコードが無ければ seed CTA。
- * api client は prop 注入可能 (テスト時に fake を渡す)。
+ * 遷移 (GAP-031② — モックの 2 ボタンを分離配線):
+ *   - 「この工程を完了として承認」= 進行中工程を completed に (PATCH ×1)
+ *   - 「次工程（X）を開始」= 次の pending を in_progress に (PATCH ×1、
+ *     進行中工程がある間は disabled — 二重進行の防止)
+ * 「前工程の成果物を見る」は選択を前工程へ切替え成果物タブを実表示する。
+ * 工程レコードが無ければ seed CTA。api client は prop 注入可能。
  */
 
 "use client";
@@ -112,6 +115,10 @@ export function WorkflowGraphContainer({
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // GAP-031②: 「前工程の成果物を見る」で成果物タブへ切替える要求 (nonce で再発火)
+  const [tabRequest, setTabRequest] = useState<
+    { tab: "outputs"; nonce: number } | undefined
+  >(undefined);
 
   const invalidatePhases = (): void => {
     void queryClient.invalidateQueries({
@@ -131,7 +138,7 @@ export function WorkflowGraphContainer({
     onSuccess: invalidatePhases,
   });
 
-  // 工程遷移: 現在の in_progress を completed に、次の pending を in_progress にする。
+  // 工程遷移 (GAP-031②): 承認 (completed) と次工程開始 (in_progress) を分離。
   const transitionMut = useMutation({
     mutationFn: (v: {
       phaseId: string;
@@ -141,18 +148,8 @@ export function WorkflowGraphContainer({
         params: { path: { phase_id: v.phaseId } },
         body: { status: v.status },
       }),
+    onSuccess: invalidatePhases,
   });
-
-  const advance = async (currentId: string, nextId?: string): Promise<void> => {
-    await transitionMut.mutateAsync({ phaseId: currentId, status: "completed" });
-    if (nextId !== undefined) {
-      await transitionMut.mutateAsync({
-        phaseId: nextId,
-        status: "in_progress",
-      });
-    }
-    invalidatePhases();
-  };
 
   const list = useQuery({
     queryKey: ["workflow-phases", projectId],
@@ -299,9 +296,10 @@ export function WorkflowGraphContainer({
 
   const currentIdx = phases.findIndex((p) => p.status === "in_progress");
   const current = currentIdx >= 0 ? phases[currentIdx] : undefined;
+  // 次工程 = 進行中の後ろの最初の pending。進行中が無い (承認直後) は先頭の pending。
   const next = current
     ? phases.slice(currentIdx + 1).find((p) => p.status === "pending")
-    : undefined;
+    : phases.find((p) => p.status === "pending");
   const allSettled = phases.every(
     (p) => p.status === "completed" || p.status === "skipped",
   );
@@ -428,6 +426,7 @@ export function WorkflowGraphContainer({
           tasks={tasks}
           decisions={decisions}
           unresolved={unresolved}
+          {...(tabRequest ? { tabRequest } : {})}
         />
         <SideRail
           projectId={projectId}
@@ -444,7 +443,6 @@ export function WorkflowGraphContainer({
                 }
               : undefined
           }
-          hasNext={next !== undefined}
           nextPhaseLabel={phases[selectedIdx + 1]?.name}
           prevPhaseLabel={prevPhase?.name}
           prevSummary={prevSummary}
@@ -452,10 +450,35 @@ export function WorkflowGraphContainer({
           threadCount={threads.length}
           taskCount={tasks.length}
           knowledgeCount={knowledgeQuery.data?.length}
-          onComplete={
-            current ? () => void advance(current.id, next?.id) : undefined
+          onApprove={
+            current
+              ? () =>
+                  transitionMut.mutate({
+                    phaseId: current.id,
+                    status: "completed",
+                  })
+              : undefined
           }
-          completing={transitionMut.isPending}
+          onStartNext={
+            next
+              ? () =>
+                  transitionMut.mutate({
+                    phaseId: next.id,
+                    status: "in_progress",
+                  })
+              : undefined
+          }
+          startNextLabel={next?.name}
+          startNextDisabled={current !== undefined}
+          transitioning={transitionMut.isPending}
+          onShowPrevOutputs={
+            prevPhase
+              ? () => {
+                  setSelectedId(prevPhase.id);
+                  setTabRequest({ tab: "outputs", nonce: Date.now() });
+                }
+              : undefined
+          }
         />
       </div>
     </div>

@@ -206,3 +206,81 @@ describe("S-I03 FleetMonitorContainer (design-audit v2)", () => {
     expect(screen.queryByRole("button", { name: /一時停止/ })).not.toBeInTheDocument();
   });
 });
+
+describe("S-I03 FleetMonitorContainer 並び替え (GAP-031③)", () => {
+  const sortTasks = [
+    {
+      id: "t-old",
+      title: "古い進行中",
+      lifecycle_stage: "in_progress",
+      updated_at: "2026-08-01T00:00:00Z",
+    },
+    {
+      id: "t-new",
+      title: "新しい判断待ち",
+      lifecycle_stage: "awaiting",
+      updated_at: "2026-08-03T00:00:00Z",
+    },
+  ];
+
+  function sortClient(): ApiClient {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/tasks") return { data: sortTasks };
+      if (path === "/ai-employees") return { data: [] };
+      if (path.includes("executions"))
+        return {
+          data: [
+            {
+              id: "x-9",
+              status: "succeeded",
+              score: 0.5,
+              started_at: "2026-08-01T00:00:00Z",
+            },
+          ],
+        };
+      return { data: {} };
+    });
+    const noop = vi.fn(async () => ({ data: [] }));
+    return {
+      get,
+      post: noop,
+      patch: noop,
+      delete: noop,
+      put: noop,
+      request: noop,
+    } as unknown as ApiClient;
+  }
+
+  it("defaults to 要対応が上 (区分表示) and merges into 新しい順 on toggle", async () => {
+    renderWithQuery(
+      <FleetMonitorContainer projectId="p1" client={sortClient()} />,
+    );
+    // 既定: 区分表示 (要対応が上 が押下状態)
+    const attentionBtn = await screen.findByRole("button", {
+      name: "要対応が上",
+    });
+    expect(attentionBtn).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("順調に進行中")).toBeInTheDocument();
+
+    // 新しい順: 結合グリッドで updated_at 降順 (新しい判断待ち → 古い進行中)
+    fireEvent.click(screen.getByRole("button", { name: "新しい順" }));
+    expect(
+      await screen.findByText("すべてのセッション（新しい順）"),
+    ).toBeInTheDocument();
+    const cards = screen.getAllByText(/古い進行中|新しい判断待ち/);
+    expect(cards[0]).toHaveTextContent("新しい判断待ち");
+    expect(cards[1]).toHaveTextContent("古い進行中");
+    // 区分見出しは消える
+    expect(screen.queryByText("順調に進行中")).toBeNull();
+  });
+
+  it("進捗順 sorts by latest execution progress (score desc, 実データ)", async () => {
+    renderWithQuery(
+      <FleetMonitorContainer projectId="p1" client={sortClient()} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "進捗順" }));
+    expect(
+      await screen.findByText("すべてのセッション（進捗順）"),
+    ).toBeInTheDocument();
+  });
+});

@@ -7,6 +7,9 @@
  *   - GET /ai-employees : 担当コード → 表示名 (鉄則5)
  *   - GET /tasks/{id}/executions : 要対応/進行中カードの最新スコア・ログ導線
  *   - POST /tasks/{id}/approve|reject|retry : カード上の判断 (2 段階確認)
+ * 並び替え (GAP-031③): モックの「要対応が上」(既定 — 区分表示) /「新しい順」/
+ * 「進捗順」を実装。後 2 者は要対応+進行中を 1 つのグリッドに結合し
+ * updated_at 降順 / 最新実行の進捗 (score ?? ac_pass_rate) 降順で並べる。
  * モックの Bridge 接続バッジ・すべて一時停止・順番待ちから追加・ログ集約ビュー・
  * キュー取消は対応 API が無いため未描画 (Rule 10 / GAP-026)。
  * 個別実行の SSE ライブログは ExecutionMonitorContainer (?execution=) が担う。
@@ -162,6 +165,10 @@ export function FleetMonitorContainer({
     action: "approve" | "reject" | "retry";
   } | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  // GAP-031③: 並び替え (要対応が上 = 区分表示 / 新しい順 / 進捗順)
+  const [sort, setSort] = useState<"attention" | "newest" | "progress">(
+    "attention",
+  );
 
   const tasks = useQuery({
     queryKey: ["tasks", "fleet", projectId],
@@ -520,6 +527,96 @@ export function FleetMonitorContainer({
         />
       </div>
 
+      {/* ── 並び替え (GAP-031③ — モック .seg-dark 準拠) ── */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span className={cn("text-[11px] font-bold", DARK.faint)}>並び替え</span>
+        <div
+          role="group"
+          aria-label="並び替え"
+          className="flex gap-1 rounded-md bg-[#1E293B] p-1"
+        >
+          {(
+            [
+              ["attention", "要対応が上"],
+              ["newest", "新しい順"],
+              ["progress", "進捗順"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={sort === key}
+              onClick={() => setSort(key)}
+              className={cn(
+                "rounded px-3 py-1.5 text-[12px] font-semibold transition-colors",
+                sort === key
+                  ? "bg-[#334155] text-[#F1F5F9]"
+                  : cn(DARK.muted, "hover:text-[#E2E8F0]"),
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {sort !== "attention" ? (
+        /* 新しい順 / 進捗順: 要対応+進行中を結合して 1 グリッドで実ソート */
+        <>
+          <SectionHead
+            icon={
+              <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#334155] bg-[#1E293B] text-[#94A3B8]">
+                <PlayCircle size={14} aria-hidden="true" />
+              </span>
+            }
+            title={
+              sort === "newest"
+                ? "すべてのセッション（新しい順）"
+                : "すべてのセッション（進捗順）"
+            }
+            sub={
+              sort === "newest"
+                ? "要対応・進行中を最終更新が新しい順に表示しています"
+                : "要対応・進行中を最新実行の進捗が高い順に表示しています"
+            }
+            count={attention.length + running.length}
+            countTone={DARK.muted}
+          />
+          {attention.length + running.length ? (
+            <div className="grid grid-cols-1 gap-3.5 xl:grid-cols-2">
+              {[...attention, ...running]
+                .slice()
+                .sort((a, b) => {
+                  if (sort === "newest") {
+                    return (b.updated_at ?? b.created_at ?? "").localeCompare(
+                      a.updated_at ?? a.created_at ?? "",
+                    );
+                  }
+                  const progressOf = (t: ApiTask): number => {
+                    const e = execOf(t.id);
+                    return e?.score ?? e?.ac_pass_rate ?? -1;
+                  };
+                  return progressOf(b) - progressOf(a);
+                })
+                .map((t) => (
+                  <SessionCard
+                    key={t.id}
+                    t={t}
+                    attentionCard={
+                      t.lifecycle_stage === "awaiting" ||
+                      t.lifecycle_stage === "blocked"
+                    }
+                  />
+                ))}
+            </div>
+          ) : (
+            <p className={cn("rounded-md border border-dashed border-[#334155] px-4 py-5 text-center text-[12.5px]", DARK.muted)}>
+              セッションはありません。
+            </p>
+          )}
+        </>
+      ) : (
+        <>
       {/* ── 要対応 ── */}
       <SectionHead
         icon={
@@ -566,6 +663,8 @@ export function FleetMonitorContainer({
         <p className={cn("rounded-md border border-dashed border-[#334155] px-4 py-5 text-center text-[12.5px]", DARK.muted)}>
           実行中のタスクはありません。タスクボードから「再生」で開始できます。
         </p>
+      )}
+        </>
       )}
 
       {/* ── 順番待ち ── */}

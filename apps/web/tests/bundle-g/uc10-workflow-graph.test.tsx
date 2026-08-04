@@ -111,7 +111,7 @@ describe("S-F01 WorkflowGraphContainer (T-UC-10)", () => {
     });
   });
 
-  it("advances the in_progress phase to completed and the next to in_progress", async () => {
+  it("approves the in_progress phase (承認は completed のみ — GAP-031②)", async () => {
     const get = vi.fn(async () => ({
       data: [
         { id: "p1", name: "要件定義", status: "completed", order_index: 1 },
@@ -127,18 +127,83 @@ describe("S-F01 WorkflowGraphContainer (T-UC-10)", () => {
       />,
     );
     const btn = await screen.findByRole("button", {
-      name: "この工程を完了して次へ",
+      name: "この工程を完了として承認",
     });
+    // 進行中工程がある間、次工程開始は disabled (二重進行の防止)
+    expect(
+      screen.getByRole("button", { name: "次工程（実装）を開始" }),
+    ).toBeDisabled();
     fireEvent.click(btn);
-    await waitFor(() => expect(patch).toHaveBeenCalledTimes(2));
-    expect(patch).toHaveBeenNthCalledWith(1, "/workflow/phases/{phase_id}", {
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledWith("/workflow/phases/{phase_id}", {
       params: { path: { phase_id: "p2" } },
       body: { status: "completed" },
     });
-    expect(patch).toHaveBeenNthCalledWith(2, "/workflow/phases/{phase_id}", {
+  });
+
+  it("starts the next pending phase when nothing is in progress (GAP-031②)", async () => {
+    const get = vi.fn(async () => ({
+      data: [
+        { id: "p1", name: "要件定義", status: "completed", order_index: 1 },
+        { id: "p2", name: "設計", status: "completed", order_index: 2 },
+        { id: "p3", name: "実装", status: "pending", order_index: 3 },
+      ],
+    }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <WorkflowGraphContainer
+        projectId="prj1"
+        client={fakeClient(get, { patch })}
+      />,
+    );
+    const btn = await screen.findByRole("button", {
+      name: "次工程（実装）を開始",
+    });
+    expect(btn).toBeEnabled();
+    // 進行中が無いので承認ボタンは出ない
+    expect(
+      screen.queryByRole("button", { name: "この工程を完了として承認" }),
+    ).toBeNull();
+    fireEvent.click(btn);
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(patch).toHaveBeenCalledWith("/workflow/phases/{phase_id}", {
       params: { path: { phase_id: "p3" } },
       body: { status: "in_progress" },
     });
+  });
+
+  it("shows previous phase outputs via 前工程の成果物を見る (GAP-031②)", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/workflow/phases"
+        ? {
+            data: [
+              { id: "p1", name: "要件定義", status: "completed", order_index: 1 },
+              { id: "p2", name: "設計", status: "in_progress", order_index: 2 },
+            ],
+          }
+        : path === "/outputs"
+          ? {
+              data: [
+                {
+                  id: "o1",
+                  summary: "要件定義書",
+                  phase_id: "p1",
+                  stage: "final",
+                  version: 1,
+                },
+              ],
+            }
+          : { data: [] },
+    );
+    renderWithQuery(
+      <WorkflowGraphContainer projectId="prj1" client={fakeClient(get)} />,
+    );
+    const btn = await screen.findByRole("button", {
+      name: "前工程の成果物を見る",
+    });
+    fireEvent.click(btn);
+    // 選択が前工程 (要件定義) に切替り、成果物タブにその成果物が実表示される
+    expect((await screen.findAllByText("要件定義書")).length).toBeGreaterThan(0);
   });
 
   it("shows a forbidden message on 403", async () => {
