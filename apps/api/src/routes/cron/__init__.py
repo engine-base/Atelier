@@ -19,8 +19,10 @@ from src.schemas.cron import (
     CronScheduleCreate,
     CronScheduleResponse,
     CronScheduleUpdate,
+    PlatformJobResponse,
 )
 from src.services import cron as svc
+from src.services import platform_jobs as platform_svc
 from src.services.cron import history as history_svc
 
 router = APIRouter(tags=["cron-schedules"])
@@ -47,6 +49,17 @@ async def list_cron_runs(
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict[str, list[CronRunResponse]]:
     return {"data": await history_svc.list_runs(session, name=name, limit=limit)}
+
+
+@router.get(
+    "/cron-platform-jobs",
+    summary="プラットフォーム必須ジョブ一覧 (GAP-014 / S-O01 法令・運用、read-only)",
+)
+async def list_platform_jobs(
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, list[PlatformJobResponse]]:
+    return {"data": await platform_svc.list_platform_jobs(session)}
 
 
 @router.post(

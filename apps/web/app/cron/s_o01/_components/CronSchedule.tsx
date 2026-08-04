@@ -9,8 +9,9 @@
  *
  * 実行履歴 (GAP-013 解消): GET /cron-runs の実データを「実行履歴」テーブルで描画
  * (スケジュール名/実行日時/所要時間/結果 — モック .history-card 準拠)。
- * 法令・運用の必須ジョブ (mock) はプラットフォーム側ジョブの可視化 API が無いため
- * 未描画 (GAP-014) — 偽の稼働状況を出さない。
+ * 法令・運用バックエンド (GAP-014 解消): GET /cron-platform-jobs の read-only
+ * 実データで描画 (退会データ 30 日後完全削除 / データ整合性チェック — 無効化不可)。
+ * 最終実行は cron_run_history 実データ。稼働状況を偽装しない (未実行なら未実行と出す)。
  * データ配線・props・export・aria-label は不変（vitest / e2e が参照）。
  */
 
@@ -21,11 +22,15 @@ import { useState } from "react";
 import {
   Brain,
   CalendarClock,
+  Check,
   ClipboardList,
   Clock,
+  Database,
+  Lock,
   Mail,
   PlayCircle,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   Trash2,
 } from "lucide-react";
@@ -52,10 +57,28 @@ export interface CronRun {
   readonly status: "running" | "success" | "error";
 }
 
+/** プラットフォーム必須ジョブ (GAP-014 — GET /cron-platform-jobs、read-only)。 */
+export interface PlatformJob {
+  readonly name: string;
+  readonly category: "legal" | "report" | "pipeline";
+  readonly required: boolean;
+  readonly title: string;
+  readonly description: string;
+  readonly cron: string;
+  readonly scheduleLabel: string;
+  readonly nextRunAt?: string | null;
+  readonly lastRun?: {
+    readonly startedAt: string;
+    readonly status: "running" | "success" | "error";
+  } | null;
+}
+
 export interface CronScheduleProps {
   readonly jobs: readonly CronJob[];
   /** 実行履歴 (GAP-013)。未指定なら履歴セクションを出さない (Rule 10)。 */
   readonly runs?: readonly CronRun[];
+  /** 法令・運用バックエンド (GAP-014)。未指定なら節を出さない (Rule 10)。 */
+  readonly platformJobs?: readonly PlatformJob[];
   readonly onToggle: (id: string, enabled: boolean) => void;
   /** 即時実行。未指定なら「即時実行」ボタンを出さない（バックエンド未対応時など）。 */
   readonly onRunNow?: (id: string) => void;
@@ -385,6 +408,90 @@ function ScheduleRow({
   );
 }
 
+/** 法令・運用バックエンドの 1 行 (モック .schedule-row 準拠、read-only)。 */
+function PlatformJobRow({ job }: { readonly job: PlatformJob }) {
+  const lastLabel =
+    job.lastRun == null
+      ? "未実行"
+      : job.lastRun.status === "success"
+        ? "成功"
+        : job.lastRun.status === "error"
+          ? "失敗"
+          : "実行中";
+  const lastStarted = job.lastRun ? new Date(job.lastRun.startedAt) : null;
+  return (
+    <li className="grid grid-cols-[44px_1fr] items-start gap-3 rounded-lg border border-border bg-white p-4 sm:grid-cols-[44px_1fr_auto]">
+      <span
+        className={cn(
+          "flex h-11 w-11 items-center justify-center rounded-md",
+          job.name === "purge-deleted-accounts"
+            ? "bg-[#FEE2E2] text-[#991B1B]"
+            : "bg-tertiary-container text-tertiary-container-fg",
+        )}
+      >
+        {job.name === "purge-deleted-accounts" ? (
+          <Trash2 size={18} />
+        ) : (
+          <ShieldCheck size={18} />
+        )}
+      </span>
+      <div className="min-w-0">
+        <div className="text-[13.5px] font-bold text-on-surface">{job.title}</div>
+        <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
+          {job.description}
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {job.required ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[10.5px] font-bold text-[#991B1B]">
+              <Lock size={10} aria-hidden="true" />
+              無効化不可
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1 rounded-full bg-tertiary-container px-2 py-0.5 text-[10.5px] font-bold text-tertiary-container-fg">
+            <Check size={10} aria-hidden="true" />
+            コスト無料
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-variant px-2 py-0.5 text-[10.5px] font-bold text-on-surface-variant">
+            <Database size={10} aria-hidden="true" />
+            SQL のみ
+          </span>
+        </div>
+      </div>
+      <div className="col-span-2 text-left sm:col-span-1 sm:text-right">
+        <div className="text-[12.5px] font-bold text-on-surface">
+          {job.scheduleLabel}
+        </div>
+        <div
+          className="font-mono text-[10.5px] text-on-surface-variant"
+          title="cron 式 (UTC)"
+        >
+          {job.cron}
+        </div>
+        {job.nextRunAt ? (
+          <div className="mt-0.5 text-[11px] tabular-nums text-on-surface-variant">
+            次回 {fmtWhen(job.nextRunAt)}
+          </div>
+        ) : null}
+        <div className="mt-0.5 text-[11px] text-on-surface-variant">
+          最終実行{" "}
+          <span
+            className={cn(
+              "font-bold",
+              job.lastRun?.status === "success" && "text-tertiary",
+              job.lastRun?.status === "error" && "text-error",
+            )}
+          >
+            {lastLabel}
+          </span>
+          {lastStarted
+            ? ` (${lastStarted.getMonth() + 1}/${lastStarted.getDate()} ${String(lastStarted.getHours()).padStart(2, "0")}:${String(lastStarted.getMinutes()).padStart(2, "0")})`
+            : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 export function CronSchedule({
   jobs,
   onToggle,
@@ -392,6 +499,7 @@ export function CronSchedule({
   onDelete,
   onRefresh,
   runs,
+  platformJobs,
 }: CronScheduleProps) {
   // 次に動くスケジュール: enabled かつ next_run_at があるものを昇順で最大 5 件
   const upcoming = jobs
@@ -473,6 +581,38 @@ export function CronSchedule({
             })}
           </ol>
         </div>
+      ) : null}
+
+      {/* 法令・運用バックエンド (GAP-014 — モック group 3a 準拠、read-only 実データ)。
+          legal ジョブはコード定義で常時 ≥1 のため、空 = API 未到達。その場合は
+          節ごと出さない (偽の稼働状況を出さない)。 */}
+      {platformJobs !== undefined &&
+      platformJobs.some((j) => j.category === "legal") ? (
+        <section aria-label="法令・運用バックエンド">
+          <div className="flex items-center gap-3 px-1 pb-2.5">
+            <span className="flex h-[30px] w-[30px] items-center justify-center rounded-md bg-[#FEE2E2] text-[#991B1B]">
+              <ShieldCheck size={16} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 text-sm font-bold text-on-surface">
+                法令・運用バックエンド
+                <span className="rounded-full bg-[#FEE2E2] px-2 py-0.5 text-[10px] font-bold text-[#991B1B]">
+                  必須
+                </span>
+              </div>
+              <div className="text-[11.5px] text-on-surface-variant">
+                法令対応とデータ整合性。Atelier 内部処理のみ・コスト無料
+              </div>
+            </div>
+          </div>
+          <ul className="grid gap-2">
+            {platformJobs
+              .filter((j) => j.category === "legal")
+              .map((j) => (
+                <PlatformJobRow key={j.name} job={j} />
+              ))}
+          </ul>
+        </section>
       ) : null}
 
       {/* カテゴリ別グループ */}

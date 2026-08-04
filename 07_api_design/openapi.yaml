@@ -3890,6 +3890,44 @@ paths:
                         status: { type: string, enum: [running, success, error] }
                         detail: { type: object }
 
+  /cron-platform-jobs:
+    get:
+      tags: [cron-schedules]
+      summary: プラットフォーム必須ジョブ一覧 (GAP-014 — S-O01 法令・運用、read-only)
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::list_platform_jobs
+      x-screen-ids: [S-O01]
+      responses:
+        '200':
+          description: 定義 + 実 cron 式 + 最終実行 (cron_run_history 実データ) + 次回時刻
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, category, required, title, description, cron, schedule_label]
+                      properties:
+                        name: { type: string }
+                        category: { type: string, enum: [legal, report, pipeline] }
+                        required: { type: boolean, description: 法令対応のため無効化不可 }
+                        title: { type: string }
+                        description: { type: string }
+                        cron: { type: string, description: 実 cron 式 (UTC) }
+                        schedule_label: { type: string, description: JST の人間可読ラベル }
+                        next_run_at: { type: string, format: date-time, nullable: true }
+                        last_run:
+                          type: object
+                          nullable: true
+                          required: [started_at, status]
+                          properties:
+                            started_at: { type: string, format: date-time }
+                            finished_at: { type: string, format: date-time, nullable: true }
+                            status: { type: string, enum: [running, success, error] }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /cron-schedules:
     get:
       tags: [cron-schedules]

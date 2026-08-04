@@ -104,13 +104,67 @@ describe("S-O01 CronScheduleContainer (T-UC-25)", () => {
   });
 
   it("shows empty state when there are no schedules", async () => {
+    // GAP-014: 空でも早期 return せず CronSchedule 側の空表示になる
+    // (法令・運用バックエンド節をスケジュール有無に関係なく出すため)
     const get = vi.fn(async () => ({ data: [] }));
     renderWithQuery(
       <CronScheduleContainer projectId="p1" client={fakeClient({ get })} />,
     );
     expect(
-      await screen.findByText("スケジュールがまだありません。"),
+      await screen.findByText("スケジュールされたジョブはありません"),
     ).toBeInTheDocument();
+  });
+
+  it("renders the legal platform jobs section from GET /cron-platform-jobs (GAP-014)", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/cron-platform-jobs"
+        ? {
+            data: [
+              {
+                name: "purge-deleted-accounts",
+                category: "legal",
+                required: true,
+                title: "退会データを 30 日後に完全削除",
+                description: "個人情報保護法に基づく削除義務。",
+                cron: "0 15 * * *",
+                schedule_label: "毎日 深夜 0:00 (JST)",
+                next_run_at: "2026-08-05T15:00:00Z",
+                last_run: {
+                  started_at: "2026-08-04T15:00:00Z",
+                  finished_at: "2026-08-04T15:00:02Z",
+                  status: "success",
+                },
+              },
+              {
+                name: "integrity-check",
+                category: "legal",
+                required: true,
+                title: "データ整合性チェック",
+                description: "依存・AC・モック・工程担当の矛盾を検出。",
+                cron: "0 20 * * *",
+                schedule_label: "毎日 朝 5:00 (JST)",
+                next_run_at: null,
+                last_run: null,
+              },
+            ],
+          }
+        : path === "/cron-schedules"
+          ? { data: JOBS }
+          : { data: [] },
+    );
+    renderWithQuery(
+      <CronScheduleContainer projectId="p1" client={fakeClient({ get })} />,
+    );
+    const section = await screen.findByRole("region", {
+      name: "法令・運用バックエンド",
+    });
+    expect(section).toHaveTextContent("退会データを 30 日後に完全削除");
+    expect(section).toHaveTextContent("データ整合性チェック");
+    expect(section).toHaveTextContent("無効化不可");
+    expect(section).toHaveTextContent("0 15 * * *");
+    expect(section).toHaveTextContent("最終実行 成功");
+    // 未実行のジョブは偽装せず「未実行」
+    expect(section).toHaveTextContent("最終実行 未実行");
   });
 
   it("shows a forbidden message on 403", async () => {

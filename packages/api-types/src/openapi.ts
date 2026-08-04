@@ -4949,6 +4949,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cron-platform-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** プラットフォーム必須ジョブ一覧 (GAP-014 — S-O01 法令・運用、read-only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 定義 + 実 cron 式 + 最終実行 (cron_run_history 実データ) + 次回時刻 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                name: string;
+                                /** @enum {string} */
+                                category: "legal" | "report" | "pipeline";
+                                /** @description 法令対応のため無効化不可 */
+                                required: boolean;
+                                title: string;
+                                description: string;
+                                /** @description 実 cron 式 (UTC) */
+                                cron: string;
+                                /** @description JST の人間可読ラベル */
+                                schedule_label: string;
+                                /** Format: date-time */
+                                next_run_at?: string | null;
+                                last_run?: {
+                                    /** Format: date-time */
+                                    started_at: string;
+                                    /** Format: date-time */
+                                    finished_at?: string | null;
+                                    /** @enum {string} */
+                                    status: "running" | "success" | "error";
+                                } | null;
+                            }[];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cron-schedules": {
         parameters: {
             query?: never;

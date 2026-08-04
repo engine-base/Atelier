@@ -131,6 +131,52 @@ export function CronScheduleContainer({
     status: r.status,
   }));
 
+  // GAP-014: 法令・運用バックエンド (GET /cron-platform-jobs、read-only)
+  const platformQuery = useQuery({
+    queryKey: ["cron-platform-jobs"],
+    queryFn: async () => {
+      const res = await client.get("/cron-platform-jobs");
+      return (
+        (res as {
+          data?: {
+            name: string;
+            category: "legal" | "report" | "pipeline";
+            required: boolean;
+            title: string;
+            description: string;
+            cron: string;
+            schedule_label: string;
+            next_run_at?: string | null;
+            last_run?: {
+              started_at: string;
+              finished_at?: string | null;
+              status: "running" | "success" | "error";
+            } | null;
+          }[];
+        }).data ?? []
+      );
+    },
+    retry: false,
+  });
+  const platformData = platformQuery.data ?? [];
+  // 空 = API 未到達 (ジョブはコード定義で常時 ≥2)。undefined で節ごと非描画。
+  const platformJobs =
+    platformData.length > 0
+      ? platformData.map((j) => ({
+          name: j.name,
+          category: j.category,
+          required: j.required,
+          title: j.title,
+          description: j.description,
+          cron: j.cron,
+          scheduleLabel: j.schedule_label,
+          nextRunAt: j.next_run_at ?? null,
+          lastRun: j.last_run
+            ? { startedAt: j.last_run.started_at, status: j.last_run.status }
+            : null,
+        }))
+      : undefined;
+
   if (isForbidden(list.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -149,14 +195,9 @@ export function CronScheduleContainer({
     return <Loading className="py-md" />;
   }
 
+  // 空でも早期 return しない — 法令・運用バックエンド (platform) 節は
+  // プロジェクトのスケジュール有無に関係なく常時稼働のため表示する (GAP-014)。
   const apiJobs = list.data ?? [];
-  if (apiJobs.length === 0) {
-    return (
-      <p className="text-body-md text-on-surface-variant">
-        スケジュールがまだありません。
-      </p>
-    );
-  }
 
   const jobs: CronJob[] = apiJobs.map((j) => ({
     id: j.id,
@@ -174,6 +215,7 @@ export function CronScheduleContainer({
     <CronSchedule
       jobs={jobs}
       runs={runs}
+      {...(platformJobs ? { platformJobs } : {})}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
       onDelete={(id) => deleteMut.mutate(id)}
       onRefresh={() => void list.refetch()}

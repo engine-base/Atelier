@@ -49,6 +49,18 @@ CRON_SCHEDULES: tuple[CronSchedule, ...] = (
         cron="* * * * *",
         description="議事録 transcription キュー消費: storage DL → Whisper → 結果書込",
     ),
+    CronSchedule(
+        name="purge-deleted-accounts",
+        # 15:00 UTC = 00:00 JST。法令対応 (個人情報保護法) のため無効化不可 (GAP-014)
+        cron="0 15 * * *",
+        description="退会データ 30 日後完全削除: T-A-05 soft-delete の物理削除実体",
+    ),
+    CronSchedule(
+        name="integrity-check",
+        # 20:00 UTC = 05:00 JST。SQL のみのデータ整合性チェック (GAP-014)
+        cron="0 20 * * *",
+        description="データ整合性チェック: 依存/AC/モック/工程担当の矛盾検出 → 承認待ち通知",
+    ),
 )
 
 

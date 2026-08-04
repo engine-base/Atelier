@@ -78,10 +78,41 @@ async def _transcribe_queue_body(ctx: Any, step: Any) -> dict[str, str]:
     }
 
 
+async def _purge_deleted_accounts_body(ctx: Any, step: Any) -> dict[str, str]:
+    """退会データ 30 日後完全削除 (GAP-014 — T-A-05 の worker 実体)。"""
+    del ctx, step
+    from src.db import create_engine, create_session_factory
+    from src.services.platform_jobs import purge_deleted_accounts
+
+    factory = create_session_factory(create_engine())
+    async with factory() as session:
+        result = await purge_deleted_accounts(session)
+        await session.commit()
+    if result["purged_users"] != "0":
+        logger.info("purge-deleted-accounts cron done: %s", result)
+    return result
+
+
+async def _integrity_check_body(ctx: Any, step: Any) -> dict[str, str]:
+    """データ整合性チェック (GAP-014)。検知時は approval_inbox へ通知。"""
+    del ctx, step
+    from src.db import create_engine, create_session_factory
+    from src.services.platform_jobs import run_integrity_check
+
+    factory = create_session_factory(create_engine())
+    async with factory() as session:
+        result = await run_integrity_check(session)
+        await session.commit()
+    logger.info("integrity-check cron done: %s", result)
+    return result
+
+
 _HANDLER_MAP: dict[str, Any] = {
     "daily-digest": _daily_digest_body,
     "weekly-burndown": _weekly_burndown_body,
     "transcribe-queue": _transcribe_queue_body,
+    "purge-deleted-accounts": _purge_deleted_accounts_body,
+    "integrity-check": _integrity_check_body,
 }
 
 
