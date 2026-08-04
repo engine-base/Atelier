@@ -76,7 +76,7 @@ async def _send_invitation_email(*, email: str, link: str, client_display_name: 
 
 _COLS = (
     "id, project_id, email, scopes, expires_at, used_at, revoked_at, "
-    "client_display_name, created_at, updated_at"
+    "client_display_name, use_count, created_at, updated_at"
 )
 
 
@@ -105,6 +105,7 @@ def _row_to_response(row: Any) -> InvitationResponse:
         client_display_name=(
             None if row.client_display_name is None else str(row.client_display_name)
         ),
+        use_count=int(row.use_count),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

@@ -10,11 +10,12 @@
  *      旧実装は email 以外が「黙って捨てられる死に入力」だった)
  *   2. アクティブな招待テーブル (状態 = 未使用 / 使用済)
  *   3. 履歴テーブル (状態 = 失効 / 期限切れ, surface-variant カード)
- * 失効・再送は 2 段階確認。再送 (GAP-027 解消) は POST
+ * 失効・再送は 2 段階確認。再送 (GAP-027① 解消) は POST
  * /client-invitations/{id}/resend — token ローテーション (旧リンク失効) +
  * 新リンクをメール送付し、新 raw token を発行バナーで 1 度だけ表示する。
- * 「使用回数」列は使用回数 API が無いため「使用日」(used_at 実データ)
- * に置換。招待リンク平文は発行/再送時のみ (R-T08) のため一覧では中立表示。
+ * 「使用回数」列 (GAP-027② 解消) は use_count 実データ — ポータルサインイン
+ * 成功ごとに client_signin が増分する。招待リンク平文は発行/再送時のみ
+ * (R-T08) のため一覧では中立表示。
  */
 
 "use client";
@@ -32,8 +33,8 @@ export interface Invitation {
   readonly displayName?: string | null;
   readonly status: InvitationStatus;
   readonly expires_at: string;
-  /** 使用日 (used_at, YYYY-MM-DD)。未使用なら undefined。 */
-  readonly usedAt?: string;
+  /** ポータルサインイン成功回数 (use_count — GAP-027②)。 */
+  readonly useCount: number;
   /** 履歴の終了日 (revoked_at ?? expires_at, YYYY-MM-DD)。 */
   readonly endDate?: string;
 }
@@ -251,7 +252,7 @@ function ActiveTable({
             <th className={TH_CLASS}>招待リンク</th>
             <th className={TH_CLASS}>状態</th>
             <th className={TH_CLASS}>有効期限</th>
-            <th className={TH_CLASS}>使用日</th>
+            <th className={TH_CLASS}>使用回数</th>
             <th className={TH_CLASS} aria-label="操作" />
           </tr>
         </thead>
@@ -279,7 +280,7 @@ function ActiveTable({
                 <td
                   className={cn(TD_CLASS, "tabular-nums text-on-surface-variant")}
                 >
-                  {r.usedAt ?? "—"}
+                  {r.useCount} 回
                 </td>
                 <td className={TD_CLASS}>
                   {confirming ? (
@@ -380,7 +381,7 @@ function HistoryTable({
             <th className={TH_CLASS}>招待リンク</th>
             <th className={TH_CLASS}>状態</th>
             <th className={TH_CLASS}>終了日</th>
-            <th className={TH_CLASS}>使用日</th>
+            <th className={TH_CLASS}>使用回数</th>
             <th className={TH_CLASS} aria-label="操作" />
           </tr>
         </thead>
@@ -405,7 +406,7 @@ function HistoryTable({
                 {r.endDate ?? r.expires_at}
               </td>
               <td className={cn(TD_CLASS, "tabular-nums text-on-surface-variant")}>
-                {r.usedAt ?? "—"}
+                {r.useCount} 回
               </td>
               <td className={TD_CLASS}>
                 <div className="flex justify-end">

@@ -31,6 +31,7 @@ interface ApiInvitation {
   expires_at: string;
   used_at?: string | null;
   revoked_at?: string | null;
+  use_count?: number;
 }
 
 const KEY = (projectId: string) => ["client-invitations", projectId] as const;
@@ -157,7 +158,7 @@ export function InvitationsListContainer({
     displayName: inv.client_display_name ?? null,
     status: deriveStatus(inv),
     expires_at: inv.expires_at.slice(0, 10),
-    usedAt: inv.used_at ? inv.used_at.slice(0, 10) : undefined,
+    useCount: inv.use_count ?? 0,
     endDate: (inv.revoked_at ?? inv.expires_at).slice(0, 10),
   }));
 

@@ -714,6 +714,10 @@ class ClientInvitation(BaseModel):
     used_at: AwareDatetime | None = None
     revoked_at: AwareDatetime | None = None
     client_display_name: str | None = None
+    use_count: Annotated[int | None, Field(ge=0)] = None
+    """
+    ポータルサインイン成功回数 (GAP-027②)
+    """
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
 

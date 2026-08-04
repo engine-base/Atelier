@@ -204,12 +204,14 @@ async def client_signin(
             invitation_id = str(row.id)
             project_id = str(row.project_id)
 
-            # 初回使用なら used_at + display_name 補完
+            # 初回使用なら used_at + display_name 補完。use_count は成功ごとに
+            # 増分 (GAP-027② — S-L01「使用回数」列のデータ源)
             await session.execute(
                 text(
                     "update public.client_invitations set "
                     "used_at = coalesce(used_at, now()), "
                     "client_display_name = coalesce(client_display_name, :dn), "
+                    "use_count = use_count + 1, "
                     "updated_at = now() "
                     "where id = cast(:i as uuid)"
                 ),

@@ -327,3 +327,40 @@ class TestClientSignin:
                 text("select count(*) from public.audit_logs where action = 'client.signin'")
             ).scalar_one()
             assert cnt >= 1
+
+    def test_signin_increments_use_count(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, two_projects: dict[str, str]
+    ) -> None:
+        """GAP-027②: サインイン成功ごとに use_count が増分される (2 回 → 2)。"""
+        with TestClient(app) as client:
+            for _ in range(2):
+                r = client.post(
+                    "/client/auth/signin",
+                    json={"invitation_token": two_projects["token_a"]},
+                )
+                assert r.status_code == 200
+        token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text("select use_count from public.client_invitations where token_hash = :h"),
+                {"h": token_hash},
+            ).scalar_one()
+            assert cnt == 2
+
+    def test_failed_signin_does_not_increment_use_count(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, two_projects: dict[str, str]
+    ) -> None:
+        """無効 token のサインイン失敗は use_count を進めない。"""
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": "bogus-token-not-issued"},
+            )
+            assert r.status_code == 401
+        token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
+        with sync_engine.begin() as c:
+            cnt = c.execute(
+                text("select use_count from public.client_invitations where token_hash = :h"),
+                {"h": token_hash},
+            ).scalar_one()
+            assert cnt == 0

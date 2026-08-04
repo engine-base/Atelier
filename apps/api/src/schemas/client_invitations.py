@@ -27,6 +27,7 @@ class InvitationResponse(BaseModel):
     used_at: datetime | None
     revoked_at: datetime | None
     client_display_name: str | None
+    use_count: int
     created_at: datetime
     updated_at: datetime
 

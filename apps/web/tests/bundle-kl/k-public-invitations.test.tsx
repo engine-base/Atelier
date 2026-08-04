@@ -24,13 +24,14 @@ describe('InvitationsList (T-UC-20)', () => {
       displayName: '小松 太郎',
       status: 'pending',
       expires_at: '2999-06-30',
+      useCount: 0,
     },
     {
       id: 'i2',
       email: 'b@x.com',
       status: 'used',
       expires_at: '2999-06-30',
-      usedAt: '2026-06-01',
+      useCount: 12,
     },
     {
       id: 'i3',
@@ -38,10 +39,11 @@ describe('InvitationsList (T-UC-20)', () => {
       status: 'revoked',
       expires_at: '2026-05-05',
       endDate: '2026-05-01',
+      useCount: 8,
     },
   ];
 
-  it('renders status labels, display names and used dates', () => {
+  it('renders status labels, display names and use counts', () => {
     render(
       <InvitationsList
         invitations={invs}
@@ -55,8 +57,12 @@ describe('InvitationsList (T-UC-20)', () => {
     // 表示名 + メール (client_display_name 実データ)
     expect(screen.getByText('小松 太郎')).toBeInTheDocument();
     expect(screen.getByText('a@x.com')).toBeInTheDocument();
-    // 使用日 / 終了日 (used_at / revoked_at 実データ)
-    expect(screen.getByText('2026-06-01')).toBeInTheDocument();
+    // 使用回数 (use_count 実データ — GAP-027②。モック「12 回」/「0 回」準拠)
+    expect(screen.getAllByText('使用回数').length).toBe(2); // アクティブ + 履歴
+    expect(screen.getByText('0 回')).toBeInTheDocument();
+    expect(screen.getByText('12 回')).toBeInTheDocument();
+    expect(screen.getByText('8 回')).toBeInTheDocument();
+    // 終了日 (revoked_at 実データ)
     expect(screen.getByText('2026-05-01')).toBeInTheDocument();
     // 再送 API は無いため再送ボタンを出さない (Rule 10)
     expect(screen.queryByRole('button', { name: /再送/ })).toBeNull();
@@ -159,6 +165,7 @@ describe('InvitationsList (T-UC-20)', () => {
             status: 'expired',
             expires_at: '2026-05-10',
             endDate: '2026-05-10',
+            useCount: 8,
           },
         ]}
         onIssue={onIssue}

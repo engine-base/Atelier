@@ -703,6 +703,7 @@ components:
         used_at: { type: string, format: date-time, nullable: true }
         revoked_at: { type: string, format: date-time, nullable: true }
         client_display_name: { type: string, nullable: true }
+        use_count: { type: integer, minimum: 0, description: ポータルサインイン成功回数 (GAP-027②) }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 

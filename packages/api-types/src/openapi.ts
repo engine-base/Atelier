@@ -9731,6 +9731,8 @@ export interface components {
             /** Format: date-time */
             revoked_at?: string | null;
             client_display_name?: string | null;
+            /** @description ポータルサインイン成功回数 (GAP-027②) */
+            use_count?: number;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
