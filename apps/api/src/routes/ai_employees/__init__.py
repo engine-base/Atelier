@@ -19,8 +19,12 @@ from src.schemas.ai_employees import (
     AiEmployeeTemplateResponse,
     AiEmployeeUpdate,
     EmployeeActivityResponse,
+    EmployeeIconUploadUrlRequest,
+    EmployeeIconUploadUrlResponse,
+    EmployeeIconUrlResponse,
 )
 from src.services import ai_employees as svc
+from src.storage_signing import StorageSigningError, create_signed_download_url
 
 router = APIRouter(tags=["ai-employees"])
 
@@ -82,6 +86,69 @@ async def list_employee_activities(
     if await svc.get_ai_employee(session, employee_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "employee not found")
     return {"data": await svc.list_activities(session, employee_id=employee_id, limit=limit)}
+
+
+@router.post(
+    "/ai-employees/{employee_id}/icon-upload-url",
+    summary="アイコン画像アップロード用 署名付き URL 発行 (GAP-009 / S-C02)",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def create_employee_icon_upload_url(
+    employee_id: str,
+    body: EmployeeIconUploadUrlRequest,
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, EmployeeIconUploadUrlResponse]:
+    """実ファイル PUT 用の署名付き URL を発行する (2 段階アップロードの 1 段目)。
+
+    社員の可視性は RLS で強制 (不可視は 404)。確定は PATCH icon で行う。
+    """
+    _require_uuid(employee_id)
+    if await svc.get_ai_employee(session, employee_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+    try:
+        result = await svc.create_icon_upload(
+            employee_id=employee_id,
+            file_name=body.file_name,
+            mime_type=body.mime_type,
+            file_size_bytes=body.file_size_bytes,
+        )
+    except svc.EmployeeIconError as exc:
+        if exc.code == "unsupported_media_type":
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, exc.message) from exc
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": result}
+
+
+@router.get(
+    "/ai-employees/{employee_id}/icon-url",
+    summary="アイコン画像の署名付き閲覧 URL (GAP-009 / S-C02)",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def get_employee_icon_url(
+    employee_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, EmployeeIconUrlResponse]:
+    """icon が storage path (画像) の社員の署名付き閲覧 URL を返す。
+
+    icon が lucide 名/未設定 (path でない) は 409 — 画像は存在しない。
+    """
+    _require_uuid(employee_id)
+    emp = await svc.get_ai_employee(session, employee_id)
+    if emp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+    if not emp.icon or "/" not in emp.icon:
+        raise HTTPException(status.HTTP_409_CONFLICT, "employee icon is not an uploaded image")
+    try:
+        url = await create_signed_download_url(emp.icon)
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": EmployeeIconUrlResponse(url=url)}
 
 
 @router.get("/ai-employees/{employee_id}", summary="AI 社員詳細")

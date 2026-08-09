@@ -10,7 +10,8 @@
  * Rule 10 対応:
  *   - 口調はモック通りのラジオカード (サンプル文付き)
  *   - 「Lucide から選ぶ」は実装 (EMPLOYEE_ICON_CHOICES → PATCH icon)
- *   - 画像アップロードは storage API 未提供のため撤去 (GAP-009)
+ *   - 「画像アップロード」は GAP-009 解消で実装 (署名付き URL → PUT →
+ *     PATCH icon=storage_path。icon が path のときは署名付き URL の <img> 描画)
  *   - 活動履歴タブは活動 API 未提供のため撤去 (GAP-008)
  */
 
@@ -62,7 +63,8 @@ const Schema = z.object({
   display_name: z.string().min(1, "入力必須").max(100),
   tone_preset: z.enum(TONE_PRESETS),
   custom_tone_text: z.string().max(500).optional(),
-  icon: z.string().max(50).optional(),
+  // lucide 名 or storage path (GAP-009 画像 — avatars/... は 50 を超える)
+  icon: z.string().max(200).optional(),
 });
 export type EmployeeValues = z.infer<typeof Schema>;
 
@@ -101,6 +103,17 @@ export interface EmployeeEditorProps {
   readonly defaultValues: EmployeeValues;
   readonly onSubmit: (v: EmployeeValues) => Promise<void> | void;
   readonly serverError?: string | null;
+  /**
+   * アイコン画像アップロード (GAP-009)。未指定ならボタン非描画 (Rule 10)。
+   * 成功時は container 側で PATCH → 再取得され iconSrc が更新される。
+   */
+  readonly onUploadImage?: (file: File) => Promise<void> | void;
+  /** アップロード進行中 (ボタン disabled + 文言)。 */
+  readonly uploadingImage?: boolean;
+  /** アップロード失敗の inline error (storage 未設定 503 等を誠実表示)。 */
+  readonly uploadError?: string | null;
+  /** icon が storage path のときの署名付き画像 URL (container が解決)。 */
+  readonly iconSrc?: string | null;
   /** テンプレ specialty (ヘッダのメタ行)。 */
   readonly specialty?: string;
   /** 組織情報 (担当範囲カード)。未指定なら raw role/department を出す。 */
@@ -128,6 +141,10 @@ export function EmployeeEditor({
   orgInfo,
   onStartChat,
   activities,
+  onUploadImage,
+  uploadingImage,
+  uploadError,
+  iconSrc,
 }: EmployeeEditorProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
   const selectedTone = form.watch("tone_preset");
@@ -135,6 +152,17 @@ export function EmployeeEditor({
   const isDirty = form.formState.isDirty;
   const [tab, setTab] = useState<TabKey>("profile");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // icon が storage path (画像) のときは iconName 描画をせず <img> (src) を使う
+  const iconIsImage = Boolean(selectedIcon && selectedIcon.includes("/"));
+  const iconProps = iconIsImage
+    ? iconSrc
+      ? { src: iconSrc }
+      : {}
+    : selectedIcon
+      ? { iconName: selectedIcon }
+      : {};
 
   // 保存成功 → 親が再取得した defaultValues でフォームを確定させる
   // (これが無いと保存後も「未保存の変更があります」が残り続ける)。
@@ -156,7 +184,7 @@ export function EmployeeEditor({
         <EmployeeIcon
           employeeId={employeeId}
           size="lg"
-          {...(selectedIcon ? { iconName: selectedIcon } : {})}
+          {...iconProps}
           className="h-16 w-16 text-2xl"
         />
         <div className="min-w-0 flex-1">
@@ -345,13 +373,37 @@ export function EmployeeEditor({
                     <EmployeeIcon
                       employeeId={employeeId}
                       size="lg"
-                      {...(selectedIcon ? { iconName: selectedIcon } : {})}
+                      {...iconProps}
                     />
+                    {onUploadImage ? (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          aria-label="アイコン画像を選択"
+                          onChange={(ev) => {
+                            const f = ev.target.files?.[0];
+                            ev.target.value = "";
+                            if (f) void onUploadImage(f);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          disabled={Boolean(uploadingImage)}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary disabled:opacity-50"
+                        >
+                          {uploadingImage ? "アップロード中…" : "画像アップロード"}
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type="button"
                       aria-expanded={iconPickerOpen}
                       onClick={() => setIconPickerOpen((o) => !o)}
-                      className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-semibold text-on-surface transition-colors hover:border-primary"
+                      className="inline-flex h-9 items-center rounded-md px-3 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant"
                     >
                       Lucide から選ぶ
                     </button>
@@ -367,6 +419,11 @@ export function EmployeeEditor({
                       </button>
                     ) : null}
                   </div>
+                  {uploadError ? (
+                    <p role="alert" className="mt-1 text-label-md text-error">
+                      {uploadError}
+                    </p>
+                  ) : null}
                   {iconPickerOpen ? (
                     <div
                       role="listbox"

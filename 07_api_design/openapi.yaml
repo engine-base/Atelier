@@ -560,6 +560,21 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    EmployeeIconUploadUrlRequest:
+      type: object
+      required: [file_name, mime_type, file_size_bytes]
+      properties:
+        file_name: { type: string, minLength: 1, maxLength: 200 }
+        mime_type: { type: string, description: "image/png | image/jpeg | image/webp のみ許可" }
+        file_size_bytes: { type: integer, minimum: 1, description: "512KB (524288) 以下" }
+
+    EmployeeIconUploadUrlResponse:
+      type: object
+      required: [upload_url, storage_path]
+      properties:
+        upload_url: { type: string, description: "実ファイル PUT 先の署名付き URL" }
+        storage_path: { type: string, description: "PUT 完了後に PATCH icon へ格納する path (avatars/...)" }
+
     AiEmployeeTemplate:
       type: object
       properties:
@@ -3485,6 +3500,58 @@ paths:
                         detail: { type: string, nullable: true }
                         at: { type: string, format: date-time }
         '404': { description: 社員不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /ai-employees/{employee_id}/icon-upload-url:
+    post:
+      tags: [ai-employees]
+      summary: アイコン画像アップロード用 署名付き URL 発行 (GAP-009 — S-C02 画像アップロード)
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::create_employee_icon_upload_url
+      x-screen-ids: [S-C02]
+      parameters:
+        - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeIconUploadUrlRequest' }
+      responses:
+        '200':
+          description: 署名付きアップロード URL (PUT 完了後に PATCH icon=storage_path で確定)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EmployeeIconUploadUrlResponse' }
+        '404': { description: 社員不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '413': { description: 512KB 超, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '415': { description: 画像 MIME (png/jpeg/webp) 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage backend 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /ai-employees/{employee_id}/icon-url:
+    get:
+      tags: [ai-employees]
+      summary: アイコン画像の署名付き閲覧 URL (GAP-009 — icon が storage path のとき)
+      x-implementation-path: apps/api/src/routes/ai_employees/__init__.py::get_employee_icon_url
+      x-screen-ids: [S-C02]
+      parameters:
+        - { name: employee_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 署名付き閲覧 URL (TTL 1h)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [url]
+                    properties:
+                      url: { type: string }
+        '404': { description: 社員不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: icon が画像 (storage path) ではない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage backend 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /ai-employees/{employee_id}:
     parameters:

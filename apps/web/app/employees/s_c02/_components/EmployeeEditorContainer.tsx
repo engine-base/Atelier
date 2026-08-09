@@ -3,6 +3,9 @@
  *
  * GET /ai-employees/{id} で初期値を取得し、PATCH /ai-employees/{id}
  * (display_name / tone_preset / custom_tone_text / icon) で更新する。
+ * GAP-009: アイコン画像 — POST icon-upload-url → 署名付き URL へ PUT →
+ * PATCH icon=storage_path で確定。icon が path のときは GET icon-url で
+ * 署名付き閲覧 URL を解決して <img> 描画。storage 未設定 (503) は誠実表示。
  * 表示充実 (全て実データ):
  *   - GET /skills で attached_skills (uuid[]) を名前解決 (「できること」チップ)
  *   - GET /ai-employees/templates で specialty (ヘッダのメタ行)
@@ -92,6 +95,21 @@ export interface EmployeeEditorContainerProps {
   readonly client?: ApiClient;
   /** チャット開始 (ヘッダ)。page が router.push を注入する。 */
   readonly onStartChat?: () => void;
+  /** テスト用: 署名付き URL への実 PUT を差し替え可能。 */
+  readonly putFileFn?: (uploadUrl: string, file: File) => Promise<void>;
+}
+
+/** アイコン画像の client 側事前検証 (API と同じ制約 — 415/413 を往復せず即時表示)。 */
+const ICON_ALLOWED_MIME = ["image/png", "image/jpeg", "image/webp"];
+const ICON_MAX_BYTES = 512 * 1024;
+
+async function defaultPutFile(uploadUrl: string, file: File): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`upload failed: HTTP ${res.status}`);
 }
 
 function isForbidden(error: unknown): boolean {
@@ -102,10 +120,13 @@ export function EmployeeEditorContainer({
   employeeId,
   client: injected,
   onStartChat,
+  putFileFn = defaultPutFile,
 }: EmployeeEditorContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const detail = useQuery({
     queryKey: ["ai-employee", employeeId],
@@ -166,6 +187,68 @@ export function EmployeeEditorContainer({
     },
     retry: false,
   });
+
+  // GAP-009: icon が storage path のとき署名付き閲覧 URL を解決 (<img> 描画)
+  const iconIsImage = Boolean(detail.data?.icon?.includes("/"));
+  const iconUrlQuery = useQuery({
+    queryKey: ["ai-employee-icon-url", employeeId, detail.data?.icon ?? ""],
+    enabled: iconIsImage,
+    queryFn: async () => {
+      const res = await client.get("/ai-employees/{employee_id}/icon-url", {
+        params: { path: { employee_id: employeeId } },
+      });
+      return (res as { data?: { url?: string } }).data?.url ?? null;
+    },
+    retry: false,
+  });
+
+  const handleUploadImage = async (file: File): Promise<void> => {
+    setUploadError(null);
+    if (!ICON_ALLOWED_MIME.includes(file.type)) {
+      setUploadError("PNG / JPEG / WebP の画像のみアップロードできます。");
+      return;
+    }
+    if (file.size > ICON_MAX_BYTES) {
+      setUploadError("画像は 512KB 以下にしてください。");
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const signed = await client.post(
+        "/ai-employees/{employee_id}/icon-upload-url",
+        {
+          params: { path: { employee_id: employeeId } },
+          body: {
+            file_name: file.name,
+            mime_type: file.type,
+            file_size_bytes: file.size,
+          },
+        },
+      );
+      const data = (
+        signed as { data?: { upload_url?: string; storage_path?: string } }
+      ).data;
+      if (!data?.upload_url || !data.storage_path)
+        throw new Error("unexpected response");
+      await putFileFn(data.upload_url, file);
+      await client.patch("/ai-employees/{employee_id}", {
+        params: { path: { employee_id: employeeId } },
+        body: { icon: data.storage_path },
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["ai-employee", employeeId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["ai-employees", "org"] });
+    } catch (error) {
+      setUploadError(
+        error instanceof ApiError && error.status === 503
+          ? "ストレージが未設定のため画像アップロードは利用できません。"
+          : "画像のアップロードに失敗しました。時間をおいて再試行してください。",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const updateMut = useMutation({
     mutationFn: (v: EmployeeValues) =>
@@ -279,6 +362,10 @@ export function EmployeeEditorContainer({
       orgInfo={orgInfo}
       onSubmit={(v) => updateMut.mutate(v)}
       activities={activitiesQuery.data ?? []}
+      onUploadImage={handleUploadImage}
+      uploadingImage={uploadingImage}
+      uploadError={uploadError}
+      iconSrc={iconUrlQuery.data ?? null}
       {...(onStartChat ? { onStartChat } : {})}
     />
   );

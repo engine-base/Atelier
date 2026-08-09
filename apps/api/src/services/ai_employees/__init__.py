@@ -7,6 +7,7 @@ RLS が効く AsyncSession を受け取り ai_employees を操作する。可視
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from sqlalchemy import text
@@ -18,7 +19,57 @@ from src.schemas.ai_employees import (
     AiEmployeeTemplateResponse,
     AiEmployeeUpdate,
     EmployeeActivityResponse,
+    EmployeeIconUploadUrlResponse,
 )
+from src.storage_signing import (
+    create_signed_upload_url,
+    sanitize_object_filename,
+)
+
+ICON_BUCKET = "avatars"
+"""アイコン画像の storage bucket (GAP-009)。"""
+
+ICON_ALLOWED_MIME = frozenset({"image/png", "image/jpeg", "image/webp"})
+ICON_MAX_BYTES = 512 * 1024
+"""アイコン画像の上限 512KB (アバター用途 — 大容量は拒否)。"""
+
+
+class EmployeeIconError(Exception):
+    """アイコン画像アップロード/閲覧の構造的失敗。code で分岐する。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+async def create_icon_upload(
+    *, employee_id: str, file_name: str, mime_type: str, file_size_bytes: int
+) -> EmployeeIconUploadUrlResponse:
+    """アイコン画像の署名付きアップロード URL を発行する (GAP-009)。
+
+    2 段階アップロードの 1 段目。返した storage_path をクライアントが
+    PATCH /ai-employees/{id} の icon に格納して確定する (PATCH 側で audit)。
+
+    Raises EmployeeIconError:
+      - unsupported_media_type: 画像 MIME (png/jpeg/webp) 以外 (415)
+      - too_large: 512KB 超 (413)
+    storage 未設定は StorageSigningError("storage_unconfigured") を透過 (503)。
+    """
+    if mime_type not in ICON_ALLOWED_MIME:
+        raise EmployeeIconError(
+            "unsupported_media_type",
+            f"icon must be one of {sorted(ICON_ALLOWED_MIME)}: {mime_type!r}",
+        )
+    if file_size_bytes > ICON_MAX_BYTES:
+        raise EmployeeIconError(
+            "too_large", f"icon must be <= {ICON_MAX_BYTES} bytes: {file_size_bytes}"
+        )
+    object_path = f"ai-employees/{employee_id}/{uuid.uuid4()}/{sanitize_object_filename(file_name)}"
+    storage_path = f"{ICON_BUCKET}/{object_path}"
+    upload_url = await create_signed_upload_url(storage_path)
+    return EmployeeIconUploadUrlResponse(upload_url=upload_url, storage_path=storage_path)
+
 
 _COLS = (
     "id, workspace_id, template_id, name, display_name, icon, role, department, "

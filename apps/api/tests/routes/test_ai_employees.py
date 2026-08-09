@@ -131,6 +131,15 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
                 text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
                 {"i": ws, "o": owner, "n": f"ws-{ws[:6]}"},
             )
+        # dev DB は WS 作成トリガーが AI 社員 10 名を自動シードする (tony 含む)
+        # ため、fixture の tony insert と衝突しないよう先に空にする
+        c.execute(
+            text(
+                "delete from public.ai_employees "
+                "where workspace_id in (cast(:a as uuid), cast(:b as uuid))"
+            ),
+            {"a": ws_a, "b": ws_b},
+        )
         c.execute(
             text(
                 "insert into public.ai_employees "

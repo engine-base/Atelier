@@ -36,13 +36,13 @@ function apiError(status: number): ApiError {
 }
 
 function fakeClient(
-  impl: Partial<Record<"get" | "patch", unknown>>,
+  impl: Partial<Record<"get" | "patch" | "post", unknown>>,
 ): ApiClient {
   const noop = vi.fn(async () => ({ data: {} }));
   return {
     get: impl.get ?? noop,
     patch: impl.patch ?? noop,
-    post: noop,
+    post: impl.post ?? noop,
     delete: noop,
     put: noop,
     request: noop,
@@ -232,5 +232,87 @@ describe("S-C02 活動履歴タブ (GAP-008)", () => {
     expect(screen.getByText("実行 succeeded · score 0.90")).toBeInTheDocument();
     expect(screen.getByText("決定")).toBeInTheDocument();
     expect(screen.getByText("チャット")).toBeInTheDocument();
+  });
+});
+
+describe("S-C02 アイコン画像アップロード (GAP-009)", () => {
+  it("画像を選ぶと 署名付き URL 発行 → PUT → PATCH icon=storage_path", async () => {
+    const post = vi.fn(async () => ({
+      data: {
+        upload_url: "http://storage.test/storage/v1/object/upload/sign/avatars/x?token=t",
+        storage_path: "avatars/ai-employees/e1/x/icon.png",
+      },
+    }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    const putFileFn = vi.fn(async (..._args: unknown[]) => undefined);
+    renderWithQuery(
+      <EmployeeEditorContainer
+        employeeId="e1"
+        client={fakeClient({ get: richGet(), post, patch })}
+        putFileFn={putFileFn}
+      />,
+    );
+    await screen.findByRole("button", { name: "画像アップロード" });
+    const file = new File(["png-bytes"], "icon.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("アイコン画像を選択"), {
+      target: { files: [file] },
+    });
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    expect(post).toHaveBeenCalledWith(
+      "/ai-employees/{employee_id}/icon-upload-url",
+      expect.objectContaining({
+        body: expect.objectContaining({ mime_type: "image/png" }),
+      }),
+    );
+    expect(putFileFn).toHaveBeenCalledWith(
+      "http://storage.test/storage/v1/object/upload/sign/avatars/x?token=t",
+      file,
+    );
+    const [, init] = patch.mock.calls[0]! as unknown as [
+      string,
+      { body: { icon: string } },
+    ];
+    expect(init.body.icon).toBe("avatars/ai-employees/e1/x/icon.png");
+  });
+
+  it("画像以外は client 側で即時拒否 (API を呼ばない)", async () => {
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <EmployeeEditorContainer
+        employeeId="e1"
+        client={fakeClient({ get: richGet(), post })}
+      />,
+    );
+    await screen.findByRole("button", { name: "画像アップロード" });
+    fireEvent.change(screen.getByLabelText("アイコン画像を選択"), {
+      target: {
+        files: [new File(["x"], "doc.pdf", { type: "application/pdf" })],
+      },
+    });
+    expect(
+      await screen.findByText("PNG / JPEG / WebP の画像のみアップロードできます。"),
+    ).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("icon が storage path のとき icon-url を解決して <img> 描画", async () => {
+    const IMG_EMP = { ...RICH_EMP, icon: "avatars/ai-employees/e1/x/icon.png" };
+    const get = vi.fn(async (path: string) => {
+      if (path === "/ai-employees/{employee_id}") return { data: IMG_EMP };
+      if (path === "/ai-employees/{employee_id}/icon-url")
+        return { data: { url: "http://storage.test/signed/icon.png?token=t" } };
+      if (path === "/ai-employees") return { data: [IMG_EMP] };
+      return { data: [] };
+    });
+    const { container } = renderWithQuery(
+      <EmployeeEditorContainer employeeId="e1" client={fakeClient({ get })} />,
+    );
+    await screen.findByLabelText(/表示名/);
+    await waitFor(() => {
+      const img = container.querySelector(
+        'img[src="http://storage.test/signed/icon.png?token=t"]',
+      );
+      expect(img).not.toBeNull();
+    });
   });
 });

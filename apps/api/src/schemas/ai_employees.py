@@ -68,3 +68,27 @@ class EmployeeActivityResponse(BaseModel):
     title: str
     detail: str | None
     at: datetime
+
+
+class EmployeeIconUploadUrlRequest(BaseModel):
+    """アイコン画像アップロード用 署名付き URL 要求 (GAP-009 / S-C02)。"""
+
+    file_name: str = Field(min_length=1, max_length=200)
+    mime_type: str = Field(min_length=1, max_length=100)
+    file_size_bytes: int = Field(ge=1)
+
+
+class EmployeeIconUploadUrlResponse(BaseModel):
+    """署名付きアップロード URL (2 段階アップロードの 1 段目)。
+
+    storage_path は PUT 完了後に PATCH /ai-employees/{id} の icon へ格納する。
+    """
+
+    upload_url: str
+    storage_path: str
+
+
+class EmployeeIconUrlResponse(BaseModel):
+    """アイコン画像 (icon が storage path のとき) の署名付き閲覧 URL。"""
+
+    url: str

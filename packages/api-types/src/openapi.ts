@@ -3949,6 +3949,155 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai-employees/{employee_id}/icon-upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** アイコン画像アップロード用 署名付き URL 発行 (GAP-009 — S-C02 画像アップロード) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmployeeIconUploadUrlRequest"];
+                };
+            };
+            responses: {
+                /** @description 署名付きアップロード URL (PUT 完了後に PATCH icon=storage_path で確定) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["EmployeeIconUploadUrlResponse"];
+                        };
+                    };
+                };
+                /** @description 社員不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 512KB 超 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 画像 MIME (png/jpeg/webp) 以外 */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage backend 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-employees/{employee_id}/icon-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** アイコン画像の署名付き閲覧 URL (GAP-009 — icon が storage path のとき) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    employee_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 署名付き閲覧 URL (TTL 1h) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                url: string;
+                            };
+                        };
+                    };
+                };
+                /** @description 社員不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description icon が画像 (storage path) ではない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage backend 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-employees/{employee_id}": {
         parameters: {
             query?: never;
@@ -10306,6 +10455,19 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        EmployeeIconUploadUrlRequest: {
+            file_name: string;
+            /** @description image/png | image/jpeg | image/webp のみ許可 */
+            mime_type: string;
+            /** @description 512KB (524288) 以下 */
+            file_size_bytes: number;
+        };
+        EmployeeIconUploadUrlResponse: {
+            /** @description 実ファイル PUT 先の署名付き URL */
+            upload_url: string;
+            /** @description PUT 完了後に PATCH icon へ格納する path (avatars/...) */
+            storage_path: string;
         };
         AiEmployeeTemplate: {
             /** Format: uuid */

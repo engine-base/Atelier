@@ -548,6 +548,29 @@ class AiEmployee(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class EmployeeIconUploadUrlRequest(BaseModel):
+    file_name: Annotated[str, Field(max_length=200, min_length=1)]
+    mime_type: str
+    """
+    image/png | image/jpeg | image/webp のみ許可
+    """
+    file_size_bytes: Annotated[int, Field(ge=1)]
+    """
+    512KB (524288) 以下
+    """
+
+
+class EmployeeIconUploadUrlResponse(BaseModel):
+    upload_url: str
+    """
+    実ファイル PUT 先の署名付き URL
+    """
+    storage_path: str
+    """
+    PUT 完了後に PATCH icon へ格納する path (avatars/...)
+    """
+
+
 class AiEmployeeTemplate(BaseModel):
     id: UUID | None = None
     default_name: str | None = None
