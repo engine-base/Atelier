@@ -1617,6 +1617,31 @@ components:
       properties:
         invitation_token: { type: string, minLength: 10, maxLength: 200 }
         display_name: { type: string, maxLength: 100, nullable: true }
+        agree_legal:
+          type: boolean
+          default: false
+          description: "利用規約・プライバシーポリシー・越境同意 (GAP-028 — サーバー必須、false は 422)"
+        agree_confidential:
+          type: boolean
+          default: false
+          description: "機密保持同意 (GAP-028 — サーバー必須、false は 422)"
+
+    ClientInvitationPreviewRequest:
+      type: object
+      required: [invitation_token]
+      properties:
+        invitation_token: { type: string, minLength: 10, maxLength: 200 }
+
+    ClientInvitationPreview:
+      type: object
+      required: [project_name, workspace_name, invited_email, expires_at, remaining_days]
+      properties:
+        project_name: { type: string }
+        workspace_name: { type: string }
+        inviter_name: { type: string, nullable: true, description: "招待元 workspace オーナーの表示名 (未設定は null — 推測で埋めない)" }
+        invited_email: { type: string }
+        expires_at: { type: string, format: date-time }
+        remaining_days: { type: integer, minimum: 0 }
 
     ClientProjectRef:
       type: object
@@ -5852,6 +5877,45 @@ paths:
   # ==========================================================================
   # クライアント招待 (R-T08 致命級リスク対応)
   # ==========================================================================
+  /client/auth/preview:
+    post:
+      tags: [client-portal]
+      summary: 招待トークンの署名前プレビュー（メタ限定・レート制限付 / GAP-028）
+      security: []
+      x-rate-limit: "10/min/ip"
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_invitation_preview
+      x-screen-ids: [S-L02]
+      x-feature-ids: [F-L02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientInvitationPreviewRequest' }
+      responses:
+        '200':
+          description: 招待メタ (招待元・プロジェクト名・招待先メール・残り日数)。read-only — use_count/同意は変化しない
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientInvitationPreview' }
+        '401':
+          description: 招待トークン不正 / revoked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '410':
+          description: 招待期限切れ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: レート制限超過 (10/min/ip — トークン総当たり防止)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   /client/auth/signin:
     post:
       tags: [client-portal]
@@ -5881,6 +5945,11 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '410':
           description: 招待期限切れ
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: 同意 2 種 (agree_legal / agree_confidential) の欠落 (GAP-028)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

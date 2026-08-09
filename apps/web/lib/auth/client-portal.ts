@@ -27,6 +27,16 @@ export interface ClientSigninResult {
   readonly scopes: readonly string[];
 }
 
+/** 招待トークンの署名前プレビュー (GAP-028 — メタ限定)。 */
+export interface ClientInvitationPreviewData {
+  readonly project_name: string;
+  readonly workspace_name: string;
+  readonly inviter_name: string | null;
+  readonly invited_email: string;
+  readonly expires_at: string;
+  readonly remaining_days: number;
+}
+
 export interface ClientProjectData {
   readonly id: string;
   readonly name: string;
@@ -71,10 +81,34 @@ function detailMessage(
   return typeof json?.detail === "string" ? json.detail : `HTTP ${status}`;
 }
 
+/** 招待トークンの署名前プレビューを取得 (GAP-028)。状態は変化しない。 */
+export async function clientInvitationPreview(
+  invitationToken: string,
+): Promise<ClientInvitationPreviewData> {
+  const res = await fetch(`${API_BASE}/client/auth/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ invitation_token: invitationToken }),
+  });
+  const json = await parseJson(res);
+  if (!res.ok)
+    throw new ClientPortalError(detailMessage(json, res.status), res.status);
+  const data = json?.data as ClientInvitationPreviewData | undefined;
+  if (!data) throw new ClientPortalError("unexpected response", res.status);
+  return data;
+}
+
+/** サインイン時の同意 2 種 (GAP-028 — サーバー必須、初回同意時刻を永続)。 */
+export interface ClientSigninConsents {
+  readonly agreeLegal: boolean;
+  readonly agreeConfidential: boolean;
+}
+
 /** 招待トークンでサインイン。成功で cookie 設定し project / scopes を返す。 */
 export async function clientSignin(
   invitationToken: string,
   displayName?: string,
+  consents?: ClientSigninConsents,
 ): Promise<ClientSigninResult> {
   const res = await fetch(`${API_BASE}/client/auth/signin`, {
     method: "POST",
@@ -82,6 +116,8 @@ export async function clientSignin(
     body: JSON.stringify({
       invitation_token: invitationToken,
       display_name: displayName || undefined,
+      agree_legal: consents?.agreeLegal ?? false,
+      agree_confidential: consents?.agreeConfidential ?? false,
     }),
   });
   const json = await parseJson(res);

@@ -66,7 +66,7 @@ async function clientSignin(context: BrowserContext): Promise<boolean> {
   const res = await fetch(`${API_BASE}/client/auth/signin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ invitation_token: "qa-inv-token" }),
+    body: JSON.stringify({ invitation_token: "qa-inv-token", agree_legal: true, agree_confidential: true }),
   });
   if (!res.ok) return false;
   const body = (await res.json()) as { data?: { client_access_token?: string } };

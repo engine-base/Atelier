@@ -1656,6 +1656,30 @@ class ApprovalDecideRequest(BaseModel):
 class ClientSigninRequest(BaseModel):
     invitation_token: Annotated[str, Field(max_length=200, min_length=10)]
     display_name: Annotated[str | None, Field(max_length=100)] = None
+    agree_legal: bool | None = False
+    """
+    利用規約・プライバシーポリシー・越境同意 (GAP-028 — サーバー必須、false は 422)
+    """
+    agree_confidential: bool | None = False
+    """
+    機密保持同意 (GAP-028 — サーバー必須、false は 422)
+    """
+
+
+class ClientInvitationPreviewRequest(BaseModel):
+    invitation_token: Annotated[str, Field(max_length=200, min_length=10)]
+
+
+class ClientInvitationPreview(BaseModel):
+    project_name: str
+    workspace_name: str
+    inviter_name: str | None = None
+    """
+    招待元 workspace オーナーの表示名 (未設定は null — 推測で埋めない)
+    """
+    invited_email: str
+    expires_at: AwareDatetime
+    remaining_days: Annotated[int, Field(ge=0)]
 
 
 class ClientProjectRef(BaseModel):

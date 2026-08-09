@@ -103,7 +103,7 @@ async function setAuthCookies(context: BrowserContext): Promise<void> {
     const res = await fetch(`${API_BASE}/client/auth/signin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ invitation_token: "qa-inv-token" }),
+      body: JSON.stringify({ invitation_token: "qa-inv-token", agree_legal: true, agree_confidential: true }),
     });
     if (res.ok) {
       const body = (await res.json()) as {

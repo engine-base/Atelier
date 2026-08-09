@@ -7,6 +7,9 @@
  * 見た目は 06_mockups/client/S-L02-signin.html に忠実:
  *   ベア・中央寄せ / ブランド → 招待グリーティングカード → 白いサインインカード
  *   (実フォーム) → フッター注記。
+ * グリーティングカードは GAP-028 の署名前プレビュー対応のため
+ * ClientSigninContainer 側で描画する (URL トークン有効時は実招待元/
+ * プロジェクト名、無効/未取得時は汎用文言)。
  *
  * `useSearchParams()` は Next 15 で Suspense 境界が必須 (prerender error 回避)。
  */
@@ -40,22 +43,8 @@ export default function SL02Page() {
           </div>
         </div>
 
-        {/* 招待グリーティングカード */}
-        <div className="mb-4 rounded-lg bg-[linear-gradient(135deg,var(--color-primary-container)_0%,var(--color-tertiary-container)_100%)] px-8 py-7 text-center">
-          <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-primary-container opacity-[0.85]">
-            Client Portal
-          </div>
-          <h1 className="mb-2.5 text-[22px] font-bold tracking-[-0.02em] text-on-primary-container">
-            ご招待ありがとうございます
-          </h1>
-          <p className="text-[13px] text-on-primary-container opacity-90">
-            プロジェクトのクライアントポータルへの招待が届いています。
-            <br />
-            下のフォームからサインインすると、招待されたプロジェクトが表示されます。
-          </p>
-        </div>
-
-        {/* サインインカード (実フォーム) */}
+        {/* 招待グリーティングカード + サインインカード (実フォーム) —
+            グリーティングは Container が preview 対応で描画 (GAP-028) */}
         <Suspense fallback={null}>
           <SL02Inner />
         </Suspense>

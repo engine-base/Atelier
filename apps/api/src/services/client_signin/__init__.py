@@ -25,6 +25,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import os
 import time
 from datetime import UTC, datetime
@@ -37,6 +38,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.audit import AuditEvent, AuditWriter
 from src.db.session import create_engine, create_session_factory
 from src.schemas.client_signin import (
+    ClientInvitationPreview,
     ClientProjectRef,
     ClientProjectView,
     ClientSigninResponse,
@@ -155,18 +157,76 @@ def decode_client_token(token: str, *, now: int | None = None) -> dict[str, Any]
     return payload
 
 
-async def client_signin(
-    *,
-    invitation_token: str,
-    display_name: str | None,
-    ip_address: str | None,
-) -> ClientSigninResponse:
-    """招待トークンを引き換えに client_portal JWT を発行する。
+async def preview_invitation(*, invitation_token: str) -> ClientInvitationPreview:
+    """招待トークンの署名前プレビューを返す (GAP-028 / S-L02)。
+
+    read-only: use_count / used_at / 同意には一切触れない。返すのはメタ限定
+    (招待元 workspace 名・オーナー表示名・プロジェクト名・招待先メール・
+    有効期限と残り日数) で、プロジェクト内部 ID やスコープは返さない。
 
     Raises ClientSigninError:
       - invalid_token: token_hash 不一致 / revoked (401)
       - expired: expires_at <= now (410)
     """
+    token_hash = hashlib.sha256(invitation_token.encode("utf-8")).hexdigest()
+    factory = _service_session_factory()
+    async with factory() as session:
+        res = await session.execute(
+            text(
+                "select ci.email, ci.expires_at, ci.revoked_at, "
+                "p.name as project_name, w.name as workspace_name, "
+                "u.display_name as inviter_name "
+                "from public.client_invitations ci "
+                "join public.projects p on p.id = ci.project_id "
+                "join public.workspaces w on w.id = p.workspace_id "
+                "left join public.users u "
+                "  on u.id = w.owner_user_id and u.deleted_at is null "
+                "where ci.token_hash = :h and p.deleted_at is null"
+            ),
+            {"h": token_hash},
+        )
+        row = res.first()
+    if row is None or row.revoked_at is not None:
+        raise ClientSigninError("invalid_token", "invalid invitation token")
+    expires_at = row.expires_at
+    exp_aware = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=UTC)
+    now = datetime.now(UTC)
+    if exp_aware <= now:
+        raise ClientSigninError("expired", "invitation token expired")
+    remaining_days = max(0, math.ceil((exp_aware - now).total_seconds() / 86400))
+    return ClientInvitationPreview(
+        project_name=str(row.project_name),
+        workspace_name=str(row.workspace_name),
+        inviter_name=(None if row.inviter_name is None else str(row.inviter_name)),
+        invited_email=str(row.email),
+        expires_at=exp_aware,
+        remaining_days=remaining_days,
+    )
+
+
+async def client_signin(
+    *,
+    invitation_token: str,
+    display_name: str | None,
+    ip_address: str | None,
+    agree_legal: bool = False,
+    agree_confidential: bool = False,
+) -> ClientSigninResponse:
+    """招待トークンを引き換えに client_portal JWT を発行する。
+
+    GAP-028: 同意 2 種 (agree_legal / agree_confidential) はサーバー必須。
+    初回同意時刻を client_invitations に永続する (再サインインで上書きしない)。
+
+    Raises ClientSigninError:
+      - invalid_token: token_hash 不一致 / revoked (401)
+      - expired: expires_at <= now (410)
+      - consent_required: 同意 2 種のいずれかが false (422)
+    """
+    if not (agree_legal and agree_confidential):
+        raise ClientSigninError(
+            "consent_required",
+            "both legal and confidentiality consents are required",
+        )
     token_hash = hashlib.sha256(invitation_token.encode("utf-8")).hexdigest()
     now_epoch = int(time.time())
     factory = _service_session_factory()
@@ -205,13 +265,16 @@ async def client_signin(
             project_id = str(row.project_id)
 
             # 初回使用なら used_at + display_name 補完。use_count は成功ごとに
-            # 増分 (GAP-027② — S-L01「使用回数」列のデータ源)
+            # 増分 (GAP-027② — S-L01「使用回数」列のデータ源)。同意 2 種の
+            # 初回同意時刻を永続 (GAP-028 — 再サインインで上書きしない)
             await session.execute(
                 text(
                     "update public.client_invitations set "
                     "used_at = coalesce(used_at, now()), "
                     "client_display_name = coalesce(client_display_name, :dn), "
                     "use_count = use_count + 1, "
+                    "legal_consented_at = coalesce(legal_consented_at, now()), "
+                    "confidential_consented_at = coalesce(confidential_consented_at, now()), "
                     "updated_at = now() "
                     "where id = cast(:i as uuid)"
                 ),
@@ -225,7 +288,11 @@ async def client_signin(
                     actor_id=f"client:{invitation_id}",
                     target_id=invitation_id,
                     ip_address=_normalize_ip(ip_address),
-                    after={"project_id": project_id, "scopes": scopes},
+                    after={
+                        "project_id": project_id,
+                        "scopes": scopes,
+                        "consents": {"legal": True, "confidential": True},
+                    },
                 )
             )
             token, token_exp = mint_client_token(

@@ -39,7 +39,7 @@ const inv = await api('POST', '/client-invitations', {
   client_display_name: `小松様 ${mark}`,
 });
 const rawToken = inv.json?.data?.token;
-const signin = await api('POST', '/client/auth/signin', { invitation_token: rawToken, display_name: `小松様 ${mark}` }, null);
+const signin = await api('POST', '/client/auth/signin', { invitation_token: rawToken, display_name: `小松様 ${mark}`, agree_legal: true, agree_confidential: true }, null);
 const clientJwt = signin.json?.data?.client_access_token;
 ok('TC1 招待→署名で client JWT 取得', signin.status === 200 && !!clientJwt);
 

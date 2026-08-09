@@ -1,5 +1,6 @@
 """クライアント別 JWT signin + project view ルータ (T-A-35 / R-T08 致命級)。
 
+POST /client/auth/preview     — 招待トークンの署名前プレビュー (GAP-028)
 POST /client/auth/signin      — 招待トークン → client_portal JWT 発行
 GET  /client/projects/{id}    — client JWT で限定 project ビュー (越境 403)
 
@@ -11,9 +12,12 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
+from src.rate_limit import rate_limit_ip
 from src.schemas.client_signin import (
+    ClientInvitationPreview,
+    ClientInvitationPreviewRequest,
     ClientProjectView,
     ClientSigninRequest,
     ClientSigninResponse,
@@ -38,6 +42,25 @@ def _extract_bearer(authorization: str | None) -> str:
 
 
 @router.post(
+    "/client/auth/preview",
+    summary="招待トークンの署名前プレビュー (メタ限定・レート制限付 / GAP-028)",
+    dependencies=[Depends(rate_limit_ip(10))],
+)
+async def client_invitation_preview(
+    body: ClientInvitationPreviewRequest,
+) -> dict[str, ClientInvitationPreview]:
+    try:
+        result = await svc.preview_invitation(invitation_token=body.invitation_token)
+    except svc.ClientSigninError as exc:
+        if exc.code == "invalid_token":
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+        if exc.code == "expired":
+            raise HTTPException(status.HTTP_410_GONE, exc.message) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+    return {"data": result}
+
+
+@router.post(
     "/client/auth/signin",
     summary="クライアントサインイン (招待トークン → client_portal JWT)",
 )
@@ -49,12 +72,16 @@ async def client_signin(
             invitation_token=body.invitation_token,
             display_name=body.display_name,
             ip_address=_client_ip(request),
+            agree_legal=body.agree_legal,
+            agree_confidential=body.agree_confidential,
         )
     except svc.ClientSigninError as exc:
         if exc.code == "invalid_token":
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
         if exc.code == "expired":
             raise HTTPException(status.HTTP_410_GONE, exc.message) from exc
+        if exc.code == "consent_required":
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from exc
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
     return {"data": result}
 

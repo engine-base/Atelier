@@ -6,9 +6,10 @@
  *
  * 見た目は 06_mockups/client/S-L02-signin.html の白い auth-card に忠実:
  *   有効期限バー → 見出し → 説明 → 入力 → 同意 2 種 → 「同意してサインイン」。
- * モックの同意 2 種 (規約/プライバシー/越境・機密保持) を必須チェックとして
- * 実装 (法務ページは実ルート /terms /privacy へのリンク)。同意のサーバー永続は
- * client 用 consents API が無いため UI ゲートのみ (GAP-028)。
+ * モックの同意 2 種 (規約/プライバシー/越境・機密保持) は必須チェック +
+ * サーバー永続 (GAP-028 — /client/auth/signin が同意必須・初回同意時刻を記録)。
+ * preview (GAP-028 — /client/auth/preview) があるときはモック忠実に
+ * 実「残り N 日」の有効期限バーと招待先メール (disabled) を描画する。
  * 認証機構 (フィールド・register・onSubmit・バリデーション・error 表示) は不変。
  */
 
@@ -35,6 +36,11 @@ export type ClientSigninValues = z.infer<typeof Schema>;
 
 export interface ClientSigninFormProps {
   readonly defaultToken?: string;
+  /** 署名前プレビュー (GAP-028)。null は未取得 — 汎用文言で描画。 */
+  readonly preview?: {
+    readonly invited_email: string;
+    readonly remaining_days: number;
+  } | null;
   readonly onSubmit: (v: ClientSigninValues) => Promise<void> | void;
   readonly serverError?: string | null;
 }
@@ -84,6 +90,7 @@ function ArrowRightIcon() {
 
 export function ClientSigninForm({
   defaultToken,
+  preview,
   onSubmit,
   serverError,
 }: ClientSigninFormProps) {
@@ -103,12 +110,23 @@ export function ClientSigninForm({
       onValid={onSubmit}
       className="rounded-lg border border-border bg-white px-8 py-7"
     >
-      {/* 有効期限バー */}
+      {/* 有効期限バー — preview があるときはモック忠実に実「残り N 日」 */}
       <div className="flex items-center justify-center gap-2 rounded-md bg-secondary-container px-2 py-2 text-[12px] text-on-secondary-container">
         <ClockIcon />
-        <span>
-          この招待リンクには<strong className="font-bold">有効期限</strong>があります
-        </span>
+        {preview ? (
+          <span>
+            このリンクの有効期限は
+            <strong className="font-bold">
+              残り {preview.remaining_days} 日
+            </strong>
+            です
+          </span>
+        ) : (
+          <span>
+            この招待リンクには<strong className="font-bold">有効期限</strong>
+            があります
+          </span>
+        )}
       </div>
 
       {/* 見出し + 説明 */}
@@ -129,6 +147,20 @@ export function ClientSigninForm({
         <p role="alert" className="text-label-lg text-error">
           {serverError}
         </p>
+      ) : null}
+
+      {/* 招待先メール (モック .form-group 準拠 — preview 取得時のみ実データ) */}
+      {preview ? (
+        <Field
+          label="招待先メールアドレス"
+          description="招待時に指定されたメールアドレスのみサインインできます"
+        >
+          <input
+            value={preview.invited_email}
+            disabled
+            className={`${INPUT_CLASS} opacity-70`}
+          />
+        </Field>
       ) : null}
 
       <Field

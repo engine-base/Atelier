@@ -19,10 +19,40 @@ class ClientSigninRequest(BaseModel):
 
     invitation_token: client_invitations.token_hash の元の plaintext。
     display_name: 任意。初回サインイン時に client_display_name を補完する。
+    agree_legal / agree_confidential: 同意 2 種 (GAP-028)。サーバー側で両方
+    true を必須とし、初回同意時刻を client_invitations に永続する。
     """
 
     invitation_token: str = Field(min_length=10, max_length=200)
     display_name: str | None = Field(default=None, max_length=100)
+    agree_legal: bool = False
+    agree_confidential: bool = False
+
+
+class ClientInvitationPreviewRequest(BaseModel):
+    """招待トークンの署名前プレビュー要求 (GAP-028)。
+
+    トークンを URL に載せない (アクセスログ流出防止) ため POST body で受ける。
+    """
+
+    invitation_token: str = Field(min_length=10, max_length=200)
+
+
+class ClientInvitationPreview(BaseModel):
+    """招待トークンの署名前プレビュー (GAP-028 / S-L02)。
+
+    メタ限定: プロジェクト内部 ID・スコープ詳細・トークン類は返さない。
+    invited_email はトークン保持者 = 招待メールの受信者本人であるため開示可。
+    inviter_name は招待元 workspace オーナーの表示名 (未設定なら null —
+    推測で埋めない)。
+    """
+
+    project_name: str
+    workspace_name: str
+    inviter_name: str | None
+    invited_email: str
+    expires_at: datetime
+    remaining_days: int
 
 
 class ClientProjectRef(BaseModel):

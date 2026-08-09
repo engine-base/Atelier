@@ -46,6 +46,9 @@ pytestmark = [
     pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning"),
 ]
 
+_CONSENT = {"agree_legal": True, "agree_confidential": True}
+"""GAP-028: signin はサーバー側で同意 2 種必須 (欠落は 422)。"""
+
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
@@ -189,7 +192,8 @@ class TestClientSignin:
     def test_signin_invalid_token_401(self, app: FastAPI, two_projects: dict[str, str]) -> None:
         with TestClient(app) as client:
             r = client.post(
-                "/client/auth/signin", json={"invitation_token": "nonexistent-token-zzzz"}
+                "/client/auth/signin",
+                json={"invitation_token": "nonexistent-token-zzzz", **_CONSENT},
             )
             assert r.status_code == 401
 
@@ -197,7 +201,7 @@ class TestClientSignin:
         with TestClient(app) as client:
             r = client.post(
                 "/client/auth/signin",
-                json={"invitation_token": two_projects["token_revoked"]},
+                json={"invitation_token": two_projects["token_revoked"], **_CONSENT},
             )
             assert r.status_code == 401
 
@@ -205,7 +209,7 @@ class TestClientSignin:
         with TestClient(app) as client:
             r = client.post(
                 "/client/auth/signin",
-                json={"invitation_token": two_projects["token_expired"]},
+                json={"invitation_token": two_projects["token_expired"], **_CONSENT},
             )
             assert r.status_code == 410
 
@@ -215,7 +219,11 @@ class TestClientSignin:
         with TestClient(app) as client:
             r = client.post(
                 "/client/auth/signin",
-                json={"invitation_token": two_projects["token_a"], "display_name": "Client A"},
+                json={
+                    "invitation_token": two_projects["token_a"],
+                    "display_name": "Client A",
+                    **_CONSENT,
+                },
             )
             assert r.status_code == 200, r.text
             d = r.json()["data"]
@@ -228,7 +236,8 @@ class TestClientSignin:
     def test_project_view_own_project_ok(self, app: FastAPI, two_projects: dict[str, str]) -> None:
         with TestClient(app) as client:
             tok = client.post(
-                "/client/auth/signin", json={"invitation_token": two_projects["token_a"]}
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
             ).json()["data"]["client_access_token"]
             r = client.get(
                 f"/client/projects/{two_projects['proj_a']}",
@@ -244,7 +253,8 @@ class TestClientSignin:
         """★ R-T08 越境試験 ★: project A の client JWT で project B を見ようとすると 403。"""
         with TestClient(app) as client:
             tok_a = client.post(
-                "/client/auth/signin", json={"invitation_token": two_projects["token_a"]}
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
             ).json()["data"]["client_access_token"]
             r = client.get(
                 f"/client/projects/{two_projects['proj_b']}",
@@ -309,7 +319,11 @@ class TestClientSignin:
         with TestClient(app) as client:
             client.post(
                 "/client/auth/signin",
-                json={"invitation_token": two_projects["token_a"], "display_name": "Used Client"},
+                json={
+                    "invitation_token": two_projects["token_a"],
+                    "display_name": "Used Client",
+                    **_CONSENT,
+                },
             )
         with sync_engine.begin() as c:
             row = c.execute(
@@ -336,7 +350,7 @@ class TestClientSignin:
             for _ in range(2):
                 r = client.post(
                     "/client/auth/signin",
-                    json={"invitation_token": two_projects["token_a"]},
+                    json={"invitation_token": two_projects["token_a"], **_CONSENT},
                 )
                 assert r.status_code == 200
         token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
@@ -354,7 +368,7 @@ class TestClientSignin:
         with TestClient(app) as client:
             r = client.post(
                 "/client/auth/signin",
-                json={"invitation_token": "bogus-token-not-issued"},
+                json={"invitation_token": "bogus-token-not-issued", **_CONSENT},
             )
             assert r.status_code == 401
         token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
@@ -364,3 +378,124 @@ class TestClientSignin:
                 {"h": token_hash},
             ).scalar_one()
             assert cnt == 0
+
+
+@pytest.mark.integration
+class TestInvitationPreview:
+    """GAP-028: 署名前プレビュー (メタ限定・read-only) + 同意永続。"""
+
+    def test_preview_returns_meta_only(self, app: FastAPI, two_projects: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/preview", json={"invitation_token": two_projects["token_a"]}
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["project_name"] == "Project A"
+            assert d["workspace_name"].startswith("w")
+            # fixture の owner は display_name 未設定 → null (推測で埋めない)
+            assert d["inviter_name"] is None
+            assert d["invited_email"].endswith("@ext.com")
+            assert 0 < d["remaining_days"] <= 7
+            # メタ限定: 内部 ID / scopes / token 類は返さない
+            assert "project_id" not in d
+            assert "scopes" not in d
+
+    def test_preview_invalid_and_revoked_401(
+        self, app: FastAPI, two_projects: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/preview", json={"invitation_token": "nonexistent-token-zzzz"}
+            )
+            assert r.status_code == 401
+            r = client.post(
+                "/client/auth/preview",
+                json={"invitation_token": two_projects["token_revoked"]},
+            )
+            assert r.status_code == 401
+
+    def test_preview_expired_410(self, app: FastAPI, two_projects: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/preview",
+                json={"invitation_token": two_projects["token_expired"]},
+            )
+            assert r.status_code == 410
+
+    def test_preview_is_read_only(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, two_projects: dict[str, str]
+    ) -> None:
+        """プレビューは use_count / used_at / 同意に一切触れない。"""
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/preview", json={"invitation_token": two_projects["token_a"]}
+            )
+            assert r.status_code == 200
+        token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text(
+                    "select use_count, used_at, legal_consented_at, confidential_consented_at "
+                    "from public.client_invitations where token_hash = :h"
+                ),
+                {"h": token_hash},
+            ).first()
+            assert row is not None
+            assert row.use_count == 0
+            assert row.used_at is None
+            assert row.legal_consented_at is None
+            assert row.confidential_consented_at is None
+
+    def test_signin_without_consent_422(self, app: FastAPI, two_projects: dict[str, str]) -> None:
+        """GAP-028: 同意 2 種のいずれかが欠けたサインインは 422 (JWT を発行しない)。"""
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/signin", json={"invitation_token": two_projects["token_a"]}
+            )
+            assert r.status_code == 422
+            r = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], "agree_legal": True},
+            )
+            assert r.status_code == 422
+
+    def test_signin_persists_first_consent_timestamps(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, two_projects: dict[str, str]
+    ) -> None:
+        """初回同意時刻を永続し、再サインインで上書きしない (法務証跡)。"""
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
+            )
+            assert r.status_code == 200
+        token_hash = hashlib.sha256(two_projects["token_a"].encode()).hexdigest()
+        with sync_engine.begin() as c:
+            first = c.execute(
+                text(
+                    "select legal_consented_at, confidential_consented_at "
+                    "from public.client_invitations where token_hash = :h"
+                ),
+                {"h": token_hash},
+            ).first()
+            assert first is not None
+            assert first.legal_consented_at is not None
+            assert first.confidential_consented_at is not None
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
+            )
+            assert r.status_code == 200
+        with sync_engine.begin() as c:
+            second = c.execute(
+                text(
+                    "select legal_consented_at, confidential_consented_at "
+                    "from public.client_invitations where token_hash = :h"
+                ),
+                {"h": token_hash},
+            ).first()
+            assert second is not None
+            assert second.legal_consented_at == first.legal_consented_at
+            assert second.confidential_consented_at == first.confidential_consented_at

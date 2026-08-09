@@ -9695,6 +9695,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/auth/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 招待トークンの署名前プレビュー（メタ限定・レート制限付 / GAP-028） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ClientInvitationPreviewRequest"];
+                };
+            };
+            responses: {
+                /** @description 招待メタ (招待元・プロジェクト名・招待先メール・残り日数)。read-only — use_count/同意は変化しない */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientInvitationPreview"];
+                        };
+                    };
+                };
+                /** @description 招待トークン不正 / revoked */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 招待期限切れ */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート制限超過 (10/min/ip — トークン総当たり防止) */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/auth/signin": {
         parameters: {
             query?: never;
@@ -9740,6 +9809,15 @@ export interface paths {
                 };
                 /** @description 招待期限切れ */
                 410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 同意 2 種 (agree_legal / agree_confidential) の欠落 (GAP-028) */
+                422: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -11252,6 +11330,29 @@ export interface components {
         ClientSigninRequest: {
             invitation_token: string;
             display_name?: string | null;
+            /**
+             * @description 利用規約・プライバシーポリシー・越境同意 (GAP-028 — サーバー必須、false は 422)
+             * @default false
+             */
+            agree_legal: boolean;
+            /**
+             * @description 機密保持同意 (GAP-028 — サーバー必須、false は 422)
+             * @default false
+             */
+            agree_confidential: boolean;
+        };
+        ClientInvitationPreviewRequest: {
+            invitation_token: string;
+        };
+        ClientInvitationPreview: {
+            project_name: string;
+            workspace_name: string;
+            /** @description 招待元 workspace オーナーの表示名 (未設定は null — 推測で埋めない) */
+            inviter_name?: string | null;
+            invited_email: string;
+            /** Format: date-time */
+            expires_at: string;
+            remaining_days: number;
         };
         ClientProjectRef: {
             /** Format: uuid */
