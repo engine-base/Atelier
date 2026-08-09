@@ -180,3 +180,65 @@ describe("S-E01 メッセージフィードバック (GAP-031 ① 役立った)"
     );
   });
 });
+
+describe("S-E01 メッセージ分岐 (GAP-031 ①)", () => {
+  const history = [
+    { id: "m-user", role: "user" as const, content: "質問" },
+    { id: "m-asst", role: "assistant" as const, content: "回答です" },
+  ];
+
+  it("分岐ボタン → branchFn(実 POST /branch) → onBranched に新スレッド ID", async () => {
+    const branchFn = vi.fn(async (_id: string) => "t-branched");
+    const onBranched = vi.fn();
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => history}
+        branchFn={branchFn}
+        onBranched={onBranched}
+      />,
+    );
+    const btn = await screen.findByRole("button", {
+      name: "このメッセージから分岐",
+    });
+    fireEvent.click(btn);
+    await waitFor(() => expect(branchFn).toHaveBeenCalledWith("m-asst"));
+    await waitFor(() => expect(onBranched).toHaveBeenCalledWith("t-branched"));
+  });
+
+  it("onBranched 未指定なら分岐ボタンを出さない (Rule 10)", async () => {
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => history}
+      />,
+    );
+    await screen.findByRole("button", { name: "メッセージをコピー" });
+    expect(
+      screen.queryByRole("button", { name: "このメッセージから分岐" }),
+    ).toBeNull();
+  });
+
+  it("分岐失敗は inline error (楽観遷移しない)", async () => {
+    const branchFn = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const onBranched = vi.fn();
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => history}
+        branchFn={branchFn}
+        onBranched={onBranched}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "このメッセージから分岐" }),
+    );
+    await screen.findByText("分岐に失敗しました。時間をおいて再試行してください。");
+    expect(onBranched).not.toHaveBeenCalled();
+  });
+});

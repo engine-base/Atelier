@@ -4953,6 +4953,26 @@ paths:
         '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /chat/messages/{message_id}/branch:
+    post:
+      tags: [chat]
+      summary: メッセージ時点で新スレッドへ分岐（GAP-031① — 履歴コピー + parent 連鎖）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::branch_thread
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: message_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: 分岐先スレッド (元スレッドの分岐点までをコピー。コピー行は parent_message_id で連鎖、先頭は分岐元メッセージを指す。元スレッドは不変)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatThread' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: message 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /chat/messages/{message_id}/feedback:
     post:
       tags: [chat]

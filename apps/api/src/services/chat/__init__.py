@@ -318,3 +318,112 @@ async def create_message_feedback(
         comment=data.comment,
         recorded_at=recorded_at,
     )
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031①: メッセージからの会話分岐
+# --------------------------------------------------------------------------- #
+async def branch_thread_at_message(
+    session: AsyncSession, *, actor_id: str, message_id: str
+) -> ThreadResponse | None:
+    """メッセージ時点で新スレッドへ分岐する (S-E01 「分岐」)。
+
+    元スレッドの当該メッセージまで (created_at, id 順) を新スレッドへコピーし、
+    コピー行は parent_message_id で直前コピーへ連鎖させる (分岐系譜を実データ化)。
+    先頭コピーの parent_message_id は分岐元メッセージ ID (元スレッドへの
+    系譜ポインタ)。元スレッドは不変。message 不可視 (RLS) なら None。
+    """
+    res = await session.execute(
+        text(
+            "select m.id, m.thread_id, m.created_at, t.project_id, t.ai_employee_id, "
+            "t.title, t.phase_id "
+            "from public.chat_messages m "
+            "join public.chat_threads t on t.id = m.thread_id "
+            "where m.id = cast(:id as uuid) and m.deleted_at is null "
+            "and t.deleted_at is null"
+        ),
+        {"id": message_id},
+    )
+    src = res.first()
+    if src is None:
+        return None
+
+    new_thread_id = str(uuid.uuid4())
+    branch_title = f"分岐: {src.title or '無題スレッド'}"[:200]
+    await session.execute(
+        text(
+            "insert into public.chat_threads (id, project_id, ai_employee_id, phase_id, title) "
+            "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), "
+            "cast(:ph as uuid), :t)"
+        ),
+        {
+            "i": new_thread_id,
+            "p": str(src.project_id),
+            "e": str(src.ai_employee_id),
+            "ph": None if src.phase_id is None else str(src.phase_id),
+            "t": branch_title,
+        },
+    )
+
+    # 分岐点までのメッセージをコピー。境界は表示順 (list_messages と同じ
+    # created_at, id) の「位置」で切る — 同一トランザクション内の user/assistant
+    # は created_at が同値 (now() = transaction timestamp) になるため、タプル
+    # 比較では取り漏れる (実操作監査ラウンド 1 で検出した実バグ)。
+    rows = await session.execute(
+        text(
+            "select id, role, content, created_at from public.chat_messages "
+            "where thread_id = cast(:t as uuid) and deleted_at is null "
+            "order by created_at, id"
+        ),
+        {"t": str(src.thread_id)},
+    )
+    all_rows = list(rows.all())
+    cut = next(
+        (i for i, row in enumerate(all_rows) if str(row.id) == message_id),
+        len(all_rows) - 1,
+    )
+    prev_id: str | None = None
+    copied = 0
+    for i, row in enumerate(all_rows[: cut + 1]):
+        new_id = str(uuid.uuid4())
+        await session.execute(
+            text(
+                "insert into public.chat_messages "
+                "(id, thread_id, role, content, parent_message_id, created_at) "
+                "values (cast(:i as uuid), cast(:t as uuid), cast(:r as chat_message_role_enum), "
+                # created_at は元の値 + i マイクロ秒 — 同値タイムスタンプでも
+                # コピー先の表示順 (created_at, id) が元の並びと一致するように固定
+                ":c, cast(:pm as uuid), cast(:ca as timestamptz) + make_interval(secs => :off))"
+            ),
+            {
+                "i": new_id,
+                "t": new_thread_id,
+                "r": str(row.role),
+                "c": str(row.content),
+                # 先頭コピーは分岐元メッセージ (元スレッド) への系譜ポインタ
+                "pm": prev_id if prev_id is not None else message_id,
+                "ca": row.created_at,
+                "off": i / 1_000_000,
+            },
+        )
+        prev_id = new_id
+        copied += 1
+
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="chat_thread.branch",
+            target_type="chat_thread",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=new_thread_id,
+            after={
+                "source_thread_id": str(src.thread_id),
+                "source_message_id": message_id,
+                "copied_messages": copied,
+            },
+        )
+    )
+    created = await get_thread(session, new_thread_id)
+    if created is None:  # pragma: no cover - 直前に作成済
+        raise RuntimeError("branched thread not visible after insert")
+    return created

@@ -24,6 +24,7 @@ import {
   type MentionCandidate,
 } from "./ChatPanel";
 import {
+  branchThreadAtMessage,
   fetchThreadMessages,
   postMessageFeedback,
   streamChatThread,
@@ -58,6 +59,10 @@ export interface ChatContainerProps {
   readonly knowledgeCandidates?: readonly KnowledgeCandidate[];
   /** フィードバック送信の注入用 (省略時は実 POST)。 */
   readonly feedbackFn?: typeof postMessageFeedback;
+  /** 分岐 (GAP-031①) の注入用 (省略時は実 POST /branch)。 */
+  readonly branchFn?: typeof branchThreadAtMessage;
+  /** 分岐成功時の遷移 (分岐先スレッド ID)。未指定なら分岐ボタンを出さない。 */
+  readonly onBranched?: (threadId: string) => void;
 }
 
 let _seq = 0;
@@ -89,6 +94,8 @@ export function ChatContainer({
   mentionCandidates,
   knowledgeCandidates,
   feedbackFn = postMessageFeedback,
+  branchFn = branchThreadAtMessage,
+  onBranched,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -209,6 +216,23 @@ export function ChatContainer({
     [feedbackFn],
   );
 
+  // GAP-031①: このメッセージ時点までを新スレッドへコピーして分岐 → 遷移。
+  const [branching, setBranching] = useState(false);
+  const handleBranch = useCallback(
+    (messageId: string) => {
+      setBranching(true);
+      branchFn(messageId)
+        .then((newThreadId) => {
+          onBranched?.(newThreadId);
+        })
+        .catch(() => {
+          setError("分岐に失敗しました。時間をおいて再試行してください。");
+        })
+        .finally(() => setBranching(false));
+    },
+    [branchFn, onBranched],
+  );
+
   return (
     <div className="flex h-full flex-col gap-sm">
       {context ? (
@@ -247,6 +271,9 @@ export function ChatContainer({
           knowledgeCandidates={knowledgeCandidates}
           onFeedback={handleFeedback}
           feedbackDoneIds={feedbackDoneIds}
+          {...(onBranched
+            ? { onBranch: handleBranch, branching }
+            : {})}
         />
       </div>
     </div>

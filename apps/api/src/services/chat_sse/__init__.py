@@ -255,12 +255,16 @@ async def _insert_message(
     content: str,
 ) -> str:
     new_id = str(uuid.uuid4())
+    # created_at は clock_timestamp() を明示する。デフォルト now() は transaction
+    # timestamp のため、同一トランザクションで入る user/assistant が同値になり
+    # (created_at, id) 順のスレッド表示・分岐境界が UUID 次第で崩れる
+    # (GAP-031① 監査で検出した実バグ)。
     await session.execute(
         text(
             "insert into public.chat_messages "
-            "(id, thread_id, role, content) "
+            "(id, thread_id, role, content, created_at) "
             "values (cast(:i as uuid), cast(:t as uuid), "
-            "cast(:r as chat_message_role_enum), :c)"
+            "cast(:r as chat_message_role_enum), :c, clock_timestamp())"
         ),
         {"i": new_id, "t": thread_id, "r": role, "c": content},
     )

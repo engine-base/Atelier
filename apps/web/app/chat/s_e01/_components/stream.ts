@@ -175,3 +175,30 @@ export async function postMessageFeedback(
     throw new Error(`feedback failed: ${res.status}`);
   }
 }
+
+/**
+ * GAP-031①: メッセージ時点で新スレッドへ分岐 (POST /chat/messages/{id}/branch)。
+ * 分岐先スレッド ID を返す。
+ */
+export async function branchThreadAtMessage(
+  messageId: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<string> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/messages/${messageId}/branch`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    throw new Error(`branch failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { data?: { id?: string } };
+  const id = body.data?.id;
+  if (!id) throw new Error("branch response missing thread id");
+  return id;
+}

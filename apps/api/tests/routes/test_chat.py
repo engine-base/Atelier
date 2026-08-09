@@ -144,6 +144,13 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
             ),
             {"i": proj_a, "w": ws_a, "n": "proj-a"},
         )
+        # ローカル dev DB は workspace 作成トリガーが 10 名を自動シードするため
+        # (CI のクリーン DB では no-op)、先に消してから固定 id の tony を入れる
+        # (test_skills と同パターン)。
+        c.execute(
+            text("delete from public.ai_employees where workspace_id = cast(:w as uuid)"),
+            {"w": ws_a},
+        )
         c.execute(
             text(
                 "insert into public.ai_employees (id,workspace_id,name,display_name,role,department) "
@@ -413,4 +420,62 @@ class TestChatBranchAndFeedback:
                 ).status_code
                 == 422
             )
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+
+@pytest.mark.integration
+class TestBranchThread:
+    """GAP-031①: POST /chat/messages/{id}/branch — 履歴コピー + parent 連鎖。"""
+
+    def _thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        return client.post(
+            "/chat/threads",
+            json={
+                "project_id": seeded["proj_a"],
+                "ai_employee_id": seeded["emp_a"],
+                "title": "元スレッド",
+            },
+            headers=_h(seeded["u_a"]),
+        ).json()["data"]["id"]
+
+    def test_branch_copies_history_up_to_message(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            client.post(f"/chat/threads/{tid}/messages", json={"content": "one"}, headers=h)
+            m2 = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "two"}, headers=h
+            ).json()["data"]
+            client.post(f"/chat/threads/{tid}/messages", json={"content": "three"}, headers=h)
+
+            # m2 で分岐 → one, two のみコピー (three は含まない)
+            r = client.post(f"/chat/messages/{m2['id']}/branch", headers=h)
+            assert r.status_code == 201, r.text
+            branched = r.json()["data"]
+            assert branched["title"] == "分岐: 元スレッド"
+            assert branched["project_id"] == seeded["proj_a"]
+
+            msgs = client.get(f"/chat/threads/{branched['id']}/messages", headers=h).json()["data"]
+            assert [m["content"] for m in msgs] == ["one", "two"]
+            # parent 連鎖: 先頭は分岐元メッセージ (m2)、2 件目は先頭コピー
+            assert msgs[0]["parent_message_id"] == m2["id"]
+            assert msgs[1]["parent_message_id"] == msgs[0]["id"]
+            # 元スレッドは不変 (3 件のまま)
+            orig = client.get(f"/chat/threads/{tid}/messages", headers=h).json()["data"]
+            assert len(orig) == 3
+            client.delete(f"/chat/threads/{branched['id']}", headers=h)
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_branch_cross_workspace_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """R-T08: 他 WS の user は分岐できない (message 不可視 404)。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            m1 = client.post(
+                f"/chat/threads/{tid}/messages", json={"content": "secret"}, headers=h
+            ).json()["data"]
+            r = client.post(f"/chat/messages/{m1['id']}/branch", headers=_h(seeded["u_b"]))
+            assert r.status_code == 404
             client.delete(f"/chat/threads/{tid}", headers=h)

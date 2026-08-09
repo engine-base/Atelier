@@ -204,6 +204,7 @@ function SE01Inner() {
                 onMessageCount={setMessageCount}
                 mentionCandidates={mentionCandidates}
                 knowledgeCandidates={knowledgeCandidates}
+                onBranched={setThreadId}
               />
             </div>
           </>

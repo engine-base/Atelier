@@ -23,6 +23,7 @@ import {
   Check,
   CircleAlert,
   Copy,
+  GitBranch,
   SendHorizontal,
   ShieldCheck,
   Terminal,
@@ -82,6 +83,12 @@ export interface ChatPanelProps {
   readonly onFeedback?: (messageId: string) => void;
   /** フィードバック送信済みメッセージ ID (ボタンを「済」表示にする)。 */
   readonly feedbackDoneIds?: ReadonlySet<string>;
+  /**
+   * 分岐 (GAP-031① — POST /chat/messages/{id}/branch)。このメッセージ時点で
+   * 新スレッドへ履歴コピーして分岐する。未指定ならボタンを出さない (Rule 10)。
+   */
+  readonly onBranch?: (messageId: string) => void;
+  readonly branching?: boolean;
 }
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
@@ -102,11 +109,15 @@ function MessageRow({
   employee,
   onFeedback,
   feedbackDone,
+  onBranch,
+  branching,
 }: {
   readonly message: ChatMessage;
   readonly employee?: ChatEmployeeInfo;
   readonly onFeedback?: (messageId: string) => void;
   readonly feedbackDone?: boolean;
+  readonly onBranch?: (messageId: string) => void;
+  readonly branching?: boolean;
 }) {
   const time = fmtTime(message.created_at);
   const [copied, setCopied] = useState(false);
@@ -190,8 +201,8 @@ function MessageRow({
           {message.content}
         </div>
         {message.persisted ? (
-          // モック .msg-action-row 準拠 (役立った / コピー)。分岐は SSE 側が
-          // parent_message_id 非対応のため未描画 (Rule 10 / GAP-031 ①)。
+          // モック .msg-action-row 準拠 (役立った / コピー / 分岐 — GAP-031① 解消:
+          // 分岐は履歴コピー + parent_message_id 連鎖で新スレッドへ)。
           <div className="mt-1.5 flex items-center gap-1">
             {onFeedback ? (
               <button
@@ -214,6 +225,19 @@ function MessageRow({
               <Copy size={11} aria-hidden="true" />
               {copied ? "コピーしました" : "コピー"}
             </button>
+            {onBranch ? (
+              <button
+                type="button"
+                disabled={branching}
+                onClick={() => onBranch(message.id)}
+                aria-label="このメッセージから分岐"
+                title="このメッセージ時点までの履歴をコピーした新スレッドを作ります"
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-[3px] text-[11px] text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
+              >
+                <GitBranch size={11} aria-hidden="true" />
+                {branching ? "分岐中…" : "分岐"}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -232,6 +256,8 @@ export function ChatPanel({
   knowledgeCandidates = [],
   onFeedback,
   feedbackDoneIds,
+  onBranch,
+  branching,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
@@ -297,6 +323,8 @@ export function ChatPanel({
             employee={employee}
             onFeedback={m.role === "assistant" ? onFeedback : undefined}
             feedbackDone={feedbackDoneIds?.has(m.id)}
+            onBranch={m.role === "assistant" ? onBranch : undefined}
+            branching={branching}
           />
         ))}
       </ul>

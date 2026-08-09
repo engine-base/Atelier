@@ -111,6 +111,20 @@ async def create_message(
 
 
 @router.post(
+    "/chat/messages/{message_id}/branch",
+    status_code=status.HTTP_201_CREATED,
+    summary="メッセージ時点で新スレッドへ分岐 (GAP-031① — 履歴コピー + parent 連鎖)",
+)
+async def branch_thread(
+    message_id: str, session: SessionDep, user: UserDep
+) -> dict[str, ThreadResponse]:
+    created = await svc.branch_thread_at_message(session, actor_id=user.id, message_id=message_id)
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+    return {"data": created}
+
+
+@router.post(
     "/chat/messages/{message_id}/feedback",
     status_code=status.HTTP_201_CREATED,
     summary="チャットメッセージへのフィードバック（T-A-19 / audit_logs 記録）",

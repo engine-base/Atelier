@@ -7453,6 +7453,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/messages/{message_id}/branch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** メッセージ時点で新スレッドへ分岐（GAP-031① — 履歴コピー + parent 連鎖） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    message_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 分岐先スレッド (元スレッドの分岐点までをコピー。コピー行は parent_message_id で連鎖、先頭は分岐元メッセージを指す。元スレッドは不変) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatThread"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description message 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/messages/{message_id}/feedback": {
         parameters: {
             query?: never;
