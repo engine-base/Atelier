@@ -372,7 +372,12 @@ async def _real_stream_chunks(
         return
 
     # agentic ループ: tool_use を実行して継続。無限ループ防止に上限を設ける。
-    from .tools import ATELIER_TOOL_NAMES, execute_atelier_tool
+    from .tools import (
+        APPROVAL_REQUIRED_TOOLS,
+        ATELIER_TOOL_NAMES,
+        execute_atelier_tool,
+        request_tool_approval,
+    )
 
     assert tool_ctx is not None
     # save_deliverable は成果物全文を content_md(tool 入力)として emit するため出力が長い。
@@ -414,7 +419,17 @@ async def _real_stream_chunks(
             tool_input: dict[str, Any] = (
                 cast("dict[str, Any]", raw_input) if isinstance(raw_input, dict) else {}
             )
-            out = await execute_atelier_tool(tool_ctx, name, tool_input)
+            if name in APPROVAL_REQUIRED_TOOLS and tool_ctx.thread_id:
+                # GAP-031①: 書込系ツールは自動実行せず承認待ちへ (人間の
+                # 「承認して実行」で初めて実行される)
+                out = await request_tool_approval(
+                    tool_ctx,
+                    thread_id=tool_ctx.thread_id,
+                    name=name,
+                    tool_input=tool_input,
+                )
+            else:
+                out = await execute_atelier_tool(tool_ctx, name, tool_input)
             results.append(
                 {
                     "type": "tool_result",
@@ -511,6 +526,7 @@ async def stream_chat(
             actor_id=actor_id,
             project_id=project_id,
             workspace_id=workspace_id,
+            thread_id=thread_id,
         )
 
     accumulated: list[str] = []

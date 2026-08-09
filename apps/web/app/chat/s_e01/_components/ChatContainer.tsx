@@ -22,11 +22,15 @@ import {
   type ChatMessage,
   type KnowledgeCandidate,
   type MentionCandidate,
+  type ToolApprovalInfo,
 } from "./ChatPanel";
 import {
   branchThreadAtMessage,
+  executeToolApproval,
   fetchThreadMessages,
+  fetchToolApprovals,
   postMessageFeedback,
+  rejectToolApproval,
   streamChatThread,
   type ChatStreamChunk,
   type StreamChatArgs,
@@ -63,6 +67,10 @@ export interface ChatContainerProps {
   readonly branchFn?: typeof branchThreadAtMessage;
   /** 分岐成功時の遷移 (分岐先スレッド ID)。未指定なら分岐ボタンを出さない。 */
   readonly onBranched?: (threadId: string) => void;
+  /** ツール承認 (GAP-031①) の注入用 (省略時は実 API)。 */
+  readonly approvalsFn?: typeof fetchToolApprovals;
+  readonly executeApprovalFn?: typeof executeToolApproval;
+  readonly rejectApprovalFn?: typeof rejectToolApproval;
 }
 
 let _seq = 0;
@@ -96,6 +104,9 @@ export function ChatContainer({
   feedbackFn = postMessageFeedback,
   branchFn = branchThreadAtMessage,
   onBranched,
+  approvalsFn = fetchToolApprovals,
+  executeApprovalFn = executeToolApproval,
+  rejectApprovalFn = rejectToolApproval,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -145,6 +156,21 @@ export function ChatContainer({
     };
   }, [threadId, fetchMessagesFn]);
 
+  // GAP-031①: ツール実行の承認待ち (pending)。スレッド切替・stream 完了・
+  // 承認/差戻の後に再取得する。
+  const [toolApprovals, setToolApprovals] = useState<readonly ToolApprovalInfo[]>([]);
+  const [toolActing, setToolActing] = useState(false);
+  const refreshApprovals = useCallback(() => {
+    approvalsFn(threadId)
+      .then((rows) => setToolApprovals(rows.filter((r) => r.status === "pending")))
+      .catch(() => {
+        /* 取得失敗は致命ではない (カード非描画のまま) */
+      });
+  }, [approvalsFn, threadId]);
+  useEffect(() => {
+    refreshApprovals();
+  }, [refreshApprovals]);
+
   const handleSend = useCallback(
     async (text: string) => {
       const userMsg: ChatMessage = {
@@ -188,6 +214,8 @@ export function ChatContainer({
         } catch {
           // 再取得失敗は致命ではない (表示済みの楽観行を維持)。
         }
+        // ツールが承認待ちに登録された場合に承認カードを即時表示する
+        refreshApprovals();
       } catch {
         setError(
           "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
@@ -200,7 +228,7 @@ export function ChatContainer({
         setSending(false);
       }
     },
-    [threadId, ragAccountId, streamFn, fetchMessagesFn],
+    [threadId, ragAccountId, streamFn, fetchMessagesFn, refreshApprovals],
   );
 
   const handleFeedback = useCallback(
@@ -214,6 +242,49 @@ export function ChatContainer({
         });
     },
     [feedbackFn],
+  );
+
+  const reloadMessages = useCallback(async () => {
+    try {
+      const history = await fetchMessagesFn(threadId);
+      if (history.length > 0) {
+        setMessages(history.map((m) => ({ ...m, persisted: true })));
+      }
+    } catch {
+      /* 再取得失敗は表示済みを維持 */
+    }
+  }, [fetchMessagesFn, threadId]);
+
+  const handleApproveTool = useCallback(
+    (approvalId: string) => {
+      setToolActing(true);
+      executeApprovalFn(approvalId)
+        .then(async () => {
+          await reloadMessages(); // 実行結果の tool メッセージを実表示
+          refreshApprovals();
+        })
+        .catch(() => {
+          setError("ツールの実行に失敗しました。時間をおいて再試行してください。");
+        })
+        .finally(() => setToolActing(false));
+    },
+    [executeApprovalFn, refreshApprovals, reloadMessages],
+  );
+
+  const handleRejectTool = useCallback(
+    (approvalId: string) => {
+      setToolActing(true);
+      rejectApprovalFn(approvalId)
+        .then(async () => {
+          await reloadMessages(); // 差戻の system メッセージを実表示
+          refreshApprovals();
+        })
+        .catch(() => {
+          setError("差戻に失敗しました。時間をおいて再試行してください。");
+        })
+        .finally(() => setToolActing(false));
+    },
+    [rejectApprovalFn, refreshApprovals, reloadMessages],
   );
 
   // GAP-031①: このメッセージ時点までを新スレッドへコピーして分岐 → 遷移。
@@ -274,6 +345,10 @@ export function ChatContainer({
           {...(onBranched
             ? { onBranch: handleBranch, branching }
             : {})}
+          toolApprovals={toolApprovals}
+          onApproveTool={handleApproveTool}
+          onRejectTool={handleRejectTool}
+          toolActing={toolActing}
         />
       </div>
     </div>

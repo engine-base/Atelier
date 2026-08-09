@@ -479,3 +479,145 @@ class TestBranchThread:
             r = client.post(f"/chat/messages/{m1['id']}/branch", headers=_h(seeded["u_b"]))
             assert r.status_code == 404
             client.delete(f"/chat/threads/{tid}", headers=h)
+
+
+@pytest.mark.integration
+class TestToolApprovals:
+    """GAP-031①: ツール実行の人間承認 (承認して実行 / 差戻)。"""
+
+    def _thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        return client.post(
+            "/chat/threads",
+            json={
+                "project_id": seeded["proj_a"],
+                "ai_employee_id": seeded["emp_a"],
+                "title": "承認テスト",
+            },
+            headers=_h(seeded["u_a"]),
+        ).json()["data"]["id"]
+
+    def _seed_approval(
+        self, sync_engine: sqlalchemy.Engine, *, user_id: str, thread_id: str, title: str
+    ) -> str:
+        """request_tool_approval が書くのと同形の pending 行をシード。"""
+        approval_id = str(uuid.uuid4())
+        payload = json.dumps(
+            {
+                "tool": "save_deliverable",
+                "tool_input": {
+                    "title": title,
+                    "category": "要件定義",
+                    "content_md": f"# {title}\n本文",
+                },
+                "thread_id": thread_id,
+            },
+            ensure_ascii=False,
+        )
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.approval_inbox "
+                    "(id, user_id, type, target_type, target_id, title, payload) "
+                    "values (cast(:i as uuid), cast(:u as uuid), 'tool_execution', "
+                    "'chat_thread', cast(:t as uuid), :ttl, cast(:pl as jsonb))"
+                ),
+                {
+                    "i": approval_id,
+                    "u": user_id,
+                    "t": thread_id,
+                    "ttl": f"ツール実行の承認: save_deliverable（{title}）",
+                    "pl": payload,
+                },
+            )
+        return approval_id
+
+    def test_execute_runs_tool_and_resolves(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        title = f"承認成果物-{uuid.uuid4().hex[:6]}"
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            aid = self._seed_approval(
+                sync_engine, user_id=seeded["u_a"], thread_id=tid, title=title
+            )
+            # 一覧に pending が出る
+            listed = client.get(f"/chat/tool-approvals?thread_id={tid}", headers=h).json()["data"]
+            assert [a["id"] for a in listed] == [aid]
+            assert listed[0]["tool"] == "save_deliverable"
+
+            # 承認して実行 → 実 knowledge が生まれる
+            r = client.post(f"/chat/tool-approvals/{aid}/execute", headers=h)
+            assert r.status_code == 200, r.text
+            assert title in r.json()["data"]["result"]
+            with sync_engine.begin() as c:
+                kn = c.execute(
+                    text("select count(*) from public.knowledge_nodes where title = :t"),
+                    {"t": title},
+                ).scalar_one()
+                assert kn == 1
+                status_row = c.execute(
+                    text(
+                        "select status, resolution_note from public.approval_inbox "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": aid},
+                ).one()
+                assert status_row.status == "approved"
+                assert title in str(status_row.resolution_note)
+            # スレッドに tool メッセージが記録される
+            msgs = client.get(f"/chat/threads/{tid}/messages", headers=h).json()["data"]
+            assert any(m["role"] == "tool" and title in m["content"] for m in msgs)
+            # 二重実行は 409
+            assert client.post(f"/chat/tool-approvals/{aid}/execute", headers=h).status_code == 409
+            with sync_engine.begin() as c:
+                c.execute(text("delete from public.knowledge_nodes where title = :t"), {"t": title})
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_reject_resolves_without_execution(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        title = f"差戻成果物-{uuid.uuid4().hex[:6]}"
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            aid = self._seed_approval(
+                sync_engine, user_id=seeded["u_a"], thread_id=tid, title=title
+            )
+            r = client.post(f"/chat/tool-approvals/{aid}/reject", headers=h)
+            assert r.status_code == 200
+            with sync_engine.begin() as c:
+                st = c.execute(
+                    text("select status from public.approval_inbox where id = cast(:i as uuid)"),
+                    {"i": aid},
+                ).scalar_one()
+                assert st == "rejected"
+                kn = c.execute(
+                    text("select count(*) from public.knowledge_nodes where title = :t"),
+                    {"t": title},
+                ).scalar_one()
+                assert kn == 0  # 実行されていない
+            msgs = client.get(f"/chat/threads/{tid}/messages", headers=h).json()["data"]
+            assert any(m["role"] == "system" and "差し戻され" in m["content"] for m in msgs)
+            client.delete(f"/chat/threads/{tid}", headers=h)
+
+    def test_cross_user_invisible_404(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """R-T08: 他人の承認は見えない・実行できない (inbox は本人のみ)。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            tid = self._thread(client, seeded)
+            aid = self._seed_approval(
+                sync_engine, user_id=seeded["u_a"], thread_id=tid, title="他人不可"
+            )
+            hb = _h(seeded["u_b"])
+            assert client.post(f"/chat/tool-approvals/{aid}/execute", headers=hb).status_code == 404
+            listed = client.get(f"/chat/tool-approvals?thread_id={tid}", headers=hb).json()["data"]
+            assert listed == []
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.approval_inbox where id = cast(:i as uuid)"),
+                    {"i": aid},
+                )
+            client.delete(f"/chat/threads/{tid}", headers=h)

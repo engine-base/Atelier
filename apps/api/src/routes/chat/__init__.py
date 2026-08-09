@@ -21,8 +21,11 @@ from src.schemas.chat import (
     ThreadCreate,
     ThreadResponse,
     ThreadUpdate,
+    ToolApprovalExecuteResponse,
+    ToolApprovalResponse,
 )
 from src.services import chat as svc
+from src.services.chat_sse import tools as tools_svc
 
 router = APIRouter(tags=["chat"])
 
@@ -142,3 +145,52 @@ async def create_message_feedback(
         session, actor_id=user.id, message_id=message_id, data=body
     )
     return {"data": created}
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031①: ツール実行の人間承認 (S-E01 「承認して実行」/「差戻」)
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/chat/tool-approvals",
+    summary="スレッドのツール実行承認一覧 (GAP-031① — 本人の inbox のみ)",
+)
+async def list_tool_approvals(
+    session: SessionDep,
+    _user: UserDep,
+    thread_id: Annotated[str, Query()],
+    status_filter: Annotated[str | None, Query(alias="status")] = "pending",
+) -> dict[str, list[ToolApprovalResponse]]:
+    rows = await tools_svc.list_tool_approvals(session, thread_id=thread_id, status=status_filter)
+    return {"data": [ToolApprovalResponse(**r) for r in rows]}
+
+
+@router.post(
+    "/chat/tool-approvals/{approval_id}/execute",
+    summary="承認して実行 (GAP-031① — pending の tool_execution を実行)",
+)
+async def execute_tool_approval(
+    approval_id: str, session: SessionDep, user: UserDep
+) -> dict[str, ToolApprovalExecuteResponse]:
+    code, result = await tools_svc.execute_approved_tool(
+        session, actor_id=user.id, approval_id=approval_id
+    )
+    if code == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+    if code == "already_resolved":
+        raise HTTPException(status.HTTP_409_CONFLICT, "approval already resolved")
+    return {"data": ToolApprovalExecuteResponse(result=result)}
+
+
+@router.post(
+    "/chat/tool-approvals/{approval_id}/reject",
+    summary="差戻 (GAP-031① — pending の tool_execution を却下)",
+)
+async def reject_tool_approval(
+    approval_id: str, session: SessionDep, user: UserDep
+) -> dict[str, bool]:
+    code = await tools_svc.reject_tool_approval(session, actor_id=user.id, approval_id=approval_id)
+    if code == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+    if code == "already_resolved":
+        raise HTTPException(status.HTTP_409_CONFLICT, "approval already resolved")
+    return {"data": True}

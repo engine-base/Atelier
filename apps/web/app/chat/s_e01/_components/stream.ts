@@ -202,3 +202,71 @@ export async function branchThreadAtMessage(
   if (!id) throw new Error("branch response missing thread id");
   return id;
 }
+
+/** ツール実行の承認待ち 1 件 (GAP-031①)。 */
+export interface ToolApproval {
+  readonly id: string;
+  readonly status: string;
+  readonly title: string;
+  readonly tool: string;
+  readonly tool_input: Record<string, unknown>;
+  readonly created_at: string;
+  readonly resolution_note?: string | null;
+}
+
+/** スレッドの pending ツール承認一覧 (GET /chat/tool-approvals)。 */
+export async function fetchToolApprovals(
+  threadId: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<ToolApproval[]> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(
+    `${baseURL}/chat/tool-approvals?thread_id=${encodeURIComponent(threadId)}&status=pending`,
+    { headers, credentials: "include" },
+  );
+  if (!res.ok) throw new Error(`tool approvals failed: ${res.status}`);
+  const body = (await res.json()) as { data?: ToolApproval[] };
+  return body.data ?? [];
+}
+
+/** 承認して実行 (POST /chat/tool-approvals/{id}/execute)。実行結果文字列を返す。 */
+export async function executeToolApproval(
+  approvalId: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<string> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/tool-approvals/${approvalId}/execute`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`tool execute failed: ${res.status}`);
+  const body = (await res.json()) as { data?: { result?: string } };
+  return body.data?.result ?? "";
+}
+
+/** 差戻 (POST /chat/tool-approvals/{id}/reject)。 */
+export async function rejectToolApproval(
+  approvalId: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/tool-approvals/${approvalId}/reject`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`tool reject failed: ${res.status}`);
+}

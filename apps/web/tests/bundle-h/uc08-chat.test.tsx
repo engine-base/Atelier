@@ -242,3 +242,88 @@ describe("S-E01 メッセージ分岐 (GAP-031 ①)", () => {
     expect(onBranched).not.toHaveBeenCalled();
   });
 });
+
+describe("S-E01 ツール実行の承認 (GAP-031 ① 承認して実行 / 差戻)", () => {
+  const approval = {
+    id: "ap1",
+    status: "pending",
+    title: "ツール実行の承認: save_deliverable（要件定義書）",
+    tool: "save_deliverable",
+    tool_input: { title: "要件定義書" },
+    created_at: "2026-08-04T00:00:00Z",
+  };
+
+  it("pending 承認カード → 承認して実行 → 実行 API + メッセージ/承認の再取得", async () => {
+    const executeFn = vi.fn(async (_id: string) => "保存しました");
+    let approvals = [approval];
+    const approvalsFn = vi.fn(async () => approvals);
+    const fetchMessagesFn = vi.fn(async () => [
+      { id: "m1", role: "user" as const, content: "保存して" },
+    ]);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={fetchMessagesFn}
+        approvalsFn={approvalsFn}
+        executeApprovalFn={executeFn}
+        rejectApprovalFn={vi.fn(async () => undefined)}
+      />,
+    );
+    expect(
+      await screen.findByText("承認が必要：ツールの実行を進めてよいですか？"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("要件定義書")).toBeInTheDocument();
+    // Inbox で確認 → 実ルート /approvals
+    expect(
+      screen.getByRole("link", { name: "Inbox で確認" }),
+    ).toHaveAttribute("href", "/approvals");
+
+    approvals = []; // 実行後は pending が消える
+    fireEvent.click(screen.getByRole("button", { name: "承認して実行" }));
+    await waitFor(() => expect(executeFn).toHaveBeenCalledWith("ap1"));
+    await waitFor(() =>
+      expect(
+        screen.queryByText("承認が必要：ツールの実行を進めてよいですか？"),
+      ).toBeNull(),
+    );
+  });
+
+  it("差戻 → reject API → カード消滅", async () => {
+    const rejectFn = vi.fn(async (_id: string) => undefined);
+    let approvals = [approval];
+    const approvalsFn = vi.fn(async () => approvals);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => []}
+        approvalsFn={approvalsFn}
+        executeApprovalFn={vi.fn(async () => "")}
+        rejectApprovalFn={rejectFn}
+      />,
+    );
+    await screen.findByText("承認が必要：ツールの実行を進めてよいですか？");
+    approvals = [];
+    fireEvent.click(screen.getByRole("button", { name: "差戻" }));
+    await waitFor(() => expect(rejectFn).toHaveBeenCalledWith("ap1"));
+  });
+
+  it("pending が無ければ承認カードを出さない (Rule 10)", async () => {
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => []}
+        approvalsFn={vi.fn(async () => [])}
+        executeApprovalFn={vi.fn(async () => "")}
+        rejectApprovalFn={vi.fn(async () => undefined)}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("承認が必要：ツールの実行を進めてよいですか？"),
+      ).toBeNull(),
+    );
+  });
+});

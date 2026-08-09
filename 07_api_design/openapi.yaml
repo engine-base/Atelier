@@ -4953,6 +4953,81 @@ paths:
         '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /chat/tool-approvals:
+    get:
+      tags: [chat]
+      summary: スレッドのツール実行承認一覧（GAP-031① — 本人の inbox のみ）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::list_tool_approvals
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: thread_id, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, required: false, schema: { type: string, default: pending } }
+      responses:
+        '200':
+          description: 承認待ち (古い順)。RLS approval_inbox_select_self で本人分のみ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, status, title, tool, tool_input, created_at]
+                      properties:
+                        id: { type: string, format: uuid }
+                        status: { type: string }
+                        title: { type: string }
+                        tool: { type: string }
+                        tool_input: { type: object }
+                        created_at: { type: string, format: date-time }
+                        resolution_note: { type: string, nullable: true }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/tool-approvals/{approval_id}/execute:
+    post:
+      tags: [chat]
+      summary: 承認して実行（GAP-031① — pending の tool_execution を実行）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::execute_tool_approval
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行完了 (結果はスレッドへ tool メッセージとして記録、inbox は approved)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [result]
+                    properties:
+                      result: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視 (本人以外), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 解決済み (二重実行防止), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/tool-approvals/{approval_id}/reject:
+    post:
+      tags: [chat]
+      summary: 差戻（GAP-031① — pending の tool_execution を却下）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::reject_tool_approval
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 却下完了 (スレッドへ system メッセージ記録、inbox は rejected)
+          content:
+            application/json:
+              schema: { type: object, properties: { data: { type: boolean } } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 解決済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /chat/messages/{message_id}/branch:
     post:
       tags: [chat]

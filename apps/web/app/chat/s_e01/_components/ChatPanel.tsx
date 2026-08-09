@@ -89,6 +89,21 @@ export interface ChatPanelProps {
    */
   readonly onBranch?: (messageId: string) => void;
   readonly branching?: boolean;
+  /**
+   * ツール実行の承認待ち (GAP-031① — approval_inbox type=tool_execution)。
+   * pending がある時のみ承認カード (モック .approval-card 準拠) を描画する。
+   */
+  readonly toolApprovals?: readonly ToolApprovalInfo[];
+  readonly onApproveTool?: (approvalId: string) => void;
+  readonly onRejectTool?: (approvalId: string) => void;
+  readonly toolActing?: boolean;
+}
+
+export interface ToolApprovalInfo {
+  readonly id: string;
+  readonly title: string;
+  readonly tool: string;
+  readonly tool_input: Record<string, unknown>;
 }
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
@@ -258,6 +273,10 @@ export function ChatPanel({
   feedbackDoneIds,
   onBranch,
   branching,
+  toolApprovals = [],
+  onApproveTool,
+  onRejectTool,
+  toolActing,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
@@ -326,6 +345,58 @@ export function ChatPanel({
             onBranch={m.role === "assistant" ? onBranch : undefined}
             branching={branching}
           />
+        ))}
+        {/* ツール実行の承認カード (GAP-031① — モック .approval-card 準拠) */}
+        {toolApprovals.map((a) => (
+          <li
+            key={a.id}
+            className="w-full max-w-[760px] rounded-lg border border-secondary bg-secondary-container/40 px-4 py-3.5"
+          >
+            <div className="mb-1 flex items-center gap-2 text-[12.5px] font-bold text-on-surface">
+              <ShieldCheck size={14} aria-hidden="true" className="text-secondary" />
+              承認が必要：ツールの実行を進めてよいですか？
+            </div>
+            <p className="text-[13px] leading-relaxed text-on-surface">
+              {a.title}
+              {typeof a.tool_input.title === "string" ? (
+                <>
+                  {" — "}
+                  <code className="rounded-sm bg-surface-variant px-1 py-0.5 font-mono text-[12px]">
+                    {a.tool_input.title}
+                  </code>
+                </>
+              ) : null}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {onApproveTool ? (
+                <button
+                  type="button"
+                  disabled={toolActing}
+                  onClick={() => onApproveTool(a.id)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary transition-colors hover:opacity-90 disabled:opacity-50"
+                >
+                  <Check size={12} aria-hidden="true" />
+                  {toolActing ? "実行中…" : "承認して実行"}
+                </button>
+              ) : null}
+              {onRejectTool ? (
+                <button
+                  type="button"
+                  disabled={toolActing}
+                  onClick={() => onRejectTool(a.id)}
+                  className="inline-flex h-8 items-center rounded-md border border-border bg-white px-3 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant disabled:opacity-50"
+                >
+                  差戻
+                </button>
+              ) : null}
+              <a
+                href="/approvals"
+                className="inline-flex h-8 items-center rounded-md px-3 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+              >
+                Inbox で確認
+              </a>
+            </div>
+          </li>
         ))}
       </ul>
 

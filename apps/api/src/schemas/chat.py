@@ -78,3 +78,21 @@ class MessageFeedbackResponse(BaseModel):
     value: str
     comment: str | None
     recorded_at: datetime
+
+
+class ToolApprovalResponse(BaseModel):
+    """ツール実行の承認待ち 1 件 (GAP-031① — approval_inbox type=tool_execution)。"""
+
+    id: str
+    status: str
+    title: str
+    tool: str
+    tool_input: dict[str, object]
+    created_at: datetime
+    resolution_note: str | None
+
+
+class ToolApprovalExecuteResponse(BaseModel):
+    """「承認して実行」の結果 (実行済みツールの tool_result 文字列)。"""
+
+    result: str
