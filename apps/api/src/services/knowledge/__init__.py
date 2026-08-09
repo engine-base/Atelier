@@ -11,8 +11,10 @@ search はテキスト LIKE フォールバックする (テスト容易性 / de
 
 from __future__ import annotations
 
+import io
 import os
 import uuid
+import zipfile
 from typing import Any
 
 from sqlalchemy import text
@@ -464,6 +466,68 @@ async def get_graph(session: AsyncSession, *, account_id: str) -> KnowledgeGraph
     return KnowledgeGraphResponse(
         nodes=nodes, edges=edges, total_nodes=len(nodes), truncated=truncated
     )
+
+
+# --------------------------------------------------------------------------- #
+# GAP-011: Obsidian Vault 書出 (Markdown zip export)
+# --------------------------------------------------------------------------- #
+_SCOPE_DIR = {
+    "common": "共通",
+    "employee_specific": "AI社員別",
+    "project": "プロジェクト別",
+}
+
+
+def _safe_filename(title: str) -> str:
+    """zip 内ファイル名として安全なタイトルへ (パス区切り・制御文字を除去)。"""
+    cleaned = "".join(c for c in title if c not in '/\\:*?"<>|' and ord(c) >= 32).strip()
+    return (cleaned or "untitled")[:120]
+
+
+async def export_vault(session: AsyncSession, *, account_id: str) -> tuple[bytes, int]:
+    """workspace のナレッジを Obsidian Vault 形式の zip にまとめる。
+
+    構成: <scope>/<category>/<title>.md — YAML frontmatter (tags/category/
+    scope/updated) + content_md。RLS 可視分のみ (R-T08)。タイトル衝突は
+    連番 suffix で回避。(zip bytes, ノード数) を返す。
+    """
+    res = await session.execute(
+        text(
+            "select scope, category, title, content_md, tags, updated_at "
+            "from public.knowledge_nodes "
+            "where account_id = cast(:aid as uuid) and deleted_at is null "
+            "order by scope, category, title"
+        ),
+        {"aid": account_id},
+    )
+    rows = res.all()
+    buf = io.BytesIO()
+    used: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for r in rows:
+            raw_tags: list[object] = list(r.tags) if r.tags is not None else []
+            tags = [str(t) for t in raw_tags]
+            base = (
+                f"{_SCOPE_DIR.get(str(r.scope), str(r.scope))}/"
+                f"{_safe_filename(str(r.category))}/{_safe_filename(str(r.title))}"
+            )
+            path = f"{base}.md"
+            n = 2
+            while path in used:
+                path = f"{base}-{n}.md"
+                n += 1
+            used.add(path)
+            frontmatter = (
+                "---\n"
+                f"title: {str(r.title)!r}\n"
+                f"category: {r.category!s}\n"
+                f"scope: {r.scope!s}\n"
+                f"tags: [{', '.join(tags)}]\n"
+                f"updated: {r.updated_at.isoformat() if r.updated_at else ''}\n"
+                "---\n\n"
+            )
+            zf.writestr(path, frontmatter + str(r.content_md))
+    return buf.getvalue(), len(rows)
 
 
 # --------------------------------------------------------------------------- #

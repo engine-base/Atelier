@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Clock,
   Copy,
+  ExternalLink,
   FileText,
   Folder,
   GitBranch,
@@ -46,7 +47,11 @@ import {
   EmployeeIcon,
   type EmployeeId,
 } from "../../../../components/EmployeeIcon";
-import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import {
+  API_BASE,
+  createAuthedApiClient,
+  readAccessToken,
+} from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 import { KbButton, KbDenied } from "./ui";
 import { TreeNode } from "./TreeNode";
@@ -275,6 +280,37 @@ export function KnowledgeExplorer({
     },
     retry: false,
   });
+
+  // GAP-011: Obsidian Vault 書出 — GET /knowledge/vault-export (zip) を
+  // 認証付き fetch でダウンロードする (openapi client は binary 非対応のため raw)。
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportVault = async (): Promise<void> => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const token = readAccessToken();
+      const res = await fetch(
+        `${API_BASE}/knowledge/vault-export?account_id=${encodeURIComponent(accountId)}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          credentials: "include",
+        },
+      );
+      if (!res.ok) throw new Error(`vault export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "atelier-vault.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError("Vault 書出に失敗しました。時間をおいて再試行してください。");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // グラフノードのクリック: 完全な行を実取得して選択し、ノートビューへ。
   const openGraphNode = async (id: string): Promise<void> => {
@@ -743,6 +779,18 @@ export function KnowledgeExplorer({
               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
               {duplicateMut.isPending ? "複製中…" : "複製"}
             </KbButton>
+            {/* GAP-011: obsidian:// URI scheme — インストール済み環境で選択ノートを
+                Obsidian の新規ノートとして開く (モック「Obsidian で開く」) */}
+            {selected ? (
+              <a
+                href={`obsidian://new?name=${encodeURIComponent(selected.title)}&content=${encodeURIComponent(selected.content_md)}`}
+                title="Obsidian がインストールされている場合、選択ノートを Obsidian で開きます"
+                className="inline-flex h-8 items-center gap-1 rounded-md px-3 text-[12px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                Obsidian で開く
+              </a>
+            ) : null}
             <KbButton
               variant="outlined"
               size="sm"
@@ -943,6 +991,11 @@ export function KnowledgeExplorer({
           rightCollapsed && "hidden lg:block lg:overflow-hidden lg:border-0 lg:p-0",
         )}
       >
+        {exportError ? (
+          <p role="alert" className="mb-2 text-[12px] text-error">
+            {exportError}
+          </p>
+        ) : null}
         <NodeDetail
           node={selected}
           ownerName={ownerName(selected?.owner_employee_id)}
@@ -953,6 +1006,8 @@ export function KnowledgeExplorer({
           promoting={promoteMut.isPending}
           onDelete={(id) => deleteMut.mutate(id)}
           deleting={deleteMut.isPending}
+          onExportVault={() => void exportVault()}
+          exporting={exporting}
         />
       </aside>
 

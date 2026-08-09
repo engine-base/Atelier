@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
@@ -117,6 +117,27 @@ async def search_knowledge(
         project_id=project_id_str,
     )
     return {"data": result}
+
+
+# NOTE: /knowledge/{knowledge_id} より前に登録 (path 捕捉回避 — GAP-011)
+@router.get(
+    "/knowledge/vault-export",
+    summary="Obsidian Vault 書出（Markdown zip — RLS 可視分）",
+)
+async def export_knowledge_vault(
+    session: SessionDep,
+    _user: UserDep,
+    account_id: Annotated[str, Query()],
+) -> Response:
+    payload, count = await svc.export_vault(session, account_id=account_id)
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="atelier-vault.zip"',
+            "X-Vault-Nodes": str(count),
+        },
+    )
 
 
 # NOTE: /knowledge/{knowledge_id} より前に登録 (path 捕捉回避 — GAP-010)

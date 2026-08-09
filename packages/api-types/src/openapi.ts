@@ -6116,6 +6116,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge/vault-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Obsidian Vault 書出（Markdown zip — GAP-011） */
+        get: {
+            parameters: {
+                query: {
+                    account_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description <scope>/<category>/<title>.md 構成の zip (YAML frontmatter 付き、RLS 可視分のみ)。X-Vault-Nodes にノード数 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/zip": string;
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description account_id 不正 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge/graph": {
         parameters: {
             query?: never;

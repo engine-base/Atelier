@@ -878,3 +878,46 @@ class TestKnowledgeGraph:
             assert r.status_code == 200
             ids = {n["id"] for n in r.json()["data"]["nodes"]}
             assert not ({graph_seed["parent"], graph_seed["child"]} & ids)
+
+
+@pytest.mark.integration
+class TestVaultExport:
+    """GAP-011: /knowledge/vault-export — Obsidian Vault 形式 zip。"""
+
+    def test_export_returns_zip_with_frontmatter(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        import io as _io
+        import zipfile as _zipfile
+
+        with TestClient(app) as client:
+            r = client.get(
+                f"/knowledge/vault-export?account_id={seeded['ws_a']}",
+                headers=_h(seeded["u_a"]),
+            )
+            assert r.status_code == 200
+            assert r.headers["content-type"] == "application/zip"
+            assert int(r.headers["x-vault-nodes"]) >= 1
+            zf = _zipfile.ZipFile(_io.BytesIO(r.content))
+            names = zf.namelist()
+            # <scope>/<category>/<title>.md 構成 (seeded は common/tech)
+            target = next(n for n in names if "ws-a common note" in n)
+            assert target.startswith("共通/tech/")
+            body = zf.read(target).decode("utf-8")
+            assert body.startswith("---\n")
+            assert "category: tech" in body
+            assert "matchable content keyword foo" in body  # content_md 本文
+
+    def test_export_excludes_cross_workspace(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        """R-T08: ws_b の user が ws_a を書出しても RLS で 0 ノード。"""
+        import io as _io
+        import zipfile as _zipfile
+
+        with TestClient(app) as client:
+            r = client.get(
+                f"/knowledge/vault-export?account_id={seeded['ws_a']}",
+                headers=_h(seeded["u_b"]),
+            )
+            assert r.status_code == 200
+            zf = _zipfile.ZipFile(_io.BytesIO(r.content))
+            assert all("ws-a common note" not in n for n in zf.namelist())

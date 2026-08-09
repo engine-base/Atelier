@@ -501,3 +501,55 @@ describe("S-K01 グラフビュー (GAP-010)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("S-K01 Obsidian 連携 (GAP-011)", () => {
+  it("renders 「Obsidian で開く」 with obsidian:// URI for the selected note", async () => {
+    const get = vi.fn(async (_path: string, init?: GetInit) =>
+      init?.params?.query?.parent_id
+        ? { data: [] }
+        : { data: [knode({ id: "r1", title: "RLS ノート", content_md: "# body" })] },
+    );
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    // 未選択時はリンクを出さない
+    expect(screen.queryByRole("link", { name: "Obsidian で開く" })).toBeNull();
+    fireEvent.click(await screen.findByRole("treeitem", { name: "RLS ノート" }));
+    const link = await screen.findByRole("link", { name: "Obsidian で開く" });
+    expect(link).toHaveAttribute(
+      "href",
+      `obsidian://new?name=${encodeURIComponent("RLS ノート")}&content=${encodeURIComponent("# body")}`,
+    );
+  });
+
+  it("downloads the vault zip via GET /knowledge/vault-export (GAP-011)", async () => {
+    const get = vi.fn(async (_path: string, init?: GetInit) =>
+      init?.params?.query?.parent_id
+        ? { data: [] }
+        : { data: [knode({ id: "r1", title: "書出対象" })] },
+    );
+    const realFetch = global.fetch;
+    const fetchMock = vi.fn(async (..._args: unknown[]) =>
+      new Response(new Blob(["zip-bytes"]), { status: 200 }),
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+    const realCreate = URL.createObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:mock");
+    URL.revokeObjectURL = vi.fn();
+    try {
+      renderWithQuery(
+        <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+      );
+      fireEvent.click(await screen.findByRole("treeitem", { name: "書出対象" }));
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Obsidian Vault に書出" }),
+      );
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      const url = String(fetchMock.mock.calls[0]![0]);
+      expect(url).toContain("/knowledge/vault-export?account_id=w1");
+    } finally {
+      global.fetch = realFetch;
+      URL.createObjectURL = realCreate;
+    }
+  });
+});

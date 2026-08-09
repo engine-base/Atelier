@@ -4400,6 +4400,24 @@ paths:
         '422': { description: query 空 / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: レート上限超過 (x-rate-limit), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /knowledge/vault-export:
+    get:
+      tags: [knowledge]
+      summary: Obsidian Vault 書出（Markdown zip — GAP-011）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::export_knowledge_vault
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-023]
+      parameters:
+        - { name: account_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: "<scope>/<category>/<title>.md 構成の zip (YAML frontmatter 付き、RLS 可視分のみ)。X-Vault-Nodes にノード数"
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: account_id 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /knowledge/graph:
     get:
       tags: [knowledge]

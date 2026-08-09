@@ -8,7 +8,7 @@
 "use client";
 
 import * as React from "react";
-import { Sparkles, Trash2 } from "lucide-react";
+import { ExternalLink, Sparkles, Trash2 } from "lucide-react";
 
 import { KbButton } from "./ui";
 import type { KnowledgeNode, KnowledgeScope } from "./types";
@@ -62,6 +62,12 @@ export interface NodeDetailProps {
   /** 論理削除 (DELETE /knowledge/{id})。未指定ならボタンを出さない。 */
   readonly onDelete?: (id: string) => void;
   readonly deleting?: boolean;
+  /**
+   * Obsidian Vault 書出 (GAP-011 — GET /knowledge/vault-export の zip DL)。
+   * 未指定ならボタンを出さない (Rule 10)。
+   */
+  readonly onExportVault?: () => void;
+  readonly exporting?: boolean;
 }
 
 /** メタ・タイトル (uppercase の小見出し)。 */
@@ -83,6 +89,8 @@ export function NodeDetail({
   promoting,
   onDelete,
   deleting,
+  onExportVault,
+  exporting,
 }: NodeDetailProps) {
   // 削除は破壊的なため 2 段階確認 (誤クリック防止)。選択ノードが変わったら解除する。
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
@@ -231,10 +239,23 @@ export function NodeDetail({
       ) : null}
 
       {/* アクション */}
-      {onPromote || onDelete ? (
+      {onPromote || onDelete || onExportVault ? (
         <section>
           <MetaTitle>アクション</MetaTitle>
           <div className="flex flex-col gap-2">
+            {onExportVault ? (
+              <KbButton
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={onExportVault}
+                disabled={exporting}
+                title="ワークスペースの全ナレッジを Obsidian Vault 形式 (Markdown zip) でダウンロード"
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                {exporting ? "書出中…" : "Obsidian Vault に書出"}
+              </KbButton>
+            ) : null}
             {onPromote ? (
               <KbButton
                 variant="outlined"
