@@ -22,7 +22,13 @@ from src.schemas.admin import (
     AdminUserResponse,
     AuditLogResponse,
 )
+from src.schemas.support import (
+    SupportContactItem,
+    SupportContactRequest,
+    SupportContactResponse,
+)
 from src.services import admin as svc
+from src.services import support as support_svc
 
 router = APIRouter(tags=["admin"])
 
@@ -139,3 +145,39 @@ async def list_users(
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
     return {"data": await svc.list_users_admin(session, workspace_id=workspace_id)}
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031⑥: サポート連絡 (S-T04)
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/admin/support-contact",
+    summary="運営 admin: ユーザーへサポートメール送信 (GAP-031⑥)",
+)
+async def send_support_contact(
+    body: SupportContactRequest, user: UserDep
+) -> dict[str, SupportContactResponse]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    result = await support_svc.send_support_contact(
+        actor_id=user.id,
+        user_id=body.user_id,
+        subject=body.subject,
+        message=body.message,
+    )
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+    return {"data": result}
+
+
+@router.get(
+    "/admin/support-contacts",
+    summary="運営 admin: 最近のサポート対応 (audit support.contact 逆引き)",
+)
+async def list_support_contacts(
+    user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> dict[str, list[SupportContactItem]]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    return {"data": await support_svc.list_recent_contacts(limit=limit)}

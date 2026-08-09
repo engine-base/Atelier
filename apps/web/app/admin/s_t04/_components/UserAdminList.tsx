@@ -68,6 +68,11 @@ export interface UserAdminListProps {
   /** 停止/復元。いずれも未指定なら「アクション」列を出さない（read-only 時など）。 */
   readonly onSuspend?: (id: string) => void;
   readonly onRestore?: (id: string) => void;
+  /**
+   * サポート連絡 (GAP-031⑥ — POST /admin/support-contact)。
+   * 未指定ならサポート列はプレースホルダのまま (Rule 10)。
+   */
+  readonly onSupportContact?: (user: AdminUser) => void;
 }
 
 /** 一覧テーブルのグリッド列 (モック .user-row の grid-template-columns 準拠)。 */
@@ -168,11 +173,13 @@ function UserRow({
   hasActions,
   onSuspend,
   onRestore,
+  onSupportContact,
 }: {
   readonly user: AdminUser;
   readonly hasActions: boolean;
   readonly onSuspend?: (id: string) => void;
   readonly onRestore?: (id: string) => void;
+  readonly onSupportContact?: (user: AdminUser) => void;
 }) {
   return (
     <div
@@ -212,8 +219,21 @@ function UserRow({
       {/* 最終ログイン */}
       <div className="tabular-nums text-on-surface">{user.last_login ?? "—"}</div>
 
-      {/* サポート (API 未提供 → プレースホルダ) */}
-      <div className="text-on-surface-variant">—</div>
+      {/* サポート (GAP-031⑥: 実送信 API へ配線。callback 未注入時は従来どおり —) */}
+      <div>
+        {onSupportContact ? (
+          <button
+            type="button"
+            onClick={() => onSupportContact(user)}
+            aria-label={`${user.email} へサポート連絡`}
+            className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[11px] font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+          >
+            サポート連絡
+          </button>
+        ) : (
+          <span className="text-on-surface-variant">—</span>
+        )}
+      </div>
 
       {/* 状態 */}
       <div>
@@ -230,7 +250,12 @@ function UserRow({
   );
 }
 
-export function UserAdminList({ users, onSuspend, onRestore }: UserAdminListProps) {
+export function UserAdminList({
+  users,
+  onSuspend,
+  onRestore,
+  onSupportContact,
+}: UserAdminListProps) {
   const hasActions = Boolean(onSuspend || onRestore);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<UserState | "all">("all");
@@ -351,6 +376,7 @@ export function UserAdminList({ users, onSuspend, onRestore }: UserAdminListProp
                   hasActions={hasActions}
                   onSuspend={onSuspend}
                   onRestore={onRestore}
+                  onSupportContact={onSupportContact}
                 />
               ))
             )}

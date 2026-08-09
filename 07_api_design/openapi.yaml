@@ -5170,6 +5170,70 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/AdminUser' } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /admin/support-contact:
+    post:
+      tags: [admin]
+      summary: "運営 admin: ユーザーへサポートメール送信（GAP-031⑥）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::send_support_contact
+      x-screen-ids: [S-T04]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, subject, message]
+              properties:
+                user_id: { type: string, format: uuid }
+                subject: { type: string, minLength: 1, maxLength: 200 }
+                message: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        '200':
+          description: 送信結果 (dry_run=true はメール未設定環境の明示。audit support.contact に記録)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [to_email, dry_run]
+                    properties:
+                      to_email: { type: string, format: email }
+                      dry_run: { type: boolean }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: ユーザー不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/support-contacts:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 最近のサポート対応（audit support.contact 逆引き）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_support_contacts
+      x-screen-ids: [S-T04]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+      responses:
+        '200':
+          description: 送信履歴 (新しい順)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [to_email, subject, created_at]
+                      properties:
+                        to_email: { type: string }
+                        display_name: { type: string, nullable: true }
+                        subject: { type: string }
+                        created_at: { type: string, format: date-time }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /skills:
     get:
       tags: [skills]
