@@ -60,3 +60,17 @@ class SkillAttachRequest(BaseModel):
 
     ai_employee_id: str
     attached: bool = True
+
+
+class SkillReimportResponse(BaseModel):
+    """ローカル一括再取込 (GAP-031④) の結果 summary。
+
+    imported=新規追加 / updated=内容変更を反映 / skipped=変更なし。
+    is_active・装着設定・version は再取込で上書きしない。
+    """
+
+    dir: str
+    total: int
+    imported: int
+    updated: int
+    skipped: int

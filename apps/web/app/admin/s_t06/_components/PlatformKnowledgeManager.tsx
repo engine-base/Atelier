@@ -10,6 +10,10 @@
  *   - 作成: POST /admin/knowledge (account_type/account_id は server が固定)
  *   - トグル: PATCH /admin/knowledge/{id} { visible_in_tree }
  *
+ * SKILL.md 取込 (GAP-031⑦): .md ファイルを選択 → YAML frontmatter
+ * (name / description) を解析して追加ダイアログへプレフィル → 人間が確認して
+ * 実 POST /admin/knowledge で登録する (パース結果を無確認で書き込まない)。
+ *
  * admin gate: API が 403 を返したら AdminDenied を表示する。
  * api client は prop 注入可能 (テスト時に fake を渡せる)。
  */
@@ -40,6 +44,30 @@ interface KnowledgeNode {
 
 const KEY = ["admin-knowledge", "platform"] as const;
 
+/**
+ * SKILL.md の YAML frontmatter (--- ... ---) を素朴に解析する (GAP-031⑦)。
+ * API 側 services/skills.parse_skill_md と同じ最小仕様 (同一行 key: value のみ)。
+ */
+export function parseSkillMd(raw: string): {
+  meta: Record<string, string>;
+  body: string;
+} {
+  if (!raw.startsWith("---")) return { meta: {}, body: raw };
+  const lines = raw.split("\n");
+  const end = lines.findIndex((l, i) => i > 0 && l.trim() === "---");
+  if (end < 0) return { meta: {}, body: raw };
+  const meta: Record<string, string> = {};
+  for (const line of lines.slice(1, end)) {
+    if (!line.includes(":") || /^[\s#]/.test(line)) continue;
+    const idx = line.indexOf(":");
+    meta[line.slice(0, idx).trim()] = line
+      .slice(idx + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, "");
+  }
+  return { meta, body: lines.slice(end + 1).join("\n").replace(/^\n+/, "") };
+}
+
 export interface PlatformKnowledgeManagerProps {
   readonly client?: ApiClient;
 }
@@ -58,6 +86,22 @@ export function PlatformKnowledgeManager({
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [content, setContent] = useState("");
+  // GAP-031⑦: SKILL.md 取込 (file input → frontmatter 解析 → ダイアログにプレフィル)
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const onSkillMdFile = async (file: File): Promise<void> => {
+    const raw = await file.text();
+    const { meta, body } = parseSkillMd(raw);
+    setTitle(meta.name ?? file.name.replace(/\.md$/i, ""));
+    setCategory("skill");
+    setContent(body || raw);
+    setImportNote(
+      meta.name
+        ? `SKILL.md「${meta.name}」を解析しました${meta.description ? ` — ${meta.description}` : ""}。内容を確認して追加してください。`
+        : `${file.name} を読み込みました (frontmatter 無し — 全文を本文に設定)。内容を確認して追加してください。`,
+    );
+    setOpen(true);
+  };
 
   const list = useQuery({
     queryKey: KEY,
@@ -87,6 +131,7 @@ export function PlatformKnowledgeManager({
       setTitle("");
       setCategory("");
       setContent("");
+      setImportNote(null);
       void invalidate();
     },
   });
@@ -146,6 +191,24 @@ export function PlatformKnowledgeManager({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".md,text/markdown"
+            className="hidden"
+            aria-label="SKILL.md ファイルを選択"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onSkillMdFile(f);
+              e.target.value = "";
+            }}
+          />
+          <AdminButton
+            variant="outlined"
+            onClick={() => fileRef.current?.click()}
+          >
+            SKILL.md 取込
+          </AdminButton>
           <AdminButton variant="primary" onClick={() => setOpen(true)}>
             新規追加
           </AdminButton>
@@ -282,12 +345,21 @@ export function PlatformKnowledgeManager({
 
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+          setImportNote(null);
+        }}
         title="運営デフォルト・ナレッジを追加"
         className="max-w-2xl"
         footer={
           <>
-            <AdminButton variant="ghost" onClick={() => setOpen(false)}>
+            <AdminButton
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                setImportNote(null);
+              }}
+            >
               キャンセル
             </AdminButton>
             <AdminButton
@@ -301,6 +373,14 @@ export function PlatformKnowledgeManager({
         }
       >
         <div className="flex flex-col gap-md">
+          {importNote ? (
+            <p
+              role="status"
+              className="rounded-md border-l-[3px] border-tertiary bg-tertiary-container/40 px-3 py-2 text-body-sm text-on-surface"
+            >
+              {importNote}
+            </p>
+          ) : null}
           <Field label="タイトル" required>
             <input
               type="text"

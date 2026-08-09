@@ -9,7 +9,7 @@
 
 import * as React from "react";
 
-type Variant = "primary" | "ghost";
+type Variant = "primary" | "ghost" | "outlined";
 type Size = "sm" | "md";
 
 export interface AdminButtonProps
@@ -24,6 +24,7 @@ const BASE =
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-primary text-primary-fg hover:bg-primary/90",
   ghost: "text-on-surface hover:bg-surface-variant",
+  outlined: "border border-border bg-white text-on-surface hover:bg-surface-variant",
 };
 
 const SIZES: Record<Size, string> = {

@@ -421,3 +421,102 @@ def test_admin_create_skill_duplicate_409(app, seeded) -> None:  # type: ignore[
         # cleanup
         sid = r1.json()["data"]["id"]
         client.delete(f"/admin/skills/{sid}", headers=h)
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031④: ローカル一括再取込 (POST /admin/skills/reimport)
+# --------------------------------------------------------------------------- #
+def test_parse_skill_md_frontmatter() -> None:
+    from src.services.skills import parse_skill_md
+
+    meta, body = parse_skill_md(
+        "---\nname: my-skill\ndescription: 説明 テキスト\n---\n\n# 本文\nbody"
+    )
+    assert meta["name"] == "my-skill"
+    assert meta["description"] == "説明 テキスト"
+    assert body.startswith("# 本文")
+    # frontmatter 無し → 全文が本文
+    meta2, body2 = parse_skill_md("# タイトルのみ\n本文")
+    assert meta2 == {}
+    assert body2.startswith("# タイトルのみ")
+
+
+def _skill_dir(tmp_path: Any, name: str, frontmatter_name: str | None, body: str) -> None:
+    d = tmp_path / name
+    d.mkdir()
+    fm = (
+        f"---\nname: {frontmatter_name}\ndescription: {name} desc\n---\n"
+        if frontmatter_name
+        else ""
+    )
+    (d / "SKILL.md").write_text(fm + body, encoding="utf-8")
+
+
+def test_reimport_upserts_and_dedupes(
+    app: FastAPI,
+    seeded: dict[str, str],
+    sync_engine: sqlalchemy.Engine,
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prefix = f"ta49-re-{uuid.uuid4().hex[:6]}"
+    _skill_dir(tmp_path, f"{prefix}-a", f"{prefix}-a", "# A body v1")
+    _skill_dir(tmp_path, f"{prefix}-b", None, "# B body (frontmatter 無し)")
+    monkeypatch.setenv("ATELIER_SKILLS_DIR", str(tmp_path))
+    try:
+        with TestClient(app) as cl:
+            h = _h(seeded["admin"], admin=True)
+            # 1 回目: 2 件とも新規
+            r1 = cl.post("/admin/skills/reimport", headers=h)
+            assert r1.status_code == 200, r1.text
+            d1 = r1.json()["data"]
+            assert d1["total"] == 2 and d1["imported"] == 2 and d1["updated"] == 0
+
+            # 2 回目: 変更なし → 全 skip
+            r2 = cl.post("/admin/skills/reimport", headers=h)
+            d2 = r2.json()["data"]
+            assert d2["imported"] == 0 and d2["updated"] == 0 and d2["skipped"] == 2
+
+            # 内容変更 → updated (画面で立てた is_active=false は保持)
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("update public.skills set is_active = false where name = :n"),
+                    {"n": f"{prefix}-a"},
+                )
+            _skill_dir_path = tmp_path / f"{prefix}-a" / "SKILL.md"
+            _skill_dir_path.write_text(
+                f"---\nname: {prefix}-a\ndescription: {prefix}-a desc\n---\n# A body v2",
+                encoding="utf-8",
+            )
+            r3 = cl.post("/admin/skills/reimport", headers=h)
+            d3 = r3.json()["data"]
+            assert d3["updated"] == 1 and d3["skipped"] == 1
+            with sync_engine.begin() as c:
+                row = c.execute(
+                    text("select content_md, is_active from public.skills where name = :n"),
+                    {"n": f"{prefix}-a"},
+                ).one()
+                assert "A body v2" in row.content_md
+                assert row.is_active is False  # 運用設定は上書きしない
+            # audit summary
+            with sync_engine.begin() as c:
+                cnt = c.execute(
+                    text("select count(*) from public.audit_logs where action = 'skill.reimport'")
+                ).scalar_one()
+                assert cnt >= 3
+    finally:
+        with sync_engine.begin() as c:
+            c.execute(text("delete from public.skills where name like :p"), {"p": f"{prefix}%"})
+
+
+def test_reimport_non_admin_403_and_missing_dir_409(
+    app: FastAPI,
+    seeded: dict[str, str],
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with TestClient(app) as cl:
+        assert cl.post("/admin/skills/reimport", headers=_h(seeded["member"])).status_code == 403
+        monkeypatch.setenv("ATELIER_SKILLS_DIR", str(tmp_path / "nonexistent"))
+        r = cl.post("/admin/skills/reimport", headers=_h(seeded["admin"], admin=True))
+        assert r.status_code == 409

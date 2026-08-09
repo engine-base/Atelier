@@ -20,6 +20,7 @@ from src.schemas.skills import (
     SkillAttachRequest,
     SkillCreate,
     SkillLiteResponse,
+    SkillReimportResponse,
     SkillUpdate,
 )
 from src.services import admin as admin_svc
@@ -54,6 +55,15 @@ def _require_admin(user: CurrentUser) -> None:
 async def create_skill(body: SkillCreate, user: UserDep) -> dict[str, AdminSkillResponse]:
     _require_admin(user)
     return {"data": await svc.create_skill(actor_id=user.id, data=body)}
+
+
+@router.post(
+    "/admin/skills/reimport",
+    summary="運営 admin: ~/.claude/skills/ からローカル一括再取込 (GAP-031④)",
+)
+async def reimport_skills(user: UserDep) -> dict[str, SkillReimportResponse]:
+    _require_admin(user)
+    return {"data": await svc.reimport_local_skills(actor_id=user.id)}
 
 
 @router.patch("/admin/skills/{skill_id}", summary="運営 admin: スキル編集")

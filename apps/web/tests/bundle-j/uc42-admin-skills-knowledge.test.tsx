@@ -18,7 +18,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '../../lib/query-client';
 import { SkillManager } from '../../app/admin/s_t02/_components/SkillManager';
-import { PlatformKnowledgeManager } from '../../app/admin/s_t06/_components/PlatformKnowledgeManager';
+import {
+  PlatformKnowledgeManager,
+  parseSkillMd,
+} from '../../app/admin/s_t06/_components/PlatformKnowledgeManager';
 
 function renderWithQuery(ui: React.ReactElement) {
   const qc = createQueryClient();
@@ -241,5 +244,51 @@ describe('S-T06 PlatformKnowledgeManager (T-UC-42)', () => {
     });
     renderWithQuery(<PlatformKnowledgeManager client={fakeClient({ get })} />);
     expect(await screen.findByText('アクセス権限がありません')).toBeInTheDocument();
+  });
+});
+
+describe('GAP-031④⑦: 再取込 + SKILL.md 取込', () => {
+  it('S-T02: 再取込は 2 段階確認 → POST /admin/skills/reimport → 結果バナー', async () => {
+    const get = vi.fn(async () => ({ data: [] }));
+    const post = vi.fn(async (..._args: unknown[]) => ({
+      data: { dir: '/root/.claude/skills', total: 3, imported: 1, updated: 1, skipped: 1 },
+    }));
+    renderWithQuery(<SkillManager client={fakeClient({ get, post })} />);
+    fireEvent.click(
+      await screen.findByRole('button', { name: '~/.claude/skills/ から再取込' }),
+    );
+    // 2 段階確認 (一括 write)
+    expect(
+      screen.getByText('サーバーの ~/.claude/skills/ を走査して一括反映しますか？'),
+    ).toBeInTheDocument();
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '実行する' }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(post.mock.calls[0]![0]).toBe('/admin/skills/reimport');
+    // 実 summary バナー
+    const banner = await screen.findByRole('status');
+    expect(banner).toHaveTextContent('追加 1 件 / 更新 1 件 / 変更なし 1 件');
+  });
+
+  it('S-T06: parseSkillMd が frontmatter を解析する', () => {
+    const { meta, body } = parseSkillMd(
+      '---\nname: my-skill\ndescription: 説明\n---\n\n# 本文',
+    );
+    expect(meta.name).toBe('my-skill');
+    expect(meta.description).toBe('説明');
+    expect(body.startsWith('# 本文')).toBe(true);
+    // frontmatter 無し → 全文
+    expect(parseSkillMd('# t\nb').meta).toEqual({});
+  });
+
+  it('S-T06: SKILL.md 取込ボタンと file input が描画される', async () => {
+    const get = vi.fn(async () => ({ data: [] }));
+    renderWithQuery(<PlatformKnowledgeManager client={fakeClient({ get })} />);
+    expect(
+      await screen.findByRole('button', { name: 'SKILL.md 取込' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('SKILL.md ファイルを選択'),
+    ).toBeInTheDocument();
   });
 });

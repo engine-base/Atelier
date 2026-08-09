@@ -9,8 +9,10 @@ is_admin gate 済を前提とし、全 write を audit_logs に記録する。
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -25,6 +27,7 @@ from src.schemas.skills import (
     SkillAttachRequest,
     SkillCreate,
     SkillLiteResponse,
+    SkillReimportResponse,
     SkillUpdate,
 )
 
@@ -258,3 +261,123 @@ async def list_skills(
         )
         for r in res
     ]
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031④: ~/.claude/skills/ からのローカル一括再取込
+# --------------------------------------------------------------------------- #
+def parse_skill_md(raw: str) -> tuple[dict[str, str], str]:
+    """SKILL.md の YAML frontmatter (--- ... ---) を素朴に解析する。
+
+    (frontmatter の key→value, 本文) を返す。frontmatter が無ければ ({}, 全文)。
+    値は同一行の "key: value" のみ対応 (ネスト・複数行は本文として扱わず無視) —
+    name / description / version の取り出しに必要な最小限で、依存を増やさない。
+    """
+    if not raw.startswith("---"):
+        return {}, raw
+    lines = raw.split("\n")
+    end = -1
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end = i
+            break
+    if end < 0:
+        return {}, raw
+    meta: dict[str, str] = {}
+    for line in lines[1:end]:
+        if ":" not in line or line.startswith((" ", "\t", "#")):
+            continue
+        key, _, value = line.partition(":")
+        meta[key.strip()] = value.strip().strip("'\"")
+    return meta, "\n".join(lines[end + 1 :]).lstrip("\n")
+
+
+def _skills_dir() -> Path:
+    """再取込対象ディレクトリ (ATELIER_SKILLS_DIR、既定 ~/.claude/skills)。"""
+    override = os.environ.get("ATELIER_SKILLS_DIR")
+    return Path(override) if override else Path.home() / ".claude" / "skills"
+
+
+async def reimport_local_skills(*, actor_id: str) -> SkillReimportResponse:
+    """ローカルの <dir>/<skill>/SKILL.md を一括で upsert する (GAP-031④)。
+
+    name をキーに: 未登録 → 追加 / content_md か description が変わっていれば
+    更新 / 同一なら skip。DB 側の is_active・装着設定・version は上書きしない
+    (運営が画面で行った運用設定を再取込で壊さない)。summary を audit に記録。
+    """
+    base = _skills_dir()
+    if not base.is_dir():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"スキルディレクトリが見つかりません: {base}",
+        )
+    entries: list[tuple[str, str | None, str]] = []  # (name, description, content_md)
+    for child in sorted(base.iterdir()):
+        skill_md = child / "SKILL.md"
+        if not child.is_dir() or not skill_md.is_file():
+            continue
+        try:
+            raw = skill_md.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        meta, _body = parse_skill_md(raw)
+        name = meta.get("name") or child.name
+        entries.append((name, meta.get("description") or None, raw))
+
+    imported = 0
+    updated = 0
+    skipped = 0
+    async with _service_session_factory()() as session:
+        for name, description, content_md in entries:
+            res = await session.execute(
+                text("select id, description, content_md from public.skills where name = :nm"),
+                {"nm": name},
+            )
+            row = res.first()
+            if row is None:
+                await session.execute(
+                    text(
+                        "insert into public.skills "
+                        "(name, version, description, content_md) "
+                        "values (:nm, '1.0.0', :desc, :cm)"
+                    ),
+                    {"nm": name, "desc": description, "cm": content_md},
+                )
+                imported += 1
+            elif (
+                str(row.content_md) != content_md
+                or (None if row.description is None else str(row.description)) != description
+            ):
+                await session.execute(
+                    text(
+                        "update public.skills set content_md = :cm, description = :desc, "
+                        "updated_at = now() where id = :id"
+                    ),
+                    {"cm": content_md, "desc": description, "id": row.id},
+                )
+                updated += 1
+            else:
+                skipped += 1
+        await AuditWriter(session).write(
+            AuditEvent(
+                action="skill.reimport",
+                target_type="skill",
+                actor_type="user",
+                actor_id=actor_id,
+                target_id=None,
+                after={
+                    "dir": str(base),
+                    "imported": imported,
+                    "updated": updated,
+                    "skipped": skipped,
+                },
+            )
+        )
+        await session.commit()
+    return SkillReimportResponse(
+        dir=str(base),
+        total=len(entries),
+        imported=imported,
+        updated=updated,
+        skipped=skipped,
+    )

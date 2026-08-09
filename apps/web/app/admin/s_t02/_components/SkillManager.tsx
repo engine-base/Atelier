@@ -129,6 +129,41 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
     },
   });
 
+  // GAP-031④: ローカル一括再取込 (POST /admin/skills/reimport)。
+  // 一括 write のため 2 段階確認、結果 (追加/更新/変更なし) をバナーで実表示。
+  const [confirmingReimport, setConfirmingReimport] = useState(false);
+  const [reimportResult, setReimportResult] = useState<{
+    imported: number;
+    updated: number;
+    skipped: number;
+    dir: string;
+  } | null>(null);
+  const [reimportError, setReimportError] = useState<string | null>(null);
+  const reimportMut = useMutation({
+    mutationFn: async () => {
+      const res = await client.post("/admin/skills/reimport", {});
+      return (
+        (res as {
+          data?: { imported: number; updated: number; skipped: number; dir: string };
+        }).data ?? null
+      );
+    },
+    onSuccess: (data) => {
+      setConfirmingReimport(false);
+      setReimportResult(data);
+      setReimportError(null);
+      void invalidate();
+    },
+    onError: (error: unknown) => {
+      setConfirmingReimport(false);
+      setReimportError(
+        error instanceof ApiError && error.status === 409
+          ? "スキルディレクトリが見つかりません (サーバーの ~/.claude/skills)。"
+          : "再取込に失敗しました。時間をおいて再試行してください。",
+      );
+    },
+  });
+
   if (isForbidden(list.error)) return <AdminDenied />;
 
   const skills = list.data ?? [];
@@ -159,13 +194,69 @@ export function SkillManager({ client: injected }: SkillManagerProps) {
             ユーザー側ではスキルの中身は編集できません。運営側で一括管理します。
           </p>
         </div>
-        <AdminButton
-          variant="primary"
-          onClick={() => setDialog({ mode: "create" })}
-        >
-          新規アップロード
-        </AdminButton>
+        <div className="flex shrink-0 items-center gap-2">
+          {confirmingReimport ? (
+            <span className="flex items-center gap-1.5">
+              <span className="text-[12px] font-semibold text-on-surface">
+                サーバーの ~/.claude/skills/ を走査して一括反映しますか？
+              </span>
+              <AdminButton
+                variant="ghost"
+                onClick={() => setConfirmingReimport(false)}
+              >
+                キャンセル
+              </AdminButton>
+              <AdminButton
+                variant="primary"
+                disabled={reimportMut.isPending}
+                onClick={() => reimportMut.mutate()}
+              >
+                {reimportMut.isPending ? "再取込中…" : "実行する"}
+              </AdminButton>
+            </span>
+          ) : (
+            <AdminButton
+              variant="outlined"
+              onClick={() => setConfirmingReimport(true)}
+            >
+              ~/.claude/skills/ から再取込
+            </AdminButton>
+          )}
+          <AdminButton
+            variant="primary"
+            onClick={() => setDialog({ mode: "create" })}
+          >
+            新規アップロード
+          </AdminButton>
+        </div>
       </div>
+
+      {/* GAP-031④: 再取込の結果バナー (実 summary) / エラー */}
+      {reimportResult ? (
+        <div
+          role="status"
+          className="rounded-md border-l-[3px] border-tertiary bg-tertiary-container/40 px-4 py-3 text-body-sm text-on-surface"
+        >
+          <strong className="font-bold">再取込が完了しました。</strong>{" "}
+          追加 {reimportResult.imported} 件 / 更新 {reimportResult.updated} 件 /
+          変更なし {reimportResult.skipped} 件
+          <span className="ml-2 font-mono text-[11px] text-on-surface-variant">
+            ({reimportResult.dir})
+          </span>
+          <button
+            type="button"
+            onClick={() => setReimportResult(null)}
+            className="ml-3 text-[12px] font-semibold underline"
+          >
+            閉じる
+          </button>
+        </div>
+      ) : null}
+      {reimportError ? (
+        <p role="alert" className="rounded-md bg-error/10 px-4 py-3 text-body-sm text-error">
+          {reimportError}
+        </p>
+      ) : null}
 
       {/* ── 統計カード ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

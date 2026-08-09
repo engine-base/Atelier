@@ -8034,6 +8034,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/skills/reimport": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin ローカル一括再取込（~/.claude/skills/ — GAP-031④） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 再取込 summary (imported=新規 / updated=内容反映 / skipped=変更なし。is_active・装着・version は上書きしない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @description 走査したディレクトリ (ATELIER_SKILLS_DIR、既定 ~/.claude/skills) */
+                                dir: string;
+                                total: number;
+                                imported: number;
+                                updated: number;
+                                skipped: number;
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description スキルディレクトリが不在 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/skills/{skill_id}": {
         parameters: {
             query?: never;

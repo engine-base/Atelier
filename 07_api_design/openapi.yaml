@@ -5159,6 +5159,34 @@ paths:
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗（semver / name+version unique）, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /admin/skills/reimport:
+    post:
+      tags: [skills]
+      summary: 運営 admin ローカル一括再取込（~/.claude/skills/ — GAP-031④）
+      x-implementation-path: apps/api/src/routes/skills/__init__.py::reimport_skills
+      x-screen-ids: [S-T02]
+      x-feature-ids: [F-007]
+      responses:
+        '200':
+          description: 再取込 summary (imported=新規 / updated=内容反映 / skipped=変更なし。is_active・装着・version は上書きしない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [dir, total, imported, updated, skipped]
+                    properties:
+                      dir: { type: string, description: 走査したディレクトリ (ATELIER_SKILLS_DIR、既定 ~/.claude/skills) }
+                      total: { type: integer, minimum: 0 }
+                      imported: { type: integer, minimum: 0 }
+                      updated: { type: integer, minimum: 0 }
+                      skipped: { type: integer, minimum: 0 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: スキルディレクトリが不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /admin/skills/{skill_id}:
     parameters:
       - { name: skill_id, in: path, required: true, schema: { type: string, format: uuid } }
