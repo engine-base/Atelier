@@ -6116,6 +6116,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ナレッジグラフ（ナレッジ間リンク構造 — GAP-010） */
+        get: {
+            parameters: {
+                query: {
+                    account_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ノード (RLS 可視・参照回数順最大 120) + エッジ (parent 階層 / タグ共起) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeGraphResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description account_id 不正 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge/{knowledge_id}": {
         parameters: {
             query?: never;
@@ -10380,6 +10438,34 @@ export interface components {
         KnowledgePatternResponse: {
             total: number;
             patterns: components["schemas"]["KnowledgePattern"][];
+        };
+        /** @description グラフの 1 ノード (GAP-010 — 描画用軽量フィールド) */
+        KnowledgeGraphNode: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            category: string;
+            /** @enum {string} */
+            scope: "common" | "employee_specific" | "project";
+            tags: string[];
+            usage_count: number;
+        };
+        /** @description ナレッジ間の実リンク (parent=階層 / tag=タグ共起。推測エッジなし) */
+        KnowledgeGraphEdge: {
+            /** Format: uuid */
+            source: string;
+            /** Format: uuid */
+            target: string;
+            /** @enum {string} */
+            kind: "parent" | "tag";
+            tag?: string | null;
+        };
+        KnowledgeGraphResponse: {
+            nodes: components["schemas"]["KnowledgeGraphNode"][];
+            edges: components["schemas"]["KnowledgeGraphEdge"][];
+            total_nodes: number;
+            /** @description 参照回数上位 120 件に切詰めたか */
+            truncated: boolean;
         };
         /** @description ナレッジを参照した実体 (バックリンク 1 行 — GAP-012) */
         KnowledgeReferenceItem: {

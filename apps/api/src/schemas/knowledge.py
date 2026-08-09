@@ -91,6 +91,40 @@ class KnowledgeSearchResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# GAP-010: ナレッジグラフ (ナレッジ間リンク構造)
+# --------------------------------------------------------------------------- #
+class KnowledgeGraphNode(BaseModel):
+    """グラフの 1 ノード (描画に必要な軽量フィールドのみ)。"""
+
+    id: str
+    title: str
+    category: str
+    scope: KnowledgeScope
+    tags: list[str]
+    usage_count: int
+
+
+class KnowledgeGraphEdge(BaseModel):
+    """ナレッジ間の実リンク 1 本。
+
+    kind='parent' は parent_id 階層 (フォルダ構造)、kind='tag' はタグ共起
+    (tag に共有タグ名)。どちらも DB の実データから導出し、推測エッジは作らない。
+    """
+
+    source: str
+    target: str
+    kind: Literal["parent", "tag"]
+    tag: str | None = None
+
+
+class KnowledgeGraphResponse(BaseModel):
+    nodes: list[KnowledgeGraphNode]
+    edges: list[KnowledgeGraphEdge]
+    total_nodes: int
+    truncated: bool
+
+
+# --------------------------------------------------------------------------- #
 # GAP-012: バックリンク (参照元逆引き)
 # --------------------------------------------------------------------------- #
 KnowledgeReferrerType = Literal["chat_thread", "task", "decision", "feature"]

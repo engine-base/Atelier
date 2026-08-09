@@ -1184,6 +1184,37 @@ components:
         total: { type: integer, minimum: 0 }
         patterns: { type: array, items: { $ref: '#/components/schemas/KnowledgePattern' } }
 
+    KnowledgeGraphNode:
+      type: object
+      description: "グラフの 1 ノード (GAP-010 — 描画用軽量フィールド)"
+      required: [id, title, category, scope, tags, usage_count]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        category: { type: string }
+        scope: { type: string, enum: [common, employee_specific, project] }
+        tags: { type: array, items: { type: string } }
+        usage_count: { type: integer, minimum: 0 }
+
+    KnowledgeGraphEdge:
+      type: object
+      description: "ナレッジ間の実リンク (parent=階層 / tag=タグ共起。推測エッジなし)"
+      required: [source, target, kind]
+      properties:
+        source: { type: string, format: uuid }
+        target: { type: string, format: uuid }
+        kind: { type: string, enum: [parent, tag] }
+        tag: { type: string, nullable: true }
+
+    KnowledgeGraphResponse:
+      type: object
+      required: [nodes, edges, total_nodes, truncated]
+      properties:
+        nodes: { type: array, items: { $ref: '#/components/schemas/KnowledgeGraphNode' } }
+        edges: { type: array, items: { $ref: '#/components/schemas/KnowledgeGraphEdge' } }
+        total_nodes: { type: integer, minimum: 0 }
+        truncated: { type: boolean, description: 参照回数上位 120 件に切詰めたか }
+
     KnowledgeReferenceItem:
       type: object
       description: "ナレッジを参照した実体 (バックリンク 1 行 — GAP-012)"
@@ -4368,6 +4399,27 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: query 空 / limit 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '429': { description: レート上限超過 (x-rate-limit), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /knowledge/graph:
+    get:
+      tags: [knowledge]
+      summary: ナレッジグラフ（ナレッジ間リンク構造 — GAP-010）
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::get_knowledge_graph
+      x-screen-ids: [S-K01]
+      x-feature-ids: [F-023]
+      parameters:
+        - { name: account_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: ノード (RLS 可視・参照回数順最大 120) + エッジ (parent 階層 / タグ共起)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KnowledgeGraphResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: account_id 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /knowledge/{knowledge_id}:
     get:

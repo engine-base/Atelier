@@ -803,3 +803,78 @@ class TestCrossProjectKnowledgeToggle:
             )
             ids2 = {hit["knowledge"]["id"] for hit in r2.json()["data"]["hits"]}
             assert seeded_projects["k_y"] in ids2
+
+
+@pytest.mark.integration
+class TestKnowledgeGraph:
+    """GAP-010: /knowledge/graph — parent 階層 + タグ共起の実エッジ導出。"""
+
+    @pytest.fixture()
+    def graph_seed(
+        self, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> Iterator[dict[str, str]]:
+        parent = str(uuid.uuid4())
+        child = str(uuid.uuid4())
+        tagged = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            for kid, title, pid, tags in (
+                (parent, "graph-parent", None, "{gtag}"),
+                (child, "graph-child", parent, "{}"),
+                (tagged, "graph-tagged", None, "{gtag,other}"),
+            ):
+                c.execute(
+                    text(
+                        "insert into public.knowledge_nodes "
+                        "(id, account_id, account_type, scope, category, title, "
+                        "content_md, tags, parent_id) "
+                        "values (cast(:i as uuid), cast(:a as uuid), 'workspace', "
+                        "'common', 'tech', :t, 'graph body', cast(:tg as text[]), "
+                        "cast(:p as uuid))"
+                    ),
+                    {"i": kid, "a": seeded["ws_a"], "t": title, "tg": tags, "p": pid},
+                )
+        yield {**seeded, "parent": parent, "child": child, "tagged": tagged}
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.knowledge_nodes where id in (:a,:b,:c)"),
+                {"a": child, "b": tagged, "c": parent},
+            )
+
+    def test_graph_returns_parent_and_tag_edges(
+        self, app: FastAPI, graph_seed: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            r = client.get(
+                f"/knowledge/graph?account_id={graph_seed['ws_a']}",
+                headers=_h(graph_seed["u_a"]),
+            )
+            assert r.status_code == 200
+            data = r.json()["data"]
+            ids = {n["id"] for n in data["nodes"]}
+            assert {graph_seed["parent"], graph_seed["child"], graph_seed["tagged"]} <= ids
+            edges = {(e["source"], e["target"], e["kind"]) for e in data["edges"]}
+            # parent 階層エッジ
+            assert (graph_seed["parent"], graph_seed["child"], "parent") in edges
+            # タグ共起エッジ (gtag を共有 — 方向は id 昇順ペア)
+            a, b = sorted([graph_seed["parent"], graph_seed["tagged"]])
+            assert (a, b, "tag") in edges
+            tag_edge = next(
+                e
+                for e in data["edges"]
+                if e["kind"] == "tag" and {e["source"], e["target"]} == {a, b}
+            )
+            assert tag_edge["tag"] == "gtag"
+            assert data["truncated"] is False
+
+    def test_graph_cross_workspace_invisible(
+        self, app: FastAPI, graph_seed: dict[str, str]
+    ) -> None:
+        """R-T08: 他 WS の user には ws_a のノードが 1 件も出ない。"""
+        with TestClient(app) as client:
+            r = client.get(
+                f"/knowledge/graph?account_id={graph_seed['ws_a']}",
+                headers=_h(graph_seed["u_b"]),
+            )
+            assert r.status_code == 200
+            ids = {n["id"] for n in r.json()["data"]["nodes"]}
+            assert not ({graph_seed["parent"], graph_seed["child"]} & ids)

@@ -1241,6 +1241,45 @@ class KnowledgePatternResponse(BaseModel):
     patterns: list[KnowledgePattern]
 
 
+class KnowledgeGraphNode(BaseModel):
+    """
+    グラフの 1 ノード (GAP-010 — 描画用軽量フィールド)
+    """
+
+    id: UUID
+    title: str
+    category: str
+    scope: Scope
+    tags: list[str]
+    usage_count: Annotated[int, Field(ge=0)]
+
+
+class Kind4(StrEnum):
+    parent = "parent"
+    tag = "tag"
+
+
+class KnowledgeGraphEdge(BaseModel):
+    """
+    ナレッジ間の実リンク (parent=階層 / tag=タグ共起。推測エッジなし)
+    """
+
+    source: UUID
+    target: UUID
+    kind: Kind4
+    tag: str | None = None
+
+
+class KnowledgeGraphResponse(BaseModel):
+    nodes: list[KnowledgeGraphNode]
+    edges: list[KnowledgeGraphEdge]
+    total_nodes: Annotated[int, Field(ge=0)]
+    truncated: bool
+    """
+    参照回数上位 120 件に切詰めたか
+    """
+
+
 class ReferrerType(StrEnum):
     chat_thread = "chat_thread"
     task = "task"

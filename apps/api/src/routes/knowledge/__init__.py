@@ -20,6 +20,7 @@ from src.rate_limit import rate_limit_user
 from src.schemas.knowledge import (
     KnowledgeAccountType,
     KnowledgeCreate,
+    KnowledgeGraphResponse,
     KnowledgePatternRequest,
     KnowledgePatternResponse,
     KnowledgePromoteRequest,
@@ -116,6 +117,16 @@ async def search_knowledge(
         project_id=project_id_str,
     )
     return {"data": result}
+
+
+# NOTE: /knowledge/{knowledge_id} より前に登録 (path 捕捉回避 — GAP-010)
+@router.get("/knowledge/graph", summary="ナレッジグラフ（ナレッジ間リンク構造）")
+async def get_knowledge_graph(
+    session: SessionDep,
+    _user: UserDep,
+    account_id: Annotated[str, Query()],
+) -> dict[str, KnowledgeGraphResponse]:
+    return {"data": await svc.get_graph(session, account_id=account_id)}
 
 
 @router.get("/knowledge/{knowledge_id}", summary="ナレッジ取得")

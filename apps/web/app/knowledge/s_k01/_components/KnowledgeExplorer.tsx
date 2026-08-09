@@ -29,6 +29,7 @@ import {
   Copy,
   FileText,
   Folder,
+  GitBranch,
   Globe,
   LayoutDashboard,
   Pencil,
@@ -50,6 +51,11 @@ import { cn } from "../../../../lib/cn";
 import { KbButton, KbDenied } from "./ui";
 import { TreeNode } from "./TreeNode";
 import { NodeDetail, type BacklinkItem } from "./NodeDetail";
+import {
+  KnowledgeGraph,
+  type GraphEdge,
+  type GraphNode,
+} from "./KnowledgeGraph";
 import {
   CreateKnowledgeDialog,
   type KnowledgeDraft,
@@ -130,7 +136,7 @@ export function KnowledgeExplorer({
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [view, setView] = useState<"note" | "list">("note");
+  const [view, setView] = useState<"note" | "list" | "graph">("note");
   // モバイル (1 カラム積み) では本文が画面外に出るため、選択時にスクロールする
   const noteRef = React.useRef<HTMLElement | null>(null);
   const selectAndReveal = (node: KnowledgeNode): void => {
@@ -245,6 +251,42 @@ export function KnowledgeExplorer({
     },
     retry: false,
   });
+
+  // グラフビュー (GAP-010): ナレッジ間リンク構造 (parent 階層 + タグ共起) の実データ。
+  const graphQuery = useQuery({
+    queryKey: ["knowledge", "graph", accountId],
+    enabled: view === "graph",
+    queryFn: async () => {
+      const res = await client.get("/knowledge/graph", {
+        params: { query: { account_id: accountId } },
+      });
+      const data = (res as {
+        data?: {
+          nodes?: GraphNode[];
+          edges?: GraphEdge[];
+          truncated?: boolean;
+        };
+      }).data;
+      return {
+        nodes: data?.nodes ?? [],
+        edges: data?.edges ?? [],
+        truncated: data?.truncated ?? false,
+      };
+    },
+    retry: false,
+  });
+
+  // グラフノードのクリック: 完全な行を実取得して選択し、ノートビューへ。
+  const openGraphNode = async (id: string): Promise<void> => {
+    const res = await client.get("/knowledge/{knowledge_id}", {
+      params: { path: { knowledge_id: id } },
+    });
+    const node = (res as { data?: KnowledgeNode }).data;
+    if (node) {
+      selectAndReveal(node);
+      setView("note");
+    }
+  };
 
   // ノード展開時: 子を parent_id で遅延取得し、childrenByParent にキャッシュする。
   const fetchChildren = async (node: KnowledgeNode): Promise<void> => {
@@ -642,8 +684,9 @@ export function KnowledgeExplorer({
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </button>
 
-          {/* view-toggle: ノート / リスト (両方実ビュー)。グラフはグラフ描画未実装のため
-              未描画 (GAP-010)。Obsidian 連携も API 不在のため未描画 (GAP-011)。 */}
+          {/* view-toggle: ノート / リスト / グラフ (すべて実ビュー — グラフは
+              GAP-010 解消: /knowledge/graph の実リンク構造)。Obsidian 連携は
+              API 不在のため未描画 (GAP-011)。 */}
           <div className="flex shrink-0 gap-1 rounded-md bg-surface-variant p-1">
             <button
               type="button"
@@ -672,6 +715,20 @@ export function KnowledgeExplorer({
             >
               <LayoutDashboard className="h-3 w-3" aria-hidden="true" />
               リスト
+            </button>
+            <button
+              type="button"
+              aria-pressed={view === "graph"}
+              onClick={() => setView("graph")}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[12px] font-semibold",
+                view === "graph"
+                  ? "bg-white text-on-surface shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface",
+              )}
+            >
+              <GitBranch className="h-3 w-3" aria-hidden="true" />
+              グラフ
             </button>
           </div>
 
@@ -714,7 +771,24 @@ export function KnowledgeExplorer({
         </div>
 
         <article ref={noteRef} className="flex-1 scroll-mt-[64px] overflow-y-auto px-6 py-8 lg:px-12">
-          {view === "list" ? (
+          {view === "graph" ? (
+            /* グラフビュー (GAP-010): 実リンク構造 (階層 + タグ共起)。クリックで選択 */
+            graphQuery.isLoading ? (
+              <Loading className="py-md" />
+            ) : graphQuery.error ? (
+              <p role="alert" className="py-12 text-center text-body-md text-error">
+                グラフの取得に失敗しました。
+              </p>
+            ) : (
+              <KnowledgeGraph
+                nodes={graphQuery.data?.nodes ?? []}
+                edges={graphQuery.data?.edges ?? []}
+                truncated={graphQuery.data?.truncated ?? false}
+                selectedId={selected?.id ?? null}
+                onSelectNode={(id) => void openGraphNode(id)}
+              />
+            )
+          ) : view === "list" ? (
             /* リストビュー: 現 scope の全ノード (フォルダ含む) をフラット表で。行クリックで選択。 */
             <div className="overflow-x-auto rounded-lg border border-border bg-white">
               <table className="w-full min-w-[640px] border-collapse text-left">

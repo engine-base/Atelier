@@ -432,3 +432,72 @@ describe("S-K01 v2: 検索・リスト・複製・関連", () => {
     expect(section).toHaveTextContent("まだ参照されていません");
   });
 });
+
+describe("S-K01 グラフビュー (GAP-010)", () => {
+  const graphData = {
+    nodes: [
+      {
+        id: "g1",
+        title: "親ノート",
+        category: "tech",
+        scope: "common",
+        tags: ["rls"],
+        usage_count: 4,
+      },
+      {
+        id: "g2",
+        title: "子ノート",
+        category: "tech",
+        scope: "common",
+        tags: [],
+        usage_count: 0,
+      },
+    ],
+    edges: [{ source: "g1", target: "g2", kind: "parent" }],
+    total_nodes: 2,
+    truncated: false,
+  };
+
+  it("renders real nodes/edges from GET /knowledge/graph and selects on click", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/knowledge/graph"
+        ? { data: graphData }
+        : path === "/knowledge/{knowledge_id}"
+          ? { data: knode({ id: "g1", title: "親ノート" }) }
+          : { data: [knode({ id: "g1", title: "親ノート" })] },
+    );
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    await screen.findByRole("treeitem", { name: "親ノート" });
+    fireEvent.click(screen.getByRole("button", { name: "グラフ" }));
+    // 実ノード + エッジ数の説明
+    const graph = await screen.findByRole("figure", { name: "ナレッジグラフ" });
+    expect(graph).toHaveTextContent("ノード 2 件 · リンク 1 本");
+    // ノードクリック → 実 GET /knowledge/{id} → ノートビューへ
+    fireEvent.click(screen.getByRole("button", { name: "ナレッジ: 親ノート" }));
+    await waitFor(() =>
+      expect(
+        get.mock.calls.some((c) => c[0] === "/knowledge/{knowledge_id}"),
+      ).toBe(true),
+    );
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "親ノート" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows honest empty state when the graph has no nodes", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/knowledge/graph"
+        ? { data: { nodes: [], edges: [], total_nodes: 0, truncated: false } }
+        : { data: [] },
+    );
+    renderWithQuery(
+      <KnowledgeExplorer client={fakeClient({ get })} workspaceId="w1" />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "グラフ" }));
+    expect(
+      await screen.findByText("グラフに表示できるナレッジがありません"),
+    ).toBeInTheDocument();
+  });
+});

@@ -24,6 +24,9 @@ from src.embeddings.voyage import VoyageClient, VoyageError
 from src.schemas.knowledge import (
     KnowledgeAccountType,
     KnowledgeCreate,
+    KnowledgeGraphEdge,
+    KnowledgeGraphNode,
+    KnowledgeGraphResponse,
     KnowledgePattern,
     KnowledgePatternResponse,
     KnowledgeReferenceItem,
@@ -393,6 +396,74 @@ async def search_knowledge(
             {"ids": hit_ids},
         )
     return KnowledgeSearchResponse(query=query, hits=hits, total=len(hits))
+
+
+# --------------------------------------------------------------------------- #
+# GAP-010: ナレッジグラフ (ナレッジ間リンク構造)
+# --------------------------------------------------------------------------- #
+_GRAPH_NODE_LIMIT = 120
+
+
+async def get_graph(session: AsyncSession, *, account_id: str) -> KnowledgeGraphResponse:
+    """workspace のナレッジ間リンク構造を返す (S-K01 グラフビュー)。
+
+    ノード = account のナレッジ (RLS 可視分、参照回数順に最大 120 件)。
+    エッジ = ① parent_id 階層 ② タグ共起 (両ノードが同じタグを持つ)。
+    どちらも DB の実データからのみ導出する (推測リンクは作らない)。
+    """
+    res = await session.execute(
+        text(
+            "select id, title, category, scope, tags, usage_count, parent_id "
+            "from public.knowledge_nodes "
+            "where account_id = cast(:aid as uuid) and deleted_at is null "
+            "order by usage_count desc, created_at asc "
+            "limit :lim"
+        ),
+        {"aid": account_id, "lim": _GRAPH_NODE_LIMIT + 1},
+    )
+    rows = res.all()
+    truncated = len(rows) > _GRAPH_NODE_LIMIT
+    rows = rows[:_GRAPH_NODE_LIMIT]
+
+    nodes: list[KnowledgeGraphNode] = []
+    ids: set[str] = set()
+    tags_by_id: dict[str, set[str]] = {}
+    parent_by_id: dict[str, str | None] = {}
+    for r in rows:
+        nid = str(r.id)
+        ids.add(nid)
+        raw_tags: list[object] = list(r.tags) if r.tags is not None else []
+        node_tags = [str(t) for t in raw_tags]
+        tags_by_id[nid] = set(node_tags)
+        parent_by_id[nid] = None if r.parent_id is None else str(r.parent_id)
+        nodes.append(
+            KnowledgeGraphNode(
+                id=nid,
+                title=str(r.title),
+                category=str(r.category),
+                scope=str(r.scope),  # type: ignore[arg-type]
+                tags=node_tags,
+                usage_count=int(r.usage_count),
+            )
+        )
+
+    edges: list[KnowledgeGraphEdge] = []
+    # ① parent 階層 (両端がグラフ内にあるもののみ)
+    for nid, pid in parent_by_id.items():
+        if pid is not None and pid in ids:
+            edges.append(KnowledgeGraphEdge(source=pid, target=nid, kind="parent"))
+    # ② タグ共起 (ペアごとに 1 本 — 共有タグの先頭をラベルに)
+    ordered = sorted(ids)
+    for i, a in enumerate(ordered):
+        for b in ordered[i + 1 :]:
+            shared = tags_by_id[a] & tags_by_id[b]
+            if shared:
+                edges.append(
+                    KnowledgeGraphEdge(source=a, target=b, kind="tag", tag=sorted(shared)[0])
+                )
+    return KnowledgeGraphResponse(
+        nodes=nodes, edges=edges, total_nodes=len(nodes), truncated=truncated
+    )
 
 
 # --------------------------------------------------------------------------- #
