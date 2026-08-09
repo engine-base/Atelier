@@ -51,6 +51,36 @@ class MessageCreate(BaseModel):
     parent_message_id: str | None = None  # T-A-19: 分岐対応 (同スレッド内の親メッセージ)
 
 
+class ChatAttachment(BaseModel):
+    """メッセージ添付 1 件 (GAP-001 — chat_messages.attachments jsonb の要素)。"""
+
+    file_name: str = Field(min_length=1, max_length=200)
+    mime_type: str = Field(min_length=1, max_length=100)
+    file_size_bytes: int = Field(ge=1)
+    storage_path: str = Field(min_length=1, max_length=300)
+
+
+class ChatAttachmentUploadUrlRequest(BaseModel):
+    """チャット添付アップロード用 署名付き URL 要求 (GAP-001 / S-E01)。"""
+
+    thread_id: str
+    file_name: str = Field(min_length=1, max_length=200)
+    mime_type: str = Field(min_length=1, max_length=100)
+    file_size_bytes: int = Field(ge=1)
+
+
+class ChatAttachmentUploadUrlResponse(BaseModel):
+    upload_url: str
+    storage_path: str
+
+
+class ChatAttachmentUrlResponse(BaseModel):
+    """添付の署名付きダウンロード URL。"""
+
+    url: str
+    file_name: str
+
+
 class MessageResponse(BaseModel):
     id: str
     thread_id: str
@@ -58,6 +88,7 @@ class MessageResponse(BaseModel):
     content: str
     parent_message_id: str | None
     token_count: int | None
+    attachments: list[ChatAttachment] = []
     created_at: datetime
     updated_at: datetime
 

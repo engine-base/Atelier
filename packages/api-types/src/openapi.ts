@@ -7798,6 +7798,155 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/attachments/upload-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** チャット添付アップロード用 署名付き URL 発行（GAP-001 / S-E01 添付） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChatAttachmentUploadUrlRequest"];
+                };
+            };
+            responses: {
+                /** @description 署名付きアップロード URL（PUT 後、SSE 送信 body の attachments で確定） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatAttachmentUploadUrlResponse"];
+                        };
+                    };
+                };
+                /** @description viewer は投稿不可 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description スレッド不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 10MB 超 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 許可外 MIME */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage backend 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/messages/{message_id}/attachments/{attachment_index}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** チャット添付の署名付きダウンロード URL（GAP-001） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    message_id: string;
+                    attachment_index: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 署名付きダウンロード URL (TTL 1h) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                url: string;
+                                file_name: string;
+                            };
+                        };
+                    };
+                };
+                /** @description メッセージ不在/不可視 or index 範囲外 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage backend 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/messages/{message_id}/branch": {
         parameters: {
             query?: never;
@@ -10674,6 +10823,28 @@ export interface components {
             /** @description 一覧の最終メッセージ抜粋 (S-E01 スレッドカード) */
             last_message_preview?: string | null;
         };
+        ChatAttachment: {
+            file_name: string;
+            /** @description png/jpeg/webp/gif/pdf/plain/markdown/csv/zip のみ許可 */
+            mime_type: string;
+            /** @description 10MB (10485760) 以下 */
+            file_size_bytes: number;
+            /** @description chat-attachments/{thread_id}/... (他スレッド配下は 422) */
+            storage_path: string;
+        };
+        ChatAttachmentUploadUrlRequest: {
+            /** Format: uuid */
+            thread_id: string;
+            file_name: string;
+            mime_type: string;
+            file_size_bytes: number;
+        };
+        ChatAttachmentUploadUrlResponse: {
+            /** @description 実ファイル PUT 先の署名付き URL */
+            upload_url: string;
+            /** @description 送信時の attachments に含める path */
+            storage_path: string;
+        };
         ChatMessage: {
             /** Format: uuid */
             id?: string;
@@ -10685,6 +10856,7 @@ export interface components {
             /** Format: uuid */
             parent_message_id?: string | null;
             token_count?: number | null;
+            attachments?: components["schemas"]["ChatAttachment"][];
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
@@ -11282,6 +11454,8 @@ export interface components {
             include_history: number;
             /** Format: uuid */
             rag_account_id?: string | null;
+            /** @description 事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続) */
+            attachments?: components["schemas"]["ChatAttachment"][];
         };
         ChatContextPreviewRequest: {
             user_message: string;

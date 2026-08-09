@@ -11,6 +11,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.schemas.chat import ChatAttachment
+
 
 class ChatStreamRequest(BaseModel):
     """SSE ストリーム開始リクエスト。
@@ -18,13 +20,17 @@ class ChatStreamRequest(BaseModel):
     user_message は thread に追記された assistant 応答対象のユーザ発話。
     use_knowledge_rag=True ならナレッジ RAG (account 単位で voyage 検索) を
     system プロンプトに inject する。include_history は過去 message 数
-    (新しい順)。
+    (新しい順)。attachments は事前に /chat/attachments/upload-url → PUT 済の
+    添付メタ (GAP-001 — user message に関連付けて永続)。
     """
 
     user_message: str = Field(min_length=1, max_length=20000)
     use_knowledge_rag: bool = True
     include_history: int = Field(default=10, ge=0, le=50)
     rag_account_id: str | None = None
+    attachments: list[ChatAttachment] = Field(
+        default_factory=lambda: list[ChatAttachment](), max_length=10
+    )
 
 
 class ChatStreamChunk(BaseModel):

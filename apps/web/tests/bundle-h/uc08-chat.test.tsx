@@ -327,3 +327,106 @@ describe("S-E01 ツール実行の承認 (GAP-031 ① 承認して実行 / 差�
     );
   });
 });
+
+describe("S-E01 チャット添付 (GAP-001)", () => {
+  it("添付を選ぶとチップ表示され、送信で upload → stream body に attachments", async () => {
+    const uploadAttachmentFn = vi.fn(async (_tid: string, file: File) => ({
+      file_name: file.name,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_path: `chat-attachments/t1/x/${file.name}`,
+    }));
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({ type: "delta", content: "了解" });
+      args.onChunk({ type: "end" });
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+        approvalsFn={async () => []}
+        uploadAttachmentFn={uploadAttachmentFn}
+      />,
+    );
+    const file = new File(["pdf-bytes"], "spec.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("添付ファイルを選択"), {
+      target: { files: [file] },
+    });
+    expect(await screen.findByText(/spec\.pdf/)).toBeInTheDocument();
+    send("添付を見て");
+    await waitFor(() => expect(streamFn).toHaveBeenCalledTimes(1));
+    expect(uploadAttachmentFn).toHaveBeenCalledWith("t1", file);
+    const arg = streamFn.mock.calls[0]![0]!;
+    expect(arg.attachments).toEqual([
+      {
+        file_name: "spec.pdf",
+        mime_type: "application/pdf",
+        file_size_bytes: file.size,
+        storage_path: "chat-attachments/t1/x/spec.pdf",
+      },
+    ]);
+  });
+
+  it("許可外ファイルは即時 inline error (upload を呼ばない)", async () => {
+    const uploadAttachmentFn = vi.fn(async (..._args: unknown[]) => {
+      throw new Error("should not be called");
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => []}
+        approvalsFn={async () => []}
+        uploadAttachmentFn={uploadAttachmentFn as never}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("添付ファイルを選択"), {
+      target: {
+        files: [new File(["x"], "evil.exe", { type: "application/x-msdownload" })],
+      },
+    });
+    expect(
+      await screen.findByText(/対応していないファイル形式です/),
+    ).toBeInTheDocument();
+    expect(uploadAttachmentFn).not.toHaveBeenCalled();
+  });
+
+  it("永続メッセージの添付チップをクリックすると署名付き URL を開く", async () => {
+    const attachmentUrlFn = vi.fn(async () => "http://storage.test/signed/spec.pdf");
+    const openUrlFn = vi.fn();
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={vi.fn(async () => undefined)}
+        fetchMessagesFn={async () => [
+          {
+            id: "m1",
+            role: "user",
+            content: "添付あり",
+            attachments: [
+              {
+                file_name: "spec.pdf",
+                mime_type: "application/pdf",
+                file_size_bytes: 2048,
+                storage_path: "chat-attachments/t1/x/spec.pdf",
+              },
+            ],
+          },
+        ]}
+        approvalsFn={async () => []}
+        attachmentUrlFn={attachmentUrlFn}
+        openUrlFn={openUrlFn}
+      />,
+    );
+    const chip = await screen.findByRole("button", {
+      name: "添付を開く: spec.pdf",
+    });
+    expect(chip).toHaveTextContent("spec.pdf (2 KB)");
+    fireEvent.click(chip);
+    await waitFor(() =>
+      expect(attachmentUrlFn).toHaveBeenCalledWith("m1", 0),
+    );
+    expect(openUrlFn).toHaveBeenCalledWith("http://storage.test/signed/spec.pdf");
+  });
+});

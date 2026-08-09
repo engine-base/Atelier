@@ -621,3 +621,195 @@ class TestToolApprovals:
                     {"i": aid},
                 )
             client.delete(f"/chat/threads/{tid}", headers=h)
+
+
+@pytest.mark.integration
+class TestChatAttachments:
+    """GAP-001: チャット添付 (署名付き 2 段階アップロード + メッセージ関連付け)。"""
+
+    def _mk_thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        r = client.post(
+            "/chat/threads",
+            headers=_h(seeded["u_a"]),
+            json={
+                "project_id": seeded["proj_a"],
+                "ai_employee_id": seeded["emp_a"],
+                "title": "添付テスト",
+            },
+        )
+        assert r.status_code == 201, r.text
+        return str(r.json()["data"]["id"])
+
+    def test_upload_url_503_when_storage_unconfigured(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ATELIER_SUPABASE_ADMIN_API_URL", raising=False)
+        monkeypatch.delenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", raising=False)
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            r = client.post(
+                "/chat/attachments/upload-url",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "thread_id": tid,
+                    "file_name": "spec.pdf",
+                    "mime_type": "application/pdf",
+                    "file_size_bytes": 1000,
+                },
+            )
+            assert r.status_code == 503
+
+    def test_upload_url_rejects_bad_mime_and_size(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ATELIER_SUPABASE_ADMIN_API_URL", raising=False)
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            base = {"thread_id": tid, "file_name": "x", "mime_type": "application/x-msdownload"}
+            r = client.post(
+                "/chat/attachments/upload-url",
+                headers=_h(seeded["u_a"]),
+                json={**base, "file_name": "evil.exe", "file_size_bytes": 10},
+            )
+            assert r.status_code == 415
+            r = client.post(
+                "/chat/attachments/upload-url",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "thread_id": tid,
+                    "file_name": "big.pdf",
+                    "mime_type": "application/pdf",
+                    "file_size_bytes": 10 * 1024 * 1024 + 1,
+                },
+            )
+            assert r.status_code == 413
+
+    def test_upload_url_viewer_403_and_invisible_404(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            body = {
+                "thread_id": tid,
+                "file_name": "a.pdf",
+                "mime_type": "application/pdf",
+                "file_size_bytes": 10,
+            }
+            r = client.post("/chat/attachments/upload-url", headers=_h(seeded["u_v"]), json=body)
+            assert r.status_code == 403  # viewer は投稿不可
+            r = client.post("/chat/attachments/upload-url", headers=_h(seeded["u_b"]), json=body)
+            assert r.status_code == 404  # R-T08: 他 WS からはスレッド自体不可視
+
+    def test_stream_persists_attachments_and_rejects_cross_thread(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            att = {
+                "file_name": "spec.pdf",
+                "mime_type": "application/pdf",
+                "file_size_bytes": 1234,
+                "storage_path": f"chat-attachments/{tid}/x/spec.pdf",
+            }
+            # 他スレッド配下の storage_path は 422 (可視性バイパス拒否)
+            r = client.post(
+                f"/chat/threads/{tid}/stream",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "user_message": "添付を見て",
+                    "use_knowledge_rag": False,
+                    "attachments": [
+                        {**att, "storage_path": "chat-attachments/other-thread/x/spec.pdf"}
+                    ],
+                },
+            )
+            assert r.status_code == 422
+            # 正しい添付は user message に永続される
+            r = client.post(
+                f"/chat/threads/{tid}/stream",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "user_message": "添付を見て",
+                    "use_knowledge_rag": False,
+                    "attachments": [att],
+                },
+            )
+            assert r.status_code == 200, r.text
+            msgs = client.get(f"/chat/threads/{tid}/messages", headers=_h(seeded["u_a"])).json()[
+                "data"
+            ]
+            user_msgs = [m for m in msgs if m["role"] == "user"]
+            assert len(user_msgs) == 1
+            assert user_msgs[0]["attachments"] == [att]
+
+    def test_attachment_url_signed_and_404s(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "http://storage.test")
+        monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "sk-test")
+
+        import src.storage_signing as signing
+
+        class _FakeResponse:
+            status_code = 200
+            text = ""
+
+            def json(self) -> dict[str, object]:
+                return {"signedURL": "/object/download/chat-attachments/x/spec.pdf?token=abc"}
+
+        class _FakeClient:
+            def __init__(self, *_a: object, **_k: object) -> None:
+                pass
+
+            async def __aenter__(self) -> _FakeClient:
+                return self
+
+            async def __aexit__(self, *_a: object) -> bool:
+                return False
+
+            async def post(self, url: str, **_k: object) -> _FakeResponse:
+                return _FakeResponse()
+
+        monkeypatch.setattr(signing.httpx, "AsyncClient", _FakeClient)
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            att = {
+                "file_name": "spec.pdf",
+                "mime_type": "application/pdf",
+                "file_size_bytes": 1234,
+                "storage_path": f"chat-attachments/{tid}/x/spec.pdf",
+            }
+            client.post(
+                f"/chat/threads/{tid}/stream",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "user_message": "添付あり",
+                    "use_knowledge_rag": False,
+                    "attachments": [att],
+                },
+            )
+            msgs = client.get(f"/chat/threads/{tid}/messages", headers=_h(seeded["u_a"])).json()[
+                "data"
+            ]
+            mid = next(m["id"] for m in msgs if m["role"] == "user")
+            r = client.get(f"/chat/messages/{mid}/attachments/0/url", headers=_h(seeded["u_a"]))
+            assert r.status_code == 200, r.text
+            assert "/object/download/chat-attachments/" in r.json()["data"]["url"]
+            assert r.json()["data"]["file_name"] == "spec.pdf"
+            # index 範囲外 404
+            r = client.get(f"/chat/messages/{mid}/attachments/5/url", headers=_h(seeded["u_a"]))
+            assert r.status_code == 404
+            # R-T08: 他 WS ユーザーからはメッセージ不可視 → 404
+            r = client.get(f"/chat/messages/{mid}/attachments/0/url", headers=_h(seeded["u_b"]))
+            assert r.status_code == 404

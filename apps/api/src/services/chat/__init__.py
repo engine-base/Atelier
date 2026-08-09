@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.chat import (
+    ChatAttachment,
+    ChatAttachmentUploadUrlResponse,
+    ChatAttachmentUrlResponse,
     MessageCreate,
     MessageFeedbackCreate,
     MessageFeedbackResponse,
@@ -23,12 +26,63 @@ from src.schemas.chat import (
     ThreadResponse,
     ThreadUpdate,
 )
+from src.storage_signing import (
+    create_signed_download_url,
+    create_signed_upload_url,
+    sanitize_object_filename,
+)
+
+ATTACHMENT_BUCKET = "chat-attachments"
+"""チャット添付の storage bucket (GAP-001)。"""
+
+ATTACHMENT_ALLOWED_MIME = frozenset(
+    {
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "image/gif",
+        "application/pdf",
+        "text/plain",
+        "text/markdown",
+        "text/csv",
+        "application/zip",
+    }
+)
+ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+"""添付上限 10MB。"""
+
+
+class ChatAttachmentError(Exception):
+    """チャット添付の構造的失敗。code で分岐する。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
 
 _COLS = (
     "id, project_id, ai_employee_id, phase_id, title, archived, created_at, updated_at, deleted_at"
 )
 
-_MSG_COLS = "id, thread_id, role, content, parent_message_id, token_count, created_at, updated_at"
+_MSG_COLS = (
+    "id, thread_id, role, content, parent_message_id, token_count, "
+    "attachments, created_at, updated_at"
+)
+
+
+def _parse_attachments(raw: Any) -> list[ChatAttachment]:
+    """chat_messages.attachments jsonb を型付きで返す (不正要素は黙って捨てない — 型検証)。"""
+    import json as _json
+
+    items = _json.loads(raw) if isinstance(raw, str) else raw
+    if not isinstance(items, list):
+        return []
+    out: list[ChatAttachment] = []
+    for item in cast("list[object]", items):
+        if isinstance(item, dict):
+            out.append(ChatAttachment.model_validate(item))
+    return out
 
 
 def _msg_to_response(row: Any) -> MessageResponse:
@@ -39,6 +93,7 @@ def _msg_to_response(row: Any) -> MessageResponse:
         content=str(row.content),
         parent_message_id=(None if row.parent_message_id is None else str(row.parent_message_id)),
         token_count=(None if row.token_count is None else int(row.token_count)),
+        attachments=_parse_attachments(row.attachments),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -427,3 +482,57 @@ async def branch_thread_at_message(
     if created is None:  # pragma: no cover - 直前に作成済
         raise RuntimeError("branched thread not visible after insert")
     return created
+
+
+async def create_attachment_upload(
+    *, thread_id: str, file_name: str, mime_type: str, file_size_bytes: int
+) -> ChatAttachmentUploadUrlResponse:
+    """チャット添付の署名付きアップロード URL を発行する (GAP-001)。
+
+    2 段階アップロードの 1 段目。返した storage_path を送信時の attachments に
+    含めることでメッセージに関連付く (スレッド可視性はルート側で事前検証)。
+
+    Raises ChatAttachmentError:
+      - unsupported_media_type (415) / too_large (413)
+    storage 未設定は StorageSigningError("storage_unconfigured") を透過 (503)。
+    """
+    if mime_type not in ATTACHMENT_ALLOWED_MIME:
+        raise ChatAttachmentError(
+            "unsupported_media_type",
+            f"attachment mime must be one of {sorted(ATTACHMENT_ALLOWED_MIME)}: {mime_type!r}",
+        )
+    if file_size_bytes > ATTACHMENT_MAX_BYTES:
+        raise ChatAttachmentError(
+            "too_large", f"attachment must be <= {ATTACHMENT_MAX_BYTES} bytes: {file_size_bytes}"
+        )
+    object_path = f"{thread_id}/{uuid.uuid4()}/{sanitize_object_filename(file_name)}"
+    storage_path = f"{ATTACHMENT_BUCKET}/{object_path}"
+    upload_url = await create_signed_upload_url(storage_path)
+    return ChatAttachmentUploadUrlResponse(upload_url=upload_url, storage_path=storage_path)
+
+
+async def get_attachment_url(
+    session: AsyncSession, *, message_id: str, index: int
+) -> ChatAttachmentUrlResponse | None:
+    """メッセージ添付の署名付きダウンロード URL を返す (GAP-001)。
+
+    メッセージ可視性は RLS。返り値 None = メッセージ不可視/不在。
+    index が範囲外は ChatAttachmentError("index_out_of_range")。
+    storage 未設定は StorageSigningError を透過 (503)。
+    """
+    res = await session.execute(
+        text(
+            "select attachments from public.chat_messages "
+            "where id = cast(:mid as uuid) and deleted_at is null"
+        ),
+        {"mid": message_id},
+    )
+    row = res.first()
+    if row is None:
+        return None
+    attachments = _parse_attachments(row.attachments)
+    if index < 0 or index >= len(attachments):
+        raise ChatAttachmentError("index_out_of_range", f"attachment index {index} out of range")
+    target = attachments[index]
+    url = await create_signed_download_url(target.storage_path)
+    return ChatAttachmentUrlResponse(url=url, file_name=target.file_name)

@@ -55,6 +55,14 @@ async def stream_chat_thread(
 ) -> StreamingResponse:
     if not await _thread_visible(session, thread_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    # GAP-001: 添付の storage_path は本スレッド配下のみ許可 (他スレッド添付の
+    # 参照持ち込み = 可視性バイパスを拒否)
+    for att in body.attachments:
+        if not att.storage_path.startswith(f"chat-attachments/{thread_id}/"):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"attachment storage_path must belong to this thread: {att.file_name}",
+            )
     gen = svc.stream_chat(
         session,
         actor_id=user.id,
@@ -63,6 +71,7 @@ async def stream_chat_thread(
         use_rag=body.use_knowledge_rag,
         include_history=body.include_history,
         rag_account_id=body.rag_account_id,
+        attachments=[att.model_dump() for att in body.attachments],
     )
     return StreamingResponse(
         gen,

@@ -7,8 +7,8 @@
  *   - assistant: AI 社員アバター + 名前 + 時刻 + 本文
  *   - tool: モックの .tool-card (monospace ツール名 + 本文)
  *   - composer: 「<社員名>にメッセージ…」placeholder / Enter 送信 / Shift+Enter 改行 /
- *     @メンション(社員ピッカー→本文挿入) / ナレッジ参照(実ナレッジピッカー→本文挿入)
- * 添付・/コマンドは対応バックエンドが無いためボタン自体を描画しない (Rule 10:
+ *     添付 (GAP-001 — 署名付き URL 2 段階アップロード) / @メンション / ナレッジ参照
+ * /コマンドは対応バックエンドが無いためボタン自体を描画しない (Rule 10:
  * 死にボタン/飾りUIを置かない — 未実装機能は見せず gap tracker に起票する)。
  * データ配線・props・a11y 契約 (log role / aria-live / メッセージを入力 label) は不変。
  */
@@ -24,9 +24,11 @@ import {
   CircleAlert,
   Copy,
   GitBranch,
+  Paperclip,
   SendHorizontal,
   ShieldCheck,
   Terminal,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -34,11 +36,19 @@ import { fmtTime } from "../../../../lib/format";
 
 export type ChatRole = "user" | "assistant" | "system" | "tool";
 
+export interface ChatMessageAttachment {
+  readonly file_name: string;
+  readonly mime_type: string;
+  readonly file_size_bytes: number;
+}
+
 export interface ChatMessage {
   readonly id: string;
   readonly role: ChatRole;
   readonly content: string;
   readonly created_at?: string;
+  /** 添付 (GAP-001 — chat_messages.attachments)。 */
+  readonly attachments?: readonly ChatMessageAttachment[];
   /**
    * サーバーに永続化済み (= id が実 ID)。フィードバック等の per-message API は
    * 実 ID が必要なため、true のときだけアクション行を描画する
@@ -97,6 +107,24 @@ export interface ChatPanelProps {
   readonly onApproveTool?: (approvalId: string) => void;
   readonly onRejectTool?: (approvalId: string) => void;
   readonly toolActing?: boolean;
+  /**
+   * 添付 (GAP-001)。onPickAttachments 未指定なら添付ボタン自体を出さない (Rule 10)。
+   * pendingAttachments は送信前の選択済ファイル (チップ表示 + 個別削除)。
+   */
+  readonly onPickAttachments?: (files: readonly File[]) => void;
+  readonly pendingAttachments?: readonly { name: string; size: number }[];
+  readonly onRemoveAttachment?: (index: number) => void;
+  readonly attachmentError?: string | null;
+  readonly uploadingAttachments?: boolean;
+  /** 永続化済みメッセージの添付を開く (署名付き URL 解決)。 */
+  readonly onOpenAttachment?: (messageId: string, index: number) => void;
+}
+
+/** バイト数の短い表示 (チップ用)。 */
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export interface ToolApprovalInfo {
@@ -119,6 +147,49 @@ function toolNameOf(content: string): string {
   return firstLine.length > 0 && firstLine.length <= 40 ? firstLine : "tool";
 }
 
+function AttachmentChips({
+  message,
+  onOpenAttachment,
+  align,
+}: {
+  readonly message: ChatMessage;
+  readonly onOpenAttachment?: (messageId: string, index: number) => void;
+  readonly align: "start" | "end";
+}) {
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) return null;
+  const canOpen = Boolean(onOpenAttachment && message.persisted);
+  return (
+    <div
+      className={`mt-1.5 flex flex-wrap gap-1.5 ${align === "end" ? "justify-end" : ""}`}
+    >
+      {attachments.map((att, i) => {
+        const label = `${att.file_name} (${fmtBytes(att.file_size_bytes)})`;
+        return canOpen ? (
+          <button
+            key={`${att.file_name}-${i}`}
+            type="button"
+            onClick={() => onOpenAttachment?.(message.id, i)}
+            aria-label={`添付を開く: ${att.file_name}`}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-[11px] text-on-surface transition-colors hover:border-primary hover:text-primary"
+          >
+            <Paperclip size={11} aria-hidden="true" />
+            {label}
+          </button>
+        ) : (
+          <span
+            key={`${att.file_name}-${i}`}
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-white px-2 py-1 text-[11px] text-on-surface"
+          >
+            <Paperclip size={11} aria-hidden="true" />
+            {label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function MessageRow({
   message,
   employee,
@@ -126,6 +197,7 @@ function MessageRow({
   feedbackDone,
   onBranch,
   branching,
+  onOpenAttachment,
 }: {
   readonly message: ChatMessage;
   readonly employee?: ChatEmployeeInfo;
@@ -133,6 +205,7 @@ function MessageRow({
   readonly feedbackDone?: boolean;
   readonly onBranch?: (messageId: string) => void;
   readonly branching?: boolean;
+  readonly onOpenAttachment?: (messageId: string, index: number) => void;
 }) {
   const time = fmtTime(message.created_at);
   const [copied, setCopied] = useState(false);
@@ -154,6 +227,11 @@ function MessageRow({
         <div className="max-w-[580px] whitespace-pre-wrap rounded-lg rounded-br-sm bg-primary px-4 py-3 text-[14px] leading-relaxed text-on-primary">
           {message.content}
         </div>
+        <AttachmentChips
+          message={message}
+          onOpenAttachment={onOpenAttachment}
+          align="end"
+        />
       </li>
     );
   }
@@ -277,11 +355,18 @@ export function ChatPanel({
   onApproveTool,
   onRejectTool,
   toolActing,
+  onPickAttachments,
+  pendingAttachments = [],
+  onRemoveAttachment,
+  attachmentError,
+  uploadingAttachments,
+  onOpenAttachment,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
   const viewportRef = useRef<HTMLUListElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
 
   // カーソル位置にテキストを挿入してフォーカスを戻す
   const insertAtCursor = (text: string) => {
@@ -344,6 +429,7 @@ export function ChatPanel({
             feedbackDone={feedbackDoneIds?.has(m.id)}
             onBranch={m.role === "assistant" ? onBranch : undefined}
             branching={branching}
+            onOpenAttachment={onOpenAttachment}
           />
         ))}
         {/* ツール実行の承認カード (GAP-031① — モック .approval-card 準拠) */}
@@ -451,8 +537,62 @@ export function ChatPanel({
             placeholder={placeholder}
             className="max-h-[200px] min-h-[44px] w-full resize-none border-0 bg-transparent text-[14px] leading-relaxed text-on-surface outline-none placeholder:text-on-surface-variant"
           />
+          {/* 送信前の添付チップ (GAP-001) */}
+          {pendingAttachments.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {pendingAttachments.map((f, i) => (
+                <span
+                  key={`${f.name}-${i}`}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface-variant px-2 py-1 text-[11px] text-on-surface"
+                >
+                  <Paperclip size={11} aria-hidden="true" />
+                  {f.name} ({fmtBytes(f.size)})
+                  {onRemoveAttachment ? (
+                    <button
+                      type="button"
+                      aria-label={`添付を外す: ${f.name}`}
+                      onClick={() => onRemoveAttachment(i)}
+                      className="rounded-sm p-[1px] hover:bg-white"
+                    >
+                      <X size={11} aria-hidden="true" />
+                    </button>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {attachmentError ? (
+            <p role="alert" className="mt-1.5 text-[11.5px] font-semibold text-error">
+              {attachmentError}
+            </p>
+          ) : null}
           <div className="relative mt-2 flex items-center gap-1 border-t border-border pt-2">
-            {/* 添付・/コマンドは対応バックエンド未実装のためボタン自体を出さない (Rule 10 / gap 起票済)。 */}
+            {/* /コマンドは対応バックエンド未実装のためボタン自体を出さない (Rule 10 / gap 起票済)。 */}
+            {onPickAttachments ? (
+              <>
+                <input
+                  ref={attachInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  aria-label="添付ファイルを選択"
+                  onChange={(ev) => {
+                    const files = Array.from(ev.target.files ?? []);
+                    ev.target.value = "";
+                    if (files.length > 0) onPickAttachments(files);
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={disabled || uploadingAttachments}
+                  onClick={() => attachInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
+                >
+                  <Upload size={12} aria-hidden="true" />
+                  <span className="hidden sm:inline">添付</span>
+                </button>
+              </>
+            ) : null}
             <button
               type="button"
               aria-expanded={picker === "mention"}

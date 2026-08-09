@@ -784,6 +784,40 @@ class ChatThread(BaseModel):
     """
 
 
+class ChatAttachment(BaseModel):
+    file_name: Annotated[str, Field(max_length=200, min_length=1)]
+    mime_type: str
+    """
+    png/jpeg/webp/gif/pdf/plain/markdown/csv/zip のみ許可
+    """
+    file_size_bytes: Annotated[int, Field(ge=1)]
+    """
+    10MB (10485760) 以下
+    """
+    storage_path: str
+    """
+    chat-attachments/{thread_id}/... (他スレッド配下は 422)
+    """
+
+
+class ChatAttachmentUploadUrlRequest(BaseModel):
+    thread_id: UUID
+    file_name: Annotated[str, Field(max_length=200, min_length=1)]
+    mime_type: str
+    file_size_bytes: Annotated[int, Field(ge=1)]
+
+
+class ChatAttachmentUploadUrlResponse(BaseModel):
+    upload_url: str
+    """
+    実ファイル PUT 先の署名付き URL
+    """
+    storage_path: str
+    """
+    送信時の attachments に含める path
+    """
+
+
 class Role4(StrEnum):
     user = "user"
     assistant = "assistant"
@@ -798,6 +832,7 @@ class ChatMessage(BaseModel):
     content: str | None = None
     parent_message_id: UUID | None = None
     token_count: int | None = None
+    attachments: list[ChatAttachment] | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
 
@@ -1440,6 +1475,10 @@ class ChatStreamRequest(BaseModel):
     use_knowledge_rag: bool | None = True
     include_history: Annotated[int | None, Field(ge=0, le=50)] = 10
     rag_account_id: UUID | None = None
+    attachments: Annotated[list[ChatAttachment] | None, Field(max_length=10)] = None
+    """
+    事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続)
+    """
 
 
 class ChatContextPreviewRequest(BaseModel):

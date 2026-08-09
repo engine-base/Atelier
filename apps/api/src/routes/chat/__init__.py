@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.chat import (
+    ChatAttachmentUploadUrlRequest,
+    ChatAttachmentUploadUrlResponse,
+    ChatAttachmentUrlResponse,
     MessageCreate,
     MessageFeedbackCreate,
     MessageFeedbackResponse,
@@ -26,6 +29,7 @@ from src.schemas.chat import (
 )
 from src.services import chat as svc
 from src.services.chat_sse import tools as tools_svc
+from src.storage_signing import StorageSigningError
 
 router = APIRouter(tags=["chat"])
 
@@ -111,6 +115,68 @@ async def create_message(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
     created = await svc.create_message(session, actor_id=user.id, thread_id=thread_id, data=body)
     return {"data": created}
+
+
+@router.post(
+    "/chat/attachments/upload-url",
+    summary="チャット添付アップロード用 署名付き URL 発行 (GAP-001 / S-E01)",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def create_chat_attachment_upload_url(
+    body: ChatAttachmentUploadUrlRequest, session: SessionDep, _user: UserDep
+) -> dict[str, ChatAttachmentUploadUrlResponse]:
+    """実ファイル PUT 用の署名付き URL を発行する (2 段階アップロードの 1 段目)。
+
+    スレッド不可視は 404、viewer (投稿不可) は 403。確定は送信時の
+    attachments (SSE stream body) で行う。
+    """
+    if await svc.get_thread(session, body.thread_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+    if not await svc.can_post_to_thread(session, thread_id=body.thread_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
+    try:
+        result = await svc.create_attachment_upload(
+            thread_id=body.thread_id,
+            file_name=body.file_name,
+            mime_type=body.mime_type,
+            file_size_bytes=body.file_size_bytes,
+        )
+    except svc.ChatAttachmentError as exc:
+        if exc.code == "unsupported_media_type":
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, exc.message) from exc
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {"data": result}
+
+
+@router.get(
+    "/chat/messages/{message_id}/attachments/{attachment_index}/url",
+    summary="チャット添付の署名付きダウンロード URL (GAP-001)",
+    responses={503: {"description": "storage backend が未設定"}},
+)
+async def get_chat_attachment_url(
+    message_id: str,
+    attachment_index: int,
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, ChatAttachmentUrlResponse]:
+    """RLS で可視なメッセージの添付に対する署名付き閲覧 URL を返す。"""
+    try:
+        result = await svc.get_attachment_url(
+            session, message_id=message_id, index=attachment_index
+        )
+    except svc.ChatAttachmentError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+    return {"data": result}
 
 
 @router.post(

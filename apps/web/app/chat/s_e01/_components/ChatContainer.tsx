@@ -27,14 +27,32 @@ import {
 import {
   branchThreadAtMessage,
   executeToolApproval,
+  fetchChatAttachmentUrl,
   fetchThreadMessages,
   fetchToolApprovals,
   postMessageFeedback,
   rejectToolApproval,
   streamChatThread,
+  uploadChatAttachment,
+  type ChatAttachmentMeta,
   type ChatStreamChunk,
   type StreamChatArgs,
 } from "./stream";
+
+/** 添付の client 側事前検証 (API と同じ制約 — 415/413 往復を避け即時表示)。 */
+const ATTACH_ALLOWED_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "text/csv",
+  "application/zip",
+]);
+const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
+const ATTACH_MAX_COUNT = 10;
 
 type StreamFn = (args: StreamChatArgs) => Promise<void>;
 
@@ -71,6 +89,11 @@ export interface ChatContainerProps {
   readonly approvalsFn?: typeof fetchToolApprovals;
   readonly executeApprovalFn?: typeof executeToolApproval;
   readonly rejectApprovalFn?: typeof rejectToolApproval;
+  /** 添付 (GAP-001) の注入用 (省略時は実 API)。 */
+  readonly uploadAttachmentFn?: typeof uploadChatAttachment;
+  readonly attachmentUrlFn?: typeof fetchChatAttachmentUrl;
+  /** 添付を開くときの window.open 相当 (テスト注入用)。 */
+  readonly openUrlFn?: (url: string) => void;
 }
 
 let _seq = 0;
@@ -107,6 +130,9 @@ export function ChatContainer({
   approvalsFn = fetchToolApprovals,
   executeApprovalFn = executeToolApproval,
   rejectApprovalFn = rejectToolApproval,
+  uploadAttachmentFn = uploadChatAttachment,
+  attachmentUrlFn = fetchChatAttachmentUrl,
+  openUrlFn,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -116,6 +142,10 @@ export function ChatContainer({
   const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
+  // 添付 (GAP-001): 送信前の選択済みファイルと inline error
+  const [pendingFiles, setPendingFiles] = useState<readonly File[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
 
   useEffect(() => {
     onBusyChange?.(sending);
@@ -171,12 +201,75 @@ export function ChatContainer({
     refreshApprovals();
   }, [refreshApprovals]);
 
+  const handlePickAttachments = useCallback((files: readonly File[]) => {
+    setAttachmentError(null);
+    for (const f of files) {
+      if (!ATTACH_ALLOWED_MIME.has(f.type)) {
+        setAttachmentError(
+          "対応していないファイル形式です (画像 / PDF / テキスト / CSV / ZIP のみ)。",
+        );
+        return;
+      }
+      if (f.size > ATTACH_MAX_BYTES) {
+        setAttachmentError("添付は 1 ファイル 10MB 以下にしてください。");
+        return;
+      }
+    }
+    setPendingFiles((prev) => {
+      const next = [...prev, ...files];
+      if (next.length > ATTACH_MAX_COUNT) {
+        setAttachmentError("添付は 1 メッセージ 10 件までです。");
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const handleRemoveAttachment = useCallback((index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleOpenAttachment = useCallback(
+    (messageId: string, index: number) => {
+      attachmentUrlFn(messageId, index)
+        .then((url) => {
+          if (openUrlFn) openUrlFn(url);
+          else window.open(url, "_blank", "noopener");
+        })
+        .catch(() => {
+          setError("添付の取得に失敗しました。時間をおいて再試行してください。");
+        });
+    },
+    [attachmentUrlFn, openUrlFn],
+  );
+
   const handleSend = useCallback(
     async (text: string) => {
+      // GAP-001: 選択済み添付を先に署名付き URL へ実 PUT (失敗時は送信中止 —
+      // 「添付されている体」で本文だけ送らない)
+      let attachments: ChatAttachmentMeta[] = [];
+      if (pendingFiles.length > 0) {
+        setUploadingAttachments(true);
+        setAttachmentError(null);
+        try {
+          attachments = [];
+          for (const f of pendingFiles) {
+            attachments.push(await uploadAttachmentFn(threadId, f));
+          }
+        } catch {
+          setAttachmentError(
+            "添付のアップロードに失敗しました。時間をおいて再試行してください。",
+          );
+          setUploadingAttachments(false);
+          return;
+        }
+        setUploadingAttachments(false);
+      }
       const userMsg: ChatMessage = {
         id: nextId("u"),
         role: "user",
         content: text,
+        ...(attachments.length > 0 ? { attachments } : {}),
       };
       const assistantId = nextId("a");
       setMessages((prev) => [
@@ -184,6 +277,7 @@ export function ChatContainer({
         userMsg,
         { id: assistantId, role: "assistant", content: "" },
       ]);
+      setPendingFiles([]);
       setSending(true);
       setError(null);
 
@@ -203,7 +297,13 @@ export function ChatContainer({
       };
 
       try {
-        await streamFn({ threadId, userMessage: text, ragAccountId, onChunk });
+        await streamFn({
+          threadId,
+          userMessage: text,
+          ragAccountId,
+          onChunk,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        });
         // stream 完了後に履歴を再取得し、楽観行 (ローカル ID) をサーバー実 ID の
         // 行に載せ替える (フィードバック等 per-message API は実 ID が必要)。
         try {
@@ -228,7 +328,15 @@ export function ChatContainer({
         setSending(false);
       }
     },
-    [threadId, ragAccountId, streamFn, fetchMessagesFn, refreshApprovals],
+    [
+      threadId,
+      ragAccountId,
+      streamFn,
+      fetchMessagesFn,
+      refreshApprovals,
+      pendingFiles,
+      uploadAttachmentFn,
+    ],
   );
 
   const handleFeedback = useCallback(
@@ -349,6 +457,15 @@ export function ChatContainer({
           onApproveTool={handleApproveTool}
           onRejectTool={handleRejectTool}
           toolActing={toolActing}
+          onPickAttachments={handlePickAttachments}
+          pendingAttachments={pendingFiles.map((f) => ({
+            name: f.name,
+            size: f.size,
+          }))}
+          onRemoveAttachment={handleRemoveAttachment}
+          attachmentError={attachmentError}
+          uploadingAttachments={uploadingAttachments}
+          onOpenAttachment={handleOpenAttachment}
         />
       </div>
     </div>

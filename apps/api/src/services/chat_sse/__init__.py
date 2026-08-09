@@ -253,6 +253,7 @@ async def _insert_message(
     thread_id: str,
     role: str,
     content: str,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> str:
     new_id = str(uuid.uuid4())
     # created_at は clock_timestamp() を明示する。デフォルト now() は transaction
@@ -262,11 +263,17 @@ async def _insert_message(
     await session.execute(
         text(
             "insert into public.chat_messages "
-            "(id, thread_id, role, content, created_at) "
+            "(id, thread_id, role, content, attachments, created_at) "
             "values (cast(:i as uuid), cast(:t as uuid), "
-            "cast(:r as chat_message_role_enum), :c, clock_timestamp())"
+            "cast(:r as chat_message_role_enum), :c, cast(:att as jsonb), clock_timestamp())"
         ),
-        {"i": new_id, "t": thread_id, "r": role, "c": content},
+        {
+            "i": new_id,
+            "t": thread_id,
+            "r": role,
+            "c": content,
+            "att": json.dumps(attachments or []),
+        },
     )
     return new_id
 
@@ -451,6 +458,7 @@ async def stream_chat(
     use_rag: bool,
     include_history: int,
     rag_account_id: str | None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> AsyncIterator[bytes]:
     """SSE byte stream を yield する generator。
 
@@ -470,7 +478,11 @@ async def stream_chat(
     )
 
     user_msg_id = await _insert_message(
-        session, thread_id=thread_id, role="user", content=user_message
+        session,
+        thread_id=thread_id,
+        role="user",
+        content=user_message,
+        attachments=attachments,
     )
     await AuditWriter(session).write(
         AuditEvent(

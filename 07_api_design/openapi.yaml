@@ -754,6 +754,31 @@ components:
         phase_id: { type: string, format: uuid, nullable: true, description: 'スレッドの属する工程。null=工程横断 (S-E01 グルーピング)' }
         last_message_preview: { type: string, nullable: true, description: '一覧の最終メッセージ抜粋 (S-E01 スレッドカード)' }
 
+    ChatAttachment:
+      type: object
+      required: [file_name, mime_type, file_size_bytes, storage_path]
+      properties:
+        file_name: { type: string, minLength: 1, maxLength: 200 }
+        mime_type: { type: string, description: "png/jpeg/webp/gif/pdf/plain/markdown/csv/zip のみ許可" }
+        file_size_bytes: { type: integer, minimum: 1, description: "10MB (10485760) 以下" }
+        storage_path: { type: string, description: "chat-attachments/{thread_id}/... (他スレッド配下は 422)" }
+
+    ChatAttachmentUploadUrlRequest:
+      type: object
+      required: [thread_id, file_name, mime_type, file_size_bytes]
+      properties:
+        thread_id: { type: string, format: uuid }
+        file_name: { type: string, minLength: 1, maxLength: 200 }
+        mime_type: { type: string }
+        file_size_bytes: { type: integer, minimum: 1 }
+
+    ChatAttachmentUploadUrlResponse:
+      type: object
+      required: [upload_url, storage_path]
+      properties:
+        upload_url: { type: string, description: "実ファイル PUT 先の署名付き URL" }
+        storage_path: { type: string, description: "送信時の attachments に含める path" }
+
     ChatMessage:
       type: object
       properties:
@@ -763,6 +788,9 @@ components:
         content: { type: string }
         parent_message_id: { type: string, format: uuid, nullable: true }
         token_count: { type: integer, nullable: true }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/ChatAttachment' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
@@ -1375,6 +1403,11 @@ components:
         use_knowledge_rag: { type: boolean, default: true }
         include_history: { type: integer, minimum: 0, maximum: 50, default: 10 }
         rag_account_id: { type: string, format: uuid, nullable: true }
+        attachments:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/ChatAttachment' }
+          description: "事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続)"
 
     ChatContextPreviewRequest:
       type: object
@@ -5119,6 +5152,58 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 解決済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/attachments/upload-url:
+    post:
+      tags: [chat]
+      summary: チャット添付アップロード用 署名付き URL 発行（GAP-001 / S-E01 添付）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::create_chat_attachment_upload_url
+      x-screen-ids: [S-E01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatAttachmentUploadUrlRequest' }
+      responses:
+        '200':
+          description: 署名付きアップロード URL（PUT 後、SSE 送信 body の attachments で確定）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatAttachmentUploadUrlResponse' }
+        '403': { description: viewer は投稿不可, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: スレッド不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '413': { description: 10MB 超, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '415': { description: 許可外 MIME, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage backend 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/messages/{message_id}/attachments/{attachment_index}/url:
+    get:
+      tags: [chat]
+      summary: チャット添付の署名付きダウンロード URL（GAP-001）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::get_chat_attachment_url
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: message_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: attachment_index, in: path, required: true, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200':
+          description: 署名付きダウンロード URL (TTL 1h)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [url, file_name]
+                    properties:
+                      url: { type: string }
+                      file_name: { type: string }
+        '404': { description: メッセージ不在/不可視 or index 範囲外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage backend 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/messages/{message_id}/branch:
     post:

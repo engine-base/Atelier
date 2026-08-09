@@ -16,12 +16,21 @@ export interface ChatStreamChunk {
   readonly metadata?: Record<string, unknown> | null;
 }
 
+/** 添付メタ (GAP-001 — upload-url → PUT 済のものを送信 body に含める)。 */
+export interface ChatAttachmentMeta {
+  readonly file_name: string;
+  readonly mime_type: string;
+  readonly file_size_bytes: number;
+  readonly storage_path: string;
+}
+
 export interface StreamChatArgs {
   readonly threadId: string;
   readonly userMessage: string;
   readonly ragAccountId?: string;
   readonly includeHistory?: number;
   readonly useKnowledgeRag?: boolean;
+  readonly attachments?: readonly ChatAttachmentMeta[];
   readonly signal?: AbortSignal;
   readonly onChunk: (chunk: ChatStreamChunk) => void;
   /** 注入用 (省略時は connector の API_BASE / cookie token / global fetch)。 */
@@ -69,6 +78,7 @@ export async function streamChatThread(args: StreamChatArgs): Promise<void> {
       use_knowledge_rag: args.useKnowledgeRag ?? true,
       include_history: args.includeHistory ?? 10,
       ...(args.ragAccountId ? { rag_account_id: args.ragAccountId } : {}),
+      ...(args.attachments?.length ? { attachments: args.attachments } : {}),
     }),
   });
 
@@ -103,6 +113,7 @@ export interface ThreadMessage {
   readonly role: ThreadMessageRole;
   readonly content: string;
   readonly created_at?: string;
+  readonly attachments?: readonly ChatAttachmentMeta[];
 }
 
 const KNOWN_ROLES: ReadonlySet<string> = new Set([
@@ -139,6 +150,7 @@ export async function fetchThreadMessages(
       role: string;
       content: string;
       created_at?: string;
+      attachments?: readonly ChatAttachmentMeta[];
     }[];
   };
   return json.data
@@ -148,7 +160,82 @@ export async function fetchThreadMessages(
       role: m.role as ThreadMessageRole,
       content: m.content,
       created_at: m.created_at,
+      ...(m.attachments?.length ? { attachments: m.attachments } : {}),
     }));
+}
+
+/**
+ * GAP-001: チャット添付の署名付きアップロード URL 発行 → 実 PUT の 2 段階。
+ * 戻り値は送信 body の attachments に含めるメタ。
+ */
+export async function uploadChatAttachment(
+  threadId: string,
+  file: File,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<ChatAttachmentMeta> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/attachments/upload-url`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({
+      thread_id: threadId,
+      file_name: file.name,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`attachment upload-url failed: ${res.status}`);
+  }
+  const json = (await res.json()) as {
+    data?: { upload_url?: string; storage_path?: string };
+  };
+  const uploadUrl = json.data?.upload_url;
+  const storagePath = json.data?.storage_path;
+  if (!uploadUrl || !storagePath) throw new Error("unexpected upload-url response");
+  const put = await doFetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!put.ok) {
+    throw new Error(`attachment PUT failed: ${put.status}`);
+  }
+  return {
+    file_name: file.name,
+    mime_type: file.type,
+    file_size_bytes: file.size,
+    storage_path: storagePath,
+  };
+}
+
+/** GAP-001: 添付の署名付きダウンロード URL を解決する。 */
+export async function fetchChatAttachmentUrl(
+  messageId: string,
+  index: number,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<string> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(
+    `${baseURL}/chat/messages/${messageId}/attachments/${index}/url`,
+    { headers, credentials: "include" },
+  );
+  if (!res.ok) {
+    throw new Error(`attachment url failed: ${res.status}`);
+  }
+  const json = (await res.json()) as { data?: { url?: string } };
+  const url = json.data?.url;
+  if (!url) throw new Error("unexpected attachment url response");
+  return url;
 }
 
 /**
