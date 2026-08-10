@@ -9,6 +9,7 @@ version は project_id + stage ごとに max(version)+1 で自動採番する。
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -23,12 +24,35 @@ from src.schemas.sales_docs import (
     SalesDocUpdate,
 )
 
-_SALES_STAGES: tuple[str, ...] = ("proposal", "estimate")
+# GAP-018: contract / nda / invoice を追加 (migration t-d-99zl)
+_SALES_STAGES: tuple[str, ...] = ("proposal", "estimate", "contract", "nda", "invoice")
 
 _COLS = (
     "id, project_id, phase_id, stage, html_path, json_path, md_path, "
-    "summary, version, created_at, updated_at, deleted_at"
+    "summary, version, meta, created_at, updated_at, deleted_at"
 )
+
+
+def is_uuid(value: str) -> bool:
+    """path param の UUID 妥当性 (不正値は 500 ではなく 404 に落とすため)。"""
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _meta(row: Any) -> dict[str, object]:
+    raw = row.meta
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
 
 
 def _row_to_response(row: Any) -> SalesDocResponse:
@@ -42,6 +66,7 @@ def _row_to_response(row: Any) -> SalesDocResponse:
         md_path=(None if row.md_path is None else str(row.md_path)),
         summary=(None if row.summary is None else str(row.summary)),
         version=int(row.version),
+        meta=_meta(row),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -73,6 +98,8 @@ async def list_sales_docs(
 
 
 async def get_sales_doc(session: AsyncSession, doc_id: str) -> SalesDocResponse | None:
+    if not is_uuid(doc_id):
+        return None
     res = await session.execute(
         text(
             f"select {_COLS} from public.workflow_outputs "

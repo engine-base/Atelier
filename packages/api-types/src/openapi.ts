@@ -6720,7 +6720,7 @@ export interface paths {
             parameters: {
                 query?: {
                     project_id?: string;
-                    doc_type?: "proposal" | "estimate";
+                    doc_type?: "proposal" | "estimate" | "contract" | "nda" | "invoice";
                 };
                 header?: never;
                 path?: never;
@@ -6960,6 +6960,248 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/sales-docs/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 営業 AI (トニー) にドラフト生成を依頼（ナレッジ RAG + 生成トレース — GAP-018・明示操作起点） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                        /** @enum {string} */
+                        doc_type: "proposal" | "estimate" | "contract" | "nda" | "invoice";
+                        customer: string;
+                        opportunity: string;
+                        /** @description 商談概要・要望メモ */
+                        notes: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 生成ドラフト (meta に生成トレース、knowledge_references referrer_type=sales_doc を記録) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDoc"];
+                        };
+                    };
+                };
+                /** @description project 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sales-docs/{doc_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** ドラフトの PDF 出力（reportlab 日本語 CID フォント — GAP-018） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description application/pdf (Content-Disposition attachment) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 本文が空 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sales-docs/{doc_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ドラフトをクライアントへメール送信（dry_run 明示 — GAP-018） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        to_email: string;
+                        subject?: string;
+                        /** @description 本文冒頭に添える挨拶文 (任意) */
+                        message?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 送信結果 (履歴 sales_doc_sends に記録。メール未設定環境は dry_run=true) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDocSend"];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description メールアドレス不正 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sales-docs/{doc_id}/sends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 送信履歴（GAP-018 — モックの送信履歴カードの実体） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    doc_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description created_at 降順 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SalesDocSend"][];
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/meetings": {
@@ -12867,7 +13109,7 @@ export interface components {
             /** Format: uuid */
             project_id: string;
             /** @enum {string} */
-            doc_type: "proposal" | "estimate";
+            doc_type: "proposal" | "estimate" | "contract" | "nda" | "invoice";
             summary?: string | null;
             html_path?: string | null;
             json_path?: string | null;
@@ -12887,18 +13129,34 @@ export interface components {
             /** Format: uuid */
             phase_id?: string | null;
             /** @enum {string} */
-            doc_type: "proposal" | "estimate";
+            doc_type: "proposal" | "estimate" | "contract" | "nda" | "invoice";
             html_path?: string | null;
             json_path?: string | null;
             md_path?: string | null;
             summary?: string | null;
             version: number;
+            meta?: {
+                [key: string]: unknown;
+            };
             /** Format: date-time */
             deleted_at?: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        /** @description ドラフトのメール送信履歴 1 件 (E sales_doc_sends — GAP-018) */
+        SalesDocSend: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            doc_id?: string;
+            to_email?: string;
+            subject?: string;
+            /** @description メール未設定環境での送信は true (偽装しない) */
+            dry_run?: boolean;
+            /** Format: date-time */
+            created_at?: string;
         };
         MeetingCreate: {
             /** Format: uuid */

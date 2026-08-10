@@ -1075,7 +1075,7 @@ components:
       required: [project_id, doc_type]
       properties:
         project_id: { type: string, format: uuid }
-        doc_type: { type: string, enum: [proposal, estimate] }
+        doc_type: { type: string, enum: [proposal, estimate, contract, nda, invoice] }
         summary: { type: string, maxLength: 4000, nullable: true }
         html_path: { type: string, maxLength: 500, nullable: true }
         json_path: { type: string, maxLength: 500, nullable: true }
@@ -1096,15 +1096,28 @@ components:
         id: { type: string, format: uuid }
         project_id: { type: string, format: uuid }
         phase_id: { type: string, format: uuid, nullable: true }
-        doc_type: { type: string, enum: [proposal, estimate] }
+        doc_type: { type: string, enum: [proposal, estimate, contract, nda, invoice] }
         html_path: { type: string, nullable: true }
         json_path: { type: string, nullable: true }
         md_path: { type: string, nullable: true }
         summary: { type: string, nullable: true }
         version: { type: integer, minimum: 1 }
+        # GAP-018: 生成トレース (generated_by=tony / model / inputs / knowledge_refs / steps)
+        meta: { type: object, additionalProperties: true }
         deleted_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+
+    SalesDocSend:
+      type: object
+      description: ドラフトのメール送信履歴 1 件 (E sales_doc_sends — GAP-018)
+      properties:
+        id: { type: string, format: uuid }
+        doc_id: { type: string, format: uuid }
+        to_email: { type: string }
+        subject: { type: string }
+        dry_run: { type: boolean, description: "メール未設定環境での送信は true (偽装しない)" }
+        created_at: { type: string, format: date-time }
 
     MeetingCreate:
       type: object
@@ -4904,7 +4917,7 @@ paths:
       x-feature-ids: [F-N01]
       parameters:
         - { name: project_id, in: query, required: false, schema: { type: string, format: uuid } }
-        - { name: doc_type, in: query, required: false, schema: { type: string, enum: [proposal, estimate] } }
+        - { name: doc_type, in: query, required: false, schema: { type: string, enum: [proposal, estimate, contract, nda, invoice] } }
       responses:
         '200':
           description: 商談ドキュメント一覧
@@ -4992,6 +5005,104 @@ paths:
         '204': { description: 削除完了 }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /sales-docs/generate:
+    post:
+      tags: [sales-docs]
+      summary: 営業 AI (トニー) にドラフト生成を依頼（ナレッジ RAG + 生成トレース — GAP-018・明示操作起点）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::generate_sales_doc
+      x-screen-ids: [S-N01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, doc_type, customer, opportunity, notes]
+              properties:
+                project_id: { type: string, format: uuid }
+                doc_type: { type: string, enum: [proposal, estimate, contract, nda, invoice] }
+                customer: { type: string, minLength: 1, maxLength: 200 }
+                opportunity: { type: string, minLength: 1, maxLength: 200 }
+                notes: { type: string, minLength: 1, maxLength: 8000, description: "商談概要・要望メモ" }
+      responses:
+        '201':
+          description: 生成ドラフト (meta に生成トレース、knowledge_references referrer_type=sales_doc を記録)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SalesDoc' }
+        '404': { description: project 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: LLM (ANTHROPIC_API_KEY) 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /sales-docs/{doc_id}/pdf:
+    get:
+      tags: [sales-docs]
+      summary: ドラフトの PDF 出力（reportlab 日本語 CID フォント — GAP-018）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::sales_doc_pdf
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: application/pdf (Content-Disposition attachment)
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 本文が空, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /sales-docs/{doc_id}/send:
+    post:
+      tags: [sales-docs]
+      summary: ドラフトをクライアントへメール送信（dry_run 明示 — GAP-018）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::send_sales_doc
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to_email]
+              properties:
+                to_email: { type: string, format: email }
+                subject: { type: string, maxLength: 200 }
+                message: { type: string, maxLength: 2000, description: "本文冒頭に添える挨拶文 (任意)" }
+      responses:
+        '201':
+          description: 送信結果 (履歴 sales_doc_sends に記録。メール未設定環境は dry_run=true)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SalesDocSend' }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: メールアドレス不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /sales-docs/{doc_id}/sends:
+    get:
+      tags: [sales-docs]
+      summary: 送信履歴（GAP-018 — モックの送信履歴カードの実体）
+      x-implementation-path: apps/api/src/routes/sales_docs/__init__.py::list_sales_doc_sends
+      x-screen-ids: [S-N01]
+      parameters:
+        - { name: doc_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: created_at 降順
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/SalesDocSend' } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================

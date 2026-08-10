@@ -16,6 +16,8 @@ dependencies = [
   "inngest>=0.4.19",
   "networkx>=3.6.1",
   "cryptography>=48.0.0",
+  # GAP-018: 商談ドラフトの PDF 出力 (S-N01 — 日本語 CID フォント内蔵)
+  "reportlab>=4.2.0",
 ]
 
 [project.optional-dependencies]

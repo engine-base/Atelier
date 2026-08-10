@@ -333,3 +333,218 @@ class TestSalesDocs:
                 json={"project_id": seeded["proj_a"], "doc_type": "design"},
             )
             assert r.status_code == 422
+
+
+@pytest.mark.integration
+class TestSalesDocsGap018:
+    """GAP-018: doc_type 拡張 + AI 生成 (トレース) + PDF + メール送信/履歴。"""
+
+    def test_new_doc_types_crud(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            for doc_type in ("contract", "nda", "invoice"):
+                r = client.post(
+                    "/sales-docs",
+                    headers=h,
+                    json={
+                        "project_id": seeded["proj_a"],
+                        "doc_type": doc_type,
+                        "summary": f"# {doc_type} ドラフト",
+                    },
+                )
+                assert r.status_code == 201, r.text
+                doc = r.json()["data"]
+                assert doc["doc_type"] == doc_type
+                assert doc["version"] == 1
+                lst = client.get(
+                    f"/sales-docs?project_id={seeded['proj_a']}&doc_type={doc_type}",
+                    headers=h,
+                ).json()["data"]
+                assert any(x["id"] == doc["id"] for x in lst)
+                client.delete(f"/sales-docs/{doc['id']}", headers=h)
+
+    def test_generate_with_knowledge_trace(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """fake LLM で生成 → meta トレース + knowledge_references 実記録。"""
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+        kn = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.knowledge_nodes "
+                    "(id, account_id, account_type, scope, category, title, content_md) "
+                    "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                    "'sales', '受託案件の提案書テンプレ v3', '# テンプレ 成約率パターン')"
+                ),
+                {"i": kn, "a": seeded["ws_a"]},
+            )
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/sales-docs/generate",
+                headers=h,
+                json={
+                    "project_id": seeded["proj_a"],
+                    "doc_type": "proposal",
+                    "customer": "ENGINE BASE 株式会社",
+                    "opportunity": "提案書テンプレ活用案件",
+                    "notes": "過去の成約パターンを踏まえた提案書を作りたい",
+                },
+            )
+            assert r.status_code == 201, r.text
+            doc = r.json()["data"]
+            assert doc["meta"]["generated_by"] == "tony"
+            assert doc["meta"]["model"] == "fake-llm"
+            refs = doc["meta"]["knowledge_refs"]
+            assert any(x["id"] == kn for x in refs)
+            assert "受託案件の提案書テンプレ v3" in (doc["summary"] or "")
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.knowledge_references "
+                        "where referrer_type='sales_doc' and referrer_id=cast(:r as uuid) "
+                        "and knowledge_id=cast(:k as uuid)"
+                    ),
+                    {"r": doc["id"], "k": kn},
+                ).scalar_one()
+                assert n == 1
+                a = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='sales_doc.generate' and target_id=:t"
+                    ),
+                    {"t": doc["id"]},
+                ).scalar_one()
+                assert a == 1
+            # R-T08: 他 WS からは project 不可視 → 404
+            assert (
+                client.post(
+                    "/sales-docs/generate",
+                    headers=_h(seeded["u_b"]),
+                    json={
+                        "project_id": seeded["proj_a"],
+                        "doc_type": "proposal",
+                        "customer": "x",
+                        "opportunity": "y",
+                        "notes": "z",
+                    },
+                ).status_code
+                == 404
+            )
+            client.delete(f"/sales-docs/{doc['id']}", headers=h)
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.knowledge_nodes where id = cast(:i as uuid)"), {"i": kn}
+            )
+
+    def test_generate_503_when_llm_unconfigured(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with TestClient(app) as client:
+            r = client.post(
+                "/sales-docs/generate",
+                headers=_h(seeded["u_a"]),
+                json={
+                    "project_id": seeded["proj_a"],
+                    "doc_type": "estimate",
+                    "customer": "c",
+                    "opportunity": "o",
+                    "notes": "n",
+                },
+            )
+            assert r.status_code == 503
+
+    def test_pdf_output(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            doc = client.post(
+                "/sales-docs",
+                headers=h,
+                json={
+                    "project_id": seeded["proj_a"],
+                    "doc_type": "estimate",
+                    "summary": "# 見積書テスト\n\n日本語本文。\n- 項目1\n- 項目2",
+                },
+            ).json()["data"]
+            r = client.get(f"/sales-docs/{doc['id']}/pdf", headers=h)
+            assert r.status_code == 200
+            assert r.headers["content-type"] == "application/pdf"
+            assert r.content.startswith(b"%PDF-")
+            # 本文が空のドキュメントは 409 (偽の PDF を出さない)
+            empty = client.post(
+                "/sales-docs",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "doc_type": "estimate"},
+            ).json()["data"]
+            assert client.get(f"/sales-docs/{empty['id']}/pdf", headers=h).status_code == 409
+            # R-T08
+            assert (
+                client.get(f"/sales-docs/{doc['id']}/pdf", headers=_h(seeded["u_b"])).status_code
+                == 404
+            )
+            client.delete(f"/sales-docs/{doc['id']}", headers=h)
+            client.delete(f"/sales-docs/{empty['id']}", headers=h)
+
+    def test_send_records_history_with_dry_run(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """メール未設定環境 → dry_run=true を応答/履歴の両方で明示。"""
+        monkeypatch.delenv("ATELIER_EMAIL_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            doc = client.post(
+                "/sales-docs",
+                headers=h,
+                json={
+                    "project_id": seeded["proj_a"],
+                    "doc_type": "proposal",
+                    "summary": "# 提案書\n\n本文",
+                },
+            ).json()["data"]
+            r = client.post(
+                f"/sales-docs/{doc['id']}/send",
+                headers=h,
+                json={"to_email": "client@example.com", "message": "ご確認ください"},
+            )
+            assert r.status_code == 201, r.text
+            sent = r.json()["data"]
+            assert sent["to_email"] == "client@example.com"
+            assert sent["dry_run"] is True
+            assert "提案書ドラフト" in sent["subject"]
+
+            sends = client.get(f"/sales-docs/{doc['id']}/sends", headers=h).json()["data"]
+            assert len(sends) == 1 and sends[0]["id"] == sent["id"]
+            # 不正メールは 422 / R-T08 404
+            assert (
+                client.post(
+                    f"/sales-docs/{doc['id']}/send", headers=h, json={"to_email": "bad"}
+                ).status_code
+                == 422
+            )
+            assert (
+                client.get(f"/sales-docs/{doc['id']}/sends", headers=_h(seeded["u_b"])).status_code
+                == 404
+            )
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='sales_doc.send' and target_id=:t"
+                    ),
+                    {"t": doc["id"]},
+                ).scalar_one()
+            assert n == 1
+            client.delete(f"/sales-docs/{doc['id']}", headers=h)

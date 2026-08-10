@@ -1179,6 +1179,9 @@ class TaskDecisionRequest(BaseModel):
 class DocType1(StrEnum):
     proposal = "proposal"
     estimate = "estimate"
+    contract = "contract"
+    nda = "nda"
+    invoice = "invoice"
 
 
 class SalesDocCreate(BaseModel):
@@ -1207,9 +1210,26 @@ class SalesDoc(BaseModel):
     md_path: str | None = None
     summary: str | None = None
     version: Annotated[int, Field(ge=1)]
+    meta: dict[str, Any] | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime
     updated_at: AwareDatetime
+
+
+class SalesDocSend(BaseModel):
+    """
+    ドラフトのメール送信履歴 1 件 (E sales_doc_sends — GAP-018)
+    """
+
+    id: UUID | None = None
+    doc_id: UUID | None = None
+    to_email: str | None = None
+    subject: str | None = None
+    dry_run: bool | None = None
+    """
+    メール未設定環境での送信は true (偽装しない)
+    """
+    created_at: AwareDatetime | None = None
 
 
 class Type3(StrEnum):

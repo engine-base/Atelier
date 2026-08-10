@@ -1,16 +1,17 @@
 /**
- * S-N01 商談ドラフト — T-UC-24 (design-audit v2)
+ * S-N01 商談ドラフト — T-UC-24 / GAP-018
  *
  * 見た目は 06_mockups/sales/S-N01-drafts.html に忠実:
- *   page-header → 種別タブ → (フォーム + ドキュメント一覧/プレビュー | サイドバー)。
+ *   page-header → 種別タブ 5 (提案/見積/業務委託契約/NDA/請求書 — 実 doc_type) →
+ *   (フォーム + プレビュー | サイドバー: 保存済み/生成プロセス/参照ナレッジ/送信履歴)。
  *
- * design-audit v2 での是正:
- *   - 死にタブ 5 → API が持つ 提案書/見積書 の実タブ (件数バッジは実データ)。
- *     業務委託契約/NDA/請求書 は doc_type 未対応のため撤去 + GAP-018
- *   - disabled placeholder (修正依頼/PDF/送信) は Rule 10 違反 → 修正依頼=チャットへの実リンク、
- *     PDF/送信/送信履歴カードは API 不在のため撤去 + GAP-018
- *   - 保存済みドキュメントが一覧されずリロードで消えた → GET /sales-docs 実一覧 (版数つき)
- *   - 削除 (論理) を 2 段階確認で追加
+ * GAP-018 で全要素を実 API 配線:
+ *   - 「トニーにドラフト生成を依頼」= AI 生成 (ナレッジ RAG。明示操作起点 —
+ *     自動生成しない)。AI を使わない構造化保存も残す (LLM 未設定環境の導線)
+ *   - 生成プロセス / 参照ナレッジ = 実生成トレース (meta) のみ表示。
+ *     トレースが無いドキュメントは参考手順を「参考」と明示して表示
+ *   - PDF = GET /sales-docs/{id}/pdf の実バイナリ DL
+ *   - 送信 = メールダイアログ → POST /send (dry_run は正直に表示) + 送信履歴
  */
 
 "use client";
@@ -33,7 +34,13 @@ const Schema = z.object({
 });
 export type SalesDraftValues = z.infer<typeof Schema>;
 
-export type DocType = "proposal" | "estimate";
+export type DocType = "proposal" | "estimate" | "contract" | "nda" | "invoice";
+
+export interface SalesKnowledgeRef {
+  readonly id: string;
+  readonly title: string;
+  readonly category?: string;
+}
 
 export interface SalesDocRow {
   readonly id: string;
@@ -41,22 +48,44 @@ export interface SalesDocRow {
   readonly summary: string;
   readonly version: number;
   readonly createdAt: string;
+  /** GAP-018: 生成トレース (meta 由来。手動作成ドキュメントには無い)。 */
+  readonly generatedBy?: string;
+  readonly model?: string;
+  readonly knowledgeRefs?: readonly SalesKnowledgeRef[];
+  readonly steps?: readonly string[];
+}
+
+export interface SalesSendRow {
+  readonly id: string;
+  readonly toEmail: string;
+  readonly subject: string;
+  readonly dryRun: boolean;
+  readonly createdAt: string;
 }
 
 export const DOC_TYPE_LABEL: Readonly<Record<DocType, string>> = {
   proposal: "提案書",
   estimate: "見積書",
+  contract: "業務委託契約",
+  nda: "NDA",
+  invoice: "請求書",
+};
+
+const DOC_EYEBROW: Readonly<Record<DocType, string>> = {
+  proposal: "Proposal / 提案書",
+  estimate: "Estimate / 見積書",
+  contract: "Contract / 業務委託契約書",
+  nda: "NDA / 秘密保持契約書",
+  invoice: "Invoice / 請求書",
 };
 
 const INPUT_CLASS =
   "w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-[14px] text-on-surface transition focus:border-primary focus:bg-white focus:outline-none focus:ring-[3px] focus:ring-primary-container";
 
-/** 生成の流れ (参考手順)。実行トレース API は無いため、具体数の虚偽表示はしない。 */
+/** 生成の流れ (参考手順)。トレースが無い手動作成ドキュメント向けの説明。 */
 const PROCESS_STEPS: readonly string[] = [
   "過去の類似案件・ナレッジを参照",
-  "機能分解から工数を算出",
-  "フェーズ別に項目を構成",
-  "価格を市場相場と照合",
+  "トニーが本文を生成",
   "人間レビューで承認・確定",
 ];
 
@@ -74,11 +103,28 @@ export interface SalesDocDraftProps {
   readonly docsLoading?: boolean;
   readonly docsError?: boolean;
   readonly counts: Readonly<Record<DocType, number>>;
-  readonly onDraft: (v: SalesDraftValues) => Promise<SalesDocRow>;
+  /** AI 生成 (トニー + ナレッジ RAG)。 */
+  readonly onGenerate: (v: SalesDraftValues) => Promise<SalesDocRow>;
+  /** AI を使わない構造化保存 (LLM 未設定環境の導線)。 */
+  readonly onSaveRaw: (v: SalesDraftValues) => Promise<SalesDocRow>;
   readonly onEdit: (id: string, content: string) => Promise<void>;
   readonly onDelete: (id: string) => void;
   /** 「修正依頼」の遷移先 (プロジェクトチャット)。 */
   readonly chatHref: string;
+  /** 選択ドキュメント (controlled — 送信履歴の取得のためコンテナが保持)。 */
+  readonly selected: SalesDocRow | null;
+  readonly onSelect: (row: SalesDocRow | null) => void;
+  /** GAP-018: PDF DL / メール送信 / 送信履歴。 */
+  readonly onPdf?: (id: string) => void;
+  readonly onSend?: (
+    id: string,
+    input: { toEmail: string; subject?: string; message?: string },
+  ) => void;
+  readonly sending?: boolean;
+  readonly sends?: readonly SalesSendRow[];
+  readonly sendsLoading?: boolean;
+  readonly actionNotice?: string;
+  readonly actionError?: string;
 }
 
 function DocTabs({
@@ -127,31 +173,126 @@ function DocTabs({
   );
 }
 
-function ProcessCard() {
+/** 生成プロセス (実トレース優先 — GAP-018)。 */
+function ProcessCard({ doc }: { readonly doc: SalesDocRow | null }) {
+  const traced = doc?.steps && doc.steps.length > 0;
+  const steps = traced
+    ? [...(doc?.steps ?? []), "人間レビューで承認・確定"]
+    : PROCESS_STEPS;
   return (
     <div className="rounded-lg border border-border bg-white p-5">
       <h3 className="mb-3 text-[14px] font-bold tracking-tight text-on-surface">
-        生成の流れ
+        生成プロセス
+        {!traced ? (
+          <span className="ml-1.5 text-[11px] font-medium text-on-surface-variant">
+            （参考手順）
+          </span>
+        ) : null}
       </h3>
       <ol className="flex flex-col">
-        {PROCESS_STEPS.map((step, i) => (
-          <li
-            key={step}
-            className={
-              "flex items-center gap-2.5 py-2.5 text-[12.5px] text-on-surface " +
-              (i < PROCESS_STEPS.length - 1 ? "border-b border-border" : "")
-            }
-          >
-            <span
-              className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-surface-variant text-[11px] font-semibold text-on-surface-variant tabular-nums"
-              aria-hidden="true"
+        {steps.map((step, i) => {
+          const isPending = i === steps.length - 1;
+          return (
+            <li
+              key={step}
+              className={
+                "flex items-center gap-2.5 py-2.5 text-[12.5px] text-on-surface " +
+                (i < steps.length - 1 ? "border-b border-border" : "")
+              }
             >
-              {i + 1}
-            </span>
-            <span className="font-medium">{step}</span>
+              <span
+                className={cn(
+                  "flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums",
+                  traced && !isPending
+                    ? "bg-tertiary text-on-tertiary"
+                    : "bg-surface-variant text-on-surface-variant",
+                )}
+                aria-hidden="true"
+              >
+                {traced && !isPending ? "✓" : i + 1}
+              </span>
+              <span className={cn("font-medium", isPending && traced && "text-on-surface-variant")}>
+                {step}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** 参照ナレッジ (実生成トレースのみ — 推測ソースは出さない)。 */
+function KnowledgeRefsCard({ doc }: { readonly doc: SalesDocRow | null }) {
+  const refs = doc?.knowledgeRefs ?? [];
+  if (!doc?.generatedBy || refs.length === 0) return null;
+  return (
+    <div className="rounded-lg bg-secondary-container p-5 text-secondary-container-fg">
+      <h3 className="mb-2 text-[14px] font-bold tracking-tight">参照ナレッジ</h3>
+      <ul className="flex flex-col gap-1.5">
+        {refs.map((r) => (
+          <li key={r.id} className="rounded-md bg-white/60 px-3 py-2.5 text-[12px]">
+            <strong className="font-bold">{r.title}</strong>
+            {r.category ? (
+              <div className="mt-0.5 text-[11.5px] opacity-85">{r.category}</div>
+            ) : null}
           </li>
         ))}
-      </ol>
+      </ul>
+    </div>
+  );
+}
+
+/** 送信履歴 + 送信ボタン (GAP-018)。 */
+function SendHistoryCard({
+  doc,
+  sends,
+  loading,
+  onOpenSend,
+}: {
+  readonly doc: SalesDocRow | null;
+  readonly sends?: readonly SalesSendRow[];
+  readonly loading?: boolean;
+  readonly onOpenSend?: () => void;
+}) {
+  if (!doc) return null;
+  return (
+    <div className="rounded-lg border border-border bg-white p-5">
+      <h3 className="mb-3 text-[14px] font-bold tracking-tight text-on-surface">
+        送信履歴
+      </h3>
+      {loading ? (
+        <p className="text-[13px] text-on-surface-variant">読み込み中…</p>
+      ) : !sends || sends.length === 0 ? (
+        <p className="text-[13px] text-on-surface-variant">
+          まだ送信されていません
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {sends.map((s) => (
+            <li key={s.id} className="rounded-md bg-surface-variant px-3 py-2 text-[12px]">
+              <div className="font-semibold text-on-surface">{s.toEmail}</div>
+              <div className="mt-0.5 flex items-center gap-2 text-on-surface-variant">
+                <span className="tabular-nums">{dateLabel(s.createdAt)}</span>
+                {s.dryRun ? (
+                  <span className="rounded-sm bg-secondary-container px-1.5 py-0.5 text-[10px] font-semibold text-secondary-container-fg">
+                    dry-run（メール未設定）
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {onOpenSend ? (
+        <button
+          type="button"
+          onClick={onOpenSend}
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8]"
+        >
+          クライアントにメール送信
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -255,26 +396,47 @@ function DocHistory({
   );
 }
 
-/** ドキュメントプレビュー (toolbar + 本文 + 編集)。 */
+/** ドキュメントプレビュー (toolbar: 修正依頼/PDF/編集/送信 + 本文)。 */
 function DocPreview({
   doc,
   chatHref,
   onEdit,
+  onPdf,
+  onSend,
+  sending,
+  sendOpenSignal,
 }: {
   readonly doc: SalesDocRow;
   readonly chatHref: string;
   readonly onEdit: (id: string, content: string) => Promise<void>;
+  readonly onPdf?: (id: string) => void;
+  readonly onSend?: (
+    id: string,
+    input: { toEmail: string; subject?: string; message?: string },
+  ) => void;
+  readonly sending?: boolean;
+  /** サイドバーの「クライアントにメール送信」から開くためのシグナル。 */
+  readonly sendOpenSignal?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(doc.summary);
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState(doc.summary);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [toEmail, setToEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+
+  React.useEffect(() => {
+    if ((sendOpenSignal ?? 0) > 0) setSendOpen(true);
+  }, [sendOpenSignal]);
 
   // 別ドキュメント選択時に表示を差し替える
   React.useEffect(() => {
     setView(doc.summary);
     setContent(doc.summary);
     setEditing(false);
+    setSendOpen(false);
   }, [doc.id, doc.summary]);
 
   const save = async (): Promise<void> => {
@@ -289,15 +451,22 @@ function DocPreview({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-white">
+    <div
+      id="sales-doc-preview"
+      className="overflow-hidden rounded-lg border border-border bg-white"
+    >
       <div className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-variant px-[18px] py-3">
         <span className="inline-flex items-center gap-1 rounded-sm bg-primary-container px-2 py-0.5 text-[10.5px] font-semibold text-on-primary-container">
           v{doc.version} · {DOC_TYPE_LABEL[doc.docType]}
         </span>
         <span className="text-[13px] text-on-surface-variant">
-          {dateLabel(doc.createdAt)} 作成 · AI 補助ドラフト
+          {dateLabel(doc.createdAt)} 作成
+          {doc.generatedBy === "tony" ? " · トニー生成" : ""}
+          {doc.knowledgeRefs && doc.knowledgeRefs.length > 0
+            ? ` · ナレッジ参照 ${doc.knowledgeRefs.length} 件`
+            : ""}
         </span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <Link
             href={chatHref}
             className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface transition hover:bg-white"
@@ -305,6 +474,15 @@ function DocPreview({
             <MessageSquare aria-hidden="true" className="h-3.5 w-3.5" />
             修正依頼
           </Link>
+          {onPdf ? (
+            <button
+              type="button"
+              onClick={() => onPdf(doc.id)}
+              className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface transition hover:bg-white"
+            >
+              PDF
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => (editing ? setEditing(false) : setEditing(true))}
@@ -312,15 +490,105 @@ function DocPreview({
           >
             {editing ? "編集をやめる" : "編集"}
           </button>
+          {onSend ? (
+            <button
+              type="button"
+              onClick={() => setSendOpen((v) => !v)}
+              aria-expanded={sendOpen}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary transition hover:bg-[#1E54D8]"
+            >
+              送信
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {/* メール送信ダイアログ (GAP-018) */}
+      {onSend && sendOpen ? (
+        <form
+          role="dialog"
+          aria-label="クライアントにメール送信"
+          className="flex flex-col gap-2 border-b border-border bg-secondary-container/40 px-[18px] py-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!toEmail.trim() || sending) return;
+            onSend(doc.id, {
+              toEmail: toEmail.trim(),
+              subject: subject.trim() || undefined,
+              message: message.trim() || undefined,
+            });
+            setSendOpen(false);
+          }}
+        >
+          <h4 className="text-[13px] font-bold text-on-surface">
+            クライアントにメール送信
+          </h4>
+          <label className="block">
+            <span className="text-[11.5px] font-semibold text-on-surface">
+              宛先メールアドレス
+            </span>
+            <input
+              type="email"
+              required
+              value={toEmail}
+              onChange={(e) => setToEmail(e.target.value)}
+              placeholder="client@example.com"
+              className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-[13px] text-on-surface outline-none focus:border-primary"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11.5px] font-semibold text-on-surface">
+              件名（省略時は自動生成）
+            </span>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              maxLength={200}
+              className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-[13px] text-on-surface outline-none focus:border-primary"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11.5px] font-semibold text-on-surface">
+              挨拶文（任意）
+            </span>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-[13px] text-on-surface outline-none focus:border-primary"
+            />
+          </label>
+          <div className="flex items-center justify-end gap-2">
+            {sending ? (
+              <span role="status" className="mr-auto text-[12px] text-on-surface-variant">
+                送信中…
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSendOpen(false)}
+              className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-white/60"
+            >
+              キャンセル
+            </button>
+            <button
+              type="submit"
+              disabled={!toEmail.trim() || sending}
+              className="rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+            >
+              送信する
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       <article
         aria-label="生成ドラフト"
         className="max-h-[720px] overflow-y-auto px-6 py-8 lg:px-14 lg:py-10"
       >
         <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-          {doc.docType === "estimate" ? "Estimate / 見積書" : "Proposal / 提案書"}
+          {DOC_EYEBROW[doc.docType]}
         </div>
         {editing ? (
           <div className="flex flex-col gap-3">
@@ -372,27 +640,54 @@ export function SalesDocDraft({
   docsLoading,
   docsError,
   counts,
-  onDraft,
+  onGenerate,
+  onSaveRaw,
   onEdit,
   onDelete,
   chatHref,
+  selected,
+  onSelect,
+  onPdf,
+  onSend,
+  sending,
+  sends,
+  sendsLoading,
+  actionNotice,
+  actionError,
 }: SalesDocDraftProps) {
   const form = useAtelierForm({
     schema: Schema,
     defaultValues: { customer: "", opportunity: "", summary: "" },
   });
-  const [selected, setSelected] = useState<SalesDocRow | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [sendOpenSignal, setSendOpenSignal] = useState(0);
 
   // 一覧が更新されたら selected を最新の同 id 行へ追従する。
-  // (作成直後は一覧再取得前で不在になり得るため、不在でも選択は解除しない —
-  //  削除時の解除は onDelete ハンドラ側で行う)
   React.useEffect(() => {
     if (!selected) return;
     const cur = docs.find((d) => d.id === selected.id);
-    if (cur && cur.summary !== selected.summary) setSelected(cur);
+    if (cur && cur.summary !== selected.summary) onSelect(cur);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs]);
+
+  const submitWith = async (
+    fn: (v: SalesDraftValues) => Promise<SalesDocRow>,
+    setBusy: (b: boolean) => void,
+  ): Promise<void> => {
+    const valid = await form.trigger();
+    if (!valid) return;
+    setBusy(true);
+    try {
+      const row = await fn(form.getValues());
+      onSelect(row);
+      form.reset({ customer: "", opportunity: "", summary: "" });
+    } catch {
+      // エラー表示はコンテナの actionError が担う
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <section className="flex flex-col gap-7">
@@ -401,7 +696,7 @@ export function SalesDocDraft({
           Sales Drafts · トニー + ナターシャ
         </p>
         <h1 className="mb-2 text-[24px] font-bold leading-tight tracking-tight text-on-surface lg:text-[28px]">
-          提案 / 見積ドラフト
+          提案 / 見積 / 契約 / 請求書ドラフト
         </h1>
         <p className="text-[14px] text-on-surface-variant">
           ナレッジの過去成約パターンから自動生成。修正はチャットで行えます。
@@ -411,26 +706,29 @@ export function SalesDocDraft({
       <div>
         <DocTabs active={docType} counts={counts} onChange={onDocTypeChange} />
 
+        {actionError ? (
+          <p
+            role="alert"
+            className="mb-4 rounded-md bg-error/10 px-3 py-2 text-[12.5px] text-error"
+          >
+            {actionError}
+          </p>
+        ) : actionNotice ? (
+          <p
+            role="status"
+            className="mb-4 rounded-md bg-tertiary-container px-3 py-2 text-[12.5px] text-tertiary-container-fg"
+          >
+            {actionNotice}
+          </p>
+        ) : null}
+
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
           <div className="flex flex-col gap-5">
             <div className="rounded-lg border border-border bg-white p-5">
               <h2 className="mb-4 text-[16px] font-bold tracking-tight text-on-surface">
                 商談メモから{DOC_TYPE_LABEL[docType]}を生成
               </h2>
-              <Form
-                form={form}
-                onValid={async (v) => {
-                  setLoading(true);
-                  try {
-                    const row = await onDraft(v);
-                    setSelected(row);
-                    form.reset({ customer: "", opportunity: "", summary: "" });
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="gap-md"
-              >
+              <Form form={form} onValid={async () => {}} className="gap-md">
                 <Field
                   label="顧客名"
                   required
@@ -459,19 +757,39 @@ export function SalesDocDraft({
                     className={INPUT_CLASS}
                   />
                 </Field>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="inline-flex h-10 w-fit items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8] disabled:opacity-50"
-                >
-                  ドラフト生成
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void submitWith(onGenerate, setGenerating)}
+                    disabled={generating || loading}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8] disabled:opacity-50"
+                  >
+                    {generating ? "トニーが生成中…" : "トニーにドラフト生成を依頼"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitWith(onSaveRaw, setLoading)}
+                    disabled={generating || loading}
+                    className="inline-flex h-10 items-center rounded-md border border-border px-4 text-[13px] font-semibold text-on-surface transition hover:bg-surface-variant disabled:opacity-50"
+                  >
+                    AI を使わず保存
+                  </button>
+                </div>
               </Form>
             </div>
 
-            {loading ? <Loading /> : null}
-            {selected && !loading ? (
-              <DocPreview doc={selected} chatHref={chatHref} onEdit={onEdit} />
+            {generating || loading ? <Loading /> : null}
+            {selected && !generating && !loading ? (
+              <DocPreview
+                key={selected.id}
+                doc={selected}
+                chatHref={chatHref}
+                onEdit={onEdit}
+                onPdf={onPdf}
+                onSend={onSend}
+                sending={sending}
+                sendOpenSignal={sendOpenSignal}
+              />
             ) : null}
           </div>
 
@@ -481,13 +799,29 @@ export function SalesDocDraft({
               loading={docsLoading}
               error={docsError}
               selectedId={selected?.id ?? null}
-              onSelect={setSelected}
+              onSelect={onSelect}
               onDelete={(id) => {
                 onDelete(id);
-                if (selected?.id === id) setSelected(null);
+                if (selected?.id === id) onSelect(null);
               }}
             />
-            <ProcessCard />
+            <ProcessCard doc={selected} />
+            <KnowledgeRefsCard doc={selected} />
+            <SendHistoryCard
+              doc={selected}
+              sends={sends}
+              loading={sendsLoading}
+              onOpenSend={
+                selected && onSend
+                  ? () => {
+                      setSendOpenSignal((n) => n + 1);
+                      document
+                        .getElementById("sales-doc-preview")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                    }
+                  : undefined
+              }
+            />
           </aside>
         </div>
       </div>
