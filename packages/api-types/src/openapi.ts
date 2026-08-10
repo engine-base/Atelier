@@ -6888,6 +6888,324 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bridge/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bridge presence 登録（GAP-026① / BridgeAuth） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BridgePingRequest"];
+                };
+            };
+            responses: {
+                /** @description presence 記録 (bridge_workers upsert) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/executions-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 実行イベント集約（GAP-026⑤ — S-I03 ログ集約ビュー） */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実 task_executions から導出した開始/終了イベント (新しい順・RLS 可視分) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ExecutionEvent"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dispatch/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** すべて一時停止（GAP-026② — Bridge の新規 pick を止める） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 一時停止 (実行中セッションは継続、audit dispatch.paused) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["DispatchControl"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dispatch/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ディスパッチ再開（GAP-026②） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 再開 (audit dispatch.resumed) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["DispatchControl"];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dispatch/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 順番待ちから 1 件追加（GAP-026② — 次の pick で最優先） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 最古の queued タスクを昇格 (audit dispatch.promoted) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["DispatchPromoteResponse"];
+                        };
+                    };
+                };
+                /** @description queued タスク無し */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{task_id}/dispatch-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** キュー取消（GAP-026③ — queued の dispatch を解除） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description dispatch 解除 (lifecycle=ready へ戻す、audit dispatch.cancelled) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description task 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description queued ではない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{task_id}/dispatch-stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** セッション停止（GAP-026④ — 実行 cancelled + reclaimed） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 停止 (execution=cancelled / dispatch=reclaimed / blocked、audit dispatch.stopped) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description task 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 実行中ではない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/executions/{execution_id}/logs": {
         parameters: {
             query?: never;
@@ -11483,6 +11801,55 @@ export interface components {
             active_worker_pids: number[];
             /** Format: date-time */
             evaluated_at: string;
+            /**
+             * @description GAP-026②: すべて一時停止中 (pick が止まる)
+             * @default false
+             */
+            paused: boolean;
+            /** @description GAP-026①: 直近 5 分に ping した Bridge worker */
+            workers?: components["schemas"]["BridgeWorkerInfo"][];
+        };
+        BridgeWorkerInfo: {
+            id: string;
+            host_label: string;
+            version: string;
+            worker_pid?: number | null;
+            /** Format: date-time */
+            last_seen_at: string;
+            /** @description last_seen_at が 90 秒以内 */
+            connected: boolean;
+        };
+        BridgePingRequest: {
+            worker_id: string;
+            host_label: string;
+            version: string;
+            worker_pid?: number | null;
+        };
+        DispatchControl: {
+            paused: boolean;
+            /** Format: date-time */
+            paused_at?: string | null;
+            /** Format: uuid */
+            paused_by?: string | null;
+        };
+        DispatchPromoteResponse: {
+            /** Format: uuid */
+            task_id: string;
+            title: string;
+            note: string;
+        };
+        ExecutionEvent: {
+            /** Format: date-time */
+            at: string;
+            /** @description started / succeeded / failed / cancelled / timeout */
+            kind: string;
+            /** Format: uuid */
+            execution_id: string;
+            /** Format: uuid */
+            task_id: string;
+            task_title: string;
+            score?: number | null;
+            error_summary?: string | null;
         };
         ExecLogMeta: {
             /** Format: uuid */

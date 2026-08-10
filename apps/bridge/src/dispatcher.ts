@@ -11,9 +11,13 @@
 
 import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import { BridgeAuthError, type BridgeApi } from './api-client.js';
+
+/** Bridge の版数 (S-I03 接続バッジに表示。package.json と同期)。 */
+const BRIDGE_VERSION = '0.1.0';
 
 export type CycleOutcome =
   | 'completed'
@@ -95,6 +99,18 @@ export class Dispatcher {
 
   /** 1 claim サイクルを実行する。task が無ければ 'no-task'。 */
   async runOnce(): Promise<CycleOutcome> {
+    // GAP-026①: presence を毎サイクル送る (失敗しても claim は続行 —
+    // 接続バッジは S-I03 側で last_seen の鮮度から判定する)
+    await this.api
+      .ping({
+        workerId: `${hostname()}#${this.config.workerPid}`,
+        hostLabel: hostname(),
+        version: BRIDGE_VERSION,
+        workerPid: this.config.workerPid,
+      })
+      .catch(() => {
+        /* presence 失敗は致命ではない */
+      });
     let picked;
     try {
       picked = await this.api.pick(this.config.workerPid, this.config.projectId);

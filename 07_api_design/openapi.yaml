@@ -1353,6 +1353,59 @@ components:
           type: array
           items: { type: integer }
         evaluated_at: { type: string, format: date-time }
+        paused: { type: boolean, default: false, description: "GAP-026②: すべて一時停止中 (pick が止まる)" }
+        workers:
+          type: array
+          items: { $ref: '#/components/schemas/BridgeWorkerInfo' }
+          description: "GAP-026①: 直近 5 分に ping した Bridge worker"
+
+    BridgeWorkerInfo:
+      type: object
+      required: [id, host_label, version, last_seen_at, connected]
+      properties:
+        id: { type: string }
+        host_label: { type: string }
+        version: { type: string }
+        worker_pid: { type: integer, nullable: true }
+        last_seen_at: { type: string, format: date-time }
+        connected: { type: boolean, description: "last_seen_at が 90 秒以内" }
+
+    BridgePingRequest:
+      type: object
+      required: [worker_id, host_label, version]
+      properties:
+        worker_id: { type: string, minLength: 1, maxLength: 200 }
+        host_label: { type: string, minLength: 1, maxLength: 200 }
+        version: { type: string, minLength: 1, maxLength: 50 }
+        worker_pid: { type: integer, nullable: true }
+
+    DispatchControl:
+      type: object
+      required: [paused]
+      properties:
+        paused: { type: boolean }
+        paused_at: { type: string, format: date-time, nullable: true }
+        paused_by: { type: string, format: uuid, nullable: true }
+
+    DispatchPromoteResponse:
+      type: object
+      required: [task_id, title, note]
+      properties:
+        task_id: { type: string, format: uuid }
+        title: { type: string }
+        note: { type: string }
+
+    ExecutionEvent:
+      type: object
+      required: [at, kind, execution_id, task_id, task_title]
+      properties:
+        at: { type: string, format: date-time }
+        kind: { type: string, description: "started / succeeded / failed / cancelled / timeout" }
+        execution_id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        task_title: { type: string }
+        score: { type: number, nullable: true }
+        error_summary: { type: string, nullable: true }
 
     ExecLogMeta:
       type: object
@@ -4775,6 +4828,119 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/BridgeStatus' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /bridge/ping:
+    post:
+      tags: [kanban-tools]
+      summary: Bridge presence 登録（GAP-026① / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::bridge_ping
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BridgePingRequest' }
+      responses:
+        '200': { description: presence 記録 (bridge_workers upsert) }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /executions-events:
+    get:
+      tags: [executions]
+      summary: 実行イベント集約（GAP-026⑤ — S-I03 ログ集約ビュー）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::list_execution_events
+      x-screen-ids: [S-I03]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: 実 task_executions から導出した開始/終了イベント (新しい順・RLS 可視分)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExecutionEvent' }
+
+  /dispatch/pause:
+    post:
+      tags: [executions]
+      summary: すべて一時停止（GAP-026② — Bridge の新規 pick を止める）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::pause_dispatch
+      x-screen-ids: [S-I03]
+      responses:
+        '200':
+          description: 一時停止 (実行中セッションは継続、audit dispatch.paused)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DispatchControl' }
+
+  /dispatch/resume:
+    post:
+      tags: [executions]
+      summary: ディスパッチ再開（GAP-026②）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::resume_dispatch
+      x-screen-ids: [S-I03]
+      responses:
+        '200':
+          description: 再開 (audit dispatch.resumed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DispatchControl' }
+
+  /dispatch/promote:
+    post:
+      tags: [executions]
+      summary: 順番待ちから 1 件追加（GAP-026② — 次の pick で最優先）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::promote_dispatch
+      x-screen-ids: [S-I03]
+      responses:
+        '200':
+          description: 最古の queued タスクを昇格 (audit dispatch.promoted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/DispatchPromoteResponse' }
+        '409': { description: queued タスク無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/dispatch-cancel:
+    post:
+      tags: [executions]
+      summary: キュー取消（GAP-026③ — queued の dispatch を解除）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::cancel_task_dispatch
+      x-screen-ids: [S-I03]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: dispatch 解除 (lifecycle=ready へ戻す、audit dispatch.cancelled) }
+        '404': { description: task 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: queued ではない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/dispatch-stop:
+    post:
+      tags: [executions]
+      summary: セッション停止（GAP-026④ — 実行 cancelled + reclaimed）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::stop_task_dispatch
+      x-screen-ids: [S-I03]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: 停止 (execution=cancelled / dispatch=reclaimed / blocked、audit dispatch.stopped) }
+        '404': { description: task 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 実行中ではない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /executions/{execution_id}/logs:
     get:

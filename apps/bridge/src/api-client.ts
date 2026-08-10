@@ -43,6 +43,13 @@ export interface BridgeApi {
   ): Promise<void>;
   requestChange(taskId: string, executionId: string, reason: string): Promise<void>;
   heartbeat(taskId: string, workerPid: number): Promise<void>;
+  /** GAP-026①: Bridge presence (S-I03 接続バッジの実体)。poll ごとに送る。 */
+  ping(info: {
+    workerId: string;
+    hostLabel: string;
+    version: string;
+    workerPid?: number;
+  }): Promise<void>;
 }
 
 export interface ApiClientConfig {
@@ -141,6 +148,20 @@ export class ApiClient implements BridgeApi {
     await this.post('/kanban/heartbeat', {
       task_id: taskId,
       worker_pid: workerPid,
+    });
+  }
+
+  async ping(info: {
+    workerId: string;
+    hostLabel: string;
+    version: string;
+    workerPid?: number;
+  }): Promise<void> {
+    await this.post('/bridge/ping', {
+      worker_id: info.workerId,
+      host_label: info.hostLabel,
+      version: info.version,
+      worker_pid: info.workerPid ?? null,
     });
   }
 }

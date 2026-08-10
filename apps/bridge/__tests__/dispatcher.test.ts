@@ -44,6 +44,9 @@ class FakeApi implements BridgeApi {
   async heartbeat(): Promise<void> {
     this.calls.push('heartbeat');
   }
+  async ping(): Promise<void> {
+    this.calls.push('ping');
+  }
 }
 
 function makeDispatcher(api: BridgeApi, command: string, timeoutMs = 30_000): Dispatcher {
@@ -118,8 +121,10 @@ describe('Dispatcher.runOnce (T-F-41)', () => {
     const d = makeDispatcher(api, 'echo');
     const outcome = await d.runOnce();
     expect(outcome).toBe('completed');
-    expect(api.calls[0]).toBe('pick');
-    expect(api.calls[1]).toBe('start');
+    // GAP-026①: 毎サイクル先頭に presence ping
+    expect(api.calls[0]).toBe('ping');
+    expect(api.calls[1]).toBe('pick');
+    expect(api.calls[2]).toBe('start');
     expect(api.calls.at(-1)).toBe('complete:with-summary');
   });
 
@@ -153,7 +158,7 @@ describe('Dispatcher.runOnce (T-F-41)', () => {
     const d = makeDispatcher(api, 'echo');
     const outcome = await d.runOnce();
     expect(outcome).toBe('auth-error');
-    expect(api.calls).toEqual([]); // start/complete は一切呼ばれない
+    expect(api.calls).toEqual(['ping']); // start/complete は一切呼ばれない (presence のみ)
   });
 
   it('no_available_task では何も実行しない', async () => {
@@ -170,6 +175,6 @@ describe('Dispatcher.runOnce (T-F-41)', () => {
     const d = makeDispatcher(api, 'echo');
     const outcome = await d.runOnce();
     expect(outcome).toBe('no-task');
-    expect(api.calls).toEqual(['pick']);
+    expect(api.calls).toEqual(['ping', 'pick']);
   });
 });

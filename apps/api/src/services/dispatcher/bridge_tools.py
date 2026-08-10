@@ -90,7 +90,15 @@ async def pick_task(
     で、Bridge が子プロセスへ渡すプロンプトの材料になる (GAP-030: ID だけでは
     子 Claude が仕様を探して長考しタイムアウトする)。no_available_task の時は
     (None, None, None, {}) を返す。
+
+    GAP-026: dispatch_control.paused の間は新規 pick を止める (実行中は継続)。
+    「順番待ちから 1 件追加」で昇格されたタスク (dispatch_promoted_at) を最優先。
     """
+    paused_res = await session.execute(
+        text("select paused from public.dispatch_control where id = 1")
+    )
+    if bool(paused_res.scalar_one_or_none()):
+        return None, None, None, {}
     where = ["dispatch_status = 'queued'", "deleted_at is null"]
     params: dict[str, object] = {"pid_w": worker_pid}
     if project_id is not None:
@@ -101,7 +109,8 @@ async def pick_task(
             "with picked as ("
             "  select id from public.tasks "
             f"  where {' and '.join(where)} "
-            "  order by created_at limit 1 for update skip locked"
+            "  order by dispatch_promoted_at desc nulls last, created_at "
+            "  limit 1 for update skip locked"
             ") update public.tasks t set dispatch_status = 'spawning', "
             "worker_pid = :pid_w, updated_at = now() "
             "where t.id in (select id from picked) returning t.id, t.project_id, "
@@ -469,4 +478,26 @@ async def kill_task(
         dispatch_status="reclaimed",
         execution_status="cancelled" if execution_id else None,
         action="killed",
+    )
+
+
+async def record_ping(
+    session: AsyncSession,
+    *,
+    worker_id: str,
+    host_label: str,
+    version: str,
+    worker_pid: int | None,
+) -> None:
+    """Bridge presence (GAP-026①)。poll ごとに upsert され、S-I03 の接続バッジの
+    実体になる (last_seen_at が新鮮なら「接続中」)。"""
+    await session.execute(
+        text(
+            "insert into public.bridge_workers (id, host_label, version, worker_pid, last_seen_at) "
+            "values (:i, :h, :v, :p, now()) "
+            "on conflict (id) do update set host_label = excluded.host_label, "
+            "version = excluded.version, worker_pid = excluded.worker_pid, "
+            "last_seen_at = now()"
+        ),
+        {"i": worker_id, "h": host_label, "v": version, "p": worker_pid},
     )

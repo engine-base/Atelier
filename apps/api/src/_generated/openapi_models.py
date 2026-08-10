@@ -1431,17 +1431,48 @@ class Execution(BaseModel):
     created_at: AwareDatetime
 
 
-class BridgeStatus(BaseModel):
-    running_count: Annotated[int, Field(ge=0)]
-    queued_count: Annotated[int, Field(ge=0)]
-    completing_count: Annotated[int, Field(ge=0)]
-    spawning_count: Annotated[int, Field(ge=0)]
-    dead_count_24h: Annotated[int, Field(ge=0)]
-    parallel_limit: Annotated[int, Field(ge=1)]
-    available_slots: Annotated[int, Field(ge=0)]
-    oldest_running_started_at: AwareDatetime | None = None
-    active_worker_pids: list[int]
-    evaluated_at: AwareDatetime
+class BridgeWorkerInfo(BaseModel):
+    id: str
+    host_label: str
+    version: str
+    worker_pid: int | None = None
+    last_seen_at: AwareDatetime
+    connected: bool
+    """
+    last_seen_at が 90 秒以内
+    """
+
+
+class BridgePingRequest(BaseModel):
+    worker_id: Annotated[str, Field(max_length=200, min_length=1)]
+    host_label: Annotated[str, Field(max_length=200, min_length=1)]
+    version: Annotated[str, Field(max_length=50, min_length=1)]
+    worker_pid: int | None = None
+
+
+class DispatchControl(BaseModel):
+    paused: bool
+    paused_at: AwareDatetime | None = None
+    paused_by: UUID | None = None
+
+
+class DispatchPromoteResponse(BaseModel):
+    task_id: UUID
+    title: str
+    note: str
+
+
+class ExecutionEvent(BaseModel):
+    at: AwareDatetime
+    kind: str
+    """
+    started / succeeded / failed / cancelled / timeout
+    """
+    execution_id: UUID
+    task_id: UUID
+    task_title: str
+    score: float | None = None
+    error_summary: str | None = None
 
 
 class ExecLogMeta(BaseModel):
@@ -1805,4 +1836,25 @@ class AuthResponse(BaseModel):
     refresh_token: str | None = None
     """
     opaque, httpOnly cookie
+    """
+
+
+class BridgeStatus(BaseModel):
+    running_count: Annotated[int, Field(ge=0)]
+    queued_count: Annotated[int, Field(ge=0)]
+    completing_count: Annotated[int, Field(ge=0)]
+    spawning_count: Annotated[int, Field(ge=0)]
+    dead_count_24h: Annotated[int, Field(ge=0)]
+    parallel_limit: Annotated[int, Field(ge=1)]
+    available_slots: Annotated[int, Field(ge=0)]
+    oldest_running_started_at: AwareDatetime | None = None
+    active_worker_pids: list[int]
+    evaluated_at: AwareDatetime
+    paused: bool | None = False
+    """
+    GAP-026②: すべて一時停止中 (pick が止まる)
+    """
+    workers: list[BridgeWorkerInfo] | None = None
+    """
+    GAP-026①: 直近 5 分に ping した Bridge worker
     """

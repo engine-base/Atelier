@@ -109,9 +109,49 @@ const FLEET_TASKS = [
   },
 ];
 
-function fleetClient(post?: unknown): ApiClient {
+const BRIDGE_STATUS = {
+  running_count: 1,
+  queued_count: 1,
+  parallel_limit: 5,
+  available_slots: 4,
+  paused: false,
+  workers: [
+    {
+      id: "mac#42",
+      host_label: "MacBook Pro (M.K.)",
+      version: "0.1.0",
+      connected: true,
+      last_seen_at: "2026-06-20T10:00:00Z",
+    },
+  ],
+};
+
+const EXEC_EVENTS = [
+  {
+    at: "2026-06-20T10:05:00Z",
+    kind: "succeeded",
+    execution_id: "x-1",
+    task_id: "t-await",
+    task_title: "退会フロー（30 日猶予）",
+    score: 0.87,
+    error_summary: null,
+  },
+  {
+    at: "2026-06-20T10:00:00Z",
+    kind: "started",
+    execution_id: "x-1",
+    task_id: "t-await",
+    task_title: "退会フロー（30 日猶予）",
+    score: null,
+    error_summary: null,
+  },
+];
+
+function fleetClient(post?: unknown, bridge: unknown = BRIDGE_STATUS): ApiClient {
   const get = vi.fn(async (path: string) => {
     if (path === "/tasks") return { data: FLEET_TASKS };
+    if (path === "/bridge/status") return { data: bridge };
+    if (path === "/executions-events") return { data: EXEC_EVENTS };
     if (path === "/ai-employees")
       return {
         data: [
@@ -197,13 +237,88 @@ describe("S-I03 FleetMonitorContainer (design-audit v2)", () => {
     expect(post.mock.calls[0]![0]).toBe("/tasks/{task_id}/approve");
   });
 
-  it("does not render unbacked controls (停止 / 一時停止 / キュー取消 — Rule 10)", async () => {
+});
+
+describe("S-I03 運用操作系 (GAP-026)", () => {
+  it("Bridge 接続バッジ + 同時実行枠を実 /bridge/status から描画", async () => {
     renderWithQuery(
       <FleetMonitorContainer projectId="p1" client={fleetClient()} />,
     );
-    await screen.findByText("文脈構築レイヤ");
-    expect(screen.queryByRole("button", { name: /停止/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /一時停止/ })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("ローカル Claude Code に接続中"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bridge v0.1.0 · MacBook Pro (M.K.)")).toBeInTheDocument();
+    expect(screen.getByText("1 / 5")).toBeInTheDocument();
+    expect(screen.getByText("（あと 4 枠空いています）")).toBeInTheDocument();
+  });
+
+  it("presence が無いときは「Bridge 未接続」の誠実表示", async () => {
+    renderWithQuery(
+      <FleetMonitorContainer
+        projectId="p1"
+        client={fleetClient(undefined, { ...BRIDGE_STATUS, workers: [] })}
+      />,
+    );
+    expect(await screen.findByText("Bridge 未接続")).toBeInTheDocument();
+  });
+
+  it("すべて一時停止 → POST /dispatch/pause / 1 件追加 → /dispatch/promote", async () => {
+    const post = vi.fn(async (..._args: unknown[]) => ({
+      data: { note: "「メールリンク発行」を次の空き枠で最優先開始します" },
+    }));
+    renderWithQuery(
+      <FleetMonitorContainer projectId="p1" client={fleetClient(post)} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /すべて一時停止/ }),
+    );
+    await waitFor(() =>
+      expect(post.mock.calls.some((c) => c[0] === "/dispatch/pause")).toBe(true),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /順番待ちから 1 件追加/ }),
+    );
+    await waitFor(() =>
+      expect(post.mock.calls.some((c) => c[0] === "/dispatch/promote")).toBe(true),
+    );
+    expect(
+      await screen.findByText(/次の空き枠で最優先開始します/),
+    ).toBeInTheDocument();
+  });
+
+  it("実行中カードの 停止 (2 段階確認) → POST dispatch-stop / キュー取消 → dispatch-cancel", async () => {
+    const post = vi.fn(async (..._args: unknown[]) => ({ data: {} }));
+    renderWithQuery(
+      <FleetMonitorContainer projectId="p1" client={fleetClient(post)} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "停止" }));
+    expect(
+      screen.getByText(/このセッションを停止しますか？/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "確定" }));
+    await waitFor(() =>
+      expect(
+        post.mock.calls.some((c) => c[0] === "/tasks/{task_id}/dispatch-stop"),
+      ).toBe(true),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "順番待ちから取消: メールリンク発行" }),
+    );
+    await waitFor(() =>
+      expect(
+        post.mock.calls.some((c) => c[0] === "/tasks/{task_id}/dispatch-cancel"),
+      ).toBe(true),
+    );
+  });
+
+  it("ログ集約ビュー → 実 /executions-events のイベント列を描画", async () => {
+    renderWithQuery(
+      <FleetMonitorContainer projectId="p1" client={fleetClient()} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "ログ集約" }));
+    expect(await screen.findByText("[成功]")).toBeInTheDocument();
+    expect(screen.getByText("[開始]")).toBeInTheDocument();
+    expect(screen.getByText("score 0.87")).toBeInTheDocument();
   });
 });
 

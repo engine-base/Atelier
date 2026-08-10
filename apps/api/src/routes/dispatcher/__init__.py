@@ -37,6 +37,7 @@ from src.schemas.dispatcher import (
     KanbanResponse,
     KanbanStartRequest,
 )
+from src.schemas.executions import BridgePingRequest
 from src.services.dispatcher import bridge_tools as svc
 
 router = APIRouter(tags=["kanban-tools"])
@@ -208,3 +209,18 @@ async def kanban_kill(
     except svc.DispatcherError as exc:
         _raise_for(exc.code, exc.message)
     return {"data": result}
+
+
+@router.post("/bridge/ping", summary="Bridge presence 登録 (GAP-026① / BridgeAuth)")
+async def bridge_ping(
+    body: BridgePingRequest, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, dict[str, str]]:
+    """Bridge アプリが poll ごとに送る presence。S-I03 の接続バッジの実体。"""
+    await svc.record_ping(
+        session,
+        worker_id=body.worker_id,
+        host_label=body.host_label,
+        version=body.version,
+        worker_pid=body.worker_pid,
+    )
+    return {"data": {"status": "ok"}}

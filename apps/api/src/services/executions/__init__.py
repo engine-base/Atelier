@@ -16,11 +16,26 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import AuditEvent, AuditWriter
 from src.schemas.executions import (
     BridgeStatusResponse,
+    BridgeWorkerInfo,
+    DispatchControlResponse,
+    DispatchPromoteResponse,
+    ExecutionEvent,
     ExecutionResponse,
     ExecutionStatus,
 )
+
+
+class DispatchOpsError(Exception):
+    """S-I03 運用操作 (GAP-026) の構造的失敗。code で分岐する。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
 
 # T-A-24 の _PARALLEL_LIMIT と整合させる (Bridge worker 並列上限)
 _PARALLEL_LIMIT = 5
@@ -155,6 +170,32 @@ async def bridge_status(session: AsyncSession) -> BridgeStatusResponse:
     )
     pids = [int(r.worker_pid) for r in pid_res.all()]
 
+    # GAP-026: 一時停止フラグ + Bridge presence (直近 5 分の ping)
+    paused_res = await session.execute(
+        text("select paused from public.dispatch_control where id = 1")
+    )
+    paused = bool(paused_res.scalar_one_or_none())
+    workers_res = await session.execute(
+        text(
+            "select id, host_label, version, worker_pid, last_seen_at, "
+            "(last_seen_at >= now() - interval '90 seconds') as connected "
+            "from public.bridge_workers "
+            "where last_seen_at >= now() - interval '5 minutes' "
+            "order by last_seen_at desc"
+        )
+    )
+    workers = [
+        BridgeWorkerInfo(
+            id=str(r.id),
+            host_label=str(r.host_label),
+            version=str(r.version),
+            worker_pid=(None if r.worker_pid is None else int(r.worker_pid)),
+            last_seen_at=r.last_seen_at,
+            connected=bool(r.connected),
+        )
+        for r in workers_res.all()
+    ]
+
     return BridgeStatusResponse(
         running_count=running,
         queued_count=queued,
@@ -166,4 +207,222 @@ async def bridge_status(session: AsyncSession) -> BridgeStatusResponse:
         oldest_running_started_at=oldest,
         active_worker_pids=pids,
         evaluated_at=datetime.now(UTC),
+        paused=paused,
+        workers=workers,
     )
+
+
+async def set_dispatch_paused(
+    session: AsyncSession, *, actor_id: str, paused: bool
+) -> DispatchControlResponse:
+    """「すべて一時停止 / 再開」(GAP-026②)。
+
+    paused=true の間、Bridge の /kanban/pick は新規タスクを掴まない
+    (実行中のセッションは止めない — モックの説明どおり「新規開始の停止」)。
+    """
+    await session.execute(
+        text(
+            "update public.dispatch_control set paused = :p, "
+            "paused_by = case when :p then cast(:u as uuid) else null end, "
+            "paused_at = case when :p then now() else null end, "
+            "updated_at = now() where id = 1"
+        ),
+        {"p": paused, "u": actor_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="dispatch.paused" if paused else "dispatch.resumed",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id="dispatch-control",
+        )
+    )
+    res = await session.execute(
+        text("select paused, paused_at, paused_by from public.dispatch_control where id = 1")
+    )
+    row = res.first()
+    return DispatchControlResponse(
+        paused=bool(row.paused) if row else paused,
+        paused_at=(row.paused_at if row else None),
+        paused_by=(None if row is None or row.paused_by is None else str(row.paused_by)),
+    )
+
+
+async def promote_next_queued(
+    session: AsyncSession, *, actor_id: str, task_id: str | None = None
+) -> DispatchPromoteResponse:
+    """「順番待ちから 1 件追加」(GAP-026②)。
+
+    指定 (または最古の) queued タスクを昇格し、次の pick で最優先に選ばせる。
+    Bridge がローカルで worker を起動する構造のため、API 側で spawn は
+    しない (昇格 = 次の空き枠で最優先開始)。queued が無ければ no_queued。
+    """
+    where = ["dispatch_status = 'queued'", "deleted_at is null"]
+    params: dict[str, object] = {}
+    if task_id is not None:
+        where.append("id = cast(:tid as uuid)")
+        params["tid"] = task_id
+    res = await session.execute(
+        text(
+            "update public.tasks set dispatch_promoted_at = now(), updated_at = now() "
+            "where id = (select id from public.tasks "
+            f"  where {' and '.join(where)} "
+            "  order by dispatch_promoted_at desc nulls last, created_at limit 1) "
+            "returning id, title"
+        ),
+        params,
+    )
+    row = res.first()
+    if row is None:
+        raise DispatchOpsError("no_queued", "no queued task to promote")
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="dispatch.promoted",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=str(row.id),
+        )
+    )
+    return DispatchPromoteResponse(
+        task_id=str(row.id),
+        title=str(row.title),
+        note=f"「{row.title}」を次の空き枠で最優先開始します",
+    )
+
+
+async def cancel_queued_dispatch(session: AsyncSession, *, actor_id: str, task_id: str) -> bool:
+    """「キュー取消」(GAP-026③)。queued のみ対象 — dispatch_status を解除する。
+
+    返り値 False = タスク不可視/不在 (404)。queued 以外は invalid_state (409)。
+    """
+    res = await session.execute(
+        text(
+            "select dispatch_status from public.tasks "
+            "where id = cast(:id as uuid) and deleted_at is null"
+        ),
+        {"id": task_id},
+    )
+    row = res.first()
+    if row is None:
+        return False
+    if str(row.dispatch_status or "") != "queued":
+        raise DispatchOpsError(
+            "invalid_state", f"task is not queued (dispatch_status={row.dispatch_status})"
+        )
+    await session.execute(
+        text(
+            "update public.tasks set dispatch_status = null, dispatch_promoted_at = null, "
+            "lifecycle_stage = 'ready', updated_at = now() where id = cast(:id as uuid)"
+        ),
+        {"id": task_id},
+    )
+    # play_task 投入時に作られた running execution が残っていれば取消で閉じる
+    await session.execute(
+        text(
+            "update public.task_executions set status = 'cancelled', completed_at = now(), "
+            "error_summary = 'S-I03 からキュー取消' "
+            "where task_id = cast(:id as uuid) and status = 'running'"
+        ),
+        {"id": task_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="dispatch.cancelled",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+        )
+    )
+    return True
+
+
+async def stop_dispatch(session: AsyncSession, *, actor_id: str, task_id: str) -> bool:
+    """「セッション停止」(GAP-026④)。spawning/running/completing を対象に
+    dispatch_status='reclaimed' + 実行中 execution を cancelled で閉じる。
+
+    ローカル worker 自体は Bridge 側プロセスのため即殺はできないが、以後の
+    heartbeat/complete は reclaimed 状態で拒否され、成果は取り込まれない
+    (kanban.kill と同じ終端状態)。返り値 False = 不可視/不在 (404)。
+    """
+    res = await session.execute(
+        text(
+            "select dispatch_status from public.tasks "
+            "where id = cast(:id as uuid) and deleted_at is null"
+        ),
+        {"id": task_id},
+    )
+    row = res.first()
+    if row is None:
+        return False
+    if str(row.dispatch_status or "") not in ("spawning", "running", "completing"):
+        raise DispatchOpsError(
+            "invalid_state",
+            f"task is not running (dispatch_status={row.dispatch_status})",
+        )
+    await session.execute(
+        text(
+            "update public.tasks set dispatch_status = 'reclaimed', "
+            "lifecycle_stage = 'blocked', blocked_reason = 'S-I03 から手動停止', "
+            "worker_pid = null, updated_at = now() where id = cast(:id as uuid)"
+        ),
+        {"id": task_id},
+    )
+    await session.execute(
+        text(
+            "update public.task_executions set status = 'cancelled', completed_at = now(), "
+            "error_summary = 'S-I03 から手動停止' "
+            "where task_id = cast(:id as uuid) and status = 'running'"
+        ),
+        {"id": task_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="dispatch.stopped",
+            target_type="task",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=task_id,
+        )
+    )
+    return True
+
+
+async def list_execution_events(session: AsyncSession, *, limit: int = 50) -> list[ExecutionEvent]:
+    """ログ集約ビュー (GAP-026⑤) — 実 task_executions から導出したイベント列。
+
+    1 execution から「開始」+「終了 (status)」の最大 2 イベントを起こし、
+    新しい順に limit 件。RLS で可視な task のみ。推測ログは生成しない。
+    """
+    res = await session.execute(
+        text(
+            "select ev.at, ev.kind, ev.execution_id, ev.task_id, ev.task_title, "
+            "ev.score, ev.error_summary from ("
+            "  select te.started_at as at, 'started' as kind, te.id as execution_id, "
+            "         t.id as task_id, t.title as task_title, "
+            "         null::numeric as score, null::text as error_summary "
+            "  from public.task_executions te join public.tasks t on t.id = te.task_id "
+            "  where t.deleted_at is null "
+            "  union all "
+            "  select te.completed_at, te.status::text, te.id, t.id, t.title, "
+            "         te.score, te.error_summary "
+            "  from public.task_executions te join public.tasks t on t.id = te.task_id "
+            "  where t.deleted_at is null and te.completed_at is not null "
+            ") ev order by ev.at desc limit :lim"
+        ),
+        {"lim": limit},
+    )
+    return [
+        ExecutionEvent(
+            at=r.at,
+            kind=str(r.kind),
+            execution_id=str(r.execution_id),
+            task_id=str(r.task_id),
+            task_title=str(r.task_title),
+            score=(None if r.score is None else float(r.score)),
+            error_summary=(None if r.error_summary is None else str(r.error_summary)),
+        )
+        for r in res.all()
+    ]

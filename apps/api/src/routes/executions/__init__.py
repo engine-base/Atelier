@@ -15,6 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.executions import (
     BridgeStatusResponse,
+    DispatchControlResponse,
+    DispatchPromoteResponse,
+    ExecutionEvent,
     ExecutionResponse,
     ExecutionStatus,
 )
@@ -61,3 +64,69 @@ async def get_execution(
 @router.get("/bridge/status", summary="Bridge worker 集約状態")
 async def get_bridge_status(session: SessionDep, _user: UserDep) -> dict[str, BridgeStatusResponse]:
     return {"data": await svc.bridge_status(session)}
+
+
+@router.get("/executions-events", summary="実行イベント集約 (GAP-026⑤ — S-I03 ログ集約ビュー)")
+async def list_execution_events(
+    session: SessionDep,
+    _user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> dict[str, list[ExecutionEvent]]:
+    """実 task_executions から導出した開始/終了イベント列 (RLS 可視分のみ)。"""
+    return {"data": await svc.list_execution_events(session, limit=limit)}
+
+
+@router.post("/dispatch/pause", summary="すべて一時停止 (GAP-026② — 新規 pick を止める)")
+async def pause_dispatch(session: SessionDep, user: UserDep) -> dict[str, DispatchControlResponse]:
+    return {"data": await svc.set_dispatch_paused(session, actor_id=user.id, paused=True)}
+
+
+@router.post("/dispatch/resume", summary="ディスパッチ再開 (GAP-026②)")
+async def resume_dispatch(session: SessionDep, user: UserDep) -> dict[str, DispatchControlResponse]:
+    return {"data": await svc.set_dispatch_paused(session, actor_id=user.id, paused=False)}
+
+
+@router.post(
+    "/dispatch/promote",
+    summary="順番待ちから 1 件追加 (GAP-026② — 次の pick で最優先)",
+)
+async def promote_dispatch(
+    session: SessionDep, user: UserDep
+) -> dict[str, DispatchPromoteResponse]:
+    try:
+        result = await svc.promote_next_queued(session, actor_id=user.id)
+    except svc.DispatchOpsError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    return {"data": result}
+
+
+@router.post(
+    "/tasks/{task_id}/dispatch-cancel",
+    summary="キュー取消 (GAP-026③ — queued の dispatch を解除)",
+)
+async def cancel_task_dispatch(
+    task_id: str, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    try:
+        ok = await svc.cancel_queued_dispatch(session, actor_id=user.id, task_id=task_id)
+    except svc.DispatchOpsError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": {"task_id": task_id, "dispatch_status": ""}}
+
+
+@router.post(
+    "/tasks/{task_id}/dispatch-stop",
+    summary="セッション停止 (GAP-026④ — 実行を cancelled で閉じ reclaimed へ)",
+)
+async def stop_task_dispatch(
+    task_id: str, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    try:
+        ok = await svc.stop_dispatch(session, actor_id=user.id, task_id=task_id)
+    except svc.DispatchOpsError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": {"task_id": task_id, "dispatch_status": "reclaimed"}}

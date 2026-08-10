@@ -43,6 +43,18 @@ class ExecutionResponse(BaseModel):
     created_at: datetime
 
 
+class BridgeWorkerInfo(BaseModel):
+    """Bridge presence 1 件 (GAP-026① — POST /bridge/ping の upsert 結果)。"""
+
+    id: str
+    host_label: str
+    version: str
+    worker_pid: int | None
+    last_seen_at: datetime
+    connected: bool
+    """last_seen_at が 90 秒以内 (poll 間隔 ×3 相当)。"""
+
+
 class BridgeStatusResponse(BaseModel):
     """Bridge worker 集約状態。
 
@@ -68,3 +80,44 @@ class BridgeStatusResponse(BaseModel):
     oldest_running_started_at: datetime | None
     active_worker_pids: list[int]
     evaluated_at: datetime
+    # GAP-026: 一時停止フラグ + Bridge presence (直近 5 分に ping した worker)
+    paused: bool = False
+    workers: list[BridgeWorkerInfo] = Field(default_factory=lambda: list[BridgeWorkerInfo]())
+
+
+class BridgePingRequest(BaseModel):
+    """Bridge presence 登録 (BridgeAuth)。poll ごとに送られる。"""
+
+    worker_id: str = Field(min_length=1, max_length=200)
+    host_label: str = Field(min_length=1, max_length=200)
+    version: str = Field(min_length=1, max_length=50)
+    worker_pid: int | None = None
+
+
+class DispatchControlResponse(BaseModel):
+    """「すべて一時停止」の現在状態 (GAP-026②)。"""
+
+    paused: bool
+    paused_at: datetime | None
+    paused_by: str | None
+
+
+class DispatchPromoteResponse(BaseModel):
+    """「順番待ちから 1 件追加」の結果 — 昇格された実タスク。"""
+
+    task_id: str
+    title: str
+    note: str
+
+
+class ExecutionEvent(BaseModel):
+    """ログ集約ビューの 1 イベント (GAP-026⑤ — 実 task_executions から導出)。"""
+
+    at: datetime
+    kind: str
+    """started / succeeded / failed / cancelled / timeout"""
+    execution_id: str
+    task_id: str
+    task_title: str
+    score: float | None
+    error_summary: str | None

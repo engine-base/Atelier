@@ -10,15 +10,20 @@
  * 並び替え (GAP-031③): モックの「要対応が上」(既定 — 区分表示) /「新しい順」/
  * 「進捗順」を実装。後 2 者は要対応+進行中を 1 つのグリッドに結合し
  * updated_at 降順 / 最新実行の進捗 (score ?? ac_pass_rate) 降順で並べる。
- * モックの Bridge 接続バッジ・すべて一時停止・順番待ちから追加・ログ集約ビュー・
- * キュー取消は対応 API が無いため未描画 (Rule 10 / GAP-026)。
+ * GAP-026 (運用操作系):
+ *   - Bridge 接続バッジ (GET /bridge/status — bridge_workers presence)
+ *   - 同時実行枠 X / Y + すべて一時停止⇄再開 (POST /dispatch/pause|resume)
+ *   - 順番待ちから 1 件追加 (POST /dispatch/promote — 次の pick で最優先)
+ *   - キュー取消 (POST /tasks/{id}/dispatch-cancel) / セッション停止 (dispatch-stop)
+ *   - 表示方法 カード/一覧/ログ集約 (集約 = GET /executions-events 実イベント)
+ *   - 経過時間 (実 started_at からの実測 tick) + 着手時刻・見積比の残り
  * 個別実行の SSE ライブログは ExecutionMonitorContainer (?execution=) が担う。
  */
 
 "use client";
 
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,10 +33,15 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
+  LayoutGrid,
+  List,
   Loader2,
+  Pause,
   PlayCircle,
   RotateCcw,
+  Square,
   Terminal,
+  X,
 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
@@ -62,6 +72,44 @@ interface ApiExecution {
   score?: number | null;
   ac_pass_rate?: number | null;
   started_at: string;
+}
+interface ApiBridgeStatus {
+  running_count: number;
+  queued_count: number;
+  parallel_limit: number;
+  available_slots: number;
+  paused?: boolean;
+  workers?: readonly {
+    id: string;
+    host_label: string;
+    version: string;
+    connected: boolean;
+    last_seen_at: string;
+  }[];
+}
+interface ApiExecutionEvent {
+  at: string;
+  kind: string;
+  execution_id: string;
+  task_id: string;
+  task_title: string;
+  score?: number | null;
+  error_summary?: string | null;
+}
+
+const EVENT_LABEL: Record<string, { label: string; tone: string }> = {
+  started: { label: "開始", tone: "text-[#93C5FD]" },
+  succeeded: { label: "成功", tone: "text-tertiary" },
+  failed: { label: "失敗", tone: "text-[#FCA5A5]" },
+  cancelled: { label: "停止", tone: "text-secondary" },
+  timeout: { label: "タイムアウト", tone: "text-[#FCA5A5]" },
+};
+
+/** 経過秒 → 「X 分 Y 秒」表示。 */
+function fmtElapsed(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m} 分 ${s % 60} 秒` : `${s} 秒`;
 }
 
 export interface FleetMonitorContainerProps {
@@ -162,13 +210,124 @@ export function FleetMonitorContainer({
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<{
     taskId: string;
-    action: "approve" | "reject" | "retry";
+    action: "approve" | "reject" | "retry" | "stop";
   } | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   // GAP-031③: 並び替え (要対応が上 = 区分表示 / 新しい順 / 進捗順)
   const [sort, setSort] = useState<"attention" | "newest" | "progress">(
     "attention",
   );
+  // GAP-026: 表示方法 (カード / 一覧 / ログ集約) + 運用操作の通知
+  const [view, setView] = useState<"card" | "list" | "logs">("card");
+  const [opsNotice, setOpsNotice] = useState<string | null>(null);
+  const [opsError, setOpsError] = useState<string | null>(null);
+  // 経過時間の実測 tick (1 秒)
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // GAP-026: Bridge 集約状態 (presence + 並列枠 + 一時停止フラグ)
+  const bridge = useQuery({
+    queryKey: ["bridge-status"],
+    queryFn: async () => {
+      const res = await client.get("/bridge/status", {});
+      return ((res as { data?: ApiBridgeStatus }).data ?? null);
+    },
+    refetchInterval: 15000,
+    retry: false,
+  });
+
+  // GAP-026⑤: ログ集約ビュー (実 task_executions 由来イベント)
+  const events = useQuery({
+    queryKey: ["executions-events"],
+    enabled: view === "logs",
+    queryFn: async () => {
+      const res = await client.get("/executions-events", {
+        params: { query: { limit: 100 } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiExecutionEvent[]) : [];
+    },
+    refetchInterval: view === "logs" ? 10000 : false,
+    retry: false,
+  });
+
+  const refreshFleet = () => {
+    void queryClient.invalidateQueries({ queryKey: ["tasks", "fleet", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["bridge-status"] });
+  };
+
+  const pauseMut = useMutation({
+    mutationFn: (pause: boolean) =>
+      client.post(pause ? "/dispatch/pause" : "/dispatch/resume", {}),
+    onSuccess: (_res: unknown, paused: boolean) => {
+      setOpsError(null);
+      setOpsNotice(
+        paused
+          ? "新規の実行開始を一時停止しました (実行中のセッションは継続します)"
+          : "ディスパッチを再開しました",
+      );
+      refreshFleet();
+    },
+    onError: () => setOpsError("操作に失敗しました。時間をおいて再試行してください。"),
+  });
+
+  const promoteMut = useMutation({
+    mutationFn: () => client.post("/dispatch/promote", {}),
+    onSuccess: (res: unknown) => {
+      setOpsError(null);
+      const note = (res as { data?: { note?: string } }).data?.note;
+      setOpsNotice(note ?? "順番待ちの先頭タスクを最優先に昇格しました");
+      refreshFleet();
+    },
+    onError: (error: unknown) =>
+      setOpsError(
+        error instanceof ApiError && error.status === 409
+          ? "順番待ちのタスクがありません。"
+          : "操作に失敗しました。時間をおいて再試行してください。",
+      ),
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: (taskId: string) =>
+      client.post("/tasks/{task_id}/dispatch-cancel", {
+        params: { path: { task_id: taskId } },
+      }),
+    onSuccess: () => {
+      setOpsError(null);
+      setOpsNotice("順番待ちから取り消しました (タスクは ready に戻ります)");
+      refreshFleet();
+    },
+    onError: (error: unknown) =>
+      setOpsError(
+        error instanceof ApiError && error.status === 409
+          ? "タスクの状態が変わったため取消できませんでした。"
+          : "操作に失敗しました。時間をおいて再試行してください。",
+      ),
+  });
+
+  const stopMut = useMutation({
+    mutationFn: (taskId: string) =>
+      client.post("/tasks/{task_id}/dispatch-stop", {
+        params: { path: { task_id: taskId } },
+      }),
+    onSuccess: () => {
+      setOpsError(null);
+      setOpsNotice(
+        "セッションを停止しました (実行は取消で閉じられ、以後の成果は取り込まれません)",
+      );
+      setConfirming(null);
+      refreshFleet();
+    },
+    onError: (error: unknown) =>
+      setOpsError(
+        error instanceof ApiError && error.status === 409
+          ? "タスクの状態が変わったため停止できませんでした。"
+          : "操作に失敗しました。時間をおいて再試行してください。",
+      ),
+  });
 
   const tasks = useQuery({
     queryKey: ["tasks", "fleet", projectId],
@@ -307,7 +466,9 @@ export function FleetMonitorContainer({
               ? "承認して完了にしますか？"
               : confirming.action === "reject"
                 ? "差し戻しますか？"
-                : "再試行しますか？"}
+                : confirming.action === "stop"
+                  ? "このセッションを停止しますか？ (実行は取消で閉じられます)"
+                  : "再試行しますか？"}
           </span>
           <button
             type="button"
@@ -318,14 +479,18 @@ export function FleetMonitorContainer({
           </button>
           <button
             type="button"
-            disabled={decide.isPending}
-            onClick={() => decide.mutate({ taskId: t.id, action: confirming.action })}
+            disabled={decide.isPending || stopMut.isPending}
+            onClick={() =>
+              confirming.action === "stop"
+                ? stopMut.mutate(t.id)
+                : decide.mutate({ taskId: t.id, action: confirming.action })
+            }
             className={cn(
               "rounded-md px-3 py-1.5 text-[11.5px] font-bold text-white disabled:opacity-50",
               confirming.action === "approve" ? "bg-tertiary" : "bg-error",
             )}
           >
-            {decide.isPending ? "実行中…" : "確定"}
+            {decide.isPending || stopMut.isPending ? "実行中…" : "確定"}
           </button>
         </span>
       );
@@ -361,6 +526,17 @@ export function FleetMonitorContainer({
             再試行
           </button>
         ) : null}
+        {["spawning", "running", "completing"].includes(t.dispatch_status ?? "") ? (
+          // GAP-026④: セッション停止 (2 段階確認 → POST dispatch-stop)
+          <button
+            type="button"
+            onClick={() => setConfirming({ taskId: t.id, action: "stop" })}
+            className="inline-flex items-center gap-1 rounded-md bg-[#1E293B] px-3 py-1.5 text-[12px] font-semibold text-[#FCA5A5] hover:bg-[#334155]"
+          >
+            <Square size={11} aria-hidden="true" />
+            停止
+          </button>
+        ) : null}
       </>
     );
   };
@@ -375,6 +551,23 @@ export function FleetMonitorContainer({
     const exec = execOf(t.id);
     const awaiting = t.lifecycle_stage === "awaiting";
     const assignee = employeeName(t.assigned_employee_id);
+    // GAP-026⑥: 経過時間 = 実 started_at からの実測。残りは見積比 (推測を装わない)
+    const isLive =
+      exec?.status === "running" &&
+      ["spawning", "running", "completing"].includes(t.dispatch_status ?? "");
+    const elapsedSec = isLive && exec
+      ? (nowMs - new Date(exec.started_at).getTime()) / 1000
+      : null;
+    const remainMin =
+      elapsedSec != null && t.estimated_hours != null
+        ? Math.round(t.estimated_hours * 60 - elapsedSec / 60)
+        : null;
+    const startedLabel = exec
+      ? new Date(exec.started_at).toLocaleTimeString("ja-JP", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
     const stagePill = awaiting
       ? "スコア確定 · 人間の承認が必要"
       : t.lifecycle_stage === "blocked"
@@ -409,6 +602,11 @@ export function FleetMonitorContainer({
               タスク #{t.id.slice(0, 8)}
             </div>
           </div>
+          {elapsedSec != null ? (
+            <span className={cn("ml-auto shrink-0 text-[11.5px] tabular-nums", DARK.muted)}>
+              経過 {fmtElapsed(elapsedSec)}
+            </span>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2.5 border-b border-[#1E293B] px-4 py-2.5 text-[12px]">
@@ -482,10 +680,24 @@ export function FleetMonitorContainer({
               ログ
             </Link>
           ) : null}
+          {isLive && startedLabel ? (
+            <span className={cn("ml-auto shrink-0 text-[11px] tabular-nums", DARK.faint)}>
+              {startedLabel} 着手
+              {remainMin != null
+                ? remainMin >= 0
+                  ? ` · 見積比 残り ${remainMin} 分`
+                  : ` · 見積超過 +${Math.abs(remainMin)} 分`
+                : ""}
+            </span>
+          ) : null}
         </div>
       </div>
     );
   };
+
+  const bridgeConnected = (bridge.data?.workers ?? []).some((w) => w.connected);
+  const primaryWorker = (bridge.data?.workers ?? [])[0] ?? null;
+  const paused = Boolean(bridge.data?.paused);
 
   return (
     <div className="flex flex-col gap-4 rounded-lg bg-[#0F172A] p-4 sm:p-5">
@@ -494,6 +706,99 @@ export function FleetMonitorContainer({
           {decisionError}
         </p>
       ) : null}
+      {opsError ? (
+        <p role="alert" className="rounded-md bg-error/15 px-3 py-2 text-[12.5px] text-[#FCA5A5]">
+          {opsError}
+        </p>
+      ) : null}
+      {opsNotice ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 rounded-md bg-[rgba(20,184,166,0.12)] px-3 py-2 text-[12.5px] text-tertiary"
+        >
+          {opsNotice}
+          <button
+            type="button"
+            aria-label="通知を閉じる"
+            onClick={() => setOpsNotice(null)}
+            className="ml-auto rounded-sm p-[2px] hover:bg-[#1E293B]"
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </p>
+      ) : null}
+      {paused ? (
+        <p role="status" className="rounded-md border border-secondary bg-[rgba(199,160,74,0.12)] px-3 py-2 text-[12.5px] text-secondary">
+          すべて一時停止中 — 新規の実行開始は止まっています (実行中のセッションは継続)。
+        </p>
+      ) : null}
+
+      {/* ── ツールバー (GAP-026 — モック .controls 準拠) ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Bridge 接続バッジ (presence — bridge_workers の実 ping) */}
+        {bridgeConnected && primaryWorker ? (
+          <div className="flex items-center gap-2 rounded-md border border-[rgba(20,184,166,0.3)] bg-[rgba(20,184,166,0.10)] px-3 py-1.5">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 animate-pulse rounded-full bg-tertiary"
+            />
+            <span className="text-[12px] font-bold text-tertiary">
+              ローカル Claude Code に接続中
+            </span>
+            <span className={cn("text-[11px]", DARK.muted)}>
+              Bridge v{primaryWorker.version} · {primaryWorker.host_label}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 rounded-md border border-[#334155] bg-[#1E293B] px-3 py-1.5">
+            <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#64748B]" />
+            <span className={cn("text-[12px] font-bold", DARK.muted)}>
+              Bridge 未接続
+            </span>
+            <span className={cn("text-[11px]", DARK.faint)}>
+              直近 90 秒の presence がありません
+            </span>
+          </div>
+        )}
+        {/* 同時実行枠 (実 parallel_limit / available_slots) */}
+        {bridge.data ? (
+          <div className="flex items-center gap-2">
+            <span className={cn("text-[11px] font-bold", DARK.faint)}>
+              同時実行できる数
+            </span>
+            <strong className="text-[14px] tabular-nums text-[#F1F5F9]">
+              {bridge.data.running_count} / {bridge.data.parallel_limit}
+            </strong>
+            <span className={cn("text-[11.5px]", DARK.muted)}>
+              （あと {bridge.data.available_slots} 枠空いています）
+            </span>
+          </div>
+        ) : null}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={pauseMut.isPending}
+            onClick={() => pauseMut.mutate(!paused)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#334155] bg-[#1E293B] px-3.5 py-2 text-[12.5px] font-semibold text-[#E2E8F0] hover:bg-[#334155] disabled:opacity-50"
+          >
+            {paused ? (
+              <PlayCircle size={13} aria-hidden="true" />
+            ) : (
+              <Pause size={13} aria-hidden="true" />
+            )}
+            {paused ? "再開する" : "すべて一時停止"}
+          </button>
+          <button
+            type="button"
+            disabled={promoteMut.isPending || queued.length === 0}
+            onClick={() => promoteMut.mutate()}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[12.5px] font-bold text-on-primary hover:brightness-110 disabled:opacity-50"
+          >
+            <PlayCircle size={13} aria-hidden="true" />
+            順番待ちから 1 件追加
+          </button>
+        </div>
+      </div>
 
       {/* ── 統計バー (実データ) ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -527,8 +832,34 @@ export function FleetMonitorContainer({
         />
       </div>
 
-      {/* ── 並び替え (GAP-031③ — モック .seg-dark 準拠) ── */}
+      {/* ── 表示方法 (GAP-026⑤) + 並び替え (GAP-031③ — モック .seg-dark 準拠) ── */}
       <div className="flex flex-wrap items-center gap-2.5">
+        <span className={cn("text-[11px] font-bold", DARK.faint)}>表示方法</span>
+        <div role="group" aria-label="表示方法" className="flex gap-1 rounded-md bg-[#1E293B] p-1">
+          {(
+            [
+              ["card", "カード", LayoutGrid],
+              ["list", "一覧", List],
+              ["logs", "ログ集約", Terminal],
+            ] as const
+          ).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-3 py-1.5 text-[12px] font-semibold transition-colors",
+                view === key
+                  ? "bg-[#334155] text-[#F1F5F9]"
+                  : cn(DARK.muted, "hover:text-[#E2E8F0]"),
+              )}
+            >
+              <Icon size={13} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
         <span className={cn("text-[11px] font-bold", DARK.faint)}>並び替え</span>
         <div
           role="group"
@@ -560,7 +891,106 @@ export function FleetMonitorContainer({
         </div>
       </div>
 
-      {sort !== "attention" ? (
+      {view === "logs" ? (
+        /* GAP-026⑤: ログ集約 — 実 task_executions 由来のイベント列 (10 秒 poll) */
+        <div className={cn("rounded-lg border p-4 font-mono text-[12px] leading-[1.9]", DARK.panel)}>
+          {events.isLoading ? (
+            <p className={DARK.muted}>読み込み中…</p>
+          ) : (events.data ?? []).length === 0 ? (
+            <p className={DARK.muted}>実行イベントはまだありません。</p>
+          ) : (
+            <ul role="list" className="flex flex-col">
+              {(events.data ?? []).map((ev) => {
+                const meta = EVENT_LABEL[ev.kind] ?? {
+                  label: ev.kind,
+                  tone: DARK.muted,
+                };
+                return (
+                  <li key={`${ev.execution_id}-${ev.kind}`} className="flex flex-wrap gap-2">
+                    <span className={cn("tabular-nums", DARK.faint)}>
+                      {new Date(ev.at).toLocaleTimeString("ja-JP")}
+                    </span>
+                    <span className={cn("font-bold", meta.tone)}>[{meta.label}]</span>
+                    <Link
+                      href={`/tasks/monitor?execution=${ev.execution_id}`}
+                      className={cn("hover:underline", DARK.text)}
+                    >
+                      {ev.task_title}
+                    </Link>
+                    {ev.score != null ? (
+                      <span className={cn("tabular-nums", DARK.muted)}>
+                        score {ev.score.toFixed(2)}
+                      </span>
+                    ) : null}
+                    {ev.error_summary ? (
+                      <span className="text-[#FCA5A5]">{ev.error_summary}</span>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : view === "list" ? (
+        /* GAP-026⑤: 一覧 — 全区分を 1 テーブルで俯瞰 */
+        <div className={cn("overflow-x-auto rounded-lg border", DARK.panel)}>
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className={cn("border-b border-[#1E293B] text-left text-[11px]", DARK.faint)}>
+                <th className="px-3.5 py-2.5 font-bold">タスク</th>
+                <th className="px-3.5 py-2.5 font-bold">担当</th>
+                <th className="px-3.5 py-2.5 font-bold">状態</th>
+                <th className="px-3.5 py-2.5 font-bold">スコア</th>
+                <th className="px-3.5 py-2.5 font-bold">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...attention, ...running, ...queued].map((t) => {
+                const e = execOf(t.id);
+                return (
+                  <tr key={t.id} className="border-b border-[#1E293B] last:border-0">
+                    <td className={cn("px-3.5 py-2.5 font-semibold", DARK.text)}>
+                      <Link href={`/tasks/detail?task=${t.id}`} className="hover:underline">
+                        {t.title}
+                      </Link>
+                    </td>
+                    <td className={cn("px-3.5 py-2.5", DARK.muted)}>
+                      {employeeName(t.assigned_employee_id) ?? "未割当"}
+                    </td>
+                    <td className={cn("px-3.5 py-2.5", DARK.muted)}>
+                      {t.lifecycle_stage === "awaiting"
+                        ? "承認待ち"
+                        : t.lifecycle_stage === "blocked"
+                          ? "要対応"
+                          : t.dispatch_status
+                            ? (DISPATCH_LABEL[t.dispatch_status] ?? t.dispatch_status)
+                            : "実装中"}
+                    </td>
+                    <td className={cn("px-3.5 py-2.5 tabular-nums", DARK.muted)}>
+                      {e?.score != null ? e.score.toFixed(2) : "—"}
+                    </td>
+                    <td className="px-3.5 py-2.5">
+                      <Link
+                        href={`/tasks/detail?task=${t.id}`}
+                        className="text-[#93C5FD] hover:underline"
+                      >
+                        詳細
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+              {attention.length + running.length + queued.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className={cn("px-3.5 py-5 text-center", DARK.muted)}>
+                    セッションはありません。
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : sort !== "attention" ? (
         /* 新しい順 / 進捗順: 要対応+進行中を結合して 1 グリッドで実ソート */
         <>
           <SectionHead
@@ -667,7 +1097,9 @@ export function FleetMonitorContainer({
         </>
       )}
 
-      {/* ── 順番待ち ── */}
+      {/* ── 順番待ち (カードビューのみ — 一覧/ログ集約では重複描画しない) ── */}
+      {view === "card" ? (
+        <>
       <SectionHead
         icon={
           <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#334155] bg-[#1E293B] text-[#94A3B8]">
@@ -702,6 +1134,17 @@ export function FleetMonitorContainer({
                 <span className={cn("ml-auto shrink-0 whitespace-nowrap text-[11.5px] tabular-nums", DARK.muted)}>
                   {t.estimated_hours != null ? `見積 ${t.estimated_hours} 時間` : "未見積"}
                 </span>
+                {/* GAP-026③: キュー取消 */}
+                <button
+                  type="button"
+                  disabled={cancelMut.isPending}
+                  onClick={() => cancelMut.mutate(t.id)}
+                  aria-label={`順番待ちから取消: ${t.title}`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#1E293B] px-2.5 py-1 text-[11.5px] font-semibold text-[#FCA5A5] hover:bg-[#334155] disabled:opacity-50"
+                >
+                  <X size={11} aria-hidden="true" />
+                  取消
+                </button>
               </li>
             ))}
           </ul>
@@ -711,6 +1154,8 @@ export function FleetMonitorContainer({
           順番待ちのタスクはありません。
         </p>
       )}
+        </>
+      ) : null}
     </div>
   );
 }
