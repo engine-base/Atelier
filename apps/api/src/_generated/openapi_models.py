@@ -916,12 +916,43 @@ class WorkflowOutput(BaseModel):
     md_path: str | None = None
     summary: str | None = None
     version: int | None = None
+    meta: dict[str, Any] | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
 
 
+class OutputAnchor(BaseModel):
+    """
+    成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023)
+    """
+
+    element_id: str | None = None
+    label: str | None = None
+
+
 class Status2(StrEnum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class OutputFixProposal(BaseModel):
+    """
+    コメントへの AI (スティーブ) 修正提案 (E output_fix_proposals — GAP-023)
+    """
+
+    id: UUID | None = None
+    comment_id: UUID | None = None
+    output_id: UUID | None = None
+    proposal: str | None = None
+    status: Status2 | None = None
+    applied_output_id: UUID | None = None
+    created_at: AwareDatetime | None = None
+    resolved_at: AwareDatetime | None = None
+
+
+class Status3(StrEnum):
     decided = "decided"
     unresolved = "unresolved"
 
@@ -930,7 +961,7 @@ class Decision(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
     phase_id: UUID | None = None
-    status: Status2 | None = None
+    status: Status3 | None = None
     body: str | None = None
     reflected_to: str | None = None
     resolve_note: str | None = None
@@ -945,7 +976,7 @@ class Decision(BaseModel):
 class DecisionCreate(BaseModel):
     project_id: UUID
     phase_id: UUID | None = None
-    status: Status2 | None = "decided"
+    status: Status3 | None = "decided"
     body: Annotated[str, Field(max_length=2000, min_length=1)]
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -954,7 +985,7 @@ class DecisionCreate(BaseModel):
 
 
 class DecisionUpdate(BaseModel):
-    status: Status2 | None = None
+    status: Status3 | None = None
     body: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -968,7 +999,7 @@ class TargetType(StrEnum):
     acceptance_criteria = "acceptance_criteria"
 
 
-class Status5(StrEnum):
+class Status6(StrEnum):
     open = "open"
     resolved = "resolved"
     deleted = "deleted"
@@ -982,7 +1013,7 @@ class Comment(BaseModel):
     author_user_id: UUID | None = None
     author_invitation_id: UUID | None = None
     content: str | None = None
-    status: Status5 | None = None
+    status: Status6 | None = None
     parent_comment_id: UUID | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
@@ -1159,14 +1190,14 @@ class MeetingTranscribeRequest(PlayTaskRequest):
     pass
 
 
-class Status6(StrEnum):
+class Status7(StrEnum):
     queued = "queued"
     already_parsed = "already_parsed"
 
 
 class MeetingTranscribeResponse(BaseModel):
     id: UUID
-    status: Status6
+    status: Status7
     queued_at: AwareDatetime
 
 
@@ -1407,7 +1438,7 @@ class KnowledgeReferencesResponse(BaseModel):
     total: Annotated[int, Field(ge=0)]
 
 
-class Status7(StrEnum):
+class Status8(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
@@ -1423,7 +1454,7 @@ class Execution(BaseModel):
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     duration_seconds: float | None = None
-    status: Status7
+    status: Status8
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1484,7 +1515,7 @@ class ExecutionEvent(BaseModel):
 class ExecLogMeta(BaseModel):
     execution_id: UUID
     task_id: UUID
-    status: Status7
+    status: Status8
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     logs_storage_path: str | None = None
@@ -1620,7 +1651,7 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Status9(StrEnum):
+class Status10(StrEnum):
     pass_ = "pass"
     fail = "fail"
     skip = "skip"
@@ -1629,7 +1660,7 @@ class Status9(StrEnum):
 class ExecutionTestResultIn(BaseModel):
     name: Annotated[str, Field(max_length=300, min_length=1)]
     file: Annotated[str | None, Field(max_length=300)] = None
-    status: Status9
+    status: Status10
     duration_ms: Annotated[int | None, Field(ge=0)] = None
     detail: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -1639,7 +1670,7 @@ class ExecutionTestResult(BaseModel):
     execution_id: UUID
     name: str
     file: str | None = None
-    status: Status9
+    status: Status10
     duration_ms: int | None = None
     detail: str | None = None
     created_at: AwareDatetime
@@ -1808,12 +1839,6 @@ class Type7(StrEnum):
     scope_change = "scope_change"
 
 
-class Status11(StrEnum):
-    pending = "pending"
-    approved = "approved"
-    rejected = "rejected"
-
-
 class ApprovalInboxEntry(BaseModel):
     """
     承認待ちインボックスエントリ (E-? approval_inbox)。本人のみ可視 (RLS user_id=auth.uid())。
@@ -1826,7 +1851,7 @@ class ApprovalInboxEntry(BaseModel):
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status11 | None = None
+    status: Status2 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None

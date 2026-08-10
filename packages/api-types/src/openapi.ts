@@ -5178,10 +5178,13 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** 成果物 HTML の署名付き閲覧 URL */
+        /** 成果物の署名付き閲覧 URL (format=html/json/md — GAP-023) */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description S-G01 の表示形式タブ + DL の実体。未生成 format は 409 */
+                    format?: "html" | "json" | "md";
+                };
                 header?: never;
                 path: {
                     output_id: string;
@@ -5219,7 +5222,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description HTML 未生成 */
+                /** @description 該当 format 未生成 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -5250,6 +5253,482 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        /** 成果物のバージョン履歴 (同一 project+stage+phase チェーン — GAP-023) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description version 昇順のバージョン一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkflowOutput"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/anchors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        /** 成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実 HTML から抽出した id 要素 (推測候補は返さない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputAnchor"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description HTML 未生成 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 編集 = ドキュメント AI (スティーブ) への修正依頼 → 新バージョン生成（GAP-023） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description ドキュメント AI スティーブへの修正指示 (自然言語) */
+                        instruction: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 改訂 HTML を storage へ保存し新バージョン (version+1、meta に指示文+author=steve+model) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkflowOutput"];
+                        };
+                    };
+                };
+                /** @description output 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 改訂対象の HTML が未生成 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description HTML が改訂上限超 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) or storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/fix-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                output_id: string;
+            };
+            cookie?: never;
+        };
+        /** AI 修正提案一覧（GAP-023 — モック ai-fix ブロックの実体） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description created_at 昇順の提案一覧 (pending/approved/rejected) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputFixProposal"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/comments/{comment_id}/fix-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** コメントへの AI (スティーブ) 修正提案を生成（GAP-023 — 人間の明示操作起点） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    comment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description pending 提案 (LLM が文書+コメントから生成。自動生成はしない) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputFixProposal"];
+                        };
+                    };
+                };
+                /** @description コメント不在 or 成果物コメントでない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 既に pending 提案がある */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) or storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/output-fix-proposals/{proposal_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AI 修正提案を承認 → 提案を適用した新バージョンを生成（GAP-023） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposal_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description approved + applied_output_id (audit output.fix_proposal.approve) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                proposal?: components["schemas"]["OutputFixProposal"];
+                                new_output?: components["schemas"]["WorkflowOutput"];
+                            };
+                        };
+                    };
+                };
+                /** @description 提案不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description pending でない (二重解決) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) or storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/output-fix-proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** AI 修正提案を却下（文書は不変 — GAP-023） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposal_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description rejected (audit output.fix_proposal.reject) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputFixProposal"];
+                        };
+                    };
+                };
+                /** @description 提案不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description pending でない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -11695,12 +12174,38 @@ export interface components {
             md_path?: string | null;
             summary?: string | null;
             version?: number;
+            meta?: {
+                [key: string]: unknown;
+            };
             /** Format: date-time */
             deleted_at?: string | null;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description 成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023) */
+        OutputAnchor: {
+            element_id?: string;
+            label?: string;
+        };
+        /** @description コメントへの AI (スティーブ) 修正提案 (E output_fix_proposals — GAP-023) */
+        OutputFixProposal: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            comment_id?: string;
+            /** Format: uuid */
+            output_id?: string;
+            proposal?: string;
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected";
+            /** Format: uuid */
+            applied_output_id?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
         };
         Decision: {
             /** Format: uuid */

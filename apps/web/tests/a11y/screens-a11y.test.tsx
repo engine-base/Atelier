@@ -17,6 +17,12 @@ import { type ApiClient } from "@atelier/api-client";
 import { axe } from "vitest-axe";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// S-H01 / S-G01 コンテナは useRouter (バージョン遷移) を使うため jsdom 用にモック
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(""),
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
 import { createQueryClient } from "../../lib/query-client";
 import { MockViewerContainer } from "../../app/mocks/s_h01/_components/MockViewerContainer";
 import { OutputViewerContainer } from "../../app/outputs/s_g01/_components/OutputViewerContainer";
