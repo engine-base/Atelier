@@ -11988,7 +11988,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 運営 admin AI 社員テンプレ一覧（全件 / read-only） */
+        /** 運営 admin AI 社員テンプレ一覧（全件） */
         get: {
             parameters: {
                 query?: {
@@ -12060,6 +12060,131 @@ export interface paths {
                     content: {
                         "application/json": {
                             data?: components["schemas"]["AdminTemplate"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 運営 admin AI 社員テンプレ部分更新 — 保存で version increment + 全 WS 反映（GAP-031⑤ / T-A-42 scope expand）
+         * @description 部分更新（未指定フィールドは変更しない）。保存のたびに version が自動 increment され、
+         *     全 WS の ai_employees.template_id 参照経由でテンプレ変更が即時反映される。
+         *     audit_logs に template.update（変更フィールド + 新 version）を記録する。
+         *     1 フィールド以上の指定が必須（空 body は 422）。
+         *
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    template_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AdminTemplateUpdate"];
+                };
+            };
+            responses: {
+                /** @description 更新完了（version increment 済み） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminTemplate"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗（空 body 含む） */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/admin/ai-employee-templates/{template_id}/deployment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * 運営 admin テンプレの実展開先カウント（GAP-031⑤）
+         * @description ai_employees.template_id を参照する現役（archived=false）AI 社員の実カウント（WS 数 / 社員数）。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    template_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実展開先 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminTemplateDeployment"];
                         };
                     };
                 };
@@ -13385,6 +13510,25 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description AI 社員テンプレの部分更新 (GAP-031⑤ / T-A-42 scope expand)。未指定フィールドは変更しない。 */
+        AdminTemplateUpdate: {
+            default_display_name?: string;
+            /** @enum {string} */
+            department?: "executive" | "sales" | "product" | "architecture" | "design" | "dev_qa" | "cross_functional";
+            /** @enum {string} */
+            role?: "coo" | "lead" | "member";
+            system_prompt?: string;
+            specialty?: string;
+            default_skills?: string[];
+            default_knowledge_cats?: string[];
+        };
+        /** @description テンプレの実展開先 (ai_employees.template_id 参照の実カウント — GAP-031⑤)。 */
+        AdminTemplateDeployment: {
+            /** Format: uuid */
+            template_id?: string;
+            workspace_count?: number;
+            employee_count?: number;
         };
         /** @description 運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。 */
         AdminDashboard: {

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AuditLogResponse(BaseModel):
@@ -54,7 +55,8 @@ class AdminTemplateResponse(BaseModel):
 
     AI 社員テンプレは ai_employee_templates_no_insert/update/delete RESTRICTIVE
     で authenticated は read only。admin 視点では全 version / is_active=false も
-    含めて一覧する。
+    含めて一覧する。編集 (GAP-031⑤ scope expand) は route の admin gate +
+    service session 経由でのみ行う。
     """
 
     id: str
@@ -71,6 +73,65 @@ class AdminTemplateResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class AdminTemplateUpdate(BaseModel):
+    """AI 社員テンプレの部分更新 (GAP-031⑤ / T-A-42 scope expand)。
+
+    未指定フィールドは変更しない。保存のたびに version が自動 increment され、
+    テンプレは全 WS の ai_employees.template_id 参照経由で即時反映される。
+    default_skills は skills.id (uuid) の配列 — 存在しない値の創作を防ぐため
+    形式検証のみここで行い、実在は DB FK の対象外なので admin の明示選択を信頼する。
+    """
+
+    default_display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    department: (
+        Literal[
+            "executive",
+            "sales",
+            "product",
+            "architecture",
+            "design",
+            "dev_qa",
+            "cross_functional",
+        ]
+        | None
+    ) = None
+    role: Literal["coo", "lead", "member"] | None = None
+    system_prompt: str | None = Field(default=None, min_length=1, max_length=20_000)
+    specialty: str | None = Field(default=None, max_length=500)
+    default_skills: list[str] | None = Field(default=None, max_length=50)
+    default_knowledge_cats: list[str] | None = Field(default=None, max_length=50)
+
+    @field_validator("default_skills")
+    @classmethod
+    def _skills_are_uuids(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        for item in v:
+            try:
+                UUID(item)
+            except ValueError as exc:
+                raise ValueError(f"default_skills entry is not a uuid: {item}") from exc
+        return v
+
+    @field_validator("default_knowledge_cats")
+    @classmethod
+    def _cats_not_blank(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        cleaned = [c.strip() for c in v]
+        if any(not c or len(c) > 100 for c in cleaned):
+            raise ValueError("default_knowledge_cats entries must be 1-100 chars")
+        return cleaned
+
+
+class AdminTemplateDeploymentResponse(BaseModel):
+    """テンプレの実展開先 (ai_employees.template_id 参照の実カウント)。"""
+
+    template_id: str
+    workspace_count: int
+    employee_count: int
 
 
 class AdminDashboardResponse(BaseModel):

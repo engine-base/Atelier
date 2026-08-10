@@ -25,6 +25,7 @@ PG_ASYNC = os.environ.get(
 PG_SYNC = PG_ASYNC.replace("+asyncpg", "+psycopg")
 JWT_SECRET = "test-jwt-secret"
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", JWT_SECRET)
+os.environ.setdefault("ATELIER_DB_URL", PG_ASYNC)
 
 import sqlalchemy  # noqa: E402
 from fastapi import Depends, FastAPI  # noqa: E402
@@ -247,13 +248,15 @@ def seeded_dashboard(
                 ),
                 {"i": pid, "w": ws_admin, "n": name},
             )
+        # workspaces_bootstrap_ai_employees トリガが WS 作成時に既定社員 (tony 等) を
+        # 自動作成するため、追加 seed は衝突しない一意名にする
         c.execute(
             text(
                 "insert into public.ai_employees "
                 "(id,workspace_id,name,display_name,role,department) "
-                "values (cast(:i as uuid),cast(:w as uuid),'tony','トニー','lead','sales')"
+                "values (cast(:i as uuid),cast(:w as uuid),:n,'ダッシュボード検証','lead','sales')"
             ),
-            {"i": emp1, "w": ws_admin},
+            {"i": emp1, "w": ws_admin, "n": f"ta41-emp-{emp1[:8]}"},
         )
         c.execute(
             text(
@@ -370,16 +373,28 @@ class TestAdminDashboard:
             assert client.get("/admin/users", headers=h).status_code == 403
 
     def test_admin_dashboard_scope_counts(
-        self, app: FastAPI, seeded_dashboard: dict[str, str]
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        seeded_dashboard: dict[str, str],
     ) -> None:
         h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'], admin=True)}"}
+        # bootstrap トリガの既定社員 + fixture seed 1 名 = scope 内の実数を DB 突合
+        with sync_engine.connect() as c:
+            expected_emps = c.execute(
+                text(
+                    "select count(*) from public.ai_employees where workspace_id = cast(:w as uuid)"
+                ),
+                {"w": seeded_dashboard["ws_admin"]},
+            ).scalar()
         with TestClient(app) as client:
             r = client.get("/admin/dashboard", headers=h)
             assert r.status_code == 200, r.text
             d = r.json()["data"]
             assert d["workspace_count"] == 1
             assert d["project_count"] == 2
-            assert d["ai_employee_count"] == 1
+            assert d["ai_employee_count"] == expected_emps
+            assert expected_emps >= 1
             assert isinstance(d["audit_log_count_24h"], int)
 
     def test_admin_users_lists_own_ws_members_and_excludes_cross(
@@ -411,3 +426,220 @@ class TestAdminDashboard:
             users = r.json()["data"]
             assert len(users) >= 1
             assert all(u["workspace_id"] == seeded_dashboard["ws_admin"] for u in users)
+
+
+@pytest.fixture()
+def svc_session_env() -> Iterator[None]:
+    """GAP-031⑤: service session (ops.service_session_factory) の loop-cache を
+    テスト前後でクリア (別 loop の stale factory を掴まないため)。"""
+    from src.services.admin.ops import service_session_factory
+
+    service_session_factory.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+    yield
+    service_session_factory.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+
+
+@pytest.mark.integration
+class TestAdminTemplateEdit:
+    """GAP-031⑤ (T-A-42 scope expand): PATCH テンプレ部分更新 + 実展開先カウント。"""
+
+    def _headers(self, user_id: str, *, admin: bool = True) -> dict[str, str]:
+        return {"Authorization": f"Bearer {_mint_jwt(user_id, admin=admin)}"}
+
+    def test_patch_auth_gates(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+        svc_session_env: None,
+    ) -> None:
+        tpl = seeded_admin_skills["template_id"]
+        with TestClient(app) as client:
+            assert (
+                client.patch(
+                    f"/admin/ai-employee-templates/{tpl}", json={"specialty": "x"}
+                ).status_code
+                == 401
+            )
+            assert (
+                client.patch(
+                    f"/admin/ai-employee-templates/{tpl}",
+                    json={"specialty": "x"},
+                    headers=self._headers(seeded["u_admin"], admin=False),
+                ).status_code
+                == 403
+            )
+            assert (
+                client.get(
+                    f"/admin/ai-employee-templates/{tpl}/deployment",
+                    headers=self._headers(seeded["u_admin"], admin=False),
+                ).status_code
+                == 403
+            )
+
+    def test_patch_partial_update_increments_version_and_audits(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+        svc_session_env: None,
+    ) -> None:
+        tpl = seeded_admin_skills["template_id"]
+        h = self._headers(seeded["u_admin"])
+        try:
+            with TestClient(app) as client:
+                r = client.patch(
+                    f"/admin/ai-employee-templates/{tpl}",
+                    json={
+                        "specialty": "更新済み専門領域",
+                        "default_knowledge_cats": ["営業", "契約"],
+                        "role": "lead",
+                    },
+                    headers=h,
+                )
+                assert r.status_code == 200, r.text
+                data = r.json()["data"]
+                # 部分更新: 指定フィールドのみ反映、version は自動 increment
+                assert data["specialty"] == "更新済み専門領域"
+                assert data["default_knowledge_cats"] == ["営業", "契約"]
+                assert data["role"] == "lead"
+                assert data["default_display_name"] == "admin テンプレ"  # 未指定は不変
+                assert data["version"] == 8889  # seed 8888 + 1
+                # 2 回目の保存でさらに increment (保存のたびに版が上がる)
+                r2 = client.patch(
+                    f"/admin/ai-employee-templates/{tpl}",
+                    json={"system_prompt": "改訂プロンプト"},
+                    headers=h,
+                )
+                assert r2.status_code == 200
+                assert r2.json()["data"]["version"] == 8890
+            with sync_engine.connect() as c:
+                row = c.execute(
+                    text(
+                        "select version, specialty from public.ai_employee_templates "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": tpl},
+                ).one()
+                assert row.version == 8890
+                assert row.specialty == "更新済み専門領域"
+                audits = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action = 'template.update' and target_id = :i"
+                    ),
+                    {"i": tpl},
+                ).scalar()
+                assert audits == 2
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.audit_logs "
+                        "where action = 'template.update' and target_id = :i"
+                    ),
+                    {"i": tpl},
+                )
+
+    def test_patch_rejects_empty_body_and_bad_values(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+        svc_session_env: None,
+    ) -> None:
+        tpl = seeded_admin_skills["template_id"]
+        h = self._headers(seeded["u_admin"])
+        with TestClient(app) as client:
+            assert (
+                client.patch(f"/admin/ai-employee-templates/{tpl}", json={}, headers=h).status_code
+                == 422
+            )
+            assert (
+                client.patch(
+                    f"/admin/ai-employee-templates/{tpl}",
+                    json={"default_skills": ["not-a-uuid"]},
+                    headers=h,
+                ).status_code
+                == 422
+            )
+            assert (
+                client.patch(
+                    f"/admin/ai-employee-templates/{tpl}",
+                    json={"department": "unknown_dept"},
+                    headers=h,
+                ).status_code
+                == 422
+            )
+
+    def test_patch_not_found_and_invalid_uuid(
+        self, app: FastAPI, seeded: dict[str, str], svc_session_env: None
+    ) -> None:
+        h = self._headers(seeded["u_admin"])
+        with TestClient(app) as client:
+            assert (
+                client.patch(
+                    f"/admin/ai-employee-templates/{uuid.uuid4()}",
+                    json={"specialty": "x"},
+                    headers=h,
+                ).status_code
+                == 404
+            )
+            assert (
+                client.patch(
+                    "/admin/ai-employee-templates/not-a-uuid",
+                    json={"specialty": "x"},
+                    headers=h,
+                ).status_code
+                == 404
+            )
+
+    def test_deployment_counts_active_employees_only(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        seeded: dict[str, str],
+        seeded_admin_skills: dict[str, str],
+        svc_session_env: None,
+    ) -> None:
+        tpl = seeded_admin_skills["template_id"]
+        ws = seeded["ws"]
+        h = self._headers(seeded["u_admin"])
+        e1, e2, e3 = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            for eid, name, archived in (
+                (e1, "emp-a", False),
+                (e2, "emp-b", False),
+                (e3, "emp-c", True),
+            ):
+                c.execute(
+                    text(
+                        "insert into public.ai_employees "
+                        "(id, workspace_id, template_id, name, display_name, role, department, archived) "
+                        "values (cast(:i as uuid), cast(:w as uuid), cast(:t as uuid), "
+                        " :n, :n, 'member', 'product', :a)"
+                    ),
+                    {"i": eid, "w": ws, "t": tpl, "n": f"{name}-{eid[:6]}", "a": archived},
+                )
+        try:
+            with TestClient(app) as client:
+                r = client.get(f"/admin/ai-employee-templates/{tpl}/deployment", headers=h)
+                assert r.status_code == 200, r.text
+                data = r.json()["data"]
+                # archived=false の実カウントのみ (e3 は数えない)
+                assert data == {"template_id": tpl, "workspace_count": 1, "employee_count": 2}
+                assert (
+                    client.get(
+                        f"/admin/ai-employee-templates/{uuid.uuid4()}/deployment", headers=h
+                    ).status_code
+                    == 404
+                )
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.ai_employees where id in (cast(:a as uuid), cast(:b as uuid), cast(:c as uuid))"
+                    ),
+                    {"a": e1, "b": e2, "c": e3},
+                )

@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, EmailStr, Field
+from pydantic import AwareDatetime, BaseModel, EmailStr, Field, RootModel
 
 
 class Code(StrEnum):
@@ -709,6 +709,34 @@ class AdminTemplate(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class DefaultKnowledgeCat(RootModel[str]):
+    root: Annotated[str, Field(max_length=100, min_length=1)]
+
+
+class AdminTemplateUpdate(BaseModel):
+    """
+    AI 社員テンプレの部分更新 (GAP-031⑤ / T-A-42 scope expand)。未指定フィールドは変更しない。
+    """
+
+    default_display_name: Annotated[str | None, Field(max_length=100, min_length=1)] = None
+    department: Department | None = None
+    role: Role1 | None = None
+    system_prompt: Annotated[str | None, Field(max_length=20000, min_length=1)] = None
+    specialty: Annotated[str | None, Field(max_length=500)] = None
+    default_skills: Annotated[list[UUID] | None, Field(max_length=50)] = None
+    default_knowledge_cats: Annotated[list[DefaultKnowledgeCat] | None, Field(max_length=50)] = None
+
+
+class AdminTemplateDeployment(BaseModel):
+    """
+    テンプレの実展開先 (ai_employees.template_id 参照の実カウント — GAP-031⑤)。
+    """
+
+    template_id: UUID | None = None
+    workspace_count: int | None = None
+    employee_count: int | None = None
+
+
 class AdminDashboard(BaseModel):
     """
     運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。
@@ -1003,7 +1031,7 @@ class ChatCommandResponse(BaseModel):
     note: str
 
 
-class Role4(StrEnum):
+class Role5(StrEnum):
     user = "user"
     assistant = "assistant"
     system = "system"
@@ -1013,7 +1041,7 @@ class Role4(StrEnum):
 class ChatMessage(BaseModel):
     id: UUID | None = None
     thread_id: UUID | None = None
-    role: Role4 | None = None
+    role: Role5 | None = None
     content: str | None = None
     parent_message_id: UUID | None = None
     token_count: int | None = None

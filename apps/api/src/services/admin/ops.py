@@ -39,6 +39,9 @@ from src.schemas.admin import (
     AdminGoalUpsert,
     AdminMissionResponse,
     AdminPlatformStatsResponse,
+    AdminTemplateDeploymentResponse,
+    AdminTemplateResponse,
+    AdminTemplateUpdate,
     AdminTrendPoint,
     AdminTrendsResponse,
     BetaFeedbackCreate,
@@ -531,4 +534,89 @@ async def get_platform_stats() -> AdminPlatformStatsResponse:
             users_total=int(r.users_total),
             users_deleted_30d=int(r.users_deleted),
             workspaces_added_30d=int(r.ws30),
+        )
+
+
+# --------------------------------------------------------------------------- #
+# GAP-031⑤: S-T03 AI 社員テンプレ編集 (T-A-42 scope expand)。
+# ai_employee_templates は RESTRICTIVE no_update のため service session で更新。
+# 保存 = version 自動 increment。全 WS の ai_employees.template_id 参照経由で
+# テンプレ保存が即時反映される (「保存して全 WS 反映」の実体)。
+# --------------------------------------------------------------------------- #
+_TPL_FIELD_SQL: dict[str, str] = {
+    "default_display_name": "default_display_name = :default_display_name",
+    "department": "department = cast(:department as ai_employee_department_enum)",
+    "role": "role = cast(:role as ai_employee_role_enum)",
+    "system_prompt": "system_prompt = :system_prompt",
+    "specialty": "specialty = :specialty",
+    "default_skills": "default_skills = cast(:default_skills as uuid[])",
+    "default_knowledge_cats": "default_knowledge_cats = cast(:default_knowledge_cats as text[])",
+}
+
+
+async def update_template(
+    *, actor_id: str, template_id: str, data: AdminTemplateUpdate
+) -> AdminTemplateResponse | None:
+    """部分更新 + version 自動 increment + audit template.update。
+
+    返り値 None = テンプレ不在。未指定フィールドは変更しない (呼出側で
+    「1 フィールド以上」を検証済みの前提)。
+    """
+    from src.services.admin import (  # pyright: ignore[reportPrivateUsage]  # 同一パッケージ内共有
+        _TPL_COLS,
+        _tpl_to_response,
+    )
+
+    if not is_uuid(template_id):
+        return None
+    changed = data.model_dump(exclude_unset=True, exclude_none=True)
+    set_sql = [_TPL_FIELD_SQL[k] for k in changed]
+    async with service_session_factory()() as session:
+        res = await session.execute(
+            text(
+                "update public.ai_employee_templates set "
+                + ", ".join([*set_sql, "version = version + 1", "updated_at = now()"])
+                + f" where id = cast(:template_id as uuid) returning {_TPL_COLS}"
+            ),
+            {**changed, "template_id": template_id},
+        )
+        row = res.first()
+        if row is None:
+            return None
+        updated = _tpl_to_response(row)
+        await _audit(
+            session,
+            "template.update",
+            actor_id,
+            template_id,
+            {"fields": sorted(changed), "version": updated.version},
+        )
+        await session.commit()
+        return updated
+
+
+async def get_template_deployment(template_id: str) -> AdminTemplateDeploymentResponse | None:
+    """実展開先: ai_employees.template_id を参照する現役 (archived=false) 社員の実カウント。"""
+    if not is_uuid(template_id):
+        return None
+    async with service_session_factory()() as session:
+        exists = await session.execute(
+            text("select 1 from public.ai_employee_templates where id = cast(:i as uuid)"),
+            {"i": template_id},
+        )
+        if exists.first() is None:
+            return None
+        res = await session.execute(
+            text(
+                "select count(*) as employees, count(distinct workspace_id) as workspaces "
+                "from public.ai_employees "
+                "where template_id = cast(:i as uuid) and archived = false"
+            ),
+            {"i": template_id},
+        )
+        r = res.one()
+        return AdminTemplateDeploymentResponse(
+            template_id=template_id,
+            workspace_count=int(r.workspaces),
+            employee_count=int(r.employees),
         )

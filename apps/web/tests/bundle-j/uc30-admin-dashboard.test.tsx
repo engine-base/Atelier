@@ -95,7 +95,7 @@ describe("S-T01 AdminDashboardContainer (T-UC-30)", () => {
 
 /** GAP-019 標準系 get: 全セクションの実データ形状を返す。 */
 function gap019Get() {
-  return vi.fn(async (path: string) => {
+  return vi.fn(async (path: string): Promise<{ data: unknown }> => {
     if (path === "/admin/dashboard")
       return {
         data: {

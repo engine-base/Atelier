@@ -690,6 +690,26 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    AdminTemplateUpdate:
+      type: object
+      description: AI 社員テンプレの部分更新 (GAP-031⑤ / T-A-42 scope expand)。未指定フィールドは変更しない。
+      properties:
+        default_display_name: { type: string, minLength: 1, maxLength: 100 }
+        department: { type: string, enum: [executive, sales, product, architecture, design, dev_qa, cross_functional] }
+        role: { type: string, enum: [coo, lead, member] }
+        system_prompt: { type: string, minLength: 1, maxLength: 20000 }
+        specialty: { type: string, maxLength: 500 }
+        default_skills: { type: array, maxItems: 50, items: { type: string, format: uuid } }
+        default_knowledge_cats: { type: array, maxItems: 50, items: { type: string, minLength: 1, maxLength: 100 } }
+
+    AdminTemplateDeployment:
+      type: object
+      description: テンプレの実展開先 (ai_employees.template_id 参照の実カウント — GAP-031⑤)。
+      properties:
+        template_id: { type: string, format: uuid }
+        workspace_count: { type: integer }
+        employee_count: { type: integer }
+
     AdminDashboard:
       type: object
       description: 運営 admin dashboard 集計 (T-A-41 / admin 所属 workspaces scope)。
@@ -7086,7 +7106,7 @@ paths:
   /admin/ai-employee-templates:
     get:
       tags: [admin]
-      summary: 運営 admin AI 社員テンプレ一覧（全件 / read-only）
+      summary: 運営 admin AI 社員テンプレ一覧（全件）
       x-implementation-path: apps/api/src/routes/admin/__init__.py::list_templates
       x-screen-ids: [S-AD02, S-T03]
       parameters:
@@ -7120,6 +7140,54 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/AdminTemplate' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    patch:
+      tags: [admin]
+      summary: 運営 admin AI 社員テンプレ部分更新 — 保存で version increment + 全 WS 反映（GAP-031⑤ / T-A-42 scope expand）
+      description: |
+        部分更新（未指定フィールドは変更しない）。保存のたびに version が自動 increment され、
+        全 WS の ai_employees.template_id 参照経由でテンプレ変更が即時反映される。
+        audit_logs に template.update（変更フィールド + 新 version）を記録する。
+        1 フィールド以上の指定が必須（空 body は 422）。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::update_template
+      x-screen-ids: [S-T03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminTemplateUpdate' }
+      responses:
+        '200':
+          description: 更新完了（version increment 済み）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTemplate' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗（空 body 含む）, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/ai-employee-templates/{template_id}/deployment:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [admin]
+      summary: 運営 admin テンプレの実展開先カウント（GAP-031⑤）
+      description: ai_employees.template_id を参照する現役（archived=false）AI 社員の実カウント（WS 数 / 社員数）。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_template_deployment
+      x-screen-ids: [S-T03]
+      responses:
+        '200':
+          description: 実展開先
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTemplateDeployment' }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 

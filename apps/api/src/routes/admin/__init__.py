@@ -29,7 +29,9 @@ from src.schemas.admin import (
     AdminMissionResponse,
     AdminPlatformStatsResponse,
     AdminSkillResponse,
+    AdminTemplateDeploymentResponse,
     AdminTemplateResponse,
+    AdminTemplateUpdate,
     AdminTrendsResponse,
     AdminUserResponse,
     AuditLogResponse,
@@ -74,7 +76,9 @@ async def list_audit_logs(
 
 
 # --------------------------------------------------------------------------- #
-# T-A-42: 運営 admin スキル + AI 社員テンプレ管理 (read-only 閲覧)
+# T-A-42: 運営 admin スキル + AI 社員テンプレ管理
+# (skills は read-only 閲覧 + 再取込。テンプレは GAP-031⑤ scope expand で
+#  部分更新 (PATCH) + 実展開先カウントを提供)
 # --------------------------------------------------------------------------- #
 @router.get("/admin/skills", summary="運営 admin: スキル一覧（全件 / read-only）")
 async def list_skills(
@@ -104,7 +108,7 @@ async def get_skill(
 
 @router.get(
     "/admin/ai-employee-templates",
-    summary="運営 admin: AI 社員テンプレ一覧（全件 / read-only）",
+    summary="運営 admin: AI 社員テンプレ一覧（全件）",
 )
 async def list_templates(
     session: SessionDep,
@@ -131,6 +135,38 @@ async def get_template(
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
     item = await svc.get_template_admin(session, template_id)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
+    return {"data": item}
+
+
+@router.patch(
+    "/admin/ai-employee-templates/{template_id}",
+    summary="運営 admin: AI 社員テンプレ部分更新 — 保存で version increment + 全 WS 反映 (GAP-031⑤)",
+)
+async def update_template(
+    template_id: str, body: AdminTemplateUpdate, user: UserDep
+) -> dict[str, AdminTemplateResponse]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    if not body.model_dump(exclude_unset=True, exclude_none=True):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "at least one field is required")
+    item = await ops.update_template(actor_id=user.id, template_id=template_id, data=body)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
+    return {"data": item}
+
+
+@router.get(
+    "/admin/ai-employee-templates/{template_id}/deployment",
+    summary="運営 admin: テンプレの実展開先カウント (GAP-031⑤)",
+)
+async def get_template_deployment(
+    template_id: str, user: UserDep
+) -> dict[str, AdminTemplateDeploymentResponse]:
+    if not svc.is_admin(user):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+    item = await ops.get_template_deployment(template_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
     return {"data": item}

@@ -11,7 +11,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AdminDashboard } from '../../app/admin/s_t01/_components/AdminDashboard';
-import { TemplateList, type Template } from '../../app/admin/s_t03/_components/TemplateList';
+import {
+  TemplateEditor,
+  TemplateList,
+  type Template,
+} from '../../app/admin/s_t03/_components/TemplateList';
 import {
   UserAdminList,
   type AdminUser,
@@ -145,5 +149,92 @@ describe('AuditLogTable (T-UC-34)', () => {
   it('shows — when ip is null', () => {
     render(<AuditLogTable entries={[entries[1]!]} />);
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+});
+
+// --------------------------------------------------------------------------- //
+// GAP-031⑤: TemplateEditor + 保存フロー (T-A-42 scope expand)
+// --------------------------------------------------------------------------- //
+
+describe('TemplateEditor (GAP-031⑤)', () => {
+  const editorTemplate = {
+    id: 'tpl-1',
+    defaultName: 'tony',
+    displayName: 'トニー',
+    department: 'sales',
+    role: 'lead',
+    systemPrompt: 'あなたは営業部長です。',
+    specialty: '提案書',
+    version: 3,
+    skills: ['sk-1'],
+    knowledgeCats: ['成約パターン'],
+  } as const;
+  const skills = [
+    { id: 'sk-1', label: 'proposal v1.3' },
+    { id: 'sk-2', label: 'estimate v1.0' },
+  ];
+
+  function renderEditor(onSave = vi.fn()) {
+    render(
+      <TemplateEditor
+        template={editorTemplate}
+        availableSkills={skills}
+        deployment={{ workspaceCount: 9, employeeCount: 9 }}
+        saving={false}
+        actionNotice={null}
+        actionError={null}
+        onSave={onSave}
+      />,
+    );
+    return onSave;
+  }
+
+  it('renders mock-faithful editor: 基本情報 / prompt / pills / 実展開先', () => {
+    renderEditor();
+    expect(screen.getByText('内部名（変更不可）')).toBeInTheDocument();
+    expect(screen.getByText('tony')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('トニー')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('あなたは営業部長です。')).toBeInTheDocument();
+    // スキル pill は /admin/skills の実ラベルで解決
+    expect(screen.getByText('proposal v1.3')).toBeInTheDocument();
+    expect(screen.getByText('成約パターン')).toBeInTheDocument();
+    // 実展開先 (ai_employees.template_id 実カウント)
+    expect(screen.getByText('展開先：9 WS（自動同期）')).toBeInTheDocument();
+    expect(screen.getByText(/9 ワークスペースの 9 体に次回利用時から適用/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存して全 WS 反映' })).toBeInTheDocument();
+  });
+
+  it('saves only changed fields (partial patch)', () => {
+    const onSave = renderEditor();
+    fireEvent.change(screen.getByLabelText(/専門領域（specialty）/), {
+      target: { value: '提案書・見積書' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存して全 WS 反映' }));
+    expect(onSave).toHaveBeenCalledWith({ specialty: '提案書・見積書' });
+  });
+
+  it('blocks save without changes (honest client-side guard)', () => {
+    const onSave = renderEditor();
+    fireEvent.click(screen.getByRole('button', { name: '保存して全 WS 反映' }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('変更がありません。');
+  });
+
+  it('adds a skill from real options and removes a category via pills', () => {
+    const onSave = renderEditor();
+    fireEvent.change(screen.getByLabelText('追加するスキル'), {
+      target: { value: 'sk-2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'スキル追加' }));
+    fireEvent.click(screen.getByRole('button', { name: 'カテゴリ 成約パターン を外す' }));
+    fireEvent.change(screen.getByLabelText('追加するカテゴリ名'), {
+      target: { value: '価格戦略' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'カテゴリ追加' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存して全 WS 反映' }));
+    expect(onSave).toHaveBeenCalledWith({
+      default_skills: ['sk-1', 'sk-2'],
+      default_knowledge_cats: ['価格戦略'],
+    });
   });
 });

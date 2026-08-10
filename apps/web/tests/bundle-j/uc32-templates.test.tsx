@@ -59,12 +59,18 @@ const TEMPLATES = [
 afterEach(() => vi.clearAllMocks());
 
 describe("S-T03 TemplateListContainer (T-UC-32)", () => {
-  it("renders templates read-only (no action buttons)", async () => {
+  it("renders templates with editor pane (GAP-031⑤: 一覧 + エディタ併存)", async () => {
     const get = vi.fn(async () => ({ data: TEMPLATES }));
     renderWithQuery(<TemplateListContainer client={fakeClient(get)} />);
-    expect(await screen.findByText("シニアエンジニア")).toBeInTheDocument();
+    // 一覧行 + エディタヘッダの両方に表示名が出る (2 ペイン構成)
+    expect((await screen.findAllByText("シニアエンジニア")).length).toBeGreaterThanOrEqual(1);
+    // 行単位の複製/編集/削除ボタンは出さない (複製・復元は scope 外 — 別途起票)
     expect(screen.queryByRole("button", { name: /を複製/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /を編集/ })).toBeNull();
+    // 編集はエディタペインの「保存して全 WS 反映」で行う
+    expect(
+      await screen.findByRole("button", { name: "保存して全 WS 反映" }),
+    ).toBeInTheDocument();
     const [path] = get.mock.calls[0]! as unknown as [string];
     expect(path).toBe("/admin/ai-employee-templates");
   });
