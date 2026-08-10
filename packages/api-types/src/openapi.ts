@@ -10578,6 +10578,708 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/mission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: 事業 KPI ミッション（GAP-019 — 目標記録 + 実カウント） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description goal (null=未設定) + 実 current/pace/必要ペース */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminMission"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/goal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 運営 admin: 獲得目標の記録（GAP-019 — 数値はシステムが創作しない） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title: string;
+                        target_count: number;
+                        /** Format: date */
+                        deadline: string;
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description upsert (audit admin.goal.set) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminGoal"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: 週次トレンド実累計（GAP-019） */
+        get: {
+            parameters: {
+                query?: {
+                    days?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description workspaces/projects の週次実累計 + billing_enabled/mrr_yen */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminTrends"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/acquisitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: 取得チャネル集計（GAP-019 — 実記録のみ） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 省略で累計 */
+                    days?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description チャネル別カウント + 直近記録 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Acquisitions"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 運営 admin: 取得チャネルの記録（GAP-019） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        channel: "referral" | "sns" | "personal" | "other";
+                        note?: string;
+                        /** Format: date */
+                        occurred_on?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 記録 (audit admin.acquisition.record) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AcquisitionRecord"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/acquisitions/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 運営 admin: 取得チャネル記録の削除（GAP-019） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    record_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 (audit admin.acquisition.delete) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: プラットフォーム健全性 実計測（GAP-019 — 推測の稼働率は返さない） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description DB latency/サイズ/接続数・Bridge presence・外部 API 設定有無 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["HealthCheckRow"][];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/platform-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: platform 横断統計（GAP-019 — KPI bento 拡張） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行数/スコア/FB/Bridge/ユーザーの実集計 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminPlatformStats"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/beta-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** ベータ FB を投稿（認証ユーザー — GAP-019） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * @default other
+                         * @enum {string}
+                         */
+                        category?: "bug" | "feature" | "praise" | "other";
+                        content: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 投稿 (audit beta.feedback.create) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BetaFeedback"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/beta-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: ベータ FB 一覧（GAP-019） */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "open" | "resolved";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description created_at 降順 (最大 50 件) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BetaFeedback"][];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/beta-feedback/{feedback_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin: ベータ FB を対応済みにする（GAP-019） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    feedback_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description resolved (audit beta.feedback.resolve) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BetaFeedback"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 解決済み */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin: 運営コスト月次一覧（GAP-019 — 実記録のみ） */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description 省略で当月 */
+                    month?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 月次一覧 + 合計 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminCosts"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 運営 admin: 運営コストの記録（GAP-019） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: date */
+                        month: string;
+                        name: string;
+                        description?: string;
+                        amount_yen: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description 記録 (audit admin.cost.record) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["AdminCost"];
+                        };
+                    };
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/costs/{cost_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 運営 admin: 運営コスト記録の削除（GAP-019） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cost_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除 (audit admin.cost.delete) */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description admin 権限なし */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/support-contacts": {
         parameters: {
             query?: never;
@@ -12692,6 +13394,109 @@ export interface components {
             audit_log_count_24h?: number;
             /** Format: date-time */
             generated_at?: string;
+        };
+        /** @description 事業 KPI 目標の記録 (E admin_goals — GAP-019。運営が明示的に設定) */
+        AdminGoal: {
+            /** Format: uuid */
+            id?: string;
+            goal_key?: string;
+            title?: string;
+            target_count?: number;
+            /** Format: date */
+            deadline?: string;
+            note?: string | null;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        /** @description ミッションヒーロー実データ (GAP-019 — current/added_30d は実カウント) */
+        AdminMission: {
+            goal?: components["schemas"]["AdminGoal"] | null;
+            current_count?: number;
+            added_30d?: number;
+            remaining?: number | null;
+            months_left?: number | null;
+            needed_per_month?: number | null;
+        };
+        /** @description 週次トレンド実累計 (GAP-019。billing 未導入のため MRR は実額 0) */
+        AdminTrends: {
+            points?: {
+                /** Format: date */
+                week_start?: string;
+                workspaces?: number;
+                projects?: number;
+            }[];
+            billing_enabled?: boolean;
+            mrr_yen?: number;
+        };
+        /** @description 取得チャネルの記録 1 件 (E acquisition_records — GAP-019) */
+        AcquisitionRecord: {
+            /** Format: uuid */
+            id?: string;
+            /** @enum {string} */
+            channel?: "referral" | "sns" | "personal" | "other";
+            note?: string;
+            /** Format: date */
+            occurred_on?: string;
+            /** Format: date-time */
+            created_at?: string;
+        };
+        Acquisitions: {
+            channels?: {
+                channel?: string;
+                count?: number;
+            }[];
+            recent?: components["schemas"]["AcquisitionRecord"][];
+            total?: number;
+        };
+        /** @description プラットフォーム健全性 1 行 (GAP-019 — 実計測/実設定状態のみ) */
+        HealthCheckRow: {
+            name?: string;
+            /** @enum {string} */
+            status?: "ok" | "warn" | "err";
+            detail?: string;
+            meta?: string;
+        };
+        /** @description ベータ FB (E beta_feedback — GAP-019) */
+        BetaFeedback: {
+            /** Format: uuid */
+            id?: string;
+            email?: string;
+            /** @enum {string} */
+            category?: "bug" | "feature" | "praise" | "other";
+            content?: string;
+            /** @enum {string} */
+            status?: "open" | "resolved";
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
+        };
+        /** @description 運営コスト記録 1 件 (E admin_costs — GAP-019) */
+        AdminCost: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: date */
+            month?: string;
+            name?: string;
+            description?: string;
+            amount_yen?: number;
+        };
+        AdminCosts: {
+            /** Format: date */
+            month?: string;
+            items?: components["schemas"]["AdminCost"][];
+            total_yen?: number;
+        };
+        /** @description platform 横断統計 (GAP-019 — KPI bento 拡張の実データ) */
+        AdminPlatformStats: {
+            task_executions_30d?: number;
+            avg_score_30d?: number | null;
+            beta_feedback_total?: number;
+            beta_feedback_open?: number;
+            bridge_connected?: number;
+            users_total?: number;
+            users_deleted_30d?: number;
+            workspaces_added_30d?: number;
         };
         /** @description 運営 admin 用メンバー詳細 (T-A-41 / workspace_member_details definer 経由)。 */
         AdminUser: {

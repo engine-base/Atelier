@@ -9,9 +9,10 @@ T-A-41: AdminDashboardResponse / AdminUserResponse — admin dashboard 集計と
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AuditLogResponse(BaseModel):
@@ -96,3 +97,142 @@ class AdminUserResponse(BaseModel):
     role: str
     joined_at: datetime
     workspace_id: str
+
+
+# --------------------------------------------------------------------------- #
+# GAP-019: S-T01 運営ダッシュボード (mission / trends / channels / health /
+# beta FB / costs / platform stats)
+# --------------------------------------------------------------------------- #
+class AdminGoalUpsert(BaseModel):
+    """事業 KPI 目標の記録 (運営が明示的に設定 — システムが数値を創作しない)。"""
+
+    title: str = Field(min_length=1, max_length=200)
+    target_count: int = Field(gt=0, le=1_000_000)
+    deadline: date
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class AdminGoalResponse(BaseModel):
+    id: str
+    goal_key: str
+    title: str
+    target_count: int
+    deadline: date
+    note: str | None
+    updated_at: datetime
+
+
+class AdminMissionResponse(BaseModel):
+    """ミッションヒーローの実データ (目標未設定なら goal=None)。
+
+    current_count = 実ワークスペース数、added_30d = 直近 30 日の実増分。
+    needed_per_month は残数 / 残月数の実計算。
+    """
+
+    goal: AdminGoalResponse | None
+    current_count: int
+    added_30d: int
+    remaining: int | None = None
+    months_left: int | None = None
+    needed_per_month: int | None = None
+
+
+class AdminTrendPoint(BaseModel):
+    """週次の実累計 (workspaces / projects は created_at 由来)。"""
+
+    week_start: date
+    workspaces: int
+    projects: int
+
+
+class AdminTrendsResponse(BaseModel):
+    points: list[AdminTrendPoint]
+    billing_enabled: bool
+    """課金導入済みか。false のとき MRR は実額 ¥0 (ベータ無料運用)。"""
+
+    mrr_yen: int
+
+
+class AcquisitionCreate(BaseModel):
+    channel: Literal["referral", "sns", "personal", "other"]
+    note: str | None = Field(default=None, max_length=500)
+    occurred_on: date | None = None
+
+
+class AcquisitionRecordResponse(BaseModel):
+    id: str
+    channel: str
+    note: str
+    occurred_on: date
+    created_at: datetime
+
+
+class AcquisitionChannelCount(BaseModel):
+    channel: str
+    count: int
+
+
+class AcquisitionsResponse(BaseModel):
+    channels: list[AcquisitionChannelCount]
+    recent: list[AcquisitionRecordResponse]
+    total: int
+
+
+class HealthCheckRow(BaseModel):
+    """実計測 / 実設定状態のみ (推測の稼働率は返さない)。"""
+
+    name: str
+    status: Literal["ok", "warn", "err"]
+    detail: str
+    meta: str
+
+
+class BetaFeedbackCreate(BaseModel):
+    category: Literal["bug", "feature", "praise", "other"] = "other"
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class BetaFeedbackResponse(BaseModel):
+    id: str
+    email: str
+    category: str
+    content: str
+    status: str
+    created_at: datetime
+    resolved_at: datetime | None
+
+
+class AdminCostCreate(BaseModel):
+    month: date
+    """記録対象の月 (何日でも可 — 月初に正規化される)。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+    amount_yen: int = Field(ge=0, le=100_000_000)
+
+
+class AdminCostResponse(BaseModel):
+    id: str
+    month: date
+    name: str
+    description: str
+    amount_yen: int
+
+
+class AdminCostsResponse(BaseModel):
+    month: date
+    items: list[AdminCostResponse]
+    total_yen: int
+
+
+class AdminPlatformStatsResponse(BaseModel):
+    """platform 全体の実集計 (service session — admin gate 必須)。"""
+
+    task_executions_30d: int
+    avg_score_30d: float | None
+    beta_feedback_total: int
+    beta_feedback_open: int
+    bridge_connected: int
+    users_total: int
+    users_deleted_30d: int
+    workspaces_added_30d: int

@@ -700,6 +700,118 @@ components:
         audit_log_count_24h: { type: integer }
         generated_at: { type: string, format: date-time }
 
+    AdminGoal:
+      type: object
+      description: 事業 KPI 目標の記録 (E admin_goals — GAP-019。運営が明示的に設定)
+      properties:
+        id: { type: string, format: uuid }
+        goal_key: { type: string }
+        title: { type: string }
+        target_count: { type: integer }
+        deadline: { type: string, format: date }
+        note: { type: string, nullable: true }
+        updated_at: { type: string, format: date-time }
+
+    AdminMission:
+      type: object
+      description: ミッションヒーロー実データ (GAP-019 — current/added_30d は実カウント)
+      properties:
+        goal: { allOf: [{ $ref: '#/components/schemas/AdminGoal' }], nullable: true }
+        current_count: { type: integer }
+        added_30d: { type: integer }
+        remaining: { type: integer, nullable: true }
+        months_left: { type: integer, nullable: true }
+        needed_per_month: { type: integer, nullable: true }
+
+    AdminTrends:
+      type: object
+      description: 週次トレンド実累計 (GAP-019。billing 未導入のため MRR は実額 0)
+      properties:
+        points:
+          type: array
+          items:
+            type: object
+            properties:
+              week_start: { type: string, format: date }
+              workspaces: { type: integer }
+              projects: { type: integer }
+        billing_enabled: { type: boolean }
+        mrr_yen: { type: integer }
+
+    AcquisitionRecord:
+      type: object
+      description: 取得チャネルの記録 1 件 (E acquisition_records — GAP-019)
+      properties:
+        id: { type: string, format: uuid }
+        channel: { type: string, enum: [referral, sns, personal, other] }
+        note: { type: string }
+        occurred_on: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+
+    Acquisitions:
+      type: object
+      properties:
+        channels:
+          type: array
+          items:
+            type: object
+            properties:
+              channel: { type: string }
+              count: { type: integer }
+        recent: { type: array, items: { $ref: '#/components/schemas/AcquisitionRecord' } }
+        total: { type: integer }
+
+    HealthCheckRow:
+      type: object
+      description: プラットフォーム健全性 1 行 (GAP-019 — 実計測/実設定状態のみ)
+      properties:
+        name: { type: string }
+        status: { type: string, enum: [ok, warn, err] }
+        detail: { type: string }
+        meta: { type: string }
+
+    BetaFeedback:
+      type: object
+      description: ベータ FB (E beta_feedback — GAP-019)
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        category: { type: string, enum: [bug, feature, praise, other] }
+        content: { type: string }
+        status: { type: string, enum: [open, resolved] }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+
+    AdminCost:
+      type: object
+      description: 運営コスト記録 1 件 (E admin_costs — GAP-019)
+      properties:
+        id: { type: string, format: uuid }
+        month: { type: string, format: date }
+        name: { type: string }
+        description: { type: string }
+        amount_yen: { type: integer }
+
+    AdminCosts:
+      type: object
+      properties:
+        month: { type: string, format: date }
+        items: { type: array, items: { $ref: '#/components/schemas/AdminCost' } }
+        total_yen: { type: integer }
+
+    AdminPlatformStats:
+      type: object
+      description: platform 横断統計 (GAP-019 — KPI bento 拡張の実データ)
+      properties:
+        task_executions_30d: { type: integer }
+        avg_score_30d: { type: number, nullable: true }
+        beta_feedback_total: { type: integer }
+        beta_feedback_open: { type: integer }
+        bridge_connected: { type: integer }
+        users_total: { type: integer }
+        users_deleted_30d: { type: integer }
+        workspaces_added_30d: { type: integer }
+
     AdminUser:
       type: object
       description: 運営 admin 用メンバー詳細 (T-A-41 / workspace_member_details definer 経由)。
@@ -6429,6 +6541,288 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: ユーザー不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/mission:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 事業 KPI ミッション（GAP-019 — 目標記録 + 実カウント）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_mission
+      x-screen-ids: [S-T01]
+      responses:
+        '200':
+          description: goal (null=未設定) + 実 current/pace/必要ペース
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminMission' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/goal:
+    put:
+      tags: [admin]
+      summary: "運営 admin: 獲得目標の記録（GAP-019 — 数値はシステムが創作しない）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::put_admin_goal
+      x-screen-ids: [S-T01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, target_count, deadline]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                target_count: { type: integer, minimum: 1 }
+                deadline: { type: string, format: date }
+                note: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: upsert (audit admin.goal.set)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminGoal' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/trends:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 週次トレンド実累計（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_trends
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: days, in: query, schema: { type: integer, minimum: 7, maximum: 365, default: 90 } }
+      responses:
+        '200':
+          description: workspaces/projects の週次実累計 + billing_enabled/mrr_yen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminTrends' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/acquisitions:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 取得チャネル集計（GAP-019 — 実記録のみ）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_admin_acquisitions
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: days, in: query, schema: { type: integer, minimum: 1, maximum: 3650 }, description: "省略で累計" }
+      responses:
+        '200':
+          description: チャネル別カウント + 直近記録
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Acquisitions' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [admin]
+      summary: "運営 admin: 取得チャネルの記録（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::record_admin_acquisition
+      x-screen-ids: [S-T01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel]
+              properties:
+                channel: { type: string, enum: [referral, sns, personal, other] }
+                note: { type: string, maxLength: 500 }
+                occurred_on: { type: string, format: date }
+      responses:
+        '201':
+          description: 記録 (audit admin.acquisition.record)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AcquisitionRecord' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/acquisitions/{record_id}:
+    delete:
+      tags: [admin]
+      summary: "運営 admin: 取得チャネル記録の削除（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::delete_admin_acquisition
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: record_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除 (audit admin.acquisition.delete) }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/health:
+    get:
+      tags: [admin]
+      summary: "運営 admin: プラットフォーム健全性 実計測（GAP-019 — 推測の稼働率は返さない）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_health
+      x-screen-ids: [S-T01]
+      responses:
+        '200':
+          description: DB latency/サイズ/接続数・Bridge presence・外部 API 設定有無
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/HealthCheckRow' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/platform-stats:
+    get:
+      tags: [admin]
+      summary: "運営 admin: platform 横断統計（GAP-019 — KPI bento 拡張）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_platform_stats
+      x-screen-ids: [S-T01]
+      responses:
+        '200':
+          description: 実行数/スコア/FB/Bridge/ユーザーの実集計
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminPlatformStats' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /beta-feedback:
+    post:
+      tags: [admin]
+      summary: "ベータ FB を投稿（認証ユーザー — GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::create_beta_feedback
+      x-screen-ids: [S-T01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                category: { type: string, enum: [bug, feature, praise, other], default: other }
+                content: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '201':
+          description: 投稿 (audit beta.feedback.create)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/BetaFeedback' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/beta-feedback:
+    get:
+      tags: [admin]
+      summary: "運営 admin: ベータ FB 一覧（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_beta_feedback
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [open, resolved] } }
+      responses:
+        '200':
+          description: created_at 降順 (最大 50 件)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/BetaFeedback' } }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/beta-feedback/{feedback_id}/resolve:
+    post:
+      tags: [admin]
+      summary: "運営 admin: ベータ FB を対応済みにする（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::resolve_beta_feedback
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: feedback_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: resolved (audit beta.feedback.resolve)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/BetaFeedback' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 解決済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/costs:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 運営コスト月次一覧（GAP-019 — 実記録のみ）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_admin_costs
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: month, in: query, schema: { type: string, format: date }, description: "省略で当月" }
+      responses:
+        '200':
+          description: 月次一覧 + 合計
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminCosts' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [admin]
+      summary: "運営 admin: 運営コストの記録（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::record_admin_cost
+      x-screen-ids: [S-T01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [month, name, amount_yen]
+              properties:
+                month: { type: string, format: date }
+                name: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string, maxLength: 500 }
+                amount_yen: { type: integer, minimum: 0 }
+      responses:
+        '201':
+          description: 記録 (audit admin.cost.record)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/AdminCost' }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/costs/{cost_id}:
+    delete:
+      tags: [admin]
+      summary: "運営 admin: 運営コスト記録の削除（GAP-019）"
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::delete_admin_cost
+      x-screen-ids: [S-T01]
+      parameters:
+        - { name: cost_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 削除 (audit admin.cost.delete) }
+        '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/support-contacts:
     get:
