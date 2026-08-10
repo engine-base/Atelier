@@ -2291,6 +2291,206 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks/{task_id}/spec-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 仕様変更の検知（GAP-025① — S-I02 あなたへの確認カード） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 紐づくモックの新版検知 (無ければ data=null — カード非描画) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SpecChange"] | null;
+                        };
+                    };
+                };
+                /** @description task 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{task_id}/spec-changes/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 仕様変更 3 択の実行（GAP-025① — adopt/split/discard） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SpecChangeResolveRequest"];
+                };
+            };
+            responses: {
+                /** @description 実行結果 (audit task.spec_change.<choice>、metadata に解決記録) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["SpecChangeResolveResponse"];
+                        };
+                    };
+                };
+                /** @description task 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{task_id}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 関連資料の逆引き（GAP-025③ — S-I02 関連資料タブ） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    task_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実リンクのみ (mock/spec/AC/branch/knowledge — 存在しない資料は返さない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["RelatedResource"][];
+                        };
+                    };
+                };
+                /** @description task 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/executions/{execution_id}/tests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** テストケース単位の結果（GAP-025② — S-I02 テスト結果タブ） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    execution_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description task_execution_tests (Bridge complete が記録した実結果のみ) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ExecutionTestResult"][];
+                        };
+                    };
+                };
+                /** @description execution 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tasks/{task_id}": {
         parameters: {
             query?: never;
@@ -2400,6 +2600,8 @@ export interface paths {
                         /** @enum {string} */
                         lifecycle_stage?: "triage" | "ready" | "in_progress" | "blocked" | "awaiting" | "done";
                         blocked_reason?: string;
+                        /** @description GAP-025: 検証担当 AI 社員 id。"" で解除。他 WS 社員は 422 */
+                        verifier_employee_id?: string;
                     };
                 };
             };
@@ -10905,6 +11107,9 @@ export interface components {
             /** Format: uuid */
             mock_id?: string | null;
             /** Format: uuid */
+            verifier_employee_id?: string | null;
+            files_changed?: string[];
+            /** Format: uuid */
             parent_task_id?: string | null;
             /** @enum {string} */
             origin_type?: "initial_decomposition" | "refactor" | "scope_change_auto" | "manual_added";
@@ -10935,6 +11140,8 @@ export interface components {
             started_at?: string;
             /** Format: date-time */
             completed_at?: string | null;
+            /** @description GAP-025④: 実測経過秒 (running は now 起点) */
+            duration_seconds?: number | null;
             score?: number | null;
             ac_pass_rate?: number | null;
             test_pass_rate?: number | null;
@@ -11984,6 +12191,65 @@ export interface components {
             /** @default 0 */
             retry_count: number;
             files_changed?: string[];
+            /** @description GAP-025②: テストケース単位の結果 (task_execution_tests へ永続) */
+            tests?: components["schemas"]["ExecutionTestResultIn"][];
+        };
+        ExecutionTestResultIn: {
+            name: string;
+            file?: string | null;
+            /** @enum {string} */
+            status: "pass" | "fail" | "skip";
+            duration_ms?: number | null;
+            detail?: string | null;
+        };
+        ExecutionTestResult: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            execution_id: string;
+            name: string;
+            file?: string | null;
+            /** @enum {string} */
+            status: "pass" | "fail" | "skip";
+            duration_ms?: number | null;
+            detail?: string | null;
+            /** Format: date-time */
+            created_at: string;
+        };
+        SpecChange: {
+            /** @enum {string} */
+            kind: "mock_updated";
+            /** Format: uuid */
+            mock_id: string;
+            screen_name: string;
+            current_version: number;
+            latest_version: number;
+            /** Format: uuid */
+            latest_mock_id: string;
+            /** Format: date-time */
+            detected_at: string;
+        };
+        SpecChangeResolveRequest: {
+            /**
+             * @description adopt=最新仕様で実装し直す / split=現状で完了 (別タスク起票) / discard=破棄して再分解待ち
+             * @enum {string}
+             */
+            choice: "adopt" | "split" | "discard";
+            /** Format: uuid */
+            latest_mock_id: string;
+        };
+        SpecChangeResolveResponse: {
+            choice: string;
+            note: string;
+            /** Format: uuid */
+            follow_up_task_id?: string | null;
+        };
+        RelatedResource: {
+            /** @enum {string} */
+            kind: "mock" | "spec" | "acceptance_criteria" | "branch" | "knowledge";
+            name: string;
+            meta: string;
+            href?: string | null;
         };
         KanbanCompleteRequestV2: {
             /** Format: uuid */

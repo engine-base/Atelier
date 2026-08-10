@@ -483,6 +483,9 @@ components:
         # 紐付け
         acceptance_criteria_id: { type: string, format: uuid, nullable: true }
         mock_id: { type: string, format: uuid, nullable: true }
+        # GAP-025: 検証担当 + 変更ファイル (S-I02 メタ行)
+        verifier_employee_id: { type: string, format: uuid, nullable: true }
+        files_changed: { type: array, items: { type: string } }
         # 系譜
         parent_task_id: { type: string, format: uuid, nullable: true }
         origin_type:
@@ -509,6 +512,7 @@ components:
         task_id: { type: string, format: uuid }
         started_at: { type: string, format: date-time }
         completed_at: { type: string, format: date-time, nullable: true }
+        duration_seconds: { type: number, nullable: true, description: "GAP-025④: 実測経過秒 (running は now 起点)" }
         score: { type: number, nullable: true }
         ac_pass_rate: { type: number, nullable: true }
         test_pass_rate: { type: number, nullable: true }
@@ -1573,6 +1577,70 @@ components:
           type: array
           items: { type: string }
           maxItems: 500
+        tests:
+          type: array
+          maxItems: 200
+          items: { $ref: '#/components/schemas/ExecutionTestResultIn' }
+          description: "GAP-025②: テストケース単位の結果 (task_execution_tests へ永続)"
+
+    ExecutionTestResultIn:
+      type: object
+      required: [name, status]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 300 }
+        file: { type: string, nullable: true, maxLength: 300 }
+        status: { type: string, enum: [pass, fail, skip] }
+        duration_ms: { type: integer, minimum: 0, nullable: true }
+        detail: { type: string, nullable: true, maxLength: 2000 }
+
+    ExecutionTestResult:
+      type: object
+      required: [id, execution_id, name, status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        execution_id: { type: string, format: uuid }
+        name: { type: string }
+        file: { type: string, nullable: true }
+        status: { type: string, enum: [pass, fail, skip] }
+        duration_ms: { type: integer, nullable: true }
+        detail: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    SpecChange:
+      type: object
+      required: [kind, mock_id, screen_name, current_version, latest_version, latest_mock_id, detected_at]
+      properties:
+        kind: { type: string, enum: [mock_updated] }
+        mock_id: { type: string, format: uuid }
+        screen_name: { type: string }
+        current_version: { type: integer }
+        latest_version: { type: integer }
+        latest_mock_id: { type: string, format: uuid }
+        detected_at: { type: string, format: date-time }
+
+    SpecChangeResolveRequest:
+      type: object
+      required: [choice, latest_mock_id]
+      properties:
+        choice: { type: string, enum: [adopt, split, discard], description: "adopt=最新仕様で実装し直す / split=現状で完了 (別タスク起票) / discard=破棄して再分解待ち" }
+        latest_mock_id: { type: string, format: uuid }
+
+    SpecChangeResolveResponse:
+      type: object
+      required: [choice, note]
+      properties:
+        choice: { type: string }
+        note: { type: string }
+        follow_up_task_id: { type: string, format: uuid, nullable: true }
+
+    RelatedResource:
+      type: object
+      required: [kind, name, meta]
+      properties:
+        kind: { type: string, enum: [mock, spec, acceptance_criteria, branch, knowledge] }
+        name: { type: string }
+        meta: { type: string }
+        href: { type: string, nullable: true }
 
     KanbanCompleteRequestV2:
       type: object
@@ -2905,6 +2973,94 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/Task' }
 
+  /tasks/{task_id}/spec-changes:
+    get:
+      tags: [tasks]
+      summary: 仕様変更の検知（GAP-025① — S-I02 あなたへの確認カード）
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::get_task_spec_change
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 紐づくモックの新版検知 (無ければ data=null — カード非描画)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - { $ref: '#/components/schemas/SpecChange' }
+                      - { type: 'null' }
+        '404': { description: task 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/spec-changes/resolve:
+    post:
+      tags: [tasks]
+      summary: 仕様変更 3 択の実行（GAP-025① — adopt/split/discard）
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::resolve_task_spec_change
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecChangeResolveRequest' }
+      responses:
+        '200':
+          description: 実行結果 (audit task.spec_change.<choice>、metadata に解決記録)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/SpecChangeResolveResponse' }
+        '404': { description: task 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /tasks/{task_id}/related:
+    get:
+      tags: [tasks]
+      summary: 関連資料の逆引き（GAP-025③ — S-I02 関連資料タブ）
+      x-implementation-path: apps/api/src/routes/tasks/__init__.py::list_task_related
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実リンクのみ (mock/spec/AC/branch/knowledge — 存在しない資料は返さない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/RelatedResource' }
+        '404': { description: task 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /executions/{execution_id}/tests:
+    get:
+      tags: [executions]
+      summary: テストケース単位の結果（GAP-025② — S-I02 テスト結果タブ）
+      x-implementation-path: apps/api/src/routes/executions/__init__.py::list_execution_tests
+      x-screen-ids: [S-I02]
+      parameters:
+        - { name: execution_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: task_execution_tests (Bridge complete が記録した実結果のみ)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExecutionTestResult' }
+        '404': { description: execution 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /tasks/{task_id}:
     parameters:
       - { name: task_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2942,6 +3098,7 @@ paths:
                 priority: { type: string, enum: [critical, high, medium, low] }
                 lifecycle_stage: { type: string, enum: [triage, ready, in_progress, blocked, awaiting, done] }
                 blocked_reason: { type: string }
+                verifier_employee_id: { type: string, description: "GAP-025: 検証担当 AI 社員 id。\"\" で解除。他 WS 社員は 422" }
       responses:
         '200':
           description: 更新成功

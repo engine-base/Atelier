@@ -2,11 +2,10 @@
  * S-I02 タスク詳細タブ — T-UC-15 / design-audit v2
  *
  * モック 06_mockups/task/S-I02-detail.html の `.tab-bar` / `.tab` / `.tab-body` に
- * 忠実なタブ UI。タブ構成はモック準拠 + 実 API の裏付けがあるものだけ:
- *   受入条件 / 進捗・スコア / 依存タスク / 実行履歴 / コメント
- * (モックの「テスト結果」「関連資料」は供給 API 不在のため未描画 — GAP-025。
- *  旧実装の「概要/入出力/添付」タブは撤去: 概要はヘッダーへ、入出力/添付は
- *  裏付け API が無い死にタブだった)
+ * 忠実なタブ UI。タブ構成はモック準拠:
+ *   受入条件 / 進捗・スコア / 依存タスク / テスト結果 / 実行履歴 / 関連資料 / コメント
+ * (テスト結果 = GET /executions/{id}/tests、関連資料 = GET /tasks/{id}/related —
+ *  GAP-025 是正で実 API 配線。旧実装の「概要/入出力/添付」タブは撤去済)
  * - tab role + aria-controls + aria-selected で a11y 準拠
  * - counts でモックの .tab-count バッジ (例 "10 / 12") を描画
  * - 各タブの中身は content map（コンテナが実 API から構築）で受け取る。
@@ -18,6 +17,8 @@ import * as React from "react";
 import { useId, useState } from "react";
 import {
   Activity,
+  FlaskConical,
+  Folder,
   GitBranch,
   ListChecks,
   MessageSquare,
@@ -30,7 +31,9 @@ const TABS = [
   { id: "ac", label: "受入条件", icon: ListChecks },
   { id: "progress", label: "進捗・スコア", icon: TrendingUp },
   { id: "deps", label: "依存タスク", icon: GitBranch },
+  { id: "tests", label: "テスト結果", icon: FlaskConical },
   { id: "history", label: "実行履歴", icon: Activity },
+  { id: "resources", label: "関連資料", icon: Folder },
   { id: "comments", label: "コメント", icon: MessageSquare },
 ] as const;
 

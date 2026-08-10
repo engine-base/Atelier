@@ -25,6 +25,7 @@ from src.schemas.executions import (
     ExecutionEvent,
     ExecutionResponse,
     ExecutionStatus,
+    ExecutionTestResult,
 )
 
 
@@ -423,6 +424,38 @@ async def list_execution_events(session: AsyncSession, *, limit: int = 50) -> li
             task_title=str(r.task_title),
             score=(None if r.score is None else float(r.score)),
             error_summary=(None if r.error_summary is None else str(r.error_summary)),
+        )
+        for r in res.all()
+    ]
+
+
+async def list_execution_tests(
+    session: AsyncSession, *, execution_id: str
+) -> list[ExecutionTestResult] | None:
+    """テストケース単位の結果 (GAP-025② — RLS で task 経由に scope)。
+
+    返り値 None = execution 不可視/不在 (404)。
+    """
+    if await get_execution(session, execution_id) is None:
+        return None
+    res = await session.execute(
+        text(
+            "select id, execution_id, name, file, status, duration_ms, detail, created_at "
+            "from public.task_execution_tests "
+            "where execution_id = cast(:eid as uuid) order by created_at, id"
+        ),
+        {"eid": execution_id},
+    )
+    return [
+        ExecutionTestResult(
+            id=str(r.id),
+            execution_id=str(r.execution_id),
+            name=str(r.name),
+            file=(None if r.file is None else str(r.file)),
+            status=str(r.status),
+            duration_ms=(None if r.duration_ms is None else int(r.duration_ms)),
+            detail=(None if r.detail is None else str(r.detail)),
+            created_at=r.created_at,
         )
         for r in res.all()
     ]

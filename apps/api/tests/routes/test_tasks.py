@@ -722,3 +722,162 @@ class TestTaskPlay:
         with TestClient(app) as client:
             r = client.post(f"/tasks/{task_id}/play", headers=hb, json={"force": False})
             assert r.status_code == 404
+
+
+@pytest.mark.integration
+class TestSpecChangesAndRelated:
+    """GAP-025: 仕様変更検知 3 択 + 関連資料 + 検証担当。"""
+
+    def _mk_task_with_mock(self, sync_engine: sqlalchemy.Engine, proj: str) -> tuple[str, str, str]:
+        """task + mock v1 (紐付け) + mock v2 (新版) を seed。"""
+        task_id, mock_v1, mock_v2 = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            for mid, ver in ((mock_v1, 1), (mock_v2, 2)):
+                c.execute(
+                    text(
+                        "insert into public.mocks (id, project_id, screen_name, "
+                        "html_storage_path, version) values (cast(:i as uuid), "
+                        "cast(:p as uuid), 'S-A01', :path, :v)"
+                    ),
+                    {"i": mid, "p": proj, "path": f"mocks/s-a01-v{ver}.html", "v": ver},
+                )
+            c.execute(
+                text(
+                    "insert into public.tasks (id, project_id, category, title, type, "
+                    "estimated_hours, mock_id, spec_html_path, files_changed) "
+                    "values (cast(:i as uuid), cast(:p as uuid), 'misc', "
+                    "'サインイン画面の実装', 'screen', 4, cast(:m as uuid), "
+                    "'specs/t-014.html', array['a.tsx','b.tsx'])"
+                ),
+                {"i": task_id, "p": proj, "m": mock_v1},
+            )
+        return task_id, mock_v1, mock_v2
+
+    def test_spec_change_detected_and_adopt(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        task_id, _v1, mock_v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.get(f"/tasks/{task_id}/spec-changes", headers=h)
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d is not None
+            assert d["kind"] == "mock_updated"
+            assert d["current_version"] == 1
+            assert d["latest_version"] == 2
+            assert d["latest_mock_id"] == mock_v2
+            # adopt → mock_id 差替 + 解決記録で再表示されない
+            r = client.post(
+                f"/tasks/{task_id}/spec-changes/resolve",
+                headers=h,
+                json={"choice": "adopt", "latest_mock_id": mock_v2},
+            )
+            assert r.status_code == 200, r.text
+            assert "取り込みました" in r.json()["data"]["note"]
+            r = client.get(f"/tasks/{task_id}/spec-changes", headers=h)
+            assert r.json()["data"] is None
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select mock_id from public.tasks where id = cast(:i as uuid)"),
+                {"i": task_id},
+            ).first()
+            assert row is not None and str(row.mock_id) == mock_v2
+
+    def test_spec_change_split_and_discard(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        task_id, _v1, mock_v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/tasks/{task_id}/spec-changes/resolve",
+                headers=h,
+                json={"choice": "split", "latest_mock_id": mock_v2},
+            )
+            assert r.status_code == 200, r.text
+            follow_up = r.json()["data"]["follow_up_task_id"]
+            assert follow_up
+            r = client.get(f"/tasks/{follow_up}", headers=h)
+            assert r.json()["data"]["category"] == "仕様変更フォロー"
+            assert "見積は未実施" in r.json()["data"]["description"]
+        # discard (別タスクで)
+        task2, _x, mock2_v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                f"/tasks/{task2}/spec-changes/resolve",
+                headers=h,
+                json={"choice": "discard", "latest_mock_id": mock2_v2},
+            )
+            assert r.status_code == 200
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text(
+                    "select lifecycle_stage, blocked_reason from public.tasks "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": task2},
+            ).first()
+            assert row is not None
+            assert str(row.lifecycle_stage) == "blocked"
+            assert "再分解待ち" in str(row.blocked_reason)
+
+    def test_spec_change_cross_ws_404(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        task_id, _v1, _v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        with TestClient(app) as client:
+            r = client.get(f"/tasks/{task_id}/spec-changes", headers=_h(seeded["u_b"]))
+            assert r.status_code == 404
+
+    def test_related_resources_real_links_only(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        task_id, _v1, _v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.get(f"/tasks/{task_id}/related", headers=h)
+            assert r.status_code == 200, r.text
+            items = r.json()["data"]
+            kinds = [i["kind"] for i in items]
+            assert "mock" in kinds
+            assert "spec" in kinds
+            assert "branch" in kinds  # files_changed 2 件
+            branch = next(i for i in items if i["kind"] == "branch")
+            assert "変更 2 ファイル" in branch["meta"]
+            # AC / knowledge は未紐付けなので返さない (実リンクのみ)
+            assert "acceptance_criteria" not in kinds
+            assert "knowledge" not in kinds
+
+    def test_verifier_assignment_and_cross_ws_422(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        task_id, _v1, _v2 = self._mk_task_with_mock(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        with sync_engine.begin() as c:
+            own = c.execute(
+                text(
+                    "select id from public.ai_employees where workspace_id = cast(:w as uuid) limit 1"
+                ),
+                {"w": seeded["ws_a"]},
+            ).scalar_one()
+            other = c.execute(
+                text(
+                    "select id from public.ai_employees where workspace_id = cast(:w as uuid) limit 1"
+                ),
+                {"w": seeded["ws_b"]},
+            ).scalar_one()
+        with TestClient(app) as client:
+            r = client.patch(
+                f"/tasks/{task_id}", headers=h, json={"verifier_employee_id": str(own)}
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["verifier_employee_id"] == str(own)
+            # 他 WS の社員は 422
+            r = client.patch(
+                f"/tasks/{task_id}", headers=h, json={"verifier_employee_id": str(other)}
+            )
+            assert r.status_code == 422
+            # "" で解除
+            r = client.patch(f"/tasks/{task_id}", headers=h, json={"verifier_employee_id": ""})
+            assert r.json()["data"]["verifier_employee_id"] is None

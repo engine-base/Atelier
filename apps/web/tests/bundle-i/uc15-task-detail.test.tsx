@@ -69,6 +69,9 @@ const BASE_TASK = {
 
 function routedGet(taskOverrides?: Record<string, unknown>) {
   return vi.fn(async (path: string) => {
+    if (path.includes("spec-changes")) return { data: null };
+    if (path.includes("/related")) return { data: [] };
+    if (path.includes("/tests")) return { data: [] };
     if (path.includes("acceptance-criteria")) {
       return {
         data: {
@@ -276,5 +279,142 @@ describe("S-I02 TaskDetailContainer (T-UC-15)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
     );
+  });
+});
+
+describe("S-I02 GAP-025 (仕様変更 3 択 / テスト結果 / 関連資料 / メタ)", () => {
+  function gap025Get(overrides?: Record<string, unknown>) {
+    return vi.fn(async (path: string) => {
+      if (path.includes("spec-changes")) {
+        return {
+          data: {
+            kind: "mock_updated",
+            screen_name: "S-A01",
+            current_version: 1,
+            latest_version: 2,
+            latest_mock_id: "m2",
+            detected_at: "2026-06-20T12:00:00Z",
+          },
+        };
+      }
+      if (path.includes("/related")) {
+        return {
+          data: [
+            { kind: "mock", name: "設計モック S-A01", meta: "バージョン 2", href: "/mocks?mock=m2" },
+            { kind: "branch", name: "ソースコード変更", meta: "変更 2 ファイル", href: null },
+          ],
+        };
+      }
+      if (path.includes("/tests")) {
+        return {
+          data: [
+            {
+              id: "tr1",
+              name: "同意未取得でサインアップが失敗する",
+              file: "tests/auth/consent.spec.ts",
+              status: "pass",
+              duration_ms: 800,
+            },
+            {
+              id: "tr2",
+              name: "5 回失敗で 15 分ロック",
+              status: "fail",
+              detail: "条件 6 未実装",
+            },
+          ],
+        };
+      }
+      const base = routedGet(overrides);
+      return base(path);
+    });
+  }
+
+  it("仕様変更カード実描画 → adopt (2 段階確認) → POST resolve", async () => {
+    const post = vi.fn(async () => ({
+      data: { choice: "adopt", note: "最新仕様 (新しいモック) をこのタスクに取り込みました" },
+    }));
+    renderWithQuery(
+      <TaskDetailContainer taskId="t1" client={fakeClient(gap025Get(), post)} />,
+    );
+    expect(
+      await screen.findByText("あなたへの確認：仕様変更が検知されました"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/v1 → v2/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /最新仕様で実装し直す/ }));
+    expect(
+      screen.getByText(/最新仕様 \(新しいモック\) をこのタスクに取り込みますか？/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "確定" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { body: { choice: string; latest_mock_id: string } },
+    ];
+    expect(path).toBe("/tasks/{task_id}/spec-changes/resolve");
+    expect(init.body).toEqual({ choice: "adopt", latest_mock_id: "m2" });
+    expect(
+      await screen.findByText(/取り込みました/),
+    ).toBeInTheDocument();
+  });
+
+  it("テスト結果タブ: pass/fail 実描画 + タブカウント", async () => {
+    renderWithQuery(
+      <TaskDetailContainer taskId="t1" client={fakeClient(gap025Get())} />,
+    );
+    const tab = await screen.findByRole("tab", { name: /テスト結果/ });
+    // tests は executions 解決後の 2 段階目クエリのため反映を待つ
+    await waitFor(() => expect(tab).toHaveTextContent("1 / 2"));
+    fireEvent.click(tab);
+    expect(
+      screen.getByText("同意未取得でサインアップが失敗する"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("tests/auth/consent.spec.ts")).toBeInTheDocument();
+    expect(screen.getByText("条件 6 未実装")).toBeInTheDocument();
+    expect(screen.getByText("0.8 秒")).toBeInTheDocument();
+  });
+
+  it("関連資料タブ: 実リンクのみ描画 (href 有はリンク)", async () => {
+    renderWithQuery(
+      <TaskDetailContainer taskId="t1" client={fakeClient(gap025Get())} />,
+    );
+    const tab = await screen.findByRole("tab", { name: /関連資料/ });
+    expect(tab).toHaveTextContent("2");
+    fireEvent.click(tab);
+    const mockLink = screen.getByRole("link", { name: /設計モック S-A01/ });
+    expect(mockLink).toHaveAttribute("href", "/mocks?mock=m2");
+    expect(screen.getByText("変更 2 ファイル")).toBeInTheDocument();
+  });
+
+  it("メタ行: 検証担当 (id 解決) / 見積・経過 (実 duration) / 変更ファイル数", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/ai-employees")
+        return {
+          data: [
+            { id: "e-vision", name: "vision", display_name: "ヴィジョン" },
+            { name: "thor", display_name: "ソー" },
+          ],
+        };
+      if (path.includes("executions") && !path.includes("/tests"))
+        return {
+          data: [
+            {
+              id: "x1",
+              status: "succeeded",
+              score: 0.92,
+              started_at: "2026-06-20T10:00:00Z",
+              duration_seconds: 3600 * 2.5,
+            },
+          ],
+        };
+      const base = gap025Get({
+        verifier_employee_id: "e-vision",
+        files_changed: ["a.tsx", "b.tsx", "c.tsx"],
+      });
+      return base(path);
+    });
+    renderWithQuery(<TaskDetailContainer taskId="t1" client={fakeClient(get)} />);
+    expect(await screen.findByText("ヴィジョン")).toBeInTheDocument();
+    expect(screen.getByText(/2\.5 時間/)).toBeInTheDocument();
+    expect(screen.getByText("3 件")).toBeInTheDocument();
   });
 });

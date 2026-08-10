@@ -110,6 +110,19 @@ class DispatchPromoteResponse(BaseModel):
     note: str
 
 
+class ExecutionTestResult(BaseModel):
+    """テストケース単位の結果 (GAP-025② — task_execution_tests read)。"""
+
+    id: str
+    execution_id: str
+    name: str
+    file: str | None
+    status: str
+    duration_ms: int | None
+    detail: str | None
+    created_at: datetime
+
+
 class ExecutionEvent(BaseModel):
     """ログ集約ビューの 1 イベント (GAP-026⑤ — 実 task_executions から導出)。"""
 

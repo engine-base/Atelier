@@ -20,6 +20,7 @@ from src.schemas.executions import (
     ExecutionEvent,
     ExecutionResponse,
     ExecutionStatus,
+    ExecutionTestResult,
 )
 from src.services import executions as svc
 
@@ -130,3 +131,16 @@ async def stop_task_dispatch(
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
     return {"data": {"task_id": task_id, "dispatch_status": "reclaimed"}}
+
+
+@router.get(
+    "/executions/{execution_id}/tests",
+    summary="テストケース単位の結果 (GAP-025② — S-I02 テスト結果タブ)",
+)
+async def list_execution_tests(
+    execution_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[ExecutionTestResult]]:
+    items = await svc.list_execution_tests(session, execution_id=execution_id)
+    if items is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution not found")
+    return {"data": items}

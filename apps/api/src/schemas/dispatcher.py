@@ -48,6 +48,16 @@ class KanbanStartRequest(BaseModel):
     claude_code_session_id: str | None = Field(default=None, max_length=200)
 
 
+class ExecutionTestResultIn(BaseModel):
+    """テストケース単位の結果 1 件 (GAP-025② — Bridge complete が記録)。"""
+
+    name: str = Field(min_length=1, max_length=300)
+    file: str | None = Field(default=None, max_length=300)
+    status: Literal["pass", "fail", "skip"]
+    duration_ms: int | None = Field(default=None, ge=0)
+    detail: str | None = Field(default=None, max_length=2000)
+
+
 class KanbanCompleteMetadata(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
     ac_pass_rate: float = Field(ge=0.0, le=1.0)
@@ -55,6 +65,10 @@ class KanbanCompleteMetadata(BaseModel):
     verification_score: float = Field(ge=0.0, le=1.0)
     retry_count: int = Field(default=0, ge=0, le=3)
     files_changed: list[str] = Field(default_factory=list, max_length=500)
+    # GAP-025②: テストケース単位の結果 (task_execution_tests へ永続)
+    tests: list[ExecutionTestResultIn] = Field(
+        default_factory=lambda: list[ExecutionTestResultIn](), max_length=200
+    )
 
 
 class KanbanCompleteRequest(BaseModel):

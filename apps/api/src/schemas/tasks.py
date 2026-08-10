@@ -39,6 +39,8 @@ class TaskUpdate(BaseModel):
     priority: TaskPriority | None = None
     lifecycle_stage: TaskLifecycle | None = None
     blocked_reason: str | None = None
+    # GAP-025: 検証担当 (AI 社員)。"" で解除
+    verifier_employee_id: str | None = None
 
 
 class TaskResponse(BaseModel):
@@ -65,9 +67,60 @@ class TaskResponse(BaseModel):
     worktree_path: str | None
     worker_pid: int | None
     acceptance_criteria_id: str | None
+    # GAP-025: 検証担当 + 変更ファイル (S-I02 メタ行)
+    verifier_employee_id: str | None = None
+    files_changed: list[str] = Field(default_factory=lambda: list[str]())
     deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class SpecChangeResponse(BaseModel):
+    """仕様変更の検知結果 (GAP-025① — S-I02「あなたへの確認」カード)。
+
+    実体: タスクに紐づくモック (mock_id) と同一画面の新しいバージョンが
+    後からアップロードされている状態。推測イベントは生成しない。
+    """
+
+    kind: str
+    """mock_updated のみ (現状の実検知源)。"""
+
+    mock_id: str
+    screen_name: str
+    current_version: int
+    latest_version: int
+    latest_mock_id: str
+    detected_at: datetime
+    """最新モックの作成時刻 (= 変更が発生した実時刻)。"""
+
+
+class SpecChangeResolveRequest(BaseModel):
+    """3 択の取り込み方 (GAP-025①)。
+
+    adopt:   最新仕様で実装し直す (mock_id を最新へ差替)
+    split:   現状の実装で完了にする (追加対応を別タスク起票)
+    discard: 破棄して分解からやり直す (blocked + dispatch 解除)
+    """
+
+    choice: Literal["adopt", "split", "discard"]
+    latest_mock_id: str
+
+
+class SpecChangeResolveResponse(BaseModel):
+    choice: str
+    note: str
+    follow_up_task_id: str | None = None
+
+
+class RelatedResourceResponse(BaseModel):
+    """関連資料 1 件 (GAP-025③ — 実リンクのみ。存在しない資料は返さない)。"""
+
+    kind: str
+    """mock / spec / acceptance_criteria / branch / knowledge"""
+
+    name: str
+    meta: str
+    href: str | None = None
 
 
 class AcceptanceCriteriaResponse(BaseModel):
@@ -87,6 +140,7 @@ class TaskExecutionResponse(BaseModel):
     task_id: str
     started_at: datetime
     completed_at: datetime | None
+    duration_seconds: float | None = None
     score: float | None
     ac_pass_rate: float | None
     test_pass_rate: float | None

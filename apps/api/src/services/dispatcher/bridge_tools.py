@@ -251,7 +251,9 @@ async def complete_task(
             "update public.tasks set "
             "lifecycle_stage = cast(:ls as task_lifecycle_enum), "
             "dispatch_status = 'completing', summary = :sm, "
-            "metadata = cast(:mt as jsonb), updated_at = now() "
+            "metadata = cast(:mt as jsonb), "
+            # GAP-025④: 変更ファイルは列にも永続 (S-I02 メタ行の実データ源)
+            "files_changed = cast(:fc as text[]), updated_at = now() "
             "where id = cast(:id as uuid)"
         ),
         {
@@ -266,9 +268,27 @@ async def complete_task(
                     "files_changed": metadata.files_changed,
                 }
             ),
+            "fc": metadata.files_changed,
             "id": task_id,
         },
     )
+    # GAP-025②: テストケース単位の結果を永続 (S-I02 テスト結果タブの実体)
+    for t in metadata.tests:
+        await session.execute(
+            text(
+                "insert into public.task_execution_tests "
+                "(execution_id, name, file, status, duration_ms, detail) "
+                "values (cast(:eid as uuid), :n, :f, :s, :d, :dt)"
+            ),
+            {
+                "eid": execution_id,
+                "n": t.name,
+                "f": t.file,
+                "s": t.status,
+                "d": t.duration_ms,
+                "dt": t.detail,
+            },
+        )
     await session.execute(
         text(
             "update public.task_executions set completed_at = now(), "

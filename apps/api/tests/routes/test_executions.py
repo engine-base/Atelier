@@ -550,3 +550,68 @@ class TestDispatchOps:
             assert (seeded["exec_done"], "succeeded") in kinds
             # R-T08: 他 WS の execution は出ない
             assert all(e["execution_id"] != seeded["exec_cross"] for e in events)
+
+
+@pytest.mark.integration
+class TestExecutionTests:
+    """GAP-025②: テストケース単位の結果 (Bridge complete 記録 → read)。"""
+
+    def test_complete_records_tests_and_read(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+    ) -> None:
+        import os as _os
+
+        _os.environ.setdefault("ATELIER_BRIDGE_TOKEN", "gap026-bridge-token")
+        bridge_h = {"X-Bridge-Token": _os.environ["ATELIER_BRIDGE_TOKEN"]}
+        with TestClient(app) as client:
+            r = client.post(
+                "/kanban/complete",
+                headers=bridge_h,
+                json={
+                    "task_id": seeded["task_running"],
+                    "execution_id": seeded["exec_running"],
+                    "summary": "done",
+                    "auto_approve": False,
+                    "metadata": {
+                        "score": 0.9,
+                        "ac_pass_rate": 0.9,
+                        "test_pass_rate": 1.0,
+                        "verification_score": 0.9,
+                        "files_changed": ["apps/web/a.tsx", "apps/web/b.tsx"],
+                        "tests": [
+                            {
+                                "name": "同意未取得でサインアップが失敗する",
+                                "file": "tests/auth/consent.spec.ts",
+                                "status": "pass",
+                                "duration_ms": 800,
+                            },
+                            {
+                                "name": "5 回失敗で 15 分ロック",
+                                "file": "tests/auth/lockout.spec.ts",
+                                "status": "fail",
+                                "detail": "条件 6 未実装",
+                            },
+                        ],
+                    },
+                },
+            )
+            assert r.status_code == 200, r.text
+            # read (member)
+            r = client.get(f"/executions/{seeded['exec_running']}/tests", headers=_h(seeded["u_a"]))
+            assert r.status_code == 200, r.text
+            rows = r.json()["data"]
+            assert [t["status"] for t in rows] == ["pass", "fail"]
+            assert rows[1]["detail"] == "条件 6 未実装"
+            # R-T08: 他 WS ユーザーは execution 自体 404
+            r = client.get(f"/executions/{seeded['exec_running']}/tests", headers=_h(seeded["u_b"]))
+            assert r.status_code == 404
+        # files_changed が tasks 列に永続 (GAP-025④)
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select files_changed from public.tasks where id = cast(:i as uuid)"),
+                {"i": seeded["task_running"]},
+            ).first()
+            assert row is not None and list(row.files_changed) == [
+                "apps/web/a.tsx",
+                "apps/web/b.tsx",
+            ]

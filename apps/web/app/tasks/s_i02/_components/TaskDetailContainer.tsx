@@ -12,8 +12,13 @@
  *   - GET/POST /comments (target_type=task) — 一覧 + 追加コンポーザ
  *   - POST /tasks/{id}/approve|reject|retry — 操作バー (2 段階確認、409 契約に
  *     従い awaiting/blocked のときだけ描画。死にボタンを置かない Rule 10)
- * モックの「あなたへの確認 (仕様変更 3 択)」「テスト結果」「関連資料」タブは
- * 供給 API が無いため未描画 (GAP-025)。
+ * GAP-025 是正 (実 API 配線):
+ *   - GET /tasks/{id}/spec-changes → 「あなたへの確認」仕様変更 3 択カード
+ *     (POST /tasks/{id}/spec-changes/resolve — adopt/split/discard、2 段階確認)
+ *   - GET /executions/{id}/tests → テスト結果タブ (テストケース単位の実結果)
+ *   - GET /tasks/{id}/related → 関連資料タブ (実リンクのみ)
+ *   - 検証担当 (verifier_employee_id)・見積/経過 (実 executions 合計)・
+ *     変更ファイル数 (files_changed) のメタ行
  */
 
 "use client";
@@ -22,7 +27,14 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ClipboardCheck, RotateCcw, Undo2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ClipboardCheck,
+  ExternalLink,
+  RotateCcw,
+  Undo2,
+} from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -48,6 +60,8 @@ interface ApiTask {
   dependencies?: readonly string[];
   prerequisites?: readonly string[];
   blocks?: readonly string[];
+  verifier_employee_id?: string | null;
+  files_changed?: readonly string[];
 }
 interface ApiAc {
   items?: readonly unknown[];
@@ -59,6 +73,29 @@ interface ApiExecution {
   score?: number | null;
   ac_pass_rate?: number | null;
   started_at: string;
+  duration_seconds?: number | null;
+}
+interface ApiSpecChange {
+  kind: string;
+  screen_name: string;
+  current_version: number;
+  latest_version: number;
+  latest_mock_id: string;
+  detected_at: string;
+}
+interface ApiTestResult {
+  id: string;
+  name: string;
+  file?: string | null;
+  status: string;
+  duration_ms?: number | null;
+  detail?: string | null;
+}
+interface ApiRelated {
+  kind: string;
+  name: string;
+  meta: string;
+  href?: string | null;
 }
 interface ApiComment {
   id: string;
@@ -68,6 +105,7 @@ interface ApiComment {
   created_at: string;
 }
 interface ApiEmployee {
+  id?: string;
   name: string;
   display_name?: string | null;
 }
@@ -227,12 +265,16 @@ function TaskHero({
   taskId,
   task,
   assigneeLabel,
+  verifierLabel,
+  elapsedHours,
   latestScore,
   execCount,
 }: {
   readonly taskId: string;
   readonly task: ApiTask;
   readonly assigneeLabel: string | null;
+  readonly verifierLabel: string | null;
+  readonly elapsedHours: number | null;
   readonly latestScore: number | null;
   readonly execCount: number;
 }) {
@@ -348,9 +390,39 @@ function TaskHero({
           }
         />
         <Meta
-          label="見積(h)"
+          label="検証担当"
           value={
-            task.estimated_hours != null ? `${task.estimated_hours} 時間` : "—"
+            verifierLabel ? (
+              <>
+                <Avatar name={verifierLabel} size="sm" decorative />
+                {verifierLabel}
+              </>
+            ) : (
+              <span className="text-on-surface-variant">未割当</span>
+            )
+          }
+        />
+        <Meta
+          label="見積 / 経過"
+          value={
+            task.estimated_hours != null ? (
+              <>
+                {task.estimated_hours} 時間 /{" "}
+                <span className="text-primary">
+                  {elapsedHours != null ? `${elapsedHours} 時間` : "実行記録なし"}
+                </span>
+              </>
+            ) : (
+              "—"
+            )
+          }
+        />
+        <Meta
+          label="変更ファイル数"
+          value={
+            (task.files_changed?.length ?? 0) > 0
+              ? `${task.files_changed?.length} 件`
+              : "記録なし"
           }
         />
         <Meta
@@ -485,6 +557,70 @@ export function TaskDetailContainer({
       return Array.isArray(d) ? (d as (TaskLite & ApiTask)[]) : [];
     },
     retry: false,
+  });
+
+  // GAP-025①: 仕様変更の検知 (モック新版があるときだけカード描画)
+  const specChange = useQuery({
+    queryKey: ["task", taskId, "spec-change"],
+    queryFn: async () => {
+      const res = await client.get("/tasks/{task_id}/spec-changes", {
+        params: { path: { task_id: taskId } },
+      });
+      return ((res as { data?: ApiSpecChange | null }).data ?? null);
+    },
+    retry: false,
+  });
+  // GAP-025③: 関連資料 (実リンクのみ)
+  const related = useQuery({
+    queryKey: ["task", taskId, "related"],
+    queryFn: async () => {
+      const res = await client.get("/tasks/{task_id}/related", {
+        params: { path: { task_id: taskId } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiRelated[]) : [];
+    },
+    retry: false,
+  });
+  // GAP-025②: 最新実行のテストケース単位結果
+  const latestExecId = (executions.data ?? []).reduce<ApiExecution | null>(
+    (acc, e) => (!acc || e.started_at > acc.started_at ? e : acc),
+    null,
+  )?.id;
+  const testResults = useQuery({
+    queryKey: ["execution", latestExecId, "tests"],
+    enabled: Boolean(latestExecId),
+    queryFn: async () => {
+      const res = await client.get("/executions/{execution_id}/tests", {
+        params: { path: { execution_id: latestExecId ?? "" } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d) ? (d as ApiTestResult[]) : [];
+    },
+    retry: false,
+  });
+
+  // GAP-025①: 3 択の実行 (2 段階確認は specConfirm で)
+  const [specConfirm, setSpecConfirm] = useState<
+    "adopt" | "split" | "discard" | null
+  >(null);
+  const [specNotice, setSpecNotice] = useState<string | null>(null);
+  const resolveSpec = useMutation({
+    mutationFn: ({ choice }: { choice: "adopt" | "split" | "discard" }) =>
+      client.post("/tasks/{task_id}/spec-changes/resolve", {
+        params: { path: { task_id: taskId } },
+        body: { choice, latest_mock_id: specChange.data?.latest_mock_id ?? "" },
+      }),
+    onSuccess: (res: unknown) => {
+      setSpecConfirm(null);
+      setSpecNotice((res as { data?: { note?: string } }).data?.note ?? "反映しました");
+      void queryClient.invalidateQueries({ queryKey: ["task", taskId] });
+    },
+    onError: () => {
+      setSpecConfirm(null);
+      setSpecNotice(null);
+      setDecisionError("仕様変更の反映に失敗しました。時間をおいて再試行してください。");
+    },
   });
 
   // 操作バー: 承認 (awaiting→done) / 差戻 (awaiting→blocked) / 再試行 (blocked→ready)。
@@ -946,14 +1082,152 @@ export function TaskDetailContainer({
     ),
   };
 
+  // GAP-025②: テスト結果タブ (最新実行のテストケース単位結果)
+  const tests = testResults.data ?? [];
+  const testPass = tests.filter((x) => x.status === "pass").length;
+  content.tests = tests.length ? (
+    <div>
+      <div className="text-base font-bold tracking-tight text-on-surface">
+        テスト結果（{testPass} / {tests.length} 合格）
+      </div>
+      <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
+        最新の実行で記録されたテストケース単位の結果です。
+      </p>
+      <ul role="list" className="flex flex-col gap-1.5">
+        {tests.map((x) => (
+          <li
+            key={x.id}
+            className={cn(
+              "flex items-center gap-3 rounded-md border px-3.5 py-2.5",
+              x.status === "pass"
+                ? "border-border bg-white"
+                : x.status === "fail"
+                  ? "border-error/40 bg-error/5"
+                  : "border-border bg-surface-variant",
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                x.status === "pass"
+                  ? "bg-tertiary"
+                  : x.status === "fail"
+                    ? "bg-error"
+                    : "bg-neutral",
+              )}
+            >
+              {x.status === "pass" ? "✓" : x.status === "fail" ? "✕" : "−"}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-on-surface">
+                {x.name}
+              </div>
+              {x.file ? (
+                <div className="font-mono text-[11px] text-on-surface-variant">
+                  {x.file}
+                </div>
+              ) : null}
+              {x.detail ? (
+                <div className="text-[11.5px] text-error">{x.detail}</div>
+              ) : null}
+            </div>
+            {x.duration_ms != null ? (
+              <span className="shrink-0 text-[11.5px] tabular-nums text-on-surface-variant">
+                {(x.duration_ms / 1000).toFixed(1)} 秒
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  ) : (
+    <p className="py-12 text-center text-body-md text-on-surface-variant">
+      テスト単位の結果はまだ記録されていません。Bridge の実行完了時に記録されます。
+    </p>
+  );
+
+  // GAP-025③: 関連資料タブ (実リンクのみ — モック .resource-grid 準拠)
+  const relatedItems = related.data ?? [];
+  content.resources = relatedItems.length ? (
+    <div>
+      <div className="text-base font-bold tracking-tight text-on-surface">
+        このタスクに紐づく資料
+      </div>
+      <p className="mt-1 mb-4 text-body-sm text-on-surface-variant">
+        実際に紐づいている資料のみを表示します。
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {relatedItems.map((r, i) => {
+          const inner = (
+            <>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary-container text-primary">
+                <ClipboardCheck size={20} aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-bold text-on-surface">
+                  {r.name}
+                </div>
+                <div className="text-[11.5px] text-on-surface-variant">
+                  {r.meta}
+                </div>
+              </div>
+              {r.href ? (
+                <ExternalLink
+                  size={13}
+                  aria-hidden="true"
+                  className="ml-auto shrink-0 text-on-surface-variant"
+                />
+              ) : null}
+            </>
+          );
+          return r.href ? (
+            <Link
+              key={`${r.kind}-${i}`}
+              href={r.href}
+              className="flex items-center gap-3 rounded-md border border-border bg-white px-4 py-3 transition-colors hover:border-primary"
+            >
+              {inner}
+            </Link>
+          ) : (
+            <div
+              key={`${r.kind}-${i}`}
+              className="flex items-center gap-3 rounded-md border border-border bg-white px-4 py-3"
+            >
+              {inner}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  ) : (
+    <p className="py-12 text-center text-body-md text-on-surface-variant">
+      紐づく資料はまだありません。
+    </p>
+  );
+
   const counts: Partial<Record<TaskTabId, string>> = {
     ...(acItems.length ? { ac: String(acItems.length) } : {}),
     ...(prereqIds.length + blockIds.length
       ? { deps: String(prereqIds.length + blockIds.length) }
       : {}),
+    ...(tests.length ? { tests: `${testPass} / ${tests.length}` } : {}),
     ...(execs.length ? { history: String(execs.length) } : {}),
+    ...(relatedItems.length ? { resources: String(relatedItems.length) } : {}),
     ...(cmts.length ? { comments: String(cmts.length) } : {}),
   };
+
+  // GAP-025④: 経過 = 実 executions の実測 duration 合計 (時間、1 桁)
+  const totalSeconds = execs.reduce(
+    (acc, e) => acc + (e.duration_seconds ?? 0),
+    0,
+  );
+  const elapsedHours =
+    totalSeconds > 0 ? Math.round((totalSeconds / 3600) * 10) / 10 : null;
+  const verifierLabel = t.verifier_employee_id
+    ? ((employees.data ?? []).find((e) => e.id === t.verifier_employee_id)
+        ?.display_name ?? null)
+    : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -962,9 +1236,99 @@ export function TaskDetailContainer({
         taskId={taskId}
         task={t}
         assigneeLabel={employeeName(t.assigned_employee_id)}
+        verifierLabel={verifierLabel}
+        elapsedHours={elapsedHours}
         latestScore={latestScore}
         execCount={execs.length}
       />
+
+      {/* ── あなたへの確認: 仕様変更 3 択 (GAP-025① — 実検知時のみ描画) ── */}
+      {specNotice ? (
+        <p
+          role="status"
+          className="rounded-md border border-tertiary bg-tertiary-container/40 px-4 py-3 text-[12.5px] text-on-surface"
+        >
+          {specNotice}
+        </p>
+      ) : null}
+      {specChange.data ? (
+        <section className="rounded-lg border border-secondary bg-secondary-container/30 p-5">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-secondary text-white">
+              <AlertTriangle size={14} aria-hidden="true" />
+            </span>
+            <strong className="text-[14px] text-on-surface">
+              あなたへの確認：仕様変更が検知されました
+            </strong>
+          </div>
+          <p className="mt-2 text-[13px] leading-relaxed text-on-surface-variant">
+            紐づくモック「{specChange.data.screen_name}」に新しいバージョン
+            (v{specChange.data.current_version} → v{specChange.data.latest_version})
+            がアップロードされています。このタスクへの取り込み方を 3 択から選んでください。
+          </p>
+          {specConfirm ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[12.5px] font-semibold text-on-surface">
+                {specConfirm === "adopt"
+                  ? "最新仕様 (新しいモック) をこのタスクに取り込みますか？"
+                  : specConfirm === "split"
+                    ? "現状のまま、追加対応を別タスクとして起票しますか？"
+                    : "作業を破棄して再分解待ち (blocked) にしますか？"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSpecConfirm(null)}
+                className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                disabled={resolveSpec.isPending}
+                onClick={() => resolveSpec.mutate({ choice: specConfirm })}
+                className="rounded-md bg-primary px-3.5 py-1.5 text-[12px] font-bold text-on-primary disabled:opacity-50"
+              >
+                {resolveSpec.isPending ? "反映中…" : "確定"}
+              </button>
+            </div>
+          ) : (
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {(
+                [
+                  [
+                    "adopt",
+                    "最新仕様で実装し直す",
+                    "紐づくモックを最新バージョンに差し替えます（推奨）。",
+                  ],
+                  [
+                    "split",
+                    "現状の実装で完了にする",
+                    "追加対応は別タスクとして起票します。",
+                  ],
+                  [
+                    "discard",
+                    "破棄して分解からやり直す",
+                    "作業を破棄し、再分解待ち (blocked) にします。",
+                  ],
+                ] as const
+              ).map(([key, title, desc]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSpecConfirm(key)}
+                  className="rounded-md border border-border bg-white px-4 py-3 text-left transition-colors hover:border-primary"
+                >
+                  <div className="text-[13px] font-bold text-on-surface">{title}</div>
+                  <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                    {desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
+
       <TaskDetailTabs title={t.title} content={content} counts={counts} />
 
       {/* ── 操作バー (モック .action-bar)。awaiting/blocked のときだけ描画 — 死にボタンを置かない ── */}

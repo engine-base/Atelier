@@ -455,6 +455,8 @@ class Task(BaseModel):
     blocks: list[UUID] | None = None
     acceptance_criteria_id: UUID | None = None
     mock_id: UUID | None = None
+    verifier_employee_id: UUID | None = None
+    files_changed: list[str] | None = None
     parent_task_id: UUID | None = None
     origin_type: OriginType | None = None
     created_at: AwareDatetime | None = None
@@ -476,6 +478,10 @@ class TaskExecution(BaseModel):
     task_id: UUID | None = None
     started_at: AwareDatetime | None = None
     completed_at: AwareDatetime | None = None
+    duration_seconds: float | None = None
+    """
+    GAP-025④: 実測経過秒 (running は now 起点)
+    """
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1614,21 +1620,82 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class KanbanCompleteMetadata(BaseModel):
-    score: Annotated[float, Field(ge=0.0, le=1.0)]
-    ac_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
-    test_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
-    verification_score: Annotated[float, Field(ge=0.0, le=1.0)]
-    retry_count: Annotated[int | None, Field(ge=0, le=3)] = 0
-    files_changed: Annotated[list[str] | None, Field(max_length=500)] = None
+class Status9(StrEnum):
+    pass_ = "pass"
+    fail = "fail"
+    skip = "skip"
 
 
-class KanbanCompleteRequestV2(BaseModel):
-    task_id: UUID
+class ExecutionTestResultIn(BaseModel):
+    name: Annotated[str, Field(max_length=300, min_length=1)]
+    file: Annotated[str | None, Field(max_length=300)] = None
+    status: Status9
+    duration_ms: Annotated[int | None, Field(ge=0)] = None
+    detail: Annotated[str | None, Field(max_length=2000)] = None
+
+
+class ExecutionTestResult(BaseModel):
+    id: UUID
     execution_id: UUID
-    summary: Annotated[str, Field(max_length=4000, min_length=1)]
-    metadata: KanbanCompleteMetadata
-    auto_approve: bool | None = False
+    name: str
+    file: str | None = None
+    status: Status9
+    duration_ms: int | None = None
+    detail: str | None = None
+    created_at: AwareDatetime
+
+
+class Kind5(StrEnum):
+    mock_updated = "mock_updated"
+
+
+class SpecChange(BaseModel):
+    kind: Kind5
+    mock_id: UUID
+    screen_name: str
+    current_version: int
+    latest_version: int
+    latest_mock_id: UUID
+    detected_at: AwareDatetime
+
+
+class Choice(StrEnum):
+    """
+    adopt=最新仕様で実装し直す / split=現状で完了 (別タスク起票) / discard=破棄して再分解待ち
+    """
+
+    adopt = "adopt"
+    split = "split"
+    discard = "discard"
+
+
+class SpecChangeResolveRequest(BaseModel):
+    choice: Choice
+    """
+    adopt=最新仕様で実装し直す / split=現状で完了 (別タスク起票) / discard=破棄して再分解待ち
+    """
+    latest_mock_id: UUID
+
+
+class SpecChangeResolveResponse(BaseModel):
+    choice: str
+    note: str
+    follow_up_task_id: UUID | None = None
+
+
+class Kind6(StrEnum):
+    mock = "mock"
+    spec = "spec"
+    acceptance_criteria = "acceptance_criteria"
+    branch = "branch"
+    knowledge = "knowledge"
+
+
+class RelatedResource(BaseModel):
+    kind: Kind6
+    name: str
+    meta: str
+    href: str | None = None
 
 
 class KanbanPickRequest(BaseModel):
@@ -1741,7 +1808,7 @@ class Type7(StrEnum):
     scope_change = "scope_change"
 
 
-class Status9(StrEnum):
+class Status11(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1759,7 +1826,7 @@ class ApprovalInboxEntry(BaseModel):
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status9 | None = None
+    status: Status11 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
@@ -1858,3 +1925,24 @@ class BridgeStatus(BaseModel):
     """
     GAP-026①: 直近 5 分に ping した Bridge worker
     """
+
+
+class KanbanCompleteMetadata(BaseModel):
+    score: Annotated[float, Field(ge=0.0, le=1.0)]
+    ac_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
+    test_pass_rate: Annotated[float, Field(ge=0.0, le=1.0)]
+    verification_score: Annotated[float, Field(ge=0.0, le=1.0)]
+    retry_count: Annotated[int | None, Field(ge=0, le=3)] = 0
+    files_changed: Annotated[list[str] | None, Field(max_length=500)] = None
+    tests: Annotated[list[ExecutionTestResultIn] | None, Field(max_length=200)] = None
+    """
+    GAP-025②: テストケース単位の結果 (task_execution_tests へ永続)
+    """
+
+
+class KanbanCompleteRequestV2(BaseModel):
+    task_id: UUID
+    execution_id: UUID
+    summary: Annotated[str, Field(max_length=4000, min_length=1)]
+    metadata: KanbanCompleteMetadata
+    auto_approve: bool | None = False

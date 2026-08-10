@@ -17,6 +17,10 @@ from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
     PlayTaskRequest,
     PlayTaskResponse,
+    RelatedResourceResponse,
+    SpecChangeResolveRequest,
+    SpecChangeResolveResponse,
+    SpecChangeResponse,
     TaskBulkLifecycleRequest,
     TaskBulkLifecycleResponse,
     TaskCreate,
@@ -68,7 +72,11 @@ async def update_task(
 ) -> dict[str, TaskResponse]:
     if await svc.get_task(session, task_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
-    updated = await svc.update_task(session, actor_id=user.id, task_id=task_id, data=body)
+    try:
+        updated = await svc.update_task(session, actor_id=user.id, task_id=task_id, data=body)
+    except ValueError as exc:
+        # GAP-025: 検証担当の WS 越境 (task の workspace 外の AI 社員) は 422
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update task")
     return {"data": updated}
@@ -214,3 +222,48 @@ async def play_task(
         )
     assert payload is not None
     return {"data": payload}
+
+
+@router.get(
+    "/tasks/{task_id}/spec-changes",
+    summary="仕様変更の検知 (GAP-025① — S-I02 あなたへの確認カード)",
+)
+async def get_task_spec_change(
+    task_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, SpecChangeResponse | None]:
+    """紐づくモックに新版が出ていれば返す (無ければ data=null — カード非描画)。"""
+    if await svc.get_task(session, task_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": await svc.get_spec_change(session, task_id=task_id)}
+
+
+@router.post(
+    "/tasks/{task_id}/spec-changes/resolve",
+    summary="仕様変更 3 択の実行 (GAP-025① — adopt/split/discard)",
+)
+async def resolve_task_spec_change(
+    task_id: str, body: SpecChangeResolveRequest, session: SessionDep, user: UserDep
+) -> dict[str, SpecChangeResolveResponse]:
+    result = await svc.resolve_spec_change(
+        session,
+        actor_id=user.id,
+        task_id=task_id,
+        choice=body.choice,
+        latest_mock_id=body.latest_mock_id,
+    )
+    if result is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": result}
+
+
+@router.get(
+    "/tasks/{task_id}/related",
+    summary="関連資料の逆引き (GAP-025③ — S-I02 関連資料タブ)",
+)
+async def list_task_related(
+    task_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[RelatedResourceResponse]]:
+    items = await svc.list_related_resources(session, task_id=task_id)
+    if items is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+    return {"data": items}
