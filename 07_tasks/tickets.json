@@ -12256,7 +12256,14 @@
           "07_api_design/openapi.yaml",
           "apps/api/src/_generated/openapi_models.py",
           "packages/api-types/src/openapi.ts",
-          "07_tasks/tickets.json"
+          "07_tasks/tickets.json",
+          "apps/web/app/admin/s_t03/_components/TemplateList.tsx",
+          "apps/web/app/admin/s_t03/_components/TemplateListContainer.tsx",
+          "apps/web/tests/bundle-j/admin.test.tsx",
+          "apps/web/.qa/test-specs/screens/S-T03.md",
+          "apps/web/.audit-t03-template-edit.mjs",
+          "docs/gap-tracker.md",
+          "apps/web/tests/bundle-j/uc32-templates.test.tsx"
         ],
         "shared_read": [
           "07_tasks/acceptance-criteria/T-A-42.md",
@@ -12338,7 +12345,8 @@
           ],
           "expected": "audit_logs に 1 行追加"
         }
-      ]
+      ],
+      "note": "[2026-08-10 GAP-031⑤ scope expand] S-T03 テンプレ編集を T-A-42 の scope に追加しread-only 契約を撤廃: PATCH /admin/ai-employee-templates/{template_id} (default_display_name / department / role / system_prompt / specialty / default_skills / default_knowledge_cats を部分更新、version 自動 increment、audit template.update、admin gate + service session)。「保存して全 WS 反映」はテンプレが ai_employees.template_id 参照で次回利用時から適用される構造のため、テンプレ行の保存 = 全 WS 反映。展開先は実カウント (GET /admin/ai-employee-templates/{id}/deployment) を表示する。複製・バージョン復元は本 expand の対象外 (別途起票)。"
     },
     {
       "id": "T-A-43",
