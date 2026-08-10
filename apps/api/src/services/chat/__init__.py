@@ -18,6 +18,7 @@ from src.schemas.chat import (
     ChatAttachment,
     ChatAttachmentUploadUrlResponse,
     ChatAttachmentUrlResponse,
+    ChatCommandResponse,
     MessageCreate,
     MessageFeedbackCreate,
     MessageFeedbackResponse,
@@ -536,3 +537,93 @@ async def get_attachment_url(
     target = attachments[index]
     url = await create_signed_download_url(target.storage_path)
     return ChatAttachmentUrlResponse(url=url, file_name=target.file_name)
+
+
+async def execute_command(
+    session: AsyncSession, *, actor_id: str, thread_id: str, command: str, args: str
+) -> ChatCommandResponse | None:
+    """S-E01 /コマンド のサーバー実行 (GAP-002)。
+
+    decision: args を確定事項として記録 (実 decisions 行 — decided_by は対話相手
+    AI 社員、with_user=True で「人間との会話で確定」を明示)
+    task:     args をタイトルに tasks (triage) を起票。見積は未実施のため暫定 1h
+              を description に明示 (triage レビューで見直す前提 — 推測を装わない)
+
+    実行後、スレッドへ「ユーザーが打ったコマンド原文 (user)」と「実行結果
+    (system)」を clock_timestamp 順で永続し、audit chat_command.executed を記録。
+    返り値 None = 対象生成の RLS 拒否 (403)。
+    """
+    from src.schemas.decisions import DecisionCreate
+    from src.schemas.tasks import TaskCreate
+    from src.services import decisions as decisions_svc
+    from src.services import tasks as tasks_svc
+
+    thread = await get_thread(session, thread_id)
+    if thread is None:  # 呼び出し側で 404 済のはずだが防御
+        return None
+
+    if command == "decision":
+        created_dec = await decisions_svc.create_decision(
+            session,
+            data=DecisionCreate(
+                project_id=thread.project_id,
+                body=args,
+                decided_by=thread.ai_employee_id,
+                with_user=True,
+            ),
+        )
+        if created_dec is None:
+            return None
+        target_type, target_id = "decision", created_dec.id
+        raw = f"/決定 {args}"
+        note = f"コマンド /決定: 「{args}」を確定事項として記録しました"
+    else:
+        title = args[:200]
+        created_task = await tasks_svc.create_task(
+            session,
+            actor_id=actor_id,
+            data=TaskCreate(
+                project_id=thread.project_id,
+                category="チャット起票",
+                title=title,
+                type="feature",
+                estimated_hours=1,
+                description=(
+                    "S-E01 /タスク化 コマンドから起票。見積は未実施のため暫定 1h — "
+                    "triage レビューで見直すこと。"
+                ),
+            ),
+        )
+        target_type, target_id = "task", created_task.id
+        raw = f"/タスク化 {args}"
+        note = f"コマンド /タスク化: タスク「{title}」を起票しました (triage)"
+
+    # コマンド原文 (user) → 実行結果 (system) の順で永続 (clock_timestamp で順序固定)
+    user_msg_id = str(uuid.uuid4())
+    system_msg_id = str(uuid.uuid4())
+    for mid, role, content in ((user_msg_id, "user", raw), (system_msg_id, "system", note)):
+        await session.execute(
+            text(
+                "insert into public.chat_messages (id, thread_id, role, content, created_at) "
+                "values (cast(:i as uuid), cast(:t as uuid), "
+                "cast(:r as chat_message_role_enum), :c, clock_timestamp())"
+            ),
+            {"i": mid, "t": thread_id, "r": role, "c": content},
+        )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="chat_command.executed",
+            target_type="chat_thread",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=thread_id,
+            after={"command": command, "target_type": target_type, "target_id": target_id},
+        )
+    )
+    return ChatCommandResponse(
+        command=command,  # type: ignore[arg-type]
+        target_type=target_type,
+        target_id=target_id,
+        system_message_id=system_msg_id,
+        note=note,
+    )

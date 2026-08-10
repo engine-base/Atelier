@@ -7,9 +7,8 @@
  *   - assistant: AI 社員アバター + 名前 + 時刻 + 本文
  *   - tool: モックの .tool-card (monospace ツール名 + 本文)
  *   - composer: 「<社員名>にメッセージ…」placeholder / Enter 送信 / Shift+Enter 改行 /
- *     添付 (GAP-001 — 署名付き URL 2 段階アップロード) / @メンション / ナレッジ参照
- * /コマンドは対応バックエンドが無いためボタン自体を描画しない (Rule 10:
- * 死にボタン/飾りUIを置かない — 未実装機能は見せず gap tracker に起票する)。
+ *     添付 (GAP-001 — 署名付き URL 2 段階アップロード) / /コマンド (GAP-002 —
+ *     /要約=SSE 依頼・/決定・/タスク化=サーバー実行) / @メンション / ナレッジ参照
  * データ配線・props・a11y 契約 (log role / aria-live / メッセージを入力 label) は不変。
  */
 
@@ -30,6 +29,7 @@ import {
   Terminal,
   Upload,
   X,
+  Zap,
 } from "lucide-react";
 
 import { fmtTime } from "../../../../lib/format";
@@ -118,7 +118,31 @@ export interface ChatPanelProps {
   readonly uploadingAttachments?: boolean;
   /** 永続化済みメッセージの添付を開く (署名付き URL 解決)。 */
   readonly onOpenAttachment?: (messageId: string, index: number) => void;
+  /**
+   * /コマンド (GAP-002)。true でパレットボタンを描画。実行は container が
+   * 送信時に本文の先頭コマンドを解釈して行う (パレットは挿入補助)。
+   */
+  readonly commandsEnabled?: boolean;
 }
+
+/** /コマンド パレットの定義 (GAP-002 — 挿入する原文 + 説明)。 */
+const COMMAND_PALETTE = [
+  {
+    insert: "/要約",
+    usage: "/要約",
+    description: "会話の要点整理を AI に依頼するメッセージを送ります",
+  },
+  {
+    insert: "/決定 ",
+    usage: "/決定 <内容>",
+    description: "内容を確定事項 (decisions) として記録します",
+  },
+  {
+    insert: "/タスク化 ",
+    usage: "/タスク化 <タイトル>",
+    description: "タイトルでタスクを起票します (triage・見積は後で見直し)",
+  },
+] as const;
 
 /** バイト数の短い表示 (チップ用)。 */
 function fmtBytes(n: number): string {
@@ -361,9 +385,12 @@ export function ChatPanel({
   attachmentError,
   uploadingAttachments,
   onOpenAttachment,
+  commandsEnabled,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
-  const [picker, setPicker] = useState<"mention" | "knowledge" | null>(null);
+  const [picker, setPicker] = useState<"mention" | "knowledge" | "command" | null>(
+    null,
+  );
   const viewportRef = useRef<HTMLUListElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -593,6 +620,19 @@ export function ChatPanel({
                 </button>
               </>
             ) : null}
+            {commandsEnabled ? (
+              <button
+                type="button"
+                aria-expanded={picker === "command"}
+                onClick={() =>
+                  setPicker((v) => (v === "command" ? null : "command"))
+                }
+                className="inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+              >
+                <Zap size={12} aria-hidden="true" />
+                <span className="hidden sm:inline">/コマンド</span>
+              </button>
+            ) : null}
             <button
               type="button"
               aria-expanded={picker === "mention"}
@@ -615,10 +655,38 @@ export function ChatPanel({
             {picker ? (
               <div
                 role="listbox"
-                aria-label={picker === "mention" ? "メンションする AI 社員" : "参照するナレッジ"}
-                className="absolute bottom-[calc(100%+6px)] left-0 z-10 max-h-[220px] w-[260px] overflow-y-auto rounded-md border border-border bg-white py-1 shadow-lg"
+                aria-label={
+                  picker === "mention"
+                    ? "メンションする AI 社員"
+                    : picker === "command"
+                      ? "実行するコマンド"
+                      : "参照するナレッジ"
+                }
+                className="absolute bottom-[calc(100%+6px)] left-0 z-10 max-h-[220px] w-[300px] overflow-y-auto rounded-md border border-border bg-white py-1 shadow-lg"
               >
-                {picker === "mention" ? (
+                {picker === "command" ? (
+                  COMMAND_PALETTE.map((c) => (
+                    <button
+                      key={c.usage}
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      onClick={() => {
+                        setInput((v) => c.insert + v);
+                        setPicker(null);
+                        textareaRef.current?.focus();
+                      }}
+                      className="flex w-full flex-col gap-0.5 px-3 py-[6px] text-left hover:bg-surface-variant"
+                    >
+                      <span className="font-mono text-[12px] font-semibold text-primary">
+                        {c.usage}
+                      </span>
+                      <span className="text-[11.5px] text-on-surface-variant">
+                        {c.description}
+                      </span>
+                    </button>
+                  ))
+                ) : picker === "mention" ? (
                   mentionCandidates.length === 0 ? (
                     <p className="px-3 py-2 text-[12px] text-on-surface-variant">
                       メンションできる AI 社員がいません。

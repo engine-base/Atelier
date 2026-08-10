@@ -214,6 +214,44 @@ export async function uploadChatAttachment(
   };
 }
 
+/** GAP-002: /コマンド のサーバー実行結果。 */
+export interface ChatCommandResult {
+  readonly command: "decision" | "task";
+  readonly target_type: string;
+  readonly target_id: string;
+  readonly system_message_id: string;
+  readonly note: string;
+}
+
+/**
+ * GAP-002: /決定・/タスク化 をサーバーで実行する
+ * (実 decisions/tasks 行 + コマンド原文/結果をスレッド永続)。
+ */
+export async function runChatCommand(
+  threadId: string,
+  command: "decision" | "task",
+  args: string,
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<ChatCommandResult> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/threads/${threadId}/commands`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ command, args }),
+  });
+  if (!res.ok) {
+    throw new Error(`chat command failed: ${res.status}`);
+  }
+  const json = (await res.json()) as { data?: ChatCommandResult };
+  if (!json.data) throw new Error("unexpected command response");
+  return json.data;
+}
+
 /** GAP-001: 添付の署名付きダウンロード URL を解決する。 */
 export async function fetchChatAttachmentUrl(
   messageId: string,

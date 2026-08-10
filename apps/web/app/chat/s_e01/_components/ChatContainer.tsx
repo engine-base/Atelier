@@ -32,12 +32,41 @@ import {
   fetchToolApprovals,
   postMessageFeedback,
   rejectToolApproval,
+  runChatCommand,
   streamChatThread,
   uploadChatAttachment,
   type ChatAttachmentMeta,
   type ChatStreamChunk,
   type StreamChatArgs,
 } from "./stream";
+
+/** /要約 が SSE に送る実依頼文 (GAP-002 — パレットの説明と一致させる)。 */
+export const SUMMARY_COMMAND_PROMPT =
+  "この会話のここまでの要点を、決定事項・未解決の論点・次のアクションに分けて簡潔に要約してください。";
+
+type ParsedCommand =
+  | { kind: "summary" }
+  | { kind: "server"; command: "decision" | "task"; args: string }
+  | { kind: "empty-args"; usage: string }
+  | { kind: "unknown"; name: string }
+  | null;
+
+/** 本文先頭の /コマンド を解釈する (コマンドでなければ null)。 */
+function parseCommand(text: string): ParsedCommand {
+  if (!text.startsWith("/")) return null;
+  const [head = "", ...rest] = text.split(/\s+/);
+  const args = rest.join(" ").trim();
+  if (head === "/要約" || head === "/summary") return { kind: "summary" };
+  if (head === "/決定" || head === "/decision")
+    return args
+      ? { kind: "server", command: "decision", args }
+      : { kind: "empty-args", usage: "/決定 <内容>" };
+  if (head === "/タスク化" || head === "/task")
+    return args
+      ? { kind: "server", command: "task", args }
+      : { kind: "empty-args", usage: "/タスク化 <タイトル>" };
+  return { kind: "unknown", name: head };
+}
 
 /** 添付の client 側事前検証 (API と同じ制約 — 415/413 往復を避け即時表示)。 */
 const ATTACH_ALLOWED_MIME = new Set([
@@ -94,6 +123,8 @@ export interface ChatContainerProps {
   readonly attachmentUrlFn?: typeof fetchChatAttachmentUrl;
   /** 添付を開くときの window.open 相当 (テスト注入用)。 */
   readonly openUrlFn?: (url: string) => void;
+  /** /コマンド (GAP-002) の注入用 (省略時は実 API)。 */
+  readonly commandFn?: typeof runChatCommand;
 }
 
 let _seq = 0;
@@ -133,6 +164,7 @@ export function ChatContainer({
   uploadAttachmentFn = uploadChatAttachment,
   attachmentUrlFn = fetchChatAttachmentUrl,
   openUrlFn,
+  commandFn = runChatCommand,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -243,8 +275,52 @@ export function ChatContainer({
     [attachmentUrlFn, openUrlFn],
   );
 
+  const reloadMessages = useCallback(async () => {
+    try {
+      const history = await fetchMessagesFn(threadId);
+      if (history.length > 0) {
+        setMessages(history.map((m) => ({ ...m, persisted: true })));
+      }
+    } catch {
+      /* 再取得失敗は表示済みを維持 */
+    }
+  }, [fetchMessagesFn, threadId]);
+
   const handleSend = useCallback(
     async (text: string) => {
+      // GAP-002: 先頭 /コマンド の解釈 (/決定・/タスク化 はサーバー実行、
+      // /要約 は実依頼文に置換して SSE へ)
+      const parsed = parseCommand(text);
+      if (parsed) {
+        if (parsed.kind === "unknown") {
+          setError(
+            `未対応のコマンドです: ${parsed.name} (/要約 ・ /決定 ・ /タスク化 が使えます)`,
+          );
+          return;
+        }
+        if (parsed.kind === "empty-args") {
+          setError(`コマンドの内容を入力してください (${parsed.usage})`);
+          return;
+        }
+        if (parsed.kind === "server") {
+          setSending(true);
+          setError(null);
+          try {
+            await commandFn(threadId, parsed.command, parsed.args);
+            // コマンド原文 (user) + 実行結果 (system) はサーバーが永続済み
+            await reloadMessages();
+          } catch {
+            setError(
+              "コマンドの実行に失敗しました。時間をおいて再試行してください。",
+            );
+          } finally {
+            setSending(false);
+          }
+          return;
+        }
+        // summary → 実依頼文に置換して通常の SSE 送信へ
+        text = SUMMARY_COMMAND_PROMPT;
+      }
       // GAP-001: 選択済み添付を先に署名付き URL へ実 PUT (失敗時は送信中止 —
       // 「添付されている体」で本文だけ送らない)
       let attachments: ChatAttachmentMeta[] = [];
@@ -336,6 +412,8 @@ export function ChatContainer({
       refreshApprovals,
       pendingFiles,
       uploadAttachmentFn,
+      commandFn,
+      reloadMessages,
     ],
   );
 
@@ -351,17 +429,6 @@ export function ChatContainer({
     },
     [feedbackFn],
   );
-
-  const reloadMessages = useCallback(async () => {
-    try {
-      const history = await fetchMessagesFn(threadId);
-      if (history.length > 0) {
-        setMessages(history.map((m) => ({ ...m, persisted: true })));
-      }
-    } catch {
-      /* 再取得失敗は表示済みを維持 */
-    }
-  }, [fetchMessagesFn, threadId]);
 
   const handleApproveTool = useCallback(
     (approvalId: string) => {
@@ -466,6 +533,7 @@ export function ChatContainer({
           attachmentError={attachmentError}
           uploadingAttachments={uploadingAttachments}
           onOpenAttachment={handleOpenAttachment}
+          commandsEnabled
         />
       </div>
     </div>

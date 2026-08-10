@@ -779,6 +779,23 @@ components:
         upload_url: { type: string, description: "実ファイル PUT 先の署名付き URL" }
         storage_path: { type: string, description: "送信時の attachments に含める path" }
 
+    ChatCommandRequest:
+      type: object
+      required: [command, args]
+      properties:
+        command: { type: string, enum: [decision, task], description: "decision = /決定 (確定事項記録) / task = /タスク化 (triage 起票)。/要約 は LLM 依頼のため SSE 経路" }
+        args: { type: string, minLength: 1, maxLength: 2000 }
+
+    ChatCommandResponse:
+      type: object
+      required: [command, target_type, target_id, system_message_id, note]
+      properties:
+        command: { type: string, enum: [decision, task] }
+        target_type: { type: string }
+        target_id: { type: string, format: uuid }
+        system_message_id: { type: string, format: uuid }
+        note: { type: string }
+
     ChatMessage:
       type: object
       properties:
@@ -5152,6 +5169,32 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 解決済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/commands:
+    post:
+      tags: [chat]
+      summary: チャット /コマンド の構造化実行（GAP-002 / S-E01）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::execute_chat_command
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatCommandRequest' }
+      responses:
+        '201':
+          description: 実行結果 (実 decisions/tasks 行 + コマンド原文 user / 結果 system をスレッド永続 + audit chat_command.executed)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatCommandResponse' }
+        '403': { description: viewer は実行不可 / 対象生成の RLS 拒否, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: スレッド不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: args 空白のみ / 未対応 command, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/attachments/upload-url:
     post:

@@ -93,6 +93,31 @@ class MessageResponse(BaseModel):
     updated_at: datetime
 
 
+ChatCommandKind = Literal["decision", "task"]
+"""サーバー実行コマンド (GAP-002)。/要約 は LLM 依頼のため SSE 経路 (client 側)。"""
+
+
+class ChatCommandRequest(BaseModel):
+    """S-E01 /コマンド の構造化実行 (GAP-002)。
+
+    command=decision: args を確定事項 (decisions) として記録
+    command=task:     args をタイトルにタスク (tasks, triage) を起票
+    """
+
+    command: ChatCommandKind
+    args: str = Field(min_length=1, max_length=2000)
+
+
+class ChatCommandResponse(BaseModel):
+    """実行結果 — 生成された実レコードとスレッドへ記録した system メッセージ。"""
+
+    command: ChatCommandKind
+    target_type: str
+    target_id: str
+    system_message_id: str
+    note: str
+
+
 class MessageFeedbackCreate(BaseModel):
     """T-A-19: メッセージへのフィードバック (up/down + 任意コメント)。
 

@@ -813,3 +813,127 @@ class TestChatAttachments:
             # R-T08: 他 WS ユーザーからはメッセージ不可視 → 404
             r = client.get(f"/chat/messages/{mid}/attachments/0/url", headers=_h(seeded["u_b"]))
             assert r.status_code == 404
+
+
+@pytest.mark.integration
+class TestChatCommands:
+    """GAP-002: /コマンド のサーバー実行 (decision 記録 / task 起票)。"""
+
+    def _mk_thread(self, client: TestClient, seeded: dict[str, str]) -> str:
+        r = client.post(
+            "/chat/threads",
+            headers=_h(seeded["u_a"]),
+            json={
+                "project_id": seeded["proj_a"],
+                "ai_employee_id": seeded["emp_a"],
+                "title": "コマンドテスト",
+            },
+        )
+        assert r.status_code == 201, r.text
+        return str(r.json()["data"]["id"])
+
+    def test_decision_command_creates_decision_and_messages(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_a"]),
+                json={"command": "decision", "args": "配色は secondary を正とする"},
+            )
+            assert r.status_code == 201, r.text
+            d = r.json()["data"]
+            assert d["target_type"] == "decision"
+            assert "確定事項として記録しました" in d["note"]
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text(
+                    "select body, with_user, decided_by from public.decisions "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": d["target_id"]},
+            ).first()
+            assert row is not None
+            assert row.body == "配色は secondary を正とする"
+            assert row.with_user is True
+            assert str(row.decided_by) == seeded["emp_a"]
+            # スレッドに コマンド原文 (user) + 実行結果 (system) が永続
+            msgs = c.execute(
+                text(
+                    "select role, content from public.chat_messages "
+                    "where thread_id = cast(:t as uuid) order by created_at, id"
+                ),
+                {"t": tid},
+            ).all()
+            assert [str(m.role) for m in msgs] == ["user", "system"]
+            assert msgs[0].content == "/決定 配色は secondary を正とする"
+            assert "記録しました" in msgs[1].content
+            # audit
+            cnt = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action='chat_command.executed' and target_id = cast(:t as uuid)"
+                ),
+                {"t": tid},
+            ).scalar_one()
+            assert cnt == 1
+
+    def test_task_command_creates_triage_task(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_a"]),
+                json={"command": "task", "args": "LP のヒーローコピー見直し"},
+            )
+            assert r.status_code == 201, r.text
+            d = r.json()["data"]
+            assert d["target_type"] == "task"
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text(
+                    "select title, category, lifecycle_stage, description from public.tasks "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": d["target_id"]},
+            ).first()
+            assert row is not None
+            assert row.title == "LP のヒーローコピー見直し"
+            assert row.category == "チャット起票"
+            assert str(row.lifecycle_stage) == "triage"
+            assert "見積は未実施" in str(row.description)
+
+    def test_command_validation_and_permissions(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            tid = self._mk_thread(client, seeded)
+            # 空白のみ args は 422
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_a"]),
+                json={"command": "decision", "args": "   "},
+            )
+            assert r.status_code == 422
+            # 未対応 command は 422 (schema literal)
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_a"]),
+                json={"command": "deploy", "args": "x"},
+            )
+            assert r.status_code == 422
+            # viewer は 403
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_v"]),
+                json={"command": "decision", "args": "x"},
+            )
+            assert r.status_code == 403
+            # 他 WS user はスレッド不可視 404 (R-T08)
+            r = client.post(
+                f"/chat/threads/{tid}/commands",
+                headers=_h(seeded["u_b"]),
+                json={"command": "decision", "args": "x"},
+            )
+            assert r.status_code == 404

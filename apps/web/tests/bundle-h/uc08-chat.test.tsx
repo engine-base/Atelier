@@ -430,3 +430,104 @@ describe("S-E01 チャット添付 (GAP-001)", () => {
     expect(openUrlFn).toHaveBeenCalledWith("http://storage.test/signed/spec.pdf");
   });
 });
+
+describe("S-E01 /コマンド (GAP-002)", () => {
+  it("パレットから /決定 を挿入 → 送信でサーバー実行 (SSE は呼ばない)", async () => {
+    const commandFn = vi.fn(async () => ({
+      command: "decision" as const,
+      target_type: "decision",
+      target_id: "d1",
+      system_message_id: "s1",
+      note: "コマンド /決定: 記録しました",
+    }));
+    const streamFn = vi.fn(async () => undefined);
+    const fetchMessagesFn = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([
+        { id: "m1", role: "user", content: "/決定 配色は secondary を正とする" },
+        {
+          id: "m2",
+          role: "system",
+          content: "コマンド /決定: 「配色は secondary を正とする」を確定事項として記録しました",
+        },
+      ]);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={fetchMessagesFn}
+        approvalsFn={async () => []}
+        commandFn={commandFn}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "/コマンド" }));
+    fireEvent.click(screen.getByRole("option", { name: /\/決定 <内容>/ }));
+    fireEvent.change(screen.getByLabelText(/メッセージを入力/), {
+      target: { value: "/決定 配色は secondary を正とする" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() =>
+      expect(commandFn).toHaveBeenCalledWith(
+        "t1",
+        "decision",
+        "配色は secondary を正とする",
+      ),
+    );
+    expect(streamFn).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(/確定事項として記録しました/),
+    ).toBeInTheDocument();
+  });
+
+  it("/要約 は実依頼文に置換して SSE 送信する", async () => {
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({ type: "end" });
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+        approvalsFn={async () => []}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/メッセージを入力/), {
+      target: { value: "/要約" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() => expect(streamFn).toHaveBeenCalledTimes(1));
+    const arg = streamFn.mock.calls[0]![0]!;
+    expect(arg.userMessage).toContain("要点を、決定事項・未解決の論点・次のアクション");
+  });
+
+  it("未対応コマンド / 引数なしは inline error (何も実行しない)", async () => {
+    const commandFn = vi.fn(async () => {
+      throw new Error("should not be called");
+    });
+    const streamFn = vi.fn(async () => undefined);
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+        approvalsFn={async () => []}
+        commandFn={commandFn as never}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText(/メッセージを入力/), {
+      target: { value: "/デプロイ 本番" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText(/未対応のコマンドです/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/メッセージを入力/), {
+      target: { value: "/決定" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(
+      await screen.findByText(/コマンドの内容を入力してください/),
+    ).toBeInTheDocument();
+    expect(commandFn).not.toHaveBeenCalled();
+    expect(streamFn).not.toHaveBeenCalled();
+  });
+});

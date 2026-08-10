@@ -17,6 +17,8 @@ from src.schemas.chat import (
     ChatAttachmentUploadUrlRequest,
     ChatAttachmentUploadUrlResponse,
     ChatAttachmentUrlResponse,
+    ChatCommandRequest,
+    ChatCommandResponse,
     MessageCreate,
     MessageFeedbackCreate,
     MessageFeedbackResponse,
@@ -115,6 +117,36 @@ async def create_message(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
     created = await svc.create_message(session, actor_id=user.id, thread_id=thread_id, data=body)
     return {"data": created}
+
+
+@router.post(
+    "/chat/threads/{thread_id}/commands",
+    status_code=status.HTTP_201_CREATED,
+    summary="チャット /コマンド の構造化実行 (GAP-002 / S-E01)",
+)
+async def execute_chat_command(
+    thread_id: str, body: ChatCommandRequest, session: SessionDep, user: UserDep
+) -> dict[str, ChatCommandResponse]:
+    """/決定 (decisions 記録) / /タスク化 (tasks 起票) をサーバーで実行し、
+    コマンド原文 (user) + 実行結果 (system) をスレッドへ永続する。
+    """
+    if await svc.get_thread(session, thread_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+    if not await svc.can_post_to_thread(session, thread_id=thread_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
+    args = body.args.strip()
+    if not args:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "command args must not be blank")
+    result = await svc.execute_command(
+        session,
+        actor_id=user.id,
+        thread_id=thread_id,
+        command=body.command,
+        args=args,
+    )
+    if result is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to execute command")
+    return {"data": result}
 
 
 @router.post(

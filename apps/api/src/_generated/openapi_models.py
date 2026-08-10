@@ -818,6 +818,36 @@ class ChatAttachmentUploadUrlResponse(BaseModel):
     """
 
 
+class Command(StrEnum):
+    """
+    decision = /決定 (確定事項記録) / task = /タスク化 (triage 起票)。/要約 は LLM 依頼のため SSE 経路
+    """
+
+    decision = "decision"
+    task = "task"
+
+
+class ChatCommandRequest(BaseModel):
+    command: Command
+    """
+    decision = /決定 (確定事項記録) / task = /タスク化 (triage 起票)。/要約 は LLM 依頼のため SSE 経路
+    """
+    args: Annotated[str, Field(max_length=2000, min_length=1)]
+
+
+class Command1(StrEnum):
+    decision = "decision"
+    task = "task"
+
+
+class ChatCommandResponse(BaseModel):
+    command: Command1
+    target_type: str
+    target_id: UUID
+    system_message_id: UUID
+    note: str
+
+
 class Role4(StrEnum):
     user = "user"
     assistant = "assistant"

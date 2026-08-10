@@ -7798,6 +7798,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/threads/{thread_id}/commands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** チャット /コマンド の構造化実行（GAP-002 / S-E01） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChatCommandRequest"];
+                };
+            };
+            responses: {
+                /** @description 実行結果 (実 decisions/tasks 行 + コマンド原文 user / 結果 system をスレッド永続 + audit chat_command.executed) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatCommandResponse"];
+                        };
+                    };
+                };
+                /** @description viewer は実行不可 / 対象生成の RLS 拒否 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description スレッド不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description args 空白のみ / 未対応 command */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/attachments/upload-url": {
         parameters: {
             query?: never;
@@ -10844,6 +10915,24 @@ export interface components {
             upload_url: string;
             /** @description 送信時の attachments に含める path */
             storage_path: string;
+        };
+        ChatCommandRequest: {
+            /**
+             * @description decision = /決定 (確定事項記録) / task = /タスク化 (triage 起票)。/要約 は LLM 依頼のため SSE 経路
+             * @enum {string}
+             */
+            command: "decision" | "task";
+            args: string;
+        };
+        ChatCommandResponse: {
+            /** @enum {string} */
+            command: "decision" | "task";
+            target_type: string;
+            /** Format: uuid */
+            target_id: string;
+            /** Format: uuid */
+            system_message_id: string;
+            note: string;
         };
         ChatMessage: {
             /** Format: uuid */
