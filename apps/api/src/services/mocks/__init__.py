@@ -256,3 +256,76 @@ async def delete_mock(session: AsyncSession, *, actor_id: str, mock_id: str) -> 
         )
     )
     return True
+
+
+async def duplicate_version(
+    session: AsyncSession, *, actor_id: str, mock_id: str
+) -> MockResponse | None:
+    """バージョン複製 (GAP-024 — 「…」メニュー)。同内容の新バージョンを作る。
+
+    storage オブジェクトは同一パスを参照 (内容同一の明示 — コピー偽装をしない)。
+    返り値 None = mock 不可視/不在。
+    """
+    src = await get_mock(session, mock_id)
+    if src is None:
+        return None
+    created = await create_version(
+        session,
+        actor_id=actor_id,
+        mock_id=mock_id,
+        data=MockVersionCreate(
+            html_storage_path=src.html_storage_path,
+            meta_tags={"duplicated_from_version": src.version},
+        ),
+    )
+    if created is not None:
+        await AuditWriter(session).write(
+            AuditEvent(
+                action="mock.duplicate",
+                target_type="mock",
+                actor_type="user",
+                actor_id=actor_id,
+                target_id=created.id,
+                after={"source_mock_id": mock_id, "source_version": src.version},
+            )
+        )
+    return created
+
+
+async def discard_version(session: AsyncSession, *, actor_id: str, mock_id: str) -> bool:
+    """バージョン破棄 (GAP-024 — 「…」メニュー)。当該バージョン行を soft delete。
+
+    同 screen で唯一の生存バージョンは破棄不可 (ValueError → 409)。
+    返り値 False = mock 不可視/不在。
+    """
+    src = await get_mock(session, mock_id)
+    if src is None:
+        return False
+    res = await session.execute(
+        text(
+            "select count(*) from public.mocks "
+            "where project_id = cast(:pid as uuid) and screen_name = :sn "
+            "and deleted_at is null"
+        ),
+        {"pid": src.project_id, "sn": src.screen_name},
+    )
+    if int(res.scalar_one()) <= 1:
+        raise ValueError("cannot discard the only remaining version")
+    await session.execute(
+        text(
+            "update public.mocks set deleted_at = now() "
+            "where id = cast(:id as uuid) and deleted_at is null"
+        ),
+        {"id": mock_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="mock.discard",
+            target_type="mock",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=mock_id,
+            after={"screen_name": src.screen_name, "version": src.version},
+        )
+    )
+    return True

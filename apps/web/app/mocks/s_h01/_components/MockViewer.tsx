@@ -9,8 +9,10 @@
  * 320 / 768 / 1024 / 1440 のレスポンシブ切替 (web/testing.md)。
  * storage 未設定 (content-url 503) 時は iframe 領域に honest メッセージを出しつつ
  * バージョン/コメントパネルは生かす (メタ系 API は dev でも動作するため)。
- * モックの「編集」ボタン・バージョンパネルの「…」メニューは対応 API 不在のため
- * 未描画 (Rule 10 / GAP-024)。実 API 配線は MockViewerContainer が担う。
+ * 「編集」= ワンダ (AI デザイナー) への修正依頼 (GAP-024 / Open Design パターン:
+ * 自然言語指示 → LLM が HTML を改訂 → 新バージョン)。POST /mocks/{id}/revise。
+ * バージョン操作 (複製 / 破棄) はモックの「…」メニュー相当。破棄は 2 段階確認 +
+ * 唯一の生存バージョンは API が 409 で拒否。実 API 配線は MockViewerContainer が担う。
  */
 
 "use client";
@@ -147,6 +149,25 @@ function MessageIcon() {
   );
 }
 
+function EditIcon() {
+  return (
+    <svg
+      width={13}
+      height={13}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+
 /** バージョン履歴カード 1 件分 (実 /mocks/{id}/versions の 1 行)。 */
 export interface MockVersionItem {
   readonly id: string;
@@ -155,6 +176,10 @@ export interface MockVersionItem {
   readonly createdAt: string;
   /** meta_tags.note (変更概要)。無ければ非表示。 */
   readonly note?: string;
+  /** 作成主体の表示名 (meta_tags.author=wanda → 「ワンダ（更新）」)。 */
+  readonly author?: string;
+  /** ワンダへの修正指示文 (meta_tags.revision_instruction)。 */
+  readonly instruction?: string;
   /** このバージョンを表示する URL (/mocks?mock={id}) */
   readonly href: string;
   /** いま表示中のバージョンか */
@@ -194,6 +219,18 @@ export interface MockViewerProps {
   readonly onAddComment?: (content: string) => void;
   /** コメントを解決済みにする (PATCH status=resolved)。 */
   readonly onResolve?: (id: string) => void;
+  /** 「編集」= ワンダ (AI) への修正依頼。未指定ならボタンを出さない。 */
+  readonly onRevise?: (instruction: string) => void;
+  /** 修正依頼の実行中 (ワンダが改訂中)。 */
+  readonly revising?: boolean;
+  /** バージョン複製 (「…」メニュー相当)。未指定なら出さない。 */
+  readonly onDuplicate?: (versionId: string) => void;
+  /** バージョン破棄 (2 段階確認)。未指定なら出さない。 */
+  readonly onDiscard?: (versionId: string) => void;
+  /** 直近のバージョン操作の結果通知 (成功)。 */
+  readonly actionNotice?: string;
+  /** 直近のバージョン操作の結果通知 (失敗)。 */
+  readonly actionError?: string;
 }
 
 export function MockViewer({
@@ -207,9 +244,19 @@ export function MockViewer({
   comments,
   onAddComment,
   onResolve,
+  onRevise,
+  revising = false,
+  onDuplicate,
+  onDiscard,
+  actionNotice,
+  actionError,
 }: MockViewerProps) {
   const [preset, setPreset] = useState<ViewportPreset>(initialPreset);
   const [draft, setDraft] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [instructionDraft, setInstructionDraft] = useState("");
+  // 破棄の 2 段階確認: 対象バージョン id (null = 確認中なし)
+  const [discardTarget, setDiscardTarget] = useState<string | null>(null);
   const width = VIEWPORT_W[preset];
   const openCount = (comments ?? []).filter((c) => !c.resolved).length;
   const hasSidePanel = versions !== undefined || comments !== undefined;
@@ -286,28 +333,123 @@ export function MockViewer({
               {width} × {VIEWPORT_H}
             </div>
 
-            {src ? (
+            {src || onRevise ? (
               <div className="ml-auto flex items-center gap-xs">
-                <a
-                  href={src}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
-                >
-                  <ExternalLinkIcon />
-                  新規タブ
-                </a>
-                <a
-                  href={src}
-                  download
-                  className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
-                >
-                  <DownloadIcon />
-                  HTML
-                </a>
+                {src ? (
+                  <>
+                    <a
+                      href={src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      <ExternalLinkIcon />
+                      新規タブ
+                    </a>
+                    <a
+                      href={src}
+                      download
+                      className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
+                    >
+                      <DownloadIcon />
+                      HTML
+                    </a>
+                  </>
+                ) : null}
+                {onRevise ? (
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen((v) => !v)}
+                    aria-expanded={editOpen}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    <EditIcon />
+                    編集
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
+
+          {/* 編集 = ワンダ (AI デザイナー) への修正依頼フォーム (Open Design パターン) */}
+          {onRevise && editOpen ? (
+            <div
+              role="dialog"
+              aria-label="ワンダに修正を依頼"
+              className="border-b border-border bg-secondary-container/40 px-md py-md"
+            >
+              <h3 className="text-[13px] font-bold text-on-surface">
+                ワンダに修正を依頼
+              </h3>
+              <p className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                デザイナー AI「ワンダ」が指示に従って HTML
+                を改訂し、新しいバージョンを作成します。
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = instructionDraft.trim();
+                  if (!text || revising) return;
+                  onRevise(text);
+                }}
+              >
+                <label className="mt-2 block">
+                  <span className="sr-only">修正指示</span>
+                  <textarea
+                    value={instructionDraft}
+                    onChange={(e) => setInstructionDraft(e.target.value)}
+                    rows={3}
+                    maxLength={4000}
+                    disabled={revising}
+                    placeholder="例: ヘッダーの背景色をブランドカラーに変更して、CTA ボタンを右上に移動してください"
+                    className="w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
+                  />
+                </label>
+                <div className="mt-2 flex items-center justify-end gap-xs">
+                  {revising ? (
+                    <span
+                      role="status"
+                      className="mr-auto text-[12px] text-on-surface-variant"
+                    >
+                      ワンダが改訂中です…（数十秒かかることがあります）
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(false)}
+                    disabled={revising}
+                    className="rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant disabled:opacity-50"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!instructionDraft.trim() || revising}
+                    className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                  >
+                    修正を依頼
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {/* バージョン操作の結果通知 (成功 / 失敗) */}
+          {actionError ? (
+            <p
+              role="alert"
+              className="border-b border-border bg-error/10 px-md py-2 text-[12.5px] text-error"
+            >
+              {actionError}
+            </p>
+          ) : actionNotice ? (
+            <p
+              role="status"
+              className="border-b border-border bg-tertiary-container px-md py-2 text-[12.5px] text-tertiary-container-fg"
+            >
+              {actionNotice}
+            </p>
+          ) : null}
 
           {/* プレビュー frame (device-frame) */}
           <div className="flex justify-center overflow-auto bg-surface-variant/40 p-lg">
@@ -378,9 +520,19 @@ export function MockViewer({
                                 </span>
                               ) : null}
                             </span>
+                            {v.author ? (
+                              <span className="mt-0.5 block text-[11px] font-semibold opacity-90">
+                                {v.author}
+                              </span>
+                            ) : null}
                             <span className="mt-0.5 block text-[11px] tabular-nums opacity-80">
                               {v.createdAt}
                             </span>
+                            {v.instruction ? (
+                              <span className="mt-1.5 block rounded-md bg-secondary-container px-2.5 py-1.5 text-[11px] text-secondary-container-fg">
+                                修正指示: {v.instruction}
+                              </span>
+                            ) : null}
                             {v.note ? (
                               <span className="mt-1.5 block rounded-md bg-secondary-container px-2.5 py-1.5 text-[11px] text-secondary-container-fg">
                                 {v.note}
@@ -388,6 +540,60 @@ export function MockViewer({
                             ) : null}
                           </>
                         );
+                        const actions =
+                          onDuplicate || onDiscard ? (
+                            <div className="mt-1 flex items-center justify-end gap-1 px-1.5">
+                              {discardTarget === v.id ? (
+                                <>
+                                  <span className="mr-auto text-[10.5px] text-error">
+                                    v{v.version} を破棄しますか？
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDiscardTarget(null)}
+                                    className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant hover:bg-surface-variant"
+                                  >
+                                    戻す
+                                  </button>
+                                  {onDiscard ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDiscardTarget(null);
+                                        onDiscard(v.id);
+                                      }}
+                                      className="rounded-sm bg-error px-1.5 py-0.5 text-[10.5px] font-semibold text-on-error hover:opacity-90"
+                                    >
+                                      破棄を確定
+                                    </button>
+                                  ) : null}
+                                </>
+                              ) : (
+                                <>
+                                  {onDuplicate ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onDuplicate(v.id)}
+                                      aria-label={`v${v.version} を複製`}
+                                      className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant hover:bg-surface-variant"
+                                    >
+                                      複製
+                                    </button>
+                                  ) : null}
+                                  {onDiscard ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setDiscardTarget(v.id)}
+                                      aria-label={`v${v.version} を破棄`}
+                                      className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-error hover:bg-error/10"
+                                    >
+                                      破棄
+                                    </button>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
+                          ) : null;
                         return (
                           <li key={v.id}>
                             {v.current ? (
@@ -405,6 +611,7 @@ export function MockViewer({
                                 {inner}
                               </Link>
                             )}
+                            {actions}
                           </li>
                         );
                       })}

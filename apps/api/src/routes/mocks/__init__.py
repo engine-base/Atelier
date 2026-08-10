@@ -15,6 +15,7 @@ from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.mocks import (
     MockCreate,
     MockResponse,
+    MockReviseRequest,
     MockUpdate,
     MockVersionCreate,
 )
@@ -122,3 +123,63 @@ async def create_version(
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": created}
+
+
+@router.post(
+    "/mocks/{mock_id}/revise",
+    status_code=status.HTTP_201_CREATED,
+    summary="編集 = ワンダ (AI) への修正依頼 → 新バージョン生成 (GAP-024 / Open Design パターン)",
+    responses={503: {"description": "LLM または storage が未設定"}},
+)
+async def revise_mock(
+    mock_id: str, body: MockReviseRequest, session: SessionDep, user: UserDep
+) -> dict[str, MockResponse]:
+    from src.services.mocks import revise as revise_svc
+
+    try:
+        created = await revise_svc.revise_mock(
+            session, actor_id=user.id, mock_id=mock_id, instruction=body.instruction
+        )
+    except revise_svc.MockReviseError as exc:
+        if exc.code in ("llm_unconfigured",):
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        if exc.code == "too_large":
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+    return {"data": created}
+
+
+@router.post(
+    "/mocks/{mock_id}/duplicate",
+    status_code=status.HTTP_201_CREATED,
+    summary="バージョン複製 (GAP-024 — 「…」メニュー)",
+)
+async def duplicate_mock_version(
+    mock_id: str, session: SessionDep, user: UserDep
+) -> dict[str, MockResponse]:
+    created = await svc.duplicate_version(session, actor_id=user.id, mock_id=mock_id)
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+    return {"data": created}
+
+
+@router.post(
+    "/mocks/{mock_id}/discard",
+    summary="バージョン破棄 (GAP-024 — 唯一の生存バージョンは 409)",
+)
+async def discard_mock_version(
+    mock_id: str, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    try:
+        ok = await svc.discard_version(session, actor_id=user.id, mock_id=mock_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+    return {"data": {"mock_id": mock_id, "status": "discarded"}}

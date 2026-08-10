@@ -3627,6 +3627,68 @@ paths:
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /mocks/{mock_id}/revise:
+    post:
+      tags: [mocks]
+      summary: 編集 = ワンダ (AI) への修正依頼 → 新バージョン生成（GAP-024 / Open Design パターン）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::revise_mock
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction]
+              properties:
+                instruction: { type: string, minLength: 1, maxLength: 4000, description: "デザイナー AI ワンダへの修正指示 (自然言語)" }
+      responses:
+        '201':
+          description: 改訂 HTML を storage へ保存し新バージョン (parent 連鎖、meta に指示文+author=wanda+model)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: mock 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '413': { description: HTML が改訂上限超, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: LLM (ANTHROPIC_API_KEY) or storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mocks/{mock_id}/duplicate:
+    post:
+      tags: [mocks]
+      summary: バージョン複製（GAP-024 — 「…」メニュー）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::duplicate_mock_version
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: 同内容の新バージョン (meta に duplicated_from_version、audit mock.duplicate)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '404': { description: mock 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /mocks/{mock_id}/discard:
+    post:
+      tags: [mocks]
+      summary: バージョン破棄（GAP-024 — 唯一の生存バージョンは 409）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::discard_mock_version
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: soft delete (audit mock.discard) }
+        '404': { description: mock 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 唯一の生存バージョン, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /mocks/{mock_id}/versions:
     parameters:
       - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }

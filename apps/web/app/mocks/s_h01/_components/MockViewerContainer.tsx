@@ -7,6 +7,9 @@
  * GET /comments (target_type=mock) を取得し MockViewer に渡す。
  * コメント追加は POST /comments（楽観追加 + 失敗ロールバック）、
  * 解決は PATCH /comments/{id} status=resolved。
+ * 「編集」は POST /mocks/{id}/revise = ワンダ (AI デザイナー) への修正依頼
+ * (GAP-024 / Open Design パターン) — 成功で新バージョンへ遷移。
+ * バージョン操作は POST /mocks/{id}/duplicate・/discard (唯一版 409 は honest 表示)。
  * storage 未設定 (content-url 503) はメタ系 API が生きているため全面エラーにせず、
  * frame 領域のみ honest メッセージにしてバージョン/コメントは操作可能に保つ。
  * api client は注入可能。
@@ -15,7 +18,8 @@
 "use client";
 
 import * as React from "react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
@@ -67,7 +71,13 @@ export function MockViewerContainer({
 }: MockViewerContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
+  const router = useRouter();
   const COMMENTS_KEY = ["mock", mockId, "comments"] as const;
+  // バージョン操作 (revise / duplicate / discard) の結果通知
+  const [action, setAction] = useState<{
+    kind: "notice" | "error";
+    text: string;
+  } | null>(null);
 
   const meta = useQuery({
     queryKey: ["mock", mockId],
@@ -154,6 +164,90 @@ export function MockViewerContainer({
       void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
   });
 
+  // 「編集」= ワンダ (AI) への修正依頼 → 新バージョン生成 (GAP-024)。
+  const reviseMut = useMutation({
+    mutationFn: async (instruction: string) => {
+      const res = await client.post("/mocks/{mock_id}/revise", {
+        params: { path: { mock_id: mockId } },
+        body: { instruction },
+      });
+      return (res as { data?: ApiMock }).data ?? null;
+    },
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ["mock"] });
+      if (created) {
+        setAction({
+          kind: "notice",
+          text: `ワンダが v${created.version} を作成しました。`,
+        });
+        router.push(`/mocks?mock=${created.id}`);
+      }
+    },
+    onError: (e) => {
+      const s = statusOf(e);
+      setAction({
+        kind: "error",
+        text:
+          s === 503
+            ? "AI デザイナー（ワンダ）または保存先が未設定のため、修正を実行できません。"
+            : s === 413
+              ? "モック HTML が大きすぎるため自動改訂できません。画面の分割を検討してください。"
+              : "修正依頼に失敗しました。時間をおいて再度お試しください。",
+      });
+    },
+  });
+
+  // バージョン複製 (「…」メニュー相当)。
+  const duplicateMut = useMutation({
+    mutationFn: async (versionId: string) => {
+      const res = await client.post("/mocks/{mock_id}/duplicate", {
+        params: { path: { mock_id: versionId } },
+      });
+      return (res as { data?: ApiMock }).data ?? null;
+    },
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ["mock"] });
+      setAction({
+        kind: "notice",
+        text: created
+          ? `複製から v${created.version} を作成しました。`
+          : "バージョンを複製しました。",
+      });
+    },
+    onError: () =>
+      setAction({ kind: "error", text: "バージョンの複製に失敗しました。" }),
+  });
+
+  // バージョン破棄 (唯一の生存バージョンは API が 409 で拒否)。
+  const discardMut = useMutation({
+    mutationFn: async (versionId: string) => {
+      await client.post("/mocks/{mock_id}/discard", {
+        params: { path: { mock_id: versionId } },
+      });
+      return versionId;
+    },
+    onSuccess: (versionId) => {
+      void queryClient.invalidateQueries({ queryKey: ["mock"] });
+      setAction({ kind: "notice", text: "バージョンを破棄しました。" });
+      if (versionId === mockId) {
+        // 表示中バージョンを破棄した場合は残存する最新バージョンへ移動
+        const rest = (versions.data ?? []).filter((v) => v.id !== versionId);
+        if (rest.length > 0) {
+          const latest = rest.reduce((a, b) => (a.version >= b.version ? a : b));
+          router.push(`/mocks?mock=${latest.id}`);
+        }
+      }
+    },
+    onError: (e) =>
+      setAction({
+        kind: "error",
+        text:
+          statusOf(e) === 409
+            ? "唯一のバージョンは破棄できません。"
+            : "バージョンの破棄に失敗しました。",
+      }),
+  });
+
   if (statusOf(meta.error) === 403 || statusOf(content.error) === 403) {
     return (
       <p
@@ -193,15 +287,29 @@ export function MockViewerContainer({
     : (meta.data?.version ?? 1);
   const versionItems: MockVersionItem[] = [...versionRows]
     .sort((a, b) => b.version - a.version)
-    .map((v) => ({
-      id: v.id,
-      version: v.version,
-      createdAt: dateLabel(v.created_at),
-      note:
-        typeof v.meta_tags?.note === "string" ? v.meta_tags.note : undefined,
-      href: `/mocks?mock=${v.id}`,
-      current: v.id === mockId,
-    }));
+    .map((v) => {
+      const meta = v.meta_tags ?? {};
+      const duplicatedFrom = meta.duplicated_from_version;
+      return {
+        id: v.id,
+        version: v.version,
+        createdAt: dateLabel(v.created_at),
+        // ワンダ (AI デザイナー) が改訂したバージョンは author を明示 (GAP-024)
+        author: meta.author === "wanda" ? "ワンダ（更新）" : undefined,
+        instruction:
+          typeof meta.revision_instruction === "string"
+            ? meta.revision_instruction
+            : undefined,
+        note:
+          typeof meta.note === "string"
+            ? meta.note
+            : typeof duplicatedFrom === "number"
+              ? `v${duplicatedFrom} の複製`
+              : undefined,
+        href: `/mocks?mock=${v.id}`,
+        current: v.id === mockId,
+      };
+    });
 
   const authorLabel = (c: ApiComment): string => {
     if (c.author_invitation_id) return "クライアント（招待）";
@@ -225,6 +333,7 @@ export function MockViewerContainer({
 
   return (
     <MockViewer
+      key={mockId}
       src={src}
       srcError={srcError}
       title={meta.data?.screen_name ?? "モック"}
@@ -236,6 +345,12 @@ export function MockViewerContainer({
       comments={comments.error ? undefined : commentItems}
       onAddComment={(text) => addMut.mutate(text)}
       onResolve={(id) => resolveMut.mutate(id)}
+      onRevise={(instruction) => reviseMut.mutate(instruction)}
+      revising={reviseMut.isPending}
+      onDuplicate={(id) => duplicateMut.mutate(id)}
+      onDiscard={(id) => discardMut.mutate(id)}
+      actionNotice={action?.kind === "notice" ? action.text : undefined}
+      actionError={action?.kind === "error" ? action.text : undefined}
     />
   );
 }

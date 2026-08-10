@@ -148,6 +148,59 @@ def _h(uid: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {_mint_jwt(uid)}"}
 
 
+def _install_storage_fakes(monkeypatch: pytest.MonkeyPatch, *, source_html: str) -> list[str]:
+    """revise 経路の storage HTTP 境界をフェイク化する (GAP-024 テスト用)。
+
+    - storage_signing.httpx : 署名 API (download/upload sign) を成功応答に
+    - services.mocks.revise.httpx : GET=現行 HTML / PUT=アップロード記録
+    返り値はアップロードされた HTML 本文の記録リスト。
+    """
+    from typing import Any
+
+    from src import storage_signing
+    from src.services.mocks import revise as revise_svc
+
+    monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://stor.invalid")
+    monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+    uploaded: list[str] = []
+
+    class _Res:
+        def __init__(self, payload: dict[str, Any] | None = None, body_text: str = "") -> None:
+            self.status_code = 200
+            self._payload = payload or {}
+            self.text = body_text
+
+        def json(self) -> dict[str, Any]:
+            return self._payload
+
+    # storage_signing と revise は同一 httpx モジュールを共有するため、
+    # 署名 (post) / 取得 (get) / アップロード (put) を 1 つのフェイクで担う。
+    class _StorageClient:
+        def __init__(self, *_a: Any, **_k: Any) -> None: ...
+
+        async def __aenter__(self) -> _StorageClient:
+            return self
+
+        async def __aexit__(self, *_a: Any) -> bool:
+            return False
+
+        async def post(self, url: str, **_k: Any) -> _Res:
+            if "/object/upload/sign/" in url:
+                return _Res({"url": "/object/upload/sign/mocks/x?token=u"})
+            return _Res({"signedURL": "/object/sign/mocks/x?token=d"})
+
+        async def get(self, _url: str, **_k: Any) -> _Res:
+            return _Res(body_text=source_html)
+
+        async def put(self, _url: str, *, content: bytes, **_k: Any) -> _Res:
+            uploaded.append(content.decode("utf-8"))
+            return _Res()
+
+    monkeypatch.setattr(storage_signing.httpx, "AsyncClient", _StorageClient)
+    assert revise_svc.httpx.AsyncClient is _StorageClient  # 共有モジュールの前提を明示
+    return uploaded
+
+
 @pytest.mark.integration
 class TestMocksCrud:
     def test_unauthenticated_401(self, app: FastAPI) -> None:
@@ -235,6 +288,144 @@ class TestMocksCrud:
             ).json()["data"]["id"]
             assert client.get(f"/mocks/{mid}", headers=hb).status_code == 404
             client.delete(f"/mocks/{mid}", headers=ha)
+
+    def test_revise_fake_llm_creates_wanda_version(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """編集 = ワンダ (AI) への修正依頼 → 新バージョン (GAP-024)。
+
+        storage は HTTP 境界 (署名 + GET/PUT) をフェイクに差し替え、
+        LLM は ATELIER_ALLOW_FAKE_LLM=1 の決定的スタブ経路を通す。
+        """
+        uploaded = _install_storage_fakes(
+            monkeypatch, source_html="<html><body><h1>v1</h1></body></html>"
+        )
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            v1 = client.post(
+                "/mocks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "screen_name": "S-REV",
+                    "html_storage_path": "mocks/rev-v1.html",
+                },
+                headers=h,
+            ).json()["data"]
+            r = client.post(
+                f"/mocks/{v1['id']}/revise",
+                json={"instruction": "ヘッダーをブランドカラーに変更"},
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            v2 = r.json()["data"]
+            assert v2["version"] == 2
+            assert v2["parent_mock_id"] == v1["id"]
+            assert v2["meta_tags"]["author"] == "wanda"
+            assert v2["meta_tags"]["revision_instruction"] == "ヘッダーをブランドカラーに変更"
+            assert v2["meta_tags"]["model"] == "fake-llm"
+            assert v2["html_storage_path"].endswith("-rev.html")
+            # 改訂 HTML が実際にアップロードされ、指示バナーが入っている
+            assert len(uploaded) == 1
+            assert 'data-fake-revision="1"' in uploaded[0]
+            assert "ヘッダーをブランドカラーに変更" in uploaded[0]
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='mock.version_create' and target_id=:t"
+                    ),
+                    {"t": v2["id"]},
+                ).scalar_one()
+            assert n == 1
+            client.delete(f"/mocks/{v2['id']}", headers=h)
+            client.delete(f"/mocks/{v1['id']}", headers=h)
+
+    def test_revise_503_when_llm_unconfigured(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ANTHROPIC_API_KEY 無 + fake 不許可は 503 (偽の改訂を出さない)。"""
+        _install_storage_fakes(monkeypatch, source_html="<html><body>x</body></html>")
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            mid = client.post(
+                "/mocks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "screen_name": "S-REV503",
+                    "html_storage_path": "mocks/rev503.html",
+                },
+                headers=h,
+            ).json()["data"]["id"]
+            r = client.post(f"/mocks/{mid}/revise", json={"instruction": "何か直して"}, headers=h)
+            assert r.status_code == 503
+            client.delete(f"/mocks/{mid}", headers=h)
+
+    def test_revise_cross_workspace_404(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """R-T08: 他ワークスペースの mock への修正依頼は 404。"""
+        _install_storage_fakes(monkeypatch, source_html="<html></html>")
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
+        with TestClient(app) as client:
+            mid = client.post(
+                "/mocks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "screen_name": "S-REVX",
+                    "html_storage_path": "mocks/revx.html",
+                },
+                headers=ha,
+            ).json()["data"]["id"]
+            r = client.post(f"/mocks/{mid}/revise", json={"instruction": "越境"}, headers=hb)
+            assert r.status_code == 404
+            client.delete(f"/mocks/{mid}", headers=ha)
+
+    def test_duplicate_and_discard(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """複製は同一 HTML 参照の新バージョン、破棄は soft delete + 唯一版 409。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            v1 = client.post(
+                "/mocks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "screen_name": "S-DUP",
+                    "html_storage_path": "mocks/dup-v1.html",
+                },
+                headers=h,
+            ).json()["data"]
+            r = client.post(f"/mocks/{v1['id']}/duplicate", headers=h)
+            assert r.status_code == 201, r.text
+            v2 = r.json()["data"]
+            assert v2["version"] == 2
+            assert v2["html_storage_path"] == v1["html_storage_path"]
+            assert v2["meta_tags"]["duplicated_from_version"] == 1
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='mock.duplicate' and target_id=:t"
+                    ),
+                    {"t": v2["id"]},
+                ).scalar_one()
+            assert n == 1
+
+            # v2 破棄 → 404 化、v1 は唯一版になり 409
+            assert client.post(f"/mocks/{v2['id']}/discard", headers=h).status_code == 200
+            assert client.get(f"/mocks/{v2['id']}", headers=h).status_code == 404
+            r409 = client.post(f"/mocks/{v1['id']}/discard", headers=h)
+            assert r409.status_code == 409
+            client.delete(f"/mocks/{v1['id']}", headers=h)
 
     def test_create_writes_audit_log(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine

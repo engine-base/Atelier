@@ -3870,6 +3870,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mocks/{mock_id}/revise": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 編集 = ワンダ (AI) への修正依頼 → 新バージョン生成（GAP-024 / Open Design パターン） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description デザイナー AI ワンダへの修正指示 (自然言語) */
+                        instruction: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 改訂 HTML を storage へ保存し新バージョン (parent 連鎖、meta に指示文+author=wanda+model) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Mock"];
+                        };
+                    };
+                };
+                /** @description mock 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description HTML が改訂上限超 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) or storage 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mocks/{mock_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** バージョン複製（GAP-024 — 「…」メニュー） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 同内容の新バージョン (meta に duplicated_from_version、audit mock.duplicate) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Mock"];
+                        };
+                    };
+                };
+                /** @description mock 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mocks/{mock_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** バージョン破棄（GAP-024 — 唯一の生存バージョンは 409） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description soft delete (audit mock.discard) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description mock 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 唯一の生存バージョン */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mocks/{mock_id}/versions": {
         parameters: {
             query?: never;

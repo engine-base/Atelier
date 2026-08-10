@@ -22,8 +22,10 @@ import { createQueryClient } from "../../lib/query-client";
 import { MockListContainer } from "../../app/mocks/s_h01/_components/MockListContainer";
 import { MockViewerContainer } from "../../app/mocks/s_h01/_components/MockViewerContainer";
 
+const { routerPush } = vi.hoisted(() => ({ routerPush: vi.fn() }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("project=p1"),
+  useRouter: () => ({ push: routerPush }),
 }));
 
 function renderWithQuery(ui: React.ReactElement) {
@@ -249,6 +251,171 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
     ).toBeInTheDocument();
     // 死にリンクを出さない: 新規タブ/HTML は URL が無い間は非描画 (Rule 10)
     expect(screen.queryByRole("link", { name: /新規タブ/ })).not.toBeInTheDocument();
+  });
+
+  it("sends a revision request to Wanda (POST /mocks/{id}/revise) and navigates to the new version", async () => {
+    // GAP-024: 「編集」= ワンダ (AI デザイナー) への修正依頼 (Open Design パターン)
+    const get = standardGet();
+    const post = vi.fn(async () => ({
+      data: { id: "m3", version: 3 },
+    }));
+    const client = {
+      get,
+      post,
+      patch: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={client as never} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /編集/ }));
+    expect(
+      screen.getByRole("dialog", { name: "ワンダに修正を依頼" }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "修正指示" }), {
+      target: { value: "CTA を右上へ移動" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { mock_id: string } }; body: { instruction: string } },
+    ];
+    expect(path).toBe("/mocks/{mock_id}/revise");
+    expect(init.params.path.mock_id).toBe("m2");
+    expect(init.body.instruction).toBe("CTA を右上へ移動");
+    await waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith("/mocks?mock=m3"),
+    );
+    expect(
+      screen.getByText("ワンダが v3 を作成しました。"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an honest 503 message when the AI designer is unconfigured", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => {
+      throw apiError(503);
+    });
+    const client = {
+      get,
+      post,
+      patch: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={client as never} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /編集/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "修正指示" }), {
+      target: { value: "直して" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
+    // 503 は retry 2 回 (指数バックオフ) を経て確定するため待ちを延ばす
+    expect(
+      await screen.findByRole("alert", {}, { timeout: 10000 }),
+    ).toHaveTextContent("AI デザイナー（ワンダ）または保存先が未設定");
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
+  it("shows Wanda as the author of AI-revised versions with the instruction", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/x.html" } };
+      if (path.includes("versions"))
+        return {
+          data: [
+            ...VERSIONS,
+            {
+              id: "m3",
+              project_id: "p1",
+              screen_name: "ログイン画面",
+              version: 3,
+              created_at: "2026-07-03T10:00:00Z",
+              meta_tags: {
+                author: "wanda",
+                revision_instruction: "ヘッダーを青に",
+                revised_from_version: 2,
+              },
+            },
+          ],
+        };
+      if (path === "/comments") return { data: [] };
+      return { data: MOCK_META };
+    });
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={fakeClient(get)} />,
+    );
+    expect(await screen.findByText("ワンダ（更新）")).toBeInTheDocument();
+    expect(
+      screen.getByText("修正指示: ヘッダーを青に"),
+    ).toBeInTheDocument();
+  });
+
+  it("duplicates a version via POST /mocks/{id}/duplicate", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => ({
+      data: { id: "m4", version: 3, meta_tags: { duplicated_from_version: 2 } },
+    }));
+    const client = {
+      get,
+      post,
+      patch: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={client as never} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "v2 を複製" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { mock_id: string } } },
+    ];
+    expect(path).toBe("/mocks/{mock_id}/duplicate");
+    expect(init.params.path.mock_id).toBe("m2");
+    expect(
+      await screen.findByText("複製から v3 を作成しました。"),
+    ).toBeInTheDocument();
+  });
+
+  it("discards a version with two-step confirmation and honors the sole-version 409", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => {
+      throw apiError(409);
+    });
+    const client = {
+      get,
+      post,
+      patch: vi.fn(),
+      delete: vi.fn(),
+      put: vi.fn(),
+      request: vi.fn(),
+    };
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={client as never} />,
+    );
+    // 2 段階確認: 「破棄」だけでは API を呼ばない
+    fireEvent.click(await screen.findByRole("button", { name: "v1 を破棄" }));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.getByText("v1 を破棄しますか？")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "破棄を確定" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { mock_id: string } } },
+    ];
+    expect(path).toBe("/mocks/{mock_id}/discard");
+    expect(init.params.path.mock_id).toBe("m1");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "唯一のバージョンは破棄できません。",
+    );
   });
 
   it("shows a forbidden message on 403", async () => {

@@ -23,6 +23,12 @@ class MockUpdate(BaseModel):
     meta_tags: dict[str, object] | None = None
 
 
+class MockReviseRequest(BaseModel):
+    """S-H01「編集」= ワンダ (AI デザイナー) への修正指示 (GAP-024)。"""
+
+    instruction: str = Field(min_length=1, max_length=4000)
+
+
 class MockVersionCreate(BaseModel):
     """既存モックの新バージョン (parent_mock_id で連結、version+1)。"""
 
