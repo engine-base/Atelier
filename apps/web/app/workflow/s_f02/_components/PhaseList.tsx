@@ -1,14 +1,21 @@
 /**
- * S-F02 フェーズ管理 — T-UC-11
+ * S-F02 フェーズ管理 — T-UC-11 / GAP-022
  *
  * モック (06_mockups/workflow/S-F02-phases.html) 忠実:
- * フェーズタイムライン（フェーズカード + 進捗番号 + 状態 pill + 状態変更 select）を
- * 左 2fr、右 1fr に統計 / 運用ルールを配置。データは props の実 rows にバインド。
+ * フェーズタイムライン（フェーズカード + 進捗番号 + 状態 pill + 状態変更 select +
+ * phase 別タスク集計行）を左 2fr、右 1fr に F-IMP01 影響範囲解析 / 統計 /
+ * 運用ルールを配置。GAP-022 で全要素を実 API 配線:
+ *   - AI 提案フェーズ (.phase-card.proposed): ジャービスへの提案依頼 (明示操作) →
+ *     pending カード (承認 / 却下 / 提案理由を見る)
+ *   - F-IMP01: タスク + 移動先を選んで実解析 → 影響ノード表示 → 承認して移動
+ *     (完了済影響はリファクタタスク自動起票 — F-CUC02)
+ *   - 統計: 提案中 / F-IMP01 実行回数（本日）/ 依存整合性チェック (すべて実データ)
  */
 
 "use client";
 
 import * as React from "react";
+import { useState } from "react";
 
 export type PhaseStatus = "pending" | "in_progress" | "done" | "blocked";
 
@@ -29,6 +36,53 @@ export interface AssignableEmployee {
   readonly id: string;
   readonly name: string;
   readonly color?: string;
+}
+
+/** phase 別タスク集計 (GAP-022 — 実 /workflow/phase-task-stats)。 */
+export interface PhaseTaskStats {
+  readonly total: number;
+  readonly done: number;
+  readonly awaiting: number;
+  readonly avgScore?: number | null;
+}
+
+/** COO AI (ジャービス) のフェーズ提案 (GAP-022 — phase_proposals pending)。 */
+export interface PhaseProposalItem {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string | null;
+  readonly reason: string;
+  readonly proposedOrder: number;
+  /** YYYY-MM-DD HH:mm 済み表示文字列 */
+  readonly createdAt: string;
+}
+
+/** F-IMP01 の解析対象候補タスク。 */
+export interface ImpactTaskOption {
+  readonly id: string;
+  readonly title: string;
+}
+
+/** F-IMP01 解析結果 (実 /workflow/impact-analysis)。 */
+export interface ImpactResult {
+  readonly id: string;
+  readonly taskTitle: string;
+  readonly targetPhaseName: string;
+  readonly affected: readonly {
+    readonly id: string;
+    readonly title: string;
+    readonly lifecycleStage: string;
+  }[];
+  readonly doneCount: number;
+  readonly applied: boolean;
+}
+
+/** 統計行の実データ (GAP-022)。 */
+export interface WorkflowStats {
+  readonly pendingProposals: number;
+  readonly impactTodayCount: number;
+  readonly consistencyOk: boolean;
+  readonly danglingCount: number;
 }
 
 /** ISO → YYYY-MM-DD。null は返さない。 */
@@ -59,6 +113,27 @@ export interface PhaseListProps {
    */
   readonly employees?: readonly AssignableEmployee[];
   readonly onAssign?: (id: string, employeeIds: readonly string[]) => void;
+  /** GAP-022: phase 別タスク集計 (phase id → 実集計)。 */
+  readonly taskStats?: Readonly<Record<string, PhaseTaskStats>>;
+  /** GAP-022: pending のフェーズ提案 (タイムライン末尾に proposed カード)。 */
+  readonly proposal?: PhaseProposalItem | null;
+  /** ジャービスに次フェーズの提案を依頼 (明示操作)。 */
+  readonly onPropose?: () => void;
+  readonly proposing?: boolean;
+  readonly onApproveProposal?: (id: string) => void;
+  readonly onRejectProposal?: (id: string) => void;
+  readonly proposalResolving?: boolean;
+  /** GAP-022: F-IMP01 影響範囲解析。 */
+  readonly impactTasks?: readonly ImpactTaskOption[];
+  readonly onAnalyzeImpact?: (taskId: string, targetPhaseId: string) => void;
+  readonly analyzing?: boolean;
+  readonly impactResult?: ImpactResult | null;
+  readonly onApplyImpact?: (analysisId: string) => void;
+  readonly applyingImpact?: boolean;
+  /** GAP-022: 統計 (提案中 / F-IMP01 実行回数 / 整合性)。 */
+  readonly stats?: WorkflowStats;
+  readonly actionNotice?: string;
+  readonly actionError?: string;
 }
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
@@ -109,9 +184,11 @@ interface PhaseCardProps {
   readonly onTransition?: (id: string, status: PhaseStatus) => void;
   readonly employees?: readonly AssignableEmployee[];
   readonly onAssign?: (id: string, employeeIds: readonly string[]) => void;
+  /** GAP-022: このフェーズの実タスク集計 (無ければ行を出さない)。 */
+  readonly stats?: PhaseTaskStats;
 }
 
-function PhaseCard({ row, onTransition, employees, onAssign }: PhaseCardProps) {
+function PhaseCard({ row, onTransition, employees, onAssign, stats }: PhaseCardProps) {
   const pill = PILL_VARIANT[row.status];
   const metaClass =
     row.status === "done"
@@ -143,6 +220,32 @@ function PhaseCard({ row, onTransition, employees, onAssign }: PhaseCardProps) {
           {STATUS_LABEL[row.status]}
         </span>
       </div>
+
+      {/* GAP-022: phase-tasks 行 (モック準拠 — 実 /workflow/phase-task-stats) */}
+      {stats && stats.total > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-4 border-t border-border/60 pt-2 text-[12.5px]">
+          {row.status === "done" && stats.done === stats.total ? (
+            <span>
+              <strong className="font-bold">{stats.done}</strong> タスク完了
+            </span>
+          ) : (
+            <span>
+              <strong className="font-bold">{stats.done}</strong> / {stats.total}{" "}
+              タスク完了
+            </span>
+          )}
+          {stats.awaiting > 0 ? (
+            <span>
+              <strong className="font-bold">{stats.awaiting}</strong> 承認待ち
+            </span>
+          ) : null}
+          {stats.avgScore != null ? (
+            <span className="text-tertiary">
+              スコア平均 {stats.avgScore.toFixed(2)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
         <span className="text-[11px] font-medium opacity-80">状態を変更</span>
@@ -241,22 +344,84 @@ function StatRow({ label, value, valueClass }: StatRowProps) {
   );
 }
 
-export function PhaseList({ rows, onTransition, employees, onAssign }: PhaseListProps) {
+export function PhaseList({
+  rows,
+  onTransition,
+  employees,
+  onAssign,
+  taskStats,
+  proposal,
+  onPropose,
+  proposing = false,
+  onApproveProposal,
+  onRejectProposal,
+  proposalResolving = false,
+  impactTasks,
+  onAnalyzeImpact,
+  analyzing = false,
+  impactResult,
+  onApplyImpact,
+  applyingImpact = false,
+  stats,
+  actionNotice,
+  actionError,
+}: PhaseListProps) {
   const total = rows.length;
   const done = rows.filter((r) => r.status === "done").length;
   const inProgress = rows.filter((r) => r.status === "in_progress").length;
   const pending = rows.filter((r) => r.status === "pending").length;
   const blocked = rows.filter((r) => r.status === "blocked").length;
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [impactTaskId, setImpactTaskId] = useState("");
+  const [impactPhaseId, setImpactPhaseId] = useState("");
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
       <section>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-on-surface">
             フェーズタイムライン
           </h2>
+          {onPropose ? (
+            proposing ? (
+              <span role="status" className="text-[12px] text-on-surface-variant">
+                ジャービスが次フェーズを検討中…
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={onPropose}
+                disabled={proposal != null}
+                title={
+                  proposal != null
+                    ? "承認待ちの提案があるため新しい提案は依頼できません"
+                    : undefined
+                }
+                className="rounded-md border border-primary px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary-container disabled:opacity-50"
+              >
+                ジャービスに次フェーズを提案してもらう
+              </button>
+            )
+          ) : null}
         </div>
-        {total === 0 ? (
+
+        {actionError ? (
+          <p
+            role="alert"
+            className="mb-3 rounded-md bg-error/10 px-3 py-2 text-[12.5px] text-error"
+          >
+            {actionError}
+          </p>
+        ) : actionNotice ? (
+          <p
+            role="status"
+            className="mb-3 rounded-md bg-tertiary-container px-3 py-2 text-[12.5px] text-tertiary-container-fg"
+          >
+            {actionNotice}
+          </p>
+        ) : null}
+
+        {total === 0 && !proposal ? (
           <div className="rounded-lg border border-border bg-white py-12 text-center text-on-surface-variant">
             フェーズがありません
           </div>
@@ -269,13 +434,197 @@ export function PhaseList({ rows, onTransition, employees, onAssign }: PhaseList
                 onTransition={onTransition}
                 employees={employees}
                 onAssign={onAssign}
+                stats={taskStats?.[r.id]}
               />
             ))}
+
+            {/* GAP-022: AI 提案フェーズ (.phase-card.proposed 準拠) */}
+            {proposal ? (
+              <li className="rounded-lg border border-secondary bg-secondary-container px-[22px] py-[18px] text-secondary-container-fg">
+                <div className="flex items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-secondary text-[14px] font-bold text-on-secondary"
+                  >
+                    ✦
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold">
+                      {proposal.name}（AI提案）
+                    </div>
+                    <div className="text-sm opacity-85">
+                      第 {proposal.proposedOrder} 段階
+                      {proposal.description ? ` · ${proposal.description}` : ""}
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-on-surface">
+                    <span className="h-1.5 w-1.5 rounded-full bg-secondary" />
+                    承認待ち
+                  </span>
+                </div>
+                <div className="mt-2 border-t border-black/10 pt-2 text-[12.5px]">
+                  ジャービスが提案 · {proposal.createdAt}
+                </div>
+                {reasonOpen ? (
+                  <p className="mt-2 rounded-md bg-white/60 px-3 py-2 text-[12.5px] leading-relaxed">
+                    {proposal.reason}
+                  </p>
+                ) : null}
+                {onApproveProposal && onRejectProposal ? (
+                  <div className="mt-4 flex items-center gap-2">
+                    {proposalResolving ? (
+                      <span role="status" className="text-[12px]">
+                        処理中…
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onApproveProposal(proposal.id)}
+                          className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8]"
+                        >
+                          承認
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onRejectProposal(proposal.id)}
+                          className="rounded-md border border-border bg-white px-3 py-1.5 text-[12px] font-semibold text-on-surface hover:bg-surface-variant"
+                        >
+                          却下
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReasonOpen((v) => !v)}
+                          aria-expanded={reasonOpen}
+                          className="rounded-md px-3 py-1.5 text-[12px] font-semibold text-on-surface hover:bg-white/60"
+                        >
+                          提案理由を見る
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+              </li>
+            ) : null}
           </ol>
         )}
       </section>
 
       <aside className="flex flex-col gap-4">
+        {/* GAP-022: F-IMP01 影響範囲解析 (実解析 — モックの結果カードを対話化) */}
+        {impactTasks && impactTasks.length > 0 && onAnalyzeImpact ? (
+          <div className="rounded-lg bg-primary-container p-5 text-on-primary-container">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] opacity-70">
+              F-IMP01 · 影響範囲解析
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!impactTaskId || !impactPhaseId || analyzing) return;
+                onAnalyzeImpact(impactTaskId, impactPhaseId);
+              }}
+              className="flex flex-col gap-2"
+            >
+              <label className="block">
+                <span className="text-[11.5px] font-semibold">対象タスク</span>
+                <select
+                  value={impactTaskId}
+                  onChange={(e) => setImpactTaskId(e.target.value)}
+                  aria-label="影響解析の対象タスク"
+                  className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-[12.5px] text-on-surface"
+                >
+                  <option value="">選択してください</option>
+                  {impactTasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11.5px] font-semibold">移動先フェーズ</span>
+                <select
+                  value={impactPhaseId}
+                  onChange={(e) => setImpactPhaseId(e.target.value)}
+                  aria-label="移動先フェーズ"
+                  className="mt-1 w-full rounded-md border border-black/10 bg-white px-2 py-1.5 text-[12.5px] text-on-surface"
+                >
+                  <option value="">選択してください</option>
+                  {rows.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      第 {p.order} 段階 · {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="submit"
+                disabled={!impactTaskId || !impactPhaseId || analyzing}
+                className="mt-1 self-start rounded-md bg-on-primary-container px-3 py-1.5 text-[12px] font-semibold text-primary-container disabled:opacity-50"
+              >
+                {analyzing ? "解析中…" : "影響を解析"}
+              </button>
+            </form>
+
+            {impactResult ? (
+              <div className="mt-3 border-t border-black/10 pt-3">
+                <h3 className="mb-1 text-[13px] font-bold">
+                  タスク「{impactResult.taskTitle}」を{" "}
+                  {impactResult.targetPhaseName} へ移動した場合
+                </h3>
+                <p className="mb-2 text-sm">
+                  {impactResult.affected.length} タスクへの影響を検出（実装済み{" "}
+                  {impactResult.doneCount} / その他{" "}
+                  {impactResult.affected.length - impactResult.doneCount}）
+                </p>
+                {impactResult.affected.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap items-center gap-1">
+                    <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-[12px] font-semibold text-on-surface">
+                      {impactResult.taskTitle}
+                    </span>
+                    <span aria-hidden="true" className="opacity-70">
+                      →
+                    </span>
+                    {impactResult.affected.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-[12px] text-secondary-container-fg"
+                      >
+                        {a.title}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mb-2 text-sm opacity-85">
+                    依存しているタスクはありません。
+                  </p>
+                )}
+                {impactResult.doneCount > 0 ? (
+                  <p className="mb-2 text-sm opacity-90">
+                    完了済 {impactResult.doneCount} タスクは{" "}
+                    <strong className="font-bold">
+                      リファクタタスクとして自動起票
+                    </strong>{" "}
+                    されます（F-CUC02）。
+                  </p>
+                ) : null}
+                {onApplyImpact && !impactResult.applied ? (
+                  <button
+                    type="button"
+                    onClick={() => onApplyImpact(impactResult.id)}
+                    disabled={applyingImpact}
+                    className="rounded-md bg-on-primary-container px-3 py-1.5 text-[12px] font-semibold text-primary-container disabled:opacity-50"
+                  >
+                    {applyingImpact ? "適用中…" : "承認して移動"}
+                  </button>
+                ) : impactResult.applied ? (
+                  <p className="text-[12px] font-semibold">適用済み</p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="rounded-lg border border-border bg-white p-5">
           <h3 className="mb-3 text-sm font-bold text-on-surface">統計</h3>
           <dl className="flex flex-col gap-3">
@@ -291,6 +640,28 @@ export function PhaseList({ rows, onTransition, employees, onAssign }: PhaseList
               value={blocked}
               valueClass={blocked > 0 ? "text-error" : "text-on-surface"}
             />
+            {stats ? (
+              <>
+                <StatRow
+                  label="提案中"
+                  value={stats.pendingProposals}
+                  valueClass={
+                    stats.pendingProposals > 0 ? "text-primary" : "text-on-surface"
+                  }
+                />
+                <StatRow
+                  label="F-IMP01 実行回数"
+                  value={`${stats.impactTodayCount} 回（本日）`}
+                />
+                <StatRow
+                  label="依存整合性チェック"
+                  value={
+                    stats.consistencyOk ? "OK" : `不整合 ${stats.danglingCount} 件`
+                  }
+                  valueClass={stats.consistencyOk ? "text-tertiary" : "text-error"}
+                />
+              </>
+            ) : null}
           </dl>
         </div>
 

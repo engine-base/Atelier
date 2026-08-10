@@ -5078,6 +5078,461 @@ export interface paths {
         };
         trace?: never;
     };
+    "/workflow/phase-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** フェーズ提案一覧（GAP-022） */
+        get: {
+            parameters: {
+                query: {
+                    project_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description created_at 降順 (最新 20 件) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PhaseProposal"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** COO AI (ジャービス) に次フェーズを提案してもらう（GAP-022 — 明示操作起点・自動生成しない） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description pending 提案 (name/description/reason — LLM が既存フェーズ+タスク状況から生成) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PhaseProposal"];
+                        };
+                    };
+                };
+                /** @description project 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 既に pending 提案がある */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM (ANTHROPIC_API_KEY) 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/phase-proposals/{proposal_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** フェーズ提案を承認 → 実フェーズを確定（GAP-022） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposal_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description approved + 確定した実フェーズ (audit phase.proposal.approve) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                proposal?: components["schemas"]["PhaseProposal"];
+                                phase?: components["schemas"]["Phase"];
+                            };
+                        };
+                    };
+                };
+                /** @description 提案不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description pending でない (二重解決) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/phase-proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** フェーズ提案を却下（フェーズは作られない — GAP-022） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    proposal_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description rejected (audit phase.proposal.reject) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PhaseProposal"];
+                        };
+                    };
+                };
+                /** @description 提案不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description pending でない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/impact-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** F-IMP01 タスク移動の影響範囲解析（dependencies 推移的走査 — GAP-022） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        task_id: string;
+                        /** Format: uuid */
+                        target_phase_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 解析結果 (impact_analyses に記録 — 統計「F-IMP01 実行回数」の実データ源) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ImpactAnalysis"];
+                        };
+                    };
+                };
+                /** @description task/phase 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description phase が別プロジェクト */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/impact-analysis/{analysis_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 解析結果を承認して適用 — 実移動 + 完了済影響のリファクタ自動起票（F-CUC02 — GAP-022） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    analysis_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 移動 + refactor_task_ids (origin_type=refactor, triage, 暫定 1h 明示) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                task_id?: string;
+                                /** Format: uuid */
+                                moved_to_phase_id?: string;
+                                refactor_task_ids?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description 解析不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 適用済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/phase-task-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** phase 別タスク集計（total/done/awaiting/スコア平均 — GAP-022） */
+        get: {
+            parameters: {
+                query: {
+                    project_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description phase_id ごとの実集計 (task_executions スコア平均含む) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PhaseTaskStats"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workflow/impact-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** F-IMP01 実行回数（本日）+ 依存整合性チェック（GAP-022） */
+        get: {
+            parameters: {
+                query: {
+                    project_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description impact_analyses の実カウント + dependencies 参照の実整合計算 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                today_count?: number;
+                                consistency_ok?: boolean;
+                                dangling_count?: number;
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/outputs": {
         parameters: {
             query?: never;
@@ -12160,6 +12615,56 @@ export interface components {
             completed_at?: string | null;
             /** Format: date-time */
             created_at?: string;
+        };
+        /** @description COO AI (ジャービス) による次フェーズ提案 (E phase_proposals — GAP-022) */
+        PhaseProposal: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            project_id?: string;
+            name?: string;
+            description?: string | null;
+            /** @description 提案理由 (「提案理由を見る」の実体) */
+            reason?: string;
+            proposed_order?: number;
+            proposed_by?: string;
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected";
+            /** Format: uuid */
+            approved_phase_id?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
+        };
+        /** @description F-IMP01 影響範囲解析の結果 (dependencies 推移的走査 — GAP-022) */
+        ImpactAnalysis: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            task_id?: string;
+            task_title?: string;
+            /** Format: uuid */
+            target_phase_id?: string;
+            target_phase_name?: string;
+            affected?: {
+                /** Format: uuid */
+                id?: string;
+                title?: string;
+                lifecycle_stage?: string;
+            }[];
+            /** @description 影響先のうち完了済 — apply でリファクタ自動起票の対象 */
+            done_count?: number;
+            applied?: boolean;
+        };
+        /** @description phase 別タスク集計 (GAP-022 — モックの phase-tasks 行の実体) */
+        PhaseTaskStats: {
+            /** Format: uuid */
+            phase_id?: string;
+            total?: number;
+            done?: number;
+            awaiting?: number;
+            avg_score?: number | null;
         };
         WorkflowOutput: {
             /** Format: uuid */

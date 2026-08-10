@@ -839,6 +839,52 @@ components:
         completed_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
 
+    PhaseProposal:
+      type: object
+      description: COO AI (ジャービス) による次フェーズ提案 (E phase_proposals — GAP-022)
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        reason: { type: string, description: "提案理由 (「提案理由を見る」の実体)" }
+        proposed_order: { type: integer }
+        proposed_by: { type: string }
+        status: { type: string, enum: [pending, approved, rejected] }
+        approved_phase_id: { type: string, format: uuid, nullable: true }
+        created_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+
+    ImpactAnalysis:
+      type: object
+      description: F-IMP01 影響範囲解析の結果 (dependencies 推移的走査 — GAP-022)
+      properties:
+        id: { type: string, format: uuid }
+        task_id: { type: string, format: uuid }
+        task_title: { type: string }
+        target_phase_id: { type: string, format: uuid }
+        target_phase_name: { type: string }
+        affected:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              lifecycle_stage: { type: string }
+        done_count: { type: integer, description: "影響先のうち完了済 — apply でリファクタ自動起票の対象" }
+        applied: { type: boolean }
+
+    PhaseTaskStats:
+      type: object
+      description: phase 別タスク集計 (GAP-022 — モックの phase-tasks 行の実体)
+      properties:
+        phase_id: { type: string, format: uuid }
+        total: { type: integer }
+        done: { type: integer }
+        awaiting: { type: integer }
+        avg_score: { type: number, nullable: true }
+
     WorkflowOutput:
       type: object
       properties:
@@ -4177,6 +4223,191 @@ paths:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/phase-proposals:
+    get:
+      tags: [workflow]
+      summary: フェーズ提案一覧（GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::list_phase_proposals
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: project_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: created_at 降順 (最新 20 件)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PhaseProposal' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [workflow]
+      summary: COO AI (ジャービス) に次フェーズを提案してもらう（GAP-022 — 明示操作起点・自動生成しない）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::create_phase_proposal
+      x-screen-ids: [S-F02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id]
+              properties:
+                project_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: pending 提案 (name/description/reason — LLM が既存フェーズ+タスク状況から生成)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PhaseProposal' }
+        '404': { description: project 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 既に pending 提案がある, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: LLM (ANTHROPIC_API_KEY) 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/phase-proposals/{proposal_id}/approve:
+    post:
+      tags: [workflow]
+      summary: フェーズ提案を承認 → 実フェーズを確定（GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::approve_phase_proposal
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: proposal_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: approved + 確定した実フェーズ (audit phase.proposal.approve)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      proposal: { $ref: '#/components/schemas/PhaseProposal' }
+                      phase: { $ref: '#/components/schemas/Phase' }
+        '404': { description: 提案不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: pending でない (二重解決), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/phase-proposals/{proposal_id}/reject:
+    post:
+      tags: [workflow]
+      summary: フェーズ提案を却下（フェーズは作られない — GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::reject_phase_proposal
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: proposal_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: rejected (audit phase.proposal.reject)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PhaseProposal' }
+        '404': { description: 提案不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: pending でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/impact-analysis:
+    post:
+      tags: [workflow]
+      summary: F-IMP01 タスク移動の影響範囲解析（dependencies 推移的走査 — GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::analyze_impact
+      x-screen-ids: [S-F02]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [task_id, target_phase_id]
+              properties:
+                task_id: { type: string, format: uuid }
+                target_phase_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: 解析結果 (impact_analyses に記録 — 統計「F-IMP01 実行回数」の実データ源)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ImpactAnalysis' }
+        '404': { description: task/phase 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: phase が別プロジェクト, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/impact-analysis/{analysis_id}/apply:
+    post:
+      tags: [workflow]
+      summary: 解析結果を承認して適用 — 実移動 + 完了済影響のリファクタ自動起票（F-CUC02 — GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::apply_impact
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: analysis_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 移動 + refactor_task_ids (origin_type=refactor, triage, 暫定 1h 明示)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      task_id: { type: string, format: uuid }
+                      moved_to_phase_id: { type: string, format: uuid }
+                      refactor_task_ids: { type: array, items: { type: string, format: uuid } }
+        '404': { description: 解析不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 適用済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/phase-task-stats:
+    get:
+      tags: [workflow]
+      summary: phase 別タスク集計（total/done/awaiting/スコア平均 — GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::phase_task_stats
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: project_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: phase_id ごとの実集計 (task_executions スコア平均含む)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/PhaseTaskStats' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workflow/impact-stats:
+    get:
+      tags: [workflow]
+      summary: F-IMP01 実行回数（本日）+ 依存整合性チェック（GAP-022）
+      x-implementation-path: apps/api/src/routes/workflow/__init__.py::impact_stats
+      x-screen-ids: [S-F02]
+      parameters:
+        - { name: project_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: impact_analyses の実カウント + dependencies 参照の実整合計算
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      today_count: { type: integer }
+                      consistency_ok: { type: boolean }
+                      dangling_count: { type: integer }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /outputs:
     get:

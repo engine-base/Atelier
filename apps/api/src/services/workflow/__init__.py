@@ -25,6 +25,15 @@ class WorkflowError(Exception):
         self.message = message
 
 
+def is_uuid(value: str) -> bool:
+    """path/body の UUID 妥当性 (不正値は 500 ではなく 404/422 に落とすため)。"""
+    try:
+        uuid.UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
 _COLS = (
     'id, project_id, "order", name, description, status, '
     "assigned_employee_ids, started_at, completed_at, created_at"

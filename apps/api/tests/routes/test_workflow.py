@@ -313,3 +313,279 @@ class TestPhaseAssignees:
             )
             assert r.status_code == 422
             client.delete(f"/workflow/phases/{ph['id']}", headers=h)
+
+
+def _seed_task(
+    sync_engine: sqlalchemy.Engine,
+    project_id: str,
+    *,
+    title: str,
+    lifecycle: str = "triage",
+    dependencies: list[str] | None = None,
+    phase_id: str | None = None,
+) -> str:
+    tid = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.tasks "
+                "(id, project_id, phase_id, category, title, type, estimated_hours, "
+                " lifecycle_stage, dependencies) "
+                "values (cast(:i as uuid), cast(:p as uuid), cast(:ph as uuid), 'misc', "
+                ":t, 'feature', 2, cast(:l as task_lifecycle_enum), cast(:d as uuid[]))"
+            ),
+            {
+                "i": tid,
+                "p": project_id,
+                "ph": phase_id,
+                "t": title,
+                "l": lifecycle,
+                "d": dependencies or [],
+            },
+        )
+    return tid
+
+
+@pytest.mark.integration
+class TestPhaseProposalsAndImpact:
+    """GAP-022: AI 提案フェーズ + F-IMP01 影響範囲解析 + phase 別集計。"""
+
+    def test_proposal_lifecycle(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            base = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "order": 1, "name": "基盤"},
+            ).json()["data"]
+
+            r = client.post(
+                "/workflow/phase-proposals",
+                headers=h,
+                json={"project_id": seeded["proj_a"]},
+            )
+            assert r.status_code == 201, r.text
+            prop = r.json()["data"]
+            assert prop["status"] == "pending"
+            assert prop["proposed_by"] == "jarvis"
+            assert prop["reason"]
+            assert prop["proposed_order"] == 2
+            # 1 プロジェクト 1 pending
+            assert (
+                client.post(
+                    "/workflow/phase-proposals",
+                    headers=h,
+                    json={"project_id": seeded["proj_a"]},
+                ).status_code
+                == 409
+            )
+            # R-T08: 他 WS ユーザーからは project 不可視 → 404
+            assert (
+                client.post(
+                    "/workflow/phase-proposals",
+                    headers=_h(seeded["u_b"]),
+                    json={"project_id": seeded["proj_a"]},
+                ).status_code
+                == 404
+            )
+
+            a = client.post(f"/workflow/phase-proposals/{prop['id']}/approve", headers=h)
+            assert a.status_code == 200, a.text
+            body = a.json()["data"]
+            assert body["proposal"]["status"] == "approved"
+            assert body["phase"]["name"] == prop["name"]
+            assert body["phase"]["order"] == 2
+            assert body["proposal"]["approved_phase_id"] == body["phase"]["id"]
+            # 二重承認 409 / 不正 UUID 404
+            assert (
+                client.post(
+                    f"/workflow/phase-proposals/{prop['id']}/approve", headers=h
+                ).status_code
+                == 409
+            )
+            assert (
+                client.post("/workflow/phase-proposals/junk/approve", headers=h).status_code == 404
+            )
+
+            # 却下: 新しい提案 → reject → フェーズは増えない
+            p2 = client.post(
+                "/workflow/phase-proposals",
+                headers=h,
+                json={"project_id": seeded["proj_a"]},
+            ).json()["data"]
+            before = len(
+                client.get(f"/workflow/phases?project_id={seeded['proj_a']}", headers=h).json()[
+                    "data"
+                ]
+            )
+            rj = client.post(f"/workflow/phase-proposals/{p2['id']}/reject", headers=h)
+            assert rj.status_code == 200
+            assert rj.json()["data"]["status"] == "rejected"
+            after = len(
+                client.get(f"/workflow/phases?project_id={seeded['proj_a']}", headers=h).json()[
+                    "data"
+                ]
+            )
+            assert before == after
+
+            lst = client.get(f"/workflow/phase-proposals?project_id={seeded['proj_a']}", headers=h)
+            assert sorted(x["status"] for x in lst.json()["data"]) == ["approved", "rejected"]
+            with sync_engine.connect() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs where action like "
+                        "'phase.proposal.%'"
+                    )
+                ).scalar_one()
+            assert n >= 4
+            client.delete(f"/workflow/phases/{base['id']}", headers=h)
+            client.delete(f"/workflow/phases/{body['phase']['id']}", headers=h)
+
+    def test_proposal_503_when_llm_unconfigured(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        with TestClient(app) as client:
+            r = client.post(
+                "/workflow/phase-proposals",
+                headers=_h(seeded["u_a"]),
+                json={"project_id": seeded["proj_a"]},
+            )
+            assert r.status_code == 503
+
+    def test_impact_analyze_apply_and_stats(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """M ← B(done) ← C(triage) の推移的走査 → apply で移動 + リファクタ自動起票。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            p1 = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "order": 11, "name": "実装"},
+            ).json()["data"]
+            p2 = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": seeded["proj_a"], "order": 12, "name": "検証"},
+            ).json()["data"]
+            m = _seed_task(sync_engine, seeded["proj_a"], title="移動対象M", phase_id=p1["id"])
+            b = _seed_task(
+                sync_engine,
+                seeded["proj_a"],
+                title="影響B",
+                lifecycle="done",
+                dependencies=[m],
+                phase_id=p1["id"],
+            )
+            c_task = _seed_task(
+                sync_engine,
+                seeded["proj_a"],
+                title="影響C",
+                dependencies=[b],
+                phase_id=p1["id"],
+            )
+
+            r = client.post(
+                "/workflow/impact-analysis",
+                headers=h,
+                json={"task_id": m, "target_phase_id": p2["id"]},
+            )
+            assert r.status_code == 201, r.text
+            ana = r.json()["data"]
+            assert {x["id"] for x in ana["affected"]} == {b, c_task}
+            assert ana["done_count"] == 1
+            assert ana["applied"] is False
+
+            # 別プロジェクトのフェーズへは 422
+            proj_b = str(uuid.uuid4())
+            with sync_engine.begin() as cx:
+                cx.execute(
+                    text(
+                        "insert into public.projects (id,workspace_id,name,project_type) "
+                        "values (cast(:i as uuid),cast(:w as uuid),'proj-b','internal_product')"
+                    ),
+                    {"i": proj_b, "w": seeded["ws_a"]},
+                )
+            other_phase = client.post(
+                "/workflow/phases",
+                headers=h,
+                json={"project_id": proj_b, "order": 1, "name": "other"},
+            ).json()["data"]
+            assert (
+                client.post(
+                    "/workflow/impact-analysis",
+                    headers=h,
+                    json={"task_id": m, "target_phase_id": other_phase["id"]},
+                ).status_code
+                == 422
+            )
+
+            # apply → 実移動 + 完了済 B のリファクタ自動起票 (origin_type=refactor)
+            ap = client.post(f"/workflow/impact-analysis/{ana['id']}/apply", headers=h)
+            assert ap.status_code == 200, ap.text
+            applied = ap.json()["data"]
+            assert applied["moved_to_phase_id"] == p2["id"]
+            assert len(applied["refactor_task_ids"]) == 1
+            with sync_engine.connect() as cx:
+                moved_phase = cx.execute(
+                    text("select phase_id from public.tasks where id = cast(:i as uuid)"),
+                    {"i": m},
+                ).scalar_one()
+                assert str(moved_phase) == p2["id"]
+                ref = cx.execute(
+                    text(
+                        "select title, origin_type, lifecycle_stage, category "
+                        "from public.tasks where id = cast(:i as uuid)"
+                    ),
+                    {"i": applied["refactor_task_ids"][0]},
+                ).one()
+                assert ref.origin_type == "refactor"
+                assert ref.lifecycle_stage == "triage"
+                assert ref.category == "リファクタ"
+                assert "影響B" in ref.title
+            # 二重適用 409
+            assert (
+                client.post(f"/workflow/impact-analysis/{ana['id']}/apply", headers=h).status_code
+                == 409
+            )
+
+            # 統計: 本日実行回数 >= 1、整合性 OK
+            st = client.get(
+                f"/workflow/impact-stats?project_id={seeded['proj_a']}", headers=h
+            ).json()["data"]
+            assert st["today_count"] >= 1
+            assert st["consistency_ok"] is True
+            # dangling 依存を作ると NG
+            _seed_task(
+                sync_engine,
+                seeded["proj_a"],
+                title="宙ぶらりんD",
+                dependencies=[str(uuid.uuid4())],
+            )
+            st2 = client.get(
+                f"/workflow/impact-stats?project_id={seeded['proj_a']}", headers=h
+            ).json()["data"]
+            assert st2["consistency_ok"] is False
+            assert st2["dangling_count"] == 1
+
+            # phase 別集計 (p2 = M + リファクタ 2 件 / done 0 / p1 = B done + C)
+            stats = {
+                s["phase_id"]: s
+                for s in client.get(
+                    f"/workflow/phase-task-stats?project_id={seeded['proj_a']}",
+                    headers=h,
+                ).json()["data"]
+            }
+            assert stats[p1["id"]]["total"] == 2
+            assert stats[p1["id"]]["done"] == 1
+            assert stats[p2["id"]]["total"] == 2
