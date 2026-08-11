@@ -70,3 +70,6 @@ apps/bridge/out/
 # supabase CLI local artifacts
 supabase/.branches/
 supabase/.temp/
+
+# Claude Code のローカル設定 (環境固有)
+.claude/settings.local.json
