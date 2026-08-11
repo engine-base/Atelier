@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# 3 役自走運用のランタイム状態 (docs/agents/README.md)
+.flow/
+
 # Editors
 .vscode/
 .idea/
