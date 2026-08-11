@@ -7,8 +7,9 @@
 ## 責務
 
 1. dev の `IMPL_DONE` を受けたら `./scripts/agents/flow.sh take qa <タスクID>` を
-   実行し、SPEC の該当タスクと dev の impl レポート
-   (`.flow/reports/<ID>-impl.md`) を読む。
+   実行し、タスクパッケージ (`.flow/tasks/<ID>.md`)・SPEC の該当箇所・
+   dev の impl レポート (`.flow/reports/<ID>-impl.md`) を読む。検証の基準は
+   パッケージの「受け入れ条件・完了の定義」であり、dev の実装内容ではない。
 2. **独立検証を実際に実行する** (dev のログの読み直しは検証ではない):
    - `project.md` の検証手段 (テストスイート・E2E・実操作) を自分で再実行し、
      全数と結果を記録

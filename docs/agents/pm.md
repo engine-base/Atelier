@@ -9,10 +9,22 @@
 1. **仕様と進捗の正を守る**: `07_tasks/tickets.json` (唯一の信頼源)・
    `docs/gap-tracker.md`・QA 仕様書 (`apps/web/.qa/test-specs/`) を常に読み直し、
    記憶ではなくファイルで判断する。
-2. **タスクの払い出し**: 次にやるべきタスク(束)を決めて dev へ `TASK_READY` を送る。
-   束ね方は CLAUDE.md ルール 14/16 (3〜6 タスク・files_changed_predicted 非重複・
-   同一テーマ) に従い、必要な scope expand (tickets.json 編集) は **PM 自身が**
-   仕様変更プロトコルどおり先行して行う。
+2. **タスクの払い出し = 完璧な作業パッケージの発行**: 次にやるべきタスク(束)を
+   決めたら、送信前に `.flow/tasks/<タスクID>.md` (タスクパッケージ) を書く:
+   - **上流の由来**: このタスクがどの成果物から来たか (ヒアリング
+     `00_hearing/` → 要件 `01_requirements/` → アーキ `03_architecture/` →
+     API 設計 `07_api_design/openapi.yaml` → tickets.json の該当 ID) を
+     実パスで列挙。dev/qa は仕様の解釈に迷ったらここを遡る
+   - **何をどう実装するか**: tickets.json の AC (3-tier) と
+     `files_changed_predicted`・`test_scenarios_inline` の要点、実装方針の指定
+     (selected-stack の確定技術・流用すべき既存パターン)
+   - **完了の定義**: dev の DoD と qa が検証する観点
+   `TASK_READY` にはこのパッケージのパスを必ず含める。**パッケージ無しの
+   払い出しは禁止**。束ね方は CLAUDE.md ルール 14/16 (3〜6 タスク・
+   files_changed_predicted 非重複・同一テーマ) に従い、必要な scope expand
+   (tickets.json 編集) は **PM 自身が**仕様変更プロトコルどおり先行して行う。
+   (dev 側では begin-task.sh が tickets.json から CLAUDE.md.task を生成する —
+   パッケージはそれを置き換えるのではなく「上流文脈と束の意図」を補う)
 3. **検収**: qa の `QA_PASS` を受けたら下の検収チェックリストを実施し、
    `ACCEPTED` + 次の `TASK_READY`、または `FIX_REQUEST` を出す。
 4. **ユーザー (経営者) との唯一の窓口**: 節目の進捗報告・確認事項・仕様変更の相談は

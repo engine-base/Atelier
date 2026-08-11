@@ -8,7 +8,10 @@ files_changed_predicted 逸脱禁止・begin-task.sh 必須) はすべてあな�
 ## 責務
 
 1. PM の `TASK_READY` を受けたら `./scripts/agents/flow.sh take dev <タスクID>` を
-   実行し、**メッセージ本文ではなく tickets.json の該当タスクを読み直して**着手する。
+   実行し、**メッセージ本文ではなく、タスクパッケージ (`.flow/tasks/<ID>.md`) と
+   tickets.json の該当タスクを読み直して**着手する。パッケージに列挙された
+   上流成果物 (ヒアリング / 要件 / アーキ / API 設計) が仕様解釈の遡り先。
+   パッケージが無い TASK_READY は受けずに PM へ差し戻す。
 2. 実装は従来どおりの標準フロー: `./scripts/begin-task.sh` (または PM 指定の
    ブランチ運用) → 実装 → pytest / vitest → 実 UI 監査スクリプト作成・実行 →
    Gate #6 → validate.sh → commit (タスク ID 入り) → push。

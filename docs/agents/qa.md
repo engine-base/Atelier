@@ -7,8 +7,10 @@
 ## 責務
 
 1. dev の `IMPL_DONE` を受けたら `./scripts/agents/flow.sh take qa <タスクID>` を
-   実行し、tickets.json の該当タスク (AC / test_scenarios_inline) と
-   dev の impl レポート (`.flow/reports/<ID>-impl.md`) を読む。
+   実行し、タスクパッケージ (`.flow/tasks/<ID>.md`)・tickets.json の該当タスク
+   (AC / test_scenarios_inline)・dev の impl レポート
+   (`.flow/reports/<ID>-impl.md`) を読む。検証の基準はパッケージの
+   「完了の定義」と tickets.json の AC であり、dev の実装内容ではない。
 2. **独立検証を実際に実行する** (dev のログの読み直しは検証ではない):
    - pytest / vitest の該当スイートを自分で再実行し、全数と結果を記録
    - 実 UI 監査スクリプト (`apps/web/.audit-*.mjs`) を自分で実行 (失敗時は
