@@ -7,8 +7,12 @@
  * F-VIS 是正: モック 06_mockups/client/S-L03-project.html に忠実な
  * クライアント専用レイアウト (サイドバー無し) で再構築。クライアントヘッダ /
  * 限定アクセスバナー / プロジェクトヘッダカード / アクセス範囲 / 編集不可 notice /
- * 運営とのやり取り。表示は API が返す実データ (name/description/scopes/display_name)
- * にのみバインドし、モックのダミー値 (成果物・工程%・コメント) は起こさない。
+ * 運営とのやり取り。
+ *
+ * GAP-029 (R-T08 経営者承認済): client スコープ read API の実データで
+ * 工程進捗バー / リンク有効期限 / 成果物一覧 / モックギャラリー /
+ * あなたのコメント + 投稿 (comment スコープのみ) を描画。content 系 props が
+ * undefined のセクションは描画しない (API 未取得時に偽の空を出さない)。
  */
 
 "use client";
@@ -16,6 +20,13 @@
 import * as React from "react";
 
 import { cn } from "../../../../lib/cn";
+import type {
+  ClientCommentCreateInput,
+  ClientCommentItemData,
+  ClientMocksData,
+  ClientOutputItemData,
+  ClientProjectOverviewData,
+} from "../../../../lib/auth/client-portal";
 
 export interface ClientProjectViewData {
   readonly id: string;
@@ -30,6 +41,16 @@ export interface ClientProjectViewProps {
   /** ログアウト (client cookie 破棄 → サインインへ)。未指定なら出さない。 */
   readonly onSignOut?: () => void;
   readonly className?: string;
+  /** GAP-029 実コンテンツ。undefined = セクション非表示、null = 取得失敗の honest 表示。 */
+  readonly overview?: ClientProjectOverviewData | null;
+  readonly outputs?: readonly ClientOutputItemData[] | null;
+  readonly mocks?: ClientMocksData | null;
+  readonly comments?: readonly ClientCommentItemData[] | null;
+  /** コメント投稿 (comment スコープ保有時のみ container が渡す)。 */
+  readonly onPostComment?: (input: ClientCommentCreateInput) => void;
+  readonly posting?: boolean;
+  readonly postNotice?: string | null;
+  readonly postError?: string | null;
 }
 
 const SCOPE_LABEL: Record<string, string> = {
@@ -49,14 +70,73 @@ function firstChar(value: string | null): string {
   return trimmed ? trimmed.slice(0, 1) : "?";
 }
 
+const PHASE_STATUS_LABEL: Record<string, string> = {
+  pending: "予定",
+  in_progress: "進行中",
+  completed: "完了",
+  skipped: "スキップ",
+};
+
+function jaDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString("ja-JP", { dateStyle: "medium" });
+}
+
 export function ClientProjectView({
   data,
   onSignOut,
   className,
+  overview,
+  outputs,
+  mocks,
+  comments,
+  onPostComment,
+  posting,
+  postNotice,
+  postError,
 }: ClientProjectViewProps) {
   const displayName = data.viewed_as_client_display_name;
   const permissionLabel =
     data.scopes.map((s) => SCOPE_LABEL[s] ?? s).join(" + ") || "閲覧";
+  const canComment = data.scopes.includes("comment") && Boolean(onPostComment);
+
+  const commentTargets = React.useMemo(() => {
+    const outs = (outputs ?? []).map((o) => ({
+      key: `workflow_output:${o.id}`,
+      label: `${o.stage_label} v${o.version}`,
+    }));
+    const ms = (mocks?.items ?? []).map((m) => ({
+      key: `mock:${m.id}`,
+      label: `モック: ${m.screen_name} v${m.version}`,
+    }));
+    return [...outs, ...ms];
+  }, [outputs, mocks]);
+  const [commentTarget, setCommentTarget] = React.useState("");
+  const [commentText, setCommentText] = React.useState("");
+  const [commentLocalError, setCommentLocalError] = React.useState<
+    string | null
+  >(null);
+
+  const handlePostComment = () => {
+    setCommentLocalError(null);
+    if (!commentTarget) {
+      setCommentLocalError("コメント対象を選択してください。");
+      return;
+    }
+    if (!commentText.trim()) {
+      setCommentLocalError("コメント内容を入力してください。");
+      return;
+    }
+    const [targetType, targetId] = commentTarget.split(":", 2);
+    onPostComment?.({
+      target_type: targetType as "workflow_output" | "mock",
+      target_id: targetId ?? "",
+      content: commentText.trim(),
+    });
+    setCommentText("");
+  };
 
   return (
     <article className={cn("flex flex-col", className)}>
@@ -111,6 +191,12 @@ export function ClientProjectView({
         <span>
           <strong className="font-bold">限定アクセスモード：</strong>
           このプロジェクトの{permissionLabel}が可能です。編集はできません。
+          {overview?.link_remaining_days != null ? (
+            <>
+              {" "}
+              リンク有効期限：残り {overview.link_remaining_days} 日
+            </>
+          ) : null}
         </span>
       </div>
 
@@ -134,11 +220,129 @@ export function ClientProjectView({
               {data.description}
             </p>
           ) : null}
+          {overview?.operator_workspace_name ? (
+            <p className="mt-2 text-[12px] text-on-primary-container">
+              運営：{overview.operator_workspace_name}
+              {overview.operator_name ? ` · ${overview.operator_name}` : ""}
+            </p>
+          ) : null}
+          {overview && overview.phases.length > 0 ? (
+            <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2">
+              <ol
+                aria-label="工程進捗"
+                className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-[12.5px] text-on-primary-container"
+              >
+                {overview.phases.map((p, i) => (
+                  <li key={`${p.order}-${p.name}`} className="flex items-center gap-1.5">
+                    {i > 0 ? <span aria-hidden="true">→</span> : null}
+                    <span
+                      className={cn(
+                        p.status === "in_progress" &&
+                          "rounded-full bg-white/70 px-2.5 py-0.5 font-bold",
+                        p.status === "completed" && "font-semibold",
+                        p.status === "pending" && "opacity-60",
+                        p.status === "skipped" && "line-through opacity-40",
+                      )}
+                      title={PHASE_STATUS_LABEL[p.status] ?? p.status}
+                    >
+                      {p.name}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <span className="ml-auto text-[26px] font-bold leading-none text-on-primary-container">
+                {overview.progress_percent}%
+              </span>
+            </div>
+          ) : null}
+          {overview === null ? (
+            <p className="mt-3 text-[12px] text-on-primary-container">
+              進捗情報を取得できませんでした。
+            </p>
+          ) : null}
         </section>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_1fr]">
-          {/* アクセス範囲 (scopes を実データからバインド) */}
-          <section aria-label="アクセス範囲">
+          <div className="flex min-w-0 flex-col gap-5">
+            {outputs !== undefined ? (
+              <section aria-label="成果物">
+                <h2 className="mb-4 text-base font-bold tracking-tight text-on-surface">
+                  成果物
+                </h2>
+                <div className="rounded-lg border border-border bg-white">
+                  {outputs === null ? (
+                    <p className="px-5 py-8 text-center text-sm text-on-surface-variant">
+                      成果物を取得できませんでした。
+                    </p>
+                  ) : outputs.length === 0 ? (
+                    <p className="px-5 py-8 text-center text-sm text-on-surface-variant">
+                      共有された成果物はまだありません
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {outputs.map((o) => (
+                        <li key={o.id} className="flex items-center gap-3 px-5 py-3.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-on-surface">
+                              {o.stage_label}
+                            </p>
+                            <p className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                              {jaDate(o.updated_at)} · v{o.version}
+                              {o.formats.length > 0
+                                ? ` · ${o.formats.map((f) => f.toUpperCase()).join(" / ")}`
+                                : ""}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
+            ) : null}
+
+            {mocks !== undefined ? (
+              <section aria-label="モック">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-base font-bold tracking-tight text-on-surface">
+                    モック
+                  </h2>
+                  {mocks ? (
+                    <span className="text-[12px] font-semibold text-on-surface-variant">
+                      全 {mocks.total_screens} 画面
+                    </span>
+                  ) : null}
+                </div>
+                {mocks === null ? (
+                  <p className="rounded-lg border border-border bg-white px-5 py-8 text-center text-sm text-on-surface-variant">
+                    モックを取得できませんでした。
+                  </p>
+                ) : mocks.items.length === 0 ? (
+                  <p className="rounded-lg border border-border bg-white px-5 py-8 text-center text-sm text-on-surface-variant">
+                    共有されたモックはまだありません
+                  </p>
+                ) : (
+                  <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {mocks.items.map((m) => (
+                      <li
+                        key={m.id}
+                        className="rounded-lg border border-border bg-white p-4"
+                      >
+                        <p className="truncate text-sm font-bold text-on-surface">
+                          {m.screen_name}
+                        </p>
+                        <p className="mt-1 text-[11.5px] text-on-surface-variant">
+                          v{m.version} · {jaDate(m.updated_at)} 更新
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
+
+            {/* アクセス範囲 (scopes を実データからバインド) */}
+            <section aria-label="アクセス範囲">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-bold tracking-tight text-on-surface">
                 アクセス範囲
@@ -169,9 +373,10 @@ export function ClientProjectView({
               )}
             </div>
           </section>
+          </div>
 
-          {/* サイドカラム: 編集不可 notice + 運営とのやり取り */}
-          <aside className="flex flex-col gap-4">
+          {/* サイドカラム: 編集不可 notice + コメント + 運営とのやり取り */}
+          <aside className="flex min-w-0 flex-col gap-4">
             <div className="flex items-start gap-2 rounded-md border-l-[3px] border-tertiary bg-tertiary-container p-3 text-xs text-tertiary-container-fg">
               <EyeOffIcon />
               <span>
@@ -180,13 +385,129 @@ export function ClientProjectView({
               </span>
             </div>
 
+            {comments !== undefined ? (
+              <section
+                aria-label="あなたのコメント"
+                className="rounded-lg border border-border bg-white p-4"
+              >
+                <h2 className="mb-3 text-sm font-bold tracking-tight text-on-surface">
+                  あなたのコメント（
+                  {comments
+                    ? comments.filter((c) => c.is_client_author).length
+                    : 0}
+                  ）
+                </h2>
+                {comments === null ? (
+                  <p className="py-4 text-center text-[12.5px] text-on-surface-variant">
+                    コメントを取得できませんでした。
+                  </p>
+                ) : comments.length === 0 ? (
+                  <p className="py-4 text-center text-[12.5px] text-on-surface-variant">
+                    コメントはまだありません
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {comments.map((c) => (
+                      <li
+                        key={c.id}
+                        className={cn(
+                          "rounded-md border border-border p-3",
+                          !c.is_client_author && "bg-surface-variant",
+                        )}
+                      >
+                        <p className="mb-1 flex items-center justify-between gap-2 text-[11px] text-on-surface-variant">
+                          <span className="font-bold">
+                            {c.is_client_author
+                              ? displayName || "あなた"
+                              : `運営${c.author_name ? ` · ${c.author_name}` : ""}`}
+                          </span>
+                          <span>{jaDate(c.created_at)}</span>
+                        </p>
+                        {c.target_label ? (
+                          <p className="mb-1 text-[11px] font-semibold text-primary">
+                            {c.target_label}
+                          </p>
+                        ) : null}
+                        <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-on-surface">
+                          {c.content}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ) : null}
+
+            {canComment ? (
+              <section
+                aria-label="コメントを投稿"
+                className="rounded-lg border border-border bg-white p-4"
+              >
+                <h2 className="mb-3 text-sm font-bold tracking-tight text-on-surface">
+                  コメントを投稿
+                </h2>
+                {postNotice ? (
+                  <p
+                    role="status"
+                    className="mb-2 rounded-md bg-primary-container px-3 py-2 text-[12.5px] text-primary-container-fg"
+                  >
+                    {postNotice}
+                  </p>
+                ) : null}
+                {postError || commentLocalError ? (
+                  <p
+                    role="alert"
+                    className="mb-2 rounded-md bg-[#FEE2E2] px-3 py-2 text-[12.5px] text-error"
+                  >
+                    {postError ?? commentLocalError}
+                  </p>
+                ) : null}
+                <label className="mb-2 block">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
+                    コメント対象
+                  </span>
+                  <select
+                    value={commentTarget}
+                    onChange={(e) => setCommentTarget(e.target.value)}
+                    className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-[13px] text-on-surface"
+                  >
+                    <option value="">対象を選択…</option>
+                    {commentTargets.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="mb-3 block">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
+                    コメント内容
+                  </span>
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    rows={3}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-[13px] text-on-surface"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={handlePostComment}
+                  disabled={posting}
+                  className="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                >
+                  {posting ? "投稿中…" : "コメントを投稿"}
+                </button>
+              </section>
+            ) : null}
+
             <div className="rounded-lg bg-primary-container p-5 text-primary-container-fg">
               <h2 className="mb-2 text-base font-bold tracking-tight">
                 運営とのやり取り
               </h2>
               <p className="text-sm leading-relaxed text-primary-container-fg">
-                コメントを投稿すると、自動で運営側に通知が届きます。通常 1
-                営業日以内に返信します。
+                投稿されたコメントは運営側の成果物・モック画面にそのまま共有されます。通常
+                1 営業日以内に返信します。
               </p>
             </div>
           </aside>

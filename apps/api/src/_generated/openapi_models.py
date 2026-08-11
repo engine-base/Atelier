@@ -2175,6 +2175,101 @@ class ClientProjectView(BaseModel):
     viewed_as_client_display_name: str | None = None
 
 
+class ClientPhaseItem(BaseModel):
+    """
+    クライアント向け工程 (進捗バー用の最小情報 — GAP-029)。
+    """
+
+    name: str
+    order: int
+    status: Status3
+
+
+class ClientProjectOverview(BaseModel):
+    """
+    S-L03 ヘッダカード + バナーの実データ (GAP-029)。progress は実計算。
+    """
+
+    phases: list[ClientPhaseItem]
+    progress_percent: Annotated[int, Field(ge=0, le=100)]
+    operator_workspace_name: str | None = None
+    operator_name: str | None = None
+    """
+    運営 workspace オーナー表示名 (未設定は null — 創作しない)
+    """
+    link_expires_at: AwareDatetime | None = None
+    link_remaining_days: Annotated[int | None, Field(ge=0)] = None
+
+
+class Format(StrEnum):
+    html = "html"
+    json = "json"
+    md = "md"
+
+
+class ClientOutputItem(BaseModel):
+    """
+    クライアント向け成果物 — stage 毎の最新版のみ (GAP-029)。
+    """
+
+    id: UUID
+    stage: str
+    stage_label: str
+    version: int
+    updated_at: AwareDatetime
+    formats: list[Format]
+    """
+    実在する形式のみ (創作しない)
+    """
+    summary: str | None = None
+
+
+class ClientMockItem(BaseModel):
+    """
+    クライアント向けモック — screen_name 毎の最新版 (GAP-029)。
+    """
+
+    id: UUID
+    screen_name: str
+    version: int
+    updated_at: AwareDatetime
+
+
+class ClientMocksResponse(BaseModel):
+    items: list[ClientMockItem]
+    total_screens: int
+
+
+class TargetType1(StrEnum):
+    workflow_output = "workflow_output"
+    mock = "mock"
+
+
+class ClientCommentCreate(BaseModel):
+    """
+    クライアントのコメント投稿 (comment スコープ必須 — GAP-029)。
+    """
+
+    target_type: TargetType1
+    target_id: UUID
+    content: Annotated[str, Field(max_length=4000, min_length=1)]
+
+
+class ClientCommentItem(BaseModel):
+    """
+    クライアント自身のコメント + 運営からの返信 (GAP-029)。
+    """
+
+    id: UUID
+    target_type: str
+    target_id: UUID
+    target_label: str | None = None
+    content: str
+    author_name: str | None = None
+    is_client_author: bool
+    created_at: AwareDatetime
+
+
 class AuthResponse(BaseModel):
     user: User
     workspace: Workspace | None = None

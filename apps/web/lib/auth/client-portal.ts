@@ -148,3 +148,145 @@ export async function getClientProject(
   if (!data) throw new ClientPortalError("unexpected response", res.status);
   return data;
 }
+
+// --------------------------------------------------------------------------- //
+// GAP-029: S-L03 実コンテンツ (client スコープ read API + コメント投稿)。
+// R-T08: 全て client JWT の project_id claim に限定 (越境は API が 403)。
+// --------------------------------------------------------------------------- //
+
+export interface ClientPhaseItemData {
+  readonly name: string;
+  readonly order: number;
+  readonly status: string;
+}
+
+export interface ClientProjectOverviewData {
+  readonly phases: readonly ClientPhaseItemData[];
+  readonly progress_percent: number;
+  readonly operator_workspace_name: string | null;
+  readonly operator_name: string | null;
+  readonly link_expires_at: string | null;
+  readonly link_remaining_days: number | null;
+}
+
+export interface ClientOutputItemData {
+  readonly id: string;
+  readonly stage: string;
+  readonly stage_label: string;
+  readonly version: number;
+  readonly updated_at: string;
+  readonly formats: readonly string[];
+  readonly summary: string | null;
+}
+
+export interface ClientMockItemData {
+  readonly id: string;
+  readonly screen_name: string;
+  readonly version: number;
+  readonly updated_at: string;
+}
+
+export interface ClientMocksData {
+  readonly items: readonly ClientMockItemData[];
+  readonly total_screens: number;
+}
+
+export interface ClientCommentItemData {
+  readonly id: string;
+  readonly target_type: string;
+  readonly target_id: string;
+  readonly target_label: string | null;
+  readonly content: string;
+  readonly author_name: string | null;
+  readonly is_client_author: boolean;
+  readonly created_at: string;
+}
+
+export interface ClientCommentCreateInput {
+  readonly target_type: "workflow_output" | "mock";
+  readonly target_id: string;
+  readonly content: string;
+}
+
+async function clientGet<T>(path: string, token: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const json = await parseJson(res);
+  if (!res.ok)
+    throw new ClientPortalError(detailMessage(json, res.status), res.status);
+  const data = json?.data as T | undefined;
+  if (data === undefined)
+    throw new ClientPortalError("unexpected response", res.status);
+  return data;
+}
+
+/** 工程進捗 + 運営 + リンク有効期限 (GAP-029)。 */
+export function getClientOverview(
+  projectId: string,
+  token: string,
+): Promise<ClientProjectOverviewData> {
+  return clientGet(
+    `/client/projects/${encodeURIComponent(projectId)}/overview`,
+    token,
+  );
+}
+
+/** 成果物一覧 — stage 毎の最新版 (GAP-029)。 */
+export function getClientOutputs(
+  projectId: string,
+  token: string,
+): Promise<ClientOutputItemData[]> {
+  return clientGet(
+    `/client/projects/${encodeURIComponent(projectId)}/outputs`,
+    token,
+  );
+}
+
+/** モック一覧 — 画面毎の最新版 (GAP-029)。 */
+export function getClientMocks(
+  projectId: string,
+  token: string,
+): Promise<ClientMocksData> {
+  return clientGet(
+    `/client/projects/${encodeURIComponent(projectId)}/mocks`,
+    token,
+  );
+}
+
+/** 自分のコメント + 運営返信 (GAP-029)。 */
+export function getClientComments(
+  projectId: string,
+  token: string,
+): Promise<ClientCommentItemData[]> {
+  return clientGet(
+    `/client/projects/${encodeURIComponent(projectId)}/comments`,
+    token,
+  );
+}
+
+/** コメント投稿 — comment スコープ必須 (GAP-029)。 */
+export async function postClientComment(
+  projectId: string,
+  token: string,
+  input: ClientCommentCreateInput,
+): Promise<ClientCommentItemData> {
+  const res = await fetch(
+    `${API_BASE}/client/projects/${encodeURIComponent(projectId)}/comments`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  const json = await parseJson(res);
+  if (!res.ok)
+    throw new ClientPortalError(detailMessage(json, res.status), res.status);
+  const data = json?.data as ClientCommentItemData | undefined;
+  if (!data) throw new ClientPortalError("unexpected response", res.status);
+  return data;
+}

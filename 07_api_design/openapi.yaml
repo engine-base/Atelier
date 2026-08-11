@@ -2073,6 +2073,87 @@ components:
           items: { type: string }
         viewed_as_client_display_name: { type: string, nullable: true }
 
+    ClientPhaseItem:
+      type: object
+      description: クライアント向け工程 (進捗バー用の最小情報 — GAP-029)。
+      required: [name, order, status]
+      properties:
+        name: { type: string }
+        order: { type: integer }
+        status: { type: string, enum: [pending, in_progress, completed, skipped] }
+
+    ClientProjectOverview:
+      type: object
+      description: S-L03 ヘッダカード + バナーの実データ (GAP-029)。progress は実計算。
+      required: [phases, progress_percent]
+      properties:
+        phases:
+          type: array
+          items: { $ref: '#/components/schemas/ClientPhaseItem' }
+        progress_percent: { type: integer, minimum: 0, maximum: 100 }
+        operator_workspace_name: { type: string, nullable: true }
+        operator_name: { type: string, nullable: true, description: "運営 workspace オーナー表示名 (未設定は null — 創作しない)" }
+        link_expires_at: { type: string, format: date-time, nullable: true }
+        link_remaining_days: { type: integer, nullable: true, minimum: 0 }
+
+    ClientOutputItem:
+      type: object
+      description: クライアント向け成果物 — stage 毎の最新版のみ (GAP-029)。
+      required: [id, stage, stage_label, version, updated_at, formats]
+      properties:
+        id: { type: string, format: uuid }
+        stage: { type: string }
+        stage_label: { type: string }
+        version: { type: integer }
+        updated_at: { type: string, format: date-time }
+        formats:
+          type: array
+          items: { type: string, enum: [html, json, md] }
+          description: 実在する形式のみ (創作しない)
+        summary: { type: string, nullable: true }
+
+    ClientMockItem:
+      type: object
+      description: クライアント向けモック — screen_name 毎の最新版 (GAP-029)。
+      required: [id, screen_name, version, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        screen_name: { type: string }
+        version: { type: integer }
+        updated_at: { type: string, format: date-time }
+
+    ClientMocksResponse:
+      type: object
+      required: [items, total_screens]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ClientMockItem' }
+        total_screens: { type: integer }
+
+    ClientCommentCreate:
+      type: object
+      description: クライアントのコメント投稿 (comment スコープ必須 — GAP-029)。
+      required: [target_type, target_id, content]
+      properties:
+        target_type: { type: string, enum: [workflow_output, mock] }
+        target_id: { type: string, format: uuid }
+        content: { type: string, minLength: 1, maxLength: 4000 }
+
+    ClientCommentItem:
+      type: object
+      description: クライアント自身のコメント + 運営からの返信 (GAP-029)。
+      required: [id, target_type, target_id, content, is_client_author, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        target_type: { type: string }
+        target_id: { type: string, format: uuid }
+        target_label: { type: string, nullable: true }
+        content: { type: string }
+        author_name: { type: string, nullable: true }
+        is_client_author: { type: boolean }
+        created_at: { type: string, format: date-time }
+
 paths:
   # ==========================================================================
   # auth (T-A-01〜05: signup / signin / Magic Link / リセット / 退会)
@@ -7555,6 +7636,136 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /client/projects/{project_id}/overview:
+    get:
+      tags: [client-portal]
+      summary: クライアント 工程進捗 + 運営 + リンク有効期限（GAP-029 / R-T08 越境 403）
+      description: |
+        S-L03 ヘッダカード + バナーの実データ。progress_percent は completed 工程数 /
+        全工程数（skipped 除外）の実計算。link_expires_at / link_remaining_days は
+        当該招待の実有効期限。view スコープ必須。
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_overview
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 工程 + 進捗% + 運営 + リンク期限
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientProjectOverview' }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client/projects/{project_id}/outputs:
+    get:
+      tags: [client-portal]
+      summary: クライアント 成果物一覧 — stage 毎の最新版（GAP-029 / R-T08 越境 403）
+      description: formats は実在するパスからの導出のみ（html/json/md — 創作しない）。view スコープ必須。
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_outputs
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 成果物一覧 (stage 毎最新版)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ClientOutputItem' } }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client/projects/{project_id}/mocks:
+    get:
+      tags: [client-portal]
+      summary: クライアント モック一覧 — 画面毎の最新版（GAP-029 / R-T08 越境 403）
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_mocks
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: モック一覧 (画面毎最新版 + 総画面数)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientMocksResponse' }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client/projects/{project_id}/comments:
+    get:
+      tags: [client-portal]
+      summary: クライアント 自分のコメント + 運営返信（GAP-029 / R-T08 越境 403）
+      description: 自分 (この招待) のコメントとそれへの返信のみ（他クライアント・社内スレッドは返さない）。view スコープ必須。
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_comments
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 自分のコメント + 返信
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ClientCommentItem' } }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [client-portal]
+      summary: クライアント コメント投稿 — comment スコープ必須（GAP-029 / R-T08 越境 403）
+      description: |
+        target は当該 project に属する成果物 / モックのみ（他 project の target は
+        存在ごと秘匿し 404）。author_invitation_id で記録し audit
+        client.comment.create を残す。IP レート制限 30/min。
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_comment_create
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientCommentCreate' }
+      responses:
+        '201':
+          description: 投稿完了
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ClientCommentItem' }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / comment スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project / target 不在 (越境 target 含む), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: レート制限超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
 # ============================================================================
 # 残り 94 endpoint について

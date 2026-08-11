@@ -12969,6 +12969,365 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/projects/{project_id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * クライアント 工程進捗 + 運営 + リンク有効期限（GAP-029 / R-T08 越境 403）
+         * @description S-L03 ヘッダカード + バナーの実データ。progress_percent は completed 工程数 /
+         *     全工程数（skipped 除外）の実計算。link_expires_at / link_remaining_days は
+         *     当該招待の実有効期限。view スコープ必須。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 工程 + 進捗% + 運営 + リンク期限 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientProjectOverview"];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / view スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/projects/{project_id}/outputs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * クライアント 成果物一覧 — stage 毎の最新版（GAP-029 / R-T08 越境 403）
+         * @description formats は実在するパスからの導出のみ（html/json/md — 創作しない）。view スコープ必須。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成果物一覧 (stage 毎最新版) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientOutputItem"][];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / view スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/projects/{project_id}/mocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** クライアント モック一覧 — 画面毎の最新版（GAP-029 / R-T08 越境 403） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description モック一覧 (画面毎最新版 + 総画面数) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientMocksResponse"];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / view スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client/projects/{project_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * クライアント 自分のコメント + 運営返信（GAP-029 / R-T08 越境 403）
+         * @description 自分 (この招待) のコメントとそれへの返信のみ（他クライアント・社内スレッドは返さない）。view スコープ必須。
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 自分のコメント + 返信 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientCommentItem"][];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / view スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * クライアント コメント投稿 — comment スコープ必須（GAP-029 / R-T08 越境 403）
+         * @description target は当該 project に属する成果物 / モックのみ（他 project の target は
+         *     存在ごと秘匿し 404）。author_invitation_id で記録し audit
+         *     client.comment.create を残す。IP レート制限 30/min。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ClientCommentCreate"];
+                };
+            };
+            responses: {
+                /** @description 投稿完了 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientCommentItem"];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / comment スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project / target 不在 (越境 target 含む) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -14828,6 +15187,72 @@ export interface components {
             description?: string | null;
             scopes: string[];
             viewed_as_client_display_name?: string | null;
+        };
+        /** @description クライアント向け工程 (進捗バー用の最小情報 — GAP-029)。 */
+        ClientPhaseItem: {
+            name: string;
+            order: number;
+            /** @enum {string} */
+            status: "pending" | "in_progress" | "completed" | "skipped";
+        };
+        /** @description S-L03 ヘッダカード + バナーの実データ (GAP-029)。progress は実計算。 */
+        ClientProjectOverview: {
+            phases: components["schemas"]["ClientPhaseItem"][];
+            progress_percent: number;
+            operator_workspace_name?: string | null;
+            /** @description 運営 workspace オーナー表示名 (未設定は null — 創作しない) */
+            operator_name?: string | null;
+            /** Format: date-time */
+            link_expires_at?: string | null;
+            link_remaining_days?: number | null;
+        };
+        /** @description クライアント向け成果物 — stage 毎の最新版のみ (GAP-029)。 */
+        ClientOutputItem: {
+            /** Format: uuid */
+            id: string;
+            stage: string;
+            stage_label: string;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+            /** @description 実在する形式のみ (創作しない) */
+            formats: ("html" | "json" | "md")[];
+            summary?: string | null;
+        };
+        /** @description クライアント向けモック — screen_name 毎の最新版 (GAP-029)。 */
+        ClientMockItem: {
+            /** Format: uuid */
+            id: string;
+            screen_name: string;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ClientMocksResponse: {
+            items: components["schemas"]["ClientMockItem"][];
+            total_screens: number;
+        };
+        /** @description クライアントのコメント投稿 (comment スコープ必須 — GAP-029)。 */
+        ClientCommentCreate: {
+            /** @enum {string} */
+            target_type: "workflow_output" | "mock";
+            /** Format: uuid */
+            target_id: string;
+            content: string;
+        };
+        /** @description クライアント自身のコメント + 運営からの返信 (GAP-029)。 */
+        ClientCommentItem: {
+            /** Format: uuid */
+            id: string;
+            target_type: string;
+            /** Format: uuid */
+            target_id: string;
+            target_label?: string | null;
+            content: string;
+            author_name?: string | null;
+            is_client_author: boolean;
+            /** Format: date-time */
+            created_at: string;
         };
     };
     responses: never;

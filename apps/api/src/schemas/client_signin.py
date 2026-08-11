@@ -81,3 +81,85 @@ class ClientProjectView(BaseModel):
     description: str | None
     scopes: list[str]
     viewed_as_client_display_name: str | None
+
+
+# --------------------------------------------------------------------------- #
+# GAP-029: S-L03 クライアントポータル実コンテンツ (client スコープ read API)。
+# R-T08: 全て client_portal JWT の project_id claim に限定 (越境 403)。
+# 内部メタ (storage path・担当者 ID・phase description 等) は返さない。
+# --------------------------------------------------------------------------- #
+class ClientPhaseItem(BaseModel):
+    """クライアント向け工程 (進捗バー用の最小情報)。"""
+
+    name: str
+    order: int
+    status: str
+    """pending / in_progress / completed / skipped (実 DB 値)。"""
+
+
+class ClientProjectOverview(BaseModel):
+    """S-L03 ヘッダカード + バナー用の実データ。
+
+    progress_percent は completed 工程数 / 全工程数の実計算 (工程 0 件は 0)。
+    link_expires_at / link_remaining_days は当該招待の実有効期限。
+    operator_* は運営 workspace 名とオーナー表示名 (未設定は null — 創作しない)。
+    """
+
+    phases: list[ClientPhaseItem]
+    progress_percent: int
+    operator_workspace_name: str | None
+    operator_name: str | None
+    link_expires_at: datetime | None
+    link_remaining_days: int | None
+
+
+class ClientOutputItem(BaseModel):
+    """クライアント向け成果物 (stage 毎の最新版のみ)。"""
+
+    id: str
+    stage: str
+    stage_label: str
+    version: int
+    updated_at: datetime
+    formats: list[str]
+    """実在する形式のみ (html / json / md)。"""
+
+    summary: str | None
+
+
+class ClientMockItem(BaseModel):
+    """クライアント向けモック (screen_name 毎の最新版)。"""
+
+    id: str
+    screen_name: str
+    version: int
+    updated_at: datetime
+
+
+class ClientMocksResponse(BaseModel):
+    items: list[ClientMockItem]
+    total_screens: int
+
+
+class ClientCommentCreate(BaseModel):
+    """クライアントのコメント投稿 (comment スコープ必須)。
+
+    target は当該 project に属する成果物 / モックのみ (越境 target は 404)。
+    """
+
+    target_type: str = Field(pattern="^(workflow_output|mock)$")
+    target_id: str
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ClientCommentItem(BaseModel):
+    """クライアント自身のコメント + 運営からの返信。"""
+
+    id: str
+    target_type: str
+    target_id: str
+    target_label: str | None
+    content: str
+    author_name: str | None
+    is_client_author: bool
+    created_at: datetime

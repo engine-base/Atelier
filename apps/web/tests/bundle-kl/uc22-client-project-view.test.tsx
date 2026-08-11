@@ -87,3 +87,201 @@ describe("S-L03 ClientProjectViewContainer (T-UC-22)", () => {
     );
   });
 });
+
+// --------------------------------------------------------------------------- //
+// GAP-029: S-L03 実コンテンツ (overview / outputs / mocks / comments + 投稿)
+// --------------------------------------------------------------------------- //
+
+import { fireEvent, within } from "@testing-library/react";
+import type {
+  ClientCommentItemData,
+  ClientMocksData,
+  ClientOutputItemData,
+  ClientProjectOverviewData,
+} from "../../lib/auth/client-portal";
+
+const OVERVIEW: ClientProjectOverviewData = {
+  phases: [
+    { name: "ヒアリング", order: 1, status: "completed" },
+    { name: "要件", order: 2, status: "in_progress" },
+    { name: "納品", order: 3, status: "pending" },
+  ],
+  progress_percent: 33,
+  operator_workspace_name: "ENGINE BASE 株式会社",
+  operator_name: "高本まさと",
+  link_expires_at: "2026-08-15T00:00:00Z",
+  link_remaining_days: 4,
+};
+
+const OUTPUTS: ClientOutputItemData[] = [
+  {
+    id: "o1",
+    stage: "hearing",
+    stage_label: "ヒアリングサマリー",
+    version: 2,
+    updated_at: "2026-08-01T00:00:00Z",
+    formats: ["html", "md"],
+    summary: null,
+  },
+];
+
+const MOCKS: ClientMocksData = {
+  items: [
+    {
+      id: "m1",
+      screen_name: "トップページ",
+      version: 3,
+      updated_at: "2026-08-02T00:00:00Z",
+    },
+  ],
+  total_screens: 1,
+};
+
+const COMMENTS: ClientCommentItemData[] = [
+  {
+    id: "c1",
+    target_type: "workflow_output",
+    target_id: "o1",
+    target_label: "ヒアリングサマリー",
+    content: "§2 の内訳を確認したい",
+    author_name: null,
+    is_client_author: true,
+    created_at: "2026-08-03T00:00:00Z",
+  },
+  {
+    id: "c2",
+    target_type: "workflow_output",
+    target_id: "o1",
+    target_label: "ヒアリングサマリー",
+    content: "運営からの返信です",
+    author_name: "高本",
+    is_client_author: false,
+    created_at: "2026-08-04T00:00:00Z",
+  },
+];
+
+function contentProps() {
+  return {
+    fetchOverview: vi.fn(async () => OVERVIEW),
+    fetchOutputs: vi.fn(async () => OUTPUTS),
+    fetchMocks: vi.fn(async () => MOCKS),
+    fetchComments: vi.fn(async () => COMMENTS),
+  };
+}
+
+describe("S-L03 GAP-029 実コンテンツ", () => {
+  it("renders progress, link expiry, outputs, mocks and comments from real APIs", async () => {
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        postComment={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText(/リンク有効期限：残り 4 日/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("33%")).toBeInTheDocument();
+    expect(screen.getByText(/運営：ENGINE BASE 株式会社 · 高本まさと/)).toBeInTheDocument();
+    const outputsSection = screen.getByRole("region", { name: "成果物" });
+    expect(
+      within(outputsSection).getByText("ヒアリングサマリー"),
+    ).toBeInTheDocument();
+    expect(within(outputsSection).getByText(/v2 · HTML \/ MD/)).toBeInTheDocument();
+    const mocksSection = screen.getByRole("region", { name: "モック" });
+    expect(within(mocksSection).getByText("トップページ")).toBeInTheDocument();
+    expect(screen.getByText("全 1 画面")).toBeInTheDocument();
+    const commentsSection = screen.getByRole("region", {
+      name: "あなたのコメント",
+    });
+    expect(
+      within(commentsSection).getByText("あなたのコメント（1）"),
+    ).toBeInTheDocument();
+    expect(
+      within(commentsSection).getByText("運営からの返信です"),
+    ).toBeInTheDocument();
+    expect(within(commentsSection).getByText(/運営 · 高本/)).toBeInTheDocument();
+  });
+
+  it("posts a comment with the selected target and shows the notice", async () => {
+    const postComment = vi.fn(async () => COMMENTS[0]!);
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        postComment={postComment}
+      />,
+    );
+    const form = await screen.findByRole("region", { name: "コメントを投稿" });
+    // outputs 取得後に対象 option が実データから生成されるのを待つ
+    await within(form).findByRole("option", {
+      name: "ヒアリングサマリー v2",
+    });
+    fireEvent.change(within(form).getByLabelText(/コメント対象/), {
+      target: { value: "workflow_output:o1" },
+    });
+    fireEvent.change(within(form).getByLabelText(/コメント内容/), {
+      target: { value: "確認お願いします" },
+    });
+    fireEvent.click(
+      within(form).getByRole("button", { name: "コメントを投稿" }),
+    );
+    expect(
+      await screen.findByText("コメントを投稿しました。運営側に共有されます。"),
+    ).toBeInTheDocument();
+    expect(postComment).toHaveBeenCalledWith("p1", "ct", {
+      target_type: "workflow_output",
+      target_id: "o1",
+      content: "確認お願いします",
+    });
+  });
+
+  it("hides the comment form when the comment scope is missing", async () => {
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => ({ ...DATA, scopes: ["view"] }))}
+        {...contentProps()}
+        postComment={vi.fn()}
+      />,
+    );
+    await screen.findByRole("region", { name: "成果物" });
+    expect(
+      screen.queryByRole("region", { name: "コメントを投稿" }),
+    ).toBeNull();
+  });
+
+  it("shows honest failure messages when content APIs fail but keeps the view", async () => {
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        fetchOverview={vi.fn(async () => {
+          throw new ClientPortalError("boom", 500);
+        })}
+        fetchOutputs={vi.fn(async () => {
+          throw new ClientPortalError("boom", 500);
+        })}
+        fetchMocks={vi.fn(async () => MOCKS)}
+        fetchComments={vi.fn(async () => COMMENTS)}
+        postComment={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByText("成果物を取得できませんでした。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("進捗情報を取得できませんでした。"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "ACME 案件" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("トップページ")).toBeInTheDocument();
+  });
+});

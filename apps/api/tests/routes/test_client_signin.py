@@ -499,3 +499,318 @@ class TestInvitationPreview:
             assert second is not None
             assert second.legal_consented_at == first.legal_consented_at
             assert second.confidential_consented_at == first.confidential_consented_at
+
+
+@pytest.fixture()
+def portal_content(
+    sync_engine: sqlalchemy.Engine, two_projects: dict[str, str]
+) -> Iterator[dict[str, str]]:
+    """GAP-029: proj_a に phases / outputs / mocks + view-only 招待を seed。
+
+    proj_b にも output を 1 件置き、越境 target が 404 になることを検証する。
+    """
+    proj_a, proj_b = two_projects["proj_a"], two_projects["proj_b"]
+    out_hear_v1, out_hear_v2 = str(uuid.uuid4()), str(uuid.uuid4())
+    out_req, out_b = str(uuid.uuid4()), str(uuid.uuid4())
+    mock_top_v1, mock_top_v2, mock_cart = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+    inv_view = str(uuid.uuid4())
+    token_view = "client-token-view-zzzzzzzz"
+    token_hash = hashlib.sha256(token_view.encode()).hexdigest()
+    with sync_engine.begin() as c:
+        for order, name, status_v in (
+            (1, "ヒアリング", "completed"),
+            (2, "要件", "in_progress"),
+            (3, "納品", "pending"),
+        ):
+            c.execute(
+                text(
+                    'insert into public.phases(project_id,"order",name,status) '
+                    "values(cast(:p as uuid),:o,:n,cast(:s as phase_status_enum))"
+                ),
+                {"p": proj_a, "o": order, "n": name, "s": status_v},
+            )
+        for oid, pid, stage, ver, html, md in (
+            (out_hear_v1, proj_a, "hearing", 1, "h1.html", "h1.md"),
+            (out_hear_v2, proj_a, "hearing", 2, "h2.html", None),
+            (out_req, proj_a, "requirements", 1, None, "r1.md"),
+            (out_b, proj_b, "hearing", 1, "bh.html", None),
+        ):
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs"
+                    "(id,project_id,stage,version,html_path,md_path,summary) "
+                    "values(cast(:i as uuid),cast(:p as uuid),"
+                    "cast(:s as workflow_stage_enum),:v,:h,:m,'サマリー')"
+                ),
+                {"i": oid, "p": pid, "s": stage, "v": ver, "h": html, "m": md},
+            )
+        for mid, name, ver in (
+            (mock_top_v1, "トップページ", 1),
+            (mock_top_v2, "トップページ", 2),
+            (mock_cart, "カート", 1),
+        ):
+            c.execute(
+                text(
+                    "insert into public.mocks(id,project_id,screen_name,html_storage_path,version) "
+                    "values(cast(:i as uuid),cast(:p as uuid),:n,:path,:v)"
+                ),
+                {"i": mid, "p": proj_a, "n": name, "path": f"mocks/{mid}.html", "v": ver},
+            )
+        c.execute(
+            text(
+                "insert into public.client_invitations"
+                "(id,project_id,email,token_hash,scopes,expires_at) "
+                "values(cast(:i as uuid),cast(:p as uuid),:e,:h,"
+                "'[\"view\"]'::jsonb, now() + interval '7 days')"
+            ),
+            {"i": inv_view, "p": proj_a, "e": "viewonly@ext.com", "h": token_hash},
+        )
+    yield {
+        **two_projects,
+        "out_hear_v2": out_hear_v2,
+        "out_req": out_req,
+        "out_b": out_b,
+        "mock_top_v2": mock_top_v2,
+        "mock_cart": mock_cart,
+        "token_view": token_view,
+    }
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.comments where target_id in "
+                "(select id from public.workflow_outputs where project_id in "
+                " (cast(:a as uuid),cast(:b as uuid))) "
+                "or target_id in (select id from public.mocks where project_id = cast(:a as uuid))"
+            ),
+            {"a": proj_a, "b": proj_b},
+        )
+        c.execute(
+            text("delete from public.audit_logs where action = 'client.comment.create'"),
+        )
+        for table in ("workflow_outputs", "mocks", "phases"):
+            c.execute(
+                text(
+                    f"delete from public.{table} where project_id in "
+                    "(cast(:a as uuid),cast(:b as uuid))"
+                ),
+                {"a": proj_a, "b": proj_b},
+            )
+        c.execute(
+            text("delete from public.client_invitations where id = cast(:i as uuid)"),
+            {"i": inv_view},
+        )
+
+
+def _client_token(client: TestClient, invitation_token: str) -> str:
+    return client.post(
+        "/client/auth/signin",
+        json={"invitation_token": invitation_token, **_CONSENT},
+    ).json()["data"]["client_access_token"]
+
+
+@pytest.mark.integration
+class TestClientPortalContent:
+    """GAP-029: S-L03 実コンテンツ read API + コメント投稿 (R-T08 越境試験込)。"""
+
+    def test_overview_real_progress_and_link_expiry(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            r = client.get(
+                f"/client/projects/{portal_content['proj_a']}/overview",
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert [p["name"] for p in d["phases"]] == ["ヒアリング", "要件", "納品"]
+            assert d["progress_percent"] == 33  # completed 1 / 3 の実計算
+            assert d["operator_workspace_name"] is not None
+            assert d["link_remaining_days"] >= 6  # 招待は +7 days で seed
+            assert d["link_expires_at"] is not None
+
+    def test_outputs_latest_per_stage_with_real_formats(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            r = client.get(
+                f"/client/projects/{portal_content['proj_a']}/outputs",
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+            assert r.status_code == 200, r.text
+            items = {i["stage"]: i for i in r.json()["data"]}
+            assert set(items) == {"hearing", "requirements"}
+            # stage 毎の最新版のみ + 実在フォーマットのみ
+            assert items["hearing"]["version"] == 2
+            assert items["hearing"]["formats"] == ["html"]
+            assert items["hearing"]["stage_label"] == "ヒアリングサマリー"
+            assert items["requirements"]["formats"] == ["md"]
+            # 他 project (proj_b) の成果物は混ざらない
+            ids = {i["id"] for i in r.json()["data"]}
+            assert portal_content["out_b"] not in ids
+
+    def test_mocks_latest_per_screen(self, app: FastAPI, portal_content: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            r = client.get(
+                f"/client/projects/{portal_content['proj_a']}/mocks",
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+            assert r.status_code == 200, r.text
+            d = r.json()["data"]
+            assert d["total_screens"] == 2
+            by_name = {i["screen_name"]: i for i in d["items"]}
+            assert by_name["トップページ"]["version"] == 2  # 最新版のみ
+            assert by_name["カート"]["version"] == 1
+
+    def test_comment_post_list_and_staff_reply_visibility(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        portal_content: dict[str, str],
+    ) -> None:
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            h = {"Authorization": f"Bearer {tok}"}
+            r = client.post(
+                f"/client/projects/{portal_content['proj_a']}/comments",
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_hear_v2"],
+                    "content": "§2 の内訳を確認したいです",
+                },
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            posted = r.json()["data"]
+            assert posted["is_client_author"] is True
+            assert posted["target_label"] == "ヒアリングサマリー"
+            with sync_engine.connect() as c:
+                row = c.execute(
+                    text(
+                        "select author_invitation_id, author_user_id from public.comments "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": posted["id"]},
+                ).one()
+                assert row.author_invitation_id is not None
+                assert row.author_user_id is None
+                audit = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action = 'client.comment.create' and target_id = :i"
+                    ),
+                    {"i": posted["id"]},
+                ).scalar()
+                assert audit == 1
+            # 運営返信 + 無関係コメント (別 author・親無し) を seed
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "insert into public.comments"
+                        "(target_type,target_id,author_user_id,content,parent_comment_id) "
+                        "values('workflow_output',cast(:t as uuid),cast(:u as uuid),"
+                        "'運営からの返信です',cast(:parent as uuid))"
+                    ),
+                    {
+                        "t": portal_content["out_hear_v2"],
+                        "u": portal_content["u_a"],
+                        "parent": posted["id"],
+                    },
+                )
+                c.execute(
+                    text(
+                        "insert into public.comments"
+                        "(target_type,target_id,author_user_id,content) "
+                        "values('workflow_output',cast(:t as uuid),cast(:u as uuid),'社内メモ')"
+                    ),
+                    {"t": portal_content["out_hear_v2"], "u": portal_content["u_a"]},
+                )
+            r2 = client.get(
+                f"/client/projects/{portal_content['proj_a']}/comments",
+                headers=h,
+            )
+            assert r2.status_code == 200
+            contents = [i["content"] for i in r2.json()["data"]]
+            assert "§2 の内訳を確認したいです" in contents
+            assert "運営からの返信です" in contents  # 自分のコメントへの返信は見える
+            assert "社内メモ" not in contents  # 無関係な社内コメントは見えない
+
+    def test_content_cross_project_403_RT08(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        """★ R-T08 越境試験 ★: proj_a の client JWT で proj_b の全コンテンツ endpoint が 403。"""
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            h = {"Authorization": f"Bearer {tok}"}
+            pb = portal_content["proj_b"]
+            for path in ("overview", "outputs", "mocks", "comments"):
+                r = client.get(f"/client/projects/{pb}/{path}", headers=h)
+                assert r.status_code == 403, f"R-T08 越境拒否が機能していない: {path}"
+            r = client.post(
+                f"/client/projects/{pb}/comments",
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_b"],
+                    "content": "越境",
+                },
+                headers=h,
+            )
+            assert r.status_code == 403
+
+    def test_comment_target_from_other_project_404(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        """R-T08: 自 project へ他 project の target を指しても存在ごと秘匿 (404)。"""
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            r = client.post(
+                f"/client/projects/{portal_content['proj_a']}/comments",
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_b"],
+                    "content": "他 project の成果物へ",
+                },
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+            assert r.status_code == 404
+
+    def test_comment_requires_comment_scope_403(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            tok_view = _client_token(client, portal_content["token_view"])
+            h = {"Authorization": f"Bearer {tok_view}"}
+            # view スコープでは read は可
+            assert (
+                client.get(
+                    f"/client/projects/{portal_content['proj_a']}/overview", headers=h
+                ).status_code
+                == 200
+            )
+            # comment スコープ無しの投稿は 403
+            r = client.post(
+                f"/client/projects/{portal_content['proj_a']}/comments",
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_hear_v2"],
+                    "content": "view のみで投稿",
+                },
+                headers=h,
+            )
+            assert r.status_code == 403
+
+    def test_content_unauthenticated_and_garbage_401(
+        self, app: FastAPI, portal_content: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            pa = portal_content["proj_a"]
+            assert client.get(f"/client/projects/{pa}/overview").status_code == 401
+            assert (
+                client.get(
+                    f"/client/projects/{pa}/outputs",
+                    headers={"Authorization": "Bearer not.a.jwt"},
+                ).status_code
+                == 401
+            )
