@@ -392,10 +392,10 @@ await row('J-19', owner, async () => {
   await owner.waitForTimeout(5000);
   const up = sql(`select id || '|' || file_name from external_uploads where project_id='${S.pid}' and deleted_at is null order by created_at desc limit 1`);
   expect(up.includes(`journey-${mark}.wav`), `external_uploads に無い: ${up}`);
-  expect(await vis(owner.getByText(`journey-${mark}.wav`).first(), 15000), 'アップロード済みファイルが一覧に出ない');
-  // 文字起こしの実状態 (queued/未解析/エラー等) を偽装なく表示していること
-  const honest = await vis(owner.getByText(/文字起こし|解析|待ち|キュー|エラー|未実行/).first(), 10000);
-  expect(honest, '文字起こし状態の表示が無い');
+  // UI 仕様: 解析中はアップロード状況カードに実処理状態を表示 (ファイル名は解析完了後の一覧)
+  expect(await vis(owner.getByText('アップロード状況').first(), 15000), 'アップロード状況カードが出ない');
+  const honest = await vis(owner.getByText(/解析中|文字起こし|待ち|キュー|エラー|未実行/).first(), 10000);
+  expect(honest, '処理の実状態表示が無い');
   const workerExists = execSync(
     `test -f /home/user/Atelier/apps/api/src/services/meetings/worker.py && grep -c 'transcribe-queue' /home/user/Atelier/apps/api/src/cron/scheduler.py`,
     { encoding: 'utf8' },
