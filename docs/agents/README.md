@@ -56,7 +56,7 @@ cd ~/path/to/Atelier
 |---|---|---|
 | レート制限 | ペインに制限メッセージ。`/status` で 5h/週の残量確認 | 枠回復後、そのセッションに「続けて」と送る (スマホからで OK)。自動再開はしない |
 | バトン落ち (誰も動いていない) | `./scripts/agents/flow.sh status` で holder を確認 | holder のセッションに「protocol.md に従って続きを進めて」と一言 |
-| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-session -t atelier-flow` 後) |
+| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-session -t flow-Atelier` 後) |
 
 ## 運用ルールの要点 (詳細は protocol.md)
 
