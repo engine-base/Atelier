@@ -4,6 +4,7 @@
 dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させる仕組み一式。
 
 - 共通規約 (メッセージ種別・状態ファイル・エスカレーション): [`protocol.md`](./protocol.md)
+- プロジェクト固有設定 (仕様の正・DoD・検証手段・検収基準): [`project.md`](./project.md) ★導入時にここを埋める
 - 役割定義: [`pm.md`](./pm.md) / [`dev.md`](./dev.md) / [`qa.md`](./qa.md)
 - バトン強制 (Stop hook): `scripts/agents/flow-stop-hook.sh` (`.claude/settings.json` で配線済)
 - 状態確認: `./scripts/agents/flow.sh status`
@@ -13,11 +14,12 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 1. Claude Code CLI **v2.1.224 以上** (`claude --version`) + Pro/Max で `/login` 済み
 2. `brew install tmux` (未導入なら)
 3. Mac を電源に接続。スリープ防止はスクリプトが `caffeinate` で自動常駐する
+4. **`docs/agents/project.md` を埋める** (空のままなら PM が初回に調査して提案する)
 
 ## 毎日の起動 (1 コマンド)
 
 ```bash
-cd ~/path/to/Atelier
+cd <このプロジェクトのルート>
 ./scripts/ccstart.sh
 ```
 
@@ -25,7 +27,7 @@ cd ~/path/to/Atelier
 自動で `/rename` → `/rc` (スマホ接続) → 役割 boot プロンプトが投入される。
 3 ペインとも「◯◯ 準備完了」と言ったら、**pm ペインに開始の一言**を打つ:
 
-> 開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて。
+> 開始。project.md のタスク源から優先度順に進めて。
 
 以降は pm→dev→qa→pm が自動で回る。権限確認は既定で自動承認モード
 (`--permission-mode bypassPermissions`)。止めたいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
@@ -51,26 +53,19 @@ cd ~/path/to/Atelier
 |---|---|---|
 | レート制限 | ペインに制限メッセージ。`/status` で 5h/週の残量確認 | 枠回復後、そのセッションに「続けて」と送る (スマホからで OK)。自動再開はしない |
 | バトン落ち (誰も動いていない) | `./scripts/agents/flow.sh status` で holder を確認 | holder のセッションに「protocol.md に従って続きを進めて」と一言 |
-| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-session -t atelier-flow` 後) |
+| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-session -t <セッション名>` 後) |
 
 ## 運用ルールの要点 (詳細は protocol.md)
 
-- 仕様の正は tickets.json 等のファイル。メッセージはバトンのみ
+- 仕様の正はファイル (project.md 参照)。メッセージはバトンのみ
 - 同時に動くのは 1 役だけ。git 操作はバトン保持者のみ
 - dev/qa はユーザーに直接聞かない — PM 経由 (`ESCALATE`)
-- 致命級 (R-T08 等)・仕様変更・外部契約は必ず PM → ユーザー承認
+- 人間承認が必須の操作 (project.md に列挙) は必ず PM → ユーザー承認
 - Stop hook が「報告・メッセージ送信・`flow.sh handoff`」を済ませないターン終了を
   差し戻すため、静かなバトン落ちは構造的に起きにくい
 
-## 他のプロジェクトでも使う
-
-この仕組みの汎用版が `tools/flow-kit/` にある。任意のリポジトリへ
-`./tools/flow-kit/install.sh ~/path/to/other-project` で 1 コマンド導入でき、
-プロジェクト固有の仕様源・DoD は導入先の `docs/agents/project.md` に書く
-(詳細: `tools/flow-kit/README.md`)。
-
 ## 並列化したくなったら
 
-dev を `dev-a` / `dev-b` の 2 枚にし、PM が files_changed_predicted の重ならない
-束を同時に 2 つ払い出せばパイプライン並列になる (レート消費は約 2 倍)。
+dev を `dev-a` / `dev-b` の 2 枚にし、PM が変更ファイルの重ならないタスクを
+同時に 2 つ払い出せばパイプライン並列になる (レート消費は約 2 倍)。
 最初は直列 3 役で回し、様子を見てから検討を推奨。
