@@ -553,7 +553,7 @@ await row('J-26', admin, async () => {
   const acq = sql(`select id from acquisition_records order by created_at desc limit 1`);
   expect(acq, 'acquisition_records に無い');
   // テンプレ改善配布 (S-T03): journey 専用テンプレを編集 → 全 WS 反映
-  const tpl = sql(`insert into ai_employee_templates (default_name, default_display_name, department, role, system_prompt, specialty, version) values ('journey-tpl-${mark}','J2テンプレ-${mark}','sales','member','ジャーニー検証用','初期',1) returning id`);
+  const tpl = sql(`insert into ai_employee_templates (default_name, default_display_name, department, role, system_prompt, specialty, version) values ('journey-tpl-${mark}','J2テンプレ-${mark}','sales','member','ジャーニー検証用','初期',1) returning id`).split('\n')[0].trim();
   await admin.goto('http://localhost:3100/admin/s_t03', { waitUntil: 'networkidle' });
   await admin.getByRole('button', { name: `J2テンプレ-${mark}` }).click();
   const editor = admin.getByRole('region', { name: `テンプレ編集: J2テンプレ-${mark}` });
