@@ -364,13 +364,10 @@ export function OutputViewerContainer({
       </p>
     );
   }
-  if (statusOf(content.error) === 409) {
-    return (
-      <p role="alert" className="text-body-md text-error">
-        この成果物はまだ生成されていません。
-      </p>
-    );
-  }
+  // 409 = 本文ファイルを持たない成果物 (営業ドラフト等)。journey v2 で検出した
+  // 断絶の是正: 画面ごと拒否せず、プレビュー無しでもコメント/バージョンは扱える
+  // ビューアを描画する (クライアントのコメントへ返信できないと往復が成立しない)。
+  const noPreview = statusOf(content.error) === 409;
   if (statusOf(content.error) === 503) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -378,23 +375,23 @@ export function OutputViewerContainer({
       </p>
     );
   }
-  if (meta.error || content.error) {
+  if (meta.error || (content.error && !noPreview)) {
     return (
       <p role="alert" className="text-body-md text-error">
         成果物の取得に失敗しました。
       </p>
     );
   }
-  if (meta.isLoading || content.isLoading || !content.data) {
+  if (meta.isLoading || content.isLoading || (!content.data && !noPreview)) {
     return <Loading className="py-md" />;
   }
 
   const title = meta.data?.summary || meta.data?.stage || "成果物";
 
   // 実在する format のみタブ化 (Rule 10: 死にタブを出さない)
-  const formats: OutputFormat[] = ["html"];
-  if (meta.data?.json_path) formats.push("json");
-  if (meta.data?.md_path) formats.push("md");
+  const formats: OutputFormat[] = noPreview ? [] : ["html"];
+  if (!noPreview && meta.data?.json_path) formats.push("json");
+  if (!noPreview && meta.data?.md_path) formats.push("md");
 
   const versionRows = versions.data ?? [];
   const versionItems: OutputVersionItem[] = versionRows.map((v) => ({
@@ -485,7 +482,7 @@ export function OutputViewerContainer({
     <OutputViewer
       key={outputId}
       title={title}
-      contentUrl={content.data.url}
+      contentUrl={noPreview ? null : (content.data?.url ?? null)}
       formats={formats}
       activeFormat={format}
       onSelectFormat={setFormat}
@@ -495,8 +492,10 @@ export function OutputViewerContainer({
       onSelectVersion={(id) => {
         if (id !== outputId) router.push(`/outputs?output=${id}`);
       }}
-      onDownload={() => void download()}
-      onRevise={(instruction) => reviseMut.mutate(instruction)}
+      onDownload={noPreview ? undefined : () => void download()}
+      onRevise={
+        noPreview ? undefined : (instruction) => reviseMut.mutate(instruction)
+      }
       revising={reviseMut.isPending}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
@@ -508,7 +507,9 @@ export function OutputViewerContainer({
       onResolve={(id) => resolveMut.mutate(id)}
       onReply={(parentId, text_) => replyMut.mutate({ parentId, text: text_ })}
       proposals={proposals.error ? undefined : proposalItems}
-      onRequestProposal={(commentId) => proposeMut.mutate(commentId)}
+      onRequestProposal={
+        noPreview ? undefined : (commentId) => proposeMut.mutate(commentId)
+      }
       proposalRequestingFor={
         proposeMut.isPending ? proposeMut.variables : undefined
       }

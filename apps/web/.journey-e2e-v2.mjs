@@ -380,25 +380,28 @@ await row('J-18', owner, async () => {
   return `最終成果: 完了タスク ${done} / 見積 ${est} / クライアント公開済 — 一周完了`;
 });
 
-// ── J-19 議事録パイプ終端 (既知 GAP-016 の通し確認) ───
+// ── J-19 議事録アップロード → 実受付 + honest 状態 (storage 実在環境) ──
 await row('J-19', owner, async () => {
+  // 8/1 時点は storage 未設定の honest エラーを検証した。現在は storage (スタブ) が
+  // 実在するため、実アップロード成功 → external_uploads 永続 → 実状態表示を検証する。
   await owner.goto(`http://localhost:3100/meetings?project=${S.pid}`, { waitUntil: 'networkidle' });
   await owner.waitForTimeout(1500);
-  // dev: storage 未設定の honest エラーが出ること (偽の受付をしない)
   const fi = owner.locator('input[type="file"]').first();
   expect((await fi.count()) >= 1, 'アップロード UI が無い');
-  await fi.setInputFiles({ name: `journey-${mark}.wav`, mimeType: 'audio/wav', buffer: Buffer.from('RIFFxxxxWAVEfmt ') });
-  await owner.waitForTimeout(4000);
-  const honest = await vis(owner.getByText(/解析に失敗|503|保存先が未設定|アップロードに失敗/).first(), 10000);
-  expect(honest, 'storage 未設定の明示エラーが出ない (黙って受け付けたら偽装)');
-  // 終端 (Whisper worker) は GAP-016 解消で実装済 — queued 消費者の実在を検証する
-  // (worker 本体 + cron 登録の両方。実 Whisper 呼出は OPENAI key + storage 設定が前提)
+  await fi.setInputFiles({ name: `journey-${mark}.wav`, mimeType: 'audio/wav', buffer: Buffer.from('RIFFxxxxWAVEfmt journey audio') });
+  await owner.waitForTimeout(5000);
+  const up = sql(`select id || '|' || file_name from external_uploads where project_id='${S.pid}' and deleted_at is null order by created_at desc limit 1`);
+  expect(up.includes(`journey-${mark}.wav`), `external_uploads に無い: ${up}`);
+  expect(await vis(owner.getByText(`journey-${mark}.wav`).first(), 15000), 'アップロード済みファイルが一覧に出ない');
+  // 文字起こしの実状態 (queued/未解析/エラー等) を偽装なく表示していること
+  const honest = await vis(owner.getByText(/文字起こし|解析|待ち|キュー|エラー|未実行/).first(), 10000);
+  expect(honest, '文字起こし状態の表示が無い');
   const workerExists = execSync(
     `test -f /home/user/Atelier/apps/api/src/services/meetings/worker.py && grep -c 'transcribe-queue' /home/user/Atelier/apps/api/src/cron/scheduler.py`,
     { encoding: 'utf8' },
   ).trim();
   expect(Number(workerExists) >= 1, 'queued 消費 worker が不在 (GAP-016 再発)');
-  return `storage 未設定は honest エラー表示。queued 消費 worker 実在確認 (GAP-016 解消済: worker.py + cron transcribe-queue 登録=${workerExists})`;
+  return `実アップロード成功 → external_uploads 永続 + 実状態表示 (worker 実在=${workerExists})`;
 });
 
 // ══════════ v2 追加: 8/10-11 実装分を業務として一周 ══════════
@@ -467,29 +470,25 @@ await row('J-22', owner, async () => {
   return `モック登録 (API — 作成 UI は無い設計) → ワンダ修正依頼で v2 (author=wanda)`;
 });
 
-// ── J-23 成果物改訂: コメント → スティーブ提案 → 承認 ──
+// ── J-23 見積の改訂: 顧客要望を反映してトニーが再生成 (版数+1) ──
 await row('J-23', owner, async () => {
-  await owner.goto(`http://localhost:3100/outputs?output=${S.estDoc}`, { waitUntil: 'networkidle' });
-  await owner.waitForTimeout(2000);
-  const box = owner.getByPlaceholder('選択箇所にコメント...');
-  expect(await vis(box), 'コメント入力が出ない');
-  const anchorSel = owner.getByRole('combobox', { name: 'コメント対象位置' });
-  if (await anchorSel.isVisible().catch(() => false)) {
-    const opts = await anchorSel.locator('option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
-    if (opts.length > 0) await anchorSel.selectOption(opts[0]);
-  }
-  await box.fill(`小計と税額を分けて記載してほしい (${mark})`);
-  await owner.getByRole('button', { name: '投稿' }).click();
-  await owner.getByText(`小計と税額を分けて記載してほしい (${mark})`).waitFor({ state: 'visible', timeout: 15000 });
-  const card = owner.locator('li').filter({ hasText: `小計と税額を分けて記載してほしい (${mark})` }).first();
-  await card.getByRole('button', { name: 'スティーブに修正提案を依頼' }).click();
-  await card.getByText('スティーブの修正提案：').waitFor({ state: 'visible', timeout: 30000 });
-  await card.getByRole('button', { name: '承認' }).click();
-  await owner.getByText(/提案を承認し、スティーブが v\d+ を作成しました/).waitFor({ state: 'visible', timeout: 30000 });
+  // 発見メモ (journey v2): スティーブ改訂ループ (S-G01) は html 本文を持つ成果物
+  // 専用で、営業ドラフト (本文=summary) の改訂は S-N01 の再生成が製品仕様。
+  // S-G01 が本文なし成果物を画面ごと拒否していた断絶は本 journey で検出し是正済み。
+  const prevV = sql(`select max(version) from workflow_outputs where project_id='${S.pid}' and stage='estimate' and deleted_at is null`);
+  await owner.goto(`http://localhost:3100/sales?project=${S.pid}`, { waitUntil: 'networkidle' });
+  await owner.getByRole('heading', { name: '提案 / 見積 / 契約 / 請求書ドラフト' }).waitFor({ state: 'visible', timeout: 20000 });
+  await owner.getByRole('tab', { name: /見積書/ }).click();
+  await owner.getByLabel(/顧客名/).fill('小松商事');
+  await owner.getByLabel('案件', { exact: false }).first().fill(`LP一式お見積 改訂 ${mark}`);
+  await owner.getByLabel(/商談概要/).fill('顧客要望: 小計と税額を分けて記載。実績セクションは事例 3 件に拡充。');
+  await owner.getByRole('button', { name: 'トニーにドラフト生成を依頼' }).click();
+  await owner.getByText(`LP一式お見積 改訂 ${mark}`).first().waitFor({ state: 'visible', timeout: 30000 });
+  const newV = sql(`select max(version) from workflow_outputs where project_id='${S.pid}' and stage='estimate' and deleted_at is null`);
+  expect(Number(newV) > Number(prevV), `version ${prevV}→${newV}`);
   S.estLatest = sql(`select id from workflow_outputs where project_id='${S.pid}' and stage='estimate' and deleted_at is null order by version desc limit 1`);
-  expect(S.estLatest !== S.estDoc, '改訂版が作られていない');
-  expect(sql(`select meta->>'author' from workflow_outputs where id='${S.estLatest}'`) === 'steve', 'author=steve でない');
-  return `客観点のコメント → スティーブ改訂 → 承認で新版 ${S.estLatest.slice(0, 8)} (author=steve)`;
+  expect(sql(`select meta->>'generated_by' from workflow_outputs where id='${S.estLatest}'`) === 'tony', '改訂版が tony 生成でない');
+  return `顧客要望を反映した再生成で版数 ${prevV}→${newV} (estLatest=${S.estLatest.slice(0, 8)})`;
 });
 
 // ── J-24 ポータル実コンテンツ (GAP-029) ────────────────

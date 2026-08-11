@@ -81,8 +81,10 @@ function authorInitial(author: string): string {
 
 export interface OutputViewerProps {
   readonly title: string;
-  /** HTML の署名付き閲覧 URL (iframe / 原本 / 本文へジャンプの実体)。 */
-  readonly contentUrl: string;
+  /** HTML の署名付き閲覧 URL (iframe / 原本 / 本文へジャンプの実体)。
+   *  null = 本文ファイルを持たない成果物 (営業ドラフト等 — journey v2 検出の
+   *  是正: プレビューは無くてもコメント/バージョンは扱えるようにする)。 */
+  readonly contentUrl: string | null;
   /** 実在する format のみ (存在しないタブは出さない — Rule 10)。 */
   readonly formats?: readonly OutputFormat[];
   readonly activeFormat?: OutputFormat;
@@ -168,7 +170,12 @@ export function OutputViewer({
       ? current.version >= maxVersion
       : true;
 
-  const frameSrc = jumpAnchor ? `${contentUrl}#${jumpAnchor}` : contentUrl;
+  const frameSrc =
+    contentUrl === null
+      ? null
+      : jumpAnchor
+        ? `${contentUrl}#${jumpAnchor}`
+        : contentUrl;
   const proposalOf = (commentId: string) =>
     proposals?.find((p) => p.commentId === commentId);
 
@@ -246,14 +253,16 @@ export function OutputViewer({
                     編集
                   </button>
                 ) : null}
-                <a
-                  href={contentUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-md border border-primary px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary-container"
-                >
-                  原本
-                </a>
+                {contentUrl !== null ? (
+                  <a
+                    href={contentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-primary px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary-container"
+                  >
+                    原本
+                  </a>
+                ) : null}
                 {onDownload ? (
                   <button
                     type="button"
@@ -358,14 +367,21 @@ export function OutputViewer({
                 <div className="mb-7 border-b border-border pb-4 text-[13px] text-on-surface-variant">
                   {current ? `v${current.version}` : "最新版"}
                   {current?.author ? ` · ${current.author}` : ""} ·{" "}
-                  {FORMAT_LABEL[activeFormat]} プレビュー
+                  {contentUrl === null
+                    ? "本文プレビューなし"
+                    : `${FORMAT_LABEL[activeFormat]} プレビュー`}
                 </div>
-                {activeFormat === "html" ? (
+                {contentUrl === null ? (
+                  <p className="rounded-md border border-border bg-surface-variant/40 p-4 text-body-sm text-on-surface-variant">
+                    この成果物は本文ファイルを持ちません（営業ドラフト等の本文は生成元の画面で管理されます）。
+                    コメントへの返信・バージョンの確認はこの画面で行えます。
+                  </p>
+                ) : activeFormat === "html" ? (
                   <div className="overflow-hidden rounded-md border border-border">
                     <iframe
                       key={frameSrc}
                       title={title}
-                      src={frameSrc}
+                      src={frameSrc ?? undefined}
                       className="h-[600px] w-full border-0 bg-white"
                     />
                   </div>

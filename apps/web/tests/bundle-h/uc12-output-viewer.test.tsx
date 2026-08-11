@@ -371,7 +371,9 @@ describe("S-G01 OutputViewerContainer (T-UC-12 / GAP-023)", () => {
     expect(routerPush).not.toHaveBeenCalled();
   });
 
-  it("shows a not-generated message on 409", async () => {
+  it("renders the viewer with comments (no preview) on 409 — journey v2 是正", async () => {
+    // 営業ドラフト等の本文なし成果物: 画面ごと拒否せず、コメント返信と
+    // バージョン確認は可能にする (客コメント往復の断絶防止)。
     const get = vi.fn(async (path: string) => {
       if (path.includes("content-url")) throw apiError(409);
       if (
@@ -380,15 +382,34 @@ describe("S-G01 OutputViewerContainer (T-UC-12 / GAP-023)", () => {
         path.includes("fix-proposals")
       )
         return { data: [] };
-      if (path === "/comments") return { data: [] };
-      return { data: { summary: "draft" } };
+      if (path === "/comments")
+        return {
+          data: [
+            {
+              id: "c-client",
+              content: "内訳を確認したいです",
+              author_invitation_id: "inv-1",
+              created_at: "2026-08-11T00:00:00Z",
+              status: "open",
+            },
+          ],
+        };
+      return { data: { summary: "LP一式お見積" } };
     });
     renderWithQuery(
       <OutputViewerContainer outputId="o1" client={clientOf(get)} />,
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "まだ生成されていません",
-    );
+    expect(
+      await screen.findByText(/この成果物は本文ファイルを持ちません/),
+    ).toBeInTheDocument();
+    // クライアントのコメントに返信できる (往復の成立)
+    expect(screen.getByText("内訳を確認したいです")).toBeInTheDocument();
+    expect(screen.getByText("クライアント（招待）")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "返信" })).toBeInTheDocument();
+    // 死にボタンを出さない: 編集 (スティーブ) / 原本 / DL はプレビュー無しでは非表示
+    expect(screen.queryByRole("button", { name: "編集" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "原本" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "DL" })).toBeNull();
   });
 
   it("shows a forbidden message on 403", async () => {
