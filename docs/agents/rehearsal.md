@@ -67,3 +67,32 @@ pm ペインに次を貼る:
 git log --oneline -3   # REHEARSAL-1 の commit を確認 (残してよければそのまま)
 tmux kill-session -t flow-Atelier
 ```
+
+## 実走記録 (2026-08-11・クラウドコンテナで先行実走済み)
+
+Mac を待たず、開発コンテナ (claude CLI v2.1.227 + tmux) で STEP 1〜2 相当を実走した。
+**Mac で残る確認は「/rc スマホ接続」と「Mac 固有の起動タイミング」の 2 点のみ。**
+
+### 実証できたこと (すべて人間の操作ゼロで発生)
+
+1. ccstart で 3 ペイン起動 + /rename 自動投入 + SessionStart hook の役割注入
+2. pm がタスクパッケージ (.flow/tasks/REHEARSAL-1.md) を規約どおり作成 —
+   ダミータスクが tickets.json 外であることの例外宣言まで自発的に記載
+3. **メッセージ受信で dev が自動起動**して実装 (README の実在する記載ミスを発見・修正) →
+   impl レポート → qa へ IMPL_DONE
+4. **qa も自動起動して独立検証し、本物の差分を検出して QA_FAIL** (タスクパッケージの
+   「commit 不要」に対し、フロー外の運用者が入れた commit の存在を突き止めた)
+5. dev は QA_FAIL を受けて調査し、**独断せず pm へ ESCALATE** (プロトコル遵守) →
+   pm が FIX_REQUEST → dev 対応、の失敗系分岐まで一周
+6. flow.sh のバトン記録と Stop hook 環境が全遷移で機能
+
+### 運用上の学び (Mac 運用にも適用)
+
+- **フロー外から repo に手を入れない**。運用者の割り込み commit が QA_FAIL の
+  引き金になった (qa が正しく検出した = 検証の独立性が本物である証明でもある)
+- pm への裁定伝達と dev の ESCALATE 処理が交錯すると、pm が裁定を読む前に
+  FIX_REQUEST を出すことがある。**裁定は「ESCALATE を受けてから」返すのが安全**
+  (pm が止まって待っている状態で送る)
+- root 環境 (Linux サーバー等) では `--permission-mode bypassPermissions` が CLI に
+  拒否される。`NO_AUTO=1` + `.claude/settings.local.json` の許可リストで代替できる
+  (Mac の通常ユーザーでは非該当)
