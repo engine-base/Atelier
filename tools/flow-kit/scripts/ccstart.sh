@@ -51,8 +51,12 @@ start_role 0 pm
 start_role 1 dev
 start_role 2 qa
 
-echo "claude 起動待ち (15 秒)..."
-sleep 15
+# 役割プロンプトは SessionStart hook (flow-sessionstart-hook.sh) が CC_ROLE を見て
+# 自動注入するため、ここで打ち込むのは /rename と /rc のみ (どちらも失敗しても
+# 手で打てば同じ — README.md の手動手順)。
+BOOT_WAIT="${CC_BOOT_WAIT:-15}"
+echo "claude 起動待ち (${BOOT_WAIT} 秒 — 遅い環境は CC_BOOT_WAIT=30 等で調整)..."
+sleep "$BOOT_WAIT"
 
 setup_role() {
   local pane="$1" role="$2"
@@ -64,19 +68,16 @@ setup_role() {
     tmux send-keys -t "$SESSION:flow.$pane" C-m
     sleep 3
   fi
-  tmux send-keys -t "$SESSION:flow.$pane" -l "$(cat "$REPO/docs/agents/boot/$role.txt")"
-  tmux send-keys -t "$SESSION:flow.$pane" C-m
-  sleep 2
 }
 
-# dev / qa を先に待機させ、pm を最後に起こす
+# dev / qa を先に整え、pm を最後に
 setup_role 1 dev
 setup_role 2 qa
 setup_role 0 pm
 
 echo ""
 echo "起動しました: tmux attach -t $SESSION"
-echo "  左=pm / 右上=dev / 右下=qa (各ペインで『◯◯ 準備完了』を確認)"
+echo "  左=pm / 右上=dev / 右下=qa (役割は SessionStart hook が自動注入 — 各ペインで『◯◯ 準備完了』を確認)"
 echo "  開始するには pm ペインに例:『開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて』"
 echo "  スマホ: 各ペインの /rc 出力の案内どおり Claude アプリの Code タブから接続"
 echo "  停止: tmux kill-session -t $SESSION"

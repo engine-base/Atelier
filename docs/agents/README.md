@@ -21,22 +21,27 @@ cd ~/path/to/Atelier
 ./scripts/ccstart.sh
 ```
 
-これで tmux 1 画面に 左=pm / 右上=dev / 右下=qa が立ち上がり、各セッションに
-自動で `/rename` → `/rc` (スマホ接続) → 役割 boot プロンプトが投入される。
-3 ペインとも「◯◯ 準備完了」と言ったら、**pm ペインに開始の一言**を打つ:
+これで tmux 1 画面に 左=pm / 右上=dev / 右下=qa が立ち上がる。
+**役割プロンプトは SessionStart hook が自動注入する** (タイミング依存なし —
+`CC_ROLE` を見て `docs/agents/boot/` を起動時にコンテキストへ入れる。再開時は
+バトン状態も一緒に注入される)。ccstart が文字入力するのは `/rename` と `/rc`
+だけ。3 ペインとも「◯◯ 準備完了」と言ったら、**pm ペインに開始の一言**を打つ:
 
 > 開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて。
 
 以降は pm→dev→qa→pm が自動で回る。権限確認は既定で自動承認モード
 (`--permission-mode bypassPermissions`)。止めたいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
+起動が遅い環境で `/rename` が空振りするなら `CC_BOOT_WAIT=30 ./scripts/ccstart.sh`。
 
-### 自動投入が失敗したペインの手動復旧 (打つのは 3 行だけ)
+### 自動化が効かなかったペインの手動復旧
 
 ```
-/rename pm        ← そのペインの役割名 (pm / dev / qa)
+/rename pm        ← そのペインの役割名 (pm / dev / qa) — 入っていなければ
 /rc               ← スマホ管理する場合
-(docs/agents/boot/<役割>.txt の内容を貼る)
 ```
+
+役割注入 (準備完了の応答) が無い場合のみ `docs/agents/boot/<役割>.txt` の内容を
+そのまま貼る (hook と同じ内容なので二重になっても害はない)。
 
 ## スマホ (Remote Control) での日通し管理
 

@@ -24,13 +24,14 @@ echo "flow-kit を導入: $TARGET"
 # 1. スクリプト (常に最新へ上書き)
 mkdir -p "$TARGET/scripts/agents"
 cp "$KIT/scripts/ccstart.sh" "$TARGET/scripts/ccstart.sh"
-cp "$KIT/scripts/agents/flow.sh" "$KIT/scripts/agents/flow-stop-hook.sh" "$TARGET/scripts/agents/"
-chmod +x "$TARGET/scripts/ccstart.sh" "$TARGET/scripts/agents/flow.sh" "$TARGET/scripts/agents/flow-stop-hook.sh"
-echo "  ✓ scripts/ccstart.sh, scripts/agents/{flow.sh,flow-stop-hook.sh}"
+cp "$KIT/scripts/agents/flow.sh" "$KIT/scripts/agents/flow-stop-hook.sh" \
+  "$KIT/scripts/agents/flow-sessionstart-hook.sh" "$TARGET/scripts/agents/"
+chmod +x "$TARGET/scripts/ccstart.sh" "$TARGET/scripts/agents/"*.sh
+echo "  ✓ scripts/ccstart.sh, scripts/agents/{flow.sh,flow-stop-hook.sh,flow-sessionstart-hook.sh}"
 
 # 2. 役割定義 (既存を尊重 — 無いものだけ配置)
 mkdir -p "$TARGET/docs/agents/boot"
-for f in README.md protocol.md project.md pm.md dev.md qa.md; do
+for f in README.md protocol.md project.md pm.md dev.md qa.md rehearsal.md; do
   if [ -f "$TARGET/docs/agents/$f" ]; then
     echo "  - docs/agents/$f は既存のため保持"
   else
@@ -47,7 +48,7 @@ for f in pm.txt dev.txt qa.txt; do
   fi
 done
 
-# 3. .claude/settings.json に Stop hook をマージ
+# 3. .claude/settings.json に Stop / SessionStart hook をマージ
 mkdir -p "$TARGET/.claude"
 python3 - "$TARGET/.claude/settings.json" << 'PYEOF'
 import json
@@ -60,23 +61,30 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     settings = {}
 
-hook_cmd = '"$CLAUDE_PROJECT_DIR"/scripts/agents/flow-stop-hook.sh'
 hooks = settings.setdefault("hooks", {})
-stop = hooks.setdefault("Stop", [])
-already = any(
-    h.get("command") == hook_cmd
-    for entry in stop
-    for h in entry.get("hooks", [])
-    if isinstance(h, dict)
-)
-if not already:
-    stop.append({"hooks": [{"type": "command", "command": hook_cmd}]})
+changed = False
+for event, script in (
+    ("Stop", "flow-stop-hook.sh"),
+    ("SessionStart", "flow-sessionstart-hook.sh"),
+):
+    hook_cmd = f'"$CLAUDE_PROJECT_DIR"/scripts/agents/{script}'
+    entries = hooks.setdefault(event, [])
+    already = any(
+        h.get("command") == hook_cmd
+        for entry in entries
+        for h in entry.get("hooks", [])
+        if isinstance(h, dict)
+    )
+    if already:
+        print(f"  - .claude/settings.json の {event} hook は設定済み")
+    else:
+        entries.append({"hooks": [{"type": "command", "command": hook_cmd}]})
+        changed = True
+        print(f"  ✓ .claude/settings.json に {event} hook を追加")
+if changed:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(settings, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    print("  ✓ .claude/settings.json に Stop hook を追加")
-else:
-    print("  - .claude/settings.json の Stop hook は設定済み")
 PYEOF
 
 # 4. .gitignore に .flow/
