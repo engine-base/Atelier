@@ -4,7 +4,7 @@
 #   ./scripts/ccstart.sh          # macOS Terminal では 3 ウィンドウ、無ければ 1 画面 3 ペイン
 #   CC_PANES=1 ./scripts/ccstart.sh  # 常に 1 画面 3 ペイン (tmux split) で開く
 #   NO_RC=1 ./scripts/ccstart.sh     # /rc (スマホ Remote Control) の自動有効化を省略
-#   NO_AUTO=1 ./scripts/ccstart.sh   # 権限自動承認 (--permission-mode bypassPermissions) を省略
+#   NO_AUTO=1 ./scripts/ccstart.sh   # 許可リストを書かない (通常のプロンプトあり)
 #
 # 前提: macOS + tmux + Claude Code CLI v2.1.224 以上 (/login 済み)。
 # 各セッションの流れ: claude 起動 → (役割は SessionStart hook が自動注入) → /rename → /rc。
@@ -29,36 +29,68 @@ else
   MODE="panes"
 fi
 
+# 権限モード:
+#  既定 (Mac 推奨) = プロジェクトの .claude/settings.local.json に許可リストを書き、
+#    ツール実行時のプロンプトを出さない (bypassPermissions の警告ダイアログも出ない)。
+#  CC_BYPASS=1     = --permission-mode bypassPermissions (隔離コンテナ用。Mac では毎回
+#    警告が出るため非推奨)。
+#  NO_AUTO=1       = 何もしない (通常のプロンプトあり)。
 CLAUDE_ARGS=""
-if [ -z "${NO_AUTO:-}" ]; then
+if [ -n "${CC_BYPASS:-}" ] && [ -z "${NO_AUTO:-}" ]; then
   CLAUDE_ARGS="--permission-mode bypassPermissions"
 fi
 
-# 初回起動時の確認ダイアログ (フォルダ信頼 / 自動承認モード同意) を事前承認して
-# そもそも表示させない — ダイアログ表示中に自動キー入力が届くと Enter が
-# 「No, exit」を選んで claude が終了する事故 (Mac 初回実走で検出) の恒久対策。
-python3 - "$REPO" "${NO_AUTO:-}" << 'PYEOF'
+# フォルダ信頼ダイアログを事前承認 (これは設定で確実に抑止できる)。
+python3 - "$REPO" << 'PYEOF'
 import json
 import os
 import sys
 
-repo, no_auto = sys.argv[1], sys.argv[2]
+repo = sys.argv[1]
 path = os.path.expanduser("~/.claude.json")
 try:
     with open(path, encoding="utf-8") as f:
         cfg = json.load(f)
 except Exception:
     cfg = {}
-if not no_auto:
-    cfg["bypassPermissionsModeAccepted"] = True
 proj = cfg.setdefault("projects", {}).setdefault(repo, {})
 proj["hasTrustDialogAccepted"] = True
 proj.setdefault("hasCompletedProjectOnboarding", True)
 with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
-label = "フォルダ信頼" + ("" if no_auto else " + 自動承認モード同意")
-print(f"  ✓ 初回確認ダイアログを事前承認 ({label})")
+print("  ✓ フォルダ信頼を事前承認")
 PYEOF
+
+# 許可リスト方式 (既定): ツール実行をプロンプトなしで通す。bypass の警告も出ない。
+if [ -z "${NO_AUTO:-}" ] && [ -z "${CC_BYPASS:-}" ]; then
+  python3 - "$REPO" << 'PYEOF'
+import json
+import os
+import sys
+
+repo = sys.argv[1]
+path = os.path.join(repo, ".claude", "settings.local.json")
+os.makedirs(os.path.dirname(path), exist_ok=True)
+try:
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+except Exception:
+    cfg = {}
+allow = [
+    "Bash", "Edit", "Write", "Read", "Glob", "Grep", "LS",
+    "WebFetch", "WebSearch", "TodoWrite", "Task", "NotebookEdit",
+    "BashOutput", "KillShell", "Skill", "SendMessage", "ListAgents",
+]
+perms = cfg.setdefault("permissions", {})
+cur = perms.setdefault("allow", [])
+for a in allow:
+    if a not in cur:
+        cur.append(a)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+print(f"  ✓ 許可リストを設定 (.claude/settings.local.json — プロンプトなしで自走)")
+PYEOF
+fi
 
 # バトン状態を初期化 (前回のランタイム状態を引き継がない)
 rm -f "$REPO/.flow/state.json"

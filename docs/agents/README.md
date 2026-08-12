@@ -13,8 +13,6 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 1. Claude Code CLI **v2.1.224 以上** (`claude --version`) + Pro/Max で `/login` 済み
 2. `brew install tmux` (未導入なら)
 3. Mac を電源に接続。スリープ防止はスクリプトが `caffeinate` で自動常駐する
-4. (Linux サーバー等 root で運用する場合のみ) 自動承認モードは CLI に拒否されるため
-   `NO_AUTO=1` で起動し、`.claude/settings.local.json` の permissions.allow で代替する
 
 ## 毎日の起動 (1 コマンド)
 
@@ -33,8 +31,9 @@ cd ~/path/to/Atelier
 
 > 開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて。
 
-以降は pm→dev→qa→pm が自動で回る。権限確認は既定で自動承認モード
-(`--permission-mode bypassPermissions`)。止めたいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
+以降は pm→dev→qa→pm が自動で回る。権限確認は既定でプロンプトを出さない
+(`.claude/settings.local.json` の許可リストを ccstart が自動設定 — bypass の警告
+ダイアログも出ない)。プロンプトを残したいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
 起動が遅い環境で `/rename` が空振りするなら `CC_BOOT_WAIT=30 ./scripts/ccstart.sh`。
 
 ### 自動化が効かなかったペインの手動復旧

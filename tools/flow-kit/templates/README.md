@@ -35,8 +35,9 @@ cd <このプロジェクトのルート>
 
 > 開始。project.md のタスク源から優先度順に進めて。
 
-以降は pm→dev→qa→pm が自動で回る。権限確認は既定で自動承認モード
-(`--permission-mode bypassPermissions`)。止めたいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
+以降は pm→dev→qa→pm が自動で回る。権限確認は既定でプロンプトを出さない
+(`.claude/settings.local.json` の許可リストを ccstart が自動設定 — bypass の警告
+ダイアログも出ない)。プロンプトを残したいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
 起動が遅い環境で `/rename` が空振りするなら `CC_BOOT_WAIT=30 ./scripts/ccstart.sh`。
 
 ### 自動化が効かなかったペインの手動復旧
