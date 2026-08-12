@@ -121,6 +121,13 @@ wait_ready() {  # target
 
 setup_target() {  # target role
   wait_ready "$1" || return 0
+  # claude 新バージョン初回のワンタイム案内 (テーマ選択 / fullscreen renderer 等) を
+  # Esc で片付けてから /rename を送る。Esc はダイアログを既定のままキャンセルし、
+  # ダイアログが無ければ入力欄に無害。複数スタックに備えて数回送る。
+  for _ in 1 2 3; do
+    tmux send-keys -t "$1" Escape
+    sleep 1
+  done
   tmux send-keys -t "$1" -l "/rename $2"
   tmux send-keys -t "$1" C-m
   sleep 3
