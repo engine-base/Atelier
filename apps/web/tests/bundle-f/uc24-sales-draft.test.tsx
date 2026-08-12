@@ -1,11 +1,12 @@
 /**
- * T-UC-24 — S-N01 商談ドラフト コンテナ配線テスト (design-audit v2)
+ * T-UC-24 — S-N01 商談ドラフト コンテナ配線テスト (GAP-018 後の API 面)
  *
  * fake client を注入し real API を叩かずに検証する:
- *   - GET /sales-docs?project_id&doc_type で保存済み一覧 (提案/見積 両タブぶん)
- *   - フォーム送信で POST /sales-docs (doc_type はタブ追従, project_id, summary)
- *   - 履歴選択 → 編集保存で PATCH /sales-docs/{id}
- *   - 履歴削除 (2 段階) で DELETE /sales-docs/{id}
+ *   - GET /sales-docs?project_id で全 doc_type 一括取得 → タブ件数バッジ実件数
+ *   - 「AI を使わず保存」で POST /sales-docs (doc_type はタブ追従, 構造化 summary)
+ *   - 履歴選択 → 編集保存で PATCH /sales-docs/{doc_id}
+ *   - 履歴削除 (2 段階) で DELETE /sales-docs/{doc_id}
+ * (トニー生成 / PDF / 送信 / 生成トレースは bundle-h/chat-collab.test.tsx が担当)
  */
 
 // @vitest-environment jsdom
@@ -48,37 +49,34 @@ function fakeClient(
   } as unknown as ApiClient;
 }
 
-/** proposal タブにのみ DOC を返す GET モック。 */
-function getWithProposal() {
-  return vi.fn(async (_p: string, init: unknown) => {
-    const q = (init as { params: { query: { doc_type: string } } }).params
-      .query;
-    return { data: q.doc_type === "proposal" ? [DOC] : [] };
-  });
+/** /sales-docs には DOC、送信履歴には空を返す GET モック。 */
+function getWithDoc() {
+  return vi.fn(async (path: string) => ({
+    data: path === "/sales-docs" ? [DOC] : [],
+  }));
 }
 
 afterEach(() => vi.clearAllMocks());
 
 describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
-  it("lists saved docs from GET /sales-docs (both tabs queried, real counts)", async () => {
-    const get = getWithProposal();
+  it("lists saved docs from GET /sales-docs (一括取得 + タブ実件数バッジ)", async () => {
+    const get = getWithDoc();
     renderWithQuery(
       <SalesDocDraftContainer projectId="p1" client={fakeClient({ get })} />,
     );
     expect(await screen.findByText(/既存提案/)).toBeInTheDocument();
-    const queried = get.mock.calls.map(
-      (c) =>
-        (c[1] as { params: { query: { doc_type: string } } }).params.query
-          .doc_type,
-    );
-    expect(queried).toContain("proposal");
-    expect(queried).toContain("estimate");
-    // タブバッジは実件数
+    // GAP-018: doc_type 別クエリではなく project_id のみで一括取得し client 側で振り分け
+    const [path, init] = get.mock.calls[0]! as unknown as [
+      string,
+      { params: { query: Record<string, unknown> } },
+    ];
+    expect(path).toBe("/sales-docs");
+    expect(init.params.query).toEqual({ project_id: "p1" });
     expect(screen.getByRole("tab", { name: /提案書/ })).toHaveTextContent("1");
     expect(screen.getByRole("tab", { name: /見積書/ })).toHaveTextContent("0");
   });
 
-  it("creates via POST with the active tab doc_type and shows the saved doc", async () => {
+  it("creates via 「AI を使わず保存」 with the active tab doc_type", async () => {
     const post = vi.fn(async () => ({
       data: { ...DOC, id: "d9", summary: "# 新規案件\n\n顧客: ACME" },
     }));
@@ -94,7 +92,7 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
     fireEvent.change(screen.getByLabelText(/商談概要/), {
       target: { value: "十分に長い商談概要のサンプルテキスト" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "ドラフト生成" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI を使わず保存" }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     const [path, init] = post.mock.calls[0]! as unknown as [
       string,
@@ -103,14 +101,12 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
     expect(path).toBe("/sales-docs");
     expect(init.body.project_id).toBe("p1");
     expect(init.body.doc_type).toBe("proposal");
+    expect(init.body.summary).toContain("# 新規案件");
     expect(init.body.summary).toContain("顧客: ACME");
-    expect(
-      await screen.findByRole("article", { name: "生成ドラフト" }),
-    ).toHaveTextContent("新規案件");
   });
 
-  it("edits the selected doc via PATCH /sales-docs/{id}", async () => {
-    const get = getWithProposal();
+  it("edits the selected doc via PATCH /sales-docs/{doc_id}", async () => {
+    const get = getWithDoc();
     const patch = vi.fn(async () => ({ data: {} }));
     renderWithQuery(
       <SalesDocDraftContainer
@@ -118,11 +114,10 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
         client={fakeClient({ get, patch })}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: /既存提案/ }));
-    fireEvent.click(screen.getByRole("button", { name: "編集" }));
-    fireEvent.change(screen.getByLabelText("ドラフト本文"), {
-      target: { value: "# 既存提案\n\n改訂本文" },
-    });
+    fireEvent.click(await screen.findByText(/既存提案/));
+    fireEvent.click(await screen.findByRole("button", { name: "編集" }));
+    const ta = await screen.findByLabelText("ドラフト本文");
+    fireEvent.change(ta, { target: { value: "# 既存提案\n\n改訂本文" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     const [path, init] = patch.mock.calls[0]! as unknown as [
@@ -134,16 +129,18 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
     expect(init.body.summary).toContain("改訂本文");
   });
 
-  it("deletes via DELETE /sales-docs/{id} after 2-step confirm", async () => {
-    const get = getWithProposal();
-    const del = vi.fn(async () => undefined);
+  it("deletes via DELETE /sales-docs/{doc_id} after 2-step confirm", async () => {
+    const get = getWithDoc();
+    const del = vi.fn(async () => ({ data: {} }));
     renderWithQuery(
       <SalesDocDraftContainer
         projectId="p1"
         client={fakeClient({ get, delete: del })}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "v1 を削除" }));
+    await screen.findByText(/既存提案/);
+    fireEvent.click(screen.getByRole("button", { name: "v1 を削除" }));
+    // 1 クリック目では消えない (2 段階確認)
     expect(del).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "削除する" }));
     await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
