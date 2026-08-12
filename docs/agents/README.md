@@ -23,7 +23,9 @@ cd ~/path/to/Atelier
 ./scripts/ccstart.sh
 ```
 
-これで tmux 1 画面に 左=pm / 右上=dev / 右下=qa が立ち上がる。
+これで **pm / dev / qa の 3 つの独立した Terminal ウィンドウ**が立ち上がる
+(macOS Terminal 以外や `CC_PANES=1` では 1 画面 3 ペイン)。ウィンドウを
+閉じても裏の tmux セッションは生存し `tmux attach -t flow-pm` で開き直せる。
 **役割プロンプトは SessionStart hook が自動注入する** (タイミング依存なし —
 `CC_ROLE` を見て `docs/agents/boot/` を起動時にコンテキストへ入れる。再開時は
 バトン状態も一緒に注入される)。ccstart が文字入力するのは `/rename` と `/rc`
@@ -58,7 +60,7 @@ cd ~/path/to/Atelier
 |---|---|---|
 | レート制限 | ペインに制限メッセージ。`/status` で 5h/週の残量確認 | 枠回復後、そのセッションに「続けて」と送る (スマホからで OK)。自動再開はしない |
 | バトン落ち (誰も動いていない) | `./scripts/agents/flow.sh status` で holder を確認 | holder のセッションに「protocol.md に従って続きを進めて」と一言 |
-| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-session -t flow-Atelier` 後) |
+| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-server` 後) |
 
 ## 運用ルールの要点 (詳細は protocol.md)
 
