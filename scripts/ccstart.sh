@@ -72,15 +72,18 @@ start_target() {  # target role
 }
 
 wait_ready() {  # target
-  local tries="${CC_BOOT_TRIES:-60}"
+  # claude は node プロセスとして起動する。ペインの現在コマンドが shell から
+  # node/claude に変わったら起動完了とみなす (画面文字列の scrape より確実)。
+  local tries="${CC_BOOT_TRIES:-45}" cmd
   while [ "$tries" -gt 0 ]; do
-    if tmux capture-pane -t "$1" -p 2> /dev/null | grep -q "? for shortcuts"; then
-      return 0
-    fi
-    sleep 2
+    cmd="$(tmux display-message -p -t "$1" '#{pane_current_command}' 2> /dev/null || echo "")"
+    case "$cmd" in
+      node | claude | Claude | claude-code) sleep 2; return 0 ;;
+    esac
+    sleep 1
     tries=$((tries - 1))
   done
-  echo "  ⚠ $1 が起動待ちタイムアウト (手動で /rename を打ってください)"
+  echo "  ⚠ $1 が起動待ちタイムアウト (ウィンドウで手動: /rename <役割> を打ってください)"
   return 1
 }
 
@@ -117,13 +120,10 @@ if [ "$MODE" = "windows" ]; then
     tmux new-session -d -s "flow-$role" -c "$REPO"
     start_target "flow-$role" "$role"
   done
-  # dev / qa を先に整え、pm を最後に
-  setup_target flow-dev dev
-  setup_target flow-qa qa
-  setup_target flow-pm pm
-  # 各役割を独立した Terminal ウィンドウで開く (pm を最後 = 最前面に)
+  # 先にウィンドウを開く (claude 起動が各ウィンドウ内で見える) — dev/qa/pm 順で pm 最前面
+  echo "  3 ウィンドウを起動中..."
   for role in dev qa pm; do
-    osascript > /dev/null 2>&1 <<OSA || echo "  ⚠ $role のウィンドウを開けませんでした → 手動: tmux attach -t flow-$role"
+    osascript > /dev/null 2>&1 <<OSA || echo "  ⚠ $role のウィンドウを開けませんでした → 手動で新規ターミナルに: tmux attach -t flow-$role"
 tell application "Terminal"
   activate
   do script "tmux attach -t flow-$role"
@@ -131,6 +131,10 @@ tell application "Terminal"
 end tell
 OSA
   done
+  # 各ウィンドウで claude が起動しきったら /rename・/rc を送る (ユーザーには live で見える)
+  setup_target flow-dev dev
+  setup_target flow-qa qa
+  setup_target flow-pm pm
   echo ""
   echo "起動しました (3 ウィンドウ: pm / dev / qa)"
   echo "  各ウィンドウで『◯◯ 準備完了』を確認 → pm ウィンドウに開始の一言を入力"
