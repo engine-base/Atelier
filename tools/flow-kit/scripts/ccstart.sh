@@ -110,14 +110,20 @@ drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力
   #   ・"Esc to cancel" を含む選択案内 (fullscreen renderer 等) → Esc で既定維持
   #   ・"Enter to confirm" だけの案内 → Enter で既定選択
   #   ・"for short"(? for shortcuts) → 入力欄に到達 (案内なし)
-  local tries="${CC_BOOT_TRIES:-90}" screen ready_seen=0
-  # まず claude プロセス起動を待つ
-  while [ "$tries" -gt 0 ]; do
+  local tries="${CC_BOOT_TRIES:-90}" boot_tries screen ready_seen=0
+  # まず claude プロセス起動を待つ。プロセス名は環境で異なる:
+  #   Mac 実機 = claude.exe (実測・tmux ステータスバーで確認) / Linux = claude / 旧 = node
+  # 名前を固定列挙すると新環境で外れるため *claude* を部分一致で拾う。
+  # 検出できなくても致命ではない (画面監視が本体) ので待ちは最大 30 秒に留め、
+  # タイムアウト時もそのまま画面監視へ進む。
+  boot_tries="$tries"
+  [ "$boot_tries" -gt 30 ] && boot_tries=30
+  while [ "$boot_tries" -gt 0 ]; do
     case "$(tmux display-message -p -t "$1" '#{pane_current_command}' 2> /dev/null)" in
-      node | claude | Claude | claude-code) break ;;
+      node | bun | *[Cc]laude*) break ;;
     esac
     sleep 1
-    tries=$((tries - 1))
+    boot_tries=$((boot_tries - 1))
   done
   # 画面遷移を監視
   while [ "$tries" -gt 0 ]; do
