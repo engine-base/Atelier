@@ -28,6 +28,32 @@ if [ -z "${NO_AUTO:-}" ]; then
   CLAUDE_ARGS="--permission-mode bypassPermissions"
 fi
 
+# 初回起動時の確認ダイアログ (フォルダ信頼 / 自動承認モード同意) を事前承認して
+# そもそも表示させない — ダイアログ表示中に自動キー入力が届くと Enter が
+# 「No, exit」を選んで claude が終了する事故 (Mac 初回実走で検出) の恒久対策。
+python3 - "$REPO" "${NO_AUTO:-}" << 'PYEOF'
+import json
+import os
+import sys
+
+repo, no_auto = sys.argv[1], sys.argv[2]
+path = os.path.expanduser("~/.claude.json")
+try:
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+except Exception:
+    cfg = {}
+if not no_auto:
+    cfg["bypassPermissionsModeAccepted"] = True
+proj = cfg.setdefault("projects", {}).setdefault(repo, {})
+proj["hasTrustDialogAccepted"] = True
+proj.setdefault("hasCompletedProjectOnboarding", True)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+label = "フォルダ信頼" + ("" if no_auto else " + 自動承認モード同意")
+print(f"  ✓ 初回確認ダイアログを事前承認 ({label})")
+PYEOF
+
 # バトン状態を初期化 (前回のランタイム状態を引き継がない)
 rm -f "$REPO/.flow/state.json"
 mkdir -p "$REPO/.flow/reports"
@@ -52,14 +78,25 @@ start_role 1 dev
 start_role 2 qa
 
 # 役割プロンプトは SessionStart hook (flow-sessionstart-hook.sh) が CC_ROLE を見て
-# 自動注入するため、ここで打ち込むのは /rename と /rc のみ (どちらも失敗しても
-# 手で打てば同じ — README.md の手動手順)。
-BOOT_WAIT="${CC_BOOT_WAIT:-15}"
-echo "claude 起動待ち (${BOOT_WAIT} 秒 — 遅い環境は CC_BOOT_WAIT=30 等で調整)..."
-sleep "$BOOT_WAIT"
+# 自動注入するため、ここで打ち込むのは /rename と /rc のみ。
+# 固定 sleep ではなく、ペインに入力プロンプト (「? for shortcuts」) が実際に
+# 出るまで待ってから打つ (マシン速度に依存しない)。
+wait_for_ready() {
+  local pane="$1" tries="${CC_BOOT_TRIES:-60}"
+  while [ "$tries" -gt 0 ]; do
+    if tmux capture-pane -t "$SESSION:flow.$pane" -p 2> /dev/null | grep -q "? for shortcuts"; then
+      return 0
+    fi
+    sleep 2
+    tries=$((tries - 1))
+  done
+  echo "  ⚠ ペイン $pane が ${CC_BOOT_TRIES:-60}x2 秒以内に起動しませんでした (手動で /rename を打ってください)"
+  return 1
+}
 
 setup_role() {
   local pane="$1" role="$2"
+  wait_for_ready "$pane" || return 0
   tmux send-keys -t "$SESSION:flow.$pane" -l "/rename $role"
   tmux send-keys -t "$SESSION:flow.$pane" C-m
   sleep 3
