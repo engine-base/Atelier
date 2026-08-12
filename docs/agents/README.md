@@ -59,7 +59,10 @@ cd ~/path/to/Atelier
 |---|---|---|
 | レート制限 | ペインに制限メッセージ。`/status` で 5h/週の残量確認 | 枠回復後、そのセッションに「続けて」と送る (スマホからで OK)。自動再開はしない |
 | バトン落ち (誰も動いていない) | `./scripts/agents/flow.sh status` で holder を確認 | holder のセッションに「protocol.md に従って続きを進めて」と一言 |
-| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-server` 後) |
+| セッション/PC が落ちた | ペインが shell に戻っている | そのペインで `env -u ANTHROPIC_API_KEY CC_ROLE=<役割> claude --continue` → 直近の会話から再開。全滅なら ccstart をやり直し (`tmux kill-server` 後) |
+
+課金は常に **Claude アカウントのプラン (subscription)**。シェルに API キーが
+設定されていても ccstart がキーを無視して起動する (API 従量課金には流れない)。
 
 ## 運用ルールの要点 (詳細は protocol.md)
 

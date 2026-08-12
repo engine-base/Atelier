@@ -59,6 +59,11 @@ proj.setdefault("hasCompletedProjectOnboarding", True)
 with open(path, "w", encoding="utf-8") as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
 print("  ✓ フォルダ信頼を事前承認")
+if cfg.get("oauthAccount"):
+    print("  ✓ Claude アカウントにログイン済み (プランで動作)")
+else:
+    print("  ⚠ Claude アカウント未ログイン — 画面にログイン選択が出たら 1 ウィンドウで")
+    print("    一度だけ完了してください (全セッション共通。以後は自動)")
 PYEOF
 
 # 許可リスト方式 (既定): ツール実行をプロンプトなしで通す。bypass の警告も出ない。
@@ -100,7 +105,14 @@ mkdir -p "$REPO/.flow/reports"
 # 共通ヘルパ (tmux target = "session" または "session:pane")
 # --------------------------------------------------------------------------- #
 start_target() {  # target role
-  tmux send-keys -t "$1" "CC_ROLE=$2 $CLAUDE_BIN $CLAUDE_ARGS" C-m
+  # 課金は Claude アカウントのプラン (subscription ログイン) を必ず使う。
+  # シェル設定 (.zshrc 等) に ANTHROPIC_API_KEY などが残っていると claude が
+  # API 従量課金 (API Usage Billing) に切り替わってしまうため、既定でキー系の
+  # 環境変数をすべて外して起動する。キー認証で動かしたい特殊環境 (コンテナ/CI)
+  # のみ CC_USE_API_KEY=1 で従来どおり。
+  local envprefix="env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CLAUDE_CODE_API_KEY "
+  [ -n "${CC_USE_API_KEY:-}" ] && envprefix=""
+  tmux send-keys -t "$1" "${envprefix}CC_ROLE=$2 $CLAUDE_BIN $CLAUDE_ARGS" C-m
 }
 
 drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力欄到達で 0 を返す
