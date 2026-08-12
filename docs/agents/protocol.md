@@ -77,3 +77,6 @@ PM:  検収チェックリスト (pm.md) → ACCEPTED + 次の TASK_READY、ま�
 - 外部契約・鍵 (OAuth / Stripe 等) が前提のタスク → PM へ返す
 - 同一タスクで QA_FAIL が 3 回 → qa は dev ではなく PM へ ESCALATE
 - レート制限・環境異常で続行不能 → 可能なら PM へ、PM 自身なら wait-user
+- **ESCALATE を受けた PM は、裁定を出す前に自分宛の未処理メッセージ (ユーザー/運用者
+  からの裁定・補足) が無いか必ず確認する**。ユーザー裁定と矛盾する FIX_REQUEST を
+  出さない (コンテナ実走で検出した交錯事故の再発防止 — rehearsal.md 実走記録参照)

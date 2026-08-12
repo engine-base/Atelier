@@ -13,6 +13,8 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 1. Claude Code CLI **v2.1.224 以上** (`claude --version`) + Pro/Max で `/login` 済み
 2. `brew install tmux` (未導入なら)
 3. Mac を電源に接続。スリープ防止はスクリプトが `caffeinate` で自動常駐する
+4. (Linux サーバー等 root で運用する場合のみ) 自動承認モードは CLI に拒否されるため
+   `NO_AUTO=1` で起動し、`.claude/settings.local.json` の permissions.allow で代替する
 
 ## 毎日の起動 (1 コマンド)
 
