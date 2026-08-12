@@ -103,31 +103,50 @@ start_target() {  # target role
   tmux send-keys -t "$1" "CC_ROLE=$2 $CLAUDE_BIN $CLAUDE_ARGS" C-m
 }
 
-wait_ready() {  # target
-  # claude は node プロセスとして起動する。ペインの現在コマンドが shell から
-  # node/claude に変わったら起動完了とみなす (画面文字列の scrape より確実)。
-  local tries="${CC_BOOT_TRIES:-45}" cmd
+drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力欄到達で 0 を返す
+  # 固定タイミング送信は不可 (案内は claude 起動から数秒遅れて描画されるため
+  # 空振りする)。人間と同じく「画面を見て、案内が出たら閉じ、入力欄が出るまで
+  # 待つ」を 1 秒ごとに繰り返す。判定は Mac 実画面テキストで検証済み:
+  #   ・"Esc to cancel" を含む選択案内 (fullscreen renderer 等) → Esc で既定維持
+  #   ・"Enter to confirm" だけの案内 → Enter で既定選択
+  #   ・"for short"(? for shortcuts) → 入力欄に到達 (案内なし)
+  local tries="${CC_BOOT_TRIES:-90}" screen ready_seen=0
+  # まず claude プロセス起動を待つ
   while [ "$tries" -gt 0 ]; do
-    cmd="$(tmux display-message -p -t "$1" '#{pane_current_command}' 2> /dev/null || echo "")"
-    case "$cmd" in
-      node | claude | Claude | claude-code) sleep 2; return 0 ;;
+    case "$(tmux display-message -p -t "$1" '#{pane_current_command}' 2> /dev/null)" in
+      node | claude | Claude | claude-code) break ;;
     esac
     sleep 1
     tries=$((tries - 1))
   done
-  echo "  ⚠ $1 が起動待ちタイムアウト (ウィンドウで手動: /rename <役割> を打ってください)"
+  # 画面遷移を監視
+  while [ "$tries" -gt 0 ]; do
+    screen="$(tmux capture-pane -t "$1" -p 2> /dev/null || true)"
+    if printf '%s' "$screen" | grep -q "Esc to cancel"; then
+      tmux send-keys -t "$1" Escape
+      ready_seen=0
+      sleep 1
+    elif printf '%s' "$screen" | grep -q "Enter to confirm"; then
+      tmux send-keys -t "$1" Enter
+      ready_seen=0
+      sleep 1
+    elif printf '%s' "$screen" | grep -q "for short"; then
+      # 案内が無く入力欄が出ている状態が 2 連続で続けば確定 (描画途中の誤検出防止)
+      ready_seen=$((ready_seen + 1))
+      [ "$ready_seen" -ge 2 ] && return 0
+      sleep 1
+    else
+      ready_seen=0
+      sleep 1
+    fi
+    tries=$((tries - 1))
+  done
+  echo "  ⚠ $1 が入力欄に到達しませんでした (そのウィンドウで Esc → /rename <役割> を手動入力)"
   return 1
 }
 
 setup_target() {  # target role
-  wait_ready "$1" || return 0
-  # claude 新バージョン初回のワンタイム案内 (テーマ選択 / fullscreen renderer 等) を
-  # Esc で片付けてから /rename を送る。Esc はダイアログを既定のままキャンセルし、
-  # ダイアログが無ければ入力欄に無害。複数スタックに備えて数回送る。
-  for _ in 1 2 3; do
-    tmux send-keys -t "$1" Escape
-    sleep 1
-  done
+  drive_onboarding "$1" || return 0
   tmux send-keys -t "$1" -l "/rename $2"
   tmux send-keys -t "$1" C-m
   sleep 3
