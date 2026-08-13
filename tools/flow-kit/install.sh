@@ -101,6 +101,8 @@ fi
 
 echo ""
 echo "導入完了。次の手順:"
+"$KIT/bin/flow" add "$TARGET" || true
+
 echo "  1. $TARGET/docs/agents/project.md を埋める (仕様の正・DoD・検証手段・検収基準)"
 echo "  2. cd $TARGET && ./scripts/ccstart.sh"
 echo "  3. 3 ペインの「準備完了」を確認して pm に開始の一言"

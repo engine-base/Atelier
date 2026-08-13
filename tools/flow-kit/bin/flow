@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# flow — flow-kit プロジェクトのワンワード起動ランチャ。
+#
+#   flow              # 登録が 1 件ならそれを起動。複数なら番号で選択
+#   flow <名前>       # 名前指定で起動 (例: flow atelier)
+#   flow add [path]   # プロジェクトを登録 (path 省略時はカレント) + flow を PATH に配置
+#   flow list         # 登録一覧
+#   flow remove <名前> # 登録解除
+#
+# 起動時にやること: git pull → 既存 flow セッション停止 (確認つき) →
+# CC_AUTO_START=1 ./scripts/ccstart.sh (開始文送信まで全自動)。
+# 制約: セッション名 (flow-pm/dev/qa) を共有するため、同時に走らせられる
+# flow は 1 プロジェクトのみ。別プロジェクトを起動すると前のは停止する。
+set -euo pipefail
+
+REG_DIR="$HOME/.flow-kit"
+REG="$REG_DIR/projects"
+mkdir -p "$REG_DIR"
+touch "$REG"
+
+self_install() {  # PATH 上に flow を配置 (冪等)
+  local src dst
+  src="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  for d in /opt/homebrew/bin /usr/local/bin; do
+    if [ -d "$d" ] && [ -w "$d" ]; then
+      dst="$d/flow"
+      if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
+        cp "$src" "$dst" && chmod +x "$dst"
+      fi
+      echo "  ✓ $dst に配置済み — 以後どこからでも 1 語 flow で起動できます"
+      return 0
+    fi
+  done
+  if ! grep -q "flow-kit launcher" "$HOME/.zshrc" 2> /dev/null; then
+    echo "alias flow='$src'  # flow-kit launcher" >> "$HOME/.zshrc"
+    echo "  ✓ ~/.zshrc に alias flow を追加 — 新しいターミナルから 1 語 flow で起動できます"
+  fi
+}
+
+launch() {  # name path
+  cd "$2" || { echo "✗ $2 が存在しません (flow remove $1 で登録解除)"; exit 1; }
+  echo "flow: $1 ($2)"
+  git pull --ff-only 2> /dev/null || echo "  (git pull はスキップ — オフラインか upstream なし)"
+  # 既に別プロジェクトの flow が走っていたら確認してから止める
+  if tmux has-session -t flow-pm 2> /dev/null; then
+    local cur
+    cur="$(tmux display-message -p -t flow-pm '#{pane_current_path}' 2> /dev/null || true)"
+    if [ -n "$cur" ] && [ "$cur" != "$2" ]; then
+      printf '  ⚠ 別プロジェクト (%s) の flow が起動中です。停止して切り替えますか? [y/N] ' "$cur"
+      read -r ans
+      case "$ans" in y | Y) ;; *) echo "  中止しました"; exit 0 ;; esac
+    fi
+    tmux kill-session -t flow-pm 2> /dev/null || true
+    tmux kill-session -t flow-dev 2> /dev/null || true
+    tmux kill-session -t flow-qa 2> /dev/null || true
+    tmux kill-session -t flow-keepawake 2> /dev/null || true
+  fi
+  CC_AUTO_START="${CC_AUTO_START:-1}" exec ./scripts/ccstart.sh
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  add)
+    path="$(cd "${2:-.}" && pwd)"
+    [ -x "$path/scripts/ccstart.sh" ] || { echo "✗ $path に scripts/ccstart.sh がありません (先に flow-kit を導入: install.sh)"; exit 1; }
+    name="$(basename "$path" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' '-')"
+    grep -v "	$path\$" "$REG" > "$REG.tmp" 2> /dev/null || true
+    mv "$REG.tmp" "$REG"
+    printf '%s\t%s\n' "$name" "$path" >> "$REG"
+    echo "  ✓ 登録: $name → $path"
+    self_install
+    ;;
+  list)
+    if [ -s "$REG" ]; then
+      awk -F '\t' '{ printf "  %-20s %s\n", $1, $2 }' "$REG"
+    else
+      echo "登録なし (プロジェクトのルートで flow add)"
+    fi
+    ;;
+  remove)
+    [ -n "${2:-}" ] || { echo "usage: flow remove <名前>"; exit 1; }
+    grep -v "^$2	" "$REG" > "$REG.tmp" || true
+    mv "$REG.tmp" "$REG"
+    echo "  ✓ 登録解除: $2"
+    ;;
+  "" | *)
+    [ -s "$REG" ] || { echo "登録がありません。プロジェクトのルートで: flow add"; exit 1; }
+    if [ -n "$cmd" ]; then
+      line="$(grep "^$cmd	" "$REG" || true)"
+      [ -n "$line" ] || { echo "✗ 未登録: $cmd (flow list で確認)"; exit 1; }
+      launch "$cmd" "$(printf '%s' "$line" | cut -f2)"
+    fi
+    count="$(wc -l < "$REG" | tr -d ' ')"
+    if [ "$count" = "1" ]; then
+      launch "$(cut -f1 "$REG")" "$(cut -f2 "$REG")"
+    fi
+    echo "どのプロジェクトを起動しますか?"
+    i=0
+    while IFS="	" read -r n p; do
+      i=$((i + 1))
+      printf '  %d) %s (%s)\n' "$i" "$n" "$p"
+    done < "$REG"
+    printf '番号: '
+    read -r pick
+    line="$(sed -n "${pick}p" "$REG")"
+    [ -n "$line" ] || { echo "✗ 無効な番号"; exit 1; }
+    launch "$(printf '%s' "$line" | cut -f1)" "$(printf '%s' "$line" | cut -f2)"
+    ;;
+esac

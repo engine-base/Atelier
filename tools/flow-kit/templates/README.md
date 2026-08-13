@@ -18,15 +18,19 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
    `NO_AUTO=1` で起動し、`.claude/settings.local.json` の permissions.allow で代替する
 5. **`docs/agents/project.md` を埋める** (空のままなら PM が初回に調査して提案する)
 
-## 毎日の起動 (1 コマンド)
+## 毎日の起動 (どこからでも 1 語)
 
 ```bash
-cd <このプロジェクトのルート>
-CC_AUTO_START=1 ./scripts/ccstart.sh   # 開始文の送信まで全自動 (完全放置)
-# ./scripts/ccstart.sh                 # 開始文はコピペしたい場合 (起動完了時に表示される)
+flow            # 登録が 1 件ならそれを起動。複数登録なら番号選択 / flow <名前> で指定
 ```
 
+これだけで git pull → 3 ウィンドウ起動 → 案内自動突破 → /rename・/rc →
+**開始文の自動送信**まで全部やる (install.sh がプロジェクト登録と flow コマンドの
+PATH 配置を自動で行う。手動登録はプロジェクトのルートで `flow add`)。
+
 開始文は `docs/agents/kickoff.txt` が正 (内容を変えたければこのファイルを編集)。
+コピペ起動に戻したいときは `CC_AUTO_START= ./scripts/ccstart.sh`。
+同時に走らせられる flow は 1 プロジェクトのみ (別プロジェクトへの切替は確認つき)。
 
 これで **pm / dev / qa の 3 つの独立した Terminal ウィンドウ**が立ち上がる
 (macOS Terminal 以外や `CC_PANES=1` では 1 画面 3 ペイン)。ウィンドウを
