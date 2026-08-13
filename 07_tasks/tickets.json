@@ -27342,7 +27342,8 @@
           "packages/email/package.json",
           "scripts/ci/check-build-artifacts.mjs",
           "07_tasks/tickets.json",
-          "docs/gap-tracker.md"
+          "docs/gap-tracker.md",
+          "apps/api/tests/test_observability_sentry.py"
         ],
         "shared_read": [
           "09_dispatch/scripts/dispatch.sh",
@@ -27430,7 +27431,8 @@
           "apps/api/tests/test_observability_sentry_types.py"
         ],
         "modify": [
-          "apps/api/src/observability/sentry.py"
+          "apps/api/src/observability/sentry.py",
+          "apps/api/tests/test_observability_sentry.py"
         ],
         "shared_read": [
           "apps/api/src/observability/__init__.py"
@@ -27442,7 +27444,8 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: apps/api/src/observability/sentry.py に対し pyright strict が 0 error になる"
+          "UBIQUITOUS: apps/api/src/observability/sentry.py に対し pyright strict が 0 error になる",
+          "UBIQUITOUS: 同ファイルを含め観測系テストに対しても pyright strict が 0 error になる (gate が touched files 限定で見ていないことを理由に残さない)"
         ],
         "tier_2_functional": [
           {
@@ -27458,6 +27461,11 @@
             "type": "UNWANTED",
             "critical": true,
             "text": "If before_send stops redacting sensitive fields, the change shall be rejected — 既存のマスク挙動を落とさない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the test-side errors are resolved by loosening production types back, or by type: ignore / cast / Any on the tests, it shall be rejected — テスト側のフィクスチャを実型 (Event / Hint) に合わせて構築し直すことで解く"
           }
         ],
         "tier_3_regression": [
@@ -27486,9 +27494,16 @@
             "pytest tests/test_observability_sentry.py"
           ],
           "expected": "全 green"
+        },
+        {
+          "name": "テスト側も 0 error",
+          "steps": [
+            "uv run --extra dev pyright tests/test_observability_sentry.py"
+          ],
+          "expected": "0 errors (現状 33)"
         }
       ],
-      "note": "GAP-113 (qa 申し送り 1)。sentry-sdk 実導入で初めて可視化された型不整合。実行時は互換で機能影響なし、Gate #3 は touched files 限定のため CI は緑だが、型の嘘を残さない。"
+      "note": "GAP-113 (qa 申し送り 1)。sentry-sdk 実導入で初めて可視化された型不整合。実行時は互換で機能影響なし、Gate #3 は touched files 限定のため CI は緑だが、型の嘘を残さない。 / 2026-08-13 追記 (dev ESCALATE 裁定): 実 SDK 契約へ整合させた副作用で tests/test_observability_sentry.py に pyright 33 件 (素の dict / None を Event / Hint 引数へ渡している・out[\"request\"] の添字アクセス)。pytest は 536 passed で実行時影響ゼロ、Gate #3 は touched files 限定のため CI も緑だが、『gate が見ていないから緑』は束 D が潰そうとしている形そのもの。選択肢 A を採用し 同ファイルを shared_read → modify へ移す。"
     },
     {
       "id": "T-F-46",
