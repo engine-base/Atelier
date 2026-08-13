@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1400,
-    "total_estimate_hours_ai_compute": 134.55,
-    "human_review_total_h": 13.45,
-    "total_wall_clock_h_ai_parallel": 31.7,
+    "total_estimate_hours_human": 1405,
+    "total_estimate_hours_ai_compute": 135.05,
+    "human_review_total_h": 13.75,
+    "total_wall_clock_h_ai_parallel": 32.2,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -26982,7 +26982,14 @@
           "scripts/ci/env-template-drift.py",
           "07_tasks/tickets.json",
           "docs/gap-tracker.md",
-          "docs/monitoring.md"
+          "docs/monitoring.md",
+          "apps/api/pyproject.toml",
+          "apps/web/package.json",
+          "pnpm-lock.yaml",
+          "uv.lock",
+          "apps/api/tests/routes/test_outputs_content_url_regression.py",
+          "apps/api/src/routes/outputs/__init__.py",
+          "apps/api/tests/routes/test_outputs_content_url.py"
         ],
         "shared_read": [
           "apps/api/src/observability/sentry.py",
@@ -26999,7 +27006,8 @@
         "tier_1_structural": [
           "UBIQUITOUS: apps/api/main.py の lifespan (または起動時) が init_sentry() を実際に呼ぶ — 呼び出し元がテストのみ、という状態を解消する",
           "UBIQUITOUS: Web は initSentryClient() を実際に呼ぶ client provider を持ち、app/layout.tsx のツリーに組み込まれている",
-          "UBIQUITOUS: ErrorBoundary の通知 hook に Sentry の captureException が実接続され、『配線スロット』が空のまま残らない"
+          "UBIQUITOUS: ErrorBoundary の通知 hook に Sentry の captureException が実接続され、『配線スロット』が空のまま残らない",
+          "UBIQUITOUS: sentry-sdk (API) と @sentry/nextjs (Web) が依存として実際に追加され、lock ファイルに反映されている — 配線先の SDK が無いまま『配線済み』としない"
         ],
         "tier_2_functional": [
           {
@@ -27019,12 +27027,18 @@
             "type": "UNWANTED",
             "critical": true,
             "text": "If the app is started twice in the same process (test / reload), Sentry initialization shall remain idempotent and shall not double-register"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the proof of wiring relies on a fake SDK injected into sys.modules (or an equivalent stub), it shall not count as satisfying this task — 実 SDK を import した状態で is_sentry_initialized() が True になることを示すこと"
           }
         ],
         "tier_3_regression": [
           "既存 tests/test_observability_sentry.py が全 green (init_sentry の契約を変えない)",
           "既存 API 起動・全ルート・vitest / a11y スイートが従来どおり green",
-          "CI gate #1 lint / #3 type check / #4 coverage >= 80% を維持"
+          "CI gate #1 lint / #3 type check / #4 coverage >= 80% を維持",
+          "SDK 追加による既存依存の破壊がない (pytest / vitest / tsc / build が従来どおり)"
         ]
       },
       "test_scenarios_inline": [
@@ -27055,9 +27069,16 @@
             "起動処理を 2 回実行"
           ],
           "expected": "二重 init されない"
+        },
+        {
+          "name": "実 SDK での初期化実証",
+          "steps": [
+            "fake SDK を注入せず、実 sentry-sdk を import できる状態で DSN を設定し起動"
+          ],
+          "expected": "is_sentry_initialized() が True (ImportError 分岐に落ちない)"
         }
       ],
-      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。"
+      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。 / 2026-08-13 追記 (dev ESCALATE 裁定): 配線は実装されたが sentry-sdk・@sentry/nextjs が未導入で init_sentry() が ImportError 分岐に落ち実送信 0 件だった (PM 独立確認済: apps/api/pyproject.toml・apps/web/package.json とも sentry 依存なし、@sentry は node_modules にも不在)。AC『DSN 設定で is_sentry_initialized() が true』は SDK 抜きでは構造的に達成不能のため、依存マニフェスト 4 ファイルを scope expand し本タスクに含める (選択肢 A を採用)。dev による GAP-108 の open 差し戻しは PM として妥当と認める。"
     },
     {
       "id": "T-F-43",
@@ -27154,6 +27175,201 @@
         }
       ],
       "note": "GAP-107。PM 実地確認 (2026-08-13): ATELIER_BYOK_ENCRYPTION_KEY は未設定だと BYOK API が 500 を返す必須キーなのに apps/api/.env.example にも SECRETS.md にも無い。GAP-105 (運用 docs の env 名が実装と不一致) と同型の docs/実装 drift なので、単発修正で終わらせず機械検査で再発を止める。"
+    },
+    {
+      "id": "T-A-58",
+      "title": "test_outputs_content_url の既存 3 赤を解消 (SimpleNamespace に json_path 無し)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-G01"
+      ],
+      "entity_ids": [
+        "E-013"
+      ],
+      "feature_ids": [
+        "F-023"
+      ],
+      "estimate_hours": 2,
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.2,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-A-06"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-58.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/routes/test_outputs_content_url_regression.py"
+        ],
+        "modify": [
+          "apps/api/src/routes/outputs/__init__.py",
+          "apps/api/tests/routes/test_outputs_content_url.py"
+        ],
+        "shared_read": [
+          "apps/api/src/services/outputs/__init__.py",
+          "apps/api/src/storage_signing.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/observability",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: tests/routes/test_outputs_content_url.py の 3 件 (ok / 409_when_no_html / 503_unconfigured) が green になる",
+          "UBIQUITOUS: content-url ハンドラは要求された format の属性だけを参照し、未要求 format の属性欠落で AttributeError を起こさない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a caller requests format=html on an output whose json_path/md_path are absent, the endpoint shall return the signed HTML URL without touching the other format attributes"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the requested format has no rendered path, the endpoint shall still return 409 (存在しない版を偽装しない) — 既存の契約を変えない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the test double diverges from the real row shape, the fix shall not be achieved by loosening assertions or skipping tests — スタブを実カラム形状に合わせるか実装を getattr ベースにするかで解決する"
+          }
+        ],
+        "tier_3_regression": [
+          "GAP-023 (S-G01 成果物ビューア) の既存 pytest / vitest / 実操作監査が従来どおり green",
+          "404 / 409 / 502 / 503 の各分岐の応答コードを変更しない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "3 赤の解消",
+          "steps": [
+            "pytest tests/routes/test_outputs_content_url.py"
+          ],
+          "expected": "4 passed / 0 failed"
+        },
+        {
+          "name": "format 独立性",
+          "steps": [
+            "json_path/md_path が無い output に format=html を要求"
+          ],
+          "expected": "200 + 署名 URL (AttributeError なし)"
+        },
+        {
+          "name": "409 維持",
+          "steps": [
+            "md 未生成で format=md を要求"
+          ],
+          "expected": "409"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest tests/routes 全走"
+          ],
+          "expected": "本件以外の赤が増えない"
+        }
+      ],
+      "note": "GAP-110。dev の ESCALATE を受け PM が独立再現 (2026-08-13): AttributeError: 'types.SimpleNamespace' object has no attribute 'json_path' — src/routes/outputs/__init__.py:79 が要求 format 以外も含めて 3 属性を eager に辞書化しているため、実行row形状と食い違うテストダブルで落ちる。束 C とは無関係の既存赤だが、Gate #4 が pytest の終了コードを見るため束 C の PR も赤にする。よって束 C に第 5 タスクとして編入する (先頭 T-F-42 に scope expand 済)。"
+    },
+    {
+      "id": "T-F-44",
+      "title": "JIT ツールチェーン修正: begin-task.sh の path 抽出バグ + Gate #4 compare-branch",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-44.md",
+      "files_changed_predicted": {
+        "new": [
+          "scripts/tests/test-begin-task-path.sh"
+        ],
+        "modify": [
+          "scripts/begin-task.sh"
+        ],
+        "shared_read": [
+          "09_dispatch/scripts/dispatch.sh",
+          ".github/workflows/v3-gate.yml"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: begin-task.sh が dispatch 出力から取り出す TMP_DIR は必ずディレクトリであり、末尾に /CLAUDE.md を含まない",
+          "UBIQUITOUS: 抽出ロジックの回帰テスト (実 dispatch 出力を模した文字列で検証) が存在する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When dispatch.sh prints '✓ Generated: <dir>/CLAUDE.md', begin-task.sh shall derive <dir> and find CLAUDE.md inside it"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If dispatch genuinely fails to produce CLAUDE.md, begin-task.sh shall still exit non-zero with the dispatch output — 抽出を緩めて偽の成功にしない"
+          }
+        ],
+        "tier_3_regression": [
+          "既存の begin-task.sh の STEP 0/2/3 の順序・.husky/pre-commit との連携を変えない",
+          "生成される .jit/*.log / *.path の内容形式を壊さない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "正常抽出",
+          "steps": [
+            "'✓ Generated: /tmp/atelier-dispatch-T-X-01-ab12Cd/CLAUDE.md' を入力"
+          ],
+          "expected": "TMP_DIR=/tmp/atelier-dispatch-T-X-01-ab12Cd"
+        },
+        {
+          "name": "実 dispatch で通る",
+          "steps": [
+            "任意タスクで begin-task.sh を実行"
+          ],
+          "expected": "exit 4 にならず CLAUDE.md.task が配置される"
+        },
+        {
+          "name": "真の失敗は失敗のまま",
+          "steps": [
+            "CLAUDE.md を生成しない出力を与える"
+          ],
+          "expected": "非 0 終了 + dispatch 出力を表示"
+        }
+      ],
+      "note": "GAP-111。dev の ESCALATE (2026-08-13) を PM がコード読解で確認: scripts/begin-task.sh:73 の grep -oE '/tmp/atelier-dispatch-[^ ]+' が dispatch.sh:149 の '✓ Generated: $TMPDIR/CLAUDE.md' 行に最初にマッチするため、TMP_DIR に '/CLAUDE.md' まで含まれ、直後の [ ! -f \"$TMP_DIR/CLAUDE.md\" ] が常に真になって exit 4 する。全タスクの着手を塞ぐ。Gate #4 の --compare-branch=origin/main 固定は別問題 (origin/main が 125 commit 遅れ) だが、v3-gate.yml の改変は禁止のため本タスクでは扱わず、main 追随の可否を経営者判断に上げる。"
     }
   ],
   "two_axis_policy": {
