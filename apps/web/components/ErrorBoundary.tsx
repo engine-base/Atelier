@@ -1,8 +1,11 @@
 /**
- * ErrorBoundary — T-US-06 (React Error Boundary + Sentry 配線スロット)
+ * ErrorBoundary — T-US-06 (React Error Boundary) / T-F-42 (Sentry 実配線)
  *
  * - React の標準的な class component error boundary
- * - error を Sentry に送る hook (sentryClient.captureException) を受ける (省略可)
+ * - 捕捉した error は **常に** Sentry へ送る (T-F-42)。呼び出し側が `onError` を
+ *   渡すかどうかに依存しない。T-US-06 時点では「Sentry 配線スロット」が空のままで、
+ *   実際には 1 件も送られていなかった (GAP-108)。
+ * - `onError` は Sentry 送信に加えて呼ばれる追加 hook (省略可)
  * - fallback UI は default + custom 切替
  * - reset 機能でユーザーが再試行できる
  */
@@ -13,12 +16,13 @@ import * as React from 'react';
 import { type ErrorInfo, type ReactNode } from 'react';
 
 import { t } from '../lib/i18n';
+import { captureException } from '../providers/observability-provider';
 
 export interface ErrorBoundaryProps {
   readonly children: ReactNode;
   /** カスタム fallback (省略時は Atelier 既定) */
   readonly fallback?: (error: Error, reset: () => void) => ReactNode;
-  /** Sentry 等への通知 hook */
+  /** Sentry 送信に**加えて**呼ばれる追加の通知 hook (省略可) */
   readonly onError?: (error: Error, info: ErrorInfo) => void;
 }
 
@@ -34,6 +38,12 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
+    // T-F-42: Sentry へ実送信する。SDK 不在なら captureException が false を返すだけで
+    // throw しないが、念のため rejection も握り潰す (観測失敗で UI を壊さない)。
+    void captureException(error, {
+      category: 'ui',
+      componentStack: info.componentStack ?? undefined,
+    }).catch(() => false);
     this.props.onError?.(error, info);
   }
 

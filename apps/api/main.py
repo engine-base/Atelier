@@ -8,6 +8,7 @@ OpenAPI 契約 (07_api_design/openapi.yaml) との drift は T-F-25 / T-F-26
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -17,12 +18,26 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src import __version__
 from src.health import router as health_router
+from src.observability import init_sentry
 from src.routes import api_router
 from src.txn_commit import CommitBeforeResponseMiddleware
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    # 観測基盤 (T-F-42): Sentry を起動時に 1 度だけ実初期化する。
+    # init_sentry() は idempotent で、DSN 未設定 / SDK 不在なら warning を出して
+    # False を返すだけ (起動は継続)。想定外の例外 (DSN 書式不正など) も
+    # 観測基盤の不調をアプリ起動障害に昇格させないため warning に落とす。
+    try:
+        init_sentry()
+    except Exception:
+        logger.warning(
+            "sentry initialization failed; continuing without Sentry",
+            exc_info=True,
+        )
     # DB pool / LLM client 等の初期化は T-F-11 / T-F-12 で追加
     yield
 

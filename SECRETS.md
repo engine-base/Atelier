@@ -18,6 +18,7 @@ Atelier の API キー・接続文字列・トークンの**安全な保管と�
 | Stripe API キー (test/live) | Stripe Dashboard → 開発者 → API キー | (Dashboard で確認・ロール) |
 | Google OAuth クライアント ID/secret | Google Cloud Console → Auth Platform → Clients | — |
 | JWT 署名鍵 | 自分で生成し 1Password 等に保管 | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| Sentry DSN (API / Web) | Sentry Dashboard → Settings → Projects → Client Keys (DSN) | — |
 
 **個人の保管庫**として 1Password / Bitwarden 等のパスワードマネージャに上記をまとめて保存推奨。
 チームなら 1Password の共有 Vault か、Doppler / Infisical 等のシークレットマネージャを使う。

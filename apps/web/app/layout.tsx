@@ -1,8 +1,10 @@
+import * as React from 'react';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { Noto_Sans_JP } from 'next/font/google';
 
 import { ConditionalAppShell } from '../components/layout/ConditionalAppShell';
+import { ObservabilityProvider } from '../providers/observability-provider';
 import './globals.css';
 
 // モック(_shared/atelier.css)は Noto Sans JP を Google Fonts から読み込む。
@@ -35,7 +37,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="ja" className={notoSansJP.variable}>
       <body>
-        <ConditionalAppShell>{children}</ConditionalAppShell>
+        {/* T-F-42: Sentry browser SDK の実初期化。ここが唯一の呼び出し元。 */}
+        <ObservabilityProvider>
+          <ConditionalAppShell>{children}</ConditionalAppShell>
+        </ObservabilityProvider>
       </body>
     </html>
   );

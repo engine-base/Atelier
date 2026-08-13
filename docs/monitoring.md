@@ -23,12 +23,21 @@ Better Stack (旧 Logtail + Better Uptime) を中心とした本番監視構成�
 
 ## Sentry
 
-`apps/web/lib/sentry.client.ts` で Sentry SDK を初期化済 (T-F-XX)。
-`apps/api/src/observability/sentry.py` で Python 側も。
+実配線は T-F-42 で完了 (それ以前は実装のみで**呼び出し元が無く**、捕捉件数は
+構造的にゼロだった — GAP-108)。現在の呼び出し経路は以下の 3 箇所:
 
+| 面 | 実装 | 呼び出し元 (実行経路) |
+|---|---|---|
+| API | `apps/api/src/observability/sentry.py` `init_sentry()` | `apps/api/main.py` の `lifespan` (起動時に 1 回・idempotent) |
+| Web 初期化 | `apps/web/lib/sentry.client.ts` `initSentryClient()` | `apps/web/providers/observability-provider.tsx` (`app/layout.tsx` のツリー) |
+| Web エラー送信 | `providers/observability-provider.tsx` `captureException()` | `apps/web/components/ErrorBoundary.tsx` の `componentDidCatch` |
+
+- 必要な環境変数: API = `SENTRY_DSN` / Web = `NEXT_PUBLIC_SENTRY_DSN`
+  (どちらも未設定なら skip ログのみで通常起動・通常描画する)
 - Release tag: GitHub Actions の `${{ github.sha }}` を Sentry に通知
 - Sourcemaps: Vercel から自動アップロード
-- PII scrub: 自動 (email / IP は hashed)
+- PII scrub: `sentry.py` の `before_send` が Authorization / Cookie / API key
+  ヘッダを `[Filtered]` に置換
 
 ## Better Stack ダッシュボード
 
