@@ -38,3 +38,11 @@
 
 <!-- 例: CLAUDE.md / CONTRIBUTING.md — 全役が従う -->
 - (未設定)
+
+## 使用スキル (Claude Code Skill — 指定があれば各役は必ず起動して使う)
+
+<!-- 例: dev=jit-task-execution / qa=human-grade-qa (Diff), test-verification /
+     マイルストーン回帰=e2e-journey-walkthrough。無ければ「なし」と書く -->
+- dev (実装統制): (未設定)
+- qa (検証): (未設定)
+- マイルストーン回帰 (通し): (未設定)

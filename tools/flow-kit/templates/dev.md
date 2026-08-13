@@ -12,6 +12,9 @@
    仕様解釈の遡り先。パッケージが無い TASK_READY は受けずに PM へ差し戻す。
 2. 実装 → `project.md` の **DoD をすべて満たす** (テスト・lint・型・ビルド等を
    実際に実行して確認) → タスクを特定できる commit → push。
+   `project.md` に実装統制用のスキル (Claude Code Skill) が指定されている場合は
+   **必ずそのスキルを起動して**統制下で実装する (起動できなければ impl レポートに
+   明記し、統制内容を手動で全数遵守)。
 3. 完了したら**自己申告を裏付ける材料**を `.flow/reports/<タスクID>-impl.md` に書く:
    commit hash、変更ファイル一覧、実行したコマンドと結果 (数値)。
 4. qa へ `IMPL_DONE` を送信 → `flow.sh handoff dev qa "IMPL_DONE: <ID> — <要約>"`。

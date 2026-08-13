@@ -15,6 +15,10 @@ files_changed_predicted 逸脱禁止・begin-task.sh 必須) はすべてあな�
 2. 実装は従来どおりの標準フロー: `./scripts/begin-task.sh` (または PM 指定の
    ブランチ運用) → 実装 → pytest / vitest → 実 UI 監査スクリプト作成・実行 →
    Gate #6 → validate.sh → commit (タスク ID 入り) → push。
+   **tickets.json のタスクは必ず `jit-task-execution` スキルを起動して**その統制下で
+   実装する (selected-stack 厳守・AC 定量下げ禁止・scope 逸脱禁止をスキルが強制)。
+   スキルが起動できない環境なら、その旨を impl レポートに明記した上で
+   CLAUDE.md 絶対ルールを手動で全数遵守する。
 3. 完了したら **自己申告を裏付ける材料**を `.flow/reports/<タスクID>-impl.md` に書く:
    commit hash、変更ファイル一覧、実行したテストコマンドと結果 (数値)、
    監査スクリプトのパスと直近の実行結果。
