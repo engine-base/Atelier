@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1394,
-    "total_estimate_hours_ai_compute": 133.95,
-    "human_review_total_h": 13.15,
-    "total_wall_clock_h_ai_parallel": 31.1,
+    "total_estimate_hours_human": 1400,
+    "total_estimate_hours_ai_compute": 134.55,
+    "human_review_total_h": 13.45,
+    "total_wall_clock_h_ai_parallel": 31.7,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -23970,10 +23970,12 @@
       "files_changed_predicted": {
         "new": [
           "apps/api/src/observability/langfuse.py",
-          "07_tasks/acceptance-criteria/T-F-38.md"
+          "apps/api/tests/test_observability_langfuse.py"
         ],
         "modify": [
-          "apps/api/src/observability/__init__.py"
+          "apps/api/src/observability/__init__.py",
+          "apps/api/src/llm/client.py",
+          "apps/api/.env.example"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
@@ -23986,7 +23988,8 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: apps/api/src/observability/langfuse.py が importable で LangfuseClient を提供する"
+          "UBIQUITOUS: apps/api/src/observability/langfuse.py が importable で LangfuseClient を提供し、src.observability から re-export されている",
+          "UBIQUITOUS: 実 LLM 呼び出し経路 (src/llm/client.py) が LangfuseClient を通してトレースを発行する — 定義だけで誰も呼ばない状態にしない"
         ],
         "tier_2_functional": [
           {
@@ -23995,7 +23998,17 @@
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When LANGFUSE_PUBLIC_KEY is missing, the client shall gracefully no-op without raising"
+            "text": "When an LLM call completes with Langfuse configured, the system shall emit a trace carrying model, latency, and token usage"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY is missing, the client shall no-op with a warning and the LLM call shall still succeed — トレース基盤の不在で本来の処理を落とさない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the Langfuse endpoint errors or times out, the LLM call shall still return normally (トレース送信失敗を業務エラーに昇格させない)"
           }
         ],
         "tier_3_regression": [
@@ -24013,20 +24026,35 @@
       },
       "test_scenarios_inline": [
         {
-          "name": "import確認",
+          "name": "import 確認",
           "steps": [
-            "python -c \"from src.observability import LangfuseClient\""
+            "from src.observability import LangfuseClient"
           ],
           "expected": "エラー無し"
         },
         {
-          "name": "no-op fallback",
+          "name": "実 LLM 経路のトレース発行",
           "steps": [
-            "LANGFUSE_PUBLIC_KEY 未設定で init"
+            "Langfuse 設定済 + fake LLM で 1 回呼び出し"
           ],
-          "expected": "warning ログ + False return"
+          "expected": "model / latency / token usage を含むトレースが 1 件発行される"
+        },
+        {
+          "name": "未設定 no-op",
+          "steps": [
+            "LANGFUSE_* 未設定で LLM 呼び出し"
+          ],
+          "expected": "warning ログ + LLM 応答は正常"
+        },
+        {
+          "name": "送信失敗の握り潰し",
+          "steps": [
+            "Langfuse 送信で例外を起こす"
+          ],
+          "expected": "LLM 呼び出しは成功のまま"
         }
-      ]
+      ],
+      "note": "T-F-08 follow-up。PM が 2026-08-13 に AC を『実配線まで』へ是正 (旧 AC は import 可能性のみを要求しており、誰も呼ばない client でも満たせてしまう = T-F-42 で発覚した Sentry と同じ失敗形)。"
     },
     {
       "id": "T-F-39",
@@ -24058,10 +24086,13 @@
         "new": [
           "apps/api/src/observability/betterstack.py",
           "apps/web/lib/logger.ts",
-          "07_tasks/acceptance-criteria/T-F-39.md"
+          "apps/api/tests/test_observability_betterstack.py",
+          "apps/web/tests/logger.test.ts"
         ],
         "modify": [
-          "apps/api/src/observability/__init__.py"
+          "apps/api/src/observability/__init__.py",
+          "apps/api/.env.example",
+          "apps/web/.env.example"
         ],
         "shared_read": [
           "07_tasks/tickets.json",
@@ -24073,17 +24104,33 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: apps/api/src/observability/betterstack.py が importable で structured logger handler を提供する",
-          "UBIQUITOUS: apps/web/lib/logger.ts が importable で fetch ベースの送信関数を提供する"
+          "UBIQUITOUS: apps/api/src/observability/betterstack.py が structured logger handler を提供し、src.observability から re-export されている",
+          "UBIQUITOUS: API のログ設定が実際にこの handler を attach する (定義だけで attach されない状態にしない)",
+          "UBIQUITOUS: apps/web/lib/logger.ts が fetch ベースの送信関数を提供する"
         ],
         "tier_2_functional": [
           {
             "type": "UBIQUITOUS",
-            "text": "Both modules are type-safe and pass tsc/pyright strict 0-error"
+            "text": "Both modules are type-safe and pass tsc / pyright strict 0-error"
           },
           {
             "type": "EVENT-DRIVEN",
-            "text": "When BETTERSTACK_SOURCE_TOKEN is missing, log handlers shall fall back to local logging without raising"
+            "text": "When BETTERSTACK_SOURCE_TOKEN is set and a log record is emitted, the handler shall ship it as structured JSON"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If BETTERSTACK_SOURCE_TOKEN is missing, log handlers shall fall back to local logging without raising"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If shipping fails or times out, the request being served shall not fail and logs shall still reach local output — ログ集約の障害を業務障害にしない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If a log record contains secrets (API keys, tokens, passwords), the handler shall redact them before shipping"
           }
         ],
         "tier_3_regression": [
@@ -24113,8 +24160,30 @@
             "import { sendLog } from \"@/lib/logger\""
           ],
           "expected": "エラー無し"
+        },
+        {
+          "name": "attach 済み",
+          "steps": [
+            "トークン設定で API 起動しログを 1 本出す"
+          ],
+          "expected": "handler が attach され構造化 JSON が送出される"
+        },
+        {
+          "name": "未設定 fallback",
+          "steps": [
+            "トークン未設定でログ出力"
+          ],
+          "expected": "例外なし + ローカルログに出る"
+        },
+        {
+          "name": "秘匿値のマスク",
+          "steps": [
+            "API キーを含む文字列をログ出力"
+          ],
+          "expected": "送出ペイロードでマスクされている"
         }
-      ]
+      ],
+      "note": "T-F-08 follow-up。PM が 2026-08-13 に AC を『実配線 + 秘匿値マスク』へ是正 (旧 AC は import 可能性のみを要求)。"
     },
     {
       "id": "T-F-40",
@@ -26862,6 +26931,229 @@
         }
       ],
       "note": "起票のみ (2026-08-13, ユーザー指示)。実行は本番ドメイン確定 (T-I-21) 後。GAP-020/021 はテストモード/無料枠で先行解消し、本番昇格は本タスクに分離する。"
+    },
+    {
+      "id": "T-F-42",
+      "title": "Sentry 実配線: API lifespan + Web client + ErrorBoundary (T-F-08 の未配線を解消)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-08"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-42.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_observability_wiring.py",
+          "apps/web/tests/sentry-wiring.test.tsx"
+        ],
+        "modify": [
+          "apps/api/main.py",
+          "apps/api/src/observability/__init__.py",
+          "apps/web/app/layout.tsx",
+          "apps/web/providers/observability-provider.tsx",
+          "apps/web/components/ErrorBoundary.tsx",
+          "SECRETS.md",
+          "apps/api/.env.example",
+          "apps/api/src/llm/client.py",
+          "apps/api/src/observability/betterstack.py",
+          "apps/api/src/observability/langfuse.py",
+          "apps/api/tests/test_env_template_drift.py",
+          "apps/api/tests/test_observability_betterstack.py",
+          "apps/api/tests/test_observability_langfuse.py",
+          "apps/web/.env.example",
+          "apps/web/lib/logger.ts",
+          "apps/web/tests/logger.test.ts",
+          "scripts/ci/env-template-drift.py",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md",
+          "docs/monitoring.md"
+        ],
+        "shared_read": [
+          "apps/api/src/observability/sentry.py",
+          "apps/web/lib/sentry.client.ts",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes",
+          "apps/api/src/services"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: apps/api/main.py の lifespan (または起動時) が init_sentry() を実際に呼ぶ — 呼び出し元がテストのみ、という状態を解消する",
+          "UBIQUITOUS: Web は initSentryClient() を実際に呼ぶ client provider を持ち、app/layout.tsx のツリーに組み込まれている",
+          "UBIQUITOUS: ErrorBoundary の通知 hook に Sentry の captureException が実接続され、『配線スロット』が空のまま残らない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the API starts with SENTRY_DSN set, the app shall initialize Sentry exactly once and is_sentry_initialized() shall report true"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an unhandled error reaches the Web ErrorBoundary with a DSN configured, the boundary shall report it to Sentry and still render its fallback UI"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN is unset, startup and rendering shall proceed normally with a skip log and shall not raise — 未設定環境で起動不能にしない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the app is started twice in the same process (test / reload), Sentry initialization shall remain idempotent and shall not double-register"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 tests/test_observability_sentry.py が全 green (init_sentry の契約を変えない)",
+          "既存 API 起動・全ルート・vitest / a11y スイートが従来どおり green",
+          "CI gate #1 lint / #3 type check / #4 coverage >= 80% を維持"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "API 起動で実初期化",
+          "steps": [
+            "SENTRY_DSN を設定して lifespan を起動"
+          ],
+          "expected": "init_sentry が 1 回呼ばれ is_sentry_initialized() が True"
+        },
+        {
+          "name": "未設定でも起動する",
+          "steps": [
+            "SENTRY_DSN 未設定で起動"
+          ],
+          "expected": "例外なし + skip ログ、ルートは通常応答"
+        },
+        {
+          "name": "Web ErrorBoundary 通知",
+          "steps": [
+            "子コンポーネントで例外を投げる"
+          ],
+          "expected": "captureException が呼ばれ fallback UI が描画される"
+        },
+        {
+          "name": "冪等",
+          "steps": [
+            "起動処理を 2 回実行"
+          ],
+          "expected": "二重 init されない"
+        }
+      ],
+      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。"
+    },
+    {
+      "id": "T-F-43",
+      "title": "必須環境変数のテンプレ登録整備 + drift 自動検査 (ATELIER_BYOK_ENCRYPTION_KEY 未登録の解消)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-05"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-43.md",
+      "files_changed_predicted": {
+        "new": [
+          "scripts/ci/env-template-drift.py",
+          "apps/api/tests/test_env_template_drift.py"
+        ],
+        "modify": [
+          "apps/api/.env.example",
+          "apps/web/.env.example",
+          "SECRETS.md"
+        ],
+        "shared_read": [
+          "apps/api/src/services/byok_keys/__init__.py",
+          "docs/gap-tracker.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/observability"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: ATELIER_BYOK_ENCRYPTION_KEY が apps/api/.env.example と SECRETS.md の保管場所テーブルに、生成方法つきで登録されている",
+          "UBIQUITOUS: scripts/ci/env-template-drift.py が実在し、コードが読む必須 env 変数と .env.example の登録内容を突合して差分があれば exit 1 する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the code reads a required environment variable that is absent from the matching .env.example, the drift check shall fail and name the variable and its read site"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If a variable is optional (has a code-level default) or is test-only, the check shall not fail on it — 誤検知でゲートを常時赤にしない (許可リストは理由コメント必須)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If a secret value (not just a name) would be written into .env.example or SECRETS.md, the change shall be rejected — テンプレートには値を入れない"
+          }
+        ],
+        "tier_3_regression": [
+          "現行の apps/api/.env.example / apps/web/.env.example の既存変数名・コメントを削除しない (追記のみ)",
+          "drift 検査は現行コードベースに対して 0 件で PASS する状態にしてから完了とする",
+          "CI gate #1 lint / #3 type check / #4 coverage >= 80% を維持"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "現行コードで PASS",
+          "steps": [
+            "scripts/ci/env-template-drift.py を実行"
+          ],
+          "expected": "exit 0 / 差分 0 件"
+        },
+        {
+          "name": "未登録変数を検出",
+          "steps": [
+            "テンプレから 1 変数を一時的に削って実行"
+          ],
+          "expected": "exit 1 + 変数名と読み取り箇所を出力"
+        },
+        {
+          "name": "任意変数は無視",
+          "steps": [
+            "既定値つき変数のみのコードで実行"
+          ],
+          "expected": "exit 0 (誤検知なし)"
+        }
+      ],
+      "note": "GAP-107。PM 実地確認 (2026-08-13): ATELIER_BYOK_ENCRYPTION_KEY は未設定だと BYOK API が 500 を返す必須キーなのに apps/api/.env.example にも SECRETS.md にも無い。GAP-105 (運用 docs の env 名が実装と不一致) と同型の docs/実装 drift なので、単発修正で終わらせず機械検査で再発を止める。"
     }
   ],
   "two_axis_policy": {
