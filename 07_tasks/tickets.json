@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1363,
-    "total_estimate_hours_ai_compute": 130.75,
-    "human_review_total_h": 10.8,
-    "total_wall_clock_h_ai_parallel": 27.9,
+    "total_estimate_hours_human": 1394,
+    "total_estimate_hours_ai_compute": 133.95,
+    "human_review_total_h": 13.15,
+    "total_wall_clock_h_ai_parallel": 31.1,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -26093,6 +26093,775 @@
         }
       ],
       "note": "本番実機検証 (prod-smoke PS-22) で判明したギャップ#27の解消。seed が deploy で流れず本番テンプレ0だったのが根因 (INFRA-3 と同型)。"
+    },
+    {
+      "id": "T-A-55",
+      "title": "Google OAuth サインイン: 認可コード交換 + アカウント連付け + JWT 発行 (GAP-020 解消)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-A01"
+      ],
+      "entity_ids": [
+        "E-001"
+      ],
+      "feature_ids": [
+        "F-001"
+      ],
+      "estimate_hours": 6,
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.3,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "depends_on": [
+        "T-A-03"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-55.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/services/auth/oauth.py",
+          "apps/api/tests/routes/test_auth_oauth.py",
+          "supabase/migrations/t-d-99zn_gap020_oauth_identities.sql"
+        ],
+        "modify": [
+          "apps/api/src/routes/auth/__init__.py",
+          "apps/api/src/services/auth/__init__.py",
+          "apps/api/src/schemas/auth.py",
+          "apps/api/.env.example",
+          "07_api_design/openapi.yaml",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md",
+          "apps/web/app/auth/oauth_callback/page.tsx",
+          "apps/web/app/auth/s_a01/_components/OAuthButtons.tsx",
+          "apps/web/tests/oauth-signin.test.tsx",
+          "apps/web/app/auth/s_a01/page.tsx",
+          "apps/web/lib/routes.ts",
+          "apps/web/lib/auth/connector.ts"
+        ],
+        "shared_read": [
+          "apps/api/src/services/auth/__init__.py",
+          "06_mockups/auth/S-A01-signin.html",
+          "SECRETS.md",
+          "docs/setup/oauth-stripe-setup.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes/billing/__init__.py"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: POST /auth/oauth/{provider}/callback が実在し、{code, state} を受けて既存 signin と同形の SigninResponse (access_token/expires_at/user_id/email/display_name) を返す",
+          "UBIQUITOUS: oauth_identities テーブル (provider, provider_user_id, user_id, email) が unique(provider, provider_user_id) + RLS 付きで存在する",
+          "UBIQUITOUS: 認可 URL 生成は ATELIER_OAUTH_GOOGLE_CLIENT_ID / ATELIER_OAUTH_GOOGLE_CLIENT_SECRET / ATELIER_OAUTH_REDIRECT_URI を参照し、3 変数とも apps/api/.env.example に登録済み"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a valid authorization code and state arrive at the callback, the system shall exchange the code at https://oauth2.googleapis.com/token, fetch the profile from https://openidconnect.googleapis.com/v1/userinfo, and issue an Atelier JWT for the linked user"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the Google email matches an existing users row that has no oauth_identities link, the system shall create the link and sign the user in"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the state is unknown, expired (>15min), or already consumed, the system shall reject with 401 and shall not issue any token (one-time consumption enforced)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the Google profile has email_verified=false, the system shall reject with 403 and shall not create a user or a link"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If no users row exists for the Google email, the system shall reject with 409 code=oauth_signup_required and shall not create a user (F-LEGAL-004 同意取得を迂回させないため — サインアップ導線へ戻す)"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While ATELIER_OAUTH_GOOGLE_CLIENT_ID or ATELIER_OAUTH_GOOGLE_CLIENT_SECRET is unset, the redirect-url and callback endpoints shall return 503 with an explicit 'OAuth 未設定' message (stub client_id を組み立てない)"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 tests/routes/test_auth.py (signup/signin/magic-link/reset/refresh/退会) が全 green",
+          "GET /auth/oauth/{provider}/redirect-url の既存契約 (authorize_url/state/provider) を壊さない",
+          "github provider は 503 'provider 未設定' を返し、404 でも 500 でもない (GitHub OAuth App 未作成のため意図的に未提供)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "正常系: 既存ユーザーの Google サインイン",
+          "steps": [
+            "users に検証済 email のユーザーを作成",
+            "GET /auth/oauth/google/redirect-url で state を取得",
+            "Google token/userinfo を stub した上で POST /auth/oauth/google/callback {code, state}"
+          ],
+          "expected": "200 + access_token 発行、oauth_identities に 1 行、audit_logs に auth.oauth.signin"
+        },
+        {
+          "name": "state 再利用拒否",
+          "steps": [
+            "同一 state で callback を 2 回実行"
+          ],
+          "expected": "1 回目 200 / 2 回目 401、2 回目は token を発行しない"
+        },
+        {
+          "name": "未登録 email",
+          "steps": [
+            "users に存在しない email の profile で callback"
+          ],
+          "expected": "409 oauth_signup_required、users も oauth_identities も増えない"
+        },
+        {
+          "name": "email 未検証",
+          "steps": [
+            "email_verified=false の profile で callback"
+          ],
+          "expected": "403、リンク作成なし"
+        },
+        {
+          "name": "未設定時 degrade",
+          "steps": [
+            "CLIENT_ID/SECRET 未設定で redirect-url と callback を叩く"
+          ],
+          "expected": "いずれも 503 + 明示メッセージ (stub 値で Google に飛ばさない)"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest tests/routes/test_auth.py 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-020 解消 (束 A 先頭)。既存 build_oauth_redirect は client_id 既定 'stub' / redirect_uri 既定 atelier.example.com のままで実 Google に到達不能だった。redirect_uri は web 側 /signin/oauth/callback に固定し、client_secret は API のみが保持する (web に置かない)。GitHub は OAuth App 未作成のため本タスクの範囲外 (gap-tracker に GAP-020b として残置)。"
+    },
+    {
+      "id": "T-UC-44",
+      "title": "S-A01 Google サインインボタン + OAuth コールバック画面 (GAP-020 UI 配線)",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-A01"
+      ],
+      "entity_ids": [
+        "E-001"
+      ],
+      "feature_ids": [
+        "F-001"
+      ],
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-A-55",
+        "T-UC-01"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-44.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/app/auth/oauth_callback/page.tsx",
+          "apps/web/app/auth/s_a01/_components/OAuthButtons.tsx",
+          "apps/web/tests/oauth-signin.test.tsx"
+        ],
+        "modify": [
+          "apps/web/app/auth/s_a01/page.tsx",
+          "apps/web/lib/routes.ts",
+          "apps/web/lib/auth/connector.ts"
+        ],
+        "shared_read": [
+          "06_mockups/auth/S-A01-signin.html",
+          "apps/web/middleware.ts",
+          "apps/web/lib/auth/cookie.ts"
+        ],
+        "forbidden": [
+          "apps/api/src/routes/auth/__init__.py",
+          "apps/web/app/auth/s_a03"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: S-A01 の signin タブに『Google でサインイン』ボタンが実描画される (mock S-A01-signin.html の .btn-oauth 相当)",
+          "UBIQUITOUS: 意味的 URL /signin/oauth/callback が ROUTE_MAP 経由で実ルート /auth/oauth_callback を serve し、middleware の PUBLIC 判定で未認証到達できる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the user clicks the Google button, the app shall fetch GET /auth/oauth/google/redirect-url and navigate the browser to the returned authorize_url"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When Google redirects back with code and state, the callback screen shall POST them to /auth/oauth/google/callback, set the atelier_access cookie via the existing connector, and navigate to the redirect target (既定 /projects)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the callback returns 409 oauth_signup_required, the screen shall route back to /signin with the signup tab active and the email prefilled — it shall not leave the user on a dead end"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the callback returns 401/403/503, the screen shall show the reason inline with a『サインインに戻る』link and shall not set any cookie"
+          }
+        ],
+        "tier_3_regression": [
+          "既存の email/password サインイン・サインアップ・Magic Link 導線が従来どおり動作 (vitest 既存分 green)",
+          "GitHub ボタンは描画しない (死にボタン禁止 — API が 503 を返す間は出さない)",
+          "middleware の保護ルート判定・既存 redirect 挙動を壊さない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "Google ボタン → 認可 URL 遷移",
+          "steps": [
+            "S-A01 を開く",
+            "Google ボタンを押下"
+          ],
+          "expected": "redirect-url を 1 回 fetch し authorize_url へ遷移"
+        },
+        {
+          "name": "コールバック成功",
+          "steps": [
+            "/signin/oauth/callback?code=..&state=.. を開く"
+          ],
+          "expected": "cookie 設定 + /projects へ遷移"
+        },
+        {
+          "name": "未登録 email",
+          "steps": [
+            "callback API が 409 を返す状態で開く"
+          ],
+          "expected": "/signin の signup タブへ、email 事前入力、cookie 未設定"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "vitest apps/web 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-020 の UI 側。client_id / client_secret は web に置かない (認可 URL は API が生成)。"
+    },
+    {
+      "id": "T-A-56",
+      "title": "Stripe テストモード課金 API: subscriptions + Checkout + Billing Portal + webhook (GAP-021 解消)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-A03",
+        "S-T01"
+      ],
+      "entity_ids": [
+        "E-002"
+      ],
+      "feature_ids": [
+        "F-T05"
+      ],
+      "estimate_hours": 10,
+      "estimate_hours_human": 10,
+      "estimate_hours_ai": 1.0,
+      "wall_clock_h_ai": 1.0,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.5,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "depends_on": [
+        "T-A-06"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-56.md",
+      "files_changed_predicted": {
+        "new": [
+          "supabase/migrations/t-d-99zo_gap021_subscriptions.sql",
+          "apps/api/src/routes/billing/__init__.py",
+          "apps/api/src/services/billing/__init__.py",
+          "apps/api/src/schemas/billing.py",
+          "apps/api/tests/routes/test_billing.py",
+          "scripts/stripe/bootstrap-test-products.py"
+        ],
+        "modify": [
+          "apps/api/src/routes/__init__.py",
+          "apps/api/.env.example",
+          "pyproject.toml",
+          "uv.lock",
+          "07_api_design/openapi.yaml",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md",
+          "apps/api/tests/routes/test_workspaces_icon.py",
+          "apps/api/src/schemas/workspaces.py",
+          "apps/api/src/services/workspaces/__init__.py",
+          "apps/web/app/auth/s_a03/_components/PlanSection.tsx",
+          "apps/web/app/auth/s_a03/_components/IconPicker.tsx",
+          "apps/web/tests/workspace-plan-icon.test.tsx",
+          "apps/web/app/auth/s_a03/_components/WorkspaceSettingsContainer.tsx",
+          "apps/web/app/auth/s_a03/_components/WorkspaceSettingsForm.tsx"
+        ],
+        "shared_read": [
+          "apps/api/src/routes/workspaces/__init__.py",
+          "supabase/migrations/t-d-01_001_002_003.sql",
+          "SECRETS.md",
+          "docs/setup/oauth-stripe-setup.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes/auth/__init__.py",
+          "apps/web/app/auth/s_a01"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: subscriptions テーブル (workspace_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end) が RLS 付きで存在し、workspaces.plan と同期する",
+          "UBIQUITOUS: GET /workspaces/{id}/billing・POST /workspaces/{id}/billing/checkout-session・POST /workspaces/{id}/billing/portal-session・POST /webhooks/stripe が実在し openapi.yaml に記載されている",
+          "UBIQUITOUS: 秘密鍵は STRIPE_SECRET_KEY、webhook 署名鍵は STRIPE_WEBHOOK_SECRET を参照する (既に .env.example 登録済の名前を変更しない)",
+          "UBIQUITOUS: Stripe 商品/価格はコードにハードコードせず lookup_key (atelier_pro_monthly / atelier_enterprise_monthly) で解決し、scripts/stripe/bootstrap-test-products.py が冪等に作成する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a workspace owner requests a checkout session for a plan, the system shall create a Stripe Checkout Session (mode=subscription, テストモード) and return its URL"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a checkout.session.completed / customer.subscription.updated / customer.subscription.deleted webhook is received with a valid signature, the system shall upsert subscriptions and update workspaces.plan in the same transaction"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the Stripe-Signature header is missing, malformed, or fails verification against STRIPE_WEBHOOK_SECRET, the system shall respond 400 and shall not mutate subscriptions or workspaces.plan"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the requester is not the workspace owner, checkout-session and portal-session shall return 403 (不可視 workspace は 404) and shall not call Stripe"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the same webhook event id is delivered more than once, the system shall apply it at most once (冪等) and still respond 200"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While STRIPE_SECRET_KEY is unset, billing endpoints shall return 503 with an explicit 'Stripe 未設定' message instead of 500"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 tests/routes/test_workspaces.py (CRUD / RLS / 403 / 404) が全 green",
+          "workspaces.plan の既定 'free' と GET /workspaces の既存レスポンス契約を壊さない",
+          "GAP-019 admin ダッシュボードの billing_enabled / MRR 集計が例外を出さない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "checkout セッション作成 (owner)",
+          "steps": [
+            "owner で POST /workspaces/{id}/billing/checkout-session {plan: pro}"
+          ],
+          "expected": "200 + Stripe テストモードの checkout URL、stripe_customer_id 保存"
+        },
+        {
+          "name": "権限ガード",
+          "steps": [
+            "member / viewer / 非メンバーで同 API"
+          ],
+          "expected": "member・viewer は 403、非メンバーは 404、Stripe 呼び出し 0 回"
+        },
+        {
+          "name": "webhook 署名検証",
+          "steps": [
+            "正しい署名 / 署名なし / 改竄署名の 3 通りで POST /webhooks/stripe"
+          ],
+          "expected": "200 / 400 / 400。400 の 2 件は subscriptions・workspaces.plan を変更しない"
+        },
+        {
+          "name": "プラン反映と冪等",
+          "steps": [
+            "checkout.session.completed を同一 event.id で 2 回送る"
+          ],
+          "expected": "workspaces.plan=pro、subscriptions 1 行、2 回目も 200 で二重適用なし"
+        },
+        {
+          "name": "未設定時 degrade",
+          "steps": [
+            "STRIPE_SECRET_KEY 未設定で billing endpoints を叩く"
+          ],
+          "expected": "全て 503 + 明示メッセージ"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest tests/routes/test_workspaces.py 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-021 解消 (束 B 先頭)。まずテストモード (sk_test_ / pk_test_) のみ。本番 live キーへの切替は T-I-25 で別途実施する。STRIPE_WEBHOOK_SECRET はユーザー投入待ちのため、単体テストは自前で署名した payload (Stripe 公式のテスト手法) で検証し、実 Stripe からの配送検証は鍵投入後に QA が実施する。"
+    },
+    {
+      "id": "T-A-57",
+      "title": "workspaces アイコン更新対応 (PATCH /workspaces/{id} に icon を追加)",
+      "group": "A",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "backend",
+      "phase": "3_api",
+      "wave": 3,
+      "assigned_employee": "thor",
+      "screen_ids": [
+        "S-A03"
+      ],
+      "entity_ids": [
+        "E-002"
+      ],
+      "feature_ids": [
+        "F-T05"
+      ],
+      "estimate_hours": 2,
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.2,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-A-06"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-A-57.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/routes/test_workspaces_icon.py"
+        ],
+        "modify": [
+          "apps/api/src/schemas/workspaces.py",
+          "apps/api/src/services/workspaces/__init__.py"
+        ],
+        "shared_read": [
+          "apps/api/src/routes/workspaces/__init__.py",
+          "supabase/migrations/t-d-01_001_002_003.sql"
+        ],
+        "forbidden": [
+          "apps/api/src/routes/billing/__init__.py",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: WorkspaceUpdate に icon: str | None が存在し、WorkspaceResponse が icon を返す (DB 列 workspaces.icon は既存・migration 不要)",
+          "UBIQUITOUS: openapi.yaml の Workspace / WorkspaceUpdate に icon が反映されている"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an owner PATCHes a workspace with a valid Lucide icon name, the system shall persist it to workspaces.icon and return the updated workspace"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If icon does not match ^[a-z0-9-]{1,40}$ (Lucide icon 名以外・URL・スクリプト), the system shall reject with 422 and shall not write to the DB"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the requester is not permitted to update the workspace, icon updates shall be rejected with 403 (不可視は 404) — 既存 name/description と同一のガードを共有する"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 PATCH /workspaces/{id} の name / description 更新と 403 / 404 判定が従来どおり",
+          "icon 未指定の PATCH は既存 icon を消さない (partial update)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "icon 更新",
+          "steps": [
+            "owner で PATCH {icon: 'briefcase'}"
+          ],
+          "expected": "200 + DB 反映、レスポンスに icon"
+        },
+        {
+          "name": "不正値",
+          "steps": [
+            "PATCH {icon: 'https://evil/x.svg'} と {icon: '<script>'}"
+          ],
+          "expected": "いずれも 422、DB 不変"
+        },
+        {
+          "name": "権限",
+          "steps": [
+            "viewer で PATCH {icon}"
+          ],
+          "expected": "403、DB 不変"
+        },
+        {
+          "name": "partial",
+          "steps": [
+            "icon 設定後に {name} だけ PATCH"
+          ],
+          "expected": "icon が維持される"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest tests/routes/test_workspaces.py"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-021 の『アイコン変更』側。mock S-A03-settings.html の基本情報カードにある『変更』ボタンを実 API に繋ぐための最小 API 拡張。"
+    },
+    {
+      "id": "T-UC-45",
+      "title": "S-A03 プランセクション + アイコン変更 UI 配線 (GAP-021 UI 配線)",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "assigned_employee": "wanda",
+      "screen_ids": [
+        "S-A03"
+      ],
+      "entity_ids": [
+        "E-002"
+      ],
+      "feature_ids": [
+        "F-T05"
+      ],
+      "estimate_hours": 5,
+      "estimate_hours_human": 5,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.25,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "depends_on": [
+        "T-A-56",
+        "T-A-57",
+        "T-UC-02"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-45.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/app/auth/s_a03/_components/PlanSection.tsx",
+          "apps/web/app/auth/s_a03/_components/IconPicker.tsx",
+          "apps/web/tests/workspace-plan-icon.test.tsx"
+        ],
+        "modify": [
+          "apps/web/app/auth/s_a03/_components/WorkspaceSettingsContainer.tsx",
+          "apps/web/app/auth/s_a03/_components/WorkspaceSettingsForm.tsx"
+        ],
+        "shared_read": [
+          "06_mockups/workspace/S-A03-settings.html",
+          "apps/web/app/auth/s_a03/_components/MembersSection.tsx",
+          "apps/web/app/auth/s_a03/_components/McpTokensSection.tsx"
+        ],
+        "forbidden": [
+          "apps/api",
+          "apps/web/app/auth/s_a01"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: S-A03 に『プラン』セクション (h2『プラン』) が実描画され、GET /workspaces/{id}/billing の実値 (現在プラン・状態・次回更新日) を表示する",
+          "UBIQUITOUS: 基本情報カードのアイコン『変更』ボタンが実 IconPicker を開き、PATCH /workspaces/{id} {icon} を発行する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an owner selects a paid plan and confirms, the app shall POST a checkout-session and navigate the browser to the returned Stripe URL"
+          },
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an owner on a paid plan opens the billing portal, the app shall POST a portal-session and navigate to the returned URL"
+          },
+          {
+            "type": "STATE-DRIVEN",
+            "text": "While the current user is a member or viewer, the plan section shall render read-only (アップグレード/ポータル操作を出さない) — 死にボタンを置かない"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the billing API returns 503 (Stripe 未設定), the section shall show『課金は未設定です』と表示し、操作ボタンを描画しない"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 S-A03 の基本情報保存・メンバー・MCP トークン・AI 学習・退会の各セクションが従来どおり動作 (vitest 既存分 green)",
+          "現行 S-A03 は積み上げレイアウトのため、タブ UI へのリファクタは行わない (スコープ外)",
+          "アイコン未設定時は現行の頭文字アバターにフォールバックする"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "プラン表示",
+          "steps": [
+            "billing API が free を返す状態で S-A03 を開く"
+          ],
+          "expected": "現在プラン free と有料プラン選択肢を表示"
+        },
+        {
+          "name": "アップグレード導線",
+          "steps": [
+            "owner で pro を選び確定"
+          ],
+          "expected": "checkout-session を 1 回 POST し返却 URL へ遷移"
+        },
+        {
+          "name": "権限で読み取り専用",
+          "steps": [
+            "viewer で S-A03 を開く"
+          ],
+          "expected": "プラン表示のみ、操作ボタン非描画"
+        },
+        {
+          "name": "アイコン変更",
+          "steps": [
+            "『変更』→ アイコン選択 → 保存"
+          ],
+          "expected": "PATCH {icon} 発行、表示アイコン更新"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "vitest apps/web 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-021 の UI 側。mock の『プラン』はタブだが、現行 S-A03 実装は積み上げセクション構成のためセクションとして実装する (タブ化は別スコープ)。"
+    },
+    {
+      "id": "T-I-25",
+      "title": "本番キー切替: Google OAuth 本番クライアント + Stripe live キー (テスト→本番)",
+      "group": "I",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "infra",
+      "phase": "6_integration",
+      "wave": 5,
+      "assigned_employee": "vision",
+      "screen_ids": [
+        "S-A01",
+        "S-A03"
+      ],
+      "entity_ids": [
+        "E-001",
+        "E-002"
+      ],
+      "feature_ids": [
+        "F-001",
+        "F-T05"
+      ],
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.5,
+      "wall_clock_h_ai": 0.5,
+      "ai_acceleration_factor": 8,
+      "human_review_h": 1.0,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "low",
+      "blocking": true,
+      "depends_on": [
+        "T-A-55",
+        "T-UC-44",
+        "T-A-56",
+        "T-A-57",
+        "T-UC-45",
+        "T-I-21"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-I-25.md",
+      "files_changed_predicted": {
+        "new": [
+          "docs/runbooks/prod-key-switch.md"
+        ],
+        "modify": [
+          "SECRETS.md",
+          "docs/setup/oauth-stripe-setup.md",
+          "07_tasks/tickets.json"
+        ],
+        "shared_read": [
+          "docs/dns-ssl.md",
+          "apps/api/.env.example",
+          "apps/web/.env.example"
+        ],
+        "forbidden": [
+          "apps/api/src",
+          "apps/web/app"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 本番切替 runbook が存在し、Google OAuth (本番クライアント + 本番リダイレクト URI + 同意画面の公開申請) と Stripe (live キー + 本番 webhook エンドポイント + 商品/価格の live 側作成) の手順を、切替順序とロールバック込みで記載している",
+          "UBIQUITOUS: 本番シークレットは Fly secrets (API) / Vercel Environment Variables (Web) 経由でのみ投入し、リポジトリに実値が入らない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When production keys are switched, a smoke run shall confirm real Google sign-in and a real Stripe live checkout + webhook delivery on the production domain"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the production domain is not yet fixed (docs/dns-ssl.md がプレースホルダのまま), the switch shall not proceed — Google は redirect URI にワイルドカードを許さないため確定ドメインが前提"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If any test-mode key (sk_test_ / pk_test_) remains in a production environment after the switch, the release shall be blocked"
+          }
+        ],
+        "tier_3_regression": [
+          "切替後もローカル開発はテストモードのまま動作する (環境変数のみで切替わり、コード分岐を増やさない)",
+          "既存の OAuth / 課金の自動テストは live キー無しで green のまま"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "本番 Google サインイン",
+          "steps": [
+            "本番ドメインで Google サインインを実行"
+          ],
+          "expected": "実アカウントでサインイン成立"
+        },
+        {
+          "name": "本番 Stripe 決済",
+          "steps": [
+            "live キーで checkout → webhook 受信"
+          ],
+          "expected": "subscriptions / workspaces.plan が実反映"
+        },
+        {
+          "name": "テストキー残留検査",
+          "steps": [
+            "本番の env を grep"
+          ],
+          "expected": "sk_test_ / pk_test_ が 0 件"
+        }
+      ],
+      "note": "起票のみ (2026-08-13, ユーザー指示)。実行は本番ドメイン確定 (T-I-21) 後。GAP-020/021 はテストモード/無料枠で先行解消し、本番昇格は本タスクに分離する。"
     }
   ],
   "two_axis_policy": {
