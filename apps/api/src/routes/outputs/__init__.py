@@ -76,7 +76,11 @@ async def get_output_content_url(
     out = await svc.get_output(session, output_id)
     if out is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
-    path = {"html": out.html_path, "json": out.json_path, "md": out.md_path}[format]
+    # T-A-58: 要求された format の属性だけを参照する。
+    # 旧実装は 3 属性を eager に辞書化していたため、未要求 format の列が無い行
+    # (部分投影のクエリ結果や実カラム形状に満たないオブジェクト) で AttributeError
+    # になっていた。format は Literal で検証済みなので属性名は安全に組み立てられる。
+    path: str | None = getattr(out, f"{format}_path", None)
     if path is None:
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"output has no rendered {format.upper()} yet"
