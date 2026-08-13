@@ -26989,11 +26989,11 @@
           "uv.lock",
           "apps/api/tests/routes/test_outputs_content_url_regression.py",
           "apps/api/src/routes/outputs/__init__.py",
-          "apps/api/tests/routes/test_outputs_content_url.py"
+          "apps/api/tests/routes/test_outputs_content_url.py",
+          "apps/web/lib/sentry.client.ts"
         ],
         "shared_read": [
           "apps/api/src/observability/sentry.py",
-          "apps/web/lib/sentry.client.ts",
           "03_architecture/selected-stack.json"
         ],
         "forbidden": [
@@ -27007,7 +27007,8 @@
           "UBIQUITOUS: apps/api/main.py の lifespan (または起動時) が init_sentry() を実際に呼ぶ — 呼び出し元がテストのみ、という状態を解消する",
           "UBIQUITOUS: Web は initSentryClient() を実際に呼ぶ client provider を持ち、app/layout.tsx のツリーに組み込まれている",
           "UBIQUITOUS: ErrorBoundary の通知 hook に Sentry の captureException が実接続され、『配線スロット』が空のまま残らない",
-          "UBIQUITOUS: sentry-sdk (API) と @sentry/nextjs (Web) が依存として実際に追加され、lock ファイルに反映されている — 配線先の SDK が無いまま『配線済み』としない"
+          "UBIQUITOUS: sentry-sdk (API) と @sentry/nextjs (Web) が依存として実際に追加され、lock ファイルに反映されている — 配線先の SDK が無いまま『配線済み』としない",
+          "UBIQUITOUS: Web の本番ビルド成果物 (.next/static/chunks) に未解決の bare specifier `import(\"@sentry/nextjs\")` が 0 件であること — SDK は専用チャンクへ code-split される"
         ],
         "tier_2_functional": [
           {
@@ -27032,6 +27033,11 @@
             "type": "UNWANTED",
             "critical": true,
             "text": "If the proof of wiring relies on a fake SDK injected into sys.modules (or an equivalent stub), it shall not count as satisfying this task — 実 SDK を import した状態で is_sentry_initialized() が True になることを示すこと"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the dynamic import uses /* webpackIgnore: true */ or a variable specifier, it shall not count as satisfying this task — バンドラが解決を諦めブラウザで必ず throw するため、vitest が緑でも実機で送信 0 件になる (fake SDK と同じ『テストだけ通る』形)"
           }
         ],
         "tier_3_regression": [
@@ -27076,9 +27082,16 @@
             "fake SDK を注入せず、実 sentry-sdk を import できる状態で DSN を設定し起動"
           ],
           "expected": "is_sentry_initialized() が True (ImportError 分岐に落ちない)"
+        },
+        {
+          "name": "ビルド成果物の bare specifier 0 件",
+          "steps": [
+            "pnpm build 後 .next/static/chunks を grep 'import(\"@sentry/nextjs\")'"
+          ],
+          "expected": "0 件 (専用チャンクへ code-split されている)"
         }
       ],
-      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。 / 2026-08-13 追記 (dev ESCALATE 裁定): 配線は実装されたが sentry-sdk・@sentry/nextjs が未導入で init_sentry() が ImportError 分岐に落ち実送信 0 件だった (PM 独立確認済: apps/api/pyproject.toml・apps/web/package.json とも sentry 依存なし、@sentry は node_modules にも不在)。AC『DSN 設定で is_sentry_initialized() が true』は SDK 抜きでは構造的に達成不能のため、依存マニフェスト 4 ファイルを scope expand し本タスクに含める (選択肢 A を採用)。dev による GAP-108 の open 差し戻しは PM として妥当と認める。"
+      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。 / 2026-08-13 追記 (dev ESCALATE 裁定): 配線は実装されたが sentry-sdk・@sentry/nextjs が未導入で init_sentry() が ImportError 分岐に落ち実送信 0 件だった (PM 独立確認済: apps/api/pyproject.toml・apps/web/package.json とも sentry 依存なし、@sentry は node_modules にも不在)。AC『DSN 設定で is_sentry_initialized() が true』は SDK 抜きでは構造的に達成不能のため、依存マニフェスト 4 ファイルを scope expand し本タスクに含める (選択肢 A を採用)。dev による GAP-108 の open 差し戻しは PM として妥当と認める。 / 2026-08-13 追記 2 (dev ESCALATE 第 2 弾の裁定): SDK 導入後も apps/web/lib/sentry.client.ts:85 が `await import(/* webpackIgnore: true */ moduleName)` (magic comment + 変数 specifier の二重で解決不能) のため、ブラウザには bare `import(\"@sentry/nextjs\")` が残り initSentryClient() は常に false。PM 独立確認済: ビルド成果物 .next/static/chunks/app/layout-349139109c50053a.js に bare specifier と \"@sentry/nextjs is not installed\" 文字列が同居。再消し込み条件②はこのままでは実機で満たせないため、同ファイルを shared_read → modify へ移し 本タスクに含める (選択肢 A)。sentry.client.ts:76 の『静的解析されないように文字列変数化』は SDK 未導入時の防御としては妥当だったが、SDK が実依存になった今は逆に有害。"
     },
     {
       "id": "T-F-43",
