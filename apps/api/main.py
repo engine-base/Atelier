@@ -18,7 +18,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src import __version__
 from src.health import router as health_router
-from src.observability import init_sentry
+from src.observability import (
+    attach_betterstack_handler,
+    detach_betterstack_handler,
+    init_sentry,
+)
 from src.routes import api_router
 from src.txn_commit import CommitBeforeResponseMiddleware
 
@@ -38,8 +42,25 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
             "sentry initialization failed; continuing without Sentry",
             exc_info=True,
         )
+    # 観測基盤 (T-F-39): Better Stack へのログ集約 handler を root logger に実 attach。
+    # トークン未設定なら attach せずローカルログのみ。送信は背景スレッド経由で、
+    # 失敗してもリクエスト処理には影響しない。
+    try:
+        attach_betterstack_handler()
+    except Exception:
+        logger.warning(
+            "better stack log shipping could not be attached; continuing with local logs",
+            exc_info=True,
+        )
     # DB pool / LLM client 等の初期化は T-F-11 / T-F-12 で追加
-    yield
+    try:
+        yield
+    finally:
+        # 背景送信スレッドを畳む。失敗しても shutdown を止めない。
+        try:
+            detach_betterstack_handler()
+        except Exception:
+            logger.warning("better stack handler detach failed", exc_info=True)
 
 
 app = FastAPI(

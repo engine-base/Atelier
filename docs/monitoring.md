@@ -39,6 +39,37 @@ Better Stack (旧 Logtail + Better Uptime) を中心とした本番監視構成�
 - PII scrub: `sentry.py` の `before_send` が Authorization / Cookie / API key
   ヘッダを `[Filtered]` に置換
 
+## Langfuse (LLM トレース)
+
+実配線は T-F-38。`apps/api/src/observability/langfuse.py` の `LangfuseClient` を
+`src/llm/client.py` の `TracedLLMClient` が包み、`select_client()` が返す全ての
+LLM クライアントが `complete()` 完了ごとにトレースを 1 件発行する。
+
+- 必要な環境変数: `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
+  (self-host なら `LANGFUSE_HOST`)
+- 送るのは **model / latency / token usage のみ**。prompt / completion 本文は
+  送らない (AI 学習デフォルト OFF の方針)
+- 未設定・送信失敗・タイムアウトは全て握り潰す。**LLM 呼び出しは落ちない**
+
+## Better Stack (ログ集約)
+
+実配線は T-F-39。
+
+| 面 | 実装 | 呼び出し元 (実行経路) |
+|---|---|---|
+| API | `apps/api/src/observability/betterstack.py` `BetterStackHandler` | `apps/api/main.py` の lifespan が `attach_betterstack_handler()` で root logger へ attach (shutdown で detach) |
+| Web | `apps/web/lib/logger.ts` `sendLog()` | ブラウザからの fetch 送信 |
+
+- 必要な環境変数: API = `BETTERSTACK_SOURCE_TOKEN` (region 別なら
+  `BETTERSTACK_INGEST_HOST`) / Web = `NEXT_PUBLIC_BETTERSTACK_SOURCE_TOKEN`
+  (region 別なら `NEXT_PUBLIC_BETTERSTACK_INGEST_URL`)
+- API 側の送信は `QueueHandler` + `QueueListener` の背景スレッド経由。
+  リクエスト処理は HTTP 送信を待たない
+- トークン未設定なら attach せず**ローカルログのまま**。送信失敗も握り潰す
+- **秘匿値マスクは必須**: `api_key=` / `token:` / `Bearer …` / `sk-…` /
+  `sk_live_…` 形および秘匿キー名 (`*_API_KEY` / `token` / `password` /
+  `authorization` …) の値は送出前に `[REDACTED]` へ置換される
+
 ## Better Stack ダッシュボード
 
 ダッシュボード ID: `atelier-prod-overview` (Better Stack の Workspace 内)。
