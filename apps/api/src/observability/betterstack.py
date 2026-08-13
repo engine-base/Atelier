@@ -24,6 +24,7 @@ import logging.handlers
 import os
 import queue
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -44,18 +45,48 @@ _SENSITIVE_KEY_RE = re.compile(
 )
 """この語を含むキーの値は中身を見ずに伏せる。"""
 
-_SECRET_VALUE_PATTERNS: tuple[re.Pattern[str], ...] = (
-    # `api_key=xxx` / `token: xxx` のような key=value 形式
-    re.compile(
-        r"(?i)\b(api[_-]?key|token|password|passwd|secret|authorization)\b\s*[=:]\s*\S+",
-    ),
-    # `Bearer <token>`
-    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-]+"),
-    # プロバイダ発行キーの代表形 (Anthropic / OpenAI / Stripe)
+# `postgres://user:pass@host/db` のような接続文字列。scheme と host は残し、
+# 資格情報だけ伏せる (障害調査で接続先が分からなくなるのを避けるため)。
+_URL_CREDENTIALS_RE = re.compile(
+    r"(?P<scheme>\b[a-z][a-z0-9+.\-]*://)[A-Za-z0-9_\-.%]+:[A-Za-z0-9_\-.%]+@",
+)
+
+# `api_key=xxx` / `token: xxx` / `Authorization: Bearer xxx` の key-value 形式。
+# `Bearer ` を任意接頭辞として**明示的に食う**こと。これが無いと
+# "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり、JWT 本体が
+# 素通しになる (QA_FAIL-2 の原因)。
+_KEYED_SECRET_RE = re.compile(
+    r"(?i)\b(?P<key>api[_-]?key|token|password|passwd|secret|authorization)\b"
+    r"\s*(?P<sep>[=:])\s*(?:Bearer\s+)?\S+",
+)
+
+# 単体で現れる `Bearer <token>`
+_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-]+")
+
+# プロバイダ発行キーの代表形 (Anthropic / OpenAI / Stripe)
+_PROVIDER_KEY_RES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bsk-[A-Za-z0-9_\-]{12,}"),
     re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{12,}"),
 )
-"""メッセージ本文に紛れ込んだ秘匿値の代表形。"""
+
+
+def _mask_url_credentials(match: re.Match[str]) -> str:
+    return f"{match.group('scheme')}{REDACTED}@"
+
+
+def _mask_keyed_secret(match: re.Match[str]) -> str:
+    return f"{match.group('key')}{match.group('sep')}{REDACTED}"
+
+
+_REDACTION_RULES: tuple[tuple[re.Pattern[str], Callable[[re.Match[str]], str]], ...] = (
+    # URL 資格情報 → key-value → Bearer 単体 → プロバイダ鍵、の順に適用する。
+    # 順序を変えると "Authorization: Bearer <JWT>" が部分一致で削られて漏れる。
+    (_URL_CREDENTIALS_RE, _mask_url_credentials),
+    (_KEYED_SECRET_RE, _mask_keyed_secret),
+    (_BEARER_RE, lambda _match: f"Bearer {REDACTED}"),
+    *((pattern, lambda _match: REDACTED) for pattern in _PROVIDER_KEY_RES),
+)
+"""メッセージ本文に紛れ込んだ秘匿値の代表形と、その伏せ方 (適用順)。"""
 
 _RESERVED_RECORD_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__)
 """標準の LogRecord 属性。これ以外を `extra` 由来とみなす。"""
@@ -88,21 +119,9 @@ class BetterStackConfig:
 def redact_text(text: str) -> str:
     """メッセージ本文から秘匿値らしき部分を伏せる。"""
     redacted = text
-    for pattern in _SECRET_VALUE_PATTERNS:
-        redacted = pattern.sub(_replace_secret, redacted)
+    for pattern, replacement in _REDACTION_RULES:
+        redacted = pattern.sub(replacement, redacted)
     return redacted
-
-
-def _replace_secret(match: re.Match[str]) -> str:
-    """key=value 形式なら key を残して値だけ伏せる。それ以外は全体を伏せる。"""
-    matched = match.group(0)
-    for separator in ("=", ":"):
-        head, found, _tail = matched.partition(separator)
-        if found:
-            return f"{head}{separator}{REDACTED}"
-    if matched.lower().startswith("bearer"):
-        return f"Bearer {REDACTED}"
-    return REDACTED
 
 
 def redact_mapping(values: dict[str, Any]) -> dict[str, Any]:

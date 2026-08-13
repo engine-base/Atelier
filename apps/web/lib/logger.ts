@@ -28,27 +28,32 @@ const TIMEOUT_MS = 3000;
 
 const SENSITIVE_KEY_RE = /(api[_-]?key|token|password|passwd|secret|authorization|credential|dsn)/i;
 
-const SECRET_VALUE_PATTERNS: readonly RegExp[] = [
-  /\b(api[_-]?key|token|password|passwd|secret|authorization)\b\s*[=:]\s*\S+/gi,
-  /\bBearer\s+[A-Za-z0-9._-]+/gi,
-  /\bsk-[A-Za-z0-9_-]{12,}/g,
-  /\bsk_(?:live|test)_[A-Za-z0-9]{12,}/g,
+/**
+ * 適用順つきのマスク規則。**apps/api/src/observability/betterstack.py の
+ * `_REDACTION_RULES` と同一の規則・同一の順序**を保つこと。
+ *
+ * 順序が重要: key-value 規則が `Bearer ` を任意接頭辞として明示的に食わないと、
+ * "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が
+ * 素通しになる (QA_FAIL-2 の原因)。
+ */
+const REDACTION_RULES: readonly (readonly [RegExp, string])[] = [
+  // 接続文字列の資格情報。scheme と host は残す。
+  [/(\b[a-z][a-z0-9+.-]*:\/\/)[A-Za-z0-9_\-.%]+:[A-Za-z0-9_\-.%]+@/g, `$1${REDACTED}@`],
+  // key=value / key: value (Authorization: Bearer <token> を含む)
+  [
+    /\b(api[_-]?key|token|password|passwd|secret|authorization)\b\s*([=:])\s*(?:Bearer\s+)?\S+/gi,
+    `$1$2${REDACTED}`,
+  ],
+  // 単体で現れる Bearer <token>
+  [/\bBearer\s+[A-Za-z0-9._-]+/gi, `Bearer ${REDACTED}`],
+  // プロバイダ発行キーの代表形
+  [/\bsk-[A-Za-z0-9_-]{12,}/g, REDACTED],
+  [/\bsk_(?:live|test)_[A-Za-z0-9]{12,}/g, REDACTED],
 ];
 
 /** メッセージ本文から秘匿値らしき部分を伏せる。 */
 export function redactText(text: string): string {
-  return SECRET_VALUE_PATTERNS.reduce(
-    (acc, pattern) =>
-      acc.replace(pattern, (matched) => {
-        for (const separator of ['=', ':']) {
-          const index = matched.indexOf(separator);
-          if (index >= 0) return `${matched.slice(0, index)}${separator}${REDACTED}`;
-        }
-        if (/^bearer/i.test(matched)) return `Bearer ${REDACTED}`;
-        return REDACTED;
-      }),
-    text,
-  );
+  return REDACTION_RULES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
 }
 
 /** キー名が秘匿候補なら値を伏せ、文字列値には本文マスクも適用する。 */

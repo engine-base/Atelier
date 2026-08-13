@@ -55,6 +55,39 @@ describe('redactText (T-F-39)', () => {
   it('leaves ordinary messages untouched', () => {
     expect(redactText('workspace created')).toBe('workspace created');
   });
+
+  // QA_FAIL-2 回帰: "Authorization: Bearer <JWT>" は実運用で最も多い形なのに、
+  // key-value 規則の \S+ が "Bearer" で止まり JWT 本体が素通ししていた。
+  // 接続文字列の資格情報も無伏せだった。
+  // ↓ の表は apps/api/tests/test_observability_betterstack.py の
+  //   test_redaction_table_is_exact と**同一**に保つこと (API/Web で同一規則)。
+  it.each([
+    ['call Authorization: Bearer eyJhbGciOi.JIUzI1', 'call Authorization:[REDACTED]'],
+    ['Bearer eyJhbGciOi.JIUzI1', 'Bearer [REDACTED]'],
+    ['authorization=Bearer eyJhbGciOi.JIUzI1', 'authorization=[REDACTED]'],
+    ['db postgres://u:p@h/db', 'db postgres://[REDACTED]@h/db'],
+    [
+      'conn postgresql+asyncpg://user:s3cr3t@db.example.com:5432/atelier',
+      'conn postgresql+asyncpg://[REDACTED]@db.example.com:5432/atelier',
+    ],
+    ['api_key=sk-abcdefghijklmnop', 'api_key=[REDACTED]'],
+    ['workspace created', 'workspace created'],
+  ])('redaction table: %s', (raw, expected) => {
+    expect(redactText(raw)).toBe(expected);
+  });
+
+  it.each(['eyJhbGciOi.JIUzI1', 's3cr3t', 'hunter2', 'sk-abcdefghijklmnop'])(
+    'leaves no trace of %s',
+    (secret) => {
+      for (const message of [
+        `call Authorization: Bearer ${secret}`,
+        `password=${secret}`,
+        `conn postgres://user:${secret}@host/db`,
+      ]) {
+        expect(redactText(message)).not.toContain(secret);
+      }
+    },
+  );
 });
 
 describe('redactContext (T-F-39)', () => {

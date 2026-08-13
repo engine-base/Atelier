@@ -97,6 +97,47 @@ class TestRedaction:
     def test_plain_message_is_untouched(self) -> None:
         assert redact_text("workspace created") == "workspace created"
 
+    # QA_FAIL-2 回帰: "Authorization: Bearer <JWT>" は実運用で最も多い形なのに、
+    # key-value 規則の \S+ が "Bearer" で止まり JWT 本体が素通ししていた。
+    # 接続文字列の資格情報も無伏せだった。
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            (
+                "call Authorization: Bearer eyJhbGciOi.JIUzI1",
+                "call Authorization:[REDACTED]",
+            ),
+            ("Bearer eyJhbGciOi.JIUzI1", "Bearer [REDACTED]"),
+            (
+                "authorization=Bearer eyJhbGciOi.JIUzI1",
+                "authorization=[REDACTED]",
+            ),
+            ("db postgres://u:p@h/db", "db postgres://[REDACTED]@h/db"),
+            (
+                "conn postgresql+asyncpg://user:s3cr3t@db.example.com:5432/atelier",
+                "conn postgresql+asyncpg://[REDACTED]@db.example.com:5432/atelier",
+            ),
+            ("api_key=sk-abcdefghijklmnop", "api_key=[REDACTED]"),
+            ("workspace created", "workspace created"),
+        ],
+    )
+    def test_redaction_table_is_exact(self, raw: str, expected: str) -> None:
+        """apps/web/lib/logger.ts の同名テストと**同一の表**を維持すること。"""
+        assert redact_text(raw) == expected
+
+    @pytest.mark.parametrize(
+        "secret",
+        ["eyJhbGciOi.JIUzI1", "s3cr3t", "hunter2", "sk-abcdefghijklmnop"],
+    )
+    def test_no_secret_material_survives(self, secret: str) -> None:
+        messages = [
+            f"call Authorization: Bearer {secret}",
+            f"password={secret}",
+            f"conn postgres://user:{secret}@host/db",
+        ]
+        for message in messages:
+            assert secret not in redact_text(message), message
+
     def test_sensitive_keys_in_mapping(self) -> None:
         out = redact_mapping(
             {
