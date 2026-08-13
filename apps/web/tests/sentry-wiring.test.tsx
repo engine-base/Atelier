@@ -14,8 +14,7 @@
 
 import '@testing-library/jest-dom/vitest';
 
-import { existsSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import * as React from 'react';
@@ -148,33 +147,10 @@ describe('@sentry/nextjs は実依存として導入済み (T-F-42)', () => {
     expect(source).not.toContain('/* webpackIgnore');
   });
 
-  it('本番ビルド成果物に未解決の bare specifier が残らない', async () => {
-    // 決定的な判定はここ。ソース grep では「変数 specifier」を見逃すし、
-    // vitest は bare specifier を解決できてしまうため実機の証拠にならない。
-    // .next が無い場合 (単体テストだけ回したとき) は判定不能なので明示的に skip する。
-    const chunks = resolve(process.cwd(), '.next/static/chunks');
-    if (!existsSync(chunks)) {
-      // eslint-disable-next-line no-console
-      console.warn('[T-F-42] .next が無いため成果物チェックを skip。pnpm build 後に再実行すること');
-      return;
-    }
-
-    const offenders: string[] = [];
-    const walk = async (dir: string): Promise<void> => {
-      for (const entry of await readdir(dir, { withFileTypes: true })) {
-        const full = resolve(dir, entry.name);
-        if (entry.isDirectory()) {
-          await walk(full);
-        } else if (entry.name.endsWith('.js')) {
-          const body = await readFile(full, 'utf-8');
-          if (body.includes('import("@sentry/nextjs")')) offenders.push(full);
-        }
-      }
-    };
-    await walk(chunks);
-
-    expect(offenders).toEqual([]);
-  });
+  // 成果物側の検査は CI の Gate #16 (scripts/ci/check-build-artifacts.mjs) が
+  // **ビルド後に**実行する。vitest はビルド前に走るうえ bare specifier を
+  // 解決できてしまうため、ここに置くと恒久的に素通りする (T-F-46 / GAP-114)。
+  // ソース側 (上の it.each) と成果物側の二重防御で成立させる。
 
 });
 

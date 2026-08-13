@@ -1066,6 +1066,34 @@ jobs:
 
           echo "Gate #13 PASS (warning-only). ${#gap_lines[@]} gap(s) tracked."
 
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Gate #16 — build artifacts (未解決 bare specifier 0 件)  [T-F-46 / GAP-114]
+  #
+  # 動的 import に webpackIgnore magic comment や変数 specifier を使うと、
+  # バンドラが解決を諦めてブラウザに素の import("<pkg>") が残る。bare specifier は
+  # ブラウザが解決できないため必ず throw し、依存を入れてもその経路は動かない
+  # (T-F-42 で実際に踏んだ)。ソース grep は変数 specifier を検出できず、vitest は
+  # bare specifier を解決できてしまうため、判定は本番ビルド成果物でしか下せない。
+  # 検査は **build の後** に走らせる。.next 不在は「合格」ではなく失敗にする。
+  # ─────────────────────────────────────────────────────────────────────────
+  gate-16-build-artifacts:
+    name: "Gate #16 — build artifacts (bare specifier 0)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build web
+        run: pnpm --filter @atelier/web run build
+      - name: Check build artifacts
+        run: node scripts/ci/check-build-artifacts.mjs
+
   # ─────────────────────────────────────────────────────────────────────────
   # 全 gate 集約
   # ─────────────────────────────────────────────────────────────────────────
@@ -1088,6 +1116,7 @@ jobs:
       - gate-13-gap-tracker
       - gate-14-real-pg
       - gate-15-browser-e2e
+      - gate-16-build-artifacts
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -1108,6 +1137,7 @@ jobs:
             [gate-13-gap-tracker]="${{ needs.gate-13-gap-tracker.result }}"
             [gate-14-real-pg]="${{ needs.gate-14-real-pg.result }}"
             [gate-15-browser-e2e]="${{ needs.gate-15-browser-e2e.result }}"
+            [gate-16-build-artifacts]="${{ needs.gate-16-build-artifacts.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
