@@ -21,7 +21,7 @@ claude --version   # v2.1.224 以上であること
       「qa 準備完了」と応答する)。※役割注入は SessionStart hook なので
       起動タイミングに関係なく入るはず — 入らなければそれ自体が重要な報告事項
 - [ ] `/rename` が入った (各ペイン上部/タイトルで確認。空振りしていたら手で
-      `/rename pm` 等を打ち、「CC_BOOT_WAIT を伸ばす必要あり」とメモ)
+      `/rename pm` 等を打ち、「CC_BOOT_TRIES を伸ばす必要あり」とメモ)
 - [ ] `/rc` の QR/リンクが表示された → スマホの Claude アプリ Code タブで
       pm セッションが見える
 
