@@ -11,6 +11,9 @@ selected-stack.json#observability = "Sentry (errors) + Langfuse (LLM) + Better S
 | Better Stack | `betterstack.py` `BetterStackHandler` | `apps/api/main.py` の lifespan が `attach_betterstack_handler()` (T-F-39) |
 
 いずれも未設定なら warning を出して no-op になり、業務処理は落とさない。
+
+秘匿値マスクの語彙は `redaction.py` に集約し (T-F-48)、Sentry / Better Stack の
+**両経路がそれを参照する**。経路ごとに塞がれた形が違う状態を作らないため。
 """
 
 from .betterstack import (
@@ -21,9 +24,16 @@ from .betterstack import (
     is_betterstack_attached,
 )
 from .langfuse import LangfuseClient, LangfuseConfig, LLMTrace, get_langfuse_client
+from .redaction import (
+    REDACTED,
+    is_sensitive_header,
+    redact_mapping,
+    redact_text,
+)
 from .sentry import SentryConfig, init_sentry, is_sentry_initialized
 
 __all__ = [
+    "REDACTED",
     "BetterStackConfig",
     "BetterStackHandler",
     "LLMTrace",
@@ -35,5 +45,8 @@ __all__ = [
     "get_langfuse_client",
     "init_sentry",
     "is_betterstack_attached",
+    "is_sensitive_header",
     "is_sentry_initialized",
+    "redact_mapping",
+    "redact_text",
 ]

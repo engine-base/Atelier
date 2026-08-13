@@ -23,11 +23,11 @@ import logging
 import logging.handlers
 import os
 import queue
-import re
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
+
+from .redaction import REDACTED, redact_mapping, redact_text
 
 logger = logging.getLogger(__name__)
 
@@ -37,56 +37,11 @@ DEFAULT_INGEST_HOST = "https://in.logs.betterstack.com"
 DEFAULT_TIMEOUT_SECONDS = 3.0
 """送信タイムアウト。背景スレッドで実行するがハングを避けるため上限を持つ。"""
 
-REDACTED = "[REDACTED]"
-
-_SENSITIVE_KEY_RE = re.compile(
-    r"(api[_-]?key|token|password|passwd|secret|authorization|credential|dsn)",
-    re.IGNORECASE,
-)
-"""この語を含むキーの値は中身を見ずに伏せる。"""
-
-# `postgres://user:pass@host/db` のような接続文字列。scheme と host は残し、
-# 資格情報だけ伏せる (障害調査で接続先が分からなくなるのを避けるため)。
-_URL_CREDENTIALS_RE = re.compile(
-    r"(?P<scheme>\b[a-z][a-z0-9+.\-]*://)[A-Za-z0-9_\-.%]+:[A-Za-z0-9_\-.%]+@",
-)
-
-# `api_key=xxx` / `token: xxx` / `Authorization: Bearer xxx` の key-value 形式。
-# `Bearer ` を任意接頭辞として**明示的に食う**こと。これが無いと
-# "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり、JWT 本体が
-# 素通しになる (QA_FAIL-2 の原因)。
-_KEYED_SECRET_RE = re.compile(
-    r"(?i)\b(?P<key>api[_-]?key|token|password|passwd|secret|authorization)\b"
-    r"\s*(?P<sep>[=:])\s*(?:Bearer\s+)?\S+",
-)
-
-# 単体で現れる `Bearer <token>`
-_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-]+")
-
-# プロバイダ発行キーの代表形 (Anthropic / OpenAI / Stripe)
-_PROVIDER_KEY_RES: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bsk-[A-Za-z0-9_\-]{12,}"),
-    re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{12,}"),
-)
-
-
-def _mask_url_credentials(match: re.Match[str]) -> str:
-    return f"{match.group('scheme')}{REDACTED}@"
-
-
-def _mask_keyed_secret(match: re.Match[str]) -> str:
-    return f"{match.group('key')}{match.group('sep')}{REDACTED}"
-
-
-_REDACTION_RULES: tuple[tuple[re.Pattern[str], Callable[[re.Match[str]], str]], ...] = (
-    # URL 資格情報 → key-value → Bearer 単体 → プロバイダ鍵、の順に適用する。
-    # 順序を変えると "Authorization: Bearer <JWT>" が部分一致で削られて漏れる。
-    (_URL_CREDENTIALS_RE, _mask_url_credentials),
-    (_KEYED_SECRET_RE, _mask_keyed_secret),
-    (_BEARER_RE, lambda _match: f"Bearer {REDACTED}"),
-    *((pattern, lambda _match: REDACTED) for pattern in _PROVIDER_KEY_RES),
-)
-"""メッセージ本文に紛れ込んだ秘匿値の代表形と、その伏せ方 (適用順)。"""
+# 秘匿値マスクの語彙は redaction.py に集約している (T-F-48 / GAP-116)。
+# ここで独自に定義すると、経路ごとに塞がれた形が違う状態が必ず生まれる
+# (実際 sentry.py の _SENSITIVE_HEADER_KEYS に cookie があるのに、
+#  こちらの語彙には無いという不揃いが残っていた)。
+# 後方互換のため従来の公開名はそのまま re-export する。
 
 _RESERVED_RECORD_ATTRS = frozenset(logging.LogRecord("", 0, "", 0, "", None, None).__dict__)
 """標準の LogRecord 属性。これ以外を `extra` 由来とみなす。"""
@@ -114,31 +69,6 @@ class BetterStackConfig:
     def resolve_host(self) -> str:
         host = self.host if self.host is not None else os.environ.get("BETTERSTACK_INGEST_HOST")
         return (host or DEFAULT_INGEST_HOST).rstrip("/")
-
-
-def redact_text(text: str) -> str:
-    """メッセージ本文から秘匿値らしき部分を伏せる。"""
-    redacted = text
-    for pattern, replacement in _REDACTION_RULES:
-        redacted = pattern.sub(replacement, redacted)
-    return redacted
-
-
-def redact_mapping(values: dict[str, Any]) -> dict[str, Any]:
-    """キー名が秘匿候補なら値を伏せ、文字列値は本文マスクも適用する。"""
-    result: dict[str, Any] = {}
-    for key, value in values.items():
-        if _SENSITIVE_KEY_RE.search(key):
-            result[key] = REDACTED
-        elif isinstance(value, str):
-            result[key] = redact_text(value)
-        elif isinstance(value, dict):
-            # ログの extra は任意キーを取りうるのでキーを str に正規化してから再帰。
-            nested = cast("dict[object, Any]", value)
-            result[key] = redact_mapping({str(k): v for k, v in nested.items()})
-        else:
-            result[key] = value
-    return result
 
 
 def build_log_payload(record: logging.LogRecord) -> dict[str, Any]:

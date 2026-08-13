@@ -23,6 +23,8 @@ from typing import Any, Literal, cast
 
 from sentry_sdk.types import Event, Hint
 
+from .redaction import FILTERED, is_sensitive_header, redact_text
+
 logger = logging.getLogger(__name__)
 
 # モジュール内グローバルで初期化済フラグを保持 (idempotent guard)
@@ -142,29 +144,35 @@ def _scrub_sensitive_fields(event: Event, _hint: Hint) -> Event | None:
         if isinstance(raw_headers, dict):
             headers = cast("dict[str, Any]", raw_headers)
             request_dict["headers"] = {
-                key: ("[Filtered]" if _is_sensitive_header(key) else value)
+                key: (FILTERED if _is_sensitive_header(key) else value)
                 for key, value in headers.items()
             }
+
+    # T-F-48: 本文側も同じ語彙でマスクする。ヘッダだけ伏せても、例外メッセージや
+    # ログ本文に `Authorization: Bearer …` や接続文字列が載れば同じ値が外へ出る。
+    # Better Stack 経路と同一の redact_text を通し、経路ごとの差を残さない。
+    message = event.get("message")
+    if isinstance(message, str):
+        event["message"] = redact_text(message)
+
+    exception = event.get("exception")
+    if isinstance(exception, dict):
+        exception_dict = cast("dict[str, Any]", exception)
+        raw_values = exception_dict.get("values")
+        if isinstance(raw_values, list):
+            values = cast("list[Any]", raw_values)
+            for entry in values:
+                if isinstance(entry, dict):
+                    entry_dict = cast("dict[str, Any]", entry)
+                    value = entry_dict.get("value")
+                    if isinstance(value, str):
+                        entry_dict["value"] = redact_text(value)
     return event
 
 
-_SENSITIVE_HEADER_KEYS = frozenset(
-    {
-        "authorization",
-        "cookie",
-        "set-cookie",
-        "x-api-key",
-        "x-auth-token",
-        "x-supabase-auth",
-    },
-)
-
-
 def _is_sensitive_header(name: object) -> bool:
-    """name が秘匿候補なら True (case-insensitive 比較)。"""
-    if not isinstance(name, str):
-        return False
-    return name.lower() in _SENSITIVE_HEADER_KEYS
+    """name が秘匿候補なら True。語彙は redaction.py に集約済 (T-F-48)。"""
+    return is_sensitive_header(name)
 
 
 __all__ = [
