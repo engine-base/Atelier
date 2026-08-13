@@ -18,6 +18,10 @@ Atelier の API キー・接続文字列・トークンの**安全な保管と�
 | Stripe API キー (test/live) | Stripe Dashboard → 開発者 → API キー | (Dashboard で確認・ロール) |
 | Google OAuth クライアント ID/secret | Google Cloud Console → Auth Platform → Clients | — |
 | JWT 署名鍵 | 自分で生成し 1Password 等に保管 | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| BYOK 暗号化キー (`ATELIER_BYOK_ENCRYPTION_KEY`) | 自分で生成し 1Password 等に保管 | `python3 -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"` |
+| Vault 暗号化キー (`ATELIER_VAULT_ENCRYPTION_KEY`) | 同上 (BYOK とは別値にする) | 同上 |
+| Bridge worker トークン (`ATELIER_BRIDGE_TOKEN`) | 自分で生成し 1Password 等に保管 | `python3 -c "import secrets;print(secrets.token_urlsafe(48))"` |
+| Inngest Event / Signing key | Inngest Dashboard → Manage → Event Keys / Signing Key | — |
 | Sentry DSN (API / Web) | Sentry Dashboard → Settings → Projects → Client Keys (DSN) | — |
 | Langfuse Public / Secret key | Langfuse Dashboard → Settings → API Keys | — |
 | Better Stack source token | Better Stack → Telemetry → Sources → 対象 source | — |
@@ -45,12 +49,23 @@ flyctl secrets set --app atelier-api-eb \
   ATELIER_SUPABASE_ANON_KEY='<anon>' \
   ATELIER_SUPABASE_SERVICE_ROLE_KEY='<service_role>' \
   ANTHROPIC_API_KEY='<Anthropic Console で発行>' \
-  VOYAGE_API_KEY='<Voyage AI Dashboard で発行>'
+  VOYAGE_API_KEY='<Voyage AI Dashboard で発行>' \
+  ATELIER_BYOK_ENCRYPTION_KEY='<Fernet 鍵>' \
+  ATELIER_VAULT_ENCRYPTION_KEY='<Fernet 鍵 (BYOK とは別値)>' \
+  ATELIER_BRIDGE_TOKEN='<保管庫の値>'
 # ⚠ ANTHROPIC_API_KEY / VOYAGE_API_KEY 未投入だと本番 chat は
 #   「LLM が利用できません」エラー、RAG は text 検索 degrade になる。
+# ⚠ ATELIER_BYOK_ENCRYPTION_KEY / ATELIER_VAULT_ENCRYPTION_KEY 未投入だと
+#   BYOK API / シークレット保管 API が 500 を返す (GAP-107)。
+# 観測基盤 (任意だが本番では投入推奨。未設定なら skip して通常動作):
+#   SENTRY_DSN / LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY / BETTERSTACK_SOURCE_TOKEN
 # 確認 (値は出ず名前と digest のみ):
 flyctl secrets list --app atelier-api-eb
 ```
+
+> 必須 env とテンプレート (`.env.example`) の乖離は
+> `python3 scripts/ci/env-template-drift.py` で機械検査している (T-F-43)。
+> 新しい必須 env を足したら**名前だけ**テンプレートに登録すること (実値は書かない)。
 
 ### 本番 Web (Vercel)
 Dashboard → Project → Settings → Environment Variables、または:
