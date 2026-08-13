@@ -185,6 +185,22 @@ keepawake() {  # session-name
   fi
 }
 
+kickoff() {  # pm-target — 開始文の案内、CC_AUTO_START=1 なら pm へ自動送信
+  local file="$REPO/docs/agents/kickoff.txt"
+  [ -f "$file" ] || { echo "  pm ウィンドウに開始の一言を入力してください"; return 0; }
+  if [ -n "${CC_AUTO_START:-}" ]; then
+    tmux send-keys -t "$1" -l "$(tr -d '\n' < "$file")"
+    tmux send-keys -t "$1" C-m
+    echo "  ✓ pm に開始文を自動送信しました — 以後は放置で回ります"
+  else
+    echo "  『◯◯ 準備完了』を確認したら、pm ウィンドウに次をコピペ (開始文):"
+    echo "  ----------------------------------------------------------------"
+    sed 's/^/  /' "$file"
+    echo "  ----------------------------------------------------------------"
+    echo "  (次回から CC_AUTO_START=1 ./scripts/ccstart.sh で送信まで全自動にできます)"
+  fi
+}
+
 if [ "$MODE" = "windows" ]; then
   # ===== 3 ウィンドウモード (macOS Terminal) =====
   # 役割ごとに独立した tmux セッションを作り、各 Terminal ウィンドウで attach する。
@@ -217,8 +233,7 @@ OSA
   setup_target flow-pm pm
   echo ""
   echo "起動しました (3 ウィンドウ: pm / dev / qa)"
-  echo "  各ウィンドウで『◯◯ 準備完了』を確認 → pm ウィンドウに開始の一言を入力"
-  echo "  例:『開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて』"
+  kickoff flow-pm
   echo "  スマホ: 各ウィンドウの /rc 出力の案内どおり Claude アプリ Code タブから接続"
   echo "  ウィンドウを閉じても裏で生存 — 開き直し: tmux attach -t flow-pm (dev/qa も同様)"
   echo "  全停止: tmux kill-session -t flow-pm \\; kill-session -t flow-dev \\; kill-session -t flow-qa \\; kill-session -t flow-keepawake"
@@ -251,7 +266,7 @@ setup_target "$SESSION:flow.0" pm
 echo ""
 echo "起動しました: tmux attach -t $SESSION"
 echo "  左=pm / 右上=dev / 右下=qa (各ペインで『◯◯ 準備完了』を確認)"
-echo "  開始するには pm ペインに例:『開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて』"
+kickoff "$SESSION:flow.0"
 echo "  スマホ: 各ペインの /rc 出力の案内どおり Claude アプリの Code タブから接続"
 echo "  停止: tmux kill-session -t $SESSION"
 tmux attach -t "$SESSION"

@@ -18,8 +18,11 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 
 ```bash
 cd ~/path/to/Atelier
-./scripts/ccstart.sh
+CC_AUTO_START=1 ./scripts/ccstart.sh   # 開始文の送信まで全自動 (完全放置)
+# ./scripts/ccstart.sh                 # 開始文はコピペしたい場合 (起動完了時に表示される)
 ```
+
+開始文は `docs/agents/kickoff.txt` が正 (内容を変えたければこのファイルを編集)。
 
 これで **pm / dev / qa の 3 つの独立した Terminal ウィンドウ**が立ち上がる
 (macOS Terminal 以外や `CC_PANES=1` では 1 画面 3 ペイン)。ウィンドウを

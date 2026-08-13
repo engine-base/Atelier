@@ -31,7 +31,7 @@ echo "  ✓ scripts/ccstart.sh, scripts/agents/{flow.sh,flow-stop-hook.sh,flow-s
 
 # 2. 役割定義 (既存を尊重 — 無いものだけ配置)
 mkdir -p "$TARGET/docs/agents/boot"
-for f in README.md protocol.md project.md pm.md dev.md qa.md rehearsal.md; do
+for f in README.md protocol.md project.md pm.md dev.md qa.md rehearsal.md kickoff.txt; do
   if [ -f "$TARGET/docs/agents/$f" ]; then
     echo "  - docs/agents/$f は既存のため保持"
   else

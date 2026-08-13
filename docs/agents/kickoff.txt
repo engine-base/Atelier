@@ -1,0 +1,1 @@
+開始。07_tasks/tickets.json の進捗台帳と docs/gap-tracker.md の未解消 gap を確認し、docs/agents/protocol.md の連続進行モードで残タスクを優先度順に運転してください。外部契約待ち (GAP-020/021) はスキップ。停止してよいのは連続進行モードの限定列挙のみです。
