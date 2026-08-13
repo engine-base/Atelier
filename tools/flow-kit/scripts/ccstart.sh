@@ -122,7 +122,7 @@ drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力
   #   ・"Esc to cancel" を含む選択案内 (fullscreen renderer 等) → Esc で既定維持
   #   ・"Enter to confirm" だけの案内 → Enter で既定選択
   #   ・"for short"(? for shortcuts) → 入力欄に到達 (案内なし)
-  local tries="${CC_BOOT_TRIES:-90}" boot_tries screen ready_seen=0
+  local tries="${CC_BOOT_TRIES:-180}" boot_tries screen ready_seen=0
   # まず claude プロセス起動を待つ。プロセス名は環境で異なる:
   #   Mac 実機 = claude.exe (実測・tmux ステータスバーで確認) / Linux = claude / 旧 = node
   # 名前を固定列挙すると新環境で外れるため *claude* を部分一致で拾う。
