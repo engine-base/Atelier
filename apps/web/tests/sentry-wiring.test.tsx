@@ -14,7 +14,8 @@
 
 import '@testing-library/jest-dom/vitest';
 
-import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import * as React from 'react';
@@ -135,19 +136,46 @@ describe('@sentry/nextjs は実依存として導入済み (T-F-42)', () => {
     expect(typeof mod.captureException).toBe('function');
   });
 
-  it('provider の動的 import に webpackIgnore を付けない (ブラウザで解決不能になる)', async () => {
-    // webpackIgnore を付けるとバンドラが解決を諦め、ブラウザに素の
-    // import("@sentry/nextjs") が残る。bare specifier は解決できず必ず失敗するため、
-    // SDK を導入しても送信 0 件のままになる。ビルド成果物で実測して判明した罠。
-    const source = await readFile(
-      resolve(process.cwd(), 'providers/observability-provider.tsx'),
-      'utf-8',
-    );
+  it.each([
+    'providers/observability-provider.tsx',
+    'lib/sentry.client.ts',
+  ])('%s は静的 specifier で import する (webpackIgnore / 変数 specifier 禁止)', async (rel) => {
+    // ソース側の防御。成果物側の 0 件チェック (下) と二重で持つ。
+    const source = await readFile(resolve(process.cwd(), rel), 'utf-8');
 
     expect(source).toContain("import('@sentry/nextjs')");
     // magic comment そのものの形で判定する (説明コメント中の語には反応させない)
     expect(source).not.toContain('/* webpackIgnore');
   });
+
+  it('本番ビルド成果物に未解決の bare specifier が残らない', async () => {
+    // 決定的な判定はここ。ソース grep では「変数 specifier」を見逃すし、
+    // vitest は bare specifier を解決できてしまうため実機の証拠にならない。
+    // .next が無い場合 (単体テストだけ回したとき) は判定不能なので明示的に skip する。
+    const chunks = resolve(process.cwd(), '.next/static/chunks');
+    if (!existsSync(chunks)) {
+      // eslint-disable-next-line no-console
+      console.warn('[T-F-42] .next が無いため成果物チェックを skip。pnpm build 後に再実行すること');
+      return;
+    }
+
+    const offenders: string[] = [];
+    const walk = async (dir: string): Promise<void> => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const full = resolve(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(full);
+        } else if (entry.name.endsWith('.js')) {
+          const body = await readFile(full, 'utf-8');
+          if (body.includes('import("@sentry/nextjs")')) offenders.push(full);
+        }
+      }
+    };
+    await walk(chunks);
+
+    expect(offenders).toEqual([]);
+  });
+
 });
 
 describe('captureException (T-F-42)', () => {

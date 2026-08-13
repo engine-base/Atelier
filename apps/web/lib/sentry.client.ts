@@ -4,17 +4,16 @@
  * selected-stack.json#observability = "Sentry (errors) + Langfuse (LLM) + Better Stack (logs)"
  *
  * 設計方針:
- * - `@sentry/nextjs` は optional dep (本 PR の scope では未追加)。動的 import で
- *   未インストール環境を許容し、no-op フォールバックを返す。SDK は follow-up
- *   PR で apps/web/package.json に追加される。
+ * - `@sentry/nextjs` は **T-F-42 で実依存になった** (apps/web/package.json)。
+ *   動的 import は「未インストール環境を許容するため」ではなく、
+ *   **初期表示のバンドルから外して code-split するため**に使う。
+ *   SDK 不在時の耐性は catch がそのまま担保する。
  * - DSN は `process.env.NEXT_PUBLIC_SENTRY_DSN` を読む (Vercel + .env.local 配線済)。
  * - sample rate / replay は EU リージョン (engine-base.sentry.io) を前提に
  *   開発期 100%、本番は 10% 推奨 (環境変数で上書き可能)。
  *
- * 使い方 (follow-up で wire される想定):
- *   // apps/web/app/layout.tsx
- *   import { initSentryClient } from '@/lib/sentry.client';
- *   initSentryClient();
+ * 呼び出し元 (T-F-42 で配線済):
+ *   apps/web/providers/observability-provider.tsx → app/layout.tsx のツリー
  */
 
 export interface SentryClientConfig {
@@ -72,17 +71,21 @@ export async function initSentryClient(
     return false;
   }
 
-  // 動的 import — SDK 未インストール時に build を fail させない。
-  // import() expression は webpack に静的解析されないように文字列変数化。
-  const moduleName = '@sentry/nextjs';
+  // 動的 import は **静的な specifier** で書く (code-split させる)。
+  // 旧実装は webpackIgnore magic comment + 変数 specifier で「バンドラに解析させない」
+  // 形だった。SDK 未導入だった当時の防御としては妥当だったが、SDK が実依存になった
+  // 今は有害: バンドラが解決を諦め、ブラウザに素の `import("@sentry/nextjs")` が残る。
+  // bare specifier はブラウザが解決できないため必ず throw し、**SDK を入れても
+  // 送信 0 件**になる。しかも vitest は解決できてしまうのでユニットテストは緑になる
+  // (fake SDK と同じ『テストだけ通る』形)。判定は本番ビルド成果物で行うこと。
   type SentryNextModule = {
     init?: (options: Record<string, unknown>) => void;
     isInitialized?: () => boolean;
   };
   let mod: SentryNextModule;
   try {
-    // 動的 import を `as unknown as ...` で narrow。SDK 未インストール時は catch で fallback。
-    const imported: unknown = await import(/* webpackIgnore: true */ moduleName);
+    // SDK 不在・読み込み失敗時の耐性は下の catch がそのまま担保する。
+    const imported: unknown = await import('@sentry/nextjs');
     mod = imported as SentryNextModule;
   } catch {
     if (typeof console !== 'undefined') {
