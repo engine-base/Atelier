@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1405,
-    "total_estimate_hours_ai_compute": 135.05,
-    "human_review_total_h": 13.75,
-    "total_wall_clock_h_ai_parallel": 32.2,
+    "total_estimate_hours_human": 1418,
+    "total_estimate_hours_ai_compute": 136.35,
+    "human_review_total_h": 14.25,
+    "total_wall_clock_h_ai_parallel": 33.5,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -26998,8 +26998,9 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml",
-          "apps/api/src/routes",
-          "apps/api/src/services"
+          "apps/api/src/services",
+          "apps/api/src/routes/auth",
+          "apps/api/src/routes/billing"
         ]
       },
       "acceptance_criteria_inline": {
@@ -27091,7 +27092,7 @@
           "expected": "0 件 (専用チャンクへ code-split されている)"
         }
       ],
-      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。 / 2026-08-13 追記 (dev ESCALATE 裁定): 配線は実装されたが sentry-sdk・@sentry/nextjs が未導入で init_sentry() が ImportError 分岐に落ち実送信 0 件だった (PM 独立確認済: apps/api/pyproject.toml・apps/web/package.json とも sentry 依存なし、@sentry は node_modules にも不在)。AC『DSN 設定で is_sentry_initialized() が true』は SDK 抜きでは構造的に達成不能のため、依存マニフェスト 4 ファイルを scope expand し本タスクに含める (選択肢 A を採用)。dev による GAP-108 の open 差し戻しは PM として妥当と認める。 / 2026-08-13 追記 2 (dev ESCALATE 第 2 弾の裁定): SDK 導入後も apps/web/lib/sentry.client.ts:85 が `await import(/* webpackIgnore: true */ moduleName)` (magic comment + 変数 specifier の二重で解決不能) のため、ブラウザには bare `import(\"@sentry/nextjs\")` が残り initSentryClient() は常に false。PM 独立確認済: ビルド成果物 .next/static/chunks/app/layout-349139109c50053a.js に bare specifier と \"@sentry/nextjs is not installed\" 文字列が同居。再消し込み条件②はこのままでは実機で満たせないため、同ファイルを shared_read → modify へ移し 本タスクに含める (選択肢 A)。sentry.client.ts:76 の『静的解析されないように文字列変数化』は SDK 未導入時の防御としては妥当だったが、SDK が実依存になった今は逆に有害。"
+      "note": "GAP-108。PM 実地確認 (2026-08-13): init_sentry() の呼び出し元が apps/api/tests/test_observability_sentry.py のみで、本番 API は Sentry 未初期化 = バックエンドのエラー捕捉が構造的にゼロだった。Web も initSentryClient() が定義のみで呼ばれておらず、ErrorBoundary は『Sentry 配線スロット』が空のまま。T-F-08 は『Sentry 実装』は満たしたが『実配線』が抜けていた (実装済みだが誰も呼ばない = GAP-104 で通しが検出した『パイプ断絶』と同型)。束 C 先頭。 / 2026-08-13 追記 (dev ESCALATE 裁定): 配線は実装されたが sentry-sdk・@sentry/nextjs が未導入で init_sentry() が ImportError 分岐に落ち実送信 0 件だった (PM 独立確認済: apps/api/pyproject.toml・apps/web/package.json とも sentry 依存なし、@sentry は node_modules にも不在)。AC『DSN 設定で is_sentry_initialized() が true』は SDK 抜きでは構造的に達成不能のため、依存マニフェスト 4 ファイルを scope expand し本タスクに含める (選択肢 A を採用)。dev による GAP-108 の open 差し戻しは PM として妥当と認める。 / 2026-08-13 追記 2 (dev ESCALATE 第 2 弾の裁定): SDK 導入後も apps/web/lib/sentry.client.ts:85 が `await import(/* webpackIgnore: true */ moduleName)` (magic comment + 変数 specifier の二重で解決不能) のため、ブラウザには bare `import(\"@sentry/nextjs\")` が残り initSentryClient() は常に false。PM 独立確認済: ビルド成果物 .next/static/chunks/app/layout-349139109c50053a.js に bare specifier と \"@sentry/nextjs is not installed\" 文字列が同居。再消し込み条件②はこのままでは実機で満たせないため、同ファイルを shared_read → modify へ移し 本タスクに含める (選択肢 A)。sentry.client.ts:76 の『静的解析されないように文字列変数化』は SDK 未導入時の防御としては妥当だったが、SDK が実依存になった今は逆に有害。 / 2026-08-13 追記 3 (検収時是正): T-A-58 編入で modify に apps/api/src/routes/outputs/__init__.py を足した一方 forbidden に apps/api/src/routes を残したままだった (PM 起因の台帳矛盾・qa 申し送り 3)。forbidden を GAP-020/021 が専有する auth / billing に限定して解消。"
     },
     {
       "id": "T-F-43",
@@ -27326,16 +27327,31 @@
           "scripts/tests/test-begin-task-path.sh"
         ],
         "modify": [
-          "scripts/begin-task.sh"
+          "scripts/begin-task.sh",
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/observability/__init__.py",
+          "apps/api/src/observability/betterstack.py",
+          "apps/api/src/observability/redaction.py",
+          "apps/api/src/observability/sentry.py",
+          "apps/api/tests/test_observability_redaction.py",
+          "apps/api/tests/test_observability_sentry_types.py",
+          "apps/web/app/auth/s_a01/page.tsx",
+          "apps/web/tests/sentry-wiring.test.tsx",
+          "apps/web/tests/signin-hydration.test.tsx",
+          "packages/email/README.md",
+          "packages/email/package.json",
+          "scripts/ci/check-build-artifacts.mjs",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md"
         ],
         "shared_read": [
           "09_dispatch/scripts/dispatch.sh",
           ".github/workflows/v3-gate.yml"
         ],
         "forbidden": [
-          ".github/workflows/v3-gate.yml",
-          "apps/api",
-          "apps/web"
+          "apps/api/src/routes/auth",
+          "apps/api/src/routes/billing",
+          "apps/web/app/auth/s_a03"
         ]
       },
       "acceptance_criteria_inline": {
@@ -27383,6 +27399,463 @@
         }
       ],
       "note": "GAP-111。dev の ESCALATE (2026-08-13) を PM がコード読解で確認: scripts/begin-task.sh:73 の grep -oE '/tmp/atelier-dispatch-[^ ]+' が dispatch.sh:149 の '✓ Generated: $TMPDIR/CLAUDE.md' 行に最初にマッチするため、TMP_DIR に '/CLAUDE.md' まで含まれ、直後の [ ! -f \"$TMP_DIR/CLAUDE.md\" ] が常に真になって exit 4 する。全タスクの着手を塞ぐ。Gate #4 の --compare-branch=origin/main 固定は別問題 (origin/main が 125 commit 遅れ) だが、v3-gate.yml の改変は禁止のため本タスクでは扱わず、main 追随の可否を経営者判断に上げる。"
+    },
+    {
+      "id": "T-F-45",
+      "title": "sentry.py の before_send 型を実 SDK の EventProcessor に整合させる (pyright strict 1 件)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 2,
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.2,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-42"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-45.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_observability_sentry_types.py"
+        ],
+        "modify": [
+          "apps/api/src/observability/sentry.py"
+        ],
+        "shared_read": [
+          "apps/api/src/observability/__init__.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: apps/api/src/observability/sentry.py に対し pyright strict が 0 error になる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "before_send conforms to the real sentry_sdk EventProcessor signature ((Event, Hint) -> Event | None)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the error is silenced with a type: ignore / cast / Any instead of matching the real signature, it shall not count as satisfying this task — 型を殺して黙らせない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If before_send stops redacting sensitive fields, the change shall be rejected — 既存のマスク挙動を落とさない"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 tests/test_observability_sentry.py と T-F-42 の配線テストが green のまま",
+          "実行時の before_send 挙動 (イベント加工・マスク) が変わらない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "pyright 0 error",
+          "steps": [
+            "pyright strict を sentry.py に実行"
+          ],
+          "expected": "0 error"
+        },
+        {
+          "name": "マスク維持",
+          "steps": [
+            "秘匿値入りイベントを before_send に通す"
+          ],
+          "expected": "従来どおりマスクされる"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest tests/test_observability_sentry.py"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-113 (qa 申し送り 1)。sentry-sdk 実導入で初めて可視化された型不整合。実行時は互換で機能影響なし、Gate #3 は touched files 限定のため CI は緑だが、型の嘘を残さない。"
+    },
+    {
+      "id": "T-F-46",
+      "title": "ビルド成果物ベースの検査を CI で実効化する (bare specifier 検査が実質 skip)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-42"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-46.md",
+      "files_changed_predicted": {
+        "new": [
+          "scripts/ci/check-build-artifacts.mjs"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml",
+          "apps/web/tests/sentry-wiring.test.tsx"
+        ],
+        "shared_read": [
+          "apps/web/next.config.ts"
+        ],
+        "forbidden": [
+          "apps/api",
+          "apps/web/app",
+          "apps/web/lib"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 成果物検査 (bare specifier 0 件) が CI 上で **ビルド後に実行**され、.next 不在で素通りしない",
+          "UBIQUITOUS: v3-gate.yml への変更は検査ステップの追加のみで、既存 gate の閾値・条件を 1 つも緩めていない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the web build finishes in CI, the artifact check shall run and fail the job if any unresolved bare specifier is found"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If .next is absent, the check shall fail loudly rather than warn-and-pass — 検査対象が無いことを合格にしない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If any existing gate threshold (coverage 80% 等) is modified, the change shall be rejected — 追加のみ許可"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 10 gate の判定内容が一切変わらないこと (差分は追加ステップのみ)",
+          "ソース側の『静的 specifier + magic comment 禁止』テストは残す (二重防御)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "CI で実効",
+          "steps": [
+            "ビルド後に検査ステップを実行"
+          ],
+          "expected": "bare specifier 0 件で PASS"
+        },
+        {
+          "name": ".next 不在は失敗",
+          "steps": [
+            ".next を消して実行"
+          ],
+          "expected": "warning 素通りではなく非 0 終了"
+        },
+        {
+          "name": "検出できる",
+          "steps": [
+            "意図的に bare specifier を混ぜてビルド"
+          ],
+          "expected": "job が落ちる"
+        }
+      ],
+      "note": "GAP-114 (qa 申し送り 2)。現状 sentry-wiring.test.tsx の成果物検査は .next 不在時に warning で素通りし、CI の vitest はビルド前に走るため実質 skip。**本タスクは例外的に v3-gate.yml の編集を許可する** — ただし追加のみ・既存 gate の緩和は一切不可で、merge 前に PM レビューを必須とする (CLAUDE.md の gate 改変禁止はゲートを弱める改変を禁じる趣旨であり、強化は対象外という PM 裁定)。"
+    },
+    {
+      "id": "T-F-47",
+      "title": "ルート pnpm build の失敗を解消 (@atelier/email#build の unknown option --src)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 2,
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.2,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-47.md",
+      "files_changed_predicted": {
+        "new": [
+          "packages/email/README.md"
+        ],
+        "modify": [
+          "packages/email/package.json"
+        ],
+        "shared_read": [
+          "turbo.json"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: リポジトリルートで pnpm build が exit 0 で完走する"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When pnpm build runs at the repo root, every workspace package including @atelier/email shall build successfully"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the fix is achieved by removing @atelier/email from the build graph or making its build a no-op, it shall be rejected — ビルド対象から外して緑にしない"
+          }
+        ],
+        "tier_3_regression": [
+          "apps/web / apps/api の単体ビルドが従来どおり成功",
+          "email パッケージの利用側 (送信処理) が従来どおり動作"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "ルートビルド",
+          "steps": [
+            "pnpm build"
+          ],
+          "expected": "exit 0"
+        },
+        {
+          "name": "email 単体",
+          "steps": [
+            "pnpm --filter @atelier/email build"
+          ],
+          "expected": "exit 0 + 成果物生成"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "apps/web ビルド"
+          ],
+          "expected": "45/45 static pages"
+        }
+      ],
+      "note": "GAP-115 (qa 申し送り 4)。本束と無関係の既存問題。apps/web 単体は成功するが、ルート build が赤いままだとリリース手順とローカル検証が信用できなくなる。"
+    },
+    {
+      "id": "T-UC-46",
+      "title": "/signin の React hydration 警告 (#418) の原因特定と解消",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "assigned_employee": "wanda",
+      "screen_ids": [
+        "S-A01"
+      ],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-UC-01"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-46.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/tests/signin-hydration.test.tsx"
+        ],
+        "modify": [
+          "apps/web/app/auth/s_a01/page.tsx"
+        ],
+        "shared_read": [
+          "apps/web/app/layout.tsx",
+          "apps/web/providers/observability-provider.tsx"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api",
+          "apps/web/app/auth/s_a03"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 本番ビルドの /signin で React error #418 (hydration mismatch) が発生しない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When /signin is loaded from a production build, the console shall contain no hydration mismatch error"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the warning is silenced with suppressHydrationWarning or by disabling SSR for the whole screen, it shall be rejected — 原因を消さずに警告だけ黙らせない"
+          },
+          {
+            "type": "UNWANTED",
+            "text": "If the root cause turns out to predate this work, the finding shall still be recorded with the identified cause rather than closed as 'pre-existing'"
+          }
+        ],
+        "tier_3_regression": [
+          "S-A01 の signin / signup / Magic Link 導線が従来どおり動作 (vitest green)",
+          "T-F-42 の Sentry provider 配線を壊さない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "再現",
+          "steps": [
+            "本番ビルド + 実ブラウザで /signin"
+          ],
+          "expected": "console に #418 が出ない"
+        },
+        {
+          "name": "base 確認",
+          "steps": [
+            "Sentry 配線前の commit でも再現するか確認"
+          ],
+          "expected": "原因の所在を特定して記録"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "vitest S-A01 関連"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-116 (qa 申し送り 5)。DSN 有無どちらのビルドでも出るため Sentry 配線とは独立と qa が判定。provider は DOM を持たず useEffect 初期化のため無関係の可能性が高いが、base 未検証。"
+    },
+    {
+      "id": "T-F-48",
+      "title": "秘匿値マスク語彙を全経路で統一する (betterstack / sentry の語彙不揃い)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-39",
+        "T-F-42"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-48.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/src/observability/redaction.py",
+          "apps/api/tests/test_observability_redaction.py"
+        ],
+        "modify": [
+          "apps/api/src/observability/betterstack.py",
+          "apps/api/src/observability/sentry.py",
+          "apps/api/src/observability/__init__.py"
+        ],
+        "shared_read": [
+          "apps/web/lib/logger.ts"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: マスク語彙が単一モジュール (redaction.py) に集約され、betterstack と sentry の双方がそれを参照する",
+          "UBIQUITOUS: 語彙に Authorization: Basic / redis://:pass@host (ユーザ名省略形) / JSON の \"token\": \"…\" 引用符形 / Set-Cookie: session=… を含む"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a log record or Sentry event contains any covered secret form, every shipping path shall redact it identically"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If one path redacts a form that another path lets through, the task shall not be considered complete — 経路ごとに語彙が違う状態を残さない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If redaction is loosened for any form already masked today, the change shall be rejected"
+          }
+        ],
+        "tier_3_regression": [
+          "T-F-39 / T-F-42 の既存マスクテストが全 green (退行なし)",
+          "マスク処理の追加でログ送出のレイテンシが実測で悪化しないこと"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "語彙の網羅",
+          "steps": [
+            "4 形式それぞれを両経路に流す"
+          ],
+          "expected": "両経路とも同一にマスク"
+        },
+        {
+          "name": "既存形式の維持",
+          "steps": [
+            "Bearer / 接続文字列を流す"
+          ],
+          "expected": "従来どおりマスク"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest 観測系全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-117 (qa 申し送り 6 / dev からの確認事項)。現コードベースに産出元が無いため束 C では不合格にしていない (qa 判断は妥当)。ただし sentry.py の _SENSITIVE_HEADER_KEYS (cookie を含む) と betterstack 側の語彙が 不揃いなのは将来の漏洩経路になるため、語彙を 1 モジュールへ集約して恒久解決する。"
     }
   ],
   "two_axis_policy": {
