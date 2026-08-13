@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import builtins
 from dataclasses import FrozenInstanceError
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from sentry_sdk.types import Event, Hint
 
 import src.observability.sentry as sentry_mod
 from src.observability import SentryConfig, init_sentry, is_sentry_initialized
@@ -126,6 +127,22 @@ class TestSensitiveHeader:
         assert _is_sensitive_header(None) is False
 
 
+def _event(payload: dict[str, Any]) -> Event:
+    """テスト用イベントを SDK の実型 (Event) として組み立てる (T-F-45)。"""
+    return cast("Event", payload)
+
+
+def _hint() -> Hint:
+    """before_send の第 2 引数。実型は Dict[str, Any] なので空 dict を渡す。"""
+    return cast("Hint", {})
+
+
+def _request(event: Event | None) -> Any:
+    """Event の "request" は必須キーではないので .get() 経由で取り出す。"""
+    assert event is not None
+    return event.get("request")
+
+
 @pytest.mark.unit
 class TestScrubSensitiveFields:
     def test_scrubs_authorization_header(self) -> None:
@@ -137,9 +154,9 @@ class TestScrubSensitiveFields:
                 },
             },
         }
-        out = _scrub_sensitive_fields(event, None)
-        assert out["request"]["headers"]["Authorization"] == "[Filtered]"
-        assert out["request"]["headers"]["Content-Type"] == "application/json"
+        out = _scrub_sensitive_fields(_event(event), _hint())
+        assert _request(out)["headers"]["Authorization"] == "[Filtered]"
+        assert _request(out)["headers"]["Content-Type"] == "application/json"
 
     def test_scrubs_multiple_sensitive_headers(self) -> None:
         event: dict[str, Any] = {
@@ -151,28 +168,28 @@ class TestScrubSensitiveFields:
                 },
             },
         }
-        out = _scrub_sensitive_fields(event, None)
-        assert out["request"]["headers"]["Cookie"] == "[Filtered]"
-        assert out["request"]["headers"]["X-API-Key"] == "[Filtered]"
-        assert out["request"]["headers"]["Accept"] == "*/*"
+        out = _scrub_sensitive_fields(_event(event), _hint())
+        assert _request(out)["headers"]["Cookie"] == "[Filtered]"
+        assert _request(out)["headers"]["X-API-Key"] == "[Filtered]"
+        assert _request(out)["headers"]["Accept"] == "*/*"
 
     def test_no_request_key(self) -> None:
         event: dict[str, Any] = {"level": "error"}
-        out = _scrub_sensitive_fields(event, None)
+        out = _scrub_sensitive_fields(_event(event), _hint())
         assert out == {"level": "error"}
 
     def test_request_without_headers(self) -> None:
         event: dict[str, Any] = {"request": {"url": "https://example.com"}}
-        out = _scrub_sensitive_fields(event, None)
-        assert out["request"] == {"url": "https://example.com"}
+        out = _scrub_sensitive_fields(_event(event), _hint())
+        assert _request(out) == {"url": "https://example.com"}
 
     def test_headers_not_dict(self) -> None:
         event: dict[str, Any] = {"request": {"headers": "not a dict"}}
-        out = _scrub_sensitive_fields(event, None)
+        out = _scrub_sensitive_fields(_event(event), _hint())
         # 非 dict は touch しない
-        assert out["request"]["headers"] == "not a dict"
+        assert _request(out)["headers"] == "not a dict"
 
     def test_request_not_dict(self) -> None:
         event: dict[str, Any] = {"request": "not a dict"}
-        out = _scrub_sensitive_fields(event, None)
-        assert out["request"] == "not a dict"
+        out = _scrub_sensitive_fields(_event(event), _hint())
+        assert _request(out) == "not a dict"
