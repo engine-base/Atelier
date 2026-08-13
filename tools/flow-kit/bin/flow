@@ -18,22 +18,33 @@ REG="$REG_DIR/projects"
 mkdir -p "$REG_DIR"
 touch "$REG"
 
-self_install() {  # PATH 上に flow を配置 (冪等)
-  local src dst
+self_install() {  # PATH 上に flow を配置 (冪等 / macOS・Linux・WSL 対応)
+  local src dst d rc added=""
   src="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-  for d in /opt/homebrew/bin /usr/local/bin; do
-    if [ -d "$d" ] && [ -w "$d" ]; then
-      dst="$d/flow"
-      if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
-        cp "$src" "$dst" && chmod +x "$dst"
-      fi
-      echo "  ✓ $dst に配置済み — 以後どこからでも 1 語 flow で起動できます"
-      return 0
+  # PATH に既に入っている書込可能な bin ディレクトリへコピー
+  for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
+    case ":$PATH:" in *":$d:"*) ;; *) continue ;; esac
+    [ -d "$d" ] || mkdir -p "$d" 2> /dev/null || continue
+    [ -w "$d" ] || continue
+    dst="$d/flow"
+    if [ ! -f "$dst" ] || ! cmp -s "$src" "$dst"; then
+      cp "$src" "$dst" && chmod +x "$dst"
     fi
+    echo "  ✓ $dst に配置済み — 以後どこからでも 1 語 flow で起動できます"
+    return 0
   done
-  if ! grep -q "flow-kit launcher" "$HOME/.zshrc" 2> /dev/null; then
-    echo "alias flow='$src'  # flow-kit launcher" >> "$HOME/.zshrc"
-    echo "  ✓ ~/.zshrc に alias flow を追加 — 新しいターミナルから 1 語 flow で起動できます"
+  # 置ける場所が無ければ、存在するシェル rc に alias を追記 (bash/zsh 両対応)
+  for rc in "$HOME/.zshrc" "$HOME/.bashrc"; do
+    [ -f "$rc" ] || continue
+    if ! grep -q "flow-kit launcher" "$rc"; then
+      echo "alias flow='$src'  # flow-kit launcher" >> "$rc"
+    fi
+    added=1
+  done
+  if [ -n "$added" ]; then
+    echo "  ✓ シェル設定に alias flow を追加 — 新しいターミナルから 1 語 flow で起動できます"
+  else
+    echo "  ⚠ 自動配置先が見つかりません。手動で PATH に追加してください: $src"
   fi
 }
 

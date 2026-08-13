@@ -8,11 +8,18 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 - バトン強制 (Stop hook): `scripts/agents/flow-stop-hook.sh` (`.claude/settings.json` で配線済)
 - 状態確認: `./scripts/agents/flow.sh status`
 
-## 前提 (1 回だけ)
+## 対応 OS と前提 (1 回だけ)
 
-1. Claude Code CLI **v2.1.224 以上** (`claude --version`) + Pro/Max で `/login` 済み
-2. `brew install tmux` (未導入なら)
-3. Mac を電源に接続。スリープ防止はスクリプトが `caffeinate` で自動常駐する
+- **macOS**: 3 ウィンドウ表示。`brew install tmux`
+- **Linux**: 1 画面 3 ペイン表示。`sudo apt install tmux` 等
+- **Windows**: **WSL2 (Ubuntu) 内で** Linux と同様に動く (WSL 内に claude + tmux)。
+  ネイティブ Windows はセッション間メッセージが macOS/Linux のみ提供のため不可
+
+1. **その環境の中で** Claude Code CLI **v2.1.224 以上** (`claude --version`) +
+   Pro/Max で `/login` 済み
+2. tmux (上記)
+3. 電源に接続。スリープ防止は macOS=`caffeinate` / Linux=`systemd-inhibit` を
+   スクリプトが自動利用。WSL は Windows 側の電源設定でスリープを切る
 
 ## 毎日の起動 (どこからでも 1 語)
 

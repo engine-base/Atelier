@@ -6,7 +6,9 @@
 #   NO_RC=1 ./scripts/ccstart.sh     # /rc (スマホ Remote Control) の自動有効化を省略
 #   NO_AUTO=1 ./scripts/ccstart.sh   # 許可リストを書かない (通常のプロンプトあり)
 #
-# 前提: macOS + tmux + Claude Code CLI v2.1.224 以上 (/login 済み)。
+# 対応 OS: macOS (3 ウィンドウ) / Linux (3 ペイン) / Windows は WSL2 内で Linux 同様。
+#   ネイティブ Windows は Claude Code のセッション間メッセージ未提供のため対象外。
+# 前提: tmux + Claude Code CLI v2.1.224 以上 (/login 済み)。
 # 各セッションの流れ: claude 起動 → (役割は SessionStart hook が自動注入) → /rename → /rc。
 # 停止コマンドは起動完了時に表示する。
 set -euo pipefail
@@ -179,10 +181,14 @@ setup_target() {  # target role
   fi
 }
 
-keepawake() {  # session-name
-  if command -v caffeinate > /dev/null; then
+keepawake() {  # session-name — スリープ防止 (OS にあるものを使う。無ければ何もしない)
+  if command -v caffeinate > /dev/null; then  # macOS
     tmux new-session -d -s "$1" -c "$REPO" "caffeinate -dis" 2> /dev/null || true
+  elif command -v systemd-inhibit > /dev/null; then  # Linux
+    tmux new-session -d -s "$1" -c "$REPO" \
+      "systemd-inhibit --what=idle:sleep --why=flow-kit sleep infinity" 2> /dev/null || true
   fi
+  # WSL はホスト (Windows) 側の電源設定でスリープを止める (README 参照)
 }
 
 kickoff() {  # pm-target — 開始文の案内、CC_AUTO_START=1 なら pm へ自動送信
@@ -269,4 +275,8 @@ echo "  左=pm / 右上=dev / 右下=qa (各ペインで『◯◯ 準備完了�
 kickoff "$SESSION:flow.0"
 echo "  スマホ: 各ペインの /rc 出力の案内どおり Claude アプリの Code タブから接続"
 echo "  停止: tmux kill-session -t $SESSION"
-tmux attach -t "$SESSION"
+if [ -t 0 ]; then
+  tmux attach -t "$SESSION"
+else
+  echo "  (非対話環境のため attach 省略 — 画面を見るには: tmux attach -t $SESSION)"
+fi

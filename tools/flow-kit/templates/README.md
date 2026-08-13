@@ -9,11 +9,20 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 - バトン強制 (Stop hook): `scripts/agents/flow-stop-hook.sh` (`.claude/settings.json` で配線済)
 - 状態確認: `./scripts/agents/flow.sh status`
 
-## 前提 (1 回だけ)
+## 対応 OS と前提 (1 回だけ)
 
-1. Claude Code CLI **v2.1.224 以上** (`claude --version`) + Pro/Max で `/login` 済み
-2. `brew install tmux` (未導入なら)
-3. Mac を電源に接続。スリープ防止はスクリプトが `caffeinate` で自動常駐する
+| OS | 対応 | 表示 | 準備 |
+|---|---|---|---|
+| macOS | ✅ | 3 ウィンドウ | `brew install tmux` |
+| Linux | ✅ | 1 画面 3 ペイン | `sudo apt install tmux` (等) |
+| Windows | ✅ **WSL2 (Ubuntu) 内で** | 1 画面 3 ペイン | WSL2 導入 → WSL 内に claude と tmux |
+| Windows ネイティブ (PowerShell/cmd) | ❌ | — | Claude Code のセッション間メッセージ (この仕組みの心臓部) が macOS/Linux のみ提供のため不可 |
+
+1. **その環境の中で** Claude Code CLI **v2.1.224 以上** (`claude --version`) +
+   Pro/Max で `/login` 済み (WSL の場合は WSL 内で /login)
+2. tmux (上の表)
+3. 電源に接続。スリープ防止は macOS=`caffeinate` / Linux=`systemd-inhibit` を
+   スクリプトが自動利用。WSL は Windows 側の電源設定でスリープを切る
 4. (Linux サーバー等 root で運用する場合のみ) 自動承認モードは CLI に拒否されるため
    `NO_AUTO=1` で起動し、`.claude/settings.local.json` の permissions.allow で代替する
 5. **`docs/agents/project.md` を埋める** (空のままなら PM が初回に調査して提案する)
