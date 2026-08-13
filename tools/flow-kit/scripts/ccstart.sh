@@ -168,6 +168,10 @@ setup_target() {  # target role
   tmux send-keys -t "$1" -l "/rename $2"
   tmux send-keys -t "$1" C-m
   sleep 3
+  # 注意: /goal はここで自動設定しない。/goal はゴール未達の間セッションを
+  # 自動継続し続けるため、バトン待ちの役に付けると待機中もモデルが回り続け
+  # プラン枠を空費する (コンテナ実測: 待機のみで 2.5 分 8.7k トークン)。
+  # 継続性は Stop hook (flow-stop-hook.sh) が担う。
   if [ -z "${NO_RC:-}" ]; then
     tmux send-keys -t "$1" -l "/rc"
     tmux send-keys -t "$1" C-m

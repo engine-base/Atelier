@@ -53,7 +53,8 @@
 2. `files_changed_predicted` の範囲内の変更か (`git diff --stat` で実差分と突合)。
    逸脱があるなら scope expand が先行コミットされているか
 3. qa レポートに「実 UI 監査 3 連続 ALL PASS」「pytest / vitest 全数」「Gate #6」
-   「validate.sh 216/216」の実行結果 (ログ/数値) が実測で載っているか —
+   「validate.sh 全件 PASS (件数はその時点の全チケット数)」の実行結果
+   (ログ/数値) が実測で載っているか —
    「やったはず」記述は不可
 4. placeholder / TODO / mock 逃げ / 「あとで」が差分・報告に無いか
 5. 致命級 (R-T08 等) に触れる変更なら、ユーザー承認の記録があるか
