@@ -1,12 +1,14 @@
-# pyright: reportMissingImports=false, reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false
 """Sentry FastAPI 統合 (T-F-08)。
 
 selected-stack.json#observability = "Sentry (errors) ..."
 EU リージョン (engine-base.sentry.io / ingest.de.sentry.io) を前提に設定する。
 
 設計方針:
-- sentry_sdk は optional dep (本 PR では未追加、follow-up で pyproject.toml に追加)
-- 遅延 import で SDK 不在環境を許容 (test / 開発初期で error しない)
+- sentry_sdk は **T-F-42 で実依存になった** (apps/api/pyproject.toml)。
+  init_sentry() 内の遅延 import は「起動時のコストを払わない / 万一の
+  SDK 不在でも API を落とさない」ための防御として残す (契約は不変)。
+- before_send は実 SDK の `EventProcessor` 契約 ((Event, Hint) -> Event | None)
+  に整合させる (T-F-45)。型を殺して黙らせない。
 - init_sentry() は idempotent (二重 init を抑止)
 - SDK 不在 / DSN 未設定なら logger.warning に流して False を返す
   → 本番では DSN 必須、開発では DSN 不要で動く
@@ -18,6 +20,8 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Any, Literal, cast
+
+from sentry_sdk.types import Event, Hint
 
 logger = logging.getLogger(__name__)
 
@@ -83,13 +87,9 @@ def init_sentry(config: SentryConfig | None = None) -> bool:
         return False
 
     try:
-        import sentry_sdk  # type: ignore[import-not-found]
-        from sentry_sdk.integrations.fastapi import (
-            FastApiIntegration,  # type: ignore[import-not-found]
-        )
-        from sentry_sdk.integrations.starlette import (
-            StarletteIntegration,  # type: ignore[import-not-found]
-        )
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
     except ImportError:
         logger.warning(
             "sentry-sdk is not installed; Sentry initialization skipped. "
@@ -125,11 +125,15 @@ def is_sentry_initialized() -> bool:
     return _initialized
 
 
-def _scrub_sensitive_fields(event: dict[str, Any], _hint: object) -> dict[str, Any]:
-    """sentry_sdk の before_send hook。HTTP header / extra から秘匿値を除去する。
+def _scrub_sensitive_fields(event: Event, _hint: Hint) -> Event | None:
+    """sentry_sdk の before_send hook (`EventProcessor` 契約)。
 
-    Sentry の `send_default_pii=True` は便利だが、Authorization header や
-    DATABASE_URL を生で送るリスクがある。ここで防御的にマスクする。
+    HTTP header / extra から秘匿値を除去する。Sentry の `send_default_pii=True` は
+    便利だが、Authorization header や DATABASE_URL を生で送るリスクがある。
+    ここで防御的にマスクする。
+
+    `None` を返すとイベントは破棄されるが、本 hook は**必ずイベントを返す**
+    (マスクはするが握り潰さない)。戻り値型の `| None` は SDK 側の契約に合わせたもの。
     """
     request = event.get("request")
     if isinstance(request, dict):
