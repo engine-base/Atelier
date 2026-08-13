@@ -101,8 +101,12 @@ fi
 
 echo ""
 echo "導入完了。次の手順:"
-"$KIT/bin/flow" add "$TARGET" || true
+# ランチャ本体も導入先に同梱する (導入先を clone した別メンバーが flow add できる)
+cp "$KIT/bin/flow" "$TARGET/scripts/flow"
+chmod +x "$TARGET/scripts/flow"
+echo "  ✓ scripts/flow (ワンワード起動ランチャ)"
+"$TARGET/scripts/flow" add "$TARGET" || true
 
 echo "  1. $TARGET/docs/agents/project.md を埋める (仕様の正・DoD・検証手段・検収基準)"
-echo "  2. cd $TARGET && ./scripts/ccstart.sh"
-echo "  3. 3 ペインの「準備完了」を確認して pm に開始の一言"
+echo "     (空のままでも可 — PM が初回に調査して下書きを埋め、確認してくる)"
+echo "  2. flow で起動 (開始文送信まで全自動。以後 毎日これ 1 語)"

@@ -15,11 +15,21 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 - **Windows**: **WSL2 (Ubuntu) 内で** Linux と同様に動く (WSL 内に claude + tmux)。
   ネイティブ Windows はセッション間メッセージが macOS/Linux のみ提供のため不可
 
-1. **その環境の中で** Claude Code CLI **v2.1.224 以上** (`claude --version`) +
-   Pro/Max で `/login` 済み
-2. tmux (上記)
-3. 電源に接続。スリープ防止は macOS=`caffeinate` / Linux=`systemd-inhibit` を
-   スクリプトが自動利用。WSL は Windows 側の電源設定でスリープを切る
+### 初回セットアップ (まっさらな PC → 動くまで全コピペ / macOS)
+
+```bash
+brew install tmux                                # 1. tmux (未導入なら)
+curl -fsSL https://claude.ai/install.sh | bash   # 2. Claude Code CLI (公式)
+claude                                           # 3. 起動 → /login → Claude account with subscription でログイン → /exit
+cd ~/Atelier                                     # 4. プロジェクトへ (clone 済み前提)
+./scripts/flow add                               # 5. 登録 + flow コマンド配置 (1 回きり)
+flow                                             # 6. 起動 (以後 毎日これ 1 語)
+```
+
+Linux は 1 行目を `sudo apt install -y tmux`、Windows は PowerShell (管理者) で
+`wsl --install -d Ubuntu` → 以降 Ubuntu ターミナル内で Linux と同じ。
+確認: `claude --version` (**v2.1.224 以上**) / 診断 `claude doctor`。
+電源接続で使う (スリープ防止は macOS=`caffeinate` / Linux=`systemd-inhibit` を自動利用)。
 
 ## 毎日の起動 (どこからでも 1 語)
 
@@ -31,7 +41,7 @@ flow            # 登録が 1 件ならそれを起動。複数登録なら番�
 **開始文の自動送信**まで全部やる。初回のみ、プロジェクトのルートで 1 回:
 
 ```bash
-./tools/flow-kit/bin/flow add    # このプロジェクトを登録し、flow コマンドを PATH に配置
+./scripts/flow add    # このプロジェクトを登録し、flow コマンドを PATH に配置
 ```
 
 開始文は `docs/agents/kickoff.txt` が正 (内容を変えたければこのファイルを編集)。
