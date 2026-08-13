@@ -27343,7 +27343,8 @@
           "scripts/ci/check-build-artifacts.mjs",
           "07_tasks/tickets.json",
           "docs/gap-tracker.md",
-          "apps/api/tests/test_observability_sentry.py"
+          "apps/api/tests/test_observability_sentry.py",
+          "packages/email/src/templates/welcome.tsx"
         ],
         "shared_read": [
           "09_dispatch/scripts/dispatch.sh",
@@ -27628,7 +27629,8 @@
           "packages/email/README.md"
         ],
         "modify": [
-          "packages/email/package.json"
+          "packages/email/package.json",
+          "packages/email/src/templates/welcome.tsx"
         ],
         "shared_read": [
           "turbo.json"
@@ -27641,7 +27643,8 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: リポジトリルートで pnpm build が exit 0 で完走する"
+          "UBIQUITOUS: リポジトリルートで pnpm build が exit 0 で完走する",
+          "UBIQUITOUS: `pnpm --filter @atelier/email build` が `packages/email/dist/<name>.html` を実生成する (消費側 apps/api/src/email/templates/__init__.py の resolve_template_html が読むパスと一致すること)"
         ],
         "tier_2_functional": [
           {
@@ -27652,6 +27655,11 @@
             "type": "UNWANTED",
             "critical": true,
             "text": "If the fix is achieved by removing @atelier/email from the build graph or making its build a no-op, it shall be rejected — ビルド対象から外して緑にしない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the build succeeds without actually emitting HTML (exit 0 だが dist が空 / レンダリング失敗を握り潰す), it shall be rejected — 成果物の実在まで確認すること"
           }
         ],
         "tier_3_regression": [
@@ -27680,9 +27688,17 @@
             "apps/web ビルド"
           ],
           "expected": "45/45 static pages"
+        },
+        {
+          "name": "HTML 実生成",
+          "steps": [
+            "pnpm --filter @atelier/email build",
+            "ls packages/email/dist/"
+          ],
+          "expected": "welcome.html が生成され、中身が空でない"
         }
       ],
-      "note": "GAP-115 (qa 申し送り 4)。本束と無関係の既存問題。apps/web 単体は成功するが、ルート build が赤いままだとリリース手順とローカル検証が信用できなくなる。"
+      "note": "GAP-115 (qa 申し送り 4)。本束と無関係の既存問題。apps/web 単体は成功するが、ルート build が赤いままだとリリース手順とローカル検証が信用できなくなる。 / 2026-08-13 追記 (dev ESCALATE 裁定): 2 段階の問題であることが判明し選択肢 A を採用。第 1 段 = `email build` はプレビューアプリ用で --src/--outDir を取らない。静的 HTML は `email export --dir ./src/templates --outDir ./dist` が正 (消費側の期待パス dist/<name>.html と一致)。第 2 段 = 直しても `ReferenceError: React is not defined` で落ちる。tsconfig が \"jsx\": \"preserve\" で react-email のバンドラが classic ランタイム (React.createElement) にトランスパイルする一方、welcome.tsx の React 参照が **`import type { ReactElement } from 'react'` の型のみ import** で 実行時に消えるため。**PM 独立確認済** (welcome.tsx:11 が type import であること・tsconfig.json:4 が preserve であることを実ファイルで確認。値としての `import * as React from 'react'` が必要)。同ファイルを modify に追加する。リポジトリの既存 .tsx (ErrorBoundary.tsx / T-F-42 で足した layout.tsx・observability-provider.tsx) と同じパターン。"
     },
     {
       "id": "T-UC-46",
