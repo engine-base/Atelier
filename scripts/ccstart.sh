@@ -150,8 +150,11 @@ drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力
       tmux send-keys -t "$1" Enter
       ready_seen=0
       sleep 1
-    elif printf '%s' "$screen" | grep -q "for short"; then
-      # 案内が無く入力欄が出ている状態が 2 連続で続けば確定 (描画途中の誤検出防止)
+    elif printf '%s' "$screen" | grep -q "for short\|manual mode\|accept edits\|esc to interrupt"; then
+      # 入力欄フッターの表示は日替わりでローテーションする (「? for shortcuts」が
+      # 出ない回がある — Mac 実測 2026-08-13)。フッター定型文のいずれかが
+      # 2 連続で続けば入力欄到達と判定 (描画途中の誤検出防止)。
+      # 上の Esc/Enter 分岐が先に評価されるため、案内表示中は誤判定しない。
       ready_seen=$((ready_seen + 1))
       [ "$ready_seen" -ge 2 ] && return 0
       sleep 1
@@ -166,7 +169,14 @@ drive_onboarding() {  # target — 画面を監視して案内を閉じ、入力
 }
 
 setup_target() {  # target role
-  drive_onboarding "$1" || return 0
+  if ! drive_onboarding "$1"; then
+    # タイムアウトしても /rename は best-effort で必ず投入する。
+    # rename 未実行 = セッションに役割名が付かず、バトン (SendMessage) が
+    # 宛先を名前解決できずフローが静かに止まる (Mac 実測 2026-08-13)。
+    # 案内が残っていた場合に備え Esc を 1 回だけ挟む。
+    tmux send-keys -t "$1" Escape
+    sleep 1
+  fi
   tmux send-keys -t "$1" -l "/rename $2"
   tmux send-keys -t "$1" C-m
   sleep 3
