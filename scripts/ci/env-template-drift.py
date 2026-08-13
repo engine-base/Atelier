@@ -20,13 +20,20 @@
 3. それ以外は**必須**。テンプレートに名前が無ければ変数名と読み取り箇所を示して
    exit 1。
 
+**実値混入の検査** (逆方向): テンプレートと `SECRETS.md` には**名前だけ**を書く。
+`.env.example` は「`=` の右辺に 1 文字でもあれば値」で判定する。末尾の `=` を
+「値なし」と誤判定してはいけない — Fernet 鍵 (SECRETS.md が案内している生成方法
+そのもの) は常に `=` で終わるため、実鍵を書いても素通りしてしまう (QA_FAIL-3)。
+加えて実値と判別できる形 (Fernet / sk-… / JWT / 接続文字列の資格情報 / 長い乱数) を
+テンプレートと運用 docs の両方で検出する。
+
 テンプレートは `NAME=` だけでなく `# NAME=` のコメント形も「登録済み」と扱う
 (既存の `.env.example` が任意フラグをコメントで案内しているため)。
 
 usage:
   python3 scripts/ci/env-template-drift.py [--root <repo>] [--verbose]
 exit code:
-  0 = drift なし / 1 = drift あり / 2 = 設定エラー
+  0 = drift・実値混入なし / 1 = drift または実値混入あり / 2 = 設定エラー
 """
 
 from __future__ import annotations
@@ -94,6 +101,41 @@ SCAN_TARGETS: tuple[ScanTarget, ...] = (
 )
 
 EXCLUDED_PARTS = frozenset({"tests", "test", "node_modules", "__pycache__", ".next", "_generated"})
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 実値混入の検査 — テンプレートと運用 docs には**名前だけ**を書く。
+# `.env.example` は「= の後ろに 1 文字でもあれば値」で判定する。
+# 末尾の "=" で「値なし」と判定してはいけない: Fernet 鍵 (SECRETS.md で案内している
+# 生成方法そのもの) は常に "=" で終わるため、実鍵を書いても素通りしてしまう。
+# ─────────────────────────────────────────────────────────────────────────────
+VALUE_SCAN_DOCS: tuple[str, ...] = ("SECRETS.md",)
+"""`.env.example` に加えて秘匿値の形を走査する運用 docs。"""
+
+SECRET_SHAPE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "Fernet 鍵 (urlsafe-base64 44 文字)",
+        re.compile(r"(?<![A-Za-z0-9_\-])[A-Za-z0-9_\-]{43}=(?![A-Za-z0-9_\-=])"),
+    ),
+    ("provider API キー (sk-…)", re.compile(r"\bsk-[A-Za-z0-9_\-]{12,}")),
+    ("Stripe キー (sk_live_… / sk_test_…)", re.compile(r"\bsk_(?:live|test)_[A-Za-z0-9]{12,}")),
+    ("JWT", re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}")),
+    (
+        # ローカル開発用の URL (localhost / 127.0.0.1) は秘匿値ではなく手順の一部
+        # (docker-compose の固定値) なので除外する。既存テンプレのコメントに
+        # `postgresql+asyncpg://atelier_dev:devpass@localhost:5432/...` があり、
+        # これを消すと tier_3「既存コメントを削除しない」に反する。
+        "接続文字列の資格情報",
+        re.compile(
+            r"\b[a-z][a-z0-9+.\-]*://[A-Za-z0-9_\-.%]+:[A-Za-z0-9_\-.%]+@"
+            r"(?!localhost\b|127\.0\.0\.1\b)",
+        ),
+    ),
+    (
+        "token_urlsafe 相当の長い乱数",
+        re.compile(r"(?<![A-Za-z0-9_\-])[A-Za-z0-9_\-]{48,}(?![A-Za-z0-9_\-])"),
+    ),
+)
+"""実値と判別できる形。名前だけの登録なら 1 つも一致しない。"""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 抽出 regex
@@ -211,6 +253,61 @@ class Drift:
     sites: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ValueLeak:
+    """テンプレート / 運用 docs に実値が書かれている疑い 1 件。"""
+
+    site: str
+    kind: str
+    excerpt: str
+
+
+def _excerpt(text: str) -> str:
+    """漏洩箇所の抜粋。**実値そのものはログに出さない**ため頭 4 文字だけ残す。"""
+    head = text[:4]
+    return f"{head}… ({len(text)} chars)"
+
+
+def find_value_leaks(root: Path) -> list[ValueLeak]:
+    """`.env.example` と運用 docs に実値が混入していないか検査する。
+
+    - `.env.example`: `NAME=` の右辺に 1 文字でもあれば実値とみなす
+      (末尾 "=" で「値なし」と判定しない — Fernet 鍵は "=" で終わる)。
+    - `.env.example` + 運用 docs: 実値と判別できる形 (Fernet 鍵 / sk-… / JWT /
+      接続文字列の資格情報 / 長い乱数) が現れたら実値とみなす。
+    """
+    leaks: list[ValueLeak] = []
+    templates = [root / target.template for target in SCAN_TARGETS]
+
+    for template in templates:
+        if not template.is_file():
+            continue
+        rel = template.relative_to(root)
+        for lineno, line in enumerate(template.read_text(encoding="utf-8").splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            name, sep, value = stripped.partition("=")
+            if sep and value.strip():
+                leaks.append(
+                    ValueLeak(
+                        f"{rel}:{lineno}", f"{name.strip()} に値が入っている", _excerpt(value)
+                    ),
+                )
+
+    for path in [*templates, *(root / doc for doc in VALUE_SCAN_DOCS)]:
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root)
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            for kind, pattern in SECRET_SHAPE_PATTERNS:
+                match = pattern.search(line)
+                if match is not None:
+                    leaks.append(ValueLeak(f"{rel}:{lineno}", kind, _excerpt(match.group(0))))
+
+    return leaks
+
+
 def find_drift(root: Path, target: ScanTarget) -> tuple[list[Drift], list[EnvRead]]:
     """走査範囲の drift と、判定に使った全読み取りを返す。"""
     registered = parse_template(root / target.template)
@@ -271,6 +368,8 @@ def main() -> int:
                     state = "MISSING"
                 print(f"  - {name}: {state}")
 
+    leaks = find_value_leaks(root)
+
     if all_drifts:
         print("\n::error::環境変数テンプレートに drift があります (必須なのに未登録):")
         for drift in all_drifts:
@@ -282,9 +381,24 @@ def main() -> int:
             "\n      任意変数なら ALLOWLIST に理由つきで登録するか、コード側に"
             " 空でない既定値を与える。",
         )
+
+    if leaks:
+        print("\n::error::テンプレート / 運用 docs に実値が混入しています (名前だけを書くこと):")
+        for leak in leaks:
+            print(f"  {leak.site}  {leak.kind}  {leak.excerpt}")
+        print(
+            "\n対処: 値を削って名前だけにする (生成方法はコメントで案内する)。"
+            "\n      実値が git に入った場合は当該シークレットを直ちにローテーションする"
+            " (SECRETS.md 4.)。",
+        )
+
+    if all_drifts or leaks:
         return 1
 
-    print(f"env-template-drift: OK — 未登録の必須変数は 0 件 ({len(SCAN_TARGETS)} template)。")
+    print(
+        f"env-template-drift: OK — 未登録の必須変数 0 件 / 実値混入 0 件"
+        f" ({len(SCAN_TARGETS)} template + {len(VALUE_SCAN_DOCS)} docs)。",
+    )
     return 0
 
 

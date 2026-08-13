@@ -94,17 +94,116 @@ class TestAgainstCurrentRepository:
         # 生成方法つきで登録されていること
         assert "Fernet.generate_key()" in secrets_md
 
-    def test_templates_contain_no_values(self) -> None:
-        """UNWANTED critical: テンプレートに実値を書かない。"""
+    def test_templates_and_docs_contain_no_values(self) -> None:
+        """UNWANTED critical: テンプレート / SECRETS.md に実値を書かない。"""
+        assert drift_mod.find_value_leaks(_REPO_ROOT) == []
+
+
+@pytest.mark.unit
+class TestValueLeakDetection:
+    """QA_FAIL-3 回帰。
+
+    旧実装の唯一の防波堤は `stripped.endswith("=")` で「値なし」を判定しており、
+    **末尾が "=" になる Fernet 鍵 (SECRETS.md が案内している生成方法そのもの) の
+    実値を書いても素通り**していた。判定を「= の右辺に 1 文字でもあれば値」へ
+    直し、さらに実値の形 (Fernet / sk-… / JWT / 接続文字列) でも検出する。
+    """
+
+    @staticmethod
+    def _template(root: Path, body: str) -> None:
         for name in ("apps/api/.env.example", "apps/web/.env.example"):
-            for lineno, line in enumerate(
-                (_REPO_ROOT / name).read_text(encoding="utf-8").splitlines(),
-                start=1,
-            ):
-                stripped = line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-                assert stripped.endswith("="), f"{name}:{lineno} has a value: {stripped}"
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+        (root / "apps" / "api" / ".env.example").write_text(body, encoding="utf-8")
+
+    def test_real_fernet_key_in_template_is_detected(self, tmp_path: Path) -> None:
+        """末尾 "=" の実鍵を「値なし」と誤判定しない (本 FAIL の中核)。"""
+        from cryptography.fernet import Fernet
+
+        key = Fernet.generate_key().decode()
+        assert key.endswith("="), "前提: Fernet 鍵は '=' で終わる"
+        self._template(tmp_path, f"ATELIER_BYOK_ENCRYPTION_KEY={key}\n")
+
+        leaks = drift_mod.find_value_leaks(tmp_path)
+
+        assert leaks, "実 Fernet 鍵が検出されていない"
+        kinds = {leak.kind for leak in leaks}
+        assert "ATELIER_BYOK_ENCRYPTION_KEY に値が入っている" in kinds
+        assert "Fernet 鍵 (urlsafe-base64 44 文字)" in kinds
+        # 実値そのものは出力に出さない (CI ログへの二次漏洩を防ぐ)
+        assert all(key not in leak.excerpt for leak in leaks)
+
+    def test_real_fernet_key_in_secrets_md_is_detected(self, tmp_path: Path) -> None:
+        """AC は「.env.example **or** SECRETS.md」。docs 側も検査対象。"""
+        from cryptography.fernet import Fernet
+
+        self._template(tmp_path, "ATELIER_BYOK_ENCRYPTION_KEY=\n")
+        (tmp_path / "SECRETS.md").write_text(
+            f"| BYOK | 1Password | `{Fernet.generate_key().decode()}` |\n",
+            encoding="utf-8",
+        )
+
+        leaks = drift_mod.find_value_leaks(tmp_path)
+
+        assert [leak.kind for leak in leaks] == ["Fernet 鍵 (urlsafe-base64 44 文字)"]
+        assert leaks[0].site.startswith("SECRETS.md:")
+
+    @pytest.mark.parametrize(
+        ("value", "kind"),
+        [
+            ("sk-abcdefghijklmnopqrstuvwx", "provider API キー (sk-…)"),
+            ("sk_live_ABCdef1234567890", "Stripe キー (sk_live_… / sk_test_…)"),
+            ("eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0", "JWT"),
+            (
+                "postgresql+asyncpg://user:s3cr3tpass@db.example.com/atelier",
+                "接続文字列の資格情報",
+            ),
+        ],
+    )
+    def test_secret_shapes_in_docs_are_detected(
+        self,
+        tmp_path: Path,
+        value: str,
+        kind: str,
+    ) -> None:
+        self._template(tmp_path, "FOO=\n")
+        (tmp_path / "SECRETS.md").write_text(f"例: {value}\n", encoding="utf-8")
+
+        assert kind in {leak.kind for leak in drift_mod.find_value_leaks(tmp_path)}
+
+    def test_placeholders_and_local_dev_urls_are_not_flagged(self, tmp_path: Path) -> None:
+        """UNWANTED: 誤検知でゲートを常時赤にしない。"""
+        self._template(
+            tmp_path,
+            "# ローカル: postgresql+asyncpg://atelier_dev:devpass@localhost:5432/atelier_dev\n"
+            '# 生成: python3 -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())"\n'
+            "ATELIER_DB_URL=\n"
+            "ATELIER_BYOK_ENCRYPTION_KEY=\n",
+        )
+        (tmp_path / "SECRETS.md").write_text(
+            '| BYOK 暗号化キー | 1Password | `python3 -c "...Fernet.generate_key()..."` |\n'
+            "flyctl secrets set ATELIER_BYOK_ENCRYPTION_KEY='<保管庫の値>'\n"
+            'git log -p --all | grep -iE "service_role|postgres://.*:.*@"\n',
+            encoding="utf-8",
+        )
+
+        assert drift_mod.find_value_leaks(tmp_path) == []
+
+    def test_main_exits_one_when_a_value_is_present(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from cryptography.fernet import Fernet
+
+        self._template(tmp_path, f"ATELIER_BYOK_ENCRYPTION_KEY={Fernet.generate_key().decode()}\n")
+        monkeypatch.setattr(sys, "argv", ["env-template-drift.py", "--root", str(tmp_path)])
+
+        assert drift_mod.main() == 1
+        assert "実値が混入" in capsys.readouterr().out
 
 
 @pytest.mark.unit
@@ -212,7 +311,9 @@ class TestCliExitCodes:
     ) -> None:
         monkeypatch.setattr(sys, "argv", ["env-template-drift.py", "--root", str(_REPO_ROOT)])
         assert drift_mod.main() == 0
-        assert "未登録の必須変数は 0 件" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "未登録の必須変数 0 件" in out
+        assert "実値混入 0 件" in out
 
     def test_main_returns_two_when_template_missing(
         self,
