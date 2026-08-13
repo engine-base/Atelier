@@ -46,12 +46,12 @@ export async function captureException(
   error: unknown,
   context: CaptureContext = {},
 ): Promise<boolean> {
-  // 動的 import — SDK 未インストール時に build / render を fail させない。
-  // webpack の静的解析を避けるため module 名を変数化する (sentry.client.ts と同方針)。
-  const moduleName = '@sentry/nextjs';
+  // 静的な specifier で動的 import する。**webpackIgnore は付けない** —
+  // 付けるとバンドラが解決を諦めてブラウザに素の `import("@sentry/nextjs")` が残り、
+  // bare specifier を解決できず必ず失敗する (= SDK を入れても送信 0 件になる)。
+  // @sentry/nextjs は依存として実在するので、ここは通常の code-split で解決される。
   try {
-    const imported: unknown = await import(/* webpackIgnore: true */ moduleName);
-    const mod = imported as SentryCaptureModule;
+    const mod = (await import('@sentry/nextjs')) as SentryCaptureModule;
     if (typeof mod.captureException !== 'function') return false;
     mod.captureException(error, {
       tags: { category: context.category ?? 'unknown' },

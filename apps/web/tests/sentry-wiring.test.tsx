@@ -14,16 +14,33 @@
 
 import '@testing-library/jest-dom/vitest';
 
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
 import * as React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type * as ObservabilityModule from '../providers/observability-provider';
 
-const { initSentryClient, captureSpy } = vi.hoisted(() => ({
+const { initSentryClient, captureSpy, sdkCaptureSpy } = vi.hoisted(() => ({
   initSentryClient: vi.fn(async () => true),
   captureSpy: vi.fn(),
+  sdkCaptureSpy: vi.fn(),
 }));
+
+// 実 SDK (@sentry/nextjs) を残したまま captureException だけ spy で包む。
+// モジュールごと差し替える fake ではないので「実 SDK へ到達したか」を確認できる。
+vi.mock('@sentry/nextjs', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    captureException: (...args: readonly unknown[]) => {
+      sdkCaptureSpy(...args);
+      return 'test-event-id';
+    },
+  };
+});
 
 vi.mock('../lib/sentry.client', () => ({
   initSentryClient,
@@ -65,6 +82,7 @@ beforeEach(() => {
   initSentryClient.mockClear();
   initSentryClient.mockResolvedValue(true);
   captureSpy.mockClear();
+  sdkCaptureSpy.mockClear();
 });
 
 describe('ObservabilityProvider (T-F-42)', () => {
@@ -103,9 +121,42 @@ describe('app/layout.tsx wiring (T-F-42)', () => {
   });
 });
 
+describe('@sentry/nextjs は実依存として導入済み (T-F-42)', () => {
+  it('is declared in package.json dependencies', async () => {
+    const pkg = JSON.parse(
+      await readFile(resolve(process.cwd(), 'package.json'), 'utf-8'),
+    ) as { dependencies?: Record<string, string> };
+
+    expect(pkg.dependencies?.['@sentry/nextjs']).toBeTruthy();
+  });
+
+  it('resolves at runtime (SDK 不在で no-op、という状態ではない)', async () => {
+    const mod = (await import('@sentry/nextjs')) as { captureException?: unknown };
+    expect(typeof mod.captureException).toBe('function');
+  });
+
+  it('provider の動的 import に webpackIgnore を付けない (ブラウザで解決不能になる)', async () => {
+    // webpackIgnore を付けるとバンドラが解決を諦め、ブラウザに素の
+    // import("@sentry/nextjs") が残る。bare specifier は解決できず必ず失敗するため、
+    // SDK を導入しても送信 0 件のままになる。ビルド成果物で実測して判明した罠。
+    const source = await readFile(
+      resolve(process.cwd(), 'providers/observability-provider.tsx'),
+      'utf-8',
+    );
+
+    expect(source).toContain("import('@sentry/nextjs')");
+    // magic comment そのものの形で判定する (説明コメント中の語には反応させない)
+    expect(source).not.toContain('/* webpackIgnore');
+  });
+});
+
 describe('captureException (T-F-42)', () => {
-  it('returns false without throwing when the Sentry SDK is absent', async () => {
-    await expect(captureException(new Error('x'), { category: 'ui' })).resolves.toBe(false);
+  it('reaches the real SDK and reports true', async () => {
+    await expect(captureException(new Error('x'), { category: 'ui' })).resolves.toBe(true);
+
+    expect(sdkCaptureSpy).toHaveBeenCalledTimes(1);
+    expect(sdkCaptureSpy.mock.calls[0]?.[0]).toBeInstanceOf(Error);
+    expect(sdkCaptureSpy.mock.calls[0]?.[1]).toMatchObject({ tags: { category: 'ui' } });
   });
 });
 

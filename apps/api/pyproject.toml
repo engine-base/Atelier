@@ -18,6 +18,10 @@ dependencies = [
   "cryptography>=48.0.0",
   # GAP-018: 商談ドラフトの PDF 出力 (S-N01 — 日本語 CID フォント内蔵)
   "reportlab>=4.2.0",
+  # T-F-42 / GAP-108: selected-stack.json#observability の確定技術。
+  # 依存が無いと init_sentry() が ImportError 分岐に落ち、配線済みでも
+  # 本番のエラー捕捉が 0 件になる (実測で発覚)。optional dep にはしない。
+  "sentry-sdk[fastapi]>=2.19.0",
 ]
 
 [project.optional-dependencies]
