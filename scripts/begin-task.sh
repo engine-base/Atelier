@@ -27,6 +27,30 @@
 
 set -euo pipefail
 
+# ─────────────────────────────────────────
+# dispatch 出力から生成先ディレクトリを取り出す (T-F-44 / GAP-111)
+#
+# dispatch.sh は「✓ Generated: <dir>/CLAUDE.md」を出力する (dispatch.sh:149)。
+# 旧実装は `grep -oE '/tmp/atelier-dispatch-[^ ]+'` で拾っていたため
+# **ファイルパスごと**マッチし、TMP_DIR に '/CLAUDE.md' が混入して直後の
+# `[ ! -f "$TMP_DIR/CLAUDE.md" ]` が常に真になり必ず exit 4 していた
+# (= 全タスクの着手を塞いでいた)。生成物のフルパスを拾ってから dirname する。
+#
+# CLAUDE.md を含む行が無い = 真の dispatch 失敗なので、空文字を返して
+# 呼び出し側に落とさせる (抽出を緩めて偽の成功を作らない)。
+extract_dispatch_dir() {
+  local generated
+  generated="$(printf '%s\n' "$1" | grep -oE '/tmp/atelier-dispatch-[^ ]*/CLAUDE\.md' | head -1)"
+  [ -n "$generated" ] || return 0
+  dirname "$generated"
+}
+
+# テストから抽出ロジックだけを読み込むための seam。
+# `BEGIN_TASK_LIB_ONLY=1 . scripts/begin-task.sh` で関数定義のみ行う。
+if [ -n "${BEGIN_TASK_LIB_ONLY:-}" ]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 TASK_ID="${1:-}"
 if [ -z "$TASK_ID" ]; then
   echo "❌ usage: $0 T-X-Y (例: T-D-22)" >&2
@@ -70,7 +94,8 @@ echo "🔍 STEP 3: dispatch + branch + CLAUDE.md.task ..."
 DISPATCH_OUT="$(./09_dispatch/scripts/dispatch.sh "$TASK_ID" 2>&1)"
 echo "$DISPATCH_OUT" > ".jit/dispatch-${TASK_ID}.log"
 
-TMP_DIR="$(echo "$DISPATCH_OUT" | grep -oE '/tmp/atelier-dispatch-[^ ]+' | head -1)"
+TMP_DIR="$(extract_dispatch_dir "$DISPATCH_OUT")"
+# 真の dispatch 失敗は失敗のまま落とす (抽出を緩めて偽の成功にしない)。
 if [ -z "$TMP_DIR" ] || [ ! -f "$TMP_DIR/CLAUDE.md" ]; then
   echo "❌ dispatch did not produce CLAUDE.md. Output: $DISPATCH_OUT" >&2
   exit 4
