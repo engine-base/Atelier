@@ -386,14 +386,18 @@ async def _load_app_metadata(session: AsyncSession, *, user_id: str) -> dict[str
     role が無い/読めない場合は None を返し、従来どおり app_metadata 無しで発行する。
     """
     try:
-        res = await session.execute(
-            text(
-                "select coalesce(raw_app_meta_data->>'role', '') as role "
-                "from auth.users where id = cast(:i as uuid)"
-            ),
-            {"i": user_id},
-        )
-        row = res.first()
+        # SAVEPOINT で囲む — 素の except だけだと SELECT 失敗時に外側の
+        # トランザクションが aborted のまま残り、以降の audit 書き込みまで
+        # 巻き添えで失敗する (列欠落環境で実測)
+        async with session.begin_nested():
+            res = await session.execute(
+                text(
+                    "select coalesce(raw_app_meta_data->>'role', '') as role "
+                    "from auth.users where id = cast(:i as uuid)"
+                ),
+                {"i": user_id},
+            )
+            row = res.first()
     except Exception:
         return None
     if row is None or not row.role:

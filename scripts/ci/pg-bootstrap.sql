@@ -22,6 +22,10 @@ begin
   end if;
 end $$;
 
+-- 既存環境でも属性を収束させる (role が別経路で先に作られていた場合の
+-- bypassrls 欠落を是正 — if not exists だけだと既存 role を素通しする)
+alter role service_role bypassrls;
+
 grant anon, authenticated, service_role to postgres;
 
 -- ── schemas ──────────────────────────────────────────────────────────────
@@ -35,8 +39,11 @@ create table if not exists auth.users (
   id                  uuid primary key,
   email               text unique,
   encrypted_password  text,
+  raw_app_meta_data   jsonb not null default '{}'::jsonb,
   created_at          timestamptz not null default now()
 );
+-- 既存 DB への追随 (実 Supabase の auth.users に存在する列。JWT の role 源)
+alter table auth.users add column if not exists raw_app_meta_data jsonb not null default '{}'::jsonb;
 
 -- ── auth.uid() / auth.role() (request.jwt.claims GUC から解決) ──────────
 create or replace function auth.uid() returns uuid

@@ -150,7 +150,7 @@ async def update_template(
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
     if not body.model_dump(exclude_unset=True, exclude_none=True):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "at least one field is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "at least one field is required")
     item = await ops.update_template(actor_id=user.id, template_id=template_id, data=body)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
