@@ -26,32 +26,76 @@ export const REDACTED = '[REDACTED]';
 const DEFAULT_INGEST_URL = 'https://in.logs.betterstack.com';
 const TIMEOUT_MS = 3000;
 
-const SENSITIVE_KEY_RE = /(api[_-]?key|token|password|passwd|secret|authorization|credential|dsn)/i;
+/**
+ * 秘匿値マスクの語彙・規則・適用順。
+ *
+ * **`apps/api/src/observability/redaction.py` と同一の規則・同一の順序**を保つこと。
+ * TS/Python 間で実装を 1 本化できない以上、**両側の期待値表を同期させる**ことで
+ * パリティを担保する (tests/logger.test.ts と
+ * apps/api/tests/test_observability_redaction.py に同じ表を置く)。
+ *
+ * 片側だけ語彙を増やすと、そちらだけ塞がれた形が生まれる。実際 T-F-48 で API 側だけ
+ * 4 形式 (Basic / redis ユーザ名省略 / JSON 引用符 / Set-Cookie) を足した結果、
+ * **ブラウザから Basic 資格情報・redis パスワード・JSON トークン・セッション Cookie が
+ * 平文で Better Stack に届く**状態になっていた (QA_FAIL D-FAIL-2)。
+ */
+const SECRET_WORDS = [
+  'api[_-]?key',
+  'token',
+  'password',
+  'passwd',
+  'secret',
+  'authorization',
+  'cookie',
+  'session',
+  'credential',
+].join('|');
+
+/** `Authorization` に付く認証スキーム。値の一部として明示的に食う必要がある。 */
+const AUTH_SCHEMES = 'Bearer|Basic|Token|Digest';
+
+const SENSITIVE_KEY_RE = new RegExp(`(${SECRET_WORDS}|dsn)`, 'i');
 
 /**
- * 適用順つきのマスク規則。**apps/api/src/observability/betterstack.py の
- * `_REDACTION_RULES` と同一の規則・同一の順序**を保つこと。
+ * 適用順つきのマスク規則 (API 側の `REDACTION_RULES` と 1 対 1)。
  *
- * 順序が重要: key-value 規則が `Bearer ` を任意接頭辞として明示的に食わないと、
- * "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が
- * 素通しになる (QA_FAIL-2 の原因)。
+ * 順序が重要:
+ * - key-value より先に JSON 引用符形を処理しないと `"token": "abc"` の引用符が壊れる
+ * - key-value 規則が `Bearer ` を任意接頭辞として明示的に食わないと、
+ *   "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が素通りする
  */
 const REDACTION_RULES: readonly (readonly [RegExp, string])[] = [
-  // 接続文字列の資格情報。scheme と host は残す。
-  [/(\b[a-z][a-z0-9+.-]*:\/\/)[A-Za-z0-9_\-.%]+:[A-Za-z0-9_\-.%]+@/g, `$1${REDACTED}@`],
-  // key=value / key: value (Authorization: Bearer <token> を含む)
+  // 接続文字列の資格情報。`redis://:pass@host` のユーザ名省略形も拾う。
+  // scheme と host は残す (障害調査で接続先を失わない)。
+  [/(\b[a-z][a-z0-9+.-]*:\/\/)[A-Za-z0-9_\-.%]*:[A-Za-z0-9_\-.%]+@/g, `$1${REDACTED}@`],
+  // JSON の引用符形 `"token": "abc123"`。キーだけ残して値を伏せる。
+  [new RegExp(`("(?:${SECRET_WORDS})")\\s*:\\s*"[^"]*"`, 'gi'), `$1: "${REDACTED}"`],
+  // `api_key=xxx` / `token: xxx` / `Authorization: Bearer xxx` / `Set-Cookie: session=…`
   [
-    /\b(api[_-]?key|token|password|passwd|secret|authorization)\b\s*([=:])\s*(?:Bearer\s+)?\S+/gi,
+    new RegExp(
+      `\\b(${SECRET_WORDS})\\b\\s*([=:])\\s*(?:(?:${AUTH_SCHEMES})\\s+)?\\S+`,
+      'gi',
+    ),
     `$1$2${REDACTED}`,
   ],
-  // 単体で現れる Bearer <token>
-  [/\bBearer\s+[A-Za-z0-9._-]+/gi, `Bearer ${REDACTED}`],
-  // プロバイダ発行キーの代表形
+  // 単体で現れる `Bearer <token>` 等。
+  // **後続が「資格情報の形」のときだけ**伏せる。スキーム名だけを見て次の 1 語を消すと、
+  // `token` / `basic` が英単語としても頻出するため通常のログ本文を壊す
+  // ("invalid token signature" 等)。① 8 文字以上 ② 数字か記号を含む、の両方を要求する。
+  [
+    new RegExp(
+      `\\b(${AUTH_SCHEMES})\\s+(?=[A-Za-z0-9._\\-=+/]{8,}\\b)` +
+        `(?=[A-Za-z0-9._\\-=+/]*[0-9._\\-=+/])[A-Za-z0-9._\\-=+/]+`,
+      'gi',
+    ),
+    `$1 ${REDACTED}`,
+  ],
+  // プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)
   [/\bsk-[A-Za-z0-9_-]{12,}/g, REDACTED],
   [/\bsk_(?:live|test)_[A-Za-z0-9]{12,}/g, REDACTED],
 ];
 
-/** メッセージ本文から秘匿値らしき部分を伏せる。 */
+/** 本文から秘匿値らしき部分を伏せる。API 側 `redact_text` と同一挙動。 */
 export function redactText(text: string): string {
   return REDACTION_RULES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
 }

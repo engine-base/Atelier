@@ -34,60 +34,93 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('redactText (T-F-39)', () => {
+// ─────────────────────────────────────────────────────────────────────────────
+// **apps/api/tests/test_observability_redaction.py と同一の期待値表**。
+// TS/Python 間で実装を 1 本化できない以上、両側に同じ表を置いてパリティを担保する
+// (T-F-48 / QA_FAIL D-FAIL-2 の是正)。片側だけ更新しないこと。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** (説明, 本文, 漏れてはいけない材料) — API 側 SECRET_CASES と同一。 */
+const SECRET_CASES: readonly (readonly [string, string, string])[] = [
+  // --- T-F-48 で追加した 4 形式 ---
+  ['Authorization: Basic', 'Authorization: Basic dXNlcjpwYXNzd29yZA==', 'dXNlcjpwYXNzd29yZA'],
+  ['redis:// のユーザ名省略形', 'cache redis://:onlypassword@cache:6379/0', 'onlypassword'],
+  ['JSON の "token": "…"', '{"token": "abc123secret"}', 'abc123secret'],
+  ['Set-Cookie', 'Set-Cookie: session=sess-abc-123', 'sess-abc-123'],
+  // --- 既存形式 (退行検知) ---
+  ['Authorization: Bearer', 'call Authorization: Bearer eyJhbGciOi.JIUzI1', 'eyJhbGciOi.JIUzI1'],
+  ['Bearer 単体', 'Bearer eyJhbGciOi.JIUzI1', 'eyJhbGciOi.JIUzI1'],
+  ['接続文字列', 'db postgres://u:p4ssw0rd@h/db', 'p4ssw0rd'],
+  ['key=value', 'api_key=sk-abcdefghijklmnop', 'sk-abcdefghijklmnop'],
+  ['password', 'password=hunter2', 'hunter2'],
+  ['Stripe 鍵', 'charge sk_live_ABCdef123456789', 'sk_live_ABCdef123456789'],
+];
+
+/** 誤検知させてはいけない通常ログ — API 側 SAFE_CASES と同一。 */
+const SAFE_CASES: readonly string[] = [
+  'workspace created',
+  'user session count is 42 items',
+  'connected to postgres://localhost:5432/atelier_dev',
+];
+
+/**
+ * 本 API に**実在する**エラーメッセージ。1 文字も変えてはいけない。
+ * API 側 REAL_MESSAGES と同一 (QA_FAIL D-FAIL-1 の再発防止)。
+ */
+const REAL_MESSAGES: readonly string[] = [
+  'invalid token signature',
+  'token expired',
+  'client portal token is not valid here',
+  'bridge token not configured (set ATELIER_BRIDGE_TOKEN)',
+  'refresh token is invalid or expired',
+  'Supabase token endpoint failed: 500',
+  'Basic authentication is disabled for this endpoint',
+  '1 リクエスト分の token usage',
+];
+
+describe('redactText — API とのパリティ表 (T-F-48)', () => {
+  it.each(SECRET_CASES)('%s: 秘匿材料が残らない', (_label, message, material) => {
+    expect(redactText(message)).not.toContain(material);
+  });
+
+  it.each(SAFE_CASES)('通常ログ %s は無改変', (message) => {
+    expect(redactText(message)).toBe(message);
+  });
+
+  it.each(REAL_MESSAGES)('実在エラーメッセージ %s は無改変', (message) => {
+    expect(redactText(message)).toBe(message);
+  });
+
   it.each([
-    'api_key=sk-abcdefghijklmnop',
-    'token: abcdefghijklmnop',
-    'password=hunter2',
-    'Authorization: Bearer abc.def.ghi',
-  ])('redacts %s', (raw) => {
-    const out = redactText(raw);
-    expect(out).toContain(REDACTED);
-    expect(out).not.toContain('hunter2');
-    expect(out).not.toContain('abcdefghijklmnop');
-  });
-
-  it('redacts bare provider keys', () => {
-    expect(redactText('used sk-liveKeyMaterial123 here')).not.toContain('sk-liveKeyMaterial123');
-    expect(redactText('charge sk_live_ABCdef123456789')).not.toContain('sk_live_ABCdef123456789');
-  });
-
-  it('leaves ordinary messages untouched', () => {
-    expect(redactText('workspace created')).toBe('workspace created');
-  });
-
-  // QA_FAIL-2 回帰: "Authorization: Bearer <JWT>" は実運用で最も多い形なのに、
-  // key-value 規則の \S+ が "Bearer" で止まり JWT 本体が素通ししていた。
-  // 接続文字列の資格情報も無伏せだった。
-  // ↓ の表は apps/api/tests/test_observability_betterstack.py の
-  //   test_redaction_table_is_exact と**同一**に保つこと (API/Web で同一規則)。
-  it.each([
-    ['call Authorization: Bearer eyJhbGciOi.JIUzI1', 'call Authorization:[REDACTED]'],
+    // スキーム単体は「資格情報の形」のときだけ伏せる (8 文字以上 + 数字/記号を含む)
     ['Bearer eyJhbGciOi.JIUzI1', 'Bearer [REDACTED]'],
-    ['authorization=Bearer eyJhbGciOi.JIUzI1', 'authorization=[REDACTED]'],
-    ['db postgres://u:p@h/db', 'db postgres://[REDACTED]@h/db'],
-    [
-      'conn postgresql+asyncpg://user:s3cr3t@db.example.com:5432/atelier',
-      'conn postgresql+asyncpg://[REDACTED]@db.example.com:5432/atelier',
-    ],
-    ['api_key=sk-abcdefghijklmnop', 'api_key=[REDACTED]'],
-    ['workspace created', 'workspace created'],
-  ])('redaction table: %s', (raw, expected) => {
+    ['bearer eyJhbGciOi.JIUzI1', 'bearer [REDACTED]'],
+    ['Basic dXNlcjpwYXNzd29yZA==', 'Basic [REDACTED]'],
+    // 英単語が続くだけの本文は無改変
+    ['Basic authentication is disabled', 'Basic authentication is disabled'],
+    ['token usage', 'token usage'],
+  ])('単体スキーム規則: %s -> %s', (raw, expected) => {
     expect(redactText(raw)).toBe(expected);
   });
 
-  it.each(['eyJhbGciOi.JIUzI1', 's3cr3t', 'hunter2', 'sk-abcdefghijklmnop'])(
-    'leaves no trace of %s',
-    (secret) => {
-      for (const message of [
-        `call Authorization: Bearer ${secret}`,
-        `password=${secret}`,
-        `conn postgres://user:${secret}@host/db`,
-      ]) {
-        expect(redactText(message)).not.toContain(secret);
-      }
-    },
-  );
+  it.each([
+    ['Authorization: Basic dXNlcjpwYXNzd29yZA==', 'Authorization:[REDACTED]'],
+    ['cache redis://:onlypassword@cache:6379/0', 'cache redis://[REDACTED]@cache:6379/0'],
+    ['{"token": "abc123secret"}', '{"token": "[REDACTED]"}'],
+    ['Set-Cookie: session=sess-abc-123', 'Set-Cookie:[REDACTED]'],
+    ['db postgres://u:p4ssw0rd@h/db', 'db postgres://[REDACTED]@h/db'],
+    ['api_key=sk-abcdefghijklmnop', 'api_key=[REDACTED]'],
+  ])('出力そのものが API と一致: %s -> %s', (raw, expected) => {
+    expect(redactText(raw)).toBe(expected);
+  });
+
+  it('送出ペイロードでも同じ規則が効く (sendLog の入口)', () => {
+    for (const [label, message, material] of SECRET_CASES) {
+      const payload = buildLogPayload({ level: 'error', message });
+      expect(JSON.stringify(payload)).not.toContain(material);
+      expect(label).toBeTruthy();
+    }
+  });
 });
 
 describe('redactContext (T-F-39)', () => {
