@@ -21,6 +21,28 @@ jobs:
   lighthouse:
     name: Lighthouse CWV (5 主要 screen)
     runs-on: ubuntu-latest
+    # Gate #15 と同じ実サービス構成で本番ビルドを測る (旧構成は dev サーバー +
+    # API/DB 無しで、実ユーザーが見る画面の性能/a11y を測れていなかった。
+    # さらに startServerCommand の "--" 二重解釈でサーバー起動自体が失敗)。
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      ATELIER_AUTH_JWT_SECRET: local-human-qa-secret-at-least-32-characters-long
+      ATELIER_DB_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
+      ATELIER_CORS_EXTRA_ORIGINS: http://localhost:3000
+      ATELIER_EMAIL_DRY_RUN: "1"
+      ATELIER_ALLOW_FAKE_LLM: "1"
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -30,6 +52,38 @@ jobs:
           node-version: "20.18.1"
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12.7" }
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with: { version: "0.11.16" }
+      - name: Provision DB (bootstrap + migrations + seeds + E2E seed)
+        run: |
+          PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/pg-bootstrap.sql
+          PGURL="$PGURL" bash scripts/ci/apply-migrations.sh
+          PGURL="$PGURL" bash scripts/ci/apply-seeds.sh
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/e2e-seed.sql
+      - name: Start API (background)
+        run: |
+          uv sync --all-packages --all-extras
+          export ATELIER_BYOK_ENCRYPTION_KEY="$(uv run python -c 'from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())')"
+          export ATELIER_VAULT_ENCRYPTION_KEY="$ATELIER_BYOK_ENCRYPTION_KEY"
+          (cd apps/api && nohup uv run uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/api.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health >/dev/null && { echo "api up"; exit 0; }
+            sleep 2
+          done
+          echo "::error::API did not become healthy"; tail -50 /tmp/api.log; exit 1
+      - name: Build & start web (background)
+        run: |
+          pnpm --filter @atelier/web build
+          (cd apps/web && nohup npx next start -p 3000 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/ >/dev/null && { echo "web up"; exit 0; }
+            sleep 2
+          done
+          echo "::error::web did not become healthy"; tail -50 /tmp/web.log; exit 1
       - name: Run Lighthouse CI
         run: |
           chmod +x ./scripts/lighthouse-check.sh

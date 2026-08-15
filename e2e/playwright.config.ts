@@ -30,6 +30,11 @@ export default defineConfig({
     locale: 'ja-JP',
     timezoneId: 'Asia/Tokyo',
     colorScheme: 'light',
+    // PW_CHROMIUM_PATH: playwright 管理外のシステム chromium で走らせる逃げ道
+    // (バージョン違いのブラウザバイナリしか無い環境用。CI では未設定 = 通常動作)
+    ...(process.env.PW_CHROMIUM_PATH
+      ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } }
+      : {}),
   },
   projects: [
     { name: 'chromium-desktop', use: { ...devices['Desktop Chrome'] } },
