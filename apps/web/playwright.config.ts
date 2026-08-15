@@ -16,5 +16,10 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     screenshot: "only-on-failure",
+    // PW_CHROMIUM_PATH: playwright 管理外のシステム chromium で走らせる逃げ道
+    // (バージョン違いのブラウザバイナリしか無い環境用。CI では未設定 = 通常動作)
+    ...(process.env.PW_CHROMIUM_PATH
+      ? { launchOptions: { executablePath: process.env.PW_CHROMIUM_PATH } }
+      : {}),
   },
 });

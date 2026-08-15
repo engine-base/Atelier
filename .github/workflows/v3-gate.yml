@@ -263,6 +263,13 @@ jobs:
               # touched files 80% gate 対象外
               and not t.startswith('packages/api-types/')
               and '/_generated/' not in t
+              # API 契約の型定義 (openapi.yaml 併走の型のみ・実装 statement 無し) は
+              # Gate #7/#5 で検証される契約物のため unit coverage 対象外
+              and not t.startswith('07_api_design/')
+              # Playwright E2E のスペック/ヘルパはテストコード自身 (unit coverage 対象外)
+              and not t.startswith('e2e/')
+              # Electron プロセス起動エントリは index.ts 同様の配線のみ (E2E で検証)
+              and not t.endswith('/electron-entry.ts')
           ]
           if not src_files:
               print("No source TS files touched (only tests/configs). Skipping.")
@@ -685,6 +692,13 @@ jobs:
         run: |
           PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             bash scripts/ci/apply-migrations.sh
+      - name: Apply seeds (運営固定データ — WS bootstrap トリガの実体化前提)
+        # t-d-99 の workspace トリガは seed の AI 社員テンプレを実体化する。
+        # seed 無しだと trigger 依存のテスト (employee_activities 等) が
+        # NoResultFound で落ちる (2026-08-15 の main gate 実走で検出)
+        run: |
+          PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            bash scripts/ci/apply-seeds.sh
       - name: uv sync
         run: uv sync --all-packages --all-extras
       - name: probe DB connectivity (fail-fast with real reason)
@@ -773,11 +787,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with: { version: "0.11.16" }
-      - name: Provision DB (bootstrap + migrations + E2E seed)
+      - name: Provision DB (bootstrap + migrations + seeds + E2E seed)
         run: |
           PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/pg-bootstrap.sql
           PGURL="$PGURL" bash scripts/ci/apply-migrations.sh
+          PGURL="$PGURL" bash scripts/ci/apply-seeds.sh
           psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/e2e-seed.sql
       - name: Start API (background)
         run: |
