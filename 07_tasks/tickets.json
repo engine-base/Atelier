@@ -1731,7 +1731,7 @@
     },
     {
       "id": "T-F-19",
-      "title": "Supabase Vault（BYOK 暗号化）",
+      "title": "BYOK 暗号化 (Fernet + 列レベル権限) — ADR-BYOK-encryption",
       "group": "F",
       "category": "infra",
       "label": "NEW",
@@ -1778,7 +1778,8 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: The foundation artifact shall be installed and importable (related to Supabase Vault（BYOK 暗号化）)"
+          "UBIQUITOUS: BYOK の API キーは Fernet (cryptography) で暗号化され、鍵は ATELIER_BYOK_ENCRYPTION_KEY env から読まれる (復号鍵を DB に置かない)",
+          "UBIQUITOUS: encrypted_key 列が authenticated / anon から列レベルで revoke されている (migrations/t-d-95)"
         ],
         "tier_2_functional": [
           {
@@ -1819,7 +1820,8 @@
           ],
           "expected": "エラー無し"
         }
-      ]
+      ],
+      "note": " / 2026-08-15 (T-F-52): ADR-BYOK-encryption (Accepted) の決定に従い表題と AC を実装 (Fernet) に合わせた。旧表題『Supabase Vault（BYOK 暗号化）』は selected-stack と実装の食い違いの発生源だったため撤回。決定の根拠と再検討トリガは 03_architecture/adrs/ADR-BYOK-encryption.md を参照。"
     },
     {
       "id": "T-F-20",
