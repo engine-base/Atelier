@@ -39,7 +39,7 @@ _PRIORITY_TO_API: dict[str, TaskPriority] = {
     "medium": "medium",
     "low": "low",
 }
-# type: 契約のみの 'migration' は DB の 'infrastructure' に寄せる。他は 1:1。
+# NOTE: 契約のみの 'migration' は DB の 'infrastructure' に寄せる。他は 1:1。
 _TYPE_TO_DB = {
     "foundation": "foundation",
     "screen": "screen",

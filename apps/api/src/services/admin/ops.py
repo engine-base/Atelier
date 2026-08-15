@@ -228,8 +228,10 @@ async def list_acquisitions(days: int | None) -> AcquisitionsResponse:
         params: dict[str, object] = {} if days is None else {"days": days}
         agg = await session.execute(
             text(
-                f"select channel, count(*) as count from public.acquisition_records {where}"
-                "group by channel order by count desc"
+                # 別名は cnt にする — "count" だと Row 属性アクセスが tuple.count
+                # メソッドに解決され int(メソッド) で実行時 TypeError になる
+                f"select channel, count(*) as cnt from public.acquisition_records {where}"
+                "group by channel order by cnt desc"
             ),
             params,
         )
@@ -242,7 +244,7 @@ async def list_acquisitions(days: int | None) -> AcquisitionsResponse:
             params,
         )
         channels = [
-            AcquisitionChannelCount(channel=str(r.channel), count=int(r.count)) for r in agg.all()
+            AcquisitionChannelCount(channel=str(r.channel), count=int(r.cnt)) for r in agg.all()
         ]
         return AcquisitionsResponse(
             channels=channels,

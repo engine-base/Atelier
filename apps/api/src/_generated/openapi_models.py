@@ -1210,7 +1210,7 @@ class Decision(BaseModel):
 class DecisionCreate(BaseModel):
     project_id: UUID
     phase_id: UUID | None = None
-    status: Status6 | None = "decided"
+    status: Status6 | None = Status6.decided
     body: Annotated[str, Field(max_length=2000, min_length=1)]
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -1503,7 +1503,7 @@ class KnowledgeCreate(BaseModel):
     """
     構造ツリーの親ノード。null=ルート
     """
-    source_type: SourceType | None = "manual"
+    source_type: SourceType | None = SourceType.manual
     source_project_id: UUID | None = None
     """
     scope=project の束縛先プロジェクト
@@ -1950,7 +1950,7 @@ class Choice(StrEnum):
     """
 
     adopt = "adopt"
-    split = "split"
+    split = "split"  # pyright: ignore[reportAssignmentType] — str.split と名前衝突 (API 契約値のため改名不可)
     discard = "discard"
 
 

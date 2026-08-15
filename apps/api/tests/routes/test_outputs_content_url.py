@@ -62,7 +62,10 @@ def test_content_url_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://proj.supabase.co")
     monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
     monkeypatch.setattr(storage_signing.httpx, "AsyncClient", _FakeClient)
-    _patch_get_output(monkeypatch, SimpleNamespace(html_path="outputs/estimate-v2.html"))
+    _patch_get_output(
+        monkeypatch,
+        SimpleNamespace(html_path="outputs/estimate-v2.html", json_path=None, md_path=None),
+    )
     with TestClient(_app()) as client:
         res = client.get("/outputs/o1/content-url")
     assert res.status_code == 200
@@ -72,7 +75,7 @@ def test_content_url_ok(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_content_url_409_when_no_html(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://proj.supabase.co")
     monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
-    _patch_get_output(monkeypatch, SimpleNamespace(html_path=None))
+    _patch_get_output(monkeypatch, SimpleNamespace(html_path=None, json_path=None, md_path=None))
     with TestClient(_app()) as client:
         res = client.get("/outputs/o1/content-url")
     assert res.status_code == 409
@@ -81,7 +84,10 @@ def test_content_url_409_when_no_html(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_content_url_503_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ATELIER_SUPABASE_ADMIN_API_URL", raising=False)
     monkeypatch.delenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", raising=False)
-    _patch_get_output(monkeypatch, SimpleNamespace(html_path="outputs/estimate-v2.html"))
+    _patch_get_output(
+        monkeypatch,
+        SimpleNamespace(html_path="outputs/estimate-v2.html", json_path=None, md_path=None),
+    )
     with TestClient(_app()) as client:
         res = client.get("/outputs/o1/content-url")
     assert res.status_code == 503
