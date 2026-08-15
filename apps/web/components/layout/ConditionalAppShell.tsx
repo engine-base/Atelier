@@ -42,6 +42,7 @@ import {
   writeCurrentWorkspace,
 } from '../../lib/currentWorkspace';
 import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
+import { ROUTE_MAP } from '../../lib/routes';
 import { AppShell } from './AppShell';
 import type { NavItem, NavSection } from './Sidebar';
 
@@ -78,6 +79,27 @@ function projectNav(projectId: string): readonly NavItem[] {
 
 /** プロジェクト文脈のセクション判定: PROJECT nav の match に一致するパスでは
  * ワークスペース側の同名セクション (tasks/workflow/chat 等) より project 側を active にする。 */
+/**
+ * 内部ルート → 意味的 URL の逆引き表。**bare 判定の前に必ず正規化する** (T-UC-46)。
+ *
+ * next.config の rewrites により `/signin` は `/auth/s_a01` を serve する。このとき
+ * **サーバ側の usePathname() は内部ルート (`/auth/s_a01`) を返し、クライアント側は
+ * URL バーの意味的 URL (`/signin`) を返す**。下の bare リストは意味的 URL しか
+ * 持っていないため、サーバは「非 bare」= AppShell 付き、クライアントは「bare」と
+ * 判定し、hydration mismatch (React #418) になっていた。
+ *
+ * ROUTE_MAP を唯一の対応表として正規化することで、bare リストを意味的/内部で
+ * 二重管理せずに済み、ROUTE_MAP にエントリが増えても同型の穴が再発しない。
+ */
+const INTERNAL_TO_CLEAN: ReadonlyMap<string, string> = new Map(
+  ROUTE_MAP.map(([clean, internal]) => [internal, clean]),
+);
+
+/** 内部ルートで来ていれば意味的 URL に直す。意味的 URL はそのまま返す。 */
+export function normalizePath(pathname: string): string {
+  return INTERNAL_TO_CLEAN.get(pathname) ?? pathname;
+}
+
 const BARE_EXACT: ReadonlySet<string> = new Set(['/', '/signin', '/signup']);
 const BARE_PREFIXES: readonly string[] = [
   '/admin',
@@ -91,7 +113,9 @@ const BARE_PREFIXES: readonly string[] = [
 /** main の既定 padding を外すフルブリード画面 (自前でヘッダー/余白を持つ)。 */
 const FULL_BLEED_PREFIXES: readonly string[] = ['/workflow', '/chat'];
 
-function isBare(pathname: string): boolean {
+export function isBare(rawPathname: string): boolean {
+  // 内部ルート / 意味的 URL のどちらで呼ばれても同じ答えになるよう先に正規化する。
+  const pathname = normalizePath(rawPathname);
   if (BARE_EXACT.has(pathname)) return true;
   if (BARE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
   // 外部クライアントポータルはベア。社内向け招待管理のみ主シェルを付ける。
@@ -165,7 +189,11 @@ function TopBarTrailing({
 }
 
 export function ConditionalAppShell({ children }: { readonly children: ReactNode }) {
-  const pathname = usePathname() ?? '/';
+  // 内部ルートで来る SSR と意味的 URL で来る client の差をここで吸収する (T-UC-46)。
+  // bare 判定だけでなく **ナビの active 判定 / breadcrumb** も pathname を見るため、
+  // 入口で 1 度正規化しないと AppShell が付く画面 (/projects 等) でも
+  // active 状態が SSR と client でずれて hydration mismatch になる。
+  const pathname = normalizePath(usePathname() ?? '/');
   const bare = isBare(pathname);
   const [workspaces, setWorkspaces] = useState<readonly WorkspaceLite[]>([]);
   const [currentWsId, setCurrentWsId] = useState<string | undefined>();
