@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1431,
-    "total_estimate_hours_ai_compute": 137.65,
-    "human_review_total_h": 14.65,
-    "total_wall_clock_h_ai_parallel": 34.8,
+    "total_estimate_hours_human": 1443,
+    "total_estimate_hours_ai_compute": 138.85,
+    "human_review_total_h": 14.95,
+    "total_wall_clock_h_ai_parallel": 36.0,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -27992,8 +27992,9 @@
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml",
-          "apps/api",
-          "apps/web/app/auth/s_a03"
+          "apps/web/app/auth/s_a03",
+          "apps/api/src/routes/auth",
+          "apps/api/src/routes/billing"
         ]
       },
       "acceptance_criteria_inline": {
@@ -28358,16 +28359,35 @@
         "modify": [
           "03_architecture/selected-stack.json",
           "07_tasks/tickets.json",
-          "docs/gap-tracker.md"
+          "docs/gap-tracker.md",
+          ".github/workflows/v3-gate.yml",
+          "SECRETS.md",
+          "apps/api/src/observability/redaction.py",
+          "apps/api/src/routes/circuit_breaker/__init__.py",
+          "apps/api/src/services/admin/__init__.py",
+          "apps/api/src/services/contract/__init__.py",
+          "apps/api/src/services/impact/__init__.py",
+          "apps/api/src/services/outputs/__init__.py",
+          "apps/api/src/services/sales_docs/__init__.py",
+          "apps/api/tests/test_pyright_src_clean.py",
+          "apps/api/tests/test_redaction_english_corpus.py",
+          "apps/api/tests/test_redaction_scheme_matrix.py",
+          "apps/web/lib/logger.ts",
+          "apps/web/tests/logger.test.ts",
+          "docs/runbooks/byok-key-rotation.md",
+          "scripts/ci/typecheck-src.sh",
+          "docs/agents/pm.md",
+          "docs/agents/protocol.md",
+          "docs/agents/qa.md"
         ],
         "shared_read": [
           "03_architecture/adrs/ADR-BYOK-encryption.md",
           "apps/api/src/services/byok_keys/__init__.py"
         ],
         "forbidden": [
-          ".github/workflows/v3-gate.yml",
-          "apps/api/src",
-          "apps/web"
+          "apps/api/src/routes/auth",
+          "apps/api/src/routes/billing",
+          "apps/web/app/auth/s_a03"
         ]
       },
       "acceptance_criteria_inline": {
@@ -28502,6 +28522,289 @@
         }
       ],
       "note": "ADR-BYOK-encryption (T-F-51) が受け入れたリスクの手当。Fernet はローテーション時に全行の再暗号化が要るため、MultiFernet による新旧鍵併用と再暗号化の手順を運用手順書に残す。鍵を失うと顧客の API キーが復号不能になるため、バックアップ手順も含める。"
+    },
+    {
+      "id": "T-F-54",
+      "title": "redaction の英単語判別を精緻化し、根拠コメントの誤った一般命題を是正する",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-49"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-54.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_redaction_english_corpus.py"
+        ],
+        "modify": [
+          "apps/api/src/observability/redaction.py",
+          "apps/web/lib/logger.ts",
+          "apps/api/tests/test_redaction_scheme_matrix.py",
+          "apps/web/tests/logger.test.ts"
+        ],
+        "shared_read": [
+          "apps/api/src/observability/betterstack.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes",
+          "apps/api/src/services"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: redaction.py / logger.ts のコメントが**実際に成り立つ命題**だけを述べている — 反証例 (`file` / 16 文字以上の英単語) が存在する一般命題を根拠として書かない",
+          "UBIQUITOUS: 英単語コーパス (qa の 68 語以上) × 全スキームを走査する回帰テストがあり、誤マスク数が明示的な期待値として固定されている"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When an ordinary English word follows an auth scheme, it shall not be redacted — 少なくとも本リポジトリの実在ログに現れる語では 0 件"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the tightening causes any credential form masked at the T-F-49 baseline to pass through, it shall be rejected — 退行判定は基準 commit を明示して行う"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the comment continues to assert a false general claim (『英単語は 3 条件すべてを満たさないため無改変で通る』等), it shall be rejected — 判定の根拠を偽らない。塞ぎきれない残存誤検知は既知の限界として反証例つきで明記する"
+          }
+        ],
+        "tier_3_regression": [
+          "`Bearer` 単体の無条件マスクを維持",
+          "実在ログ 13 件の改変 0・API/Web パリティ不一致 0 を維持 (263 ケース差分試験)",
+          "redact_text のレイテンシを著しく悪化させない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "英単語コーパス",
+          "steps": [
+            "68 語以上 × 6 スキームを両経路へ"
+          ],
+          "expected": "誤マスク数が期待値どおり (現状 18 件から削減、残存分は明記)"
+        },
+        {
+          "name": "退行なし",
+          "steps": [
+            "基準 commit 7896416 相当で 263 ケース差分試験"
+          ],
+          "expected": "退行 0 / パリティ不一致 0"
+        },
+        {
+          "name": "コメントの真偽",
+          "steps": [
+            "コメントの主張を反証例で検証"
+          ],
+          "expected": "偽の一般命題が残っていない"
+        }
+      ],
+      "note": "GAP-124 (qa 申し送り 1)。**実害は現時点 0** (本リポジトリの実在語では誤マスク 0 を qa が実測) のため束 E は合格としたが、① 誤マスク 18 件 (3 語: `file` / `responsibilities` / `internationalization`) が存在し ② redaction.py:114-115 の「実在エラーメッセージでスキーム語の直後に来る最長の英単語は authentication (14 文字)」と :125-126 の「英単語は長さが 4 の倍数にならないか復号しても非 ASCII になる」は**一般命題としては偽** (`file` は 4 文字で base64 復号可、16 文字以上の英単語が実在)。**判定の根拠を偽るコメントは、次に触る人を誤らせるという意味で型の嘘と同じ**なので是正する。"
+    },
+    {
+      "id": "T-F-55",
+      "title": "`pyright src` 全体の 62 errors を解消する (services/** の型の嘘を潰す)",
+      "group": "F",
+      "category": "backend",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 6,
+      "estimate_hours_human": 6,
+      "estimate_hours_ai": 0.6,
+      "wall_clock_h_ai": 0.6,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-45"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-55.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_pyright_src_clean.py"
+        ],
+        "modify": [
+          "apps/api/src/services/contract/__init__.py",
+          "apps/api/src/services/admin/__init__.py",
+          "apps/api/src/services/impact/__init__.py",
+          "apps/api/src/services/outputs/__init__.py",
+          "apps/api/src/services/sales_docs/__init__.py",
+          "apps/api/src/routes/circuit_breaker/__init__.py"
+        ],
+        "shared_read": [
+          "apps/api/pyproject.toml"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: `pyright src` (touched files 限定ではなく src 全体) が **0 errors** になる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "Every fix expresses the real type rather than suppressing the check"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If errors are silenced with type: ignore / cast / Any / reportXxx=false instead of expressing the real types, it shall be rejected — T-F-45 と同じ基準。抑止で数を減らさない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If runtime behaviour changes as a side effect, it shall be rejected — 本タスクは型の是正であって仕様変更ではない"
+          }
+        ],
+        "tier_3_regression": [
+          "pytest 全数 green (695 passed 相当を下回らない)",
+          "各 service の公開シグネチャを壊さない (呼び出し側の変更が要るなら scope expand を先行させる)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "0 errors",
+          "steps": [
+            "uv run --extra dev pyright src"
+          ],
+          "expected": "0 errors (現状 62)"
+        },
+        {
+          "name": "抑止の不在",
+          "steps": [
+            "差分を grep"
+          ],
+          "expected": "type: ignore / cast(Any) / reportXxx=false の追加が 0"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "pytest 全走"
+          ],
+          "expected": "全 green・挙動不変"
+        }
+      ],
+      "note": "GAP-125 (qa 申し送り 2)。dev 申し送りを qa が独立に裏取り。内訳は services/contract 24 / services/admin 15 / services/impact 4 / services/outputs 3 / services/sales_docs 3 / routes/circuit_breaker 2 ほか。Gate #3 が touched files 限定のため CI は緑だが、**T-F-45 で 1 ファイル分だけ潰した「gate が見ていないから緑」が services/** に残っている**。本タスクで数を 0 にし、T-F-56 で gate を src 全体へ広げて再発を止める (順序厳守)。"
+    },
+    {
+      "id": "T-F-56",
+      "title": "Gate #3 を `src` 全体へ広げる (touched files 限定をやめる)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-55"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-56.md",
+      "files_changed_predicted": {
+        "new": [
+          "scripts/ci/typecheck-src.sh"
+        ],
+        "modify": [
+          ".github/workflows/v3-gate.yml"
+        ],
+        "shared_read": [
+          "apps/api/pyproject.toml",
+          "scripts/ci/check-build-artifacts.mjs"
+        ],
+        "forbidden": [
+          "apps/api/src",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: Gate #3 が `pyright src` 全体を 0-error で要求する (touched files 限定をやめる)",
+          "UBIQUITOUS: v3-gate.yml の差分は**この 1 点の強化と検査スクリプトの追加のみ**で、他 gate の閾値・条件・matcher を 1 つも緩めていない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When any PR introduces a type error anywhere in src, Gate #3 shall fail — 触っていないファイルの型崩れも検出する"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If any existing gate is weakened as part of this change, it shall be rejected — 追加・強化のみ許可。merge 前に PM レビュー必須"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the gate is widened while errors remain (T-F-55 未完了), it shall be rejected — 恒常的に赤いゲートを作らない"
+          }
+        ],
+        "tier_3_regression": [
+          "既存 10 gate + Gate #16 の判定内容が変わらない",
+          "CI 時間の増加が許容範囲であること (計測値を報告に載せる)"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "強化の実効",
+          "steps": [
+            "src の未 touched ファイルに型エラーを注入して CI 相当を実行"
+          ],
+          "expected": "Gate #3 が落ちる"
+        },
+        {
+          "name": "現行 green",
+          "steps": [
+            "現行 HEAD で実行"
+          ],
+          "expected": "0 errors で PASS (T-F-55 完了が前提)"
+        },
+        {
+          "name": "他 gate 不変",
+          "steps": [
+            "v3-gate.yml の差分を確認"
+          ],
+          "expected": "他 gate の閾値・条件に変更なし"
+        }
+      ],
+      "note": "GAP-125 の恒久対策。**本タスクに限り v3-gate.yml の編集を PM が許可する** (Gate #16 = T-F-46 と同条件: 追加・強化のみ / 既存 gate の緩和は一切不可 / merge 前に PM レビュー必須)。**T-F-55 の完了が前提** — 62 errors を残したまま広げると恒常的に赤いゲートになる。"
     }
   ],
   "two_axis_policy": {
