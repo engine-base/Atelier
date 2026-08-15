@@ -1,3 +1,8 @@
+# shellcheck shell=sh
+# husky v10 互換 (T-F-50 / GAP-119): shebang と shim 行 (`_/husky.sh` の source) は
+# 置かない。強制内容はここから下で、**移行で緩めていない**
+# (feat/t-x-y-* で CLAUDE.md.task が無ければ必ず拒否する = CLAUDE.md ルール 8)。
+#
 # JIT skill enforce: feat/t-x-y-* ブランチで CLAUDE.md.task が存在しない場合は
 # scripts/begin-task.sh が省略された証拠 → commit を拒否。
 branch="$(git branch --show-current 2>/dev/null || echo)"

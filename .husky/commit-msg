@@ -1,5 +1,10 @@
-#!/usr/bin/env bash
+# shellcheck shell=sh
 # conventional commits 形式の最低限チェック
+#
+# husky v10 互換 (T-F-50 / GAP-119): shebang と
+# `. "$(dirname -- "$0")/_/husky.sh"` の shim 行は置かない。
+# v9 はこの 2 行に対して DEPRECATED 警告を出し、v10 では動作しなくなる。
+# hook は husky のランナーから実行されるので shebang は不要。
 # 詳細な commitlint config は将来 task で追加
 msg_file="$1"
 first_line=$(head -n1 "$msg_file")

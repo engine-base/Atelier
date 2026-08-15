@@ -15,7 +15,8 @@
     "test": "turbo run test",
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:hooks": "./scripts/tests/test-husky-hooks.sh"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
