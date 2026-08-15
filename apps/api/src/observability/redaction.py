@@ -107,24 +107,57 @@ _BARE_ADDED_SCHEME_RE = re.compile(
 
 _BASE64_RE = re.compile(r"[A-Za-z0-9+/]+={0,2}")
 _CREDENTIAL_SYMBOLS = frozenset("0123456789._-=+/")
-MIN_OPAQUE_CREDENTIAL_LENGTH = 16
-"""英字のみの不透明トークンを資格情報とみなす下限。
+_VOWELS = frozenset("aeiouAEIOU")
 
-この値は当てずっぽうではなく、両端から決めている:
-- **下限側**: 本 API の実在エラーメッセージで認証スキーム語の直後に来る最長の英単語は
-  `authentication` (14 文字)。16 ならそれを超える。
-- **上限側**: 実運用の不透明トークン (base64 / hex / ランダム文字列) は 16 文字を下回らない。
-`Bearer` にはこの条件を課さない (無条件マスク) ので、JWT の保護には影響しない。
+MIN_OPAQUE_CREDENTIAL_LENGTH = 16
+"""英字のみのトークンを資格情報とみなす下限。
+
+**この値は「これ以上の英単語が存在しない」という主張ではない** (`responsibilities` = 16 /
+`internationalization` = 20 が反証)。本 API の実在エラーメッセージで認証スキーム語の直後に
+現れる語 (`authentication` = 14 が最長) を超える、という**限定された根拠**で選んでいる。
+長さだけでは長い英単語と区別できないため、`_looks_opaque()` を併用する。
 """
+
+MIN_CONSONANT_RUN = 4
+"""不透明トークンとみなす子音の連続長。
+
+**分離しているのは「16 文字以上」と「子音 run 4 以上」の連言**であって、どちらか片方では
+分離しない。片方だけを満たす英単語は実在する — `subscription` は run 4 だが 12 文字、
+`responsibilities` は 16 文字だが run 2。両方を満たす英単語は本 API のコーパスに無く、
+不透明トークン (`abcdefghijklmnop` は 16 文字・run 5) は両方を満たす。
+**完全な判別ではない** — 母音が規則的に混ざる合成トークン (`abababababababab` 等) は
+この条件を満たさず素通しする。§ 既知の限界 を参照。
+"""
+
+
+def _max_consonant_run(value: str) -> int:
+    """英字の子音が最大何文字連続するかを返す (非英字で途切れる)。"""
+    longest = current = 0
+    for char in value:
+        if char.isalpha() and char not in _VOWELS:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
+
+def _looks_opaque(value: str) -> bool:
+    """英単語らしくない = 不透明トークンらしいなら True。"""
+    return _max_consonant_run(value) >= MIN_CONSONANT_RUN
 
 
 def _decodes_as_printable_base64(value: str) -> bool:
     """base64 として復号でき、中身が印字可能 ASCII なら True。
 
-    `YWRtaWthYWRtaWthYWRt` のような**英字のみの base64 資格情報**を、
-    英単語と区別するための構造判定。英単語は長さが 4 の倍数にならないか、
-    復号しても非 ASCII になるためここで落ちる。
+    `YWRtaWthYWRtaWthYWRt` のような**英字のみの base64 資格情報**を拾うための構造判定。
+
+    **「英単語は base64 として復号できない」わけではない** — `file` は 4 文字で復号でき
+    中身も印字可能 (`~)^`) になる。そのため長さ下限を併せて課す
+    (実在の資格情報は 16 文字を下回らない)。
     """
+    if len(value) < MIN_OPAQUE_CREDENTIAL_LENGTH:
+        return False
     if len(value) % 4 != 0 or _BASE64_RE.fullmatch(value) is None:
         return False
     try:
@@ -140,17 +173,26 @@ def _is_credential_shaped(value: str) -> bool:
     英単語を巻き込まないよう、**文字種だけで決めない**。次のいずれかを満たすとき資格情報:
 
     1. 数字か記号 (`._-=+/`) を含む — JWT / hex / パディング付き base64
-    2. base64 として復号でき中身が印字可能 ASCII — 英字のみの base64 資格情報
-    3. 16 文字以上 — 不透明トークン (上記 MIN_OPAQUE_CREDENTIAL_LENGTH の根拠を参照)
+    2. 16 文字以上で base64 として復号でき中身が印字可能 ASCII — 英字のみの base64 資格情報
+    3. 16 文字以上で英単語らしくない (子音が 4 連続以上) — 不透明トークン
 
-    `authentication` (14) / `expired` (7) / `mismatch` (8) / `signature` (9) は
-    いずれも 3 条件すべてを満たさないため無改変で通る。
+    ### 既知の限界 (反証例つき)
+
+    - **母音が規則的に混ざる長い合成トークンは素通しする**。`Basic abababababababab`
+      (16 文字・子音 run 1) は上記 3 条件のいずれも満たさずマスクされない。
+      実在の資格情報は base64 / hex / 乱数でありこの形にはまずならないが、
+      **原理的に取りこぼす**ことは明記しておく。
+    - 逆方向 (英文の誤マスク) は、子音 run 4 以上かつ 16 文字以上の英単語があれば起きうる。
+      本 API の実在メッセージには存在しないが、**存在しないと断言はできない**。
+
+    実運用で最も多い `Authorization: <scheme> …` のヘッダ形は key-value 規則が別途拾うため、
+    ここでの取りこぼしがそのまま漏洩になるわけではない。
     """
     if any(ch in _CREDENTIAL_SYMBOLS for ch in value):
         return True
     if _decodes_as_printable_base64(value):
         return True
-    return len(value) >= MIN_OPAQUE_CREDENTIAL_LENGTH
+    return len(value) >= MIN_OPAQUE_CREDENTIAL_LENGTH and _looks_opaque(value)
 
 
 # プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)

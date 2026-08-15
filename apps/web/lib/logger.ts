@@ -65,16 +65,58 @@ const SENSITIVE_KEY_RE = new RegExp(`(${SECRET_WORDS}|dsn)`, 'i');
  *   "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が素通りする
  */
 /**
- * 英字のみの不透明トークンを資格情報とみなす下限。
+ * 英字のみのトークンを資格情報とみなす下限。
  * **apps/api/src/observability/redaction.py の MIN_OPAQUE_CREDENTIAL_LENGTH と同値。**
+ *
+ * **「これ以上の英単語が存在しない」という主張ではない** (`responsibilities` = 16 /
+ * `internationalization` = 20 が反証)。本 API の実在エラーメッセージで認証スキーム語の
+ * 直後に現れる語 (`authentication` = 14 が最長) を超える、という限定された根拠。
+ * 長さだけでは長い英単語と区別できないため looksOpaque() を併用する。
  */
 const MIN_OPAQUE_CREDENTIAL_LENGTH = 16;
 
+/**
+ * 不透明トークンとみなす子音の連続長。**API 側 MIN_CONSONANT_RUN と同値。**
+ *
+ * 英単語は母音を挟むため子音が 4 連続することは稀 (`responsibilities` /
+ * `internationalization` はいずれも最大 2、`mismatch` で 3)。一方ランダム/連続な
+ * トークンは長くなりやすい (`abcdefghijklmnop` は 5)。**完全な判別ではない** —
+ * 母音が規則的に混ざる合成トークン (`abababababababab`) は素通しする。
+ */
+const MIN_CONSONANT_RUN = 4;
+
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 const CREDENTIAL_SYMBOLS = /[0-9._\-=+/]/;
+const VOWELS = new Set('aeiouAEIOU');
 
-/** base64 として復号でき、中身が印字可能 ASCII なら true。 */
+/** 英字の子音が最大何文字連続するかを返す (非英字で途切れる)。 */
+function maxConsonantRun(value: string): number {
+  let longest = 0;
+  let current = 0;
+  for (const ch of value) {
+    if (/[A-Za-z]/.test(ch) && !VOWELS.has(ch)) {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 0;
+    }
+  }
+  return longest;
+}
+
+/** 英単語らしくない = 不透明トークンらしいなら true。 */
+function looksOpaque(value: string): boolean {
+  return maxConsonantRun(value) >= MIN_CONSONANT_RUN;
+}
+
+/**
+ * base64 として復号でき、中身が印字可能 ASCII なら true。
+ *
+ * **「英単語は base64 として復号できない」わけではない** — `file` は 4 文字で復号でき
+ * 中身も印字可能 (`~)^`) になる。そのため長さ下限を併せて課す。
+ */
 function decodesAsPrintableBase64(value: string): boolean {
+  if (value.length < MIN_OPAQUE_CREDENTIAL_LENGTH) return false;
   if (value.length % 4 !== 0 || !BASE64_RE.test(value)) return false;
   let decoded: string;
   try {
@@ -93,16 +135,16 @@ function decodesAsPrintableBase64(value: string): boolean {
 /**
  * 後続トークンが「資格情報の形」かどうか。**API 側 _is_credential_shaped と同一判定。**
  *
- * 1. 数字か記号 (._-=+/) を含む — JWT / hex / パディング付き base64
- * 2. base64 として復号でき中身が印字可能 ASCII — 英字のみの base64 資格情報
- * 3. 16 文字以上 — 不透明トークン
+ * 1. 数字か記号 (._-=+/) を含む
+ * 2. 16 文字以上で base64 復号でき中身が印字可能 ASCII
+ * 3. 16 文字以上で英単語らしくない (子音 4 連続以上)
  *
- * `authentication` (14) / `expired` (7) / `mismatch` (8) はいずれも満たさない。
+ * 既知の限界: `abababababababab` のような母音が規則的に混ざる長いトークンは素通しする。
  */
 function isCredentialShaped(value: string): boolean {
   if (CREDENTIAL_SYMBOLS.test(value)) return true;
   if (decodesAsPrintableBase64(value)) return true;
-  return value.length >= MIN_OPAQUE_CREDENTIAL_LENGTH;
+  return value.length >= MIN_OPAQUE_CREDENTIAL_LENGTH && looksOpaque(value);
 }
 
 type Replacement = string | ((...args: string[]) => string);
