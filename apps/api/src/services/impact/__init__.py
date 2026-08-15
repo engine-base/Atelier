@@ -9,11 +9,23 @@ tasks_*_member) が信頼源で、project member でない task は session か�
 
 from __future__ import annotations
 
+from typing import cast
+
 import networkx as nx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.impact import ImpactAnalysisResponse
+
+# JSON / ORM 境界のヘルパ (T-F-55)。値側を `object` にして下流に narrowing を強制する。
+# cast は直前の isinstance で確認済みの構造しか主張しない (`Any` へは落とさない)。
+
+
+def _as_object_list(value: object) -> list[object]:
+    """list なら `list[object]` として返す。そうでなければ空 list。"""
+    if not isinstance(value, list):
+        return []
+    return list(cast("list[object]", value))
 
 
 async def _fetch_root_project_id(session: AsyncSession, task_id: str) -> str | None:
@@ -50,8 +62,7 @@ async def _fetch_project_edges(
     for row in rows:
         tid = str(row.id)
         nodes.append(tid)
-        deps = row.dependencies or []
-        for dep in deps:
+        for dep in _as_object_list(row.dependencies):
             edges.append((str(dep), tid))
     return nodes, edges
 
@@ -74,7 +85,10 @@ async def analyze_downstream(
     g.add_edges_from((u, v) for (u, v) in edges if u in node_set and v in node_set)
     if task_id not in g:  # pragma: no cover - project_id 取得直後に保証される
         return None
-    descendants = sorted(nx.descendants(g, task_id))
+    # networkx は DiGraph の型引数を推論に反映しきれず、descendants() の戻りが
+    # 部分的に Unknown になる。要素を str へ確定させてから並べ替える
+    # (外部ライブラリ境界。実行時挙動は sorted(...) と同じ)。
+    descendants: list[str] = sorted(str(node) for node in nx.descendants(g, task_id))
     return ImpactAnalysisResponse(
         root_task_id=task_id,
         affected_task_ids=descendants,

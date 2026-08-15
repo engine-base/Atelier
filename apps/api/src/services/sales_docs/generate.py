@@ -26,7 +26,7 @@ from src.llm.client import LLMMessage
 from src.schemas.sales_docs import SalesDocGenerateRequest, SalesDocResponse
 from src.services.knowledge import search_knowledge
 
-from . import _next_version, get_sales_doc, is_uuid
+from . import get_sales_doc, is_uuid, next_version
 
 GENERATE_MODEL = os.environ.get("ATELIER_SALES_MODEL", "claude-sonnet-4-6")
 
@@ -170,7 +170,7 @@ async def generate(
 
     body, used_model = await _generate_body(data, excerpts, client)
 
-    version = await _next_version(session, project_id=data.project_id, doc_type=data.doc_type)
+    version = await next_version(session, project_id=data.project_id, doc_type=data.doc_type)
     meta: dict[str, object] = {
         "generated_by": "tony",
         "model": used_model,

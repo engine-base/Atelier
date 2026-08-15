@@ -9,7 +9,7 @@ audit_logs に必ず記録 (3-tier AC: state-changing audit)。
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +34,8 @@ def _require_admin(user: CurrentUser) -> None:
     app_metadata = user.claims.get("app_metadata")
     role: object = None
     if isinstance(app_metadata, dict):
-        role = app_metadata.get("role")
+        # 直前の isinstance で dict と確認済み。値側は object のままにする。
+        role = cast("dict[str, object]", app_metadata).get("role")
     if role != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin only")
 

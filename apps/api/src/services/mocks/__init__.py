@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,15 +27,23 @@ _COLS = (
 )
 
 
+# JSON / ORM 境界のヘルパ (T-F-55)。値側を `object` にして下流に narrowing を強制する。
+# cast は直前の isinstance で確認済みの構造しか主張しない (`Any` へは落とさない)。
+def _as_object_dict(value: object) -> dict[str, object]:
+    """dict なら `dict[str, object]` として返す。そうでなければ空 dict。"""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in cast("dict[object, object]", value).items()}
+
+
 def _meta(value: object) -> dict[str, object] | None:
     if value is None:
         return None
     if isinstance(value, str):
-        loaded: Any = json.loads(value)
-        return loaded
-    if isinstance(value, dict):
-        return value
-    return None
+        loaded: object = json.loads(value)
+        return _as_object_dict(loaded)
+    converted_value = _as_object_dict(value)
+    return converted_value if isinstance(value, dict) else None
 
 
 def _row_to_response(row: Any) -> MockResponse:

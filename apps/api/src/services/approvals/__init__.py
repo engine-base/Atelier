@@ -8,7 +8,7 @@ or rejected の状態遷移で resolved_at を自動セット、状態変更で 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,15 +22,23 @@ _COLS = (
 )
 
 
+# JSON / ORM 境界のヘルパ (T-F-55)。値側を `object` にして下流に narrowing を強制する。
+# cast は直前の isinstance で確認済みの構造しか主張しない (`Any` へは落とさない)。
+def _as_object_dict(value: object) -> dict[str, object]:
+    """dict なら `dict[str, object]` として返す。そうでなければ空 dict。"""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in cast("dict[object, object]", value).items()}
+
+
 def _payload(value: object) -> dict[str, object]:
     if value is None:
         return {}
     if isinstance(value, str):
-        loaded: Any = json.loads(value)
-        return loaded if isinstance(loaded, dict) else {}
-    if isinstance(value, dict):
-        return value
-    return {}
+        loaded: object = json.loads(value)
+        converted = _as_object_dict(loaded)
+        return converted if isinstance(loaded, dict) else {}
+    return _as_object_dict(value)
 
 
 def _row_to_response(row: Any) -> ApprovalResponse:

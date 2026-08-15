@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,12 +31,23 @@ _COLS = (
 )
 
 
+# JSON / ORM 境界のヘルパ (T-F-55)。値側を `object` にして下流に narrowing を強制する。
+# cast は直前の isinstance で確認済みの構造しか主張しない (`Any` へは落とさない)。
+
+
+def _as_object_list(value: object) -> list[object]:
+    """list なら `list[object]` として返す。そうでなければ空 list。"""
+    if not isinstance(value, list):
+        return []
+    return list(cast("list[object]", value))
+
+
 def _row_to_response(row: Any) -> McpTokenResponse:
     return McpTokenResponse(
         id=str(row.id),
         workspace_id=str(row.workspace_id),
         name=str(row.name),
-        scopes=[str(s) for s in (row.scopes or [])],
+        scopes=[str(item) for item in _as_object_list(row.scopes)],
         expires_at=row.expires_at,
         revoked_at=row.revoked_at,
         last_used_at=row.last_used_at,

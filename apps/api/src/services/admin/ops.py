@@ -563,8 +563,8 @@ async def update_template(
     「1 フィールド以上」を検証済みの前提)。
     """
     from src.services.admin import (  # pyright: ignore[reportPrivateUsage]  # 同一パッケージ内共有
-        _TPL_COLS,
-        _tpl_to_response,
+        TPL_COLS,
+        tpl_to_response,
     )
 
     if not is_uuid(template_id):
@@ -576,14 +576,14 @@ async def update_template(
             text(
                 "update public.ai_employee_templates set "
                 + ", ".join([*set_sql, "version = version + 1", "updated_at = now()"])
-                + f" where id = cast(:template_id as uuid) returning {_TPL_COLS}"
+                + f" where id = cast(:template_id as uuid) returning {TPL_COLS}"
             ),
             {**changed, "template_id": template_id},
         )
         row = res.first()
         if row is None:
             return None
-        updated = _tpl_to_response(row)
+        updated = tpl_to_response(row)
         await _audit(
             session,
             "template.update",

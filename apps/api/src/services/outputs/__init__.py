@@ -10,12 +10,21 @@ from __future__ import annotations
 
 import json
 import uuid as uuid_mod
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.outputs import OutputResponse
+
+
+# JSON / ORM 境界のヘルパ (T-F-55)。値側を `object` にして下流に narrowing を強制する。
+# cast は直前の isinstance で確認済みの構造しか主張しない (`Any` へは落とさない)。
+def _as_object_dict(value: object) -> dict[str, object]:
+    """dict なら `dict[str, object]` として返す。そうでなければ空 dict。"""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in cast("dict[object, object]", value).items()}
 
 
 def is_uuid(value: str) -> bool:
@@ -34,16 +43,14 @@ _COLS = (
 
 
 def _meta(row: Any) -> dict[str, object]:
-    raw = row.meta
-    if isinstance(raw, dict):
-        return raw
+    raw: object = row.meta
     if isinstance(raw, str):
         try:
-            parsed = json.loads(raw)
+            parsed: object = json.loads(raw)
         except ValueError:
             return {}
-        return parsed if isinstance(parsed, dict) else {}
-    return {}
+        return _as_object_dict(parsed)
+    return _as_object_dict(raw)
 
 
 def _row_to_response(row: Any) -> OutputResponse:

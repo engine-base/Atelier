@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import yaml
 from sqlalchemy import text
@@ -33,9 +33,33 @@ _OPENAPI_PATH = Path(__file__).resolve().parents[5] / "07_api_design" / "openapi
 _SCREENS_PATH = Path(__file__).resolve().parents[5] / "04_functional_breakdown" / "screens.json"
 
 
-def _load_openapi() -> dict[str, Any]:
+# ─────────────────────────────────────────────────────────────────────────────
+# JSON / YAML 境界のヘルパ (T-F-55)
+#
+# `json.loads` / `yaml.safe_load` の戻りは `Any` で、`isinstance` で絞っても要素型が
+# Unknown のまま伝播する。ここで **値側を `object` にした容器**へ変換し、下流に
+# narrowing を強制する。`Any` へは決して落とさない。
+#
+# cast は「直前の isinstance で確認済みの構造」しか主張しない。検証していない
+# `dict[str, str]` や TypedDict へは cast しない (それは新しい型の嘘になる)。
+# ─────────────────────────────────────────────────────────────────────────────
+def _as_object_dict(value: object) -> dict[str, object]:
+    """dict なら `dict[str, object]` として返す。そうでなければ空 dict。"""
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in cast("dict[object, object]", value).items()}
+
+
+def _as_object_list(value: object) -> list[object]:
+    """list なら `list[object]` として返す。そうでなければ空 list。"""
+    if not isinstance(value, list):
+        return []
+    return list(cast("list[object]", value))
+
+
+def _load_openapi() -> dict[str, object]:
     """openapi.yaml を一回 load する。"""
-    return cast("dict[str, Any]", yaml.safe_load(_OPENAPI_PATH.read_text()))
+    return _as_object_dict(yaml.safe_load(_OPENAPI_PATH.read_text()))
 
 
 def _load_screen_ids() -> list[str]:
@@ -44,18 +68,16 @@ def _load_screen_ids() -> list[str]:
     Atelier の screens.json は `items` キー配下に screen 配列を持つ
     (v3 schema, T-D-25 前後で確定)。
     """
-    raw = json.loads(_SCREENS_PATH.read_text())
+    raw: object = json.loads(_SCREENS_PATH.read_text())
     if isinstance(raw, list):
-        screens = raw
-    elif isinstance(raw, dict):
-        screens = raw.get("items") or raw.get("screens") or []
+        screens = _as_object_list(cast("list[object]", raw))
     else:
-        screens = []
+        block = _as_object_dict(raw)
+        screens = _as_object_list(block.get("items")) or _as_object_list(block.get("screens"))
     ids: list[str] = []
-    for s in screens:
-        if not isinstance(s, dict):
-            continue
-        sid = s.get("id") or s.get("screen_id")
+    for screen in screens:
+        entry = _as_object_dict(screen)
+        sid = entry.get("id") or entry.get("screen_id")
         if isinstance(sid, str):
             ids.append(sid)
     return ids
@@ -70,16 +92,12 @@ def compute_screen_coverage() -> ScreenCoverageReport:
     screen_ids = _load_screen_ids()
     screen_map: dict[str, list[str]] = {sid: [] for sid in screen_ids}
 
-    paths_block = spec.get("paths") or {}
+    paths_block = _as_object_dict(spec.get("paths"))
     for path, ops in paths_block.items():
-        if not isinstance(ops, dict):
-            continue
-        for method, op in ops.items():
-            if method.lower() not in _HTTP_METHODS or not isinstance(op, dict):
+        for method, op in _as_object_dict(ops).items():
+            if method.lower() not in _HTTP_METHODS:
                 continue
-            refs = op.get("x-screen-ids") or []
-            if not isinstance(refs, list):
-                continue
+            refs = _as_object_list(_as_object_dict(op).get("x-screen-ids"))
             label = f"{method.upper()} {path}"
             for sid in refs:
                 if isinstance(sid, str) and sid in screen_map:
@@ -108,13 +126,11 @@ def compute_screen_coverage() -> ScreenCoverageReport:
 def count_paths_and_methods() -> tuple[int, int]:
     """openapi.yaml の path 数 / 全 operation 数を返す。"""
     spec = _load_openapi()
-    paths_block = spec.get("paths") or {}
+    paths_block = _as_object_dict(spec.get("paths"))
     total_paths = len(paths_block)
     total_methods = 0
     for ops in paths_block.values():
-        if not isinstance(ops, dict):
-            continue
-        for method in ops:
+        for method in _as_object_dict(ops):
             if method.lower() in _HTTP_METHODS:
                 total_methods += 1
     return total_paths, total_methods
@@ -143,14 +159,13 @@ async def get_freeze_status(session: AsyncSession) -> FreezeStatus:
             evaluated_at=datetime.now(UTC),
         )
 
-    after_val = row.after
+    after_val: object = row.after
     if isinstance(after_val, str):
-        after_dict: dict[str, Any] = json.loads(after_val) if after_val else {}
-    elif isinstance(after_val, dict):
-        after_dict = after_val
+        after_dict = _as_object_dict(json.loads(after_val)) if after_val else {}
     else:
-        after_dict = {}
-    note = after_dict.get("note") if isinstance(after_dict.get("note"), str) else None
+        after_dict = _as_object_dict(after_val)
+    note_val = after_dict.get("note")
+    note = note_val if isinstance(note_val, str) else None
 
     return FreezeStatus(
         frozen=(str(row.action) == "contract.freeze"),

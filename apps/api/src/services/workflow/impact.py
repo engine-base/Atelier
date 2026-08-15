@@ -47,19 +47,6 @@ async def _load_analysis(session: AsyncSession, analysis_id: str) -> Any | None:
     return res.first()
 
 
-def _to_response(row: Any, affected: list[ImpactAffectedTask]) -> ImpactAnalysisResponse:
-    return ImpactAnalysisResponse(
-        id=str(row.id),
-        task_id=str(row.task_id),
-        task_title=str(row.task_title),
-        target_phase_id=str(row.target_phase_id),
-        target_phase_name=str(row.target_phase_name),
-        affected=affected,
-        done_count=len(list(row.affected_done_task_ids or [])),
-        applied=bool(row.applied),
-    )
-
-
 async def _affected_tasks(
     session: AsyncSession, task_id: str, project_id: str
 ) -> list[ImpactAffectedTask]:
