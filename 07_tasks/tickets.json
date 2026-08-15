@@ -27344,7 +27344,9 @@
           "07_tasks/tickets.json",
           "docs/gap-tracker.md",
           "apps/api/tests/test_observability_sentry.py",
-          "packages/email/src/templates/welcome.tsx"
+          "packages/email/src/templates/welcome.tsx",
+          "apps/web/tests/appshell-route-parity.test.ts",
+          "apps/web/components/layout/ConditionalAppShell.tsx"
         ],
         "shared_read": [
           "09_dispatch/scripts/dispatch.sh",
@@ -27702,7 +27704,7 @@
     },
     {
       "id": "T-UC-46",
-      "title": "/signin の React hydration 警告 (#418) の原因特定と解消",
+      "title": "rewrite された意味的 URL の hydration mismatch を解消 (React #418 — 影響 7 経路)",
       "group": "UC",
       "category": "frontend",
       "label": "NEW",
@@ -27711,14 +27713,20 @@
       "wave": 4,
       "assigned_employee": "wanda",
       "screen_ids": [
-        "S-A01"
+        "S-A01",
+        "S-L02",
+        "S-L03",
+        "S-PUB01",
+        "S-PUB02",
+        "S-PUB03",
+        "S-PUB04"
       ],
       "entity_ids": [],
       "feature_ids": [],
-      "estimate_hours": 3,
-      "estimate_hours_human": 3,
-      "estimate_hours_ai": 0.3,
-      "wall_clock_h_ai": 0.3,
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
       "ai_acceleration_factor": 10,
       "human_review_h": 0.1,
       "estimate_method": "category-multiplier",
@@ -27729,14 +27737,17 @@
       "ac_path": "07_tasks/acceptance-criteria/T-UC-46.md",
       "files_changed_predicted": {
         "new": [
-          "apps/web/tests/signin-hydration.test.tsx"
+          "apps/web/tests/signin-hydration.test.tsx",
+          "apps/web/tests/appshell-route-parity.test.ts"
         ],
         "modify": [
-          "apps/web/app/auth/s_a01/page.tsx"
+          "apps/web/app/auth/s_a01/page.tsx",
+          "apps/web/components/layout/ConditionalAppShell.tsx"
         ],
         "shared_read": [
           "apps/web/app/layout.tsx",
-          "apps/web/providers/observability-provider.tsx"
+          "apps/web/providers/observability-provider.tsx",
+          "apps/web/lib/routes.ts"
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml",
@@ -27746,52 +27757,64 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: 本番ビルドの /signin で React error #418 (hydration mismatch) が発生しない"
+          "UBIQUITOUS: bare 判定は判定前に内部ルートを意味的 URL へ正規化する — bare リストを意味的/内部で二重管理しない (ROUTE_MAP を唯一の対応表とする)",
+          "UBIQUITOUS: ROUTE_MAP の**全エントリ**について isBare(意味的URL) === isBare(内部ルート) を機械的に検証する回帰テストが存在する (7 件を手書きで列挙するのではなく全 35 件を走査する)",
+          "UBIQUITOUS: 本番ビルドの実ブラウザで React error #418 が発生しない"
         ],
         "tier_2_functional": [
           {
             "type": "EVENT-DRIVEN",
-            "text": "When /signin is loaded from a production build, the console shall contain no hydration mismatch error"
+            "text": "When any rewritten semantic URL is loaded from a production build, the server-rendered shell and the client-rendered shell shall be identical (no hydration mismatch)"
           },
           {
             "type": "UNWANTED",
             "critical": true,
-            "text": "If the warning is silenced with suppressHydrationWarning or by disabling SSR for the whole screen, it shall be rejected — 原因を消さずに警告だけ黙らせない"
+            "text": "If the warning is silenced with suppressHydrationWarning, by disabling SSR for the screen, or by only patching /signin while leaving the other 6 routes broken, it shall be rejected"
           },
           {
             "type": "UNWANTED",
-            "text": "If the root cause turns out to predate this work, the finding shall still be recorded with the identified cause rather than closed as 'pre-existing'"
+            "critical": true,
+            "text": "If bare judgement for a route changes as a side effect of the fix (今 bare な画面が非 bare になる等), it shall be rejected — 正規化は判定結果を変えずに揃えること"
           }
         ],
         "tier_3_regression": [
           "S-A01 の signin / signup / Magic Link 導線が従来どおり動作 (vitest green)",
+          "AppShell が付く画面 (projects / tasks / chat 等) の見た目・ナビ active 判定が従来どおり",
+          "/admin と /portal/invitations は現状 bare 判定が一致しているため、挙動を変えないこと",
           "T-F-42 の Sentry provider 配線を壊さない"
         ]
       },
       "test_scenarios_inline": [
         {
-          "name": "再現",
+          "name": "ROUTE_MAP 全走査",
           "steps": [
-            "本番ビルド + 実ブラウザで /signin"
+            "ROUTE_MAP 全 35 件で isBare(意味的) と isBare(内部) を比較"
           ],
-          "expected": "console に #418 が出ない"
+          "expected": "全件一致 (現状 7 件が不一致)"
         },
         {
-          "name": "base 確認",
+          "name": "実ブラウザ",
           "steps": [
-            "Sentry 配線前の commit でも再現するか確認"
+            "本番ビルド + next start で 7 経路を順に開く"
           ],
-          "expected": "原因の所在を特定して記録"
+          "expected": "いずれも #418 が出ない"
+        },
+        {
+          "name": "黙殺の不在",
+          "steps": [
+            "差分を目視"
+          ],
+          "expected": "suppressHydrationWarning / SSR 無効化が無い"
         },
         {
           "name": "回帰",
           "steps": [
-            "vitest S-A01 関連"
+            "vitest 全走 + AppShell 有無の期待値表"
           ],
-          "expected": "全 green"
+          "expected": "全 green・bare 判定の変化なし"
         }
       ],
-      "note": "GAP-116 (qa 申し送り 5)。DSN 有無どちらのビルドでも出るため Sentry 配線とは独立と qa が判定。provider は DOM を持たず useEffect 初期化のため無関係の可能性が高いが、base 未検証。"
+      "note": "GAP-116 (qa 申し送り 5)。DSN 有無どちらのビルドでも出るため Sentry 配線とは独立と qa が判定。provider は DOM を持たず useEffect 初期化のため無関係の可能性が高いが、base 未検証。 / 2026-08-15 追記 (dev ESCALATE 裁定): dev が本番ビルド + 実ブラウザ + DOM 突合で根本原因を特定。next.config の rewrite により **SSR 側の usePathname() は内部ルート (/auth/s_a01) を返すのに、クライアントは URL バーの意味的 URL (/signin) を返す**。ConditionalAppShell の BARE_EXACT/BARE_PREFIXES は意味的 URL しか持たないため bare 判定がサーバとクライアントで反転し hydration mismatch になる。qa の見立てどおり Sentry 配線とは無関係。**PM が ROUTE_MAP 全 35 件を機械照合し、影響は 7 経路と確定** (dev 申告は 8 件だったが /portal/invitations → /client/s_l01 は両側とも非 bare で一致しており mismatch しない。/admin → /admin/s_t01 も両側 bare で一致)。原因ファイルの最終変更は 81a4a58 / d18e3a7 で束 C 開始 (09a77ab) より前 = 既存不具合。選択肢 A を採用し ConditionalAppShell.tsx を modify に追加、対象を 7 経路へ拡大する。"
     },
     {
       "id": "T-F-48",
