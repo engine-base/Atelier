@@ -82,6 +82,13 @@ async def seeded(session: AsyncSession) -> dict[str, str]:
         {"p": proj, "w": ws},
     )
     await session.execute(
+        # WS 作成トリガ (t-d-99) が同名 'tony' を自動シードするため先に除去
+        text(
+            "delete from public.ai_employees where workspace_id = cast(:w as uuid) and name = 'tony'"
+        ),
+        {"w": ws},
+    )
+    await session.execute(
         text(
             "insert into public.ai_employees (workspace_id, name, display_name, role, department) "
             "values (cast(:w as uuid), 'tony', 'トニー', 'coo', 'executive')"

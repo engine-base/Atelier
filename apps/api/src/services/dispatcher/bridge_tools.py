@@ -276,9 +276,12 @@ async def complete_task(
     for t in metadata.tests:
         await session.execute(
             text(
+                # created_at は明示的に clock_timestamp() — 既定の now() は
+                # トランザクション内で同値になり、読み出しの order by created_at
+                # が UUID 順に縮退して報告順を保存できない (実測 flaky)
                 "insert into public.task_execution_tests "
-                "(execution_id, name, file, status, duration_ms, detail) "
-                "values (cast(:eid as uuid), :n, :f, :s, :d, :dt)"
+                "(execution_id, name, file, status, duration_ms, detail, created_at) "
+                "values (cast(:eid as uuid), :n, :f, :s, :d, :dt, clock_timestamp())"
             ),
             {
                 "eid": execution_id,

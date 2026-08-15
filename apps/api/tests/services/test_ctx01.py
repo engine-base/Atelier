@@ -90,6 +90,13 @@ def seeded() -> Iterator[dict[str, str]]:
             {"i": skill},
         )
         c.execute(
+            # WS 作成トリガ (t-d-99) が同名 'tony' を自動シードするため先に除去
+            text(
+                "delete from public.ai_employees where workspace_id = cast(:w as uuid) and name = 'tony'"
+            ),
+            {"w": ws},
+        )
+        c.execute(
             text(
                 "insert into public.ai_employees (id,workspace_id,name,display_name,role,department,"
                 "attached_skills,is_default) values (cast(:i as uuid),cast(:w as uuid),'tony','トニー',"
