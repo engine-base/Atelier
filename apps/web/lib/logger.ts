@@ -64,7 +64,9 @@ const SENSITIVE_KEY_RE = new RegExp(`(${SECRET_WORDS}|dsn)`, 'i');
  * - key-value 規則が `Bearer ` を任意接頭辞として明示的に食わないと、
  *   "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が素通りする
  */
-const REDACTION_RULES: readonly (readonly [RegExp, string])[] = [
+type Replacement = string | ((match: string) => string);
+
+const REDACTION_RULES: readonly (readonly [RegExp, Replacement])[] = [
   // 接続文字列の資格情報。`redis://:pass@host` のユーザ名省略形も拾う。
   // scheme と host は残す (障害調査で接続先を失わない)。
   [/(\b[a-z][a-z0-9+.-]*:\/\/)[A-Za-z0-9_\-.%]*:[A-Za-z0-9_\-.%]+@/g, `$1${REDACTED}@`],
@@ -78,16 +80,20 @@ const REDACTION_RULES: readonly (readonly [RegExp, string])[] = [
     ),
     `$1$2${REDACTED}`,
   ],
-  // 単体で現れる `Bearer <token>` 等。
-  // **後続が「資格情報の形」のときだけ**伏せる。スキーム名だけを見て次の 1 語を消すと、
-  // `token` / `basic` が英単語としても頻出するため通常のログ本文を壊す
-  // ("invalid token signature" 等)。① 8 文字以上 ② 数字か記号を含む、の両方を要求する。
+  // 単体で現れる認証スキーム。**スキームによって条件を分ける** (API 側と同一)。
+  //
+  // `Bearer` は T-F-39 から無条件でマスクしてきた。ここに後付けの条件を課すと
+  // `Bearer abcdefghijklmnop` (英字のみ) が素通しになり **退行**する。
+  // `bearer` は実在のログ本文にまず現れない語なので、無条件で問題ない。
+  [/\bBearer\s+[A-Za-z0-9._\-=+/]+/gi, (m: string) => `${m.split(/\s+/)[0]} ${REDACTED}`],
+  // 一方 `Token` / `Digest` / `Basic` は T-F-48 で新規に足したもので、**英単語として
+  // 頻出する**ため無条件にすると通常のログ本文を壊す ("invalid token signature" 等)。
+  // ① 8 文字以上 ② 数字か記号を含む、の両方を要求する。
+  // 既知の限界: `Basic <英字のみの base64>` は②に掛からず素通しする。これは T-F-48
+  // 以前からの状態 (当時 Basic は語彙に無かった) であり退行ではない。実運用で多い
+  // `Authorization: Basic …` のヘッダ形は key-value 規則が拾う。
   [
-    new RegExp(
-      `\\b(${AUTH_SCHEMES})\\s+(?=[A-Za-z0-9._\\-=+/]{8,}\\b)` +
-        `(?=[A-Za-z0-9._\\-=+/]*[0-9._\\-=+/])[A-Za-z0-9._\\-=+/]+`,
-      'gi',
-    ),
+    /\b(Token|Digest|Basic)\s+(?=[A-Za-z0-9._\-=+/]{8,}\b)(?=[A-Za-z0-9._\-=+/]*[0-9._\-=+/])[A-Za-z0-9._\-=+/]+/gi,
     `$1 ${REDACTED}`,
   ],
   // プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)
@@ -97,7 +103,13 @@ const REDACTION_RULES: readonly (readonly [RegExp, string])[] = [
 
 /** 本文から秘匿値らしき部分を伏せる。API 側 `redact_text` と同一挙動。 */
 export function redactText(text: string): string {
-  return REDACTION_RULES.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);
+  return REDACTION_RULES.reduce<string>(
+    (acc, [pattern, replacement]) =>
+      typeof replacement === 'string'
+        ? acc.replace(pattern, replacement)
+        : acc.replace(pattern, replacement),
+    text,
+  );
 }
 
 /** キー名が秘匿候補なら値を伏せ、文字列値には本文マスクも適用する。 */

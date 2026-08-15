@@ -178,11 +178,15 @@ class TestNoOverReaction:
     @pytest.mark.parametrize(
         ("raw", "expected"),
         [
-            # スキーム単体は「資格情報の形」のときだけ伏せる (8 文字以上 + 数字/記号を含む)
+            # Bearer は束 C どおり **無条件** (英字のみでも伏せる)。
+            # 条件を課すと束 C 時点でマスクされていた形が素通しになり退行する。
             ("Bearer eyJhbGciOi.JIUzI1", "Bearer [REDACTED]"),
             ("bearer eyJhbGciOi.JIUzI1", "bearer [REDACTED]"),
+            ("Bearer abcdefghijklmnop", "Bearer [REDACTED]"),
+            ("Bearer ABCDEFGHIJKLMNOP", "Bearer [REDACTED]"),
+            # T-F-48 で追加した Token/Digest/Basic は「資格情報の形」のときだけ
+            # (8 文字以上 + 数字/記号を含む)。英単語として頻出するため。
             ("Basic dXNlcjpwYXNzd29yZA==", "Basic [REDACTED]"),
-            # 英単語が続くだけの本文は無改変
             ("Basic authentication is disabled", "Basic authentication is disabled"),
             ("token usage", "token usage"),
         ],

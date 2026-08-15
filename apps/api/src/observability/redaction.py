@@ -86,20 +86,28 @@ _KEYED_SECRET_RE = re.compile(
     rf"\s*(?P<sep>[=:])\s*(?:(?:{_AUTH_SCHEMES})\s+)?\S+",
 )
 
-# 単体で現れる `Bearer <token>` 等。
+# 単体で現れる認証スキーム。**スキームによって条件を分ける。**
 #
-# **後続が「資格情報の形」をしているときだけ**伏せる。スキーム名だけを見て次の 1 語を
-# 消すと、`token` / `basic` が英単語としても頻出するため通常のログ本文を壊す:
-#   "invalid token signature" -> "invalid token [REDACTED]"
+# `Bearer` は T-F-39 から無条件でマスクしてきた。ここに後付けの条件を課すと
+# `Bearer abcdefghijklmnop` (英字のみ) が素通しになり **退行**する。
+# `bearer` は実在のログ本文にまず現れない語なので、無条件で問題ない。
+_BARE_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-=+/]+")
+
+# 一方 `Token` / `Digest` / `Basic` は T-F-48 で新規に足したもので、
+# **英単語として頻出する**ため無条件にすると通常のログ本文を壊す:
+#   "invalid token signature"          -> "invalid token [REDACTED]"
 #   "Basic authentication is disabled" -> "Basic [REDACTED] is disabled"
 # エラー可視化基盤がエラーメッセージを読めなくする本末転倒なので、
+# **後続が「資格情報の形」のときだけ**発火させる:
 #   ① 8 文字以上
 #   ② 数字か記号 (._-=+/) を 1 つ以上含む   ← 英単語はここで落ちる
-# の両方を満たす場合に限定する。base64 / JWT / hex はいずれも②を必ず満たす。
-# なお `Authorization: Basic …` のようなヘッダ形は key-value 規則が別途拾うため、
-# ここを絞っても保護は落ちない。
-_BARE_SCHEME_RE = re.compile(
-    rf"(?i)\b(?P<scheme>{_AUTH_SCHEMES})\s+"
+# base64 / JWT / hex はいずれも②を必ず満たす。
+#
+# 既知の限界: `Basic <英字のみの base64>` は上記②に掛からず素通しする。
+# ただしこれは T-F-48 以前からの状態 (当時 Basic は語彙に無かった) であり退行ではない。
+# 実運用で圧倒的に多い `Authorization: Basic …` のヘッダ形は key-value 規則が拾う。
+_BARE_ADDED_SCHEME_RE = re.compile(
+    r"(?i)\b(?P<scheme>Token|Digest|Basic)\s+"
     r"(?=[A-Za-z0-9._\-=+/]{8,}\b)(?=[A-Za-z0-9._\-=+/]*[0-9._\-=+/])"
     r"[A-Za-z0-9._\-=+/]+",
 )
@@ -123,6 +131,11 @@ def _mask_keyed_secret(match: re.Match[str]) -> str:
     return f"{match.group('key')}{match.group('sep')}{REDACTED}"
 
 
+def _mask_bare_bearer(match: re.Match[str]) -> str:
+    # 大文字小文字は入力どおりに残す (束 C からの挙動)。
+    return f"{match.group(0).split()[0]} {REDACTED}"
+
+
 def _mask_bare_scheme(match: re.Match[str]) -> str:
     return f"{match.group('scheme')} {REDACTED}"
 
@@ -133,7 +146,8 @@ REDACTION_RULES: tuple[tuple[re.Pattern[str], Callable[[re.Match[str]], str]], .
     (_URL_CREDENTIALS_RE, _mask_url_credentials),
     (_JSON_SECRET_RE, _mask_json_secret),
     (_KEYED_SECRET_RE, _mask_keyed_secret),
-    (_BARE_SCHEME_RE, _mask_bare_scheme),
+    (_BARE_BEARER_RE, _mask_bare_bearer),
+    (_BARE_ADDED_SCHEME_RE, _mask_bare_scheme),
     *((pattern, lambda _match: REDACTED) for pattern in _PROVIDER_KEY_RES),
 )
 """秘匿値の形と伏せ方 (適用順)。"""
