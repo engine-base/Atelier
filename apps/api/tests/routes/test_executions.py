@@ -279,7 +279,8 @@ class TestExecutionsMonitor:
             assert len(data) == 1
             assert data[0]["id"] == seeded["exec_done"]
             assert data[0]["status"] == "succeeded"
-            assert data[0]["score"] == pytest.approx(0.95)
+            # pytest.approx は stub 未整備で partially unknown (外部ライブラリ由来)
+            assert data[0]["score"] == pytest.approx(0.95)  # pyright: ignore[reportUnknownMemberType]
 
     def test_pagination_limit_offset(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])

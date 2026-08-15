@@ -210,6 +210,20 @@ jobs:
     name: "Gate #4 — coverage >= 80% on touched files"
     needs: detect-changes
     runs-on: ubuntu-latest
+    # PG が無いと DB 依存テスト (445 件) が skip されカバレッジが構造的に 80% に
+    # 届かない (2026-08-15 の main gate 実走で検出)。Gate #14 と同じ PG を用意する。
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54322:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -304,8 +318,18 @@ jobs:
         if: needs.detect-changes.outputs.py_changed == 'true'
         uses: astral-sh/setup-uv@v3
         with: { version: "0.11.16" }
+      - name: Provision DB for pytest coverage (bootstrap + migrations + seeds)
+        if: needs.detect-changes.outputs.py_changed == 'true'
+        run: |
+          PGURL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f scripts/ci/pg-bootstrap.sql
+          PGURL="$PGURL" bash scripts/ci/apply-migrations.sh
+          PGURL="$PGURL" bash scripts/ci/apply-seeds.sh
+
       - name: pytest coverage on touched Python files
         if: needs.detect-changes.outputs.py_changed == 'true'
+        env:
+          ATELIER_TEST_PG_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:54322/postgres
         run: |
           uv sync --all-packages --all-extras
           uv pip install diff-cover==9.2.1
