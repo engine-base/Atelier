@@ -28325,6 +28325,183 @@
         }
       ],
       "note": "GAP-123。PM が束 C の調査で検出: `03_architecture/selected-stack.json` は BYOK 暗号化に **Supabase Vault** を指定 (T-F-19 の表題も『Supabase Vault（BYOK 暗号化）』) だが、実装は `services/byok_keys/__init__.py` の **Fernet + `ATELIER_BYOK_ENCRYPTION_KEY` env** と `migrations/t-d-95` の列レベル権限で成立している。暗号化自体は機能しており実害は無いが、CLAUDE.md ルール 9 (確定済技術を使う) に対する乖離が無記録のまま残っている。**PM は 03_architecture を編集する権限を持たない**ため、裁定を ADR として起票する。経営者の関心事 (顧客の API キー保管方式) でもあるため、決定時は PM 経由で報告する。"
+    },
+    {
+      "id": "T-F-52",
+      "title": "selected-stack.json と T-F-19 の BYOK 記述を Fernet 実装に合わせる (ADR-BYOK-encryption 追随)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "strange",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 2,
+      "estimate_hours_human": 2,
+      "estimate_hours_ai": 0.2,
+      "wall_clock_h_ai": 0.2,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-51"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-52.md",
+      "files_changed_predicted": {
+        "new": [
+          "03_architecture/adrs/ADR-BYOK-encryption-followup.md"
+        ],
+        "modify": [
+          "03_architecture/selected-stack.json",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md"
+        ],
+        "shared_read": [
+          "03_architecture/adrs/ADR-BYOK-encryption.md",
+          "apps/api/src/services/byok_keys/__init__.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: selected-stack.json の BYOK 暗号化に関する記述が Fernet + ATELIER_BYOK_ENCRYPTION_KEY + 列レベル権限を指しており、Supabase Vault の指定が残っていない",
+          "UBIQUITOUS: T-F-19 の表題と AC が Fernet 実装を指すよう更新され、ADR へのリンクを持つ",
+          "UBIQUITOUS: 追随の記録 (何をどちらへ寄せたか) が ADR の follow-up として残っている"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "UBIQUITOUS",
+            "text": "The stack document and the implementation shall agree on one BYOK encryption method"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the implementation is changed instead of the specification, it shall be rejected — 本タスクは仕様側の追随のみ (ADR の決定は Fernet 採用)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the ADR link or rationale is omitted so that the reason for the divergence is lost again, it shall be rejected"
+          }
+        ],
+        "tier_3_regression": [
+          "BYOK API の既存テストが全 green のまま (実装は変更しない)",
+          "validate.sh が全件 PASS のまま"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "食い違いの解消",
+          "steps": [
+            "selected-stack.json を grep"
+          ],
+          "expected": "Vault 指定が無く Fernet を指す"
+        },
+        {
+          "name": "実装不変",
+          "steps": [
+            "git diff apps/api"
+          ],
+          "expected": "差分 0"
+        }
+      ],
+      "note": "ADR-BYOK-encryption (T-F-51) の決定に基づく追随。selected-stack.json が Supabase Vault を指定し実装が Fernet、という食い違いを仕様側を直す方向で閉じる (CLAUDE.md ルール 13)。実装は変更しない。"
+    },
+    {
+      "id": "T-F-53",
+      "title": "Fernet 鍵ローテーション手順の整備 (MultiFernet による新旧併用)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "strange",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-51"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-53.md",
+      "files_changed_predicted": {
+        "new": [
+          "docs/runbooks/byok-key-rotation.md"
+        ],
+        "modify": [
+          "SECRETS.md",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md"
+        ],
+        "shared_read": [
+          "03_architecture/adrs/ADR-BYOK-encryption.md",
+          "apps/api/src/services/byok_keys/__init__.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 鍵ローテーション手順書が存在し、MultiFernet による新旧鍵併用 → 全行再暗号化 → 旧鍵撤去 の順序が具体的なコマンド付きで書かれている",
+          "UBIQUITOUS: SECRETS.md の ATELIER_BYOK_ENCRYPTION_KEY の項から手順書へ辿れる"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the BYOK encryption key must be rotated, the runbook shall describe a procedure that keeps existing rows decryptable throughout"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the runbook contains an actual key value, it shall be rejected — 手順書に実値を書かない (scripts/ci/env-template-drift.py の検査対象)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the procedure has a window where existing ciphertext cannot be decrypted, it shall be rejected — 顧客の再登録を強いない"
+          }
+        ],
+        "tier_3_regression": [
+          "env-template-drift.py が exit 0 のまま",
+          "BYOK API の既存テストが全 green のまま"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "手順の完全性",
+          "steps": [
+            "手順書を読む"
+          ],
+          "expected": "新旧併用→再暗号化→旧鍵撤去が具体的"
+        },
+        {
+          "name": "実値の不在",
+          "steps": [
+            "python3 scripts/ci/env-template-drift.py"
+          ],
+          "expected": "exit 0"
+        }
+      ],
+      "note": "ADR-BYOK-encryption (T-F-51) が受け入れたリスクの手当。Fernet はローテーション時に全行の再暗号化が要るため、MultiFernet による新旧鍵併用と再暗号化の手順を運用手順書に残す。鍵を失うと顧客の API キーが復号不能になるため、バックアップ手順も含める。"
     }
   ],
   "two_axis_policy": {
