@@ -28380,7 +28380,19 @@
           "scripts/ci/typecheck-src.sh",
           "docs/agents/pm.md",
           "docs/agents/protocol.md",
-          "docs/agents/qa.md"
+          "docs/agents/qa.md",
+          "apps/api/src/routes/contract/__init__.py",
+          "apps/api/src/services/admin/ops.py",
+          "apps/api/src/services/approvals/__init__.py",
+          "apps/api/src/services/byok_keys/__init__.py",
+          "apps/api/src/services/cron/__init__.py",
+          "apps/api/src/services/mcp_tokens/__init__.py",
+          "apps/api/src/services/mocks/__init__.py",
+          "apps/api/src/services/outputs/fix_proposals.py",
+          "apps/api/src/services/sales_docs/generate.py",
+          "apps/api/src/services/workflow/impact.py",
+          "apps/api/src/services/workflow/proposals.py",
+          "apps/api/tests/test_byok_key_rotation.py"
         ],
         "shared_read": [
           "03_architecture/adrs/ADR-BYOK-encryption.md",
@@ -28653,13 +28665,24 @@
         "modify": [
           "apps/api/src/services/contract/__init__.py",
           "apps/api/src/services/admin/__init__.py",
+          "apps/api/src/services/admin/ops.py",
           "apps/api/src/services/impact/__init__.py",
+          "apps/api/src/routes/circuit_breaker/__init__.py",
+          "apps/api/src/routes/contract/__init__.py",
+          "apps/api/src/services/approvals/__init__.py",
+          "apps/api/src/services/cron/__init__.py",
+          "apps/api/src/services/mcp_tokens/__init__.py",
           "apps/api/src/services/outputs/__init__.py",
           "apps/api/src/services/sales_docs/__init__.py",
-          "apps/api/src/routes/circuit_breaker/__init__.py"
+          "apps/api/src/services/mocks/__init__.py",
+          "apps/api/src/services/outputs/fix_proposals.py",
+          "apps/api/src/services/sales_docs/generate.py",
+          "apps/api/src/services/workflow/impact.py",
+          "apps/api/src/services/workflow/proposals.py"
         ],
         "shared_read": [
-          "apps/api/pyproject.toml"
+          "apps/api/pyproject.toml",
+          "apps/api/src/schemas"
         ],
         "forbidden": [
           ".github/workflows/v3-gate.yml",
@@ -28668,7 +28691,8 @@
       },
       "acceptance_criteria_inline": {
         "tier_1_structural": [
-          "UBIQUITOUS: `pyright src` (touched files 限定ではなく src 全体) が **0 errors** になる"
+          "UBIQUITOUS: `pyright src` (touched files 限定ではなく src 全体) が **0 errors** になる",
+          "UBIQUITOUS: 差分に追加された `cast(...)` は**すべて具体型**で、その直前に対応する実行時チェック (`isinstance` 等) がある — 検証していない構造を主張する cast を書かない"
         ],
         "tier_2_functional": [
           {
@@ -28676,9 +28700,28 @@
             "text": "Every fix expresses the real type rather than suppressing the check"
           },
           {
+            "type": "EVENT-DRIVEN",
+            "text": "When a value crosses a deserialization boundary (json.loads / yaml.safe_load / SQLAlchemy Row), it may be cast to a concrete but maximally weak type (dict[str, object] / list[object]) so that downstream narrowing is forced"
+          },
+          {
             "type": "UNWANTED",
             "critical": true,
-            "text": "If errors are silenced with type: ignore / cast / Any / reportXxx=false instead of expressing the real types, it shall be rejected — T-F-45 と同じ基準。抑止で数を減らさない"
+            "text": "If `Any` is used as a cast target (any spelling), or `type: ignore` / `reportXxx=false` is added, it shall be rejected — 検査を止めるものは一律禁止。差分に対する grep 結果 (追加 0 件) を報告に載せること"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If a cast asserts structure that has not been checked at runtime (検証なしの dict[str, str] や TypedDict への cast), it shall be rejected — 型の嘘を新たに作らない。境界では値側を object にして下流で絞る"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If casts appear outside deserialization/ORM boundaries (業務ロジックの中に散らす), it shall be rejected"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the unused function (services/workflow/impact.py:50 `_to_response`) is deleted without first determining whether it is dead code or a missing call site, it shall be rejected — GAP-108 (実装済みだが誰も呼ばない) と同型の可能性がある。判定結果を commit に記録し、配線が必要なら挙動変更として PM へ ESCALATE する"
           },
           {
             "type": "UNWANTED",
@@ -28697,24 +28740,31 @@
           "steps": [
             "uv run --extra dev pyright src"
           ],
-          "expected": "0 errors (現状 62)"
+          "expected": "0 errors (現状 62 / 16 files)"
         },
         {
           "name": "抑止の不在",
           "steps": [
-            "差分を grep"
+            "差分を grep: cast(Any / type: ignore / reportXxx=false"
           ],
-          "expected": "type: ignore / cast(Any) / reportXxx=false の追加が 0"
+          "expected": "追加 0 件 (件数を報告に明記)"
+        },
+        {
+          "name": "cast の健全性",
+          "steps": [
+            "追加した cast を全件列挙し、対象型と直前の実行時チェックを対応づける"
+          ],
+          "expected": "全件が具体型かつ検証済み構造のみを主張している"
         },
         {
           "name": "回帰",
           "steps": [
             "pytest 全走"
           ],
-          "expected": "全 green・挙動不変"
+          "expected": "全 green・挙動不変 (882 passed を下回らない)"
         }
       ],
-      "note": "GAP-125 (qa 申し送り 2)。dev 申し送りを qa が独立に裏取り。内訳は services/contract 24 / services/admin 15 / services/impact 4 / services/outputs 3 / services/sales_docs 3 / routes/circuit_breaker 2 ほか。Gate #3 が touched files 限定のため CI は緑だが、**T-F-45 で 1 ファイル分だけ潰した「gate が見ていないから緑」が services/** に残っている**。本タスクで数を 0 にし、T-F-56 で gate を src 全体へ広げて再発を止める (順序厳守)。"
+      "note": "GAP-125 (qa 申し送り 2)。dev 申し送りを qa が独立に裏取り。内訳は services/contract 24 / services/admin 15 / services/impact 4 / services/outputs 3 / services/sales_docs 3 / routes/circuit_breaker 2 ほか。Gate #3 が touched files 限定のため CI は緑だが、**T-F-45 で 1 ファイル分だけ潰した「gate が見ていないから緑」が services/** に残っている**。本タスクで数を 0 にし、T-F-56 で gate を src 全体へ広げて再発を止める (順序厳守)。 / 2026-08-15 追記 (dev ESCALATE 裁定): **PM が `pyright src --outputjson` を自ら実行し 62 errors / 16 files の権威ある内訳を取得**。当初 PM が予測した 6 ファイルでは足りず (`admin/ops.py` `workflow/impact.py` 等が漏れていた) modify を実測 16 ファイルへ是正した。内訳は約 55 件が JSON/YAML 境界の型不明、残り 7 件が reportPrivateUsage 5 / reportUnusedFunction 1 / 引数型不一致 1。**cast の射程を裁定**: 禁止の趣旨は『検査を止めること』であって『境界の型を宣言すること』ではない。`cast(Any, …)` / `type: ignore` / `reportXxx=false` は以後の検査を殺すので禁止のまま。一方 `cast(\"dict[str, object]\", json.loads(...))` は下流で narrowing を強制するので**検査はむしろ増える** — 選択肢 A を採用。ただし『検証していない構造を主張する cast』は新たな型の嘘なので禁止し、境界では値側を object にして下流で絞ることを AC で要求する。選択肢 B (Pydantic parse) は実行時挙動が変わる (現行は不正形を握り潰して空扱い) ため本タスクでは不可 — 握り潰し自体は GAP-126 として別途起票。"
     },
     {
       "id": "T-F-56",
