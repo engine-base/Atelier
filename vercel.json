@@ -4,6 +4,11 @@
     "silent": false,
     "autoJobCancelation": true
   },
+  "git": {
+    "deploymentEnabled": {
+      "main": false
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",

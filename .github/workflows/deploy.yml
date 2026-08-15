@@ -18,14 +18,14 @@
 name: deploy
 
 on:
-  # main merge 時に Fly.io production deploy を自動実行。
+  # 本番反映は手動 (workflow_dispatch) のみ — 経営者判断 (2026-08-13):
+  # 本番公開はまだ行わない。main 追随 (CI 有効化) と本番リリースを切り離すため
+  # push トリガーを無効化した。公開を始めるとき (T-I-24 go/no-go 承認後) に
+  # 下の push トリガーを復活させる:
+  #   push:
+  #     branches: [main]
+  #     paths: ["apps/api/**", "fly.toml", ".github/workflows/deploy.yml"]
   # 初回 deploy は workflow_dispatch で実機検証済 (https://atelier-api-eb.fly.dev/health 200 OK)。
-  push:
-    branches: [main]
-    paths:
-      - "apps/api/**"
-      - "fly.toml"
-      - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
       app:
