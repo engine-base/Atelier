@@ -25,6 +25,8 @@ r"""秘匿値マスクの語彙を集約する単一モジュール (T-F-48 / GA
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from collections.abc import Callable
 from typing import Any, cast
@@ -97,20 +99,59 @@ _BARE_BEARER_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-=+/]+")
 # **英単語として頻出する**ため無条件にすると通常のログ本文を壊す:
 #   "invalid token signature"          -> "invalid token [REDACTED]"
 #   "Basic authentication is disabled" -> "Basic [REDACTED] is disabled"
-# エラー可視化基盤がエラーメッセージを読めなくする本末転倒なので、
-# **後続が「資格情報の形」のときだけ**発火させる:
-#   ① 8 文字以上
-#   ② 数字か記号 (._-=+/) を 1 つ以上含む   ← 英単語はここで落ちる
-# base64 / JWT / hex はいずれも②を必ず満たす。
-#
-# 既知の限界: `Basic <英字のみの base64>` は上記②に掛からず素通しする。
-# ただしこれは T-F-48 以前からの状態 (当時 Basic は語彙に無かった) であり退行ではない。
-# 実運用で圧倒的に多い `Authorization: Basic …` のヘッダ形は key-value 規則が拾う。
+# エラー可視化基盤がエラーメッセージを読めなくする本末転倒 (D-FAIL-1) なので、
+# **後続が「資格情報の形」のとき**だけ発火させる。判定は `_is_credential_shaped()`。
 _BARE_ADDED_SCHEME_RE = re.compile(
-    r"(?i)\b(?P<scheme>Token|Digest|Basic)\s+"
-    r"(?=[A-Za-z0-9._\-=+/]{8,}\b)(?=[A-Za-z0-9._\-=+/]*[0-9._\-=+/])"
-    r"[A-Za-z0-9._\-=+/]+",
+    r"(?i)\b(?P<scheme>Token|Digest|Basic)\s+(?P<value>[A-Za-z0-9._\-=+/]+)",
 )
+
+_BASE64_RE = re.compile(r"[A-Za-z0-9+/]+={0,2}")
+_CREDENTIAL_SYMBOLS = frozenset("0123456789._-=+/")
+MIN_OPAQUE_CREDENTIAL_LENGTH = 16
+"""英字のみの不透明トークンを資格情報とみなす下限。
+
+この値は当てずっぽうではなく、両端から決めている:
+- **下限側**: 本 API の実在エラーメッセージで認証スキーム語の直後に来る最長の英単語は
+  `authentication` (14 文字)。16 ならそれを超える。
+- **上限側**: 実運用の不透明トークン (base64 / hex / ランダム文字列) は 16 文字を下回らない。
+`Bearer` にはこの条件を課さない (無条件マスク) ので、JWT の保護には影響しない。
+"""
+
+
+def _decodes_as_printable_base64(value: str) -> bool:
+    """base64 として復号でき、中身が印字可能 ASCII なら True。
+
+    `YWRtaWthYWRtaWthYWRt` のような**英字のみの base64 資格情報**を、
+    英単語と区別するための構造判定。英単語は長さが 4 の倍数にならないか、
+    復号しても非 ASCII になるためここで落ちる。
+    """
+    if len(value) % 4 != 0 or _BASE64_RE.fullmatch(value) is None:
+        return False
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        return False
+    return bool(decoded) and all(32 <= byte < 127 for byte in decoded)
+
+
+def _is_credential_shaped(value: str) -> bool:
+    """後続トークンが「資格情報の形」かどうか。
+
+    英単語を巻き込まないよう、**文字種だけで決めない**。次のいずれかを満たすとき資格情報:
+
+    1. 数字か記号 (`._-=+/`) を含む — JWT / hex / パディング付き base64
+    2. base64 として復号でき中身が印字可能 ASCII — 英字のみの base64 資格情報
+    3. 16 文字以上 — 不透明トークン (上記 MIN_OPAQUE_CREDENTIAL_LENGTH の根拠を参照)
+
+    `authentication` (14) / `expired` (7) / `mismatch` (8) / `signature` (9) は
+    いずれも 3 条件すべてを満たさないため無改変で通る。
+    """
+    if any(ch in _CREDENTIAL_SYMBOLS for ch in value):
+        return True
+    if _decodes_as_printable_base64(value):
+        return True
+    return len(value) >= MIN_OPAQUE_CREDENTIAL_LENGTH
+
 
 # プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)
 _PROVIDER_KEY_RES: tuple[re.Pattern[str], ...] = (
@@ -137,6 +178,9 @@ def _mask_bare_bearer(match: re.Match[str]) -> str:
 
 
 def _mask_bare_scheme(match: re.Match[str]) -> str:
+    """資格情報の形のときだけ伏せる。英文はそのまま返す (D-FAIL-1 再発防止)。"""
+    if not _is_credential_shaped(match.group("value")):
+        return match.group(0)
     return f"{match.group('scheme')} {REDACTED}"
 
 

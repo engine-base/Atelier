@@ -98,9 +98,16 @@ describe('redactText — API とのパリティ表 (T-F-48)', () => {
     ['bearer eyJhbGciOi.JIUzI1', 'bearer [REDACTED]'],
     ['Bearer abcdefghijklmnop', 'Bearer [REDACTED]'],
     ['Bearer ABCDEFGHIJKLMNOP', 'Bearer [REDACTED]'],
-    // T-F-48 で追加した Token/Digest/Basic は「資格情報の形」のときだけ
-    // (8 文字以上 + 数字/記号を含む)。英単語として頻出するため。
+    // T-F-48 で追加した Token/Digest/Basic は「資格情報の形」のときだけ。
+    // T-F-49 で判定を文字種から「資格情報の形か」へ変更し、
+    // **英字のみの資格情報**も伏せられるようになった。
     ['Basic dXNlcjpwYXNzd29yZA==', 'Basic [REDACTED]'],
+    ['Basic YWRtaWthYWRtaWthYWRt', 'Basic [REDACTED]'],
+    ['Token abcdefghijklmnop', 'Token [REDACTED]'],
+    ['Digest ABCDEFGHIJKLMNOP', 'Digest [REDACTED]'],
+    // 英単語が続くだけの本文は無改変 (D-FAIL-1 再発防止)
+    ['Token expired', 'Token expired'],
+    ['Digest mismatch', 'Digest mismatch'],
     ['Basic authentication is disabled', 'Basic authentication is disabled'],
     ['token usage', 'token usage'],
   ])('単体スキーム規則: %s -> %s', (raw, expected) => {

@@ -64,7 +64,48 @@ const SENSITIVE_KEY_RE = new RegExp(`(${SECRET_WORDS}|dsn)`, 'i');
  * - key-value 規則が `Bearer ` を任意接頭辞として明示的に食わないと、
  *   "Authorization: Bearer <JWT>" で `\S+` が "Bearer" で止まり JWT 本体が素通りする
  */
-type Replacement = string | ((match: string) => string);
+/**
+ * 英字のみの不透明トークンを資格情報とみなす下限。
+ * **apps/api/src/observability/redaction.py の MIN_OPAQUE_CREDENTIAL_LENGTH と同値。**
+ */
+const MIN_OPAQUE_CREDENTIAL_LENGTH = 16;
+
+const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+const CREDENTIAL_SYMBOLS = /[0-9._\-=+/]/;
+
+/** base64 として復号でき、中身が印字可能 ASCII なら true。 */
+function decodesAsPrintableBase64(value: string): boolean {
+  if (value.length % 4 !== 0 || !BASE64_RE.test(value)) return false;
+  let decoded: string;
+  try {
+    decoded = atob(value);
+  } catch {
+    return false;
+  }
+  if (decoded.length === 0) return false;
+  for (const ch of decoded) {
+    const code = ch.charCodeAt(0);
+    if (code < 32 || code >= 127) return false;
+  }
+  return true;
+}
+
+/**
+ * 後続トークンが「資格情報の形」かどうか。**API 側 _is_credential_shaped と同一判定。**
+ *
+ * 1. 数字か記号 (._-=+/) を含む — JWT / hex / パディング付き base64
+ * 2. base64 として復号でき中身が印字可能 ASCII — 英字のみの base64 資格情報
+ * 3. 16 文字以上 — 不透明トークン
+ *
+ * `authentication` (14) / `expired` (7) / `mismatch` (8) はいずれも満たさない。
+ */
+function isCredentialShaped(value: string): boolean {
+  if (CREDENTIAL_SYMBOLS.test(value)) return true;
+  if (decodesAsPrintableBase64(value)) return true;
+  return value.length >= MIN_OPAQUE_CREDENTIAL_LENGTH;
+}
+
+type Replacement = string | ((...args: string[]) => string);
 
 const REDACTION_RULES: readonly (readonly [RegExp, Replacement])[] = [
   // 接続文字列の資格情報。`redis://:pass@host` のユーザ名省略形も拾う。
@@ -88,13 +129,11 @@ const REDACTION_RULES: readonly (readonly [RegExp, Replacement])[] = [
   [/\bBearer\s+[A-Za-z0-9._\-=+/]+/gi, (m: string) => `${m.split(/\s+/)[0]} ${REDACTED}`],
   // 一方 `Token` / `Digest` / `Basic` は T-F-48 で新規に足したもので、**英単語として
   // 頻出する**ため無条件にすると通常のログ本文を壊す ("invalid token signature" 等)。
-  // ① 8 文字以上 ② 数字か記号を含む、の両方を要求する。
-  // 既知の限界: `Basic <英字のみの base64>` は②に掛からず素通しする。これは T-F-48
-  // 以前からの状態 (当時 Basic は語彙に無かった) であり退行ではない。実運用で多い
-  // `Authorization: Basic …` のヘッダ形は key-value 規則が拾う。
+  // 後続が「資格情報の形」のときだけ発火させる (判定は isCredentialShaped)。
   [
-    /\b(Token|Digest|Basic)\s+(?=[A-Za-z0-9._\-=+/]{8,}\b)(?=[A-Za-z0-9._\-=+/]*[0-9._\-=+/])[A-Za-z0-9._\-=+/]+/gi,
-    `$1 ${REDACTED}`,
+    /\b(Token|Digest|Basic)\s+([A-Za-z0-9._\-=+/]+)/gi,
+    (match: string, scheme: string, value: string) =>
+      isCredentialShaped(value) ? `${scheme} ${REDACTED}` : match,
   ],
   // プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)
   [/\bsk-[A-Za-z0-9_-]{12,}/g, REDACTED],
@@ -107,7 +146,9 @@ export function redactText(text: string): string {
     (acc, [pattern, replacement]) =>
       typeof replacement === 'string'
         ? acc.replace(pattern, replacement)
-        : acc.replace(pattern, replacement),
+        : acc.replace(pattern, (...args: unknown[]) =>
+            replacement(...(args.filter((a) => typeof a === 'string') as string[])),
+          ),
     text,
   );
 }
