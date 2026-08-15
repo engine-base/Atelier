@@ -32,14 +32,21 @@ else
 fi
 
 # 権限モード:
-#  既定 (Mac 推奨) = プロジェクトの .claude/settings.local.json に許可リストを書き、
-#    ツール実行時のプロンプトを出さない (bypassPermissions の警告ダイアログも出ない)。
+#  既定 = auto モード (--permission-mode auto) + 許可リスト。
+#    auto はツール実行ごとに危険操作/プロンプトインジェクションを自動判定して
+#    安全なら実行・危険ならブロックする長時間運転向けモード (footer に
+#    「⏵⏵ auto mode on」と表示)。起動時は案内バナーのみでダイアログは出ない
+#    (実測)。許可リストは定番ツールの判定オーバーヘッドを外す併用。
 #  CC_BYPASS=1     = --permission-mode bypassPermissions (隔離コンテナ用。Mac では毎回
 #    警告が出るため非推奨)。
-#  NO_AUTO=1       = 何もしない (通常のプロンプトあり)。
+#  NO_AUTO=1       = 何もしない (manual モード・通常のプロンプトあり)。
 CLAUDE_ARGS=""
-if [ -n "${CC_BYPASS:-}" ] && [ -z "${NO_AUTO:-}" ]; then
-  CLAUDE_ARGS="--permission-mode bypassPermissions"
+if [ -z "${NO_AUTO:-}" ]; then
+  if [ -n "${CC_BYPASS:-}" ]; then
+    CLAUDE_ARGS="--permission-mode bypassPermissions"
+  else
+    CLAUDE_ARGS="--permission-mode auto"
+  fi
 fi
 
 # フォルダ信頼ダイアログを事前承認 (これは設定で確実に抑止できる)。

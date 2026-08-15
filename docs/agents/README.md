@@ -61,9 +61,10 @@ flow            # 登録が 1 件ならそれを起動。複数登録なら番�
 
 > 開始。docs/gap-tracker.md の未解消 gap を優先度順に進めて。
 
-以降は pm→dev→qa→pm が自動で回る。権限確認は既定でプロンプトを出さない
-(`.claude/settings.local.json` の許可リストを ccstart が自動設定 — bypass の警告
-ダイアログも出ない)。プロンプトを残したいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
+以降は pm→dev→qa→pm が自動で回る。権限は既定で **auto モード** (各ウィンドウ下部に
+「⏵⏵ auto mode on」と表示 — ツール実行ごとに危険操作を自動判定し安全なら実行) +
+許可リスト (`.claude/settings.local.json` を ccstart が自動設定) の併用で、
+プロンプトは出ない。手動確認を残したいときは `NO_AUTO=1 ./scripts/ccstart.sh`。
 起動が遅い環境で `/rename` が空振りするなら `CC_BOOT_TRIES=300 ./scripts/ccstart.sh`。
 
 ### 自動化が効かなかったペインの手動復旧
