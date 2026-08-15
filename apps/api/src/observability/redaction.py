@@ -86,8 +86,23 @@ _KEYED_SECRET_RE = re.compile(
     rf"\s*(?P<sep>[=:])\s*(?:(?:{_AUTH_SCHEMES})\s+)?\S+",
 )
 
-# 単体で現れる `Bearer <token>` 等
-_BARE_SCHEME_RE = re.compile(rf"(?i)\b(?P<scheme>{_AUTH_SCHEMES})\s+[A-Za-z0-9._\-=+/]+")
+# 単体で現れる `Bearer <token>` 等。
+#
+# **後続が「資格情報の形」をしているときだけ**伏せる。スキーム名だけを見て次の 1 語を
+# 消すと、`token` / `basic` が英単語としても頻出するため通常のログ本文を壊す:
+#   "invalid token signature" -> "invalid token [REDACTED]"
+#   "Basic authentication is disabled" -> "Basic [REDACTED] is disabled"
+# エラー可視化基盤がエラーメッセージを読めなくする本末転倒なので、
+#   ① 8 文字以上
+#   ② 数字か記号 (._-=+/) を 1 つ以上含む   ← 英単語はここで落ちる
+# の両方を満たす場合に限定する。base64 / JWT / hex はいずれも②を必ず満たす。
+# なお `Authorization: Basic …` のようなヘッダ形は key-value 規則が別途拾うため、
+# ここを絞っても保護は落ちない。
+_BARE_SCHEME_RE = re.compile(
+    rf"(?i)\b(?P<scheme>{_AUTH_SCHEMES})\s+"
+    r"(?=[A-Za-z0-9._\-=+/]{8,}\b)(?=[A-Za-z0-9._\-=+/]*[0-9._\-=+/])"
+    r"[A-Za-z0-9._\-=+/]+",
+)
 
 # プロバイダ発行鍵の代表形 (Anthropic / OpenAI / Stripe)
 _PROVIDER_KEY_RES: tuple[re.Pattern[str], ...] = (

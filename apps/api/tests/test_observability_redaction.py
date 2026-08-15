@@ -53,6 +53,22 @@ SAFE_CASES: tuple[str, ...] = (
     "connected to postgres://localhost:5432/atelier_dev",
 )
 
+# 本 API に**実在する**エラーメッセージ。1 文字も変えてはいけない。
+# QA_FAIL D-FAIL-1: 単体スキーム規則が (?i) で英単語の "token" / "basic" にも一致し、
+# 直後の 1 語を伏せていた。エラー可視化基盤がエラーメッセージを読めなくする退行だった。
+# (出典: src/dependencies.py:82,92,102 / routes/dispatcher/__init__.py:62 /
+#        services/auth/__init__.py:440,1063 / embeddings/voyage.py:51)
+REAL_MESSAGES: tuple[str, ...] = (
+    "invalid token signature",
+    "token expired",
+    "client portal token is not valid here",
+    "bridge token not configured (set ATELIER_BRIDGE_TOKEN)",
+    "refresh token is invalid or expired",
+    "Supabase token endpoint failed: 500",
+    "Basic authentication is disabled for this endpoint",
+    "1 リクエスト分の token usage",
+)
+
 
 def _record(message: str) -> logging.LogRecord:
     return logging.LogRecord(
@@ -147,6 +163,36 @@ class TestNoOverReaction:
     @pytest.mark.parametrize("message", SAFE_CASES)
     def test_safe_messages_are_untouched(self, message: str) -> None:
         assert redact_text(message) == message
+
+    @pytest.mark.parametrize("message", REAL_MESSAGES)
+    def test_real_error_messages_are_untouched(self, message: str) -> None:
+        """QA_FAIL D-FAIL-1 回帰: 実在のエラーメッセージを 1 文字も壊さない。"""
+        assert redact_text(message) == message
+
+    @pytest.mark.parametrize("message", REAL_MESSAGES)
+    def test_real_error_messages_survive_both_paths(self, message: str) -> None:
+        """両経路とも壊さないこと (Sentry 側も message / exception に redact をかけるため)。"""
+        assert message in _betterstack_output(message)
+        assert message in _sentry_output(message)
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            # スキーム単体は「資格情報の形」のときだけ伏せる (8 文字以上 + 数字/記号を含む)
+            ("Bearer eyJhbGciOi.JIUzI1", "Bearer [REDACTED]"),
+            ("bearer eyJhbGciOi.JIUzI1", "bearer [REDACTED]"),
+            ("Basic dXNlcjpwYXNzd29yZA==", "Basic [REDACTED]"),
+            # 英単語が続くだけの本文は無改変
+            ("Basic authentication is disabled", "Basic authentication is disabled"),
+            ("token usage", "token usage"),
+        ],
+    )
+    def test_bare_scheme_rule_only_fires_on_credential_shapes(
+        self,
+        raw: str,
+        expected: str,
+    ) -> None:
+        assert redact_text(raw) == expected
 
 
 @pytest.mark.unit
