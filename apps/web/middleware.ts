@@ -19,7 +19,10 @@ import { COOKIE_NAMES, decodeJwtUnsafe, isExpired } from './lib/auth/cookie';
 const PUBLIC_PATHS: readonly string[] = [
   '/',
   '/signin',
-  '/signup',
+  // '/signup' は PUBLIC_PATHS から外した (T-UC-47 / GAP-120)。
+  // 実ルートが無いのに公開パス扱いだったため 404 に着地し、しかもその 404 が
+  // hydration mismatch (#418) を起こしていた。下の SIGNUP_ALIAS で明示的に
+  // /signin へ正規化する (サインアップは S-A01 のタブとして実装済み)。
   '/workspace-settings', // S-A03 ワークスペース初期設定 (サインアップ導線)
   '/terms', // S-PUB01
   '/privacy', // S-PUB02
@@ -30,6 +33,19 @@ const PUBLIC_PATHS: readonly string[] = [
   '/_next',
   '/favicon.ico',
 ];
+
+/**
+ * 実ルートを持たない別名パス (T-UC-47 / GAP-120)。
+ *
+ * サインアップは S-A01 (`/signin`) の signup タブとして実装されており、
+ * `/signup` という実ルートは存在しない。にもかかわらず PUBLIC_PATHS と
+ * `ConditionalAppShell` の BARE_EXACT には載っていて、**実体の無いパスを
+ * アプリが実在するものとして扱っていた**。到達すると Next 標準の 404 になり、
+ * その 404 の SSR が AppShell 付き・client が bare で hydration mismatch (#418)
+ * を起こしていた (server 側 usePathname は `/_not-found` を返すため)。
+ */
+const SIGNUP_ALIAS = '/signup';
+const SIGNUP_TARGET = '/signin';
 
 /** クライアントポータルの意味的 prefix (内部 /client) */
 const CLIENT_PATH_PREFIX = '/portal';
@@ -59,6 +75,21 @@ function isClientPath(pathname: string): boolean {
 
 export function middleware(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
+
+  // /signup は実ルートを持たない (サインアップは S-A01 のタブ)。
+  // 認証状態に関係なく、常にサインアップ面を持つ画面へ正規化する。
+  // ここで先に返すことで 404 の描画そのものが起きなくなり、
+  // 「404 ページの SSR は AppShell 付き / client は bare」で生じていた
+  // hydration mismatch (#418) も構造的に消える (T-UC-47 / GAP-120)。
+  if (pathname === SIGNUP_ALIAS) {
+    const url = req.nextUrl.clone();
+    url.pathname = SIGNUP_TARGET;
+    // redirect パラメータは付けない。付けるとサインイン後に /signup へ戻り、
+    // 再び正規化されるだけの無意味な往復になる。
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
   if (matchesAny(pathname, PUBLIC_PATHS)) {
     return NextResponse.next();
   }

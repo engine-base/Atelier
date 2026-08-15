@@ -100,6 +100,9 @@ export function normalizePath(pathname: string): string {
   return INTERNAL_TO_CLEAN.get(pathname) ?? pathname;
 }
 
+// '/signup' は middleware が /signin へ正規化するため通常は描画されない
+// (T-UC-47 / GAP-120)。多重防御として残す — 万一 middleware を経ずに描画された
+// 場合でも、S-A01 と同じく bare であるべきだから。
 const BARE_EXACT: ReadonlySet<string> = new Set(['/', '/signin', '/signup']);
 const BARE_PREFIXES: readonly string[] = [
   '/admin',
