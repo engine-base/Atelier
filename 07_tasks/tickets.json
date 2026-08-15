@@ -28807,6 +28807,103 @@
         }
       ],
       "note": "GAP-125 の恒久対策。**本タスクに限り v3-gate.yml の編集を PM が許可する** (Gate #16 = T-F-46 と同条件: 追加・強化のみ / 既存 gate の緩和は一切不可 / merge 前に PM レビュー必須)。**T-F-55 の完了が前提** — 62 errors を残したまま広げると恒常的に赤いゲートになる。"
+    },
+    {
+      "id": "T-F-57",
+      "title": "byok_keys を MultiFernet 対応にする (鍵ローテーション手順の実行前提)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "strange",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.2,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-53"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-57.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_byok_key_rotation.py"
+        ],
+        "modify": [
+          "apps/api/src/services/byok_keys/__init__.py",
+          "docs/runbooks/byok-key-rotation.md",
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md"
+        ],
+        "shared_read": [
+          "03_architecture/adrs/ADR-BYOK-encryption.md",
+          "SECRETS.md"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes/auth",
+          "apps/api/src/routes/billing",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: ATELIER_BYOK_ENCRYPTION_KEY がカンマ区切りの複数鍵を受け付け、MultiFernet として構築される (先頭が暗号化に使われる)",
+          "UBIQUITOUS: runbook の『MultiFernet 対応は未対応』の注記が撤去され、手順 2 以降が実行可能になっている"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When two keys are configured, new values shall be encrypted with the first key and existing values encrypted with either key shall still decrypt"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If a single-key configuration stops working, it shall be rejected — 既存の単一鍵運用を壊さない (後方互換)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If key material is logged or included in an error message, it shall be rejected — 鍵の実値をログ・例外に出さない"
+          }
+        ],
+        "tier_3_regression": [
+          "BYOK API の既存テストが全 green (暗号化・復号の挙動が単一鍵時に不変)",
+          "env-template-drift.py が exit 0 のまま"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "新旧併用",
+          "steps": [
+            "鍵2本を設定し旧鍵の暗号文を復号"
+          ],
+          "expected": "復号でき、新規暗号化は先頭鍵"
+        },
+        {
+          "name": "後方互換",
+          "steps": [
+            "鍵1本のみ設定"
+          ],
+          "expected": "従来どおり動作"
+        },
+        {
+          "name": "鍵の非露出",
+          "steps": [
+            "不正な鍵でエラーを起こす"
+          ],
+          "expected": "例外メッセージに鍵の実値が出ない"
+        }
+      ],
+      "note": "T-F-53 の runbook が要求する前提。現行 `services/byok_keys/_fernet()` は単一鍵しか受け付けないため、新旧併用ができず**鍵を変えた瞬間に既存行が復号不能**になる。runbook の手順 2 以降は本タスクが入るまで実行不可と明記済。ADR-BYOK-encryption が受け入れたリスク (鍵ローテーションの運用) を実行可能にするための実装タスク。"
     }
   ],
   "two_axis_policy": {

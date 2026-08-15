@@ -100,6 +100,8 @@ deploy.yml は `FLY_API_TOKEN` / `FLY_APP_NAME` を参照。
 | Fly token | `flyctl tokens revoke` + Dashboard で再発行 → GitHub Secret 更新 |
 | Vercel token | Dashboard → Tokens → 削除して再発行 |
 | JWT 署名鍵 | 新値生成 → `flyctl secrets set ATELIER_AUTH_JWT_SECRET=...` (既存セッションは無効化される) |
+| **BYOK 暗号化キー** (`ATELIER_BYOK_ENCRYPTION_KEY`) | **単純な差し替えは不可**。鍵を失うと顧客の API キーが復号不能になる。`MultiFernet` で新旧併用 → 全行再暗号化 → 旧鍵撤去 の順で行う。手順とバックアップ要件は [docs/runbooks/byok-key-rotation.md](docs/runbooks/byok-key-rotation.md) |
+| Vault 暗号化キー (`ATELIER_VAULT_ENCRYPTION_KEY`) | 同上 (同じ Fernet 方式。手順書を流用する) |
 
 ローテーション後は **各環境の注入値を全て更新**し、デプロイを1回回して反映する。
 
