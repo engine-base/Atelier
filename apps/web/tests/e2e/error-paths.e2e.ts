@@ -175,7 +175,9 @@ test("S-F02 状態select: 422 でロールバックし alert 表示", async ({
   await page.goto(`/workflow/phases?project=${IDS.project}`, {
     waitUntil: "networkidle",
   });
-  const select = page.locator("select").last();
+  // GAP-022 で F-IMP01 (対象タスク/移動先フェーズ) の select が増えたため、
+  // フェーズカードの状態変更 select は aria-label「<フェーズ名> の状態」で特定する
+  const select = page.locator('select[aria-label$="の状態"]').first();
   await expect(select).toBeVisible();
   const before = await select.inputValue();
   const next = before === "pending" ? "in_progress" : "pending";

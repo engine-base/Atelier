@@ -194,6 +194,11 @@ export function PhaseListContainer({
     },
     onError: (_e, _vars, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(KEY(projectId), ctx.prev);
+      // 楽観反映を戻すだけでは失敗が黙殺されるため明示する
+      setAction({
+        kind: "error",
+        text: "状態の変更に失敗しました。時間をおいて再試行してください。",
+      });
     },
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),

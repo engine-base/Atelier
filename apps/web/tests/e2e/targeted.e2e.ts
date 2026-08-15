@@ -186,9 +186,23 @@ test("S-A03: 保存 422 で名称がロールバックし alert", async ({ page,
 });
 
 // ── S-C02 zod / 保存エラー ────────────────────────────────────────────────
+/** seed の固定 employee id が無い環境 (テンプレ複製で id が動的採番) では
+ * QA WS の実在社員へフォールバックする (検証内容は不変)。 */
+async function resolveEmployeeId(): Promise<string> {
+  const headers = { Authorization: `Bearer ${mintJwt(USER_ID)}` };
+  const direct = await fetch(`${API_BASE}/ai-employees/${IDS.employee}`, { headers });
+  if (direct.status === 200) return IDS.employee;
+  const res = await fetch(`${API_BASE}/ai-employees?workspace_id=${IDS.ws}`, { headers });
+  const body = (await res.json()) as { data?: readonly { id: string }[] };
+  const id = body.data?.[0]?.id;
+  if (!id) throw new Error("ai-employees seed が見つかりません");
+  return id;
+}
+
 test("S-C02: 表示名空 → 入力必須 / 保存 422 → alert", async ({ page, context }) => {
   await signin(context);
-  await page.goto(`/employees/detail?employee=${IDS.employee}`, {
+  const employeeId = await resolveEmployeeId();
+  await page.goto(`/employees/detail?employee=${employeeId}`, {
     waitUntil: "networkidle",
   });
   const name = page.locator("input:not([type=checkbox])").first();
@@ -271,7 +285,7 @@ test("S-K02: 承認 → POST promote → 一覧から消滅 / 却下 → dismiss
   await expect(page.getByText(title)).toHaveCount(0, { timeout: 5000 });
 });
 
-test("S-K02: 却下は一覧から除外(dismiss) / 承認422はロールバック+alert", async ({
+test("S-K02: 却下は一覧から除外(実DELETE) / 承認422はロールバック+alert", async ({
   page,
   context,
 }) => {
@@ -292,31 +306,28 @@ test("S-K02: 却下は一覧から除外(dismiss) / 承認422はロールバッ�
         content_md: "x",
       }),
     });
-  expect((await mk(`E2E却下-${Date.now()}`)).status).toBeLessThan(300);
+  // タイトルに「却下/承認」を含めない (ボタンの accessible name と衝突するため)
+  const rejectTitle = `E2E-dismiss-${Date.now()}`;
+  expect((await mk(rejectTitle)).status).toBeLessThan(300);
   await page.goto(`/knowledge/review?workspace=${IDS.ws}`, {
     waitUntil: "networkidle",
   });
-  const reject = page.getByRole("button", { name: /却下/ }).first();
-  await reject.waitFor({ state: "visible", timeout: 8000 });
-  const beforeCount = await page.getByRole("button", { name: /却下/ }).count();
-  await reject.click();
-  await expect
-    .poll(async () => page.getByRole("button", { name: /却下/ }).count())
-    .toBeLessThan(beforeCount);
-  // 422: 承認失敗 → 行復元 + alert
-  expect((await mk(`E2E422-${Date.now()}`)).status).toBeLessThan(300);
+  // 左リストで対象候補を選択 → 却下は 2 段階確認 (却下 → 却下して削除) の実 DELETE
+  const listItem = page.getByRole("listitem").filter({ hasText: rejectTitle });
+  await listItem.getByRole("button").first().click();
+  await page.getByRole("button", { name: `${rejectTitle} を却下` }).click();
+  await page.getByRole("button", { name: "却下して削除" }).click();
+  await expect(page.getByText(rejectTitle)).toHaveCount(0, { timeout: 8000 });
+  // 422: 承認失敗 → alert + 候補は一覧に残る (ロールバック)
+  const failTitle = `E2E-fail-${Date.now()}`;
+  expect((await mk(failTitle)).status).toBeLessThan(300);
   await page.reload({ waitUntil: "networkidle" });
-  const approve = page.getByRole("button", { name: /承認|昇格/ }).first();
-  await approve.waitFor({ state: "visible", timeout: 8000 });
-  const n = await page.getByRole("button", { name: /承認|昇格/ }).count();
+  const failItem = page.getByRole("listitem").filter({ hasText: failTitle });
+  await failItem.getByRole("button").first().click();
   await failMutations(page);
-  await approve.click();
+  await page.getByRole("button", { name: `${failTitle} を昇格` }).click();
   await expect(page.getByRole("alert").first()).toBeVisible();
-  await expect
-    .poll(async () => page.getByRole("button", { name: /承認|昇格/ }).count(), {
-      timeout: 5000,
-    })
-    .toBe(n);
+  await expect(failItem).toBeVisible();
 });
 
 // ── S-L01 招待発行 → 反映 / 失効 ──────────────────────────────────────────
@@ -325,8 +336,9 @@ test("S-L01: 招待発行 → 一覧反映、失効 → 状態変化", async ({ 
   await page.goto(`/portal/invitations?project=${IDS.project}`, {
     waitUntil: "networkidle",
   });
+  // 発行フォームは表示名 (type=text) が先頭になったため email 欄を型で特定する
   const email = `e2e-inv-${Date.now()}@example.com`;
-  await page.locator("input[type=email], input[type=text]").first().fill(email);
+  await page.locator("input[type=email]").first().fill(email);
   const [res] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("client-invitations") && r.request().method() === "POST",
@@ -334,20 +346,22 @@ test("S-L01: 招待発行 → 一覧反映、失効 → 状態変化", async ({ 
     page.getByRole("button", { name: /招待を発行/ }).click(),
   ]);
   expect(res.status()).toBeLessThan(300);
-  await expect(page.getByText(email)).toBeVisible({ timeout: 5000 });
-  // 失効: 対象行の失効ボタン
+  await expect(page.getByText(email).first()).toBeVisible({ timeout: 5000 });
+  // 失効: 2 段階確認 (ゴミ箱 → 「失効する」確定)
   const row = page.locator("tr", { hasText: email });
+  await row.getByRole("button", { name: `${email} を失効` }).click();
   const [rev] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("revoke") && r.request().method() === "POST",
     ),
-    row.getByRole("button", { name: /失効/ }).click(),
+    row.getByRole("button", { name: `${email} の失効を確定` }).click(),
   ]);
   expect(rev.status()).toBeLessThan(300);
-  await expect(row.getByText(/失効済|失効/)).toBeVisible({ timeout: 5000 });
+  // 失効後は履歴テーブルへ移り、状態 pill が「失効」になる
+  await expect(row.getByText(/失効済|失効/).first()).toBeVisible({ timeout: 5000 });
   // 失効 422: もう 1 通発行し、mutation 失敗で alert + 状態が変わらない
   const email2 = `e2e-inv2-${Date.now()}@example.com`;
-  await page.locator("input[type=email], input[type=text]").first().fill(email2);
+  await page.locator("input[type=email]").first().fill(email2);
   await Promise.all([
     page.waitForResponse(
       (r) => r.url().includes("client-invitations") && r.request().method() === "POST",
@@ -357,7 +371,8 @@ test("S-L01: 招待発行 → 一覧反映、失効 → 状態変化", async ({ 
   const row2 = page.locator("tr", { hasText: email2 });
   await expect(row2).toBeVisible({ timeout: 5000 });
   await failMutations(page);
-  await row2.getByRole("button", { name: /失効/ }).click();
+  await row2.getByRole("button", { name: `${email2} を失効` }).click();
+  await row2.getByRole("button", { name: `${email2} の失効を確定` }).click();
   await expect(page.getByRole("alert").first()).toBeVisible();
   // mutation 失敗 → 行は失効済にならず残る (derived status の文言差異に依存しない)
   await expect(row2).toBeVisible();
@@ -365,10 +380,19 @@ test("S-L01: 招待発行 → 一覧反映、失効 → 状態変化", async ({ 
 });
 
 // ── S-L02 無効 / 期限切れ token ──────────────────────────────────────────
+// GAP-028: 送信ボタンは「同意してサインイン」になり、同意 2 種 (規約/プライバシー/
+// 越境・機密保持) の必須チェックを踏まないと zod が送信を止める。
+async function agreeAll(page: Page): Promise<void> {
+  for (const cb of await page.locator("input[type=checkbox]").all()) {
+    await cb.check();
+  }
+}
+
 test("S-L02: 無効 token はエラー文言 (画面遷移しない)", async ({ page }) => {
   await page.goto("/portal/signin", { waitUntil: "networkidle" });
   await page.locator("input").first().fill("totally-invalid-token-123");
-  await page.getByRole("button", { name: "プロジェクトを開く" }).click();
+  await agreeAll(page);
+  await page.getByRole("button", { name: "同意してサインイン" }).click();
   await expect(page.getByRole("alert").first()).toBeVisible({ timeout: 5000 });
   await expect(page).toHaveURL(/portal\/signin/);
 });
@@ -376,7 +400,8 @@ test("S-L02: 無効 token はエラー文言 (画面遷移しない)", async ({ 
 test("S-L02: 期限切れ token は失効文言", async ({ page }) => {
   await page.goto("/portal/signin", { waitUntil: "networkidle" });
   await page.locator("input").first().fill("qa-expired-token");
-  await page.getByRole("button", { name: "プロジェクトを開く" }).click();
+  await agreeAll(page);
+  await page.getByRole("button", { name: "同意してサインイン" }).click();
   const alert = page.getByRole("alert").first();
   await expect(alert).toBeVisible({ timeout: 5000 });
   await expect(page).toHaveURL(/portal\/signin/);
@@ -474,16 +499,19 @@ test("T-UC-37: email は readonly、101字は弾く、422 で alert+復元", asy
 });
 
 // ── T-UC-38 / 39 picker 実切替 ───────────────────────────────────────────
+// AppShell 全ルート配線でトップバーにも WS picker (アバター文字入り) が出るため、
+// ページ本体の picker は main 内にスコープして拾う。
 test("T-UC-38: WS picker で選択 → 現在表示が更新", async ({ page, context }) => {
   await signin(context);
   await page.goto("/t-uc-38", { waitUntil: "networkidle" });
-  const picker = page.getByRole("button").first();
+  const main = page.getByRole("main");
+  const picker = main.getByRole("button").first();
   await picker.click();
-  const option = page.getByRole("option").first().or(page.getByRole("menuitem").first());
+  const option = main.getByRole("option").first().or(main.getByRole("menuitem").first());
   test.skip(!(await option.isVisible().catch(() => false)), "選択肢なし");
   const label = (await option.textContent())?.trim() ?? "";
   await option.click();
-  await expect(page.getByText(`現在: ${label}`)).toBeVisible({ timeout: 4000 });
+  await expect(main.getByText(`現在: ${label}`)).toBeVisible({ timeout: 4000 });
 });
 
 test("T-UC-39: Project picker で選択 → 現在表示が更新", async ({
@@ -492,13 +520,14 @@ test("T-UC-39: Project picker で選択 → 現在表示が更新", async ({
 }) => {
   await signin(context);
   await page.goto("/t-uc-39", { waitUntil: "networkidle" });
-  const picker = page.getByRole("button").first();
+  const main = page.getByRole("main");
+  const picker = main.getByRole("button").first();
   await picker.click();
-  const option = page.getByRole("option").first().or(page.getByRole("menuitem").first());
+  const option = main.getByRole("option").first().or(main.getByRole("menuitem").first());
   test.skip(!(await option.isVisible().catch(() => false)), "選択肢なし");
   const label = (await option.textContent())?.trim() ?? "";
   await option.click();
-  await expect(page.getByText(`現在: ${label}`)).toBeVisible({ timeout: 4000 });
+  await expect(main.getByText(`現在: ${label}`)).toBeVisible({ timeout: 4000 });
 });
 
 // ── T-UC-40 5xx / 403 ────────────────────────────────────────────────────

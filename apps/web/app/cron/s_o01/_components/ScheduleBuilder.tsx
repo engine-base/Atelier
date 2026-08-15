@@ -169,7 +169,7 @@ export function ScheduleBuilder({
           e.preventDefault();
           submit();
         }}
-        className="rounded-lg border border-border bg-white px-6 py-5 lg:sticky lg:top-20"
+        className="rounded-lg border border-border bg-white px-6 py-5 xl:sticky xl:top-20"
       >
         <div className="text-[15px] font-bold text-on-surface">
           新規スケジュールを作成

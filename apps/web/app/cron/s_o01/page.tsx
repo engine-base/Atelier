@@ -26,7 +26,9 @@ function SO01Inner() {
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
       <ScheduleRoleCard />
       {projectId ? (
-        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_380px]">
+        // 2 カラム化は xl から (1024px ではサイドバー分を引くと 380px 固定レールが
+        // 収まらず横オーバーフローする)。左カラムは minmax(0,1fr) で縮小可能に。
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div>
             <CronScheduleContainer projectId={projectId} />
           </div>

@@ -418,7 +418,9 @@ export function WorkflowGraphContainer({
         </p>
       ) : null}
 
-      <div className="grid gap-5 px-md pb-[60px] pt-2 sm:px-[32px] lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* 単一カラム時も minmax(0,1fr) で子の min-content 幅 (タブ行など) に
+          引きずられないようにする (320px 幅での横オーバーフロー防止)。 */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-5 px-md pb-[60px] pt-2 sm:px-[32px] lg:grid-cols-[minmax(0,1fr)_320px]">
         <PhaseTabs
           projectId={projectId}
           outputs={outputs}

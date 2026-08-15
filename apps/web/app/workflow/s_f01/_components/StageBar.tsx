@@ -95,7 +95,13 @@ export function StageBar({ nodes, selectedId, onSelect }: StageBarProps) {
               <span
                 className={cn(
                   "mt-2 text-center text-[11.5px] font-bold leading-tight",
-                  node.status === "in_progress" ? "text-primary" : "text-on-surface",
+                  // a11y: primary は白地では AA を満たすが、選択中の
+                  // primary-container 地では 4.5:1 未満になるため濃色にする。
+                  selected
+                    ? "text-on-primary-container"
+                    : node.status === "in_progress"
+                      ? "text-primary"
+                      : "text-on-surface",
                 )}
               >
                 {node.label}

@@ -240,7 +240,7 @@ function PhaseCard({ row, onTransition, employees, onAssign, stats }: PhaseCardP
             </span>
           ) : null}
           {stats.avgScore != null ? (
-            <span className="text-tertiary">
+            <span className="text-[#0F766E]">
               スコア平均 {stats.avgScore.toFixed(2)}
             </span>
           ) : null}
@@ -514,7 +514,8 @@ export function PhaseList({
         {/* GAP-022: F-IMP01 影響範囲解析 (実解析 — モックの結果カードを対話化) */}
         {impactTasks && impactTasks.length > 0 && onAnalyzeImpact ? (
           <div className="rounded-lg bg-primary-container p-5 text-on-primary-container">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] opacity-70">
+            {/* a11y: opacity-70 だと on-primary-container が地色に対し 4.5:1 未満 */}
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] opacity-90">
               F-IMP01 · 影響範囲解析
             </p>
             <form
@@ -632,7 +633,7 @@ export function PhaseList({
             <StatRow
               label="進行中"
               value={inProgress}
-              valueClass="text-tertiary"
+              valueClass="text-[#0F766E]"
             />
             <StatRow label="未着手" value={pending} />
             <StatRow
@@ -658,7 +659,7 @@ export function PhaseList({
                   value={
                     stats.consistencyOk ? "OK" : `不整合 ${stats.danglingCount} 件`
                   }
-                  valueClass={stats.consistencyOk ? "text-tertiary" : "text-error"}
+                  valueClass={stats.consistencyOk ? "text-[#0F766E]" : "text-error"}
                 />
               </>
             ) : null}

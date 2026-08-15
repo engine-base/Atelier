@@ -138,7 +138,8 @@ export function ExecutionMonitorContainer({
           label="警告"
           value={warnCount}
           sub="warn レベル"
-          tone="text-secondary"
+          // a11y: secondary(#C7A04A) は白面で 2.5:1 のため gold-800 相当で確保
+          tone="text-[#8A6A16]"
         />
         <StatCard
           icon={<AlertCircle size={12} aria-hidden />}
@@ -152,7 +153,8 @@ export function ExecutionMonitorContainer({
           label="接続"
           value={connected ? "接続中" : "切断"}
           sub={`実行 ${executionId}`}
-          tone={connected ? "text-tertiary" : "text-error"}
+          // a11y: tertiary(#14B8A6) は白面で 2.5:1 のため teal-700 相当で確保
+          tone={connected ? "text-[#0F766E]" : "text-error"}
         />
       </div>
 

@@ -57,7 +57,12 @@ test("S-L02 クライアントサインイン: トークン未入力は zod が�
     apiCalled = true;
     await route.fallback();
   });
-  await page.getByRole("button", { name: "プロジェクトを開く" }).click();
+  // GAP-028: 同意 2 種 (規約/プライバシー/越境・機密保持) が必須チェックになった。
+  // token min(10) の検証を切り分けるため、同意は踏んだ上で token 未入力のまま送信する。
+  for (const cb of await page.locator("input[type=checkbox]").all()) {
+    await cb.check();
+  }
+  await page.getByRole("button", { name: "同意してサインイン" }).click();
   // zod min(10) が弾き、エラー表示 + API 未呼び出し + 画面遷移なし
   await expect(
     page.locator("text=/at least 10|10文字|入力/").first(),

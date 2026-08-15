@@ -259,7 +259,12 @@ export function ProjectList({
       ) : null}
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="読み込み中"
+          className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+        >
           {[0, 1, 2].map((i) => (
             <div
               key={i}

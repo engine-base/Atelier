@@ -298,8 +298,10 @@ function ScheduleRow({
   const spec = ACTION_SPEC[job.targetAction ?? ""] ?? FALLBACK_SPEC;
   return (
     <li
-      className={`grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-lg border border-border bg-white p-4 transition-colors hover:border-primary hover:shadow-sm sm:grid-cols-[44px_1fr_180px_auto_auto] ${
-        job.enabled ? "" : "opacity-60"
+      className={`grid grid-cols-[44px_1fr_auto] items-center gap-4 rounded-lg border border-border p-4 transition-colors hover:border-primary hover:shadow-sm sm:grid-cols-[44px_1fr_180px_auto_auto] ${
+        // a11y: 停止中を opacity で dim すると文字コントラストが 4.5:1 を割る
+        // (axe serious)。面色 (surface-variant) で無効状態を表現する。
+        job.enabled ? "bg-white" : "bg-surface-variant/50"
       }`}
     >
       {/* アイコン */}

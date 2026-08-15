@@ -59,6 +59,8 @@ export function InvitationsListContainer({
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  // 失効/発行/再送の失敗をユーザーに知らせる (以前は失効失敗が黙殺されていた)。
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const list = useQuery({
     queryKey: KEY(projectId),
@@ -88,9 +90,12 @@ export function InvitationsListContainer({
       return (res as { data?: { token?: string } }).data ?? {};
     },
     onSuccess: (data) => {
+      setActionError(null);
       if (data.token) setIssuedToken(data.token);
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) });
     },
+    onError: () =>
+      setActionError("招待の発行に失敗しました。時間をおいて再試行してください。"),
   });
 
   // GAP-027: 再送 = token ローテーション + 新リンク送付。新 raw token は
@@ -103,9 +108,12 @@ export function InvitationsListContainer({
       return (res as { data?: { token?: string } }).data ?? {};
     },
     onSuccess: (data) => {
+      setActionError(null);
       if (data.token) setIssuedToken(data.token);
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) });
     },
+    onError: () =>
+      setActionError("再送に失敗しました。時間をおいて再試行してください。"),
   });
 
   const revokeMut = useMutation({
@@ -115,6 +123,7 @@ export function InvitationsListContainer({
       }),
     // 楽観更新: revoked_at を即座に付与、失敗時に戻す。
     onMutate: async (id) => {
+      setActionError(null);
       const key = KEY(projectId);
       await queryClient.cancelQueries({ queryKey: key });
       const prev = queryClient.getQueryData<ApiInvitation[]>(key);
@@ -129,6 +138,7 @@ export function InvitationsListContainer({
     },
     onError: (_e, _id, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(KEY(projectId), ctx.prev);
+      setActionError("失効に失敗しました。時間をおいて再試行してください。");
     },
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
@@ -164,6 +174,14 @@ export function InvitationsListContainer({
 
   return (
     <div className="flex flex-col gap-6">
+      {actionError ? (
+        <p
+          role="alert"
+          className="rounded-md bg-error/10 px-4 py-3 text-body-sm text-error"
+        >
+          {actionError}
+        </p>
+      ) : null}
       {issuedToken ? (
         <div
           role="status"

@@ -76,8 +76,9 @@ export function TaskDetailTabs({ title, content, counts }: TaskDetailTabsProps) 
               className={cn(
                 "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-t-md border-b-[3px] px-4 pb-3 pt-3 text-body-sm font-semibold transition-colors",
                 "focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary",
+                // a11y: primary は primary-container 地では 4.5:1 未満のため濃色にする
                 isActive
-                  ? "border-primary bg-primary-container text-primary"
+                  ? "border-primary bg-primary-container text-on-primary-container"
                   : "border-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface",
               )}
             >

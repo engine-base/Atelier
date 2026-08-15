@@ -28,11 +28,14 @@ export interface ExecutionMonitorProps {
 
 // モックの log-info(青) / log-ok/info(緑) / log-warn(琥珀) 相当をトークンで再現。
 // 濃紺の面の上で可読なコントラストが出る container / error トークンを使う。
+// a11y: on-surface-variant(#475569) は濃紺面 (#0F172A) で 2.4:1 しか出ないため、
+// muted 系は neutral(#94A3B8 ≒ 7:1) を使う。
 const LEVEL_COLOR: Record<LogLevel, string> = {
-  debug: "text-on-surface-variant",
+  debug: "text-neutral",
   info: "text-primary-container",
   warn: "text-secondary-container",
-  error: "text-error",
+  // error(#DC2626) も濃紺面では 3.7:1 のため red-400 相当で 6.5:1 を確保
+  error: "text-[#F87171]",
 };
 
 const LEVEL_LABEL: Record<LogLevel, string> = {
@@ -53,7 +56,7 @@ export function ExecutionMonitor({ lines }: ExecutionMonitorProps) {
       <ul className="flex flex-col gap-xs">
         {lines.map((l) => (
           <li key={l.id} className="flex gap-sm">
-            <time className="shrink-0 tabular-nums text-on-surface-variant">
+            <time className="shrink-0 tabular-nums text-neutral">
               {l.ts}
             </time>
             <span className={cn("shrink-0 font-bold", LEVEL_COLOR[l.level])}>

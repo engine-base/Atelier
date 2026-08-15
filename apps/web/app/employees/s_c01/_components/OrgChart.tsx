@@ -71,8 +71,9 @@ const LINE_DEPTS: readonly Department[] = [
   "dev_qa",
 ];
 
+// min-w は 1024px 幅 (lg 5 列) でも横オーバーフローしない値にする (180px だと溢れる)。
 const CARD_BASE =
-  "flex w-full min-w-[180px] flex-col items-center gap-2.5 rounded-lg border px-5 py-4 text-center transition-all duration-150";
+  "flex w-full min-w-[160px] flex-col items-center gap-2.5 rounded-lg border px-5 py-4 text-center transition-all duration-150";
 
 type CardTone = "coo" | "member" | "cross";
 
@@ -135,10 +136,15 @@ function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) 
         <span
           className={cn(
             "text-[11px] font-semibold",
-            tone === "coo" || node.roleLabel !== "メンバー"
-              ? "text-primary"
-              : "text-on-surface",
-            tone === "cross" && "text-tertiary",
+            // a11y: primary(#2563EB) は白地では AA を満たすが primary-container 地
+            // (coo カード) では 4.5:1 未満のため on-primary-container を使う。
+            // cross の tertiary(#14B8A6) も surface-variant 地で不足するため濃色に。
+            tone === "coo"
+              ? "text-on-primary-container"
+              : node.roleLabel !== "メンバー"
+                ? "text-primary"
+                : "text-on-surface",
+            tone === "cross" && "text-[#0F766E]",
           )}
         >
           {node.roleLabel}

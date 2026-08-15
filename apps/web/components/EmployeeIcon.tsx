@@ -32,14 +32,17 @@ const EMPLOYEE_LABEL: Record<EmployeeId, string> = {
   steve: 'Steve',
 };
 
+// a11y: 白文字 (text-*-fg) は secondary(#C7A04A)/tertiary(#14B8A6) の面では
+// コントラスト 2.5:1 前後しか出ず axe serious になるため、同系色相の
+// 濃色面 (gold-800 / teal-700 相当) を使って 4.5:1 以上を確保する。
 const EMPLOYEE_BG: Record<EmployeeId, string> = {
   tony: 'bg-error text-error-fg',
   strange: 'bg-secondary-container text-secondary-container-fg',
   thor: 'bg-primary text-primary-fg',
   wanda: 'bg-primary-container text-primary-container-fg',
-  vision: 'bg-tertiary text-tertiary-fg',
+  vision: 'bg-[#0F766E] text-tertiary-fg',
   tchalla: 'bg-tertiary-container text-tertiary-container-fg',
-  steve: 'bg-secondary text-secondary-fg',
+  steve: 'bg-[#8A6A16] text-secondary-fg',
 };
 
 export const EMPLOYEE_IDS: readonly EmployeeId[] = [

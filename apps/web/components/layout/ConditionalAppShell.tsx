@@ -37,6 +37,7 @@ import {
 import { usePathname } from 'next/navigation';
 
 import { getJson } from '../../lib/auth/connector';
+import { ROUTE_MAP } from '../../lib/routes';
 import {
   readCurrentWorkspace,
   writeCurrentWorkspace,
@@ -100,6 +101,17 @@ function isBare(pathname: string): boolean {
   }
   return false;
 }
+
+/**
+ * 実ルート (内部タスクID パス) → 意味的URL の逆引き。
+ * SSR/プリレンダ時の usePathname は rewrite 先の内部パス (例 /auth/s_a03) を返すが、
+ * ブラウザの URL は常に意味的パス (例 /workspace-settings)。この差をそのままにすると
+ * aria-current / パンくず / bare 判定がサーバとクライアントで食い違い、
+ * hydration mismatch (React #418) になるため、常に意味的パスへ正規化する。
+ */
+const INTERNAL_TO_CLEAN: ReadonlyMap<string, string> = new Map(
+  ROUTE_MAP.map(([clean, internal]) => [internal, clean] as const),
+);
 
 interface WorkspaceLite {
   readonly id: string;
@@ -165,7 +177,8 @@ function TopBarTrailing({
 }
 
 export function ConditionalAppShell({ children }: { readonly children: ReactNode }) {
-  const pathname = usePathname() ?? '/';
+  const rawPathname = usePathname() ?? '/';
+  const pathname = INTERNAL_TO_CLEAN.get(rawPathname) ?? rawPathname;
   const bare = isBare(pathname);
   const [workspaces, setWorkspaces] = useState<readonly WorkspaceLite[]>([]);
   const [currentWsId, setCurrentWsId] = useState<string | undefined>();

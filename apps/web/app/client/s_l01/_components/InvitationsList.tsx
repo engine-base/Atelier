@@ -180,13 +180,14 @@ function StatusPill({ status }: { readonly status: InvitationStatus }) {
   );
 }
 
-/** 招待リンク列: 平文トークンは発行時のみ (R-T08) のため中立表示。 */
-function InviteLinkCell({ dimmed }: { readonly dimmed?: boolean }) {
+/** 招待リンク列: 平文トークンは発行時のみ (R-T08) のため中立表示。
+ * a11y: opacity での dim はコントラスト 4.5:1 を割る (axe serious) ため行わない
+ * (履歴行の区別は状態 pill が担う)。 */
+function InviteLinkCell({ dimmed: _dimmed }: { readonly dimmed?: boolean }) {
   return (
     <span
       className={cn(
         "inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-sm bg-surface-variant px-2.5 py-1 font-mono text-[11px] text-on-surface-variant",
-        dimmed && "opacity-50",
       )}
     >
       <LinkIcon />
