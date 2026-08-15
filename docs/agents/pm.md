@@ -42,6 +42,12 @@
 - **アプリコード (apps/ 等) は書かない**。実装は dev、検証は qa の仕事。
 - commit するのは自分が編集した仕様・ドキュメントのみ。バトンを持っている間だけ
   git 操作可 (protocol.md 大原則 2)。
+- **PM の commit も束ブランチ上に載る = Gate #11 (PR scope guard) の評価対象になる。**
+  `07_tasks/tickets.json` / `docs/gap-tracker.md` / `docs/agents/*.md` など自分が触る
+  ファイルは、**触る前に束の先頭タスクの `files_changed_predicted.modify` へ申告する**こと。
+  申告漏れは dev の実装とは無関係に Gate #11 を落とし、dev に原因不明の赤を押し付ける
+  (束 D で実際に発生 — commit e5a1910 が `docs/agents/**` を無申告で追加し D-3 として検出された)。
+  ゲート側を緩めて回避してはならない。**申告するのが正しい** — PR に実際その差分があるのだから。
 
 ## 検収チェックリスト (`QA_PASS` 受領時に全項目確認)
 

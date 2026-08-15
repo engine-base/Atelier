@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1418,
-    "total_estimate_hours_ai_compute": 136.35,
-    "human_review_total_h": 14.25,
-    "total_wall_clock_h_ai_parallel": 33.5,
+    "total_estimate_hours_human": 1421,
+    "total_estimate_hours_ai_compute": 136.65,
+    "human_review_total_h": 14.35,
+    "total_wall_clock_h_ai_parallel": 33.8,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -27346,7 +27346,12 @@
           "apps/api/tests/test_observability_sentry.py",
           "packages/email/src/templates/welcome.tsx",
           "apps/web/tests/appshell-route-parity.test.ts",
-          "apps/web/components/layout/ConditionalAppShell.tsx"
+          "apps/web/components/layout/ConditionalAppShell.tsx",
+          "apps/web/lib/logger.ts",
+          "apps/web/tests/logger.test.ts",
+          "docs/agents/pm.md",
+          "docs/agents/protocol.md",
+          "docs/agents/qa.md"
         ],
         "shared_read": [
           "09_dispatch/scripts/dispatch.sh",
@@ -27850,11 +27855,11 @@
         "modify": [
           "apps/api/src/observability/betterstack.py",
           "apps/api/src/observability/sentry.py",
-          "apps/api/src/observability/__init__.py"
+          "apps/api/src/observability/__init__.py",
+          "apps/web/lib/logger.ts",
+          "apps/web/tests/logger.test.ts"
         ],
-        "shared_read": [
-          "apps/web/lib/logger.ts"
-        ],
+        "shared_read": [],
         "forbidden": [
           ".github/workflows/v3-gate.yml",
           "apps/api/src/routes"
@@ -27863,7 +27868,8 @@
       "acceptance_criteria_inline": {
         "tier_1_structural": [
           "UBIQUITOUS: マスク語彙が単一モジュール (redaction.py) に集約され、betterstack と sentry の双方がそれを参照する",
-          "UBIQUITOUS: 語彙に Authorization: Basic / redis://:pass@host (ユーザ名省略形) / JSON の \"token\": \"…\" 引用符形 / Set-Cookie: session=… を含む"
+          "UBIQUITOUS: 語彙に Authorization: Basic / redis://:pass@host (ユーザ名省略形) / JSON の \"token\": \"…\" 引用符形 / Set-Cookie: session=… を含む",
+          "UBIQUITOUS: API (Python redaction.py) と Web (TS logger.ts) が**同一の規則・同一の適用順**でマスクし、両側に**同一の期待値表**が固定されている (言語をまたぐため単一実装への統合は行わず、表の同期で担保する)"
         ],
         "tier_2_functional": [
           {
@@ -27879,6 +27885,16 @@
             "type": "UNWANTED",
             "critical": true,
             "text": "If redaction is loosened for any form already masked today, the change shall be rejected"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If any secret form is redacted on the API path but shipped in clear text from the browser path (or vice versa), the task shall not be considered complete — 束 C 終了時点の API/Web パリティを下回らないこと"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If redaction fires on ordinary English words (e.g. the word 'token' or 'basic' in a plain error message), it shall be rejected — 可視化基盤がエラーメッセージを読めなくする退行を作らない。実在エラーメッセージの無改変を両側の期待値表で固定すること"
           }
         ],
         "tier_3_regression": [
@@ -27907,9 +27923,115 @@
             "pytest 観測系全走"
           ],
           "expected": "全 green"
+        },
+        {
+          "name": "API/Web パリティ",
+          "steps": [
+            "秘匿値 12+ 形式と実在エラーメッセージ 8 例を、両側の同一期待値表で突合"
+          ],
+          "expected": "全件で API と Web の結果が一致 (素通しゼロ・過剰マスクゼロ)"
         }
       ],
-      "note": "GAP-117 (qa 申し送り 6 / dev からの確認事項)。現コードベースに産出元が無いため束 C では不合格にしていない (qa 判断は妥当)。ただし sentry.py の _SENSITIVE_HEADER_KEYS (cookie を含む) と betterstack 側の語彙が 不揃いなのは将来の漏洩経路になるため、語彙を 1 モジュールへ集約して恒久解決する。"
+      "note": "GAP-117 (qa 申し送り 6 / dev からの確認事項)。現コードベースに産出元が無いため束 C では不合格にしていない (qa 判断は妥当)。ただし sentry.py の _SENSITIVE_HEADER_KEYS (cookie を含む) と betterstack 側の語彙が 不揃いなのは将来の漏洩経路になるため、語彙を 1 モジュールへ集約して恒久解決する。 / 2026-08-15 追記 (dev ESCALATE 裁定): 選択肢 A を採用。**束 C 終了時点では API/Web が 24 ケース完全一致していたパリティを、本束で API 側だけ語彙を増やしたため壊した** (qa 実測: 14 件中 8 件不一致・うち Basic 資格情報 / redis パスワード / JSON トークン / セッション Cookie の 4 形式が **Web から平文で Better Stack へ送出**)。壊したのが本束の変更である以上、本束で戻すのが筋。logger.ts / logger.test.ts を shared_read → modify へ移す。あわせて D-FAIL-1 (単体スキーム規則が英単語 'token'/'basic' に一致して実在エラーメッセージ 8 例を破壊した退行) の期待値も両側に固定する。"
+    },
+    {
+      "id": "T-UC-47",
+      "title": "/signup の hydration mismatch (#418) — ルート実体が無い公開パスの是正",
+      "group": "UC",
+      "category": "frontend",
+      "label": "NEW",
+      "deliverable_layer": "ui",
+      "phase": "4_ui",
+      "wave": 4,
+      "assigned_employee": "wanda",
+      "screen_ids": [
+        "S-A01"
+      ],
+      "entity_ids": [],
+      "feature_ids": [
+        "F-001"
+      ],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "medium",
+      "depends_on": [
+        "T-UC-46"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-UC-47.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/web/tests/signup-route.test.ts"
+        ],
+        "modify": [
+          "apps/web/components/layout/ConditionalAppShell.tsx",
+          "apps/web/middleware.ts"
+        ],
+        "shared_read": [
+          "apps/web/lib/routes.ts",
+          "apps/web/app/auth/s_a01/page.tsx"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api",
+          "apps/web/app/auth/s_a03"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: /signup の扱いが 1 つに定まっている — 実ルートを持つ / S-A01 の signup タブへ正規化する / 公開パス扱いをやめる のいずれかで、**中途半端な『公開パス扱いだが実体が無い』状態を残さない**",
+          "UBIQUITOUS: 本番ビルドの実ブラウザで /signup に React error #418 が発生しない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When /signup is loaded from a production build, the server-rendered and client-rendered output shall match and the user shall reach a working signup surface"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the mismatch is silenced with suppressHydrationWarning or by disabling SSR, it shall be rejected"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If /signup is left reachable but dead (middleware PUBLIC_PATHS と BARE_EXACT に載っているのに実ルートが無い), it shall be rejected — 死にパスを残さない"
+          }
+        ],
+        "tier_3_regression": [
+          "T-UC-46 で解消した 7 経路の parity を壊さない (ROUTE_MAP 全件の機械検証が green のまま)",
+          "S-A01 の signin / signup タブ切替と Magic Link 導線が従来どおり",
+          "middleware の公開パス判定を変える場合、保護ルートの認証リダイレクトが従来どおり"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "実ブラウザ",
+          "steps": [
+            "本番ビルド + next start で /signup を開く"
+          ],
+          "expected": "#418 なし・サインアップ面に到達できる"
+        },
+        {
+          "name": "死にパスの不在",
+          "steps": [
+            "/signup の到達先を確認"
+          ],
+          "expected": "404 でも空でもなく、意図した画面に着く"
+        },
+        {
+          "name": "回帰",
+          "steps": [
+            "ROUTE_MAP parity テスト + vitest 全走"
+          ],
+          "expected": "全 green"
+        }
+      ],
+      "note": "GAP-120 (qa 申し送り D-4)。**T-UC-46 では構造上解けない**ことを PM が確認: /signup は ROUTE_MAP に無いため normalizePath が恒等写像になり、bare 判定はサーバ/クライアントとも '/signup' で一致する。したがって #418 の原因は別。**PM の調査で判明した根本の異常**: apps/web/app に signup ディレクトリが存在せず ROUTE_MAP にも登録が無いのに、middleware.ts:22 の PUBLIC_PATHS と ConditionalAppShell.tsx:103 の BARE_EXACT には '/signup' が載っている = **実体の無い公開パスがアプリ上は実在するものとして扱われている**。サインアップは S-A01 のタブとして実装されているため、URL としての /signup をどう扱うかの決着が必要 (実ルート化 / S-A01 への正規化 / 公開パスから除去)。"
     }
   ],
   "two_axis_policy": {
