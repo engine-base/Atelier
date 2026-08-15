@@ -14,11 +14,16 @@ members = ["apps/api"]
 target-version = "py312"
 line-length = 100
 src = ["apps/api"]
+# 明示的にパス指定された場合 (lint-staged/pre-commit) も exclude を効かせる。
+# _generated は sync-types.sh の生成器出力が正本 (Gate #7 が drift 検証) で、
+# ruff format をかけると正本と差分が出て Gate #7 が落ちるため除外必須。
+force-exclude = true
 extend-exclude = [
   ".venv",
   "**/__pycache__",
   "**/.next",
   "**/node_modules",
+  "apps/api/src/_generated",
 ]
 
 [tool.ruff.lint]

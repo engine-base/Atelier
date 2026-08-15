@@ -718,13 +718,17 @@ class AdminTemplateUpdate(BaseModel):
     AI 社員テンプレの部分更新 (GAP-031⑤ / T-A-42 scope expand)。未指定フィールドは変更しない。
     """
 
-    default_display_name: Annotated[str | None, Field(max_length=100, min_length=1)] = None
+    default_display_name: Annotated[str | None, Field(max_length=100, min_length=1)] = (
+        None
+    )
     department: Department | None = None
     role: Role1 | None = None
     system_prompt: Annotated[str | None, Field(max_length=20000, min_length=1)] = None
     specialty: Annotated[str | None, Field(max_length=500)] = None
     default_skills: Annotated[list[UUID] | None, Field(max_length=50)] = None
-    default_knowledge_cats: Annotated[list[DefaultKnowledgeCat] | None, Field(max_length=50)] = None
+    default_knowledge_cats: Annotated[
+        list[DefaultKnowledgeCat] | None, Field(max_length=50)
+    ] = None
 
 
 class AdminTemplateDeployment(BaseModel):
