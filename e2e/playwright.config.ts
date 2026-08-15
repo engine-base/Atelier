@@ -52,7 +52,10 @@ export default defineConfig({
   webServer: {
     command: 'pnpm --filter @atelier/web dev',
     url: BASE_URL,
-    reuseExistingServer: !IS_CI,
+    // CI (a11y.yml) は API/DB 込みの本番ビルドを workflow 側で起動して待機済み。
+    // ここで dev サーバーを二重起動すると「port already used」で即死するため、
+    // 既存サーバーがあれば常に再利用する (無ければ従来どおり dev を起動)。
+    reuseExistingServer: true,
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
