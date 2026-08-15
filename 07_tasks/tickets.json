@@ -52,10 +52,10 @@
     },
     "total_estimate_hours_legacy": 1367,
     "total_estimate_sessions_legacy": 342,
-    "total_estimate_hours_human": 1421,
-    "total_estimate_hours_ai_compute": 136.65,
-    "human_review_total_h": 14.35,
-    "total_wall_clock_h_ai_parallel": 33.8,
+    "total_estimate_hours_human": 1431,
+    "total_estimate_hours_ai_compute": 137.65,
+    "human_review_total_h": 14.65,
+    "total_wall_clock_h_ai_parallel": 34.8,
     "ai_acceleration_factor_overall": 10.7,
     "calendar_days_ai": 15,
     "calendar_days_human": 240,
@@ -27969,7 +27969,22 @@
         ],
         "modify": [
           "apps/web/components/layout/ConditionalAppShell.tsx",
-          "apps/web/middleware.ts"
+          "apps/web/middleware.ts",
+          ".husky/commit-msg",
+          ".husky/pre-commit",
+          "03_architecture/adrs/ADR-BYOK-encryption.md",
+          "07_tasks/tickets.json",
+          "apps/api/src/observability/redaction.py",
+          "apps/api/tests/test_observability_redaction.py",
+          "apps/api/tests/test_redaction_scheme_matrix.py",
+          "apps/web/lib/logger.ts",
+          "apps/web/tests/logger.test.ts",
+          "docs/gap-tracker.md",
+          "package.json",
+          "scripts/tests/test-husky-hooks.sh",
+          "docs/agents/pm.md",
+          "docs/agents/protocol.md",
+          "docs/agents/qa.md"
         ],
         "shared_read": [
           "apps/web/lib/routes.ts",
@@ -28032,6 +28047,284 @@
         }
       ],
       "note": "GAP-120 (qa 申し送り D-4)。**T-UC-46 では構造上解けない**ことを PM が確認: /signup は ROUTE_MAP に無いため normalizePath が恒等写像になり、bare 判定はサーバ/クライアントとも '/signup' で一致する。したがって #418 の原因は別。**PM の調査で判明した根本の異常**: apps/web/app に signup ディレクトリが存在せず ROUTE_MAP にも登録が無いのに、middleware.ts:22 の PUBLIC_PATHS と ConditionalAppShell.tsx:103 の BARE_EXACT には '/signup' が載っている = **実体の無い公開パスがアプリ上は実在するものとして扱われている**。サインアップは S-A01 のタブとして実装されているため、URL としての /signup をどう扱うかの決着が必要 (実ルート化 / S-A01 への正規化 / 公開パスから除去)。"
+    },
+    {
+      "id": "T-F-49",
+      "title": "単体 `Basic` / `Token` / `Digest` の英字のみ資格情報を保護する (既知の限界を塞ぐ)",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-48"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-49.md",
+      "files_changed_predicted": {
+        "new": [
+          "apps/api/tests/test_redaction_scheme_matrix.py"
+        ],
+        "modify": [
+          "apps/api/src/observability/redaction.py",
+          "apps/web/lib/logger.ts",
+          "apps/api/tests/test_observability_redaction.py",
+          "apps/web/tests/logger.test.ts"
+        ],
+        "shared_read": [
+          "apps/api/src/observability/betterstack.py"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src/routes"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 単体形の `Basic` / `Token` / `Digest` に続く英字のみの資格情報がマスクされる (現状は素通し)",
+          "UBIQUITOUS: API (redaction.py) と Web (logger.ts) が同一規則・同一適用順で、両側に同一の期待値表がある"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a standalone auth scheme is followed by a credential-shaped token of any character class (alpha-only included), it shall be redacted on both the API and the Web path"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If ordinary English prose is damaged (e.g. 'Basic authentication is disabled', 'Token expired', 'Digest mismatch'), it shall be rejected — D-FAIL-1 の過剰マスクを再発させない。実在エラーメッセージの無改変を両側の期待値表で固定すること"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If any form masked at the T-F-48 baseline becomes unmasked, it shall be rejected — 退行判定では基準 commit を報告に明示すること"
+          }
+        ],
+        "tier_3_regression": [
+          "`Bearer` 単体の無条件マスクを維持する (T-F-48 で復元した挙動を壊さない)",
+          "qa の 202 ケース差分試験で API/Web パリティ不一致 0・通常ログ改変 0 を維持",
+          "redact_text のレイテンシ要件 (3.3ms / 1000 回 相当) を著しく悪化させない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "英字のみ資格情報",
+          "steps": [
+            "'Basic YWRtaWthYWRtaWthYWRt' / 'Token abcdefghijklmnop' を両経路へ"
+          ],
+          "expected": "両側でマスク"
+        },
+        {
+          "name": "英文の無改変",
+          "steps": [
+            "'Basic authentication is disabled' 等の実在メッセージを両経路へ"
+          ],
+          "expected": "無改変"
+        },
+        {
+          "name": "退行なし",
+          "steps": [
+            "基準 commit を明示して 202 ケース相当の差分試験"
+          ],
+          "expected": "退行 0 / パリティ不一致 0"
+        }
+      ],
+      "note": "GAP-122 (qa 申し送り / 束 D 検収時に PM が『退行ではないが穴ではある』と判定した分)。コードにも既知の限界としてコメントが残っている (redaction.py / logger.ts)。`Basic <英字のみ base64>` は実在しうる (admin:admin 等の短い資格情報)。難所は D-FAIL-1 の過剰マスクを再発させずに塞ぐこと — 英単語 'Basic'/'Token'/'Digest' が文頭に来る実在メッセージを壊さない判定が要る (文脈語の後続語ではなく資格情報の形で判定する等)。"
+    },
+    {
+      "id": "T-F-50",
+      "title": "husky の deprecated shim を除去し v10 互換にする",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "tony",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 3,
+      "estimate_hours_human": 3,
+      "estimate_hours_ai": 0.3,
+      "wall_clock_h_ai": 0.3,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-01"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-50.md",
+      "files_changed_predicted": {
+        "new": [
+          "scripts/tests/test-husky-hooks.sh"
+        ],
+        "modify": [
+          ".husky/pre-commit",
+          ".husky/commit-msg",
+          "package.json"
+        ],
+        "shared_read": [
+          "scripts/begin-task.sh"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: 各 hook から旧形式の shim 行 (`. \"$(dirname -- \"$0\")/_/husky.sh\"`) が除去され、husky が DEPRECATED 警告を出さない"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When a commit is made on a feat/t-x-y-* branch without CLAUDE.md.task, the pre-commit hook shall still reject it (CLAUDE.md ルール 8 の強制を維持)"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If hook の強制が弱まる (JIT skill skip の検出漏れ・commit-msg 検査の無効化), it shall be rejected — 移行のついでにゲートを緩めない"
+          }
+        ],
+        "tier_3_regression": [
+          "`./scripts/begin-task.sh` 経由の正規フローが従来どおり通る",
+          "shellcheck (severity=warning) が hook 群に対して 0 件のまま"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "警告消滅",
+          "steps": [
+            "commit を 1 回行う"
+          ],
+          "expected": "DEPRECATED 警告が出ない"
+        },
+        {
+          "name": "強制の維持",
+          "steps": [
+            "CLAUDE.md.task 無しで feat/t-x-y-* に commit を試みる"
+          ],
+          "expected": "従来どおり拒否される"
+        },
+        {
+          "name": "正規フロー",
+          "steps": [
+            "begin-task.sh → commit"
+          ],
+          "expected": "通る"
+        }
+      ],
+      "note": "GAP-119。CI への影響が無いことは確認済 (Gate #1 は --ignore-scripts で prepare をスキップするため `.husky/_/` が CI に生成されない) だが、husky v10 で動かなくなるため計画的に潰す。"
+    },
+    {
+      "id": "T-F-51",
+      "title": "ADR: BYOK 暗号化が selected-stack の Supabase Vault ではなく Fernet で実装されている件の裁定",
+      "group": "F",
+      "category": "infra",
+      "label": "NEW",
+      "deliverable_layer": "foundation",
+      "phase": "1_foundation",
+      "wave": 0,
+      "assigned_employee": "strange",
+      "screen_ids": [],
+      "entity_ids": [],
+      "feature_ids": [],
+      "estimate_hours": 4,
+      "estimate_hours_human": 4,
+      "estimate_hours_ai": 0.4,
+      "wall_clock_h_ai": 0.4,
+      "ai_acceleration_factor": 10,
+      "human_review_h": 0.1,
+      "estimate_method": "category-multiplier",
+      "estimate_confidence": "high",
+      "depends_on": [
+        "T-F-19"
+      ],
+      "ac_path": "07_tasks/acceptance-criteria/T-F-51.md",
+      "files_changed_predicted": {
+        "new": [
+          "03_architecture/adrs/ADR-BYOK-encryption.md"
+        ],
+        "modify": [
+          "07_tasks/tickets.json",
+          "docs/gap-tracker.md"
+        ],
+        "shared_read": [
+          "apps/api/src/services/byok_keys/__init__.py",
+          "supabase/migrations/t-d-95_e022_byok_api_keys.sql",
+          "03_architecture/selected-stack.json"
+        ],
+        "forbidden": [
+          ".github/workflows/v3-gate.yml",
+          "apps/api/src",
+          "apps/web"
+        ]
+      },
+      "acceptance_criteria_inline": {
+        "tier_1_structural": [
+          "UBIQUITOUS: ADR が「現行 Fernet 実装を正式採用して selected-stack を更新する」か「Supabase Vault へ移行する」かを、脅威モデル・鍵の保管場所・運用コスト・移行リスクを比較したうえで**明示的に決定**している",
+          "UBIQUITOUS: 決定に応じて selected-stack.json か実装のいずれかを追随させる後続タスクが起票されている (決めっぱなしにしない)"
+        ],
+        "tier_2_functional": [
+          {
+            "type": "EVENT-DRIVEN",
+            "text": "When the ADR is accepted, the divergence between selected-stack.json and the implementation shall be closed in one direction — 両者が食い違ったまま残らない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the ADR concludes without a decision (『今後検討』『どちらでもよい』), it shall be rejected — CLAUDE.md ルール 13 の『仕様を先に直す』を満たさない"
+          },
+          {
+            "type": "UNWANTED",
+            "critical": true,
+            "text": "If the current encryption behaviour is weakened while the ADR is being written, it shall be rejected — 暗号化・列レベル権限の現状を落とさない"
+          }
+        ],
+        "tier_3_regression": [
+          "BYOK API の既存テストが全 green のまま (本タスクは文書化と裁定のみで実装を変えない)",
+          "`ATELIER_BYOK_ENCRYPTION_KEY` の env 登録 (T-F-43 成果) を壊さない"
+        ]
+      },
+      "test_scenarios_inline": [
+        {
+          "name": "決定の明示",
+          "steps": [
+            "ADR を読む"
+          ],
+          "expected": "採用案が 1 つに決まり根拠が書かれている"
+        },
+        {
+          "name": "追随タスク",
+          "steps": [
+            "tickets.json を確認"
+          ],
+          "expected": "決定に対応する後続タスクが起票済"
+        },
+        {
+          "name": "現状維持",
+          "steps": [
+            "pytest BYOK 関連"
+          ],
+          "expected": "全 green・暗号化挙動不変"
+        }
+      ],
+      "note": "GAP-123。PM が束 C の調査で検出: `03_architecture/selected-stack.json` は BYOK 暗号化に **Supabase Vault** を指定 (T-F-19 の表題も『Supabase Vault（BYOK 暗号化）』) だが、実装は `services/byok_keys/__init__.py` の **Fernet + `ATELIER_BYOK_ENCRYPTION_KEY` env** と `migrations/t-d-95` の列レベル権限で成立している。暗号化自体は機能しており実害は無いが、CLAUDE.md ルール 9 (確定済技術を使う) に対する乖離が無記録のまま残っている。**PM は 03_architecture を編集する権限を持たない**ため、裁定を ADR として起票する。経営者の関心事 (顧客の API キー保管方式) でもあるため、決定時は PM 経由で報告する。"
     }
   ],
   "two_axis_policy": {
