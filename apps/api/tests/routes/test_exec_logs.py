@@ -295,18 +295,6 @@ class TestExecLogs:
         """polling 中に DB 側で status が変化すると status_change → end が送られる。"""
         h = _h(seeded["u_a"])
 
-        async def _flip_after(delay: float) -> None:
-            await asyncio.sleep(delay)
-            with sync_engine.begin() as c:
-                c.execute(
-                    text(
-                        "update public.task_executions set "
-                        "status = 'succeeded', completed_at = now() "
-                        "where id = cast(:i as uuid)"
-                    ),
-                    {"i": seeded["exec_running"]},
-                )
-
         # 非同期 flip を別スレッドで動かす
         import threading
 

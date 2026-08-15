@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,9 +33,9 @@ def _payload(value: object) -> dict[str, object]:
         return {}
     if isinstance(value, str):
         loaded: Any = json.loads(value)
-        return loaded if isinstance(loaded, dict) else {}
+        return cast("dict[str, object]", loaded) if isinstance(loaded, dict) else {}
     if isinstance(value, dict):
-        return value
+        return cast("dict[str, object]", value)
     return {}
 
 

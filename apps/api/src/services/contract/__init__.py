@@ -44,18 +44,21 @@ def _load_screen_ids() -> list[str]:
     Atelier の screens.json は `items` キー配下に screen 配列を持つ
     (v3 schema, T-D-25 前後で確定)。
     """
-    raw = json.loads(_SCREENS_PATH.read_text())
+    raw: Any = json.loads(_SCREENS_PATH.read_text())
+    screens: list[Any]
     if isinstance(raw, list):
         screens = raw
     elif isinstance(raw, dict):
-        screens = raw.get("items") or raw.get("screens") or []
+        raw_dict = cast("dict[str, Any]", raw)
+        screens = cast("list[Any]", raw_dict.get("items") or raw_dict.get("screens") or [])
     else:
         screens = []
     ids: list[str] = []
     for s in screens:
         if not isinstance(s, dict):
             continue
-        sid = s.get("id") or s.get("screen_id")
+        s_dict = cast("dict[str, Any]", s)
+        sid = s_dict.get("id") or s_dict.get("screen_id")
         if isinstance(sid, str):
             ids.append(sid)
     return ids
@@ -70,18 +73,18 @@ def compute_screen_coverage() -> ScreenCoverageReport:
     screen_ids = _load_screen_ids()
     screen_map: dict[str, list[str]] = {sid: [] for sid in screen_ids}
 
-    paths_block = spec.get("paths") or {}
+    paths_block = cast("dict[str, Any]", spec.get("paths") or {})
     for path, ops in paths_block.items():
         if not isinstance(ops, dict):
             continue
-        for method, op in ops.items():
+        for method, op in cast("dict[str, Any]", ops).items():
             if method.lower() not in _HTTP_METHODS or not isinstance(op, dict):
                 continue
-            refs = op.get("x-screen-ids") or []
+            refs: Any = cast("dict[str, Any]", op).get("x-screen-ids") or []
             if not isinstance(refs, list):
                 continue
             label = f"{method.upper()} {path}"
-            for sid in refs:
+            for sid in cast("list[Any]", refs):
                 if isinstance(sid, str) and sid in screen_map:
                     screen_map[sid].append(label)
 
@@ -108,13 +111,13 @@ def compute_screen_coverage() -> ScreenCoverageReport:
 def count_paths_and_methods() -> tuple[int, int]:
     """openapi.yaml の path 数 / 全 operation 数を返す。"""
     spec = _load_openapi()
-    paths_block = spec.get("paths") or {}
+    paths_block = cast("dict[str, Any]", spec.get("paths") or {})
     total_paths = len(paths_block)
     total_methods = 0
     for ops in paths_block.values():
         if not isinstance(ops, dict):
             continue
-        for method in ops:
+        for method in cast("dict[str, Any]", ops):
             if method.lower() in _HTTP_METHODS:
                 total_methods += 1
     return total_paths, total_methods

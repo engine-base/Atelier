@@ -81,16 +81,16 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
     from src.routes.admin_knowledge import (
-        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+        _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
     )
 
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
     from src.routes import api_router
 
     application = FastAPI()
     application.include_router(api_router)
     yield application
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
 
 
 @pytest.fixture()

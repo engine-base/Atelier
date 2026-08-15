@@ -77,7 +77,7 @@ class TestCreateEngine:
     def test_uses_cached_settings_when_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # _settings() is lru_cache'd. Inject env, clear cache, call.
         monkeypatch.setenv("ATELIER_DB_URL", "postgresql+asyncpg://u:p@localhost:5432/test")
-        session_mod._settings.cache_clear()
+        session_mod._settings.cache_clear()  # pyright: ignore[reportPrivateUsage]  # lru_cache 検証
         engine = create_engine()
         try:
             assert isinstance(engine, AsyncEngine)

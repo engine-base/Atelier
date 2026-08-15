@@ -9,6 +9,8 @@ tasks_*_member) が信頼源で、project member でない task は session か�
 
 from __future__ import annotations
 
+from typing import cast
+
 import networkx as nx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +52,7 @@ async def _fetch_project_edges(
     for row in rows:
         tid = str(row.id)
         nodes.append(tid)
-        deps = row.dependencies or []
+        deps = cast("list[object]", row.dependencies or [])
         for dep in deps:
             edges.append((str(dep), tid))
     return nodes, edges
@@ -68,10 +70,12 @@ async def analyze_downstream(
         return None
     nodes, edges = await _fetch_project_edges(session, project_id)
     g: nx.DiGraph[str] = nx.DiGraph()
-    g.add_nodes_from(nodes)
+    g.add_nodes_from(nodes)  # pyright: ignore[reportUnknownMemberType]  # networkx の **attr が Unknown
     # 同 project 内で両端が可視なエッジのみ採用 (外部参照は無視)
     node_set = set(nodes)
-    g.add_edges_from((u, v) for (u, v) in edges if u in node_set and v in node_set)
+    g.add_edges_from(  # pyright: ignore[reportUnknownMemberType]  # networkx の **attr が Unknown
+        (u, v) for (u, v) in edges if u in node_set and v in node_set
+    )
     if task_id not in g:  # pragma: no cover - project_id 取得直後に保証される
         return None
     descendants = sorted(nx.descendants(g, task_id))

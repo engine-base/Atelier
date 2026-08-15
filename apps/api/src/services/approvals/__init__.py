@@ -8,7 +8,7 @@ or rejected の状態遷移で resolved_at を自動セット、状態変更で 
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,9 +27,9 @@ def _payload(value: object) -> dict[str, object]:
         return {}
     if isinstance(value, str):
         loaded: Any = json.loads(value)
-        return loaded if isinstance(loaded, dict) else {}
+        return cast("dict[str, object]", loaded) if isinstance(loaded, dict) else {}
     if isinstance(value, dict):
-        return value
+        return cast("dict[str, object]", value)
     return {}
 
 

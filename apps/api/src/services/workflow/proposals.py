@@ -23,8 +23,8 @@ from src.audit import AuditEvent, AuditWriter
 from src.llm.client import LLMMessage
 from src.schemas.workflow import PhaseProposalResponse, PhaseResponse
 
-from . import _row_to_response as _phase_row_to_response
 from . import is_uuid
+from . import phase_row_to_response as _phase_row_to_response
 
 PROPOSE_MODEL = os.environ.get("ATELIER_COO_MODEL", "claude-sonnet-4-6")
 

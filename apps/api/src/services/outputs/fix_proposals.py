@@ -27,8 +27,8 @@ from src.schemas.outputs import FixProposalResponse, OutputResponse
 from . import get_output, is_uuid
 from .revise import (
     REVISE_MODEL,
+    CompletionClient,
     OutputReviseError,
-    _CompletionClient,
     download_html,
     revise_output,
 )
@@ -70,7 +70,7 @@ async def list_for_output(session: AsyncSession, output_id: str) -> list[FixProp
 
 
 async def _generate_proposal(
-    doc_html: str, comment_content: str, client: _CompletionClient | None
+    doc_html: str, comment_content: str, client: CompletionClient | None
 ) -> tuple[str, str]:
     """提案文を生成する。返り値 (提案文, 使用モデル)。"""
     if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
@@ -117,7 +117,7 @@ async def propose(
     *,
     actor_id: str,
     comment_id: str,
-    client: _CompletionClient | None = None,
+    client: CompletionClient | None = None,
 ) -> FixProposalResponse | None:
     """コメントへの修正提案を生成する。
 
@@ -191,7 +191,7 @@ async def approve(
     *,
     actor_id: str,
     proposal_id: str,
-    client: _CompletionClient | None = None,
+    client: CompletionClient | None = None,
 ) -> tuple[FixProposalResponse, OutputResponse] | None:
     """承認 = 提案を修正指示として revise 実行 → 新バージョン + approved。
 

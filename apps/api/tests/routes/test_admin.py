@@ -15,7 +15,7 @@ import os
 import time
 import uuid
 from collections.abc import AsyncGenerator, Iterator
-from typing import Annotated
+from typing import Annotated, cast
 
 import pytest
 
@@ -381,12 +381,16 @@ class TestAdminDashboard:
         h = {"Authorization": f"Bearer {_mint_jwt(seeded_dashboard['u_admin'], admin=True)}"}
         # bootstrap トリガの既定社員 + fixture seed 1 名 = scope 内の実数を DB 突合
         with sync_engine.connect() as c:
-            expected_emps = c.execute(
-                text(
-                    "select count(*) from public.ai_employees where workspace_id = cast(:w as uuid)"
-                ),
-                {"w": seeded_dashboard["ws_admin"]},
-            ).scalar()
+            expected_emps = cast(
+                "int",
+                c.execute(
+                    text(
+                        "select count(*) from public.ai_employees "
+                        "where workspace_id = cast(:w as uuid)"
+                    ),
+                    {"w": seeded_dashboard["ws_admin"]},
+                ).scalar(),
+            )
         with TestClient(app) as client:
             r = client.get("/admin/dashboard", headers=h)
             assert r.status_code == 200, r.text

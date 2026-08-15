@@ -12,17 +12,18 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Awaitable
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.tasks import PlayTaskRequest
 from src.services.tasks import (
     PlayResult,
-    _all_deps_done,
-    _running_execution_count,
+    _all_deps_done,  # pyright: ignore[reportPrivateUsage]  # DB-free unit が private helper を直接検証
+    _running_execution_count,  # pyright: ignore[reportPrivateUsage]  # 同上
     play_task,
 )
 
@@ -60,12 +61,8 @@ class _StubSession:
         return self._responses.pop(0)
 
 
-def _run(coro: Awaitable[Any]) -> Any:
-    return asyncio.get_event_loop().run_until_complete(coro)
-
-
 @pytest.fixture()
-def event_loop():
+def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
@@ -79,22 +76,32 @@ class TestPlayTaskUnit:
         assert PlayResult.INVALID_STATE == "invalid_state"
         assert PlayResult.DEPS_UNMET == "deps_unmet"
 
-    def test_running_execution_count_returns_int(self, event_loop) -> None:
+    def test_running_execution_count_returns_int(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         # _running_execution_count: scalar_one() の int キャスト経路
         session = _StubSession([_StubResult(value=3)])
         asyncio.set_event_loop(event_loop)
-        result = event_loop.run_until_complete(_running_execution_count(session))  # type: ignore[arg-type]
+        result = event_loop.run_until_complete(
+            _running_execution_count(cast("AsyncSession", session))
+        )
         assert result == 3
         assert "task_executions" in session.executed_queries[0][0]
 
-    def test_all_deps_done_no_deps_returns_true(self, event_loop) -> None:
+    def test_all_deps_done_no_deps_returns_true(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         # _all_deps_done: row is None ブランチ
         session = _StubSession([_StubResult(rows=None)])
         asyncio.set_event_loop(event_loop)
-        ok = event_loop.run_until_complete(_all_deps_done(session, task_id=str(uuid.uuid4())))  # type: ignore[arg-type]
+        ok = event_loop.run_until_complete(
+            _all_deps_done(cast("AsyncSession", session), task_id=str(uuid.uuid4()))
+        )
         assert ok is True
 
-    def test_all_deps_done_empty_dependencies_array(self, event_loop) -> None:
+    def test_all_deps_done_empty_dependencies_array(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         # row.dependencies が空配列のブランチ
         @dataclass
         class _Row:
@@ -102,10 +109,14 @@ class TestPlayTaskUnit:
 
         session = _StubSession([_StubResult(rows=[_Row(dependencies=[])])])
         asyncio.set_event_loop(event_loop)
-        ok = event_loop.run_until_complete(_all_deps_done(session, task_id=str(uuid.uuid4())))  # type: ignore[arg-type]
+        ok = event_loop.run_until_complete(
+            _all_deps_done(cast("AsyncSession", session), task_id=str(uuid.uuid4()))
+        )
         assert ok is True
 
-    def test_all_deps_done_with_deps_all_complete(self, event_loop) -> None:
+    def test_all_deps_done_with_deps_all_complete(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         @dataclass
         class _Row:
             dependencies: list[str]
@@ -118,10 +129,14 @@ class TestPlayTaskUnit:
             ]
         )
         asyncio.set_event_loop(event_loop)
-        ok = event_loop.run_until_complete(_all_deps_done(session, task_id=str(uuid.uuid4())))  # type: ignore[arg-type]
+        ok = event_loop.run_until_complete(
+            _all_deps_done(cast("AsyncSession", session), task_id=str(uuid.uuid4()))
+        )
         assert ok is True
 
-    def test_all_deps_done_with_deps_incomplete(self, event_loop) -> None:
+    def test_all_deps_done_with_deps_incomplete(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         @dataclass
         class _Row:
             dependencies: list[str]
@@ -134,15 +149,19 @@ class TestPlayTaskUnit:
             ]
         )
         asyncio.set_event_loop(event_loop)
-        ok = event_loop.run_until_complete(_all_deps_done(session, task_id=str(uuid.uuid4())))  # type: ignore[arg-type]
+        ok = event_loop.run_until_complete(
+            _all_deps_done(cast("AsyncSession", session), task_id=str(uuid.uuid4()))
+        )
         assert ok is False
 
-    def test_play_task_not_found_when_task_missing(self, event_loop) -> None:
+    def test_play_task_not_found_when_task_missing(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         session = _StubSession([_StubResult(rows=None)])
         asyncio.set_event_loop(event_loop)
         code, payload = event_loop.run_until_complete(
-            play_task(  # type: ignore[arg-type]
-                session,
+            play_task(
+                cast("AsyncSession", session),
                 actor_id=str(uuid.uuid4()),
                 task_id=str(uuid.uuid4()),
                 data=PlayTaskRequest(force=False),
@@ -151,7 +170,7 @@ class TestPlayTaskUnit:
         assert code == PlayResult.NOT_FOUND
         assert payload is None
 
-    def test_play_task_invalid_state_when_done(self, event_loop) -> None:
+    def test_play_task_invalid_state_when_done(self, event_loop: asyncio.AbstractEventLoop) -> None:
         @dataclass
         class _Row:
             lifecycle_stage: str
@@ -163,8 +182,8 @@ class TestPlayTaskUnit:
         )
         asyncio.set_event_loop(event_loop)
         code, payload = event_loop.run_until_complete(
-            play_task(  # type: ignore[arg-type]
-                session,
+            play_task(
+                cast("AsyncSession", session),
                 actor_id=str(uuid.uuid4()),
                 task_id=str(uuid.uuid4()),
                 data=PlayTaskRequest(force=False),

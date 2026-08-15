@@ -14,7 +14,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ def _row_to_response(row: Any) -> McpTokenResponse:
         id=str(row.id),
         workspace_id=str(row.workspace_id),
         name=str(row.name),
-        scopes=[str(s) for s in (row.scopes or [])],
+        scopes=[str(s) for s in cast("list[object]", row.scopes or [])],
         expires_at=row.expires_at,
         revoked_at=row.revoked_at,
         last_used_at=row.last_used_at,

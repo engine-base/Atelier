@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ def is_admin(user: CurrentUser) -> bool:
     claims = user.claims
     for key in ("app_metadata", "user_metadata"):
         meta = claims.get(key)
-        if isinstance(meta, dict) and meta.get("role") == "admin":
+        if isinstance(meta, dict) and cast("dict[str, object]", meta).get("role") == "admin":
             return True
     return claims.get("user_role") == "admin"
 
@@ -46,9 +46,9 @@ def _json(value: object) -> dict[str, object] | None:
         return None
     if isinstance(value, str):
         loaded: Any = json.loads(value)
-        return loaded if isinstance(loaded, dict) else None
+        return cast("dict[str, object]", loaded) if isinstance(loaded, dict) else None
     if isinstance(value, dict):
-        return value
+        return cast("dict[str, object]", value)
     return None
 
 
@@ -73,7 +73,7 @@ _SKILL_COLS = (
     "allowed_employee_roles, allowed_employee_ids, is_active, created_at, updated_at"
 )
 
-_TPL_COLS = (
+TPL_COLS = (
     "id, default_name, default_display_name, default_icon, department, role, "
     "default_skills, default_knowledge_cats, system_prompt, specialty, version, "
     "is_active, created_at, updated_at"
@@ -90,15 +90,17 @@ def _skill_to_response(row: Any) -> AdminSkillResponse:
         assets_storage_path=(
             None if row.assets_storage_path is None else str(row.assets_storage_path)
         ),
-        allowed_employee_roles=[str(r) for r in (row.allowed_employee_roles or [])],
-        allowed_employee_ids=[str(i) for i in (row.allowed_employee_ids or [])],
+        allowed_employee_roles=[
+            str(r) for r in cast("list[object]", row.allowed_employee_roles or [])
+        ],
+        allowed_employee_ids=[str(i) for i in cast("list[object]", row.allowed_employee_ids or [])],
         is_active=bool(row.is_active),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
 
 
-def _tpl_to_response(row: Any) -> AdminTemplateResponse:
+def tpl_to_response(row: Any) -> AdminTemplateResponse:
     return AdminTemplateResponse(
         id=str(row.id),
         default_name=str(row.default_name),
@@ -106,8 +108,10 @@ def _tpl_to_response(row: Any) -> AdminTemplateResponse:
         default_icon=(None if row.default_icon is None else str(row.default_icon)),
         department=str(row.department),
         role=str(row.role),
-        default_skills=[str(s) for s in (row.default_skills or [])],
-        default_knowledge_cats=[str(c) for c in (row.default_knowledge_cats or [])],
+        default_skills=[str(s) for s in cast("list[object]", row.default_skills or [])],
+        default_knowledge_cats=[
+            str(c) for c in cast("list[object]", row.default_knowledge_cats or [])
+        ],
         system_prompt=str(row.system_prompt),
         specialty=str(row.specialty),
         version=int(row.version),
@@ -163,23 +167,23 @@ async def list_templates_admin(
         params["d"] = department
     res = await session.execute(
         text(
-            f"select {_TPL_COLS} from public.ai_employee_templates "
+            f"select {TPL_COLS} from public.ai_employee_templates "
             f"where {' and '.join(where)} order by department, default_name, version desc"
         ),
         params,
     )
-    return [_tpl_to_response(r) for r in res.all()]
+    return [tpl_to_response(r) for r in res.all()]
 
 
 async def get_template_admin(
     session: AsyncSession, template_id: str
 ) -> AdminTemplateResponse | None:
     res = await session.execute(
-        text(f"select {_TPL_COLS} from public.ai_employee_templates where id = cast(:id as uuid)"),
+        text(f"select {TPL_COLS} from public.ai_employee_templates where id = cast(:id as uuid)"),
         {"id": template_id},
     )
     row = res.first()
-    return None if row is None else _tpl_to_response(row)
+    return None if row is None else tpl_to_response(row)
 
 
 async def list_audit_logs(

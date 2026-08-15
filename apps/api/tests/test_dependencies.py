@@ -131,11 +131,12 @@ def test_get_current_user_secret_not_configured(monkeypatch: pytest.MonkeyPatch)
 
 def test_auth_settings_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATELIER_AUTH_JWT_SECRET", "from-env-secret")
-    deps._auth_settings.cache_clear()
+    auth_settings = deps._auth_settings  # pyright: ignore[reportPrivateUsage]  # lru_cache 検証
+    auth_settings.cache_clear()
     try:
-        assert deps._auth_settings().jwt_secret == "from-env-secret"
+        assert auth_settings().jwt_secret == "from-env-secret"
     finally:
-        deps._auth_settings.cache_clear()
+        auth_settings.cache_clear()
 
 
 # --------------------------------------------------------------------------- #

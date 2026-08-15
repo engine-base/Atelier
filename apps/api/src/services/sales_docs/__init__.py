@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,13 +45,13 @@ def is_uuid(value: str) -> bool:
 def _meta(row: Any) -> dict[str, object]:
     raw = row.meta
     if isinstance(raw, dict):
-        return raw
+        return cast("dict[str, object]", raw)
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
         except ValueError:
             return {}
-        return parsed if isinstance(parsed, dict) else {}
+        return cast("dict[str, object]", parsed) if isinstance(parsed, dict) else {}
     return {}
 
 
@@ -112,7 +112,7 @@ async def get_sales_doc(session: AsyncSession, doc_id: str) -> SalesDocResponse 
     return None if row is None else _row_to_response(row)
 
 
-async def _next_version(session: AsyncSession, *, project_id: str, doc_type: str) -> int:
+async def next_version(session: AsyncSession, *, project_id: str, doc_type: str) -> int:
     res = await session.execute(
         text(
             "select coalesce(max(version), 0) + 1 from public.workflow_outputs "
@@ -127,7 +127,7 @@ async def create_sales_doc(
     session: AsyncSession, *, actor_id: str, data: SalesDocCreate
 ) -> SalesDocResponse | None:
     new_id = str(uuid.uuid4())
-    version = await _next_version(session, project_id=data.project_id, doc_type=data.doc_type)
+    version = await next_version(session, project_id=data.project_id, doc_type=data.doc_type)
     res = await session.execute(
         text(
             "insert into public.workflow_outputs "

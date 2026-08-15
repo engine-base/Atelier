@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import uuid as uuid_mod
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,13 +36,13 @@ _COLS = (
 def _meta(row: Any) -> dict[str, object]:
     raw = row.meta
     if isinstance(raw, dict):
-        return raw
+        return cast("dict[str, object]", raw)
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
         except ValueError:
             return {}
-        return parsed if isinstance(parsed, dict) else {}
+        return cast("dict[str, object]", parsed) if isinstance(parsed, dict) else {}
     return {}
 
 

@@ -56,7 +56,7 @@ class OutputReviseError(Exception):
         self.message = message
 
 
-class _CompletionClient(Protocol):
+class CompletionClient(Protocol):
     async def complete(
         self,
         *,
@@ -148,7 +148,7 @@ def extract_anchors(html: str, *, limit: int = 50) -> list[OutputAnchorResponse]
 
 
 async def run_revision(
-    html: str, instruction: str, client: _CompletionClient | None
+    html: str, instruction: str, client: CompletionClient | None
 ) -> tuple[str, str]:
     """LLM (または fake スタブ) で HTML を改訂する。返り値 (改訂 HTML, 使用モデル)。"""
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
@@ -190,7 +190,7 @@ async def revise_output(
     actor_id: str,
     output_id: str,
     instruction: str,
-    client: _CompletionClient | None = None,
+    client: CompletionClient | None = None,
     audit_action: str = "output.revise",
 ) -> OutputResponse | None:
     """修正指示から新バージョンを生成する。返り値 None = output 不可視/不在。"""

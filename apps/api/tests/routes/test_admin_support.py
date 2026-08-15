@@ -14,7 +14,7 @@ import os
 import time
 import uuid
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -75,16 +75,16 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
     from src.services.support import (
-        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+        _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
     )
 
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
     from src.routes import api_router
 
     application = FastAPI()
     application.include_router(api_router)
     yield application
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
 
 
 @pytest.fixture()
@@ -142,7 +142,11 @@ class TestSupportContact:
                     ),
                     {"t": seeded["member"]},
                 ).one()
-                after = row.after if isinstance(row.after, dict) else json.loads(row.after)
+                after_raw: Any = row.after
+                after = cast(
+                    "dict[str, Any]",
+                    after_raw if isinstance(after_raw, dict) else json.loads(after_raw),
+                )
                 assert after["subject"] == subject
                 assert after["dry_run"] is True
             # 履歴逆引き

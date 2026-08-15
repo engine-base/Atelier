@@ -54,7 +54,7 @@ CANONICAL_PHASE_NAMES: tuple[str, ...] = (
 )
 
 
-def _row_to_response(row: Any) -> PhaseResponse:
+def phase_row_to_response(row: Any) -> PhaseResponse:
     return PhaseResponse(
         id=str(row.id),
         project_id=str(row.project_id),
@@ -81,7 +81,7 @@ async def list_phases(
         text(f'select {_COLS} from public.phases where {" and ".join(where)} order by "order"'),
         params,
     )
-    return [_row_to_response(r) for r in res.all()]
+    return [phase_row_to_response(r) for r in res.all()]
 
 
 async def get_phase(session: AsyncSession, phase_id: str) -> PhaseResponse | None:
@@ -90,7 +90,7 @@ async def get_phase(session: AsyncSession, phase_id: str) -> PhaseResponse | Non
         {"id": phase_id},
     )
     row = res.first()
-    return None if row is None else _row_to_response(row)
+    return None if row is None else phase_row_to_response(row)
 
 
 async def create_phase(session: AsyncSession, *, actor_id: str, data: PhaseCreate) -> PhaseResponse:

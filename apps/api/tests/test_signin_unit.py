@@ -12,18 +12,20 @@ import hashlib
 import os
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", "unit-test-secret")
 
 from src.services.auth import (
     SigninError,
-    _count_recent_failures,
-    _mint_access_token,
-    _verify_password_local,
+    _count_recent_failures,  # pyright: ignore[reportPrivateUsage]  # DB-free unit が private helper を直接検証
+    _mint_access_token,  # pyright: ignore[reportPrivateUsage]  # 同上
+    _verify_password_local,  # pyright: ignore[reportPrivateUsage]  # 同上
 )
 
 
@@ -48,14 +50,14 @@ class _StubSession:
 
 
 @pytest.fixture()
-def event_loop():
+def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
 
 class TestMintAccessToken:
-    def test_mint_produces_decodable_jwt(self, event_loop) -> None:
+    def test_mint_produces_decodable_jwt(self, event_loop: asyncio.AbstractEventLoop) -> None:
         from src.dependencies import decode_supabase_jwt
 
         uid = str(uuid.uuid4())
@@ -75,16 +77,16 @@ class TestMintAccessToken:
 
 
 class TestCountRecentFailures:
-    def test_returns_int(self, event_loop) -> None:
+    def test_returns_int(self, event_loop: asyncio.AbstractEventLoop) -> None:
         session = _StubSession([_StubResult(value=3)])
         result = event_loop.run_until_complete(
-            _count_recent_failures(session, email="a@example.com")  # type: ignore[arg-type]
+            _count_recent_failures(cast("AsyncSession", session), email="a@example.com")
         )
         assert result == 3
 
 
 class TestVerifyPasswordLocal:
-    def test_correct_password_returns_uid(self, event_loop) -> None:
+    def test_correct_password_returns_uid(self, event_loop: asyncio.AbstractEventLoop) -> None:
         @dataclass
         class _Row:
             id: str
@@ -95,11 +97,15 @@ class TestVerifyPasswordLocal:
         pw_hash = hashlib.sha256(pw.encode()).hexdigest()
         session = _StubSession([_StubResult(rows=[_Row(id=uid, encrypted_password=pw_hash)])])
         result = event_loop.run_until_complete(
-            _verify_password_local(session, email="a@example.com", password=pw)  # type: ignore[arg-type]
+            _verify_password_local(
+                cast("AsyncSession", session), email="a@example.com", password=pw
+            )
         )
         assert result == uid
 
-    def test_wrong_password_raises_invalid_credentials(self, event_loop) -> None:
+    def test_wrong_password_raises_invalid_credentials(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         @dataclass
         class _Row:
             id: str
@@ -109,15 +115,21 @@ class TestVerifyPasswordLocal:
         session = _StubSession([_StubResult(rows=[_Row(id="u", encrypted_password=pw_hash)])])
         with pytest.raises(SigninError) as ei:
             event_loop.run_until_complete(
-                _verify_password_local(session, email="a@example.com", password="wrong")  # type: ignore[arg-type]
+                _verify_password_local(
+                    cast("AsyncSession", session), email="a@example.com", password="wrong"
+                )
             )
         assert ei.value.code == "invalid_credentials"
 
-    def test_unknown_user_raises_invalid_credentials(self, event_loop) -> None:
+    def test_unknown_user_raises_invalid_credentials(
+        self, event_loop: asyncio.AbstractEventLoop
+    ) -> None:
         session = _StubSession([_StubResult(rows=None)])
         with pytest.raises(SigninError) as ei:
             event_loop.run_until_complete(
-                _verify_password_local(session, email="x@example.com", password="pw")  # type: ignore[arg-type]
+                _verify_password_local(
+                    cast("AsyncSession", session), email="x@example.com", password="pw"
+                )
             )
         assert ei.value.code == "invalid_credentials"
 

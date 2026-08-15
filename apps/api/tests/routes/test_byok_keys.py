@@ -40,7 +40,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
-from src.services.byok_keys import _fernet, decrypt_key  # noqa: E402
+from src.services.byok_keys import (  # noqa: E402
+    _fernet,  # pyright: ignore[reportPrivateUsage]  # テストが lru_cache を直接 clear する
+    decrypt_key,
+)
 
 
 def _b64url(data: bytes) -> str:
@@ -84,7 +87,7 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 
 
 @pytest.fixture(autouse=True)
-def _ensure_fernet_cache() -> Iterator[None]:
+def ensure_fernet_cache() -> Iterator[None]:
     """テスト用 env を確実に有効化するため lru_cache をクリア。"""
     _fernet.cache_clear()
     yield

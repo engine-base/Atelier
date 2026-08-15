@@ -47,7 +47,7 @@ async def _load_analysis(session: AsyncSession, analysis_id: str) -> Any | None:
     return res.first()
 
 
-def _to_response(row: Any, affected: list[ImpactAffectedTask]) -> ImpactAnalysisResponse:
+def to_response(row: Any, affected: list[ImpactAffectedTask]) -> ImpactAnalysisResponse:
     return ImpactAnalysisResponse(
         id=str(row.id),
         task_id=str(row.task_id),

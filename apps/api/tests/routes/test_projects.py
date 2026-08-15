@@ -312,7 +312,7 @@ class TestProjectsCrud:
             assert any(a["action"] == "task.create" for a in d["recent_activities"])
             client.delete(f"/projects/{pid}", headers=h)
 
-    def test_ai_learning_toggle(self, app, seeded):
+    def test_ai_learning_toggle(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:
             pid = client.post(

@@ -85,10 +85,10 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 def app() -> Iterator[FastAPI]:
     # service 層の lru_cache をクリア (ATELIER_DB_URL を確実に反映)。
     from src.services.skills import (
-        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+        _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
     )
 
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
     from src.routes import api_router
 
     # GET /skills (get_rls_session) 用: TestClient ブロック毎に event loop が変わる
@@ -118,7 +118,7 @@ def app() -> Iterator[FastAPI]:
     application.dependency_overrides[get_rls_session] = _override_session
     yield application
     asyncio.run(test_engine.dispose())
-    _service_session_factory.cache_clear()
+    _session_factory_for_loop.cache_clear()
 
 
 @pytest.fixture()
@@ -397,7 +397,7 @@ def test_list_skills_active_only_filter(app: FastAPI, seeded: dict[str, str]) ->
         assert body["name"] in names_all
 
 
-def test_admin_create_skill_duplicate_409(app, seeded) -> None:  # type: ignore[no-untyped-def]
+def test_admin_create_skill_duplicate_409(app: FastAPI, seeded: dict[str, str]) -> None:
     """S-T02: name+version 重複の登録は 500 でなく 409 を返す (design-audit v2 実バグ修正)。"""
     import uuid as _uuid
 
@@ -405,7 +405,7 @@ def test_admin_create_skill_duplicate_409(app, seeded) -> None:  # type: ignore[
     from fastapi.testclient import TestClient as _TC
 
     name = f"dup-skill-{str(_uuid.uuid4())[:8]}"
-    body = {
+    body: dict[str, Any] = {
         "name": name,
         "version": "1.0.0",
         "content_md": "# dup",
