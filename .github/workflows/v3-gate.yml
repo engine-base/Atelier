@@ -648,6 +648,10 @@ jobs:
 
           for sf in sql_files:
               text = sf.read_text(encoding="utf-8")
+              # SQL 行コメント (-- ...) を除去してから走査する。
+              # コメント内の "create table if not exists /" 等の文言に regex が
+              # 誤マッチし、幻テーブル ("if" 等) を検出する事故を防ぐ。
+              text = re.sub(r"--[^\n]*", "", text)
               tables.update(create_table_re.findall(text))
               for t in policy_re.findall(text):
                   policies_by_table.setdefault(t, 0)

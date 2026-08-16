@@ -12,7 +12,7 @@
 -- RLS: 本人のみ SELECT 可。INSERT/UPDATE/DELETE の policy は置かない (default deny)。
 --   書き込みはサーバー (service_role 相当 session, RLS バイパス) のみが行う。
 --
--- Idempotency: create table if not exists / drop policy if exists → create。
+-- Idempotency: create-table-if-not-exists / drop-policy-if-exists → create。
 
 begin;
 
