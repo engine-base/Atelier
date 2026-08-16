@@ -12,6 +12,7 @@ from src.routes.admin_knowledge import router as admin_knowledge_router
 from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
 from src.routes.auth import router as auth_router
+from src.routes.billing import router as billing_router
 from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
 from src.routes.chat_sse import router as chat_sse_router
@@ -79,5 +80,6 @@ api_router.include_router(users_router)
 api_router.include_router(search_router)
 api_router.include_router(contract_router)
 api_router.include_router(client_signin_router)
+api_router.include_router(billing_router)
 
 __all__ = ["api_router"]

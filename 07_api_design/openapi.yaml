@@ -360,6 +360,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         description: { type: string, nullable: true }
+        icon: { type: string, nullable: true, description: '絵文字または 1〜3 文字 (最大 8 バイト)。null は頭文字表示 (GAP-021)' }
         member_count: { type: integer }
         project_count: { type: integer }
         plan: { type: string, enum: [free, pro, enterprise] }
@@ -2383,6 +2384,67 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /auth/oauth/providers:
+    get:
+      tags: [auth]
+      summary: 有効な OAuth プロバイダ一覧 (env 未設定は載せない = 死にボタン禁止 / GAP-020)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::oauth_providers
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      responses:
+        '200':
+          description: 有効プロバイダ (両方未設定なら空配列)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, enum: [google, github] }
+                        display_name: { type: string }
+
+  /auth/oauth/{provider}/start:
+    get:
+      tags: [auth]
+      summary: OAuth 認可フロー開始 (302 でプロバイダ認可 URL へ / GAP-020)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::oauth_start
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [google, github] } }
+      responses:
+        '302':
+          description: プロバイダ認可 URL へ redirect (client_id / redirect_uri / HS256 署名 state 10 分)
+        '422': { description: provider が enum 外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: プロバイダ env 未設定 (偽装しない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /auth/oauth/{provider}/callback:
+    get:
+      tags: [auth]
+      summary: OAuth コールバック (code 交換 → 連付け → JWT → web へ 302 / GAP-020)
+      security: []
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::oauth_callback
+      x-screen-ids: [S-A01]
+      x-feature-ids: [F-001]
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [google, github] } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        '302':
+          description: 成功 = /auth/oauth-complete へ (フラグメントで access_token/expires_at)。プロバイダ拒否・交換失敗・退会済は ?error= で誠実 redirect
+        '400': { description: code/state 欠落・state 改竄/期限切れ/provider 不一致・email 未検証 (偽アカウントを作らない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: provider が enum 外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: プロバイダ env 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+
   /auth/password-reset/request:
     post:
       tags: [auth]
@@ -2796,6 +2858,7 @@ paths:
               properties:
                 name: { type: string, minLength: 2, maxLength: 50 }
                 description: { type: string }
+                icon: { type: string, nullable: true, maxLength: 8, description: '絵文字/1〜3 文字。""/null でクリア。8 バイト超・制御文字は 422 (GAP-021)' }
       responses:
         '200':
           description: 更新成功
@@ -2818,6 +2881,124 @@ paths:
         '204': { description: 削除成功 }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ==========================================================================
+  # billing (GAP-021: S-A03 プランタブ — Stripe テストモード連携)
+  # ==========================================================================
+  /billing/plan:
+    get:
+      tags: [billing]
+      summary: 現在の課金プラン (workspace_billing 行なし = free を誠実返却)
+      x-implementation-path: apps/api/src/routes/billing/__init__.py::get_plan
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: workspace_id, in: query, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 現在プラン + stripe_configured (false ならフロントはアップグレード導線を出さない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      workspace_id: { type: string, format: uuid }
+                      plan: { type: string, enum: [free, pro] }
+                      status: { type: string }
+                      current_period_end: { type: string, format: date-time, nullable: true }
+                      stripe_configured: { type: boolean }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: WS 不在 or 非メンバー (R-T08), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /billing/checkout:
+    post:
+      tags: [billing]
+      summary: Stripe Checkout Session 作成 (mode=subscription / JPY 5000 月額 price_data インライン)
+      x-implementation-path: apps/api/src/routes/billing/__init__.py::create_checkout
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id]
+              properties:
+                workspace_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Checkout Session 作成 (url へ遷移して決済)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+                      session_id: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: WS 不在 or 非メンバー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: Stripe 上流エラー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: STRIPE_SECRET_KEY 未設定 (偽装しない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /billing/checkout/{session_id}:
+    get:
+      tags: [billing]
+      summary: Checkout 照会 (paid なら pro へ反映 — 成功ページのポーリング用・webhook 無し環境でも完結)
+      x-implementation-path: apps/api/src/routes/billing/__init__.py::get_checkout_status
+      x-screen-ids: [S-A03]
+      parameters:
+        - { name: session_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 照会結果 (paid でなければ既存プランのまま — 偽の成功を出さない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      session_id: { type: string }
+                      payment_status: { type: string }
+                      status: { type: string }
+                      workspace_id: { type: string, format: uuid }
+                      plan: { type: string, enum: [free, pro] }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: session 不在 or 非メンバー WS, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: Stripe 上流エラー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: STRIPE_SECRET_KEY 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /billing/webhook:
+    post:
+      tags: [billing]
+      summary: Stripe webhook (Stripe-Signature HMAC v1 検証 / checkout.session.completed・subscription.updated/deleted)
+      security: []
+      x-implementation-path: apps/api/src/routes/billing/__init__.py::stripe_webhook
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: 受理
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received: { type: boolean }
+                  workspace_id: { type: string, nullable: true }
+        '400': { description: 署名不正/期限超過/payload 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: STRIPE_WEBHOOK_SECRET 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
 
   # ==========================================================================
   # workspace-members (招待・ロール・削除)

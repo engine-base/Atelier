@@ -253,6 +253,10 @@ class Workspace(BaseModel):
     id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    icon: str | None = None
+    """
+    絵文字または 1〜3 文字 (最大 8 バイト)。null は頭文字表示 (GAP-021)
+    """
     member_count: int | None = None
     project_count: int | None = None
     plan: Plan | None = None

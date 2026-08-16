@@ -4,6 +4,7 @@
  *   - GET /workspaces/{id} で名称をフォームに反映
  *   - 保存で PATCH /workspaces/{id} {name} + POST /account/ai-learning {opt_out}
  *   - 403 拒否
+ *   - GAP-021: アイコン表示 (icon 優先 / 未設定は頭文字) と「変更」→ PATCH {icon}
  */
 
 // @vitest-environment jsdom
@@ -102,6 +103,109 @@ describe("S-A03 WorkspaceSettingsContainer (T-UC-02)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
     );
+  });
+
+  it("changes the workspace icon via PATCH {icon} (GAP-021)", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS", icon: null } }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get, patch })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    // 未設定時は頭文字案内を出す
+    expect(screen.getByText(/名前の頭文字を表示します/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "変更" }));
+    const input = screen.getByLabelText(/アイコン（絵文字または短い文字）/);
+    fireEvent.change(input, { target: { value: "🎨" } });
+    fireEvent.click(screen.getByRole("button", { name: "アイコンを保存" }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [patchPath, patchInit] = patch.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { workspace_id: string } }; body: { icon: string } },
+    ];
+    expect(patchPath).toBe("/workspaces/{workspace_id}");
+    expect(patchInit.params.path.workspace_id).toBe("w1");
+    expect(patchInit.body.icon).toBe("🎨");
+  });
+
+  it("shows the stored icon instead of the initial and can clear it", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS", icon: "🚀" } }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get, patch })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    expect(screen.getByText("🚀")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "変更" }));
+    fireEvent.click(screen.getByRole("button", { name: "クリア" }));
+
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const [, patchInit] = patch.mock.calls[0]! as unknown as [
+      string,
+      { body: { icon: string | null } },
+    ];
+    expect(patchInit.body.icon).toBeNull();
+  });
+
+  it("rejects an icon longer than 8 bytes client-side (no PATCH)", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS", icon: null } }));
+    const patch = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get, patch })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    fireEvent.click(screen.getByRole("button", { name: "変更" }));
+    fireEvent.change(
+      screen.getByLabelText(/アイコン（絵文字または短い文字）/),
+      { target: { value: "アトリエ" } }, // 12 バイト
+    );
+    fireEvent.click(screen.getByRole("button", { name: "アイコンを保存" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "アイコンは絵文字 1 つまたは 1〜3 文字までです。",
+    );
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it("renders the plan tab in the settings navigation (GAP-021)", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS" } }));
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    const nav = screen.getByRole("navigation", { name: "設定セクション" });
+    const labels = Array.from(nav.querySelectorAll("a")).map(
+      (a) => a.textContent,
+    );
+    // モックのタブ順 (プランは AI学習 と 退会 の間)
+    expect(labels).toEqual([
+      "基本情報",
+      "メンバー",
+      "招待管理",
+      "MCPトークン",
+      "AI学習",
+      "プラン",
+      "退会",
+    ]);
+    // プランセクション実体 (PlanSection) も描画される
+    expect(
+      document.getElementById("ws-plan"),
+    ).not.toBeNull();
   });
 
   it("rolls back and shows an error when the save fails", async () => {

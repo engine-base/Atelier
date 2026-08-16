@@ -459,6 +459,169 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/oauth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 有効な OAuth プロバイダ一覧 (env 未設定は載せない = 死にボタン禁止 / GAP-020) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 有効プロバイダ (両方未設定なら空配列) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @enum {string} */
+                                id?: "google" | "github";
+                                display_name?: string;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/{provider}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** OAuth 認可フロー開始 (302 でプロバイダ認可 URL へ / GAP-020) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    provider: "google" | "github";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description プロバイダ認可 URL へ redirect (client_id / redirect_uri / HS256 署名 state 10 分) */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description provider が enum 外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description プロバイダ env 未設定 (偽装しない) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oauth/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** OAuth コールバック (code 交換 → 連付け → JWT → web へ 302 / GAP-020) */
+        get: {
+            parameters: {
+                query?: {
+                    code?: string;
+                    state?: string;
+                    error?: string;
+                };
+                header?: never;
+                path: {
+                    provider: "google" | "github";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成功 = /auth/oauth-complete へ (フラグメントで access_token/expires_at)。プロバイダ拒否・交換失敗・退会済は ?error= で誠実 redirect */
+                302: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description code/state 欠落・state 改竄/期限切れ/provider 不一致・email 未検証 (偽アカウントを作らない) */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description provider が enum 外 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description プロバイダ env 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/password-reset/request": {
         parameters: {
             query?: never;
@@ -1307,6 +1470,8 @@ export interface paths {
                     "application/json": {
                         name?: string;
                         description?: string;
+                        /** @description 絵文字/1〜3 文字。""/null でクリア。8 バイト超・制御文字は 422 (GAP-021) */
+                        icon?: string | null;
                     };
                 };
             };
@@ -1342,6 +1507,302 @@ export interface paths {
                 };
             };
         };
+        trace?: never;
+    };
+    "/billing/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 現在の課金プラン (workspace_billing 行なし = free を誠実返却) */
+        get: {
+            parameters: {
+                query: {
+                    workspace_id: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 現在プラン + stripe_configured (false ならフロントはアップグレード導線を出さない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                workspace_id?: string;
+                                /** @enum {string} */
+                                plan?: "free" | "pro";
+                                status?: string;
+                                /** Format: date-time */
+                                current_period_end?: string | null;
+                                stripe_configured?: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description WS 不在 or 非メンバー (R-T08) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stripe Checkout Session 作成 (mode=subscription / JPY 5000 月額 price_data インライン) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        workspace_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Checkout Session 作成 (url へ遷移して決済) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                url?: string;
+                                session_id?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description WS 不在 or 非メンバー */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Stripe 上流エラー */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description STRIPE_SECRET_KEY 未設定 (偽装しない) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/checkout/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Checkout 照会 (paid なら pro へ反映 — 成功ページのポーリング用・webhook 無し環境でも完結) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    session_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 照会結果 (paid でなければ既存プランのまま — 偽の成功を出さない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                session_id?: string;
+                                payment_status?: string;
+                                status?: string;
+                                /** Format: uuid */
+                                workspace_id?: string;
+                                /** @enum {string} */
+                                plan?: "free" | "pro";
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description session 不在 or 非メンバー WS */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description Stripe 上流エラー */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description STRIPE_SECRET_KEY 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stripe webhook (Stripe-Signature HMAC v1 検証 / checkout.session.completed・subscription.updated/deleted) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            responses: {
+                /** @description 受理 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            received?: boolean;
+                            workspace_id?: string | null;
+                        };
+                    };
+                };
+                /** @description 署名不正/期限超過/payload 不正 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description STRIPE_WEBHOOK_SECRET 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/workspaces/{workspace_id}/members": {
@@ -13525,6 +13986,8 @@ export interface components {
             id?: string;
             name?: string;
             description?: string | null;
+            /** @description 絵文字または 1〜3 文字 (最大 8 バイト)。null は頭文字表示 (GAP-021) */
+            icon?: string | null;
             member_count?: number;
             project_count?: number;
             /** @enum {string} */

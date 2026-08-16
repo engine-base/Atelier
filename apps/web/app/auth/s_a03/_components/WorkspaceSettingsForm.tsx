@@ -36,22 +36,35 @@ export interface WorkspaceSettingsFormProps {
   readonly onSubmit: (v: WorkspaceSettingsValues) => Promise<void> | void;
   readonly onDelete?: () => void;
   readonly serverError?: string | null;
-  /** 実 API 配線済みのメンバー / MCPトークン section を差し込む。 */
+  /** 実 API 配線済みのメンバー / MCPトークン / プラン section を差し込む。 */
   readonly membersSlot?: React.ReactNode;
   readonly tokensSlot?: React.ReactNode;
+  readonly planSlot?: React.ReactNode;
+  /** 現在のワークスペースアイコン (null = 頭文字表示)。GAP-021 */
+  readonly icon?: string | null;
+  /** アイコン保存 (null = クリア)。未指定なら「変更」ボタンを出さない (死にボタン禁止)。 */
+  readonly onIconSave?: (icon: string | null) => void;
 }
 
 /** モックの settings-tabs を実リンク化 (design-audit v2 — 死にタブ 7 個を是正)。
  * 同一ページ内セクションはアンカー、招待管理/退会は実ページへ。
- * 「プラン」は課金 API 不在のため撤去 (GAP-021)。 */
+ * 「プラン」は GAP-021 で課金 API (Stripe) が実装されたため復活 (モックのタブ順)。 */
 const SETTINGS_TABS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "基本情報", href: "#ws-basic" },
   { label: "メンバー", href: "#ws-members" },
   { label: "招待管理", href: "/portal/invitations" },
   { label: "MCPトークン", href: "#ws-tokens" },
   { label: "AI学習", href: "#ws-ai" },
+  { label: "プラン", href: "#ws-plan" },
   { label: "退会", href: "/data-deletion" },
 ];
+
+/** icon の UTF-8 バイト長 (バックエンド検証 ICON_MAX_BYTES=8 と同一基準)。 */
+const ICON_MAX_BYTES = 8;
+
+function iconByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
 
 const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
@@ -86,11 +99,27 @@ export function WorkspaceSettingsForm({
   serverError,
   membersSlot,
   tokensSlot,
+  planSlot,
+  icon,
+  onIconSave,
 }: WorkspaceSettingsFormProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
+  const [editingIcon, setEditingIcon] = React.useState(false);
+  const [iconDraft, setIconDraft] = React.useState("");
+  const [iconError, setIconError] = React.useState<string | null>(null);
   const nameValue = form.watch("name");
   const iconInitial = (nameValue?.trim()?.charAt(0) ?? "W").toUpperCase();
+
+  const saveIcon = (value: string | null) => {
+    if (value !== null && iconByteLength(value) > ICON_MAX_BYTES) {
+      setIconError("アイコンは絵文字 1 つまたは 1〜3 文字までです。");
+      return;
+    }
+    setIconError(null);
+    setEditingIcon(false);
+    onIconSave?.(value);
+  };
 
   return (
     <div className="flex flex-col gap-7">
@@ -149,18 +178,82 @@ export function WorkspaceSettingsForm({
             <span className="text-label-lg font-semibold text-on-surface">
               アイコン
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span
                 aria-hidden="true"
                 className="flex h-12 w-12 items-center justify-center rounded-md bg-primary-container text-lg font-bold text-on-primary-container"
               >
-                {iconInitial}
+                {icon || iconInitial}
               </span>
-              <span className="text-body-sm text-on-surface-variant">
-                名前の頭文字を自動表示します
-              </span>
-              {/* モックの「変更」ボタンは icon 更新 API が無い死にボタンだったため撤去 (GAP-021) */}
+              {editingIcon && onIconSave ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <label className="sr-only" htmlFor="ws-icon-input">
+                    アイコン（絵文字または短い文字）
+                  </label>
+                  <input
+                    id="ws-icon-input"
+                    value={iconDraft}
+                    onChange={(e) => setIconDraft(e.target.value)}
+                    placeholder="🎨 / EB"
+                    autoFocus
+                    className="h-10 w-24 rounded-md border border-border bg-surface px-3 text-center text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary-container"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => saveIcon(iconDraft.trim() || null)}
+                    className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8]"
+                  >
+                    アイコンを保存
+                  </button>
+                  {icon ? (
+                    <button
+                      type="button"
+                      onClick={() => saveIcon(null)}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-label-md font-semibold text-on-surface transition hover:bg-surface-variant"
+                    >
+                      クリア
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingIcon(false);
+                      setIconError(null);
+                    }}
+                    className="inline-flex items-center rounded-md px-3 py-1.5 text-label-md font-semibold text-on-surface-variant transition hover:bg-surface-variant"
+                  >
+                    キャンセル
+                  </button>
+                </span>
+              ) : (
+                <>
+                  <span className="text-body-sm text-on-surface-variant">
+                    {icon
+                      ? "絵文字または短い文字を表示中"
+                      : "未設定時は名前の頭文字を表示します"}
+                  </span>
+                  {/* GAP-021: icon 更新 API (PATCH /workspaces/{id} {icon}) 実装済 — モックの「変更」ボタンを実配線 */}
+                  {onIconSave ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIconDraft(icon ?? "");
+                        setIconError(null);
+                        setEditingIcon(true);
+                      }}
+                      className="inline-flex items-center rounded-md border border-primary px-3 py-1.5 text-label-md font-semibold text-primary transition-colors hover:bg-primary-container"
+                    >
+                      変更
+                    </button>
+                  ) : null}
+                </>
+              )}
             </div>
+            {iconError ? (
+              <p role="alert" className="text-body-sm text-error">
+                {iconError}
+              </p>
+            ) : null}
           </div>
           <button type="submit" className={BTN_PRIMARY}>
             {t("common.save")}
@@ -205,6 +298,9 @@ export function WorkspaceSettingsForm({
             </span>
           </label>
         </section>
+
+        {/* プラン (GAP-021 — 実 billing API 配線 section) */}
+        {planSlot}
 
         {/* 危険な操作 (Danger Zone) — onDelete が渡された時のみ */}
         {onDelete ? (

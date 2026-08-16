@@ -1,8 +1,10 @@
 /**
  * S-A03 ワークスペース設定 コンテナ — T-UC-02 (design-audit v2: 実 API 全配線)
  *
- * GET /workspaces/{id} で名称、GET /me で AI 学習の実値 (ai_learning_opt_out) を取得。
+ * GET /workspaces/{id} で名称・icon、GET /me で AI 学習の実値 (ai_learning_opt_out) を取得。
  * 保存で PATCH /workspaces/{id} {name} + POST /account/ai-learning {opt_out}。
+ * アイコンは PATCH /workspaces/{id} {icon} (GAP-021 — null でクリア)。
+ * プランタブは PlanSection (GAP-021 — GET /billing/plan + Stripe checkout) を差し込む。
  * 削除は DELETE /workspaces/{id} (論理・30日 grace) — v2 で UI 断線を解消
  * (API が実在するのに削除ボタンが無かった)。api client は注入可能。
  */
@@ -19,6 +21,7 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { MembersSection } from "./MembersSection";
 import { McpTokensSection } from "./McpTokensSection";
+import { PlanSection } from "./PlanSection";
 import {
   WorkspaceSettingsForm,
   type WorkspaceSettingsValues,
@@ -26,6 +29,7 @@ import {
 
 interface ApiWorkspace {
   name: string;
+  icon?: string | null;
 }
 
 interface MeLite {
@@ -37,6 +41,8 @@ export interface WorkspaceSettingsContainerProps {
   readonly client?: ApiClient;
   /** 削除成功後の遷移 (現在 WS の解除は呼び出し側で)。 */
   readonly onDeleted?: () => void;
+  /** Stripe checkout から戻った時の ?session_id= (GAP-021 プランタブが照会する)。 */
+  readonly checkoutSessionId?: string | null;
 }
 
 function isForbidden(error: unknown): boolean {
@@ -47,6 +53,7 @@ export function WorkspaceSettingsContainer({
   workspaceId,
   client: injected,
   onDeleted,
+  checkoutSessionId,
 }: WorkspaceSettingsContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
@@ -119,6 +126,25 @@ export function WorkspaceSettingsContainer({
     onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
   });
 
+  // GAP-021: アイコン変更 (PATCH {icon})。null = クリア (頭文字表示に戻す)。
+  const iconMut = useMutation({
+    mutationFn: (icon: string | null) =>
+      client.patch("/workspaces/{workspace_id}", {
+        params: { path: { workspace_id: workspaceId } },
+        body: { icon },
+      }),
+    onMutate: () => setServerError(null),
+    onError: (error) =>
+      setServerError(
+        error instanceof ApiError && error.status === 422
+          ? "アイコンは絵文字 1 つまたは 1〜3 文字までです。"
+          : error instanceof ApiError && error.status === 403
+            ? "アイコンを変更する権限がありません。"
+            : "アイコンの変更に失敗しました。",
+      ),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+  });
+
   const onSubmit = async (v: WorkspaceSettingsValues): Promise<void> => {
     await saveMut.mutateAsync(v).catch(() => undefined);
   };
@@ -154,8 +180,17 @@ export function WorkspaceSettingsContainer({
       onSubmit={onSubmit}
       serverError={serverError}
       onDelete={() => deleteMut.mutate()}
+      icon={ws.data.icon ?? null}
+      onIconSave={(icon) => iconMut.mutate(icon)}
       membersSlot={<MembersSection workspaceId={workspaceId} client={client} />}
       tokensSlot={<McpTokensSection workspaceId={workspaceId} client={client} />}
+      planSlot={
+        <PlanSection
+          workspaceId={workspaceId}
+          client={client}
+          checkoutSessionId={checkoutSessionId}
+        />
+      }
     />
   );
 }

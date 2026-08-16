@@ -22,6 +22,8 @@ import { cn } from '../../lib/cn';
 export interface WorkspaceLite {
   readonly id: string;
   readonly name: string;
+  /** ワークスペースアイコン (絵文字/短文字)。null/未設定 = 頭文字表示 (GAP-021) */
+  readonly icon?: string | null;
 }
 
 export interface TopBarProps {
@@ -29,6 +31,8 @@ export interface TopBarProps {
   readonly onToggleSidebar?: () => void;
   /** ワークスペース名 (ピッカー pill 表示) */
   readonly workspaceName?: string;
+  /** ワークスペースアイコン (絵文字/短文字)。未設定なら頭文字を表示 (GAP-021) */
+  readonly workspaceIcon?: string | null;
   /** 所属ワークスペース一覧 (onSelectWorkspace と揃って渡すとピッカーが開閉可能になる) */
   readonly workspaces?: readonly WorkspaceLite[];
   /** 現在選択中のワークスペース id */
@@ -45,12 +49,13 @@ export interface TopBarProps {
 const PILL_CLASS =
   'inline-flex items-center gap-2 rounded-md bg-surface-variant px-2.5 py-1.5 text-label-md font-semibold text-on-surface';
 
-function PillBody({ label }: { readonly label: string }) {
-  const initial = label.charAt(0).toUpperCase() || 'A';
+function PillBody({ label, icon }: { readonly label: string; readonly icon?: string | null }) {
+  // GAP-021: 設定済みアイコン (絵文字/短文字) を優先、無ければ従来どおり頭文字
+  const display = icon || label.charAt(0).toUpperCase() || 'A';
   return (
     <>
       <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-primary text-[11px] font-bold text-on-primary">
-        {initial}
+        {display}
       </span>
       <span className="max-w-[160px] truncate">{label}</span>
     </>
@@ -60,11 +65,13 @@ function PillBody({ label }: { readonly label: string }) {
 /** ワークスペースピッカー (実 dropdown)。外側クリック / Escape で閉じる。 */
 function WorkspacePicker({
   label,
+  icon,
   workspaces,
   currentWorkspaceId,
   onSelectWorkspace,
 }: {
   readonly label: string;
+  readonly icon?: string | null;
   readonly workspaces: readonly WorkspaceLite[];
   readonly currentWorkspaceId?: string;
   readonly onSelectWorkspace: (id: string) => void;
@@ -98,7 +105,7 @@ function WorkspacePicker({
         onClick={() => setOpen((o) => !o)}
         className={cn(PILL_CLASS, 'transition-colors hover:bg-surface-variant/70')}
       >
-        <PillBody label={label} />
+        <PillBody label={label} icon={icon} />
         <ChevronDown
           className={cn('h-3.5 w-3.5 text-on-surface-variant transition-transform', open && 'rotate-180')}
           aria-hidden="true"
@@ -125,7 +132,7 @@ function WorkspacePicker({
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-body-sm text-on-surface hover:bg-surface-variant"
                 >
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-primary text-[11px] font-bold text-on-primary">
-                    {w.name.charAt(0).toUpperCase() || 'A'}
+                    {w.icon || w.name.charAt(0).toUpperCase() || 'A'}
                   </span>
                   <span className="flex-1 truncate">{w.name}</span>
                   {selected ? (
@@ -144,6 +151,7 @@ function WorkspacePicker({
 export function TopBar({
   onToggleSidebar,
   workspaceName,
+  workspaceIcon,
   workspaces,
   currentWorkspaceId,
   onSelectWorkspace,
@@ -178,13 +186,14 @@ export function TopBar({
         {interactive ? (
           <WorkspacePicker
             label={wsLabel}
+            icon={workspaceIcon}
             workspaces={workspaces!}
             currentWorkspaceId={currentWorkspaceId}
             onSelectWorkspace={onSelectWorkspace!}
           />
         ) : (
           <div className={PILL_CLASS} aria-label={`ワークスペース: ${wsLabel}`}>
-            <PillBody label={wsLabel} />
+            <PillBody label={wsLabel} icon={workspaceIcon} />
           </div>
         )}
 

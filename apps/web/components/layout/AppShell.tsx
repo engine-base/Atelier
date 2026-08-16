@@ -30,6 +30,8 @@ export interface AppShellProps {
   readonly navSections?: readonly NavSection[];
   /** サイドバー上部のワークスペース名 */
   readonly workspaceName?: string;
+  /** ワークスペースアイコン (絵文字/短文字。未設定 = 頭文字表示。GAP-021) */
+  readonly workspaceIcon?: string | null;
   /** TopBar ワークスペースピッカー (一覧 + 現在 + 切替) */
   readonly workspaces?: readonly WorkspaceLite[];
   readonly currentWorkspaceId?: string;
@@ -49,6 +51,7 @@ export function AppShell({
   navItems,
   navSections,
   workspaceName,
+  workspaceIcon,
   workspaces,
   currentWorkspaceId,
   onSelectWorkspace,
@@ -122,6 +125,7 @@ export function AppShell({
             }
           }}
           workspaceName={workspaceName}
+          workspaceIcon={workspaceIcon}
           workspaces={workspaces}
           currentWorkspaceId={currentWorkspaceId}
           onSelectWorkspace={onSelectWorkspace}

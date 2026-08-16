@@ -116,6 +116,8 @@ const INTERNAL_TO_CLEAN: ReadonlyMap<string, string> = new Map(
 interface WorkspaceLite {
   readonly id: string;
   readonly name: string;
+  /** GAP-021: ワークスペースアイコン (絵文字/短文字)。null = 頭文字表示 */
+  readonly icon?: string | null;
 }
 
 interface ProjectLite {
@@ -245,7 +247,9 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
 
   if (bare) return <>{children}</>;
 
-  const workspaceName = workspaces.find((w) => w.id === currentWsId)?.name;
+  const currentWs = workspaces.find((w) => w.id === currentWsId);
+  const workspaceName = currentWs?.name;
+  const workspaceIcon = currentWs?.icon ?? null;
   const sections: NavSection[] = [
     {
       id: 'workspace',
@@ -274,6 +278,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       currentPath={pathname}
       navSections={sections}
       workspaceName={workspaceName}
+      workspaceIcon={workspaceIcon}
       workspaces={workspaces}
       currentWorkspaceId={currentWsId}
       onSelectWorkspace={(id) => {

@@ -297,6 +297,92 @@ class TestWorkspacesCrud:
             assert all(w["id"] != wid for w in client.get("/workspaces", headers=hb).json()["data"])
             client.delete(f"/workspaces/{wid}", headers=ha)
 
+    def test_icon_patch_roundtrip(
+        self, app: FastAPI, seeded_users: tuple[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-021: PATCH icon (絵文字/短文字) → 応答・GET・DB・audit に反映。"""
+        u_a, _ = seeded_users
+        h = {"Authorization": f"Bearer {_mint_jwt(u_a)}"}
+        with TestClient(app) as client:
+            wid = client.post("/workspaces", json={"name": "Icon WS"}, headers=h).json()["data"][
+                "id"
+            ]
+            # 作成直後は icon 未設定 (フロントは頭文字表示)
+            assert client.get(f"/workspaces/{wid}", headers=h).json()["data"]["icon"] is None
+
+            r = client.patch(f"/workspaces/{wid}", json={"icon": "🎨"}, headers=h)
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["icon"] == "🎨"
+            assert client.get(f"/workspaces/{wid}", headers=h).json()["data"]["icon"] == "🎨"
+
+            # 短文字 (1〜3 文字) も可
+            r = client.patch(f"/workspaces/{wid}", json={"icon": "EB"}, headers=h)
+            assert r.status_code == 200
+            assert r.json()["data"]["icon"] == "EB"
+
+            # "" でクリア → null (頭文字表示へ戻る)
+            r = client.patch(f"/workspaces/{wid}", json={"icon": ""}, headers=h)
+            assert r.status_code == 200
+            assert r.json()["data"]["icon"] is None
+
+            with sync_engine.connect() as c:
+                db_icon = c.execute(
+                    text("select icon from public.workspaces where id=:w"), {"w": wid}
+                ).scalar_one()
+                assert db_icon is None
+                n = c.execute(
+                    text(
+                        "select count(*) from public.audit_logs "
+                        "where action='workspace.icon.update' and target_id=:t"
+                    ),
+                    {"t": wid},
+                ).scalar_one()
+            assert n == 3  # 🎨 / EB / クリア の 3 回
+            client.delete(f"/workspaces/{wid}", headers=h)
+
+    def test_icon_patch_validation_422(self, app: FastAPI, seeded_users: tuple[str, str]) -> None:
+        """GAP-021: 8 バイト超過・制御文字は 422。"""
+        u_a, _ = seeded_users
+        h = {"Authorization": f"Bearer {_mint_jwt(u_a)}"}
+        with TestClient(app) as client:
+            wid = client.post("/workspaces", json={"name": "Icon 422"}, headers=h).json()["data"][
+                "id"
+            ]
+            # 12 バイト (日本語 4 文字) → 422
+            assert (
+                client.patch(f"/workspaces/{wid}", json={"icon": "アトリエ"}, headers=h).status_code
+                == 422
+            )
+            # 9 バイト (ASCII 9 文字) → 422
+            assert (
+                client.patch(
+                    f"/workspaces/{wid}", json={"icon": "ABCDEFGHI"}, headers=h
+                ).status_code
+                == 422
+            )
+            # 制御文字 → 422
+            assert (
+                client.patch(f"/workspaces/{wid}", json={"icon": "A"}, headers=h).status_code == 422
+            )
+            # 拒否後も icon は未設定のまま
+            assert client.get(f"/workspaces/{wid}", headers=h).json()["data"]["icon"] is None
+            client.delete(f"/workspaces/{wid}", headers=h)
+
+    def test_icon_patch_non_member_404(self, app: FastAPI, seeded_users: tuple[str, str]) -> None:
+        """R-T08: 非メンバーは icon 更新どころか存在も見えない (404)。"""
+        u_a, u_b = seeded_users
+        ha = {"Authorization": f"Bearer {_mint_jwt(u_a)}"}
+        hb = {"Authorization": f"Bearer {_mint_jwt(u_b)}"}
+        with TestClient(app) as client:
+            wid = client.post("/workspaces", json={"name": "Icon 404"}, headers=ha).json()["data"][
+                "id"
+            ]
+            assert (
+                client.patch(f"/workspaces/{wid}", json={"icon": "X"}, headers=hb).status_code
+                == 404
+            )
+            client.delete(f"/workspaces/{wid}", headers=ha)
+
     def test_create_writes_audit_log(
         self, app: FastAPI, seeded_users: tuple[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:

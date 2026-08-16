@@ -20,7 +20,7 @@ from src.audit import AuditEvent, AuditWriter
 from src.schemas.workspaces import WorkspaceCreate, WorkspaceResponse, WorkspaceUpdate
 
 _SELECT_COLS = (
-    "w.id, w.name, w.plan, w.settings ->> 'description' AS description, "
+    "w.id, w.name, w.icon, w.plan, w.settings ->> 'description' AS description, "
     "w.created_at, w.updated_at, w.deleted_at, "
     "(select count(*) from public.workspace_memberships m where m.workspace_id = w.id) AS member_count, "
     "(select count(*) from public.projects p where p.workspace_id = w.id and p.deleted_at is null) AS project_count"
@@ -32,6 +32,7 @@ def _row_to_response(row: Any) -> WorkspaceResponse:
         id=str(row.id),
         name=str(row.name),
         description=(None if row.description is None else str(row.description)),
+        icon=(None if row.icon is None else str(row.icon)),
         member_count=int(row.member_count),
         project_count=int(row.project_count),
         plan=str(row.plan),
@@ -113,6 +114,11 @@ async def update_workspace(
             "settings = jsonb_set(settings, '{description}', to_jsonb(cast(:desc as text)))"
         )
         params["desc"] = data.description
+    # GAP-021: icon はリクエストに明示的に含まれた時のみ更新 (null/"" = クリア)
+    icon_provided = "icon" in data.model_fields_set
+    if icon_provided:
+        sets.append("icon = :icon")
+        params["icon"] = data.icon
     if not sets:
         return await get_workspace(session, workspace_id)
 
@@ -125,7 +131,8 @@ async def update_workspace(
     )
     if res.scalar_one_or_none() is None:
         return None
-    await AuditWriter(session).write(
+    writer = AuditWriter(session)
+    await writer.write(
         AuditEvent(
             action="workspace.update",
             target_type="workspace",
@@ -136,6 +143,19 @@ async def update_workspace(
             after={k: v for k, v in params.items() if k != "id"},
         )
     )
+    if icon_provided:
+        # GAP-021: アイコン変更は専用アクションでも記録 (S-A03 の操作証跡)
+        await writer.write(
+            AuditEvent(
+                action="workspace.icon.update",
+                target_type="workspace",
+                actor_type="user",
+                actor_id=actor_id,
+                workspace_id=workspace_id,
+                target_id=workspace_id,
+                after={"icon": data.icon},
+            )
+        )
     return await get_workspace(session, workspace_id)
 
 
