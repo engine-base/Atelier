@@ -1,3 +1,6 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownVariableType=false, reportUnknownMemberType=false
+# (claude-agent-sdk は optional dep で CI 環境に無く import が Unknown になるため。
+#  src/mcp/server.py の mcp SDK と同じ抑制方針)
 """GAP-113: Claude サブスクリプション (Agent SDK) チャットアダプタ。
 
 S-E01 チャットの LLM 呼出を、Anthropic API (従量課金) ではなく
