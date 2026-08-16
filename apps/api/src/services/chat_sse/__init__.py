@@ -507,7 +507,24 @@ async def stream_chat(
     )
     yield _sse_event({"type": "start"})
 
-    use_real = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    # GAP-113: ATELIER_LLM_PROVIDER=agent_sdk でオーナーの Claude サブスク
+    # (Agent SDK 認証) 経路に切替 (セルフホスト個人インスタンス専用 opt-in)。
+    from .agent_sdk import sdk_available, subscription_mode_enabled
+
+    use_subscription = subscription_mode_enabled()
+    if use_subscription and not sdk_available():
+        # opt-in したのに SDK 不在 → 黙って API/fake に落とさず誠実にエラー
+        # (F-CTX01 / 鉄則: 未設定は明示。黙る fallback は課金事故のもと)。
+        yield _sse_event(
+            {
+                "type": "error",
+                "content": (
+                    "サブスクリプションモードが利用できません (claude-agent-sdk 未インストール)。"
+                ),
+            }
+        )
+        return
+    use_real = use_subscription or bool(os.environ.get("ANTHROPIC_API_KEY"))
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
     if not use_real and not allow_fake:
         # 本番では LLM 未接続時に fake/stub を黙って返さない (F-CTX01 / 鉄則: stub 排除)。
@@ -520,8 +537,14 @@ async def stream_chat(
         return
     # agentic ツール実行 (既定 ON) 用の文脈: thread→project→workspace。
     # ATELIER_CHAT_TOOLS_ENABLED="0" の明示 OFF 時のみ文脈を作らず従来動作に退避する。
+    # GAP-113 v1 制限: サブスクモードでは Atelier ツール (agentic ループ) は
+    # 未注入 (Agent SDK 側の tool I/F が API 形式と別系統のため)。テキスト+RAG のみ。
     tool_ctx: ToolContext | None = None
-    if use_real and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0":
+    if (
+        use_real
+        and not use_subscription
+        and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0"
+    ):
         from .tools import ToolContext as _ToolContext
 
         _, project_id = await _load_thread_meta(session, thread_id=thread_id)
@@ -543,7 +566,15 @@ async def stream_chat(
 
     accumulated: list[str] = []
     try:
-        if use_real:
+        if use_subscription:
+            from .agent_sdk import agent_sdk_stream_chunks
+
+            chunks = agent_sdk_stream_chunks(
+                system_prompt=system_prompt,
+                history=history,
+                user_message=user_message,
+            )
+        elif use_real:
             chunks = _real_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,
