@@ -126,3 +126,47 @@ describe('runHeadless — chat relay (GAP-114)', () => {
     expect(chatCalls).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('runHeadless — chat relay の異常系と既定生成 (GAP-114)', () => {
+  it('単発モード: chat.runOnce が throw してもタスク側は完走する', async () => {
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      argv: [],
+      makeRunner: () => runnerOf(['no-task']),
+      makeChatRelay: () => ({
+        async runOnce(): Promise<'no-job'> {
+          throw new Error('network down');
+        },
+      }),
+    });
+    expect(code).toBe(0);
+  });
+
+  it('loop モード: chat.runOnce の throw はループを殺さない', async () => {
+    let chatCalls = 0;
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      argv: ['--loop'],
+      makeRunner: () => runnerOf(['no-task', 'no-task', 'auth-error']),
+      makeChatRelay: () => ({
+        async runOnce(): Promise<'no-job'> {
+          chatCalls += 1;
+          throw new Error('network down');
+        },
+      }),
+      sleepMs: 5,
+    });
+    expect(code).toBe(2);
+    expect(chatCalls).toBeGreaterThanOrEqual(1);
+  });
+
+  it('makeDefaultChatRelay は実 ChatRelayWorker を構成する (ネットワーク未使用)', async () => {
+    const { makeDefaultChatRelay } = await import('../src/headless.js');
+    const { ChatRelayWorker } = await import('../src/chat-relay.js');
+    const worker = makeDefaultChatRelay('tk', {
+      ATELIER_API_URL: 'http://api.test',
+      ATELIER_BRIDGE_TIMEOUT_MS: '1234',
+    });
+    expect(worker).toBeInstanceOf(ChatRelayWorker);
+  });
+});
