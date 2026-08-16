@@ -15,13 +15,13 @@ function runnerOf(outcomes: CycleOutcome[]): { runOnce(): Promise<CycleOutcome> 
 
 describe('runHeadless (T-F-41)', () => {
   it('token 無しは claim せず exit 2', async () => {
-    const code = await runHeadless({ env: {}, argv: [] });
+    const code = await runHeadless({ env: { ATELIER_BRIDGE_CHAT_RELAY: '0' }, argv: [] });
     expect(code).toBe(2);
   });
 
   it('no-task で 0 終了 (単発)', async () => {
     const code = await runHeadless({
-      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
       argv: [],
       makeRunner: () => runnerOf(['no-task']),
     });
@@ -30,7 +30,7 @@ describe('runHeadless (T-F-41)', () => {
 
   it('completed 後も loop 無しなら継続せず 0', async () => {
     const code = await runHeadless({
-      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
       argv: [],
       makeRunner: () => runnerOf(['completed']),
     });
@@ -39,7 +39,7 @@ describe('runHeadless (T-F-41)', () => {
 
   it('auth-error は exit 2 (loop 中でも停止)', async () => {
     const code = await runHeadless({
-      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
       argv: ['--loop'],
       makeRunner: () => runnerOf(['completed', 'auth-error']),
       sleepMs: 0,
@@ -64,11 +64,65 @@ describe('makeDefaultRunner', () => {
 describe('runHeadless --loop', () => {
   it('no-task 後も loop なら次サイクルへ進み、completed 後は継続', async () => {
     const code = await runHeadless({
-      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
       argv: ['--loop'],
       makeRunner: () => runnerOf(['no-task', 'completed', 'auth-error']),
       sleepMs: 0,
     });
     expect(code).toBe(2); // 最後は auth-error で停止
+  });
+});
+
+describe('runHeadless — chat relay (GAP-114)', () => {
+  it('既定 ON: 単発モードでチャット中継を 1 回試行する', async () => {
+    const calls: string[] = [];
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      argv: [],
+      makeRunner: () => runnerOf(['no-task']),
+      makeChatRelay: () => ({
+        async runOnce() {
+          calls.push('chat');
+          return 'no-job' as const;
+        },
+      }),
+    });
+    expect(code).toBe(0);
+    expect(calls).toEqual(['chat']);
+  });
+
+  it("ATELIER_BRIDGE_CHAT_RELAY='0' では中継を起動しない", async () => {
+    const calls: string[] = [];
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
+      argv: [],
+      makeRunner: () => runnerOf(['no-task']),
+      makeChatRelay: () => ({
+        async runOnce() {
+          calls.push('chat');
+          return 'no-job' as const;
+        },
+      }),
+    });
+    expect(code).toBe(0);
+    expect(calls).toEqual([]);
+  });
+
+  it('loop モードではチャット中継ループが複数回回り、終了時に止まる', async () => {
+    let chatCalls = 0;
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk' },
+      argv: ['--loop'],
+      makeRunner: () => runnerOf(['no-task', 'auth-error']),
+      makeChatRelay: () => ({
+        async runOnce() {
+          chatCalls += 1;
+          return 'no-job' as const;
+        },
+      }),
+      sleepMs: 5,
+    });
+    expect(code).toBe(2);
+    expect(chatCalls).toBeGreaterThanOrEqual(1);
   });
 });

@@ -509,9 +509,12 @@ async def stream_chat(
 
     # GAP-113: ATELIER_LLM_PROVIDER=agent_sdk でオーナーの Claude サブスク
     # (Agent SDK 認証) 経路に切替 (セルフホスト個人インスタンス専用 opt-in)。
+    # GAP-114: 同 =relay で各ユーザー PC の Bridge (= 本人のプラン) へ中継。
     from .agent_sdk import sdk_available, subscription_mode_enabled
+    from .relay import relay_mode_enabled
 
     use_subscription = subscription_mode_enabled()
+    use_relay = relay_mode_enabled()
     if use_subscription and not sdk_available():
         # opt-in したのに SDK 不在 → 黙って API/fake に落とさず誠実にエラー
         # (F-CTX01 / 鉄則: 未設定は明示。黙る fallback は課金事故のもと)。
@@ -524,7 +527,7 @@ async def stream_chat(
             }
         )
         return
-    use_real = use_subscription or bool(os.environ.get("ANTHROPIC_API_KEY"))
+    use_real = use_subscription or use_relay or bool(os.environ.get("ANTHROPIC_API_KEY"))
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
     if not use_real and not allow_fake:
         # 本番では LLM 未接続時に fake/stub を黙って返さない (F-CTX01 / 鉄則: stub 排除)。
@@ -537,12 +540,13 @@ async def stream_chat(
         return
     # agentic ツール実行 (既定 ON) 用の文脈: thread→project→workspace。
     # ATELIER_CHAT_TOOLS_ENABLED="0" の明示 OFF 時のみ文脈を作らず従来動作に退避する。
-    # GAP-113 v1 制限: サブスクモードでは Atelier ツール (agentic ループ) は
-    # 未注入 (Agent SDK 側の tool I/F が API 形式と別系統のため)。テキスト+RAG のみ。
+    # GAP-113/114 v1 制限: サブスク/リレーモードでは Atelier ツール (agentic
+    # ループ) は未注入 (実行系が API 形式と別系統のため)。テキスト+RAG のみ。
     tool_ctx: ToolContext | None = None
     if (
         use_real
         and not use_subscription
+        and not use_relay
         and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0"
     ):
         from .tools import ToolContext as _ToolContext
@@ -566,7 +570,17 @@ async def stream_chat(
 
     accumulated: list[str] = []
     try:
-        if use_subscription:
+        if use_relay:
+            from .relay import relay_stream_chunks
+
+            chunks = relay_stream_chunks(
+                system_prompt=system_prompt,
+                history=history,
+                user_message=user_message,
+                thread_id=thread_id,
+                actor_id=actor_id,
+            )
+        elif use_subscription:
             from .agent_sdk import agent_sdk_stream_chunks
 
             chunks = agent_sdk_stream_chunks(
@@ -587,14 +601,23 @@ async def stream_chat(
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})
     except Exception as exc:  # pragma: no cover  - 実 LLM 障害は別レイヤ
-        # 生のプロバイダーエラー (request_id 等の内部情報) はクライアントへ流さない。
+        # GAP-114: リレー固有の失敗は原因を偽らず具体的に伝える (誠実設計)。
+        from .relay import RelayFailed, RelayTimeout, RelayUnavailable
+
+        if isinstance(exc, RelayUnavailable):
+            message = (
+                "ローカル実行 (Bridge) がオフラインのため応答できません。"
+                "お使いの PC で Bridge を起動してから再送してください。"
+            )
+        elif isinstance(exc, RelayTimeout):
+            message = "ローカル実行が制限時間内に完了しませんでした。再送してください。"
+        elif isinstance(exc, RelayFailed):
+            message = "ローカル実行がエラーで終了しました。Bridge のログを確認してください。"
+        else:
+            # 生のプロバイダーエラー (request_id 等の内部情報) はクライアントへ流さない。
+            message = "AI 応答の取得に失敗しました。時間をおいて再試行してください。"
         logger.error("chat stream LLM failure (thread=%s): %s", thread_id, exc)
-        yield _sse_event(
-            {
-                "type": "error",
-                "content": "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
-            }
-        )
+        yield _sse_event({"type": "error", "content": message})
         return
 
     final_text = "".join(accumulated)

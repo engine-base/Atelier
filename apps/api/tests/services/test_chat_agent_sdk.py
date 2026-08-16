@@ -102,8 +102,8 @@ def test_sdk_available_true_with_fake(monkeypatch: pytest.MonkeyPatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_fold_prompt_includes_history_roles() -> None:
-    folded = agent_sdk._fold_prompt(  # pyright: ignore[reportPrivateUsage]
+def testfold_prompt_includes_history_roles() -> None:
+    folded = agent_sdk.fold_prompt(
         [("user", "前の質問"), ("assistant", "前の回答"), ("system", "無視される")],
         "新しい質問",
     )
@@ -113,8 +113,8 @@ def test_fold_prompt_includes_history_roles() -> None:
     assert folded.endswith("新しいユーザーメッセージ (これに応答する): 新しい質問")
 
 
-def test_fold_prompt_no_history_is_passthrough() -> None:
-    assert agent_sdk._fold_prompt([], "こんにちは") == "こんにちは"  # pyright: ignore[reportPrivateUsage]
+def testfold_prompt_no_history_is_passthrough() -> None:
+    assert agent_sdk.fold_prompt([], "こんにちは") == "こんにちは"
 
 
 def test_subprocess_env_drops_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,4 +259,68 @@ async def test_stream_chat_errors_when_sdk_missing(
     events = await _run_stream_chat()
     joined = "".join(events)
     assert "サブスクリプションモードが利用できません" in joined
+    assert '"end"' not in joined
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_uses_relay_when_opted_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-114: provider=relay で relay 経路の delta が SSE で届く。"""
+    from src.services import chat_sse
+    from src.services.chat_sse import relay as sse_relay
+
+    _patch_stream_chat_io(monkeypatch)
+
+    async def _fake_relay(**_: Any) -> Any:
+        yield "リレー応答"
+
+    monkeypatch.setattr(sse_relay, "relay_stream_chunks", _fake_relay)
+    monkeypatch.setenv(agent_sdk.PROVIDER_ENV, "relay")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    events: list[str] = []
+    async for b in chat_sse.stream_chat(
+        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        actor_id="actor",
+        thread_id="thread",
+        user_message="やあ",
+        use_rag=False,
+        include_history=0,
+        rag_account_id=None,
+    ):
+        events.append(b.decode())
+    joined = "".join(events)
+    assert '"delta"' in joined and "リレー応答" in joined
+    assert '"end"' in joined
+
+
+@pytest.mark.asyncio
+async def test_stream_chat_relay_offline_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-114: Bridge オフラインは具体的な誠実エラーを SSE で返す。"""
+    from src.services import chat_sse
+    from src.services.chat_sse import relay as sse_relay
+
+    _patch_stream_chat_io(monkeypatch)
+
+    async def _offline_relay(**_: Any) -> Any:
+        raise sse_relay.RelayUnavailable
+        yield  # pragma: no cover  - generator 化のため
+
+    monkeypatch.setattr(sse_relay, "relay_stream_chunks", _offline_relay)
+    monkeypatch.setenv(agent_sdk.PROVIDER_ENV, "relay")
+    events: list[str] = []
+    async for b in chat_sse.stream_chat(
+        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        actor_id="actor",
+        thread_id="thread",
+        user_message="やあ",
+        use_rag=False,
+        include_history=0,
+        rag_account_id=None,
+    ):
+        events.append(b.decode())
+    joined = "".join(events)
+    assert "Bridge" in joined and "オフライン" in joined
     assert '"end"' not in joined

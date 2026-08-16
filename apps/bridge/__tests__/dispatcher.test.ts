@@ -44,6 +44,16 @@ class FakeApi implements BridgeApi {
   async heartbeat(): Promise<void> {
     this.calls.push('heartbeat');
   }
+  async chatRelayPick(): Promise<null> {
+    this.calls.push('chatRelayPick');
+    return null;
+  }
+  async chatRelayChunks(): Promise<void> {
+    this.calls.push('chatRelayChunks');
+  }
+  async chatRelayComplete(): Promise<void> {
+    this.calls.push('chatRelayComplete');
+  }
   async ping(): Promise<void> {
     this.calls.push('ping');
   }

@@ -1991,6 +1991,27 @@ class RelatedResource(BaseModel):
     href: str | None = None
 
 
+class ChatRelayPickRequest(BaseModel):
+    worker_id: Annotated[str, Field(max_length=200, min_length=1)]
+
+
+class ChatRelayPickResponse(BaseModel):
+    job_id: UUID | None = None
+    system_prompt: str | None = None
+    prompt: str | None = None
+    no_available_job: bool
+
+
+class ChatRelayChunksRequest(BaseModel):
+    seq_start: Annotated[int, Field(ge=0)]
+    texts: Annotated[list[str], Field(max_length=200, min_length=1)]
+
+
+class ChatRelayCompleteRequest(BaseModel):
+    ok: bool
+    error: Annotated[str | None, Field(max_length=2000)] = None
+
+
 class KanbanPickRequest(BaseModel):
     worker_pid: Annotated[int, Field(ge=1)]
     project_id: UUID | None = None

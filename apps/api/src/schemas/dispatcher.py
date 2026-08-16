@@ -131,3 +131,33 @@ class KanbanResponse(BaseModel):
         "heartbeat_ack",
         "killed",
     ]
+
+
+# ── GAP-114: チャットのローカル実行リレー ────────────────────────
+
+
+class ChatRelayPickRequest(BaseModel):
+    """queued なチャット中継ジョブを 1 件確保 (queued→running)。"""
+
+    worker_id: str = Field(min_length=1, max_length=200)
+
+
+class ChatRelayPickResponse(BaseModel):
+    job_id: str | None = None
+    system_prompt: str | None = None
+    prompt: str | None = None
+    no_available_job: bool = False
+
+
+class ChatRelayChunksRequest(BaseModel):
+    """running ジョブへ text delta を追記 (seq_start からの連番)。"""
+
+    seq_start: int = Field(ge=0)
+    texts: list[str] = Field(min_length=1, max_length=200)
+
+
+class ChatRelayCompleteRequest(BaseModel):
+    """running ジョブを done / error で確定する。"""
+
+    ok: bool
+    error: str | None = Field(default=None, max_length=2000)

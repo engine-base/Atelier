@@ -32,8 +32,21 @@ export class BridgeAuthError extends Error {
   }
 }
 
+/** GAP-114: chat relay pick の応答 (job が無い場合は null)。 */
+export interface ChatRelayPicked {
+  readonly jobId: string;
+  readonly systemPrompt: string;
+  readonly prompt: string;
+}
+
 export interface BridgeApi {
   pick(workerPid: number, projectId?: string): Promise<KanbanPickResult>;
+  /** GAP-114: チャット中継 job を 1 件確保 (無ければ null)。 */
+  chatRelayPick(workerId: string): Promise<ChatRelayPicked | null>;
+  /** GAP-114: text delta を追記 (seqStart からの連番)。 */
+  chatRelayChunks(jobId: string, seqStart: number, texts: readonly string[]): Promise<void>;
+  /** GAP-114: job を done / error で確定。 */
+  chatRelayComplete(jobId: string, ok: boolean, error?: string): Promise<void>;
   start(taskId: string, executionId: string, workerPid: number): Promise<void>;
   complete(
     taskId: string,
@@ -162,6 +175,42 @@ export class ApiClient implements BridgeApi {
       host_label: info.hostLabel,
       version: info.version,
       worker_pid: info.workerPid ?? null,
+    });
+  }
+
+  async chatRelayPick(workerId: string): Promise<ChatRelayPicked | null> {
+    const json = (await this.post('/chat-relay/pick', { worker_id: workerId })) as {
+      data: {
+        job_id: string | null;
+        system_prompt: string | null;
+        prompt: string | null;
+        no_available_job: boolean;
+      };
+    };
+    const d = json.data;
+    if (d.no_available_job || d.job_id === null) return null;
+    return {
+      jobId: d.job_id,
+      systemPrompt: d.system_prompt ?? '',
+      prompt: d.prompt ?? '',
+    };
+  }
+
+  async chatRelayChunks(
+    jobId: string,
+    seqStart: number,
+    texts: readonly string[],
+  ): Promise<void> {
+    await this.post(`/chat-relay/${jobId}/chunks`, {
+      seq_start: seqStart,
+      texts: [...texts],
+    });
+  }
+
+  async chatRelayComplete(jobId: string, ok: boolean, error?: string): Promise<void> {
+    await this.post(`/chat-relay/${jobId}/complete`, {
+      ok,
+      error: error ?? null,
     });
   }
 }

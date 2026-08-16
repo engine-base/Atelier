@@ -27,6 +27,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.schemas.dispatcher import (
+    ChatRelayChunksRequest,
+    ChatRelayCompleteRequest,
+    ChatRelayPickRequest,
+    ChatRelayPickResponse,
     KanbanCompleteRequest,
     KanbanHeartbeatRequest,
     KanbanKillRequest,
@@ -38,6 +42,8 @@ from src.schemas.dispatcher import (
     KanbanStartRequest,
 )
 from src.schemas.executions import BridgePingRequest
+from src.services import chat_relay as relay_svc
+from src.services.chat_relay import ChatRelayError
 from src.services.dispatcher import bridge_tools as svc
 
 router = APIRouter(tags=["kanban-tools"])
@@ -223,4 +229,56 @@ async def bridge_ping(
         version=body.version,
         worker_pid=body.worker_pid,
     )
+    return {"data": {"status": "ok"}}
+
+
+# ── GAP-114: チャットのローカル実行リレー (BridgeAuth) ────────────
+
+
+@router.post("/chat-relay/pick", summary="chat relay job 確保 (GAP-114 / BridgeAuth)")
+async def chat_relay_pick(
+    body: ChatRelayPickRequest, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, ChatRelayPickResponse]:
+    """queued なチャット中継ジョブを 1 件 claim する (queued→running)。"""
+    picked = await relay_svc.pick_job(session, worker_id=body.worker_id)
+    if picked is None:
+        return {"data": ChatRelayPickResponse(no_available_job=True)}
+    return {
+        "data": ChatRelayPickResponse(
+            job_id=picked["job_id"],
+            system_prompt=picked["system_prompt"],
+            prompt=picked["prompt"],
+        )
+    }
+
+
+@router.post(
+    "/chat-relay/{job_id}/chunks",
+    summary="chat relay text delta 追記 (GAP-114 / BridgeAuth)",
+)
+async def chat_relay_chunks(
+    job_id: str, body: ChatRelayChunksRequest, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, dict[str, str]]:
+    """running ジョブへ text delta を追記する (SSE 側がポーリングで中継)。"""
+    try:
+        await relay_svc.append_chunks(
+            session, job_id=job_id, seq_start=body.seq_start, texts=body.texts
+        )
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
+    return {"data": {"status": "ok"}}
+
+
+@router.post(
+    "/chat-relay/{job_id}/complete",
+    summary="chat relay job 確定 (GAP-114 / BridgeAuth)",
+)
+async def chat_relay_complete(
+    job_id: str, body: ChatRelayCompleteRequest, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, dict[str, str]]:
+    """running ジョブを done / error で確定する。"""
+    try:
+        await relay_svc.complete_job(session, job_id=job_id, ok=body.ok, error=body.error)
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
     return {"data": {"status": "ok"}}

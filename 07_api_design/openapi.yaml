@@ -1866,6 +1866,39 @@ components:
         metadata: { $ref: '#/components/schemas/KanbanCompleteMetadata' }
         auto_approve: { type: boolean, default: false }
 
+    ChatRelayPickRequest:
+      type: object
+      required: [worker_id]
+      properties:
+        worker_id: { type: string, minLength: 1, maxLength: 200 }
+
+    ChatRelayPickResponse:
+      type: object
+      required: [no_available_job]
+      properties:
+        job_id: { type: string, format: uuid, nullable: true }
+        system_prompt: { type: string, nullable: true }
+        prompt: { type: string, nullable: true }
+        no_available_job: { type: boolean }
+
+    ChatRelayChunksRequest:
+      type: object
+      required: [seq_start, texts]
+      properties:
+        seq_start: { type: integer, minimum: 0 }
+        texts:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items: { type: string }
+
+    ChatRelayCompleteRequest:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        error: { type: string, maxLength: 2000, nullable: true }
+
     KanbanPickRequest:
       type: object
       required: [worker_pid]
@@ -5984,6 +6017,72 @@ paths:
       responses:
         '200': { description: presence 記録 (bridge_workers upsert) }
         '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/pick:
+    post:
+      tags: [kanban-tools]
+      summary: chat relay job 確保（GAP-114 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_pick
+      x-feature-ids: [F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRelayPickRequest' }
+      responses:
+        '200':
+          description: 確保結果（または no_available_job=true）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRelayPickResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/{job_id}/chunks:
+    post:
+      tags: [kanban-tools]
+      summary: chat relay text delta 追記（GAP-114 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_chunks
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRelayChunksRequest' }
+      responses:
+        '200': { description: 追記完了 }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: job 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: job が running でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/{job_id}/complete:
+    post:
+      tags: [kanban-tools]
+      summary: chat relay job 確定（GAP-114 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_complete
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRelayCompleteRequest' }
+      responses:
+        '200': { description: 確定完了 }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: job 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: job が running でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /executions-events:
     get:

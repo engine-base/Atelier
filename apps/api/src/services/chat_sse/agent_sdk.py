@@ -54,7 +54,7 @@ def sdk_available() -> bool:
     return True
 
 
-def _fold_prompt(history: list[tuple[str, str]], user_message: str) -> str:
+def fold_prompt(history: list[tuple[str, str]], user_message: str) -> str:
     """history + 新規メッセージを単一プロンプトに畳む。
 
     Agent SDK の query() は単発プロンプト I/F のため、直近履歴をテキストで
@@ -117,7 +117,7 @@ async def agent_sdk_stream_chunks(
 
     saw_partial = False
     async for msg in query(
-        prompt=_fold_prompt(history, user_message),
+        prompt=fold_prompt(history, user_message),
         options=ClaudeAgentOptions(**options_kwargs),
     ):
         if isinstance(msg, StreamEvent):
