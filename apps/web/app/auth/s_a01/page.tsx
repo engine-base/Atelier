@@ -19,6 +19,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import Link from 'next/link';
 
+import { OAuthButtons } from './_components/OAuthButtons';
 import { SigninForm, type SigninValues } from './_components/SigninForm';
 import { SignupForm, type SignupValues } from './_components/SignupForm';
 import { t } from '../../../lib/i18n';
@@ -117,6 +118,9 @@ function SA01Inner() {
               </button>
             ))}
           </div>
+
+          {/* OAuth サインイン (GAP-020) — 有効プロバイダのみ描画、0 件なら divider ごと非表示 */}
+          <OAuthButtons />
 
           {magicSent ? (
             <p

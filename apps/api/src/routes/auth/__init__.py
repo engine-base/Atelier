@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
 from src.dependencies import CurrentUser, get_current_user
@@ -42,6 +43,7 @@ from src.schemas.auth import (
     SignupResponse,
 )
 from src.services import auth as svc
+from src.services.auth import oauth as oauth_svc
 
 router = APIRouter(tags=["auth"])
 
@@ -150,6 +152,84 @@ async def oauth_redirect(
     return {
         "data": OAuthRedirectResponse(authorize_url=authorize_url, state=state, provider=provider)
     }
+
+
+# --------------------------------------------------------------------------- #
+# GAP-020: OAuth サインイン (S-A01) — providers / start / callback
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/auth/oauth/providers",
+    summary="有効な OAuth プロバイダ一覧 (env 未設定は載せない = 死にボタン禁止)",
+)
+async def oauth_providers() -> dict[str, list[oauth_svc.OAuthProviderInfo]]:
+    return {"data": oauth_svc.enabled_providers()}
+
+
+@router.get(
+    "/auth/oauth/{provider}/start",
+    status_code=status.HTTP_302_FOUND,
+    summary="OAuth 認可フロー開始 (302 → プロバイダ認可 URL)",
+    response_class=RedirectResponse,
+)
+async def oauth_start(provider: OAuthProvider) -> RedirectResponse:
+    try:
+        authorize_url = oauth_svc.build_authorize_url(provider)
+    except oauth_svc.OAuthError as exc:
+        if exc.code == "provider_disabled":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+    return RedirectResponse(authorize_url, status_code=status.HTTP_302_FOUND)
+
+
+@router.get(
+    "/auth/oauth/{provider}/callback",
+    status_code=status.HTTP_302_FOUND,
+    summary="OAuth コールバック (code 交換 → アカウント連付け → JWT 発行 → web へ 302)",
+    response_class=RedirectResponse,
+)
+async def oauth_callback(
+    provider: OAuthProvider,
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    # 未設定プロバイダは偽装せず 503 (state 検証より先: secret 無しでは検証不能)
+    try:
+        oauth_svc._require_enabled(provider)  # pyright: ignore[reportPrivateUsage]
+    except oauth_svc.OAuthError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+
+    # プロバイダ側でユーザーが拒否した等 → web に誠実にエラー表示
+    if error:
+        return RedirectResponse(
+            oauth_svc.error_redirect_url(error), status_code=status.HTTP_302_FOUND
+        )
+    if not code or not state:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "code and state are required")
+
+    # state 検証 (改竄 / 期限切れ / provider 不一致は 400)
+    try:
+        oauth_svc.verify_state(state, provider=provider)
+    except oauth_svc.OAuthError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+
+    try:
+        identity = await oauth_svc.fetch_identity(provider, code=code)
+        result = await oauth_svc.signin_with_identity(identity, ip_address=_client_ip(request))
+    except oauth_svc.OAuthError as exc:
+        if exc.code == "email_unverified":
+            # email 不在 / 未検証で偽アカウントを作らない
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+        if exc.code in ("exchange_failed", "account_inactive"):
+            return RedirectResponse(
+                oauth_svc.error_redirect_url(exc.code), status_code=status.HTTP_302_FOUND
+            )
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+
+    return RedirectResponse(
+        oauth_svc.complete_redirect_url(result), status_code=status.HTTP_302_FOUND
+    )
 
 
 # --------------------------------------------------------------------------- #
