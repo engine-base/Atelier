@@ -22,6 +22,7 @@ import {
   employeeTitle,
   type EmployeeLike,
 } from "../../../../lib/aiEmployees";
+import { defaultThreadTitle } from "./ThreadSidebar";
 
 interface ProjectLite {
   readonly id: string;
@@ -61,6 +62,8 @@ export function ChatEmptyState({ projectId, onOpenThread }: ChatEmptyStateProps)
       const created = await api.sendJson<{ id: string }>("POST", "/chat/threads", {
         project_id: effectiveProject,
         ai_employee_id: employeeId,
+        // GAP-125: 作成時にデフォルトタイトルを付ける (後から編集可能)
+        title: defaultThreadTitle(),
       });
       return created ?? null;
     },

@@ -66,11 +66,81 @@ describe("S-E01 ThreadSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "スレッドを作成" }));
 
     await waitFor(() => expect(sendJson).toHaveBeenCalledTimes(1));
-    const [method, path, body] = sendJson.mock.calls[0]! as [string, string, { project_id: string; ai_employee_id: string }];
+    const [method, path, body] = sendJson.mock.calls[0]! as [string, string, { project_id: string; ai_employee_id: string; title: string }];
     expect(method).toBe("POST");
     expect(path).toBe("/chat/threads");
-    expect(body).toEqual({ project_id: "p1", ai_employee_id: "e1" });
+    // GAP-125: 作成時にデフォルトタイトルを必ず付ける (例: 「新しい会話 8/17 19:30」)
+    expect(body).toEqual({
+      project_id: "p1",
+      ai_employee_id: "e1",
+      title: expect.stringMatching(/^新しい会話 /) as unknown as string,
+    });
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith("t2"));
+  });
+});
+
+describe("ThreadSidebar — タイトル表示 / 編集 / 削除 (GAP-125)", () => {
+  it("一覧はプレビューではなくタイトルを表示し、タイトル未設定は無題スレッド", async () => {
+    getJson.mockImplementation(async (path: string) => {
+      if (path.startsWith("/chat/threads"))
+        return {
+          data: [
+            { id: "t1", project_id: "p1", ai_employee_id: "e1", title: null, last_message_preview: "# 直近のやりとり本文" },
+          ],
+        };
+      if (path.startsWith("/ai-employees"))
+        return { data: [{ id: "e1", name: "tony", display_name: "トニー" }] };
+      return { data: [] };
+    });
+    renderWithQuery(<ThreadSidebar selectedId={null} onSelect={() => undefined} />);
+    expect(await screen.findByText("無題スレッド")).toBeInTheDocument();
+    // 直近やりとりのプレビューは一覧に出さない (経営者指示)
+    expect(screen.queryByText(/直近のやりとり本文/)).toBeNull();
+  });
+
+  it("鉛筆からインライン編集し PATCH /chat/threads/{id} が飛ぶ", async () => {
+    wireDefaults();
+    sendJson.mockResolvedValue(undefined);
+    renderWithQuery(<ThreadSidebar selectedId={null} onSelect={() => undefined} />);
+    await screen.findByText("既存スレッド");
+    fireEvent.click(
+      screen.getByRole("button", { name: "スレッド「既存スレッド」の名前を変更" }),
+    );
+    const input = screen.getByLabelText("スレッド名を編集");
+    expect(input).toHaveValue("既存スレッド");
+    fireEvent.change(input, { target: { value: "見積の最終確認" } });
+    fireEvent.click(screen.getByRole("button", { name: "スレッド名を保存" }));
+    await waitFor(() =>
+      expect(sendJson).toHaveBeenCalledWith("PATCH", "/chat/threads/t1", {
+        title: "見積の最終確認",
+      }),
+    );
+  });
+
+  it("ごみ箱は はい/いいえ の確認を挟み、はい で DELETE + onDeleted", async () => {
+    wireDefaults();
+    sendJson.mockResolvedValue(undefined);
+    const onDeleted = vi.fn();
+    renderWithQuery(
+      <ThreadSidebar selectedId={null} onSelect={() => undefined} onDeleted={onDeleted} />,
+    );
+    await screen.findByText("既存スレッド");
+    fireEvent.click(
+      screen.getByRole("button", { name: "スレッド「既存スレッド」を削除" }),
+    );
+    // いいえ でキャンセルできる (戻れるフロー)
+    expect(screen.getByText("「既存スレッド」を削除しますか？")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "いいえ" }));
+    expect(sendJson).not.toHaveBeenCalled();
+    // 改めて はい で削除実行
+    fireEvent.click(
+      screen.getByRole("button", { name: "スレッド「既存スレッド」を削除" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "はい" }));
+    await waitFor(() =>
+      expect(sendJson).toHaveBeenCalledWith("DELETE", "/chat/threads/t1"),
+    );
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith("t1"));
   });
 });
 

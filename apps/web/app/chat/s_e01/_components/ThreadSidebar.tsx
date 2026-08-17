@@ -16,7 +16,7 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Plus, Search } from "lucide-react";
+import { Check, ChevronDown, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
 import * as api from "../../../../lib/auth/connector";
 import {
@@ -52,6 +52,8 @@ export interface ThreadSidebarProps {
   readonly onSelect: (threadId: string) => void;
   /** 現在プロジェクト (指定時はそのプロジェクトのスレッドに絞り、工程グルーピングを行う)。 */
   readonly projectId?: string | null;
+  /** GAP-125: スレッド削除後に呼ぶ (選択中スレッドを閉じる等は親が担当)。 */
+  readonly onDeleted?: (threadId: string) => void;
 }
 
 function ThreadCard({
@@ -59,6 +61,8 @@ function ThreadCard({
   employee,
   active,
   onSelect,
+  onRename,
+  onDelete,
   showEmployee = true,
   phaseName,
 }: {
@@ -66,51 +70,176 @@ function ThreadCard({
   readonly employee?: EmployeeLike;
   readonly active: boolean;
   readonly onSelect: (id: string) => void;
+  /** GAP-125: タイトルのインライン編集を確定したとき呼ぶ (PATCH は親が担当)。 */
+  readonly onRename: (id: string, title: string) => void;
+  /** GAP-125: はい/いいえ確認後の削除実行 (DELETE は親が担当)。 */
+  readonly onDelete: (id: string) => void;
   /** AI 社員セクション配下では社員行を出さない (見出しと重複するため)。 */
   readonly showEmployee?: boolean;
   /** 工程スレッドのとき工程名チップを出す (GAP-123 — 社員グルーピング後の文脈補助)。 */
   readonly phaseName?: string;
 }) {
   const name = employeeName(employee) ?? "AI 社員";
+  // GAP-125 (経営者指示): 一覧は直近やりとりのプレビューではなくタイトルを表示する
+  const title = thread.title?.trim() || "無題スレッド";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
+  const commitRename = () => {
+    const next = draft.trim();
+    setEditing(false);
+    if (next && next !== thread.title) onRename(thread.id, next);
+  };
+
+  if (editing) {
+    return (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          commitRename();
+        }}
+        className="mb-[2px] flex items-center gap-1 rounded-md bg-surface-variant px-2 py-[6px]"
+      >
+        <input
+          // biome-ignore lint/a11y/noAutofocus: 編集開始の明示操作直後に入力へ移すのが自然
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setEditing(false);
+          }}
+          maxLength={200}
+          aria-label="スレッド名を編集"
+          className="h-7 w-full min-w-0 rounded-sm border border-border bg-white px-1.5 text-[12px] text-on-surface focus:border-primary focus:outline-none"
+        />
+        <button
+          type="submit"
+          aria-label="スレッド名を保存"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-primary transition-colors hover:bg-primary-container"
+        >
+          <Check size={13} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          aria-label="編集を取り消す"
+          onClick={() => setEditing(false)}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-on-surface-variant transition-colors hover:bg-surface"
+        >
+          <X size={13} aria-hidden="true" />
+        </button>
+      </form>
+    );
+  }
+
+  if (confirming) {
+    return (
+      <div className="mb-[2px] rounded-md bg-error/10 px-3 py-[8px]">
+        <p className="text-[12px] font-semibold text-on-surface">
+          「{title}」を削除しますか？
+        </p>
+        <p className="mt-[2px] text-[10.5px] text-on-surface-variant">
+          スレッド内のやりとりも削除され、元に戻せません。
+        </p>
+        <div className="mt-1.5 flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(false);
+              onDelete(thread.id);
+            }}
+            className="rounded-sm bg-error px-2.5 py-[3px] text-[11.5px] font-semibold text-on-error transition-colors hover:opacity-90"
+          >
+            はい
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="rounded-sm border border-border bg-white px-2.5 py-[3px] text-[11.5px] font-semibold text-on-surface transition-colors hover:bg-surface-variant"
+          >
+            いいえ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(thread.id)}
+    <div
       className={cn(
-        "mb-[2px] w-full rounded-md px-3 py-[10px] text-left transition-colors",
+        "group relative mb-[2px] rounded-md transition-colors",
         active ? "bg-primary-container" : "hover:bg-surface-variant",
       )}
     >
-      {showEmployee ? (
-        <span className="mb-[2px] flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-            style={{ backgroundColor: employeeColor(employee) }}
-          >
-            {name.charAt(0)}
+      <button
+        type="button"
+        onClick={() => onSelect(thread.id)}
+        className="w-full rounded-md px-3 py-[10px] text-left"
+      >
+        {showEmployee ? (
+          <span className="mb-[2px] flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+              style={{ backgroundColor: employeeColor(employee) }}
+            >
+              {name.charAt(0)}
+            </span>
+            <span className="text-[12px] font-bold text-on-surface">{name}</span>
+            <span className="ml-auto text-[10.5px] tabular-nums text-on-surface-variant">
+              {relTime(thread.updated_at)}
+            </span>
           </span>
-          <span className="text-[12px] font-bold text-on-surface">{name}</span>
-          <span className="ml-auto text-[10.5px] tabular-nums text-on-surface-variant">
-            {relTime(thread.updated_at)}
-          </span>
+        ) : null}
+        <span className="line-clamp-2 block pr-12 text-[12px] font-medium leading-[1.4] text-on-surface">
+          {title}
         </span>
-      ) : null}
-      <span className="line-clamp-2 block text-[12px] leading-[1.4] text-on-surface">
-        {stripMarkdown(thread.title ?? thread.last_message_preview ?? "") || "無題スレッド"}
+        <span className="mt-[2px] flex items-center gap-2 text-[10.5px] text-on-surface-variant">
+          {phaseName ? (
+            <span className="rounded-sm bg-surface-variant px-1.5 py-[1px] font-semibold">
+              {phaseName}工程
+            </span>
+          ) : null}
+          {!showEmployee ? (
+            <span className="ml-auto tabular-nums">{relTime(thread.updated_at)}</span>
+          ) : null}
+        </span>
+      </button>
+      {/* hover / キーボードフォーカスで出る操作 (死にボタン禁止: 常に実処理に接続) */}
+      <span className="absolute right-1.5 top-1.5 flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        <button
+          type="button"
+          aria-label={`スレッド「${title}」の名前を変更`}
+          onClick={() => {
+            setDraft(thread.title ?? "");
+            setEditing(true);
+          }}
+          className="flex h-6 w-6 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-primary"
+        >
+          <Pencil size={12} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          aria-label={`スレッド「${title}」を削除`}
+          onClick={() => setConfirming(true)}
+          className="flex h-6 w-6 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-error"
+        >
+          <Trash2 size={12} aria-hidden="true" />
+        </button>
       </span>
-      <span className="mt-[2px] flex items-center gap-2 text-[10.5px] text-on-surface-variant">
-        {phaseName ? (
-          <span className="rounded-sm bg-surface-variant px-1.5 py-[1px] font-semibold">
-            {phaseName}工程
-          </span>
-        ) : null}
-        {!showEmployee ? (
-          <span className="ml-auto tabular-nums">{relTime(thread.updated_at)}</span>
-        ) : null}
-      </span>
-    </button>
+    </div>
   );
+}
+
+/** GAP-125: 作成時のデフォルトタイトル (例: 「新しい会話 8/17 19:30」)。後から編集可能。 */
+export function defaultThreadTitle(now: Date = new Date()): string {
+  const stamp = new Intl.DateTimeFormat("ja-JP", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(now);
+  return `新しい会話 ${stamp}`;
 }
 
 /**
@@ -136,6 +265,7 @@ export function ThreadSidebar({
   selectedId,
   onSelect,
   projectId,
+  onDeleted,
 }: ThreadSidebarProps) {
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
@@ -192,6 +322,8 @@ export function ThreadSidebar({
       const created = await api.sendJson<Thread>("POST", "/chat/threads", {
         project_id: formProjectId,
         ai_employee_id: formEmployeeId,
+        // GAP-125: 作成時にデフォルトタイトルを付ける (後から編集可能)
+        title: defaultThreadTitle(),
         ...(formPhaseId ? { phase_id: formPhaseId } : {}),
       });
       return created ?? null;
@@ -206,6 +338,33 @@ export function ThreadSidebar({
       if (created?.id) onSelect(created.id);
     },
     onError: () => setError("スレッドの作成に失敗しました。"),
+  });
+
+  // GAP-125: タイトル変更 (PATCH) と削除 (DELETE)。中央ペインのスレッド詳細
+  // (queryKey: "chat-thread") もタイトルを表示するため合わせて invalidate する。
+  const renameMut = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      await api.sendJson("PATCH", `/chat/threads/${id}`, { title });
+      return id;
+    },
+    onSuccess: () => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+      void queryClient.invalidateQueries({ queryKey: ["chat-thread"] });
+    },
+    onError: () => setError("スレッド名を変更できませんでした。"),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => {
+      await api.sendJson("DELETE", `/chat/threads/${id}`);
+      return id;
+    },
+    onSuccess: (id) => {
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+      onDeleted?.(id);
+    },
+    onError: () => setError("スレッドを削除できませんでした。"),
   });
 
   const threads = useMemo(() => threadsQuery.data ?? [], [threadsQuery.data]);
@@ -366,6 +525,12 @@ export function ThreadSidebar({
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-[6px]">
+        {/* GAP-125: 変更/削除の失敗は一覧側にも出す (作成フォーム外の操作のため) */}
+        {error && !creating ? (
+          <p role="alert" className="px-[10px] py-1 text-body-sm text-error">
+            {error}
+          </p>
+        ) : null}
         {threadsQuery.isLoading ? (
           <p className="px-[10px] py-2 text-body-sm text-on-surface-variant">
             読み込み中…
@@ -430,6 +595,8 @@ export function ThreadSidebar({
                           employee={employee}
                           active={selectedId === t.id}
                           onSelect={onSelect}
+                          onRename={(id, title) => renameMut.mutate({ id, title })}
+                          onDelete={(id) => deleteMut.mutate(id)}
                           showEmployee={false}
                           phaseName={
                             t.phase_id ? phaseNameById.get(t.phase_id) : undefined

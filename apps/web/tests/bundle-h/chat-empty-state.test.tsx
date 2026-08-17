@@ -56,6 +56,8 @@ describe("S-E01 ChatEmptyState (GAP-123)", () => {
     expect(sendJson).toHaveBeenCalledWith("POST", "/chat/threads", {
       project_id: "p1",
       ai_employee_id: "e1",
+      // GAP-125: ここでもデフォルトタイトルを付ける
+      title: expect.stringMatching(/^新しい会話 /) as unknown as string,
     });
     await waitFor(() => expect(onOpenThread).toHaveBeenCalledWith("t9"));
     // プロジェクト文脈があるときは選択 UI を出さない

@@ -162,6 +162,10 @@ function SE01Inner() {
           selectedId={threadId}
           onSelect={setThreadId}
           projectId={projectId}
+          onDeleted={(id) => {
+            // GAP-125: 開いているスレッドを消したら中央ペインを未選択に戻す
+            if (threadId === id) setThreadId(null);
+          }}
         />
       </div>
 
