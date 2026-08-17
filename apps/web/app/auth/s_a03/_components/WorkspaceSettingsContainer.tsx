@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { InvitationsSection } from "./InvitationsSection";
 import { MembersSection } from "./MembersSection";
 import { McpTokensSection } from "./McpTokensSection";
 import { PlanSection } from "./PlanSection";
@@ -188,6 +189,7 @@ export function WorkspaceSettingsContainer({
       icon={ws.data.icon ?? null}
       onIconSave={(icon) => iconMut.mutate(icon)}
       membersSlot={<MembersSection workspaceId={workspaceId} client={client} />}
+      invitationsSlot={<InvitationsSection workspaceId={workspaceId} client={client} />}
       tokensSlot={<McpTokensSection workspaceId={workspaceId} client={client} />}
       planSlot={
         <PlanSection

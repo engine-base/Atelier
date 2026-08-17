@@ -45,6 +45,8 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
         onDelete={onDelete}
       />,
     );
+    // GAP-116 追補: WS 削除は「退会」タブパネル内
+    fireEvent.click(screen.getByRole('tab', { name: '退会' }));
     fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを削除' }));
     // 1 クリック目は確認表示のみ
     expect(onDelete).not.toHaveBeenCalled();
@@ -61,6 +63,7 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
         onDelete={onDelete}
       />,
     );
+    fireEvent.click(screen.getByRole('tab', { name: '退会' }));
     fireEvent.click(screen.getByRole('button', { name: 'ワークスペースを削除' }));
     fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
     expect(onDelete).not.toHaveBeenCalled();

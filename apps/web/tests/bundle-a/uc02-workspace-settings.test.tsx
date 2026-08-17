@@ -188,21 +188,20 @@ describe("S-A03 WorkspaceSettingsContainer (T-UC-02)", () => {
       />,
     );
     await screen.findByDisplayValue("My WS");
-    // GAP-116: パネルタブは tablist、招待管理/退会は実ページへのリンク (tablist 外 —
-    // ARIA: tablist の子は tab のみ)
+    // GAP-116 追補: 招待管理・退会もタブパネル (別ページ遷移でタブ文脈を失わない)
     const nav = screen.getByRole("tablist", { name: "設定セクション" });
     const labels = Array.from(nav.querySelectorAll("button[role='tab']")).map(
       (a) => a.textContent,
     );
-    expect(labels).toEqual(["基本情報", "メンバー", "MCPトークン", "AI学習", "プラン"]);
-    expect(screen.getByRole("link", { name: "招待管理" })).toHaveAttribute(
-      "href",
-      "/portal/invitations",
-    );
-    expect(screen.getByRole("link", { name: "退会" })).toHaveAttribute(
-      "href",
-      "/data-deletion",
-    );
+    expect(labels).toEqual([
+      "基本情報",
+      "メンバー",
+      "招待管理",
+      "MCPトークン",
+      "AI学習",
+      "プラン",
+      "退会",
+    ]);
     // プランセクション実体 (PlanSection) も描画される
     expect(
       document.getElementById("ws-plan"),

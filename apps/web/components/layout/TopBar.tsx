@@ -14,7 +14,7 @@
 
 import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Menu } from 'lucide-react';
+import { Check, ChevronDown, FolderOpen, Menu } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -206,7 +206,7 @@ export function TopBar({
             className="flex min-w-0 items-center gap-1.5 rounded-full border border-primary-container bg-primary-container/60 px-3 py-1 text-[12.5px] font-semibold text-on-primary-container"
             aria-label={`プロジェクト: ${projectName}`}
           >
-            <span aria-hidden="true">📁</span>
+            <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="truncate">{projectName}</span>
           </div>
         ) : null}

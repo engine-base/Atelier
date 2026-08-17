@@ -36,10 +36,11 @@ export interface WorkspaceSettingsFormProps {
   readonly onSubmit: (v: WorkspaceSettingsValues) => Promise<void> | void;
   readonly onDelete?: () => void;
   readonly serverError?: string | null;
-  /** 実 API 配線済みのメンバー / MCPトークン / プラン section を差し込む。 */
+  /** 実 API 配線済みのメンバー / MCPトークン / プラン / 招待管理 section を差し込む。 */
   readonly membersSlot?: React.ReactNode;
   readonly tokensSlot?: React.ReactNode;
   readonly planSlot?: React.ReactNode;
+  readonly invitationsSlot?: React.ReactNode;
   /** 現在のワークスペースアイコン (null = 頭文字表示)。GAP-021 */
   readonly icon?: string | null;
   /** アイコン保存 (null = クリア)。未指定なら「変更」ボタンを出さない (死にボタン禁止)。 */
@@ -49,21 +50,25 @@ export interface WorkspaceSettingsFormProps {
 }
 
 /** GAP-116 (経営者指示の仕様変更): タブは「ページ内アンカーで縦積み全表示」から
- * 「選択タブの節のみ表示」へ変更。招待管理/退会は実ページへのリンクのため
- * tablist の外 (末尾) に置く (ARIA: tablist の子は tab のみ — axe critical)。 */
-export type SettingsTabKey = "basic" | "members" | "tokens" | "ai" | "plan";
+ * 「選択タブの節のみ表示」へ変更。招待管理・退会も別ページ遷移ではなく
+ * タブパネルとして表示する (遷移するとタブ文脈が失われる — 経営者指摘)。 */
+export type SettingsTabKey =
+  | "basic"
+  | "members"
+  | "invitations"
+  | "tokens"
+  | "ai"
+  | "plan"
+  | "leave";
 
 const PANEL_TABS: ReadonlyArray<{ label: string; key: SettingsTabKey }> = [
   { label: "基本情報", key: "basic" },
   { label: "メンバー", key: "members" },
+  { label: "招待管理", key: "invitations" },
   { label: "MCPトークン", key: "tokens" },
   { label: "AI学習", key: "ai" },
   { label: "プラン", key: "plan" },
-];
-
-const LINK_TABS: ReadonlyArray<{ label: string; href: string }> = [
-  { label: "招待管理", href: "/portal/invitations" },
-  { label: "退会", href: "/data-deletion" },
+  { label: "退会", key: "leave" },
 ];
 
 /** icon の UTF-8 バイト長 (バックエンド検証 ICON_MAX_BYTES=8 と同一基準)。 */
@@ -107,6 +112,7 @@ export function WorkspaceSettingsForm({
   membersSlot,
   tokensSlot,
   planSlot,
+  invitationsSlot,
   icon,
   onIconSave,
   initialTab,
@@ -168,15 +174,6 @@ export function WorkspaceSettingsForm({
             );
           })}
         </div>
-        {LINK_TABS.map((tab) => (
-          <a
-            key={tab.label}
-            href={tab.href}
-            className="whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-label-lg font-semibold text-on-surface-variant transition hover:text-on-surface"
-          >
-            {tab.label}
-          </a>
-        ))}
       </div>
 
       {serverError ? (
@@ -308,6 +305,17 @@ export function WorkspaceSettingsForm({
         {membersSlot}
       </div>
 
+      {/* 招待管理 (GAP-116 追補 — S-L01 実体のタブパネル埋め込み) */}
+      <div
+        role="tabpanel"
+        id="ws-panel-invitations"
+        aria-labelledby="ws-tab-invitations"
+        hidden={activeTab !== "invitations"}
+        className={cn(activeTab === "invitations" ? "grid grid-cols-1 gap-6" : "hidden")}
+      >
+        {invitationsSlot}
+      </div>
+
       {/* MCPトークン (実 API 配線 section) */}
       <div
         role="tabpanel"
@@ -375,18 +383,21 @@ export function WorkspaceSettingsForm({
         {planSlot}
       </div>
 
-      {/* 危険な操作 (Danger Zone) — 基本情報タブの末尾 (onDelete がある時のみ) */}
+      {/* 退会 (GAP-116 追補): WS 削除 (危険な操作) + アカウント退会への導線 */}
       <div
-        hidden={activeTab !== "basic"}
-        className={cn(activeTab === "basic" ? "" : "hidden")}
+        role="tabpanel"
+        id="ws-panel-leave"
+        aria-labelledby="ws-tab-leave"
+        hidden={activeTab !== "leave"}
+        className={cn(activeTab === "leave" ? "grid grid-cols-1 gap-6" : "hidden")}
       >
         {onDelete ? (
           <section
             aria-label="Danger zone"
-            className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-5 md:col-span-2"
+            className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-5"
           >
             <h2 className="mb-2 text-base font-bold tracking-tight text-[#991B1B]">
-              危険な操作
+              ワークスペースの削除
             </h2>
             <span className="sr-only">Danger Zone</span>
             <p className="mb-4 text-body-sm text-[#991B1B]">
@@ -427,6 +438,19 @@ export function WorkspaceSettingsForm({
             )}
           </section>
         ) : null}
+        <section aria-label="アカウント退会" className={CARD}>
+          <h2 className={cn(SECTION_TITLE, "mb-2")}>アカウント退会</h2>
+          <p className="mb-4 text-body-sm text-on-surface-variant">
+            アカウント自体の退会とデータ削除は専用の手続きページで行います
+            (削除対象データの確認と同意が必要なため)。
+          </p>
+          <a
+            href="/data-deletion"
+            className="inline-flex w-fit items-center rounded-md border border-error px-4 py-2 text-label-lg font-semibold text-error transition hover:bg-[#FEF2F2]"
+          >
+            退会手続きへ進む
+          </a>
+        </section>
       </div>
     </div>
   );
