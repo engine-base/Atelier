@@ -22,6 +22,10 @@ const nav = vi.hoisted(() => ({
   search: '',
 }));
 
+// window.location.replace は jsdom 未実装 (Not implemented: navigation) のため
+// 差し替えてスパイする (実装は完全遷移 = location.replace を使う)
+const locationReplace = vi.fn();
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: nav.replace, refresh: nav.refresh, push: nav.push }),
   useSearchParams: () => new URLSearchParams(nav.search),
@@ -35,6 +39,16 @@ const BOTH: OAuthProviderInfo[] = [
   { id: 'github', display_name: 'GitHub' },
   { id: 'google', display_name: 'Google' },
 ];
+
+beforeEach(() => {
+  const original = window.location;
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: Object.assign(Object.create(Object.getPrototypeOf(original)), original, {
+      replace: locationReplace,
+    }),
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -102,7 +116,7 @@ describe('/auth/oauth-complete (GAP-020)', () => {
     window.location.hash =
       '#access_token=tok-abc.def.ghi&expires_at=2999-01-01T00%3A00%3A00%2B00%3A00&user_id=u-1&email=a%40example.com&display_name=A';
     render(<OAuthCompleteInner />);
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(locationReplace).toHaveBeenCalledWith('/projects'));
     expect(document.cookie).toContain('atelier_access=tok-abc.def.ghi');
     // 成功時は「サインインしています…」のみ (偽のエラーを出さない)
     expect(screen.getByRole('status')).toHaveTextContent('サインインしています');
@@ -115,7 +129,7 @@ describe('/auth/oauth-complete (GAP-020)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('認可がキャンセルされました');
     const back = screen.getByRole('link', { name: 'サインインへ戻る' });
     expect(back).toHaveAttribute('href', '/auth/s_a01');
-    expect(nav.replace).not.toHaveBeenCalled();
+    expect(locationReplace).not.toHaveBeenCalled();
     expect(document.cookie).not.toContain('atelier_access=tok');
   });
 
@@ -129,6 +143,6 @@ describe('/auth/oauth-complete (GAP-020)', () => {
     window.location.hash = '';
     render(<OAuthCompleteInner />);
     expect(screen.getByRole('alert')).toHaveTextContent('トークンを受け取れませんでした');
-    expect(nav.replace).not.toHaveBeenCalled();
+    expect(locationReplace).not.toHaveBeenCalled();
   });
 });

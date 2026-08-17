@@ -14,7 +14,7 @@
 
 import * as React from 'react';
 import { Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 import Link from 'next/link';
 
@@ -37,7 +37,6 @@ function describeError(code: string): string {
 type Status = 'working' | 'error';
 
 function OAuthCompleteInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const errorParam = params.get('error');
   const [status, setStatus] = React.useState<Status>('working');
@@ -64,11 +63,14 @@ function OAuthCompleteInner() {
     // 既存 signin 成功時と同じ格納方式 (connector.setAccessCookie と同一書式)
     const expires = new Date(expiresAt).toUTCString();
     document.cookie = `${COOKIE_NAMES.access}=${token}; path=/; expires=${expires}; SameSite=Lax`;
-    // トークンを URL (履歴) に残さない
-    window.history.replaceState(null, '', window.location.pathname);
-    router.replace('/projects');
-    router.refresh();
-  }, [errorParam, router]);
+    // location.replace = 完全遷移。①現在の履歴エントリごと置換するため
+    // トークン付き URL が履歴に残らない ②ログイン直後は middleware /
+    // server component に新 cookie を見せる full load が必要 ③手動
+    // history.replaceState + router.replace の組合せは App Router の内部
+    // 状態を壊して遷移が静かに失敗する (Mac 実機で「サインインしています…」
+    // 固着として発現 — 実ブラウザ再現で特定した実バグ)。
+    window.location.replace('/projects');
+  }, [errorParam]);
 
   return (
     <main className="flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-surface to-surface-variant px-md py-xl">
