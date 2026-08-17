@@ -28,6 +28,9 @@ class ChatStreamRequest(BaseModel):
     use_knowledge_rag: bool = True
     include_history: int = Field(default=10, ge=0, le=50)
     rag_account_id: str | None = None
+    # GAP-129: PC 操作 (Claude Code 同等ツール)。"off"=従来 (ツールなし)、
+    # "auto"=確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)。
+    tools_mode: Literal["off", "auto"] = "off"
     attachments: list[ChatAttachment] = Field(
         default_factory=lambda: list[ChatAttachment](), max_length=10
     )

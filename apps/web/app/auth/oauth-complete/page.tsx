@@ -19,6 +19,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { COOKIE_NAMES } from '../../../lib/auth/cookie';
+import { BrandLockup } from '../../../components/brand/BrandLockup';
 
 /** ?error= コードの誠実な文言化 (不明コードもコードごと表示して隠さない) */
 function describeError(code: string): string {
@@ -75,14 +76,9 @@ function OAuthCompleteInner() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-surface to-surface-variant px-md py-xl">
       <div className="w-full max-w-[440px]">
-        {/* ブランドロゴ (S-A01 と同一 — GAP-126: 公式ロックアップ) */}
+        {/* ブランドロゴ (S-A01 と同一 — GAP-126/129: 公式ロックアップ) */}
         <div className="mb-lg flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt="Atelier"
-            className="h-11 w-auto object-contain"
-          />
+          <BrandLockup sizeClassName="h-11" gapClassName="gap-3" />
         </div>
 
         <div className="rounded-lg border border-border bg-white px-8 py-9 shadow-sm">

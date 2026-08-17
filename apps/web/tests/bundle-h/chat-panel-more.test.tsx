@@ -281,3 +281,36 @@ describe("ChatPanel 生成中インジケータ (GAP-128)", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 });
+
+describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129)", () => {
+  it("onToolsModeChange があるときだけトグルが出て、押すと auto に切り替わる", () => {
+    const onChange = vi.fn();
+    render(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        toolsMode="off"
+        onToolsModeChange={onChange}
+      />,
+    );
+    const toggle = screen.getByRole("button", {
+      name: "PC 操作をオンにする (自動実行)",
+    });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith("auto");
+  });
+
+  it("トグル未配線 (agent_sdk 以外) では PC 操作ボタン自体を出さない", () => {
+    render(<ChatPanel messages={[]} onSend={noop} />);
+    expect(screen.queryByText(/PC 操作/)).toBeNull();
+  });
+
+  it("toolActivity があるとツール実行の実況を表示する", () => {
+    render(
+      <ChatPanel messages={[]} onSend={noop} toolActivity={["Bash", "Write"]} />,
+    );
+    expect(screen.getByText("ツール実行中: Write")).toBeInTheDocument();
+    expect(screen.getByText(/これまで: Bash/)).toBeInTheDocument();
+  });
+});

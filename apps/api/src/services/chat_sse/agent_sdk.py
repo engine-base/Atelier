@@ -31,13 +31,71 @@ from __future__ import annotations
 
 import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 PROVIDER_ENV = "ATELIER_LLM_PROVIDER"
 MODEL_ENV = "ATELIER_AGENT_SDK_MODEL"
+WORKSPACE_ENV = "ATELIER_CHAT_WORKSPACE"
 
 # opt-in と認識する値 (小文字比較)。既定・空・"anthropic" は従来経路。
 _SUBSCRIPTION_VALUES = frozenset({"agent_sdk", "claude_subscription", "subscription"})
+
+# GAP-129: auto モードで許可する Claude Code ツール (ローカル作業一式)。
+# チャット既定 (off) では従来どおり一切許可しない。
+_AUTO_TOOLS = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
+
+
+def chat_workspace_dir(env: dict[str, str] | None = None) -> str:
+    """auto モードの作業フォルダ (成果物の保存先)。
+
+    既定は ~/AtelierChatWork。ATELIER_CHAT_WORKSPACE で変更可能。
+    チャットの PC 操作をこのフォルダ配下に限定する意図はカレントディレクトリ
+    としての誘導であり、強制サンドボックスではない (auto は本人 opt-in)。
+    """
+    e = env if env is not None else dict(os.environ)
+    configured = (e.get(WORKSPACE_ENV) or "").strip()
+    return configured or str(Path.home() / "AtelierChatWork")
+
+
+def build_options_kwargs(
+    *,
+    system_prompt: str,
+    tools_mode: str = "off",
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """ClaudeAgentOptions に渡す kwargs を組み立てる (テスト可能な純粋部分)。
+
+    GAP-129: tools_mode
+      - "off"  (既定): ツール一切なし・1 往復のみ (従来のチャット挙動)
+      - "auto": Claude Code 同等のローカル作業ツールを許可し、確認なしで
+        自動実行する (Claude Code の bypassPermissions と同じ)。作業フォルダ
+        (chat_workspace_dir) をカレントにして起動する。
+    """
+    kwargs: dict[str, Any] = {
+        "system_prompt": system_prompt,
+        "allowed_tools": [],
+        "max_turns": 1,
+        "include_partial_messages": True,
+    }
+    if tools_mode == "auto":
+        workspace = chat_workspace_dir(env)
+        kwargs.update(
+            {
+                "system_prompt": system_prompt
+                + "\n\nあなたはローカル作業ツール (ファイルの読み書き・コマンド実行) を使えます。"
+                + "ファイルの作成・編集はカレントの作業フォルダ内で行い、"
+                + "作ったファイルは絶対パスで報告してください。",
+                "allowed_tools": list(_AUTO_TOOLS),
+                "permission_mode": "bypassPermissions",
+                "cwd": workspace,
+                "max_turns": 25,
+            }
+        )
+    model = (env if env is not None else dict(os.environ)).get(MODEL_ENV, "").strip()
+    if model:
+        kwargs["model"] = model
+    return kwargs
 
 
 def subscription_mode_enabled() -> bool:
@@ -89,17 +147,23 @@ async def agent_sdk_stream_chunks(
     history: list[tuple[str, str]],
     user_message: str,
     rate_limits_out: list[dict[str, Any]] | None = None,
-) -> AsyncIterator[str]:
-    """Agent SDK (サブスク認証) で実 stream。text delta を yield する。
+    tools_mode: str = "off",
+) -> AsyncIterator[str | dict[str, Any]]:
+    """Agent SDK (サブスク認証) で実 stream。
+
+    yield するもの:
+      - str: 応答本文の text delta (従来どおり)
+      - dict {"tool": name, "detail": ...}: GAP-129 auto モードでのツール実行
+        イベント (UI が「Bash を実行中…」等のランタイム状態を実況するための実値)
 
     include_partial_messages=True で CLI の raw stream event を受け、
     content_block_delta/text_delta を逐次 yield する。partial が一度も
     届かない場合 (旧 CLI 等) は完成 AssistantMessage の TextBlock で代替する。
 
     GAP-124: 実行中に CLI が発行する RateLimitEvent (5 時間 / 7 日枠の実測
-    使用率 — API 応答ヘッダー由来) を rate_limits_out に収集する。呼び出し側が
-    chat_plan_status へ記録し、接続状態パネルの「プラン枠」表示の実体になる。
-    観測されなければ何も足さない (推測で埋めない)。
+    使用率 — API 応答ヘッダー由来) を rate_limits_out に収集する。
+    GAP-129: tools_mode="auto" で Claude Code 同等のローカル作業ツールを許可
+    (本人 opt-in、専用作業フォルダをカレントに起動)。
     """
     from claude_agent_sdk import (  # pyright: ignore[reportMissingImports]
         AssistantMessage,
@@ -116,17 +180,16 @@ async def agent_sdk_stream_chunks(
     except ImportError:  # 旧 SDK — プラン枠観測なしで動作継続 (誠実: 出さない)
         RateLimitEvent = None  # type: ignore[assignment]
 
-    options_kwargs: dict[str, Any] = {
-        "system_prompt": system_prompt,
-        # チャット応答専用: CLI 側ツール (ファイル編集/Bash 等) は一切許可しない。
-        "allowed_tools": [],
-        "max_turns": 1,
-        "include_partial_messages": True,
-        "env": _subprocess_env(),
-    }
-    model = os.environ.get(MODEL_ENV, "").strip()
-    if model:
-        options_kwargs["model"] = model
+    child_env = _subprocess_env()
+    options_kwargs = build_options_kwargs(system_prompt=system_prompt, tools_mode=tools_mode)
+    if tools_mode == "auto":
+        # 作業フォルダを実作成 (無いと CLI が cwd 起動に失敗する)
+        Path(str(options_kwargs.get("cwd", ""))).mkdir(parents=True, exist_ok=True)
+        # CLI は root での bypassPermissions を拒否する。root で動くのは検証
+        # コンテナのみ (実ユーザー機は非 root) — その場合だけ明示フラグを立てる。
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            child_env["IS_SANDBOX"] = "1"
+    options_kwargs["env"] = child_env
 
     saw_partial = False
     async for msg in query(
@@ -135,7 +198,17 @@ async def agent_sdk_stream_chunks(
     ):
         if isinstance(msg, StreamEvent):
             event: dict[str, Any] = msg.event
-            if event.get("type") != "content_block_delta":
+            etype = event.get("type")
+            if etype == "content_block_start":
+                # GAP-129: ツール実行の開始をランタイム状態として通知
+                raw_block = event.get("content_block")
+                block_d: dict[str, Any] = raw_block if isinstance(raw_block, dict) else {}
+                if block_d.get("type") == "tool_use":
+                    name = block_d.get("name")
+                    if isinstance(name, str) and name:
+                        yield {"tool": name}
+                continue
+            if etype != "content_block_delta":
                 continue
             raw_delta = event.get("delta")
             delta: dict[str, Any] = raw_delta if isinstance(raw_delta, dict) else {}

@@ -9,6 +9,8 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { BrandLockup } from "../../../components/brand/BrandLockup";
+
 const NAV = [
   { href: "/terms", label: "利用規約" },
   { href: "/privacy", label: "プライバシーポリシー" },
@@ -26,13 +28,8 @@ export function PublicHeader({
     <header className="border-b border-border bg-white px-6 py-3.5">
       <div className="mx-auto flex max-w-[920px] items-center justify-between">
         <Link href="/signin" className="flex items-center">
-          {/* GAP-126: 公式ロックアップ (Atelier 文字入り) — 文字を別タイプしない */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt="Atelier"
-            className="h-7 w-auto object-contain"
-          />
+          {/* GAP-126/129: 公式ロックアップ (間隔は BrandLockup の gap で制御) */}
+          <BrandLockup sizeClassName="h-7" gapClassName="gap-2" />
         </Link>
         {backHref ? (
           <Link

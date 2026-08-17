@@ -17,6 +17,7 @@ import type { ReactNode } from 'react';
 
 import { t } from '../../lib/i18n';
 import { cn } from '../../lib/cn';
+import { BrandLockup } from '../brand/BrandLockup';
 
 export interface NavItem {
   readonly id: string;
@@ -140,9 +141,9 @@ export function Sidebar({
           collapsed && 'justify-center px-0',
         )}
       >
-        {/* GAP-126: ロゴは経営者支給の公式ロックアップ (マーク + Atelier 文字入り
-            logo-horizontal.svg の実描画領域を viewBox 化した -lockup 派生) を使う。
-            文字をアプリ側で別途タイプしない (経営者指示)。折りたたみ時のみマーク単体。 */}
+        {/* GAP-126/129: ロゴは経営者支給の公式素材のみ (文字を別タイプしない)。
+            マークと文字の間隔は BrandLockup の gap で制御 (経営者指摘対応)。
+            折りたたみ時のみマーク単体。 */}
         {collapsed ? (
           /* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */
           <img
@@ -151,13 +152,7 @@ export function Sidebar({
             className="h-7 w-7 shrink-0 object-contain"
           />
         ) : (
-          /* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt={t('common.appName')}
-            // GAP-127: 経営者指摘「デカすぎる」— h-8 から h-6 (24px) へ縮小
-            className="h-6 w-auto shrink-0 object-contain"
-          />
+          <BrandLockup sizeClassName="h-6" gapClassName="gap-2" />
         )}
       </div>
 

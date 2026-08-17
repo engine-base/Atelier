@@ -25,6 +25,7 @@ import { SignupForm, type SignupValues } from './_components/SignupForm';
 import { t } from '../../../lib/i18n';
 import { cn } from '../../../lib/cn';
 import * as auth from '../../../lib/auth/connector';
+import { BrandLockup } from '../../../components/brand/BrandLockup';
 
 type Mode = 'signin' | 'signup';
 
@@ -74,13 +75,8 @@ function SA01Inner() {
       <div className="w-full max-w-[440px]">
         {/* ブランドロゴ + マーク */}
         <div className="mb-lg flex items-center justify-center">
-          {/* GAP-126: 公式ロックアップ (Atelier 文字入り) — 文字を別タイプしない */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt="Atelier"
-            className="h-11 w-auto object-contain"
-          />
+          {/* GAP-126/129: 公式ロックアップ (間隔は BrandLockup の gap で制御) */}
+          <BrandLockup sizeClassName="h-11" gapClassName="gap-3" />
         </div>
 
         {/* 中央カード */}

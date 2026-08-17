@@ -15703,6 +15703,12 @@ export interface components {
             rag_account_id?: string | null;
             /** @description 事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続) */
             attachments?: components["schemas"]["ChatAttachment"][];
+            /**
+             * @description GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
+             * @default off
+             * @enum {string}
+             */
+            tools_mode: "off" | "auto";
         };
         ChatContextPreviewRequest: {
             user_message: string;

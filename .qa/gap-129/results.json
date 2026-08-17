@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ロゴがマーク+文字の公式 2 分割で描画",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "マークと文字の間隔が広がった (約 8px)",
+    "ok": true,
+    "note": "gap=8px"
+  },
+  {
+    "name": "PC 操作トグルが表示 (agent_sdk モード)",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "トグルで自動モードに切替 (aria-pressed)",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "ツール実行の実況が表示された",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "実応答がファイルパスを報告",
+    "ok": false,
+    "note": ""
+  }
+]

@@ -20,6 +20,7 @@
 import * as React from "react";
 
 import { cn } from "../../../../lib/cn";
+import { BrandLockup } from "../../../../components/brand/BrandLockup";
 import type {
   ClientCommentCreateInput,
   ClientCommentItemData,
@@ -143,13 +144,8 @@ export function ClientProjectView({
       {/* クライアントヘッダ (サイドバー無し・専用トップバー) */}
       <header className="flex items-center justify-between gap-4 border-b border-border bg-white px-6 py-3.5">
         <div className="flex items-center gap-3">
-          {/* GAP-126: 公式ロックアップ (Atelier 文字入り) — 文字を別タイプしない */}
-          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt="Atelier"
-            className="h-7 w-auto object-contain"
-          />
+          {/* GAP-126/129: 公式ロックアップ (間隔は BrandLockup の gap で制御) */}
+          <BrandLockup sizeClassName="h-7" gapClassName="gap-2" />
           <div className="border-l border-border pl-3 text-sm text-on-surface-variant">
             Client Portal · {data.name}
           </div>

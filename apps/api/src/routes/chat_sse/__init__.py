@@ -72,6 +72,7 @@ async def stream_chat_thread(
         include_history=body.include_history,
         rag_account_id=body.rag_account_id,
         attachments=[att.model_dump() for att in body.attachments],
+        tools_mode=body.tools_mode,
     )
     return StreamingResponse(
         gen,

@@ -13,8 +13,11 @@
 
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Brain } from "lucide-react";
+
+import * as api from "../../../../lib/auth/connector";
 
 import {
   ChatPanel,
@@ -175,6 +178,18 @@ export function ChatContainer({
   const [pendingStage, setPendingStage] = useState<
     "context" | "answer" | "streaming" | null
   >(null);
+  // GAP-129: PC 操作 (Claude Code 同等ツール)。agent_sdk モードのときだけ
+  // トグルを出す (死にボタン禁止)。既定は off — ユーザーが明示的に有効化する。
+  const [toolsMode, setToolsMode] = useState<"off" | "auto">("off");
+  const [toolActivity, setToolActivity] = useState<readonly string[]>([]);
+  const connQuery = useQuery({
+    queryKey: ["chat-connection-status"],
+    queryFn: async () =>
+      (await api.getJson<{ mode: string }>("/chat/connection-status")).data,
+    retry: false,
+    refetchInterval: 30_000,
+  });
+  const toolsAvailable = connQuery.data?.mode === "agent_sdk";
   const [error, setError] = useState<string | null>(null);
   const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -363,6 +378,7 @@ export function ChatContainer({
       setError(null);
       setPendingId(assistantId);
       setPendingStage("context");
+      setToolActivity([]);
 
       const onChunk = (chunk: ChatStreamChunk): void => {
         if (chunk.type === "context") {
@@ -377,6 +393,10 @@ export function ChatContainer({
               m.id === assistantId ? { ...m, content: m.content + piece } : m,
             ),
           );
+        } else if (chunk.type === "tool" && chunk.content) {
+          // GAP-129: ツール実行の実況 (auto モード) — 直近の実行を積む
+          const name = chunk.content;
+          setToolActivity((prev) => [...prev.slice(-4), name]);
         } else if (chunk.type === "error") {
           setError(chunk.content ?? "ストリーミング中にエラーが発生しました");
         }
@@ -389,6 +409,7 @@ export function ChatContainer({
           ragAccountId,
           onChunk,
           ...(attachments.length > 0 ? { attachments } : {}),
+          ...(toolsMode !== "off" ? { toolsMode } : {}),
         });
         // stream 完了後に履歴を再取得し、楽観行 (ローカル ID) をサーバー実 ID の
         // 行に載せ替える (フィードバック等 per-message API は実 ID が必要)。
@@ -414,9 +435,11 @@ export function ChatContainer({
         setSending(false);
         setPendingId(null);
         setPendingStage(null);
+        setToolActivity([]);
       }
     },
     [
+      toolsMode,
       threadId,
       ragAccountId,
       streamFn,
@@ -549,6 +572,10 @@ export function ChatContainer({
           commandsEnabled
           pendingAssistantId={pendingId}
           pendingStage={pendingStage}
+          toolActivity={toolActivity}
+          {...(toolsAvailable
+            ? { toolsMode, onToolsModeChange: setToolsMode }
+            : {})}
         />
       </div>
     </div>

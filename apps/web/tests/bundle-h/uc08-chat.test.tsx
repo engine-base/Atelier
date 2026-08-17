@@ -13,10 +13,19 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChatContainer } from "../../app/chat/s_e01/_components/ChatContainer";
+
+// GAP-129: ChatContainer は接続モード (PC 操作トグルの可視判定) を useQuery で
+// 引くため、全 render を QueryClientProvider で包む (接続クエリは retry せず
+// 失敗し、トグル非表示のまま従来のテスト対象に影響しない)。
+function render(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 import type {
   ChatStreamChunk,
   StreamChatArgs,

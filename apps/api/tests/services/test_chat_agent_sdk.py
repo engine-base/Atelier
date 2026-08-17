@@ -375,3 +375,41 @@ async def test_stream_collects_rate_limit_events(monkeypatch: pytest.MonkeyPatch
     assert out[0]["rate_limit_type"] == "five_hour"
     assert out[0]["utilization"] == 0.42
     assert out[1]["rate_limit_type"] == "seven_day"
+
+
+# --------------------------------------------------------------------------- #
+# GAP-129: PC 操作 (tools_mode) のオプション組み立て
+# --------------------------------------------------------------------------- #
+
+
+def test_build_options_off_has_no_tools() -> None:
+    from src.services.chat_sse.agent_sdk import build_options_kwargs
+
+    kw = build_options_kwargs(system_prompt="SYS", tools_mode="off", env={})
+    assert kw["allowed_tools"] == []
+    assert kw["max_turns"] == 1
+    assert "permission_mode" not in kw
+    assert "cwd" not in kw
+
+
+def test_build_options_auto_enables_claude_code_tools(tmp_path) -> None:
+    from src.services.chat_sse.agent_sdk import build_options_kwargs
+
+    kw = build_options_kwargs(
+        system_prompt="SYS",
+        tools_mode="auto",
+        env={"ATELIER_CHAT_WORKSPACE": str(tmp_path)},
+    )
+    assert set(kw["allowed_tools"]) == {"Read", "Write", "Edit", "Bash", "Glob", "Grep"}
+    assert kw["permission_mode"] == "bypassPermissions"
+    assert kw["cwd"] == str(tmp_path)
+    assert kw["max_turns"] > 1
+    # ツール利用の指示が system prompt に足される
+    assert "ローカル作業ツール" in kw["system_prompt"]
+
+
+def test_chat_workspace_dir_default_and_override(tmp_path) -> None:
+    from src.services.chat_sse.agent_sdk import chat_workspace_dir
+
+    assert chat_workspace_dir({}).endswith("AtelierChatWork")
+    assert chat_workspace_dir({"ATELIER_CHAT_WORKSPACE": str(tmp_path)}) == str(tmp_path)

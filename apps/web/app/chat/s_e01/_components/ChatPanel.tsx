@@ -121,6 +121,14 @@ export interface ChatPanelProps {
   readonly pendingAssistantId?: string | null;
   /** GAP-128: 生成の段階 (context=文脈構築中 / answer=最初の応答待ち / streaming=本文受信中)。 */
   readonly pendingStage?: "context" | "answer" | "streaming" | null;
+  /**
+   * GAP-129: PC 操作 (Claude Code 同等ツール)。onToolsModeChange 未指定なら
+   * トグル自体を出さない (agent_sdk モード以外 — 死にボタン禁止)。
+   */
+  readonly toolsMode?: "off" | "auto";
+  readonly onToolsModeChange?: (mode: "off" | "auto") => void;
+  /** GAP-129: 実行中ツールの実況 (SSE tool chunk の実値)。 */
+  readonly toolActivity?: readonly string[];
   readonly uploadingAttachments?: boolean;
   /** 永続化済みメッセージの添付を開く (署名付き URL 解決)。 */
   readonly onOpenAttachment?: (messageId: string, index: number) => void;
@@ -255,6 +263,13 @@ function TypingIndicator({
       </span>
     </div>
   );
+}
+
+/** GAP-129: PC 操作トグルの見た目 (自動 ON はコンテナ色で明示)。 */
+function cnToggle(active: boolean): string {
+  return active
+    ? "inline-flex items-center gap-1 rounded-sm bg-primary-container px-2 py-1 text-[11.5px] font-semibold text-on-primary-container"
+    : "inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[11.5px] text-on-surface-variant hover:bg-surface-variant hover:text-on-surface";
 }
 
 /** GAP-128: ストリーミング中の本文末尾に出す点滅カーソル。 */
@@ -452,6 +467,9 @@ export function ChatPanel({
   commandsEnabled,
   pendingAssistantId,
   pendingStage,
+  toolsMode = "off",
+  onToolsModeChange,
+  toolActivity,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | "command" | null>(
@@ -660,6 +678,24 @@ export function ChatPanel({
               {attachmentError}
             </p>
           ) : null}
+          {/* GAP-129: ツール実行の実況 (auto モード中のランタイム状態) */}
+          {toolActivity && toolActivity.length > 0 ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="mt-2 flex items-center gap-2 rounded-md bg-surface-variant px-3 py-1.5 text-[11.5px] text-on-surface-variant"
+            >
+              <Terminal size={12} aria-hidden="true" className="shrink-0 text-primary" />
+              <span className="font-semibold text-on-surface">
+                ツール実行中: {toolActivity[toolActivity.length - 1]}
+              </span>
+              {toolActivity.length > 1 ? (
+                <span className="truncate">
+                  (これまで: {toolActivity.slice(0, -1).join(" → ")})
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <div className="relative mt-2 flex items-center gap-1 border-t border-border pt-2">
             {/* /コマンドは対応バックエンド未実装のためボタン自体を出さない (Rule 10 / gap 起票済)。 */}
             {onPickAttachments ? (
@@ -709,6 +745,23 @@ export function ChatPanel({
               <AtSign size={12} aria-hidden="true" />
               <span className="hidden sm:inline">@メンション</span>
             </button>
+            {/* GAP-129: PC 操作トグル (agent_sdk モードのときだけ親が props を渡す) */}
+            {onToolsModeChange ? (
+              <button
+                type="button"
+                aria-pressed={toolsMode === "auto"}
+                aria-label={`PC 操作を${toolsMode === "auto" ? "オフにする" : "オンにする (自動実行)"}`}
+                onClick={() =>
+                  onToolsModeChange(toolsMode === "auto" ? "off" : "auto")
+                }
+                className={cnToggle(toolsMode === "auto")}
+              >
+                <Terminal size={12} aria-hidden="true" />
+                <span className="hidden sm:inline">
+                  PC 操作: {toolsMode === "auto" ? "自動" : "なし"}
+                </span>
+              </button>
+            ) : null}
             <button
               type="button"
               aria-expanded={picker === "knowledge"}

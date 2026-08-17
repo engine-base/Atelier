@@ -21,6 +21,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ClientSigninContainer } from "./_components/ClientSigninContainer";
+import { BrandLockup } from "../../../components/brand/BrandLockup";
 
 function SL02Inner() {
   const params = useSearchParams();
@@ -33,14 +34,9 @@ export default function SL02Page() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-variant)_100%)] px-5 py-8">
       <div className="w-full max-w-[480px]">
-        {/* ブランド (GAP-126: 公式ロックアップ — 文字を別タイプしない) */}
+        {/* ブランド (GAP-126/129: 公式ロックアップ — 間隔は gap で制御) */}
         <div className="mb-6 flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-          <img
-            src="/brand/logo-horizontal-lockup.svg"
-            alt="Atelier"
-            className="h-11 w-auto object-contain"
-          />
+          <BrandLockup sizeClassName="h-11" gapClassName="gap-3" />
         </div>
 
         {/* 招待グリーティングカード + サインインカード (実フォーム) —

@@ -459,6 +459,7 @@ async def stream_chat(
     include_history: int,
     rag_account_id: str | None,
     attachments: list[dict[str, Any]] | None = None,
+    tools_mode: str = "off",
 ) -> AsyncIterator[bytes]:
     """SSE byte stream を yield する generator。
 
@@ -515,6 +516,20 @@ async def stream_chat(
 
     use_subscription = subscription_mode_enabled()
     use_relay = relay_mode_enabled()
+    # GAP-129: PC 操作 (auto) は agent_sdk (オーナーの Claude プラン実行) 限定。
+    # 他モードで要求されたら黙って無視せず誠実にエラーで返す (UI は agent_sdk
+    # 以外でトグル自体を出さないので、これは防御層)。
+    if tools_mode == "auto" and not use_subscription:
+        yield _sse_event(
+            {
+                "type": "error",
+                "content": (
+                    "PC 操作 (自動実行) は「オーナーの Claude プランで実行」モード"
+                    "のときだけ使えます。PC 操作をオフにして再送してください。"
+                ),
+            }
+        )
+        return
     if use_subscription and not sdk_available():
         # opt-in したのに SDK 不在 → 黙って API/fake に落とさず誠実にエラー
         # (F-CTX01 / 鉄則: 未設定は明示。黙る fallback は課金事故のもと)。
@@ -586,11 +601,13 @@ async def stream_chat(
             from .agent_sdk import agent_sdk_stream_chunks
 
             # GAP-124: 実行中の RateLimitEvent (プラン枠実測) を収集して記録する
+            # GAP-129: tools_mode="auto" で Claude Code 同等の PC 操作を許可
             chunks = agent_sdk_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,
                 user_message=user_message,
                 rate_limits_out=sdk_rate_limits,
+                tools_mode=tools_mode,
             )
         elif use_real:
             chunks = _real_stream_chunks(
@@ -602,6 +619,12 @@ async def stream_chat(
         else:
             chunks = _fake_stream_chunks(user_message)
         async for chunk in chunks:
+            if isinstance(chunk, dict):
+                # GAP-129: ツール実行イベント (auto モード) — UI がランタイム
+                # 状態 (「Bash を実行中…」等) を実況するための実値。本文には
+                # 含めない (accumulated に足さない)。
+                yield _sse_event({"type": "tool", "content": str(chunk.get("tool", ""))})
+                continue
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})
         # GAP-124: プラン枠観測の記録 (best-effort — 応答自体は既に届いている)

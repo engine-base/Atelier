@@ -1830,6 +1830,15 @@ class SignupResponse(BaseModel):
     created_at: AwareDatetime
 
 
+class ToolsMode(StrEnum):
+    """
+    GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
+    """
+
+    off = "off"
+    auto = "auto"
+
+
 class ChatStreamRequest(BaseModel):
     user_message: Annotated[str, Field(max_length=20000, min_length=1)]
     use_knowledge_rag: bool | None = True
@@ -1838,6 +1847,10 @@ class ChatStreamRequest(BaseModel):
     attachments: Annotated[list[ChatAttachment] | None, Field(max_length=10)] = None
     """
     事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続)
+    """
+    tools_mode: ToolsMode | None = "off"
+    """
+    GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
     """
 
 

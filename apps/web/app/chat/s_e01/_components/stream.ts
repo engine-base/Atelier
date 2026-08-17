@@ -8,7 +8,10 @@
 
 import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
 
-export type ChatChunkType = "start" | "delta" | "end" | "error" | "context";
+export type ChatChunkType = "start" | "delta" | "end" | "error" | "context" | "tool";
+
+/** GAP-129: PC 操作モード。off=ツールなし (既定) / auto=確認なしで自動実行。 */
+export type ChatToolsMode = "off" | "auto";
 
 export interface ChatStreamChunk {
   readonly type: ChatChunkType;
@@ -31,6 +34,8 @@ export interface StreamChatArgs {
   readonly includeHistory?: number;
   readonly useKnowledgeRag?: boolean;
   readonly attachments?: readonly ChatAttachmentMeta[];
+  /** GAP-129: PC 操作 (agent_sdk モード限定)。省略時は off。 */
+  readonly toolsMode?: ChatToolsMode;
   readonly signal?: AbortSignal;
   readonly onChunk: (chunk: ChatStreamChunk) => void;
   /** 注入用 (省略時は connector の API_BASE / cookie token / global fetch)。 */
@@ -79,6 +84,9 @@ export async function streamChatThread(args: StreamChatArgs): Promise<void> {
       include_history: args.includeHistory ?? 10,
       ...(args.ragAccountId ? { rag_account_id: args.ragAccountId } : {}),
       ...(args.attachments?.length ? { attachments: args.attachments } : {}),
+      ...(args.toolsMode && args.toolsMode !== "off"
+        ? { tools_mode: args.toolsMode }
+        : {}),
     }),
   });
 

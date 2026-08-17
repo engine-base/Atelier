@@ -1696,6 +1696,11 @@ components:
           maxItems: 10
           items: { $ref: '#/components/schemas/ChatAttachment' }
           description: "事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続)"
+        tools_mode:
+          type: string
+          enum: [off, auto]
+          default: off
+          description: "GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)"
 
     ChatContextPreviewRequest:
       type: object
