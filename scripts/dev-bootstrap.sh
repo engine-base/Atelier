@@ -110,6 +110,37 @@ grant select on auth.users to authenticated, service_role;
 alter default privileges in schema auth grant execute on functions to authenticated, anon, service_role;
 SQL
 
+# 運営固定シード (AI 社員テンプレ / skill / 法令ページ)。これが無いと
+# workspace 作成トリガ (t-d-99) が実体化する AI 社員が 0 名になり、
+# 「AI 社員がいません」でチャットも始められない (Mac 実機検証で検出した実事故)。
+echo "→ 運営シード適用 (supabase/seed/*.sql)"
+SEED_OK=0
+for f in $(ls supabase/seed/*.sql 2>/dev/null | LC_ALL=C sort); do
+  if PGPASSWORD="$DB_PASS" psql -h "$PGHOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1; then
+    SEED_OK=$((SEED_OK + 1))
+  else
+    echo "  ⚠ seed 失敗: $(basename "$f") — 運営テンプレ欠落のまま起動しない (要調査)"
+  fi
+done
+echo "→ seed: $SEED_OK applied"
+
+# 既存 workspace への AI 社員バックフィル (シード前に作られた WS を救済 — 冪等)
+echo "→ 既存 workspace の AI 社員バックフィル"
+PGPASSWORD="$DB_PASS" psql -h "$PGHOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q <<'SQL'
+insert into public.ai_employees (
+  workspace_id, template_id, name, display_name, icon,
+  role, department, attached_skills, attached_knowledge_cats,
+  system_prompt_override, is_default
+)
+select w.id, t.id, t.default_name, t.default_display_name, t.default_icon,
+       t.role, t.department, t.default_skills, t.default_knowledge_cats,
+       t.system_prompt, true
+from public.workspaces w
+cross join public.ai_employee_templates t
+where t.is_active = true
+on conflict do nothing;
+SQL
+
 echo ""
 echo "✓ DB ブートストラップ完了。次は:"
 echo "  export ATELIER_DB_URL='postgresql+asyncpg://$DB_USER:$DB_PASS@$PGHOST:5432/$DB_NAME'"
