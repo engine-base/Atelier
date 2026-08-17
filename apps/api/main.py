@@ -12,13 +12,21 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src import __version__
+from src.errors import UnhandledErrorMiddleware
 from src.health import router as health_router
 from src.routes import api_router
 from src.txn_commit import CommitBeforeResponseMiddleware
+
+# .env を os.environ に読み込む (既にある環境変数が常に優先)。
+# これまで DB 設定 (pydantic-settings) だけが .env を読み、CORS / LLM provider /
+# Bridge トークン等は「ターミナルに export した時だけ効く」状態だった —
+# 再起動のたびに設定が消える事故 (2026-08-17 Mac 実機で再発) の恒久対策。
+load_dotenv()
 
 
 @asynccontextmanager
@@ -36,6 +44,12 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+# 未捕捉例外を CORS ヘッダ付きの JSON 500 に変換する (CORS より内側に置く)。
+# 素の 500 には CORS ヘッダが付かず、ブラウザでは「CORS エラー」に見えて
+# 真因 (サーバー例外) を隠してしまう — 誤診 2 回 (knowledge / connection-status)
+# の恒久対策。traceback はサーバーログに出る。
+app.add_middleware(UnhandledErrorMiddleware)
 
 # フロントエンド (Next.js) からの cookie 付きリクエストを許可。
 #   - dev:  localhost / 127.0.0.1 の任意ポート (:3000, :3100, :3200 等)
