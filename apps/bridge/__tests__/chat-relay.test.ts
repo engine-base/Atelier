@@ -14,8 +14,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRelayPicked, ChatRelayRateLimitObservation } from '../src/api-client.js';
 import {
   ChatRelayWorker,
+  ERROR_TAG_CLAUDE_NOT_FOUND,
+  ERROR_TAG_CLAUDE_NOT_LOGGED_IN,
   buildChatArgs,
   chatRelayEnabled,
+  classifyRunFailure,
   parseStreamLine,
   sanitizedChildEnv,
   type ChatRelaySender,
@@ -101,9 +104,22 @@ describe('parseStreamLine', () => {
   it('assistant 完成 message から text を取り出す', () => {
     expect(parseStreamLine(ASSISTANT)).toEqual({ kind: 'assistant_text', text: '完成応答' });
   });
-  it('result の成否を判定する', () => {
-    expect(parseStreamLine(RESULT_OK)).toEqual({ kind: 'result', ok: true });
+  it('result の成否を判定する (GAP-127: 本文 detail も保持)', () => {
+    expect(parseStreamLine(RESULT_OK)).toEqual({ kind: 'result', ok: true, detail: 'done' });
     expect(parseStreamLine(RESULT_ERR)).toEqual({ kind: 'result', ok: false });
+    expect(
+      parseStreamLine(
+        JSON.stringify({
+          type: 'result',
+          subtype: 'error_during_execution',
+          result: 'Invalid API key · Please run /login',
+        }),
+      ),
+    ).toEqual({
+      kind: 'result',
+      ok: false,
+      detail: 'Invalid API key · Please run /login',
+    });
   });
   it('rate_limit_event を観測値として取り出す (GAP-119)', () => {
     const line = JSON.stringify({
@@ -247,5 +263,35 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(sent).toHaveLength(2);
     expect(sent.find((o) => o.rate_limit_type === 'five_hour')?.utilization).toBe(0.5);
     expect(sent.find((o) => o.rate_limit_type === 'seven_day')?.utilization).toBe(0.1);
+  });
+});
+
+describe('classifyRunFailure (GAP-127 — 失敗原因の分類タグ)', () => {
+  const base = { exitCode: 1, spawnFailed: false, stderrTail: '', resultDetail: '' };
+
+  it('spawn 失敗 (claude コマンド不在) は not-found タグ', () => {
+    const msg = classifyRunFailure({ ...base, spawnFailed: true, exitCode: 127 });
+    expect(msg.startsWith(ERROR_TAG_CLAUDE_NOT_FOUND)).toBe(true);
+  });
+
+  it('result 本文の "Please run /login" は not-logged-in タグ + 根拠を残す', () => {
+    const msg = classifyRunFailure({
+      ...base,
+      resultDetail: 'Invalid API key · Please run /login',
+    });
+    expect(msg.startsWith(ERROR_TAG_CLAUDE_NOT_LOGGED_IN)).toBe(true);
+    expect(msg).toContain('Please run /login');
+  });
+
+  it('stderr の認証エラーでも not-logged-in と判定する', () => {
+    const msg = classifyRunFailure({ ...base, stderrTail: 'authentication_error: token expired' });
+    expect(msg.startsWith(ERROR_TAG_CLAUDE_NOT_LOGGED_IN)).toBe(true);
+  });
+
+  it('分類できない失敗はタグ無しで exit code と根拠を返す (推測で決めつけない)', () => {
+    const msg = classifyRunFailure({ ...base, stderrTail: 'segfault' });
+    expect(msg).toContain('exit=1');
+    expect(msg).toContain('segfault');
+    expect(msg.includes('[claude-')).toBe(false);
   });
 });

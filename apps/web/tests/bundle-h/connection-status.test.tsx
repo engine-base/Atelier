@@ -149,6 +149,55 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
     expect(screen.queryByText(/まだ計測がありません/)).toBeNull();
   });
 
+  it("GAP-127: 直近実行が Claude 未ログイン失敗ならログイン手順を案内する", async () => {
+    renderChip({
+      mode: "relay",
+      bridge_online: true,
+      workers: [
+        { host_label: "pc", version: "1.0.0", last_seen_at: "2026-08-17T09:00:00Z" },
+      ],
+      last_job: {
+        status: "error",
+        error:
+          "[claude-not-logged-in] Claude が未ログインです: Invalid API key · Please run /login",
+        created_at: "2026-08-17T08:59:00Z",
+        finished_at: "2026-08-17T08:59:10Z",
+      },
+      plan: null,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
+    expect(
+      await screen.findByText("このパソコンの Claude がログインされていません"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/表示される手順でログイン/)).toBeInTheDocument();
+    // 生エラー文の分類タグは表示に出さない
+    expect(screen.queryByText(/\[claude-not-logged-in\]/)).toBeNull();
+  });
+
+  it("GAP-127: claude コマンド不在ならインストール導線を出す", async () => {
+    renderChip({
+      mode: "relay",
+      bridge_online: true,
+      workers: [
+        { host_label: "pc", version: "1.0.0", last_seen_at: "2026-08-17T09:00:00Z" },
+      ],
+      last_job: {
+        status: "error",
+        error: "[claude-not-found] claude コマンドを起動できません (未インストールか PATH 不通)",
+        created_at: "2026-08-17T08:59:00Z",
+        finished_at: null,
+      },
+      plan: null,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
+    expect(
+      await screen.findByText("このパソコンに Claude Code が見つかりません"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Claude Code のインストールページを開く" }),
+    ).toHaveAttribute("href", "https://claude.com/claude-code");
+  });
+
   it("shows overall status text when windows are unobserved but status exists", async () => {
     renderChip({
       mode: "relay",

@@ -245,6 +245,28 @@ const JOB_STATUS_LABEL: Record<string, string> = {
   expired: "タイムアウト",
 };
 
+/**
+ * GAP-127: 直近実行の失敗原因を分類する。
+ * Bridge (chat-relay) が error 先頭に付ける安定タグを最優先で見て、
+ * タグの無い旧 Bridge の生エラー文にはパターンで最低限のフォールバック。
+ */
+export function classifyJobError(
+  error: string | null | undefined,
+): "not-logged-in" | "not-installed" | null {
+  if (!error) return null;
+  if (error.includes("[claude-not-found]")) return "not-installed";
+  if (error.includes("[claude-not-logged-in]")) return "not-logged-in";
+  if (/please run \/login|invalid api key|not logged in/i.test(error))
+    return "not-logged-in";
+  if (/enoent|command not found|not recognized/i.test(error)) return "not-installed";
+  return null;
+}
+
+/** 表示用: 分類タグは案内ボックスに変換済みなので生エラー文からは落とす。 */
+function stripErrorTags(error: string): string {
+  return error.replace(/\[claude-[a-z-]+\]\s*/g, "");
+}
+
 export function ConnectionStatusChip() {
   const [open, setOpen] = React.useState(false);
   const query = useQuery({
@@ -420,9 +442,42 @@ export function ConnectionStatusChip() {
                   直近の実行: {JOB_STATUS_LABEL[status.last_job.status] ?? status.last_job.status}
                   {" · "}
                   {fmtDateTime(status.last_job.created_at)}
-                  {status.last_job.error ? ` · ${status.last_job.error}` : ""}
+                  {status.last_job.error
+                    ? ` · ${stripErrorTags(status.last_job.error)}`
+                    : ""}
                 </p>
               ) : null}
+
+              {/* GAP-127: 失敗原因が Claude 側の未ログイン/未インストールなら、
+                  エラー文だけで放置せず具体的な復旧手順まで案内する */}
+              {(() => {
+                const issue = classifyJobError(status.last_job?.error);
+                if (issue === null) return null;
+                return (
+                  <div className="rounded-md border border-error/40 bg-error/5 px-3 py-2.5">
+                    <p className="text-[12px] font-bold text-on-surface">
+                      {issue === "not-logged-in"
+                        ? "このパソコンの Claude がログインされていません"
+                        : "このパソコンに Claude Code が見つかりません"}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-[1.7] text-on-surface-variant">
+                      {issue === "not-logged-in"
+                        ? "ターミナルを開いて claude と入力して実行し、表示される手順でログインしてください。ログインが完了したら、もう一度チャットを送るだけで動きます (再接続の操作は不要です)。"
+                        : "Claude Code のインストールが必要です。インストール後、ターミナルで claude を実行してログインすると、もう一度チャットを送るだけで動きます。"}
+                    </p>
+                    {issue === "not-installed" ? (
+                      <a
+                        href="https://claude.com/claude-code"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 inline-block text-[11px] font-semibold text-primary underline underline-offset-2"
+                      >
+                        Claude Code のインストールページを開く
+                      </a>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

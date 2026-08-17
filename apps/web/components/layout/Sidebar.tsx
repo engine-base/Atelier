@@ -155,7 +155,8 @@ export function Sidebar({
           <img
             src="/brand/logo-horizontal-lockup.svg"
             alt={t('common.appName')}
-            className="h-8 w-auto shrink-0 object-contain"
+            // GAP-127: 経営者指摘「デカすぎる」— h-8 から h-6 (24px) へ縮小
+            className="h-6 w-auto shrink-0 object-contain"
           />
         )}
       </div>
