@@ -34,6 +34,16 @@ export const colors = {
 
 export type ColorToken = keyof typeof colors;
 
+/**
+ * グラデーション (2026-08-17 経営者指示: 進捗ゲージはブランド単色ではなく
+ * 鮮やかなグラデーションにする。ゲージ以外への流用は不可)。
+ */
+export const gradients = {
+  progress: 'linear-gradient(90deg, #14B8A6 0%, #84CC16 55%, #F59E0B 100%)',
+} as const;
+
+export type GradientToken = keyof typeof gradients;
+
 export const spacing = {
   xs: '4px',
   sm: '8px',
@@ -125,6 +135,7 @@ export type TypographyToken = keyof typeof typography;
 
 export const tokens = {
   colors,
+  gradients,
   spacing,
   rounded,
   fontFamily,

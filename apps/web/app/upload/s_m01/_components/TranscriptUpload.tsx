@@ -325,7 +325,7 @@ export function TranscriptUpload({
                   className="h-1 w-[120px] overflow-hidden rounded-full bg-surface-variant"
                   aria-hidden="true"
                 >
-                  <div className="h-full w-1/2 animate-pulse rounded-full bg-primary" />
+                  <div className="h-full w-1/2 animate-pulse rounded-full bg-progress-gradient" />
                 </div>
               ) : status === "done" ? (
                 <StatusPill tone="bg-tertiary-container text-tertiary-container-fg">

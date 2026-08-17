@@ -646,7 +646,8 @@ export function FleetMonitorContainer({
               <span
                 className={cn(
                   "block h-full rounded-full",
-                  attentionCard ? "bg-secondary" : "bg-primary",
+                  // 要対応は semantic に secondary 維持、通常進捗はグラデーション
+                  attentionCard ? "bg-secondary" : "bg-progress-gradient",
                 )}
                 style={{
                   width: `${Math.round(((score ?? acRate) ?? 0) * 100)}%`,

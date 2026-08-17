@@ -530,7 +530,7 @@ export function KanbanBoard({
                     <span className="ml-auto flex items-center gap-2 text-[11px] font-semibold tabular-nums text-on-surface-variant">
                       <span className="h-1.5 w-[120px] overflow-hidden rounded-full bg-surface-variant">
                         <span
-                          className="block h-full rounded-full bg-tertiary"
+                          className="block h-full rounded-full bg-progress-gradient"
                           style={{ width: `${pct}%` }}
                         />
                       </span>

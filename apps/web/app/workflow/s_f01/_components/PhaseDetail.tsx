@@ -190,7 +190,7 @@ export function StageHeader({
           className="h-[6px] max-w-[320px] flex-1 basis-[180px] overflow-hidden rounded-full bg-white/50"
         >
           <div
-            className="h-full rounded-full bg-primary"
+            className="h-full rounded-full bg-progress-gradient"
             style={{ width: `${progressPct}%` }}
           />
         </div>

@@ -145,8 +145,9 @@ function ProjectCard({
             key={p}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              i < doneUpto && "bg-tertiary",
-              i === doneUpto && "bg-primary",
+              // 進捗ゲージはグラデーション (GAP-121 経営者指示 — 現在工程は pulse で区別)
+              i < doneUpto && "bg-progress-gradient",
+              i === doneUpto && "animate-pulse bg-progress-gradient",
               i > doneUpto && "bg-surface-variant",
             )}
           />

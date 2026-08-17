@@ -853,7 +853,7 @@ export function TaskDetailContainer({
                 </span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
                   <span
-                    className="block h-full rounded-full bg-tertiary"
+                    className="block h-full rounded-full bg-progress-gradient"
                     style={{
                       width: `${Math.round((latestAcRate ?? 0) * 100)}%`,
                     }}
@@ -871,7 +871,7 @@ export function TaskDetailContainer({
                 </span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
                   <span
-                    className="block h-full rounded-full bg-secondary"
+                    className="block h-full rounded-full bg-progress-gradient"
                     style={{
                       width: `${Math.round((latestScore ?? 0) * 100)}%`,
                     }}
