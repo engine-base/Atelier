@@ -124,7 +124,7 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
       <button
         type="submit"
         disabled={form.formState.isSubmitting}
-        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-container disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-container disabled:opacity-50"
       >
         {t("auth.signup")}
       </button>

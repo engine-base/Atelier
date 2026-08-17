@@ -8,10 +8,11 @@
  */
 
 export const colors = {
-  primary: '#2563EB',
+  primary: '#494535',
+  primaryHover: '#3B3729',
   onPrimary: '#FFFFFF',
-  primaryContainer: '#DBEAFE',
-  onPrimaryContainer: '#1E3A8A',
+  primaryContainer: '#E9E4D5',
+  onPrimaryContainer: '#322E20',
   secondary: '#C7A04A',
   onSecondary: '#FFFFFF',
   secondaryContainer: '#FAEDC4',

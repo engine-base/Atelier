@@ -273,7 +273,7 @@ export function MembersSection({ workspaceId, client }: MembersSectionProps) {
             <button
               type="submit"
               disabled={!email.trim() || inviteMut.isPending}
-              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
               {inviteMut.isPending ? "招待中…" : "招待する"}
             </button>

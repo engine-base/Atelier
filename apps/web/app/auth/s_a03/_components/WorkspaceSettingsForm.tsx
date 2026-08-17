@@ -82,7 +82,7 @@ const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
 
 const BTN_PRIMARY =
-  "inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+  "inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 function ShieldCheckIcon() {
   return (
@@ -233,7 +233,7 @@ export function WorkspaceSettingsForm({
                   <button
                     type="button"
                     onClick={() => saveIcon(iconDraft.trim() || null)}
-                    className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8]"
+                    className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover"
                   >
                     アイコンを保存
                   </button>

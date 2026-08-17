@@ -598,7 +598,7 @@ export function EmployeeEditor({
               </button>
               <button
                 type="submit"
-                className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8]"
+                className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 保存

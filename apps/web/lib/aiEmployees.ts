@@ -1,3 +1,4 @@
+import { colors } from "@atelier/design-tokens";
 /**
  * AI 社員の表示ヘルパー (S-E01 / S-F01 共用)。
  *
@@ -16,7 +17,7 @@ export const EMPLOYEE_COLORS: Record<string, string> = {
   thor: "#0891B2",
   vision: "#16A34A",
   tchalla: "#1F2937",
-  jarvis: "#2563EB",
+  jarvis: colors.primary,
 };
 
 export interface EmployeeLike {
@@ -32,7 +33,7 @@ export function employeeName(e: EmployeeLike | undefined): string | undefined {
 }
 
 export function employeeColor(e: EmployeeLike | undefined): string {
-  return (e?.name ? EMPLOYEE_COLORS[e.name] : undefined) ?? "#2563EB";
+  return (e?.name ? EMPLOYEE_COLORS[e.name] : undefined) ?? colors.primary;
 }
 
 const ROLE_LABELS: Record<string, string> = {

@@ -119,7 +119,7 @@ export function TemplateList({
                       type="button"
                       onClick={() => onEdit(t.id)}
                       aria-label={`${t.name} を編集`}
-                      className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8]"
+                      className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover"
                     >
                       編集
                     </button>
@@ -319,7 +319,7 @@ export function TemplateEditor({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+          className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
         >
           {saving ? "保存中…" : "保存して全 WS 反映"}
         </button>

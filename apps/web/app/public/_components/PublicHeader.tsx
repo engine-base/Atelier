@@ -26,9 +26,14 @@ export function PublicHeader({
     <header className="border-b border-border bg-white px-6 py-3.5">
       <div className="mx-auto flex max-w-[920px] items-center justify-between">
         <Link href="/signin" className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-black text-on-primary">
-            A
-          </span>
+          {/* GAP-120: ブランドロゴ実画像 */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+          <img
+            src="/brand/logo-mark.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-7 w-7 object-contain"
+          />
           <span className="text-[15px] font-bold tracking-tight text-on-surface">
             Atelier
           </span>

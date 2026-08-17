@@ -184,7 +184,7 @@ export function ClientSigninForm({
         <input
           type="checkbox"
           {...form.register("agree_legal")}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-[#2563EB]"
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
         />
         <span>
           <Link href="/terms" target="_blank" className="font-bold text-primary underline">
@@ -207,7 +207,7 @@ export function ClientSigninForm({
         <input
           type="checkbox"
           {...form.register("agree_confidential")}
-          className="mt-0.5 h-4 w-4 shrink-0 accent-[#2563EB]"
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
         />
         <span>
           本プロジェクトのデータ・成果物は
@@ -224,7 +224,7 @@ export function ClientSigninForm({
       <button
         type="submit"
         disabled={form.formState.isSubmitting}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-label-lg font-semibold text-primary-fg transition-colors hover:bg-[#1E54D8] focus-visible:outline-none disabled:opacity-50"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-label-lg font-semibold text-primary-fg transition-colors hover:bg-primary-hover focus-visible:outline-none disabled:opacity-50"
       >
         <span>同意してサインイン</span>
         <ArrowRightIcon />

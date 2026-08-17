@@ -243,7 +243,7 @@ export default function SB01Page() {
           <button
             type="submit"
             disabled={!wsName.trim() || creatingWs}
-            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+            className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
           >
             {creatingWs ? '作成中…' : 'ワークスペースを作成'}
           </button>
@@ -320,7 +320,7 @@ export default function SB01Page() {
               <button
                 type="submit"
                 disabled={!newName.trim() || creatingProject}
-                className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
               >
                 {creatingProject ? '作成中…' : '作成'}
               </button>

@@ -202,7 +202,7 @@ export function ProjectDashboard({
                       st.status === "done" &&
                         "border-tertiary bg-tertiary text-on-tertiary",
                       st.status === "in_progress" &&
-                        "border-primary bg-primary text-on-primary shadow-[0_0_0_3px_#DBEAFE]",
+                        "border-primary bg-primary text-on-primary shadow-focus-ring",
                       st.status === "pending" &&
                         "border-border bg-surface-variant text-on-surface-variant",
                       st.status === "blocked" && "border-error bg-error text-on-error",

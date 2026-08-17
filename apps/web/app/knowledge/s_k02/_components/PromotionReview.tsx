@@ -185,7 +185,7 @@ export function PromotionReview({
                   promotableItems.forEach((it) => onApprove(it.id));
                   setConfirmBulk(false);
                 }}
-                className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+                className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
               >
                 {promotableItems.length} 件を昇格
               </button>
@@ -430,7 +430,7 @@ export function PromotionReview({
               disabled={busy}
               onClick={() => onApprove(selected.id, draft())}
               aria-label={`${selected.title} を昇格`}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <Check className="h-4 w-4" aria-hidden="true" />
               {dirty ? "編集を保存して書込" : "採用して書込"}

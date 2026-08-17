@@ -16,6 +16,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -155,7 +156,7 @@ function TaskCardItem({
             checked={selected}
             onChange={() => onToggleSelect?.(task.id)}
             aria-label={`${task.title} を選択`}
-            className="mt-0.5 h-3.5 w-3.5 accent-[#2563EB]"
+            className="mt-0.5 h-3.5 w-3.5 accent-primary"
           />
         ) : null}
         {/* タスク詳細 (S-I02) への導線。従来はどこからも詳細に到達できなかった */}
@@ -181,7 +182,7 @@ function TaskCardItem({
             aria-hidden="true"
             title={task.assignee}
             className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white"
-            style={{ backgroundColor: task.assigneeColor ?? "#2563EB" }}
+            style={{ backgroundColor: task.assigneeColor ?? colors.primary }}
           >
             {task.assignee.trim().charAt(0)}
           </span>

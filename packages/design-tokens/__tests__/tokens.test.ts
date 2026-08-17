@@ -11,10 +11,10 @@ import {
 
 describe('@atelier/design-tokens — colors', () => {
   it('exposes primary M3 role tokens with hex values', () => {
-    expect(colors.primary).toBe('#2563EB');
+    expect(colors.primary).toBe('#494535');
     expect(colors.onPrimary).toBe('#FFFFFF');
-    expect(colors.primaryContainer).toBe('#DBEAFE');
-    expect(colors.onPrimaryContainer).toBe('#1E3A8A');
+    expect(colors.primaryContainer).toBe('#E9E4D5');
+    expect(colors.onPrimaryContainer).toBe('#322E20');
   });
 
   it('exposes secondary / tertiary / surface / error / neutral tokens', () => {

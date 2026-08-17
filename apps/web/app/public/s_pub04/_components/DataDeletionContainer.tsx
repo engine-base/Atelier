@@ -76,7 +76,7 @@ export function DataDeletionContainer() {
         </p>
         <Link
           href="/signin?redirect=/data-deletion"
-          className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition hover:bg-[#1E54D8]"
+          className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition hover:bg-primary-hover"
         >
           サインインして続ける
         </Link>

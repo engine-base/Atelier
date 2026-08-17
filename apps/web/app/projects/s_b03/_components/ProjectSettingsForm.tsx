@@ -225,7 +225,7 @@ export function ProjectSettingsForm({
             type="submit"
             className={cn(
               "mt-2 inline-flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2",
-              "text-sm font-semibold text-on-primary transition hover:bg-[#1E54D8]",
+              "text-sm font-semibold text-on-primary transition hover:bg-primary-hover",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",
             )}
           >

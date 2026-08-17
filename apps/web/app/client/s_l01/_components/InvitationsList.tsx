@@ -526,7 +526,7 @@ export function InvitationsList({
             <button
               type="submit"
               disabled={!email}
-              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
             >
               <MailIcon />
               招待を発行

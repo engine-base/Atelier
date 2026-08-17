@@ -551,7 +551,7 @@ export function TranscriptUpload({
                   {chatHref ? (
                     <a
                       href={chatHref}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-[#1E54D8]"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary hover:bg-primary-hover"
                     >
                       スティーブで深掘り
                     </a>

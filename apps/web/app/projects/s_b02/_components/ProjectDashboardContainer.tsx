@@ -13,6 +13,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -428,7 +429,7 @@ export function ProjectDashboardContainer({
       return {
         id,
         name: employeeName(emp) ?? "AI 社員",
-        color: emp ? employeeColor(emp) : "#2563EB",
+        color: emp ? employeeColor(emp) : colors.primary,
         lastActiveAt: at,
       };
     });

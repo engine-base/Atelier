@@ -78,7 +78,7 @@ export function StageBar({ nodes, selectedId, onSelect }: StageBarProps) {
                   node.status === "done" &&
                     "border-tertiary bg-tertiary text-on-tertiary",
                   node.status === "in_progress" &&
-                    "border-primary bg-primary text-on-primary shadow-[0_0_0_3px_#DBEAFE]",
+                    "border-primary bg-primary text-on-primary shadow-focus-ring",
                   node.status === "pending" &&
                     "border-border bg-surface-variant text-on-surface-variant",
                   node.status === "blocked" &&

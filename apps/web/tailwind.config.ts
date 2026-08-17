@@ -29,9 +29,14 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      boxShadow: {
+        // primary 系フォーカスリング (旧 shadow-[0_0_0_3px_<hex>] のトークン化)
+        'focus-ring': `0 0 0 3px ${colors.primaryContainer}`,
+      },
       colors: {
         primary: {
           DEFAULT: colors.primary,
+          hover: colors.primaryHover,
           fg: colors.onPrimary,
           container: colors.primaryContainer,
           'container-fg': colors.onPrimaryContainer,

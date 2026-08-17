@@ -288,7 +288,7 @@ function SendHistoryCard({
         <button
           type="button"
           onClick={onOpenSend}
-          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8]"
+          className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-[13px] font-semibold text-on-primary transition hover:bg-primary-hover"
         >
           クライアントにメール送信
         </button>
@@ -495,7 +495,7 @@ function DocPreview({
               type="button"
               onClick={() => setSendOpen((v) => !v)}
               aria-expanded={sendOpen}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary transition hover:bg-[#1E54D8]"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary transition hover:bg-primary-hover"
             >
               送信
             </button>
@@ -575,7 +575,7 @@ function DocPreview({
             <button
               type="submit"
               disabled={!toEmail.trim() || sending}
-              className="rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+              className="rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
             >
               送信する
             </button>
@@ -614,7 +614,7 @@ function DocPreview({
                 type="button"
                 onClick={() => void save()}
                 disabled={saving}
-                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
               >
                 {saving ? "保存中…" : "保存"}
               </button>
@@ -762,7 +762,7 @@ export function SalesDocDraft({
                     type="button"
                     onClick={() => void submitWith(onGenerate, setGenerating)}
                     disabled={generating || loading}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-[#1E54D8] disabled:opacity-50"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-semibold text-on-primary transition hover:bg-primary-hover disabled:opacity-50"
                   >
                     {generating ? "トニーが生成中…" : "トニーにドラフト生成を依頼"}
                   </button>

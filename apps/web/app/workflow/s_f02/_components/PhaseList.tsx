@@ -14,6 +14,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useState } from "react";
 
@@ -277,7 +278,7 @@ function PhaseCard({ row, onTransition, employees, onAssign, stats }: PhaseCardP
                   <span
                     aria-hidden="true"
                     className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white"
-                    style={{ backgroundColor: emp.color ?? "#2563EB" }}
+                    style={{ backgroundColor: emp.color ?? colors.primary }}
                   >
                     {emp.name.charAt(0)}
                   </span>
@@ -481,7 +482,7 @@ export function PhaseList({
                         <button
                           type="button"
                           onClick={() => onApproveProposal(proposal.id)}
-                          className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8]"
+                          className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-primary-hover"
                         >
                           承認
                         </button>

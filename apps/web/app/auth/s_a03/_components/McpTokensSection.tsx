@@ -31,7 +31,7 @@ const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
 const BADGE = "inline-flex items-center rounded-sm px-2 py-0.5 text-[10.5px] font-semibold";
 const BTN_PRIMARY_SM =
-  "inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50";
 const BTN_GHOST_SM =
   "inline-flex items-center justify-center rounded-md p-1.5 text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-40";
 
@@ -187,7 +187,7 @@ export function McpTokensSection({ workspaceId, client }: McpTokensSectionProps)
             <button
               type="submit"
               disabled={!name.trim() || createMut.isPending}
-              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
             >
               {createMut.isPending ? "発行中…" : "発行する"}
             </button>

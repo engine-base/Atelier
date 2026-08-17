@@ -136,7 +136,7 @@ function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) 
         <span
           className={cn(
             "text-[11px] font-semibold",
-            // a11y: primary(#2563EB) は白地では AA を満たすが primary-container 地
+            // a11y: primary(#494535) は白地では AA を満たすが primary-container 地
             // (coo カード) では 4.5:1 未満のため on-primary-container を使う。
             // cross の tertiary(#14B8A6) も surface-variant 地で不足するため濃色に。
             tone === "coo"

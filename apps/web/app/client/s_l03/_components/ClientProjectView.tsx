@@ -494,7 +494,7 @@ export function ClientProjectView({
                   type="button"
                   onClick={handlePostComment}
                   disabled={posting}
-                  className="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary text-label-md font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                  className="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary text-label-md font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
                 >
                   {posting ? "投稿中…" : "コメントを投稿"}
                 </button>

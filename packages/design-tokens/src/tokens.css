@@ -7,10 +7,11 @@
 
 :root {
   /* Colors — Primary */
-  --color-primary: #2563EB;
+  --color-primary: #494535;
+  --color-primary-hover: #3B3729;
   --color-on-primary: #FFFFFF;
-  --color-primary-container: #DBEAFE;
-  --color-on-primary-container: #1E3A8A;
+  --color-primary-container: #E9E4D5;
+  --color-on-primary-container: #322E20;
 
   /* Colors — Secondary (Antique Gold) */
   --color-secondary: #C7A04A;

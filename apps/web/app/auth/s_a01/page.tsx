@@ -74,12 +74,14 @@ function SA01Inner() {
       <div className="w-full max-w-[440px]">
         {/* ブランドロゴ + マーク */}
         <div className="mb-lg flex items-center justify-center gap-2.5">
-          <span
+          {/* GAP-120: ブランドロゴ実画像 */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+          <img
+            src="/brand/logo-mark.svg"
+            alt=""
             aria-hidden="true"
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-[17px] font-bold text-on-primary"
-          >
-            A
-          </span>
+            className="h-10 w-10 object-contain"
+          />
           <span className="text-[22px] font-extrabold tracking-tight text-on-surface">
             Atelier
           </span>

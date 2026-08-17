@@ -17,6 +17,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -279,7 +280,7 @@ export function WorkflowGraphContainer({
             type="button"
             onClick={() => seedMut.mutate()}
             disabled={seedMut.isPending}
-            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {seedMut.isPending ? "開始中…" : "工程を開始する"}
           </button>
@@ -332,7 +333,7 @@ export function WorkflowGraphContainer({
   const employeeById = new Map(employees.map((e) => [e.id, e]));
   const empName = (e?: ApiEmployee) => e?.display_name ?? e?.name;
   const empColor = (e?: ApiEmployee) =>
-    (e?.name ? EMPLOYEE_COLORS[e.name] : undefined) ?? "#2563EB";
+    (e?.name ? EMPLOYEE_COLORS[e.name] : undefined) ?? colors.primary;
   const threads: PhaseThread[] = (threadsQuery.data ?? []).map((th) => {
     const emp = th.ai_employee_id
       ? employeeById.get(th.ai_employee_id)

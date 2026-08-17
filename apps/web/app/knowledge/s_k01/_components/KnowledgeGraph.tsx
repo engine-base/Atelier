@@ -9,6 +9,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 
 import { cn } from "../../../../lib/cn";
@@ -45,7 +46,7 @@ const CY = H / 2;
 
 /** scope ごとのノード配色 (ツリーの scope タブと同系統)。 */
 const SCOPE_FILL: Record<KnowledgeScope, string> = {
-  common: "#2563EB",
+  common: colors.primary,
   employee_specific: "#7C3AED",
   project: "#0D9488",
 };
@@ -137,7 +138,7 @@ export function KnowledgeGraph({
                 y1={s.y}
                 x2={t.x}
                 y2={t.y}
-                stroke={e.kind === "parent" ? "#2563EB" : "#94A3B8"}
+                stroke={e.kind === "parent" ? colors.primary : "#94A3B8"}
                 strokeWidth={e.kind === "parent" ? 1.8 : 1.1}
                 strokeDasharray={e.kind === "tag" ? "4 4" : undefined}
                 opacity={0.55}

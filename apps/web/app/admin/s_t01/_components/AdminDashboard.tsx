@@ -13,6 +13,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useState } from "react";
 
@@ -231,7 +232,7 @@ function MissionHero({
           <button
             type="submit"
             disabled={savingGoal}
-            className="rounded-md bg-white px-4 py-1.5 text-[12.5px] font-bold text-[#1E3A8A] disabled:opacity-50"
+            className="rounded-md bg-white px-4 py-1.5 text-[12.5px] font-bold text-primary-container-fg disabled:opacity-50"
           >
             {savingGoal ? "保存中…" : "目標を記録"}
           </button>
@@ -251,7 +252,7 @@ function MissionHero({
   return (
     <section
       aria-label="ミッション"
-      className="grid grid-cols-1 items-center gap-7 rounded-lg bg-[#1E3A8A] p-7 text-white lg:grid-cols-[1fr_320px]"
+      className="grid grid-cols-1 items-center gap-7 rounded-lg bg-primary-container-fg p-7 text-white lg:grid-cols-[1fr_320px]"
     >
       <div>
         <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] opacity-70">
@@ -335,7 +336,7 @@ function MissionHero({
               background: `conic-gradient(#14B8A6 0% ${pct}%, rgba(255,255,255,0.08) ${pct}% 100%)`,
             }}
           >
-            <div className="absolute inset-[7px] rounded-full bg-[#1E3A8A]" />
+            <div className="absolute inset-[7px] rounded-full bg-primary-container-fg" />
             <div className="relative text-center">
               <div className="text-[22px] font-black leading-none">
                 {mission.currentCount}
@@ -418,7 +419,7 @@ function TrendPanel({
             <text x="4" y={y(max) - 3} fontSize="9" fill="#94A3B8">
               {max}
             </text>
-            <path d={path((p) => p.workspaces)} stroke="#2563EB" strokeWidth="2.5" fill="none" />
+            <path d={path((p) => p.workspaces)} stroke={colors.primary} strokeWidth="2.5" fill="none" />
             <path d={path((p) => p.projects)} stroke="#14B8A6" strokeWidth="2.5" fill="none" />
           </svg>
           <div className="mt-1 flex justify-between text-[10px] tabular-nums text-on-surface-variant">
@@ -529,7 +530,7 @@ function ChannelPanel({
           </select>
           <button
             type="submit"
-            className="h-8 rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8]"
+            className="h-8 rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary hover:bg-primary-hover"
           >
             獲得を記録
           </button>
@@ -789,7 +790,7 @@ function CostPanel({
           />
           <button
             type="submit"
-            className="h-8 rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary hover:bg-[#1E54D8]"
+            className="h-8 rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary hover:bg-primary-hover"
           >
             記録
           </button>

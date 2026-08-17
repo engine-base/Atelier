@@ -329,7 +329,7 @@ export function OutputViewer({
                     <button
                       type="submit"
                       disabled={!instructionDraft.trim() || revising}
-                      className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                      className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
                     >
                       修正を依頼
                     </button>
@@ -507,7 +507,7 @@ export function OutputViewer({
                                       onClick={() =>
                                         onApproveProposal(proposal.id)
                                       }
-                                      className="rounded-md bg-primary px-3 py-1 text-[11.5px] font-semibold text-on-primary hover:bg-[#1E54D8]"
+                                      className="rounded-md bg-primary px-3 py-1 text-[11.5px] font-semibold text-on-primary hover:bg-primary-hover"
                                     >
                                       承認
                                     </button>
@@ -678,7 +678,7 @@ export function OutputViewer({
                     <button
                       type="submit"
                       disabled={!draft.trim()}
-                      className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] disabled:opacity-50"
+                      className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
                     >
                       投稿
                     </button>

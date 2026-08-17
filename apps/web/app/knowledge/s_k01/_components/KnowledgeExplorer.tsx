@@ -933,7 +933,7 @@ export function KnowledgeExplorer({
                 <button
                   type="submit"
                   disabled={!editTitle.trim() || editMut.isPending}
-                  className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-[#1E54D8] disabled:opacity-50"
+                  className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
                 >
                   {editMut.isPending ? "保存中…" : "保存"}
                 </button>

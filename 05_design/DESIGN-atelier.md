@@ -2,10 +2,10 @@
 name: Atelier
 colors:
   # Primary
-  primary: "#2563EB"
+  primary: "#494535"
   on-primary: "#FFFFFF"
-  primary-container: "#DBEAFE"
-  on-primary-container: "#1E3A8A"
+  primary-container: "#E9E4D5"
+  on-primary-container: "#322E20"
   # Secondary
   secondary: "#C7A04A"
   on-secondary: "#FFFFFF"
@@ -144,16 +144,17 @@ Atelier は AI 社員が常駐する開発プロジェクト統合管理 SaaS。
 2. **エディトリアル品質（Editorial Quality）**：印刷物のような余白とタイポ階層。Noto Sans JP の重いウェイト（700-900）で見出しに静かな迫力を与える。
 3. **AI 時代の UX（AI-Native UX）**：assistant-ui / tool-ui と完全統合。Thinking / Analyzing / Tool Call の表示も上質に。絵文字は使わず Lucide React で統一。
 4. **長時間作業の身体性（Built for Long Sessions）**：純白を避け生成り背景、WCAG AA 以上のコントラスト、控えめなアニメーション。
-5. **明るく、開かれている（Bright & Open）**：Primary に明るい Vivid Sapphire を採用。AI ツールに多いダーク中心の世界観から一歩踏み出し、創造性を喚起する。
+5. **工房の落ち着き（Grounded Craft）**：Primary はブランドロゴ由来の Atelier Olive。道具と紙の工房を思わせる深い土色で、生成り背景と同じ温度の世界観に統一する（2026-08-17 経営者指示: ロゴカラーへ全面変更）。
 
 ## Colors
 
 カラーシステムは Material Design 3 に準拠した役割ベースの命名規則を採用する。
 
-### Primary — Vivid Sapphire `#2563EB`
+### Primary — Atelier Olive `#494535`
 
-ブランドの中心色。CTA、最重要 UI、ナビゲーション選択状態、リンク、進捗バーに使用。
-明るく自信のあるブルーで、Linear（紫寄り）・Stripe（紫）・Vercel（黒）と差別化しつつ、SaaS としての信頼性を保つ。AI による創造性・知性のメタファでもある。
+ブランドの中心色。**ブランドロゴ（アーチの A マーク）と同色**のダークオリーブ。CTA、最重要 UI、ナビゲーション選択状態、リンク、進捗バーに使用。
+Linear（紫寄り）・Stripe（紫）・Vercel（黒）・青系 SaaS の海と明確に差別化し、「工房」の名にふさわしい木と土の落ち着きを与える。
+派生: hover `#3B3729` / container `#E9E4D5`（生成りと連続する淡オリーブ）/ on-container `#322E20`。
 
 ### Secondary — Warm Brass `#C7A04A`
 
@@ -175,7 +176,8 @@ On-surface（`#0F172A`）は Slate 900 の濃紺寄りブラックで、純黒�
 
 | 組合せ | コントラスト比 | 判定 |
 |---|---|---|
-| primary `#2563EB` / on-primary `#FFFFFF` | 5.17:1 | AA ✓ |
+| primary `#494535` / on-primary `#FFFFFF` | 9.57:1 | AAA ✓ |
+| primary-container `#E9E4D5` / on-primary-container `#322E20` | 10.68:1 | AAA ✓ |
 | surface `#FEFCF8` / on-surface `#0F172A` | 17.5:1 | AAA ✓ |
 | secondary-container `#FAEDC4` / on-secondary-container `#5C4A1E` | 8.4:1 | AAA ✓ |
 | tertiary `#14B8A6` / on-tertiary `#FFFFFF` | 3.2:1 | AA Large ✓ (大文字・アイコン専用、本文不可) |

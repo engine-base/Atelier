@@ -14,6 +14,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -302,7 +303,7 @@ function MessageRow({
       <span
         aria-hidden="true"
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
-        style={{ backgroundColor: employee?.color ?? "#2563EB" }}
+        style={{ backgroundColor: employee?.color ?? colors.primary }}
       >
         {name.charAt(0)}
       </span>
@@ -538,7 +539,7 @@ export function ChatPanel({
             ) : null}
           </div>
         ) : null}
-        <div className="rounded-lg border border-border bg-white px-[14px] py-3 transition-all focus-within:border-primary focus-within:shadow-[0_0_0_3px_#DBEAFE]">
+        <div className="rounded-lg border border-border bg-white px-[14px] py-3 transition-all focus-within:border-primary focus-within:shadow-focus-ring">
           <label htmlFor="chat-input" className="sr-only">
             メッセージを入力
           </label>
@@ -706,7 +707,7 @@ export function ChatPanel({
                         <span
                           aria-hidden="true"
                           className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                          style={{ backgroundColor: c.color ?? "#2563EB" }}
+                          style={{ backgroundColor: c.color ?? colors.primary }}
                         >
                           {c.name.charAt(0)}
                         </span>

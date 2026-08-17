@@ -140,12 +140,14 @@ export function Sidebar({
           collapsed && 'justify-center px-0',
         )}
       >
-        <span
+        {/* GAP-120: ブランドロゴ実画像 (public/brand/logo-mark.svg — 経営者支給の公式マーク) */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+        <img
+          src="/brand/logo-mark.svg"
+          alt=""
           aria-hidden="true"
-          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-[14px] font-bold text-on-primary"
-        >
-          A
-        </span>
+          className="h-7 w-7 shrink-0 object-contain"
+        />
         {collapsed ? null : (
           <span className="text-[16px] font-bold tracking-[-0.01em] text-on-surface">
             {t('common.appName')}

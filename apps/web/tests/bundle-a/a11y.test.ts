@@ -23,7 +23,7 @@ afterEach(() => {
 
 describe('parseHex', () => {
   it('parses 6-digit hex', () => {
-    expect(parseHex('#2563EB')).toEqual({ r: 0x25, g: 0x63, b: 0xeb });
+    expect(parseHex('#494535')).toEqual({ r: 0x49, g: 0x45, b: 0x35 });
   });
   it('parses 3-digit shorthand', () => {
     expect(parseHex('#abc')).toEqual({ r: 0xaa, g: 0xbb, b: 0xcc });
@@ -47,7 +47,7 @@ describe('relativeLuminance / contrastRatio (WCAG 2.x)', () => {
     expect(meetsContrastAA('#0F172A', '#FEFCF8')).toBe(true);
   });
   it('Atelier on-primary on primary meets AA (>= 4.5)', () => {
-    expect(meetsContrastAA('#FFFFFF', '#2563EB')).toBe(true);
+    expect(meetsContrastAA('#FFFFFF', '#494535')).toBe(true);
   });
   it('returns 0 for invalid colors', () => {
     // 'invalid' は 7 文字 — 3/6 桁 hex のいずれにも合わない

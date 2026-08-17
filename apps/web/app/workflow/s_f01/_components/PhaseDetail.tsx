@@ -11,6 +11,7 @@
 
 "use client";
 
+import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
@@ -134,7 +135,7 @@ function EmployeeAvatar({
         width: size,
         height: size,
         fontSize: Math.round(size * 0.46),
-        backgroundColor: color ?? "#2563EB",
+        backgroundColor: color ?? colors.primary,
       }}
     >
       {(name ?? "A").charAt(0)}

@@ -123,7 +123,7 @@ export function CredentialForm({ onSubmit }: CredentialFormProps) {
       <button
         type="submit"
         disabled={busy}
-        className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-[#1E54D8] focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
+        className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
       >
         <KeyIcon className="h-4 w-4" />
         {busy ? "保存中…" : "暗号化して保存"}
