@@ -149,6 +149,33 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
     expect(screen.queryByText(/まだ計測がありません/)).toBeNull();
   });
 
+  it("GAP-128: utilization 未報告でも枠種別とリセット時刻の実値を表示する", async () => {
+    renderChip({
+      mode: "agent_sdk",
+      bridge_online: false,
+      workers: [],
+      last_job: null,
+      plan: {
+        status: "allowed",
+        five_hour_utilization: null,
+        five_hour_resets_at: "2026-08-17T12:00:00Z",
+        seven_day_utilization: null,
+        seven_day_resets_at: null,
+        observed_at: "2026-08-17T08:59:10Z",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
+    await screen.findByText("プラン枠の使用状況");
+    // % バーは出さない (実値が無い) が、枠種別 + 状態 + リセット時刻は出す
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.getByText("5 時間枠")).toBeInTheDocument();
+    expect(screen.getByText(/利用可/)).toBeInTheDocument();
+    expect(screen.getByText(/にリセット/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/使用率 \(%\) は Claude が報告した場合のみ表示されます/),
+    ).toBeInTheDocument();
+  });
+
   it("GAP-127: 直近実行が Claude 未ログイン失敗ならログイン手順を案内する", async () => {
     renderChip({
       mode: "relay",

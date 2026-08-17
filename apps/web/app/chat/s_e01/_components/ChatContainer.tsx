@@ -170,6 +170,11 @@ export function ChatContainer({
     useState<readonly ChatMessage[]>(initialMessages);
   const [sending, setSending] = useState(false);
   const [context, setContext] = useState<ChatContextSummary | null>(null);
+  // GAP-128: 生成中インジケータ (実イベント連動 — context chunk 前/後/delta 受信中)
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [pendingStage, setPendingStage] = useState<
+    "context" | "answer" | "streaming" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -356,12 +361,17 @@ export function ChatContainer({
       setPendingFiles([]);
       setSending(true);
       setError(null);
+      setPendingId(assistantId);
+      setPendingStage("context");
 
       const onChunk = (chunk: ChatStreamChunk): void => {
         if (chunk.type === "context") {
           setContext(readContextSummary(chunk.metadata));
+          // 文脈構築が終わった = ここから Claude の応答待ち
+          setPendingStage((s) => (s === "context" ? "answer" : s));
         } else if (chunk.type === "delta" && chunk.content) {
           const piece = chunk.content;
+          setPendingStage("streaming");
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId ? { ...m, content: m.content + piece } : m,
@@ -402,6 +412,8 @@ export function ChatContainer({
         );
       } finally {
         setSending(false);
+        setPendingId(null);
+        setPendingStage(null);
       }
     },
     [
@@ -482,8 +494,9 @@ export function ChatContainer({
   return (
     <div className="flex h-full flex-col gap-sm">
       {context ? (
+        // GAP-128: 上端・左端に密着していた余白を是正 (メッセージ列の px に合わせる)
         <div
-          className="inline-flex w-fit items-center gap-2 rounded-full bg-tertiary-container px-3 py-1 text-[11.5px] font-semibold text-on-tertiary-container"
+          className="mx-md mt-sm inline-flex w-fit items-center gap-2 rounded-full bg-tertiary-container px-3 py-1 text-[11.5px] font-semibold text-on-tertiary-container sm:mx-[32px]"
           aria-label="F-CTX01 文脈サマリ"
         >
           <Brain size={12} aria-hidden="true" />
@@ -534,6 +547,8 @@ export function ChatContainer({
           uploadingAttachments={uploadingAttachments}
           onOpenAttachment={handleOpenAttachment}
           commandsEnabled
+          pendingAssistantId={pendingId}
+          pendingStage={pendingStage}
         />
       </div>
     </div>

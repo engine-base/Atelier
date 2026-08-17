@@ -390,45 +390,71 @@ export function ConnectionStatusChip() {
               ) : null}
 
               {/* プラン枠 — 観測値があるときのみ (推測で出さない) */}
-              {status.plan ? (
+              {status.plan
+                ? (() => {
+                    const plan = status.plan;
+                    const planStatusLabel =
+                      plan.status === "rejected"
+                        ? "上限到達"
+                        : plan.status === "allowed_warning"
+                          ? "上限接近"
+                          : "利用可";
+                    return (
                 <div className="rounded-md border border-border p-2.5">
                   <p className="text-[11.5px] font-bold text-on-surface">
                     プラン枠の使用状況
                   </p>
                   <div className="mt-2 space-y-2.5">
-                    {status.plan.five_hour_utilization !== null ? (
-                      <PlanBar
-                        label="5 時間枠"
-                        utilization={status.plan.five_hour_utilization}
-                        resetsAt={status.plan.five_hour_resets_at}
-                      />
-                    ) : null}
-                    {status.plan.seven_day_utilization !== null ? (
-                      <PlanBar
-                        label="7 日間枠"
-                        utilization={status.plan.seven_day_utilization}
-                        resetsAt={status.plan.seven_day_resets_at}
-                      />
-                    ) : null}
-                    {status.plan.five_hour_utilization === null &&
-                    status.plan.seven_day_utilization === null ? (
-                      <p className="text-[11px] text-on-surface-variant">
-                        使用率の内訳は未観測です (状態:{" "}
-                        {status.plan.status === "rejected"
-                          ? "上限到達"
-                          : status.plan.status === "allowed_warning"
-                            ? "上限接近"
-                            : "利用可"}
-                        )。
+                    {/* GAP-128: Claude は % を報告しない場合がある (実測)。その場合も
+                        枠種別 + リセット時刻 + 状態は実値なので捨てずに表示する。 */}
+                    {(
+                      [
+                        {
+                          label: "5 時間枠",
+                          utilization: plan.five_hour_utilization,
+                          resetsAt: plan.five_hour_resets_at,
+                        },
+                        {
+                          label: "7 日間枠",
+                          utilization: plan.seven_day_utilization,
+                          resetsAt: plan.seven_day_resets_at,
+                        },
+                      ] as const
+                    ).map((w) =>
+                      w.utilization !== null ? (
+                        <PlanBar
+                          key={w.label}
+                          label={w.label}
+                          utilization={w.utilization}
+                          resetsAt={w.resetsAt}
+                        />
+                      ) : w.resetsAt ? (
+                        <p key={w.label} className="text-[11px] text-on-surface-variant">
+                          <span className="font-semibold text-on-surface">{w.label}</span>
+                          {": "}
+                          {planStatusLabel}
+                          {" · "}
+                          {fmtDateTime(w.resetsAt)} にリセット
+                        </p>
+                      ) : null,
+                    )}
+                    {plan.five_hour_utilization === null &&
+                    plan.seven_day_utilization === null ? (
+                      <p className="text-[11px] leading-[1.6] text-on-surface-variant">
+                        {plan.five_hour_resets_at || plan.seven_day_resets_at
+                          ? "使用率 (%) は Claude が報告した場合のみ表示されます (今回の実行では枠の状態とリセット時刻のみ報告されました)。"
+                          : `使用率の内訳は未観測です (状態: ${planStatusLabel})。`}
                       </p>
                     ) : null}
                   </div>
                   <p className="mt-2 text-[10.5px] leading-[1.5] text-on-surface-variant">
-                    {fmtDateTime(status.plan.observed_at)}
+                    {fmtDateTime(plan.observed_at)}
                     のチャット実行時点の観測値です (Claude が実行時に報告した実値のみを表示します)。
                   </p>
                 </div>
-              ) : status.mode === "relay" || status.mode === "agent_sdk" ? (
+                    );
+                  })()
+                : status.mode === "relay" || status.mode === "agent_sdk" ? (
                 <p className="text-[11px] leading-[1.6] text-on-surface-variant">
                   プラン枠 (5 時間 / 7 日) の使用率はまだ計測がありません。チャットを
                   1 回実行すると、その時点の実測値がここに表示されます (Claude

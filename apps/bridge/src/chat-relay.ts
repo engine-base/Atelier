@@ -106,18 +106,22 @@ export function parseStreamLine(line: string): ChatStreamItem | null {
   }
   if (obj.type === 'rate_limit_event') {
     // claude CLI がプラン枠の状態変化時に発行する実値 (推測なし)。
+    // GAP-128: 実 CLI の実測でフィールドは camelCase (rateLimitType/resetsAt)
+    // だった。snake_case のみ読んでいて全 null になっていた実バグの是正 —
+    // 将来の表記揺れに備えて両方受ける。
     const info = obj.rate_limit_info as Record<string, unknown> | undefined;
     const status = info?.status;
     if (status !== 'allowed' && status !== 'allowed_warning' && status !== 'rejected')
       return null;
+    const rateLimitType = info?.rate_limit_type ?? info?.rateLimitType;
+    const resetsAt = info?.resets_at ?? info?.resetsAt;
     return {
       kind: 'rate_limit',
       observation: {
         status,
-        rate_limit_type:
-          typeof info?.rate_limit_type === 'string' ? info.rate_limit_type : null,
+        rate_limit_type: typeof rateLimitType === 'string' ? rateLimitType : null,
         utilization: typeof info?.utilization === 'number' ? info.utilization : null,
-        resets_at: typeof info?.resets_at === 'number' ? info.resets_at : null,
+        resets_at: typeof resetsAt === 'number' ? resetsAt : null,
       },
     };
   }

@@ -121,6 +121,30 @@ describe('parseStreamLine', () => {
       detail: 'Invalid API key · Please run /login',
     });
   });
+  it('rate_limit_event は実 CLI の camelCase フィールドを読む (GAP-128 実測)', () => {
+    // 実 CLI 出力の実測値そのまま: rateLimitType / resetsAt が camelCase で、
+    // utilization は含まれない
+    const line = JSON.stringify({
+      type: 'rate_limit_event',
+      rate_limit_info: {
+        status: 'allowed',
+        resetsAt: 1786980000,
+        rateLimitType: 'five_hour',
+        overageStatus: 'rejected',
+      },
+      uuid: 'u',
+      session_id: 's',
+    });
+    expect(parseStreamLine(line)).toEqual({
+      kind: 'rate_limit',
+      observation: {
+        status: 'allowed',
+        rate_limit_type: 'five_hour',
+        utilization: null,
+        resets_at: 1786980000,
+      },
+    });
+  });
   it('rate_limit_event を観測値として取り出す (GAP-119)', () => {
     const line = JSON.stringify({
       type: 'rate_limit_event',

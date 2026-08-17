@@ -117,6 +117,10 @@ export interface ChatPanelProps {
   readonly pendingAttachments?: readonly { name: string; size: number }[];
   readonly onRemoveAttachment?: (index: number) => void;
   readonly attachmentError?: string | null;
+  /** GAP-128: 生成中の assistant メッセージ ID (TypingIndicator/カーソルの対象)。 */
+  readonly pendingAssistantId?: string | null;
+  /** GAP-128: 生成の段階 (context=文脈構築中 / answer=最初の応答待ち / streaming=本文受信中)。 */
+  readonly pendingStage?: "context" | "answer" | "streaming" | null;
   readonly uploadingAttachments?: boolean;
   /** 永続化済みメッセージの添付を開く (署名付き URL 解決)。 */
   readonly onOpenAttachment?: (messageId: string, index: number) => void;
@@ -216,6 +220,53 @@ function AttachmentChips({
   );
 }
 
+/**
+ * GAP-128: 生成中インジケータ (経営者指示「推論的な UI/UX・ランタイム状態」)。
+ * 段階は SSE の実イベントに連動する (推測で演出しない):
+ *   context (文脈構築中: context chunk 到着前) → answer (最初の delta 待ち)。
+ * delta が届き始めたら本文のストリーミング描画 + 末尾カーソルに切り替わる。
+ */
+function TypingIndicator({
+  stage,
+  name,
+}: {
+  readonly stage: "context" | "answer";
+  readonly name: string;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex w-fit items-center gap-2.5 rounded-lg rounded-tl-sm border border-border bg-white px-4 py-3"
+    >
+      <span aria-hidden="true" className="flex items-center gap-1">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-on-surface-variant/70"
+            style={{ animationDelay: `${i * 150}ms`, animationDuration: "900ms" }}
+          />
+        ))}
+      </span>
+      <span className="text-[12px] text-on-surface-variant">
+        {stage === "context"
+          ? "文脈を集めています (会話履歴とナレッジを検索中)…"
+          : `${name}が考えています…`}
+      </span>
+    </div>
+  );
+}
+
+/** GAP-128: ストリーミング中の本文末尾に出す点滅カーソル。 */
+function StreamingCursor() {
+  return (
+    <span
+      aria-hidden="true"
+      className="ml-0.5 inline-block h-[14px] w-[7px] animate-pulse rounded-[2px] bg-primary/70 align-text-bottom"
+    />
+  );
+}
+
 function MessageRow({
   message,
   employee,
@@ -224,6 +275,7 @@ function MessageRow({
   onBranch,
   branching,
   onOpenAttachment,
+  pendingStage,
 }: {
   readonly message: ChatMessage;
   readonly employee?: ChatEmployeeInfo;
@@ -232,6 +284,8 @@ function MessageRow({
   readonly onBranch?: (messageId: string) => void;
   readonly branching?: boolean;
   readonly onOpenAttachment?: (messageId: string, index: number) => void;
+  /** GAP-128: このメッセージが生成中のとき、その段階 (null = 生成中でない)。 */
+  readonly pendingStage?: "context" | "answer" | "streaming" | null;
 }) {
   const time = fmtTime(message.created_at);
   const [copied, setCopied] = useState(false);
@@ -316,7 +370,17 @@ function MessageRow({
             </span>
           ) : null}
         </div>
-        <MessageContent content={message.content} />
+        {message.content === "" && pendingStage ? (
+          <TypingIndicator
+            stage={pendingStage === "streaming" ? "answer" : pendingStage}
+            name={name}
+          />
+        ) : (
+          <>
+            <MessageContent content={message.content} />
+            {pendingStage === "streaming" ? <StreamingCursor /> : null}
+          </>
+        )}
         {message.persisted ? (
           // モック .msg-action-row 準拠 (役立った / コピー / 分岐 — GAP-031① 解消:
           // 分岐は履歴コピー + parent_message_id 連鎖で新スレッドへ)。
@@ -386,6 +450,8 @@ export function ChatPanel({
   uploadingAttachments,
   onOpenAttachment,
   commandsEnabled,
+  pendingAssistantId,
+  pendingStage,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | "command" | null>(
@@ -457,6 +523,7 @@ export function ChatPanel({
             onBranch={m.role === "assistant" ? onBranch : undefined}
             branching={branching}
             onOpenAttachment={onOpenAttachment}
+            pendingStage={m.id === pendingAssistantId ? pendingStage : null}
           />
         ))}
         {/* ツール実行の承認カード (GAP-031① — モック .approval-card 準拠) */}

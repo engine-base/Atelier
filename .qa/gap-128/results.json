@@ -1,0 +1,22 @@
+[
+  {
+    "name": "生成中インジケータが実表示",
+    "ok": true,
+    "note": "ジャービスが考えています…"
+  },
+  {
+    "name": "実応答が届いた (agent_sdk 実実行)",
+    "ok": true,
+    "note": "ジ\nジャービス\n\n2"
+  },
+  {
+    "name": "F-CTX01 チップに左余白",
+    "ok": true,
+    "note": "left-gap=32px"
+  },
+  {
+    "name": "プラン枠に実値 (バー % または リセット時刻) が表示",
+    "ok": true,
+    "note": "bar=true reset=true"
+  }
+]

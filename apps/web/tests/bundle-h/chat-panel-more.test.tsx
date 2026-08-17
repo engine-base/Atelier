@@ -231,3 +231,53 @@ describe("ChatPanel ツール承認カード + エラー通知 (GAP-118 coverage
     expect(onDismissError).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ChatPanel 生成中インジケータ (GAP-128)", () => {
+  const pendingMsg = { id: "a1", role: "assistant" as const, content: "" };
+
+  it("context 段階: 文脈収集中の表示 (実イベント連動)", () => {
+    render(
+      <ChatPanel
+        messages={[pendingMsg]}
+        onSend={noop}
+        employee={{ name: "ジャービス", color: "#494535" }}
+        pendingAssistantId="a1"
+        pendingStage="context"
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "文脈を集めています (会話履歴とナレッジを検索中)…",
+    );
+  });
+
+  it("answer 段階: 社員名入りの思考中表示", () => {
+    render(
+      <ChatPanel
+        messages={[pendingMsg]}
+        onSend={noop}
+        employee={{ name: "ジャービス", color: "#494535" }}
+        pendingAssistantId="a1"
+        pendingStage="answer"
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("ジャービスが考えています…");
+  });
+
+  it("streaming 段階: 本文 + 点滅カーソル、生成対象でないメッセージには出さない", () => {
+    render(
+      <ChatPanel
+        messages={[
+          { id: "a0", role: "assistant", content: "前の応答" },
+          { id: "a1", role: "assistant", content: "途中まで" },
+        ]}
+        onSend={noop}
+        employee={{ name: "ジャービス", color: "#494535" }}
+        pendingAssistantId="a1"
+        pendingStage="streaming"
+      />,
+    );
+    expect(screen.getByText("途中まで")).toBeInTheDocument();
+    // インジケータ (role=status) は本文があるので出ない
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
