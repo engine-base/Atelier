@@ -1,0 +1,60 @@
+# GAP-122: Atelier Bridge の 3 OS パッケージング (Mac DMG / Windows NSIS / Linux AppImage+deb)
+#
+# コンテナ (Linux) では Mac 用 DMG を作れないため、配布物は本 workflow の
+# macos/windows/ubuntu ランナーで作る。手動実行 (workflow_dispatch) か
+# `bridge-v*` タグ push で走り、タグ時は GitHub Release に添付する。
+name: bridge-dist
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ['bridge-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  dist:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+          - os: windows-latest
+            script: dist:win
+          - os: ubuntu-latest
+            script: dist:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "9.12.0" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build bridge (tsc)
+        run: pnpm --filter @atelier/bridge run build
+      - name: Package (${{ matrix.script }})
+        run: pnpm --filter @atelier/bridge run ${{ matrix.script }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-${{ matrix.os }}
+          path: |
+            apps/bridge/out/*.dmg
+            apps/bridge/out/*.exe
+            apps/bridge/out/*.AppImage
+            apps/bridge/out/*.deb
+          if-no-files-found: error
+      - name: Attach to release (tag push のみ)
+        if: startsWith(github.ref, 'refs/tags/bridge-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/bridge/out/*.dmg
+            apps/bridge/out/*.exe
+            apps/bridge/out/*.AppImage
+            apps/bridge/out/*.deb

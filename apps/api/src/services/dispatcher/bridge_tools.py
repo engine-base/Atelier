@@ -511,16 +511,23 @@ async def record_ping(
     host_label: str,
     version: str,
     worker_pid: int | None,
+    user_id: str | None = None,
 ) -> None:
     """Bridge presence (GAP-026①)。poll ごとに upsert され、S-I03 の接続バッジの
-    実体になる (last_seen_at が新鮮なら「接続中」)。"""
+    実体になる (last_seen_at が新鮮なら「接続中」)。
+
+    GAP-122: user トークンで ping した worker は user_id で本人に紐付ける
+    (接続状態パネルが「自分の Bridge」を判定できる)。
+    """
     await session.execute(
         text(
-            "insert into public.bridge_workers (id, host_label, version, worker_pid, last_seen_at) "
-            "values (:i, :h, :v, :p, now()) "
+            "insert into public.bridge_workers "
+            "(id, host_label, version, worker_pid, user_id, last_seen_at) "
+            "values (:i, :h, :v, :p, cast(:u as uuid), now()) "
             "on conflict (id) do update set host_label = excluded.host_label, "
             "version = excluded.version, worker_pid = excluded.worker_pid, "
+            "user_id = excluded.user_id, "
             "last_seen_at = now()"
         ),
-        {"i": worker_id, "h": host_label, "v": version, "p": worker_pid},
+        {"i": worker_id, "h": host_label, "v": version, "p": worker_pid, "u": user_id},
     )

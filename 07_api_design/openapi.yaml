@@ -1892,6 +1892,33 @@ components:
           maxItems: 200
           items: { type: string }
 
+    BridgeTokenCreate:
+      type: object
+      description: GAP-122 — Bridge 接続トークン発行リクエスト
+      properties:
+        label: { type: string, maxLength: 100, nullable: true }
+
+    BridgeTokenCreated:
+      type: object
+      description: GAP-122 — 発行応答 (raw token はこの応答で 1 度だけ)
+      required: [id, token, label, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        token: { type: string }
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+
+    BridgeTokenRow:
+      type: object
+      description: GAP-122 — トークン一覧行 (raw/hash なし)
+      required: [id, label, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+
     ChatRelayRateLimitObservation:
       type: object
       description: GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
@@ -6564,6 +6591,58 @@ paths:
                   data: { $ref: '#/components/schemas/ChatMessage' }
         '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /bridge-tokens:
+    post:
+      tags: [bridge-tokens]
+      summary: Bridge 接続トークン発行（GAP-122 — raw は 1 度だけ返す）
+      x-implementation-path: apps/api/src/routes/bridge_tokens/__init__.py::create_bridge_token
+      x-screen-ids: [S-E01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BridgeTokenCreate' }
+      responses:
+        '201':
+          description: 発行済トークン（raw 含む — 以後は取得不可）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/BridgeTokenCreated' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      tags: [bridge-tokens]
+      summary: Bridge 接続トークン一覧（GAP-122 — 本人のみ・raw なし）
+      x-implementation-path: apps/api/src/routes/bridge_tokens/__init__.py::list_bridge_tokens
+      x-screen-ids: [S-E01]
+      responses:
+        '200':
+          description: 本人のトークン一覧（新しい順）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/BridgeTokenRow' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /bridge-tokens/{token_id}/revoke:
+    post:
+      tags: [bridge-tokens]
+      summary: Bridge 接続トークン失効（GAP-122 — 本人のみ・冪等）
+      x-implementation-path: apps/api/src/routes/bridge_tokens/__init__.py::revoke_bridge_token
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: token_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: 失効完了 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 他人のトークン, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/connection-status:
     get:

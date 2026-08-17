@@ -13,6 +13,7 @@ from src.routes.ai_employees import router as ai_employees_router
 from src.routes.approvals import router as approvals_router
 from src.routes.auth import router as auth_router
 from src.routes.billing import router as billing_router
+from src.routes.bridge_tokens import router as bridge_tokens_router
 from src.routes.byok_keys import router as byok_keys_router
 from src.routes.chat import router as chat_router
 from src.routes.chat_sse import router as chat_sse_router
@@ -64,6 +65,7 @@ api_router.include_router(public_router)
 api_router.include_router(impact_router)
 api_router.include_router(approvals_router)
 api_router.include_router(mcp_tokens_router)
+api_router.include_router(bridge_tokens_router)
 api_router.include_router(byok_keys_router)
 api_router.include_router(cron_router)
 api_router.include_router(sales_docs_router)

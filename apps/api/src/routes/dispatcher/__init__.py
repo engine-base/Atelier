@@ -17,8 +17,10 @@ service_role 相当のフルアクセスセッションを払い出し、RLS を
 
 from __future__ import annotations
 
+import hmac
 import os
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Annotated, NoReturn
 
@@ -54,22 +56,16 @@ def _bridge_session_factory() -> async_sessionmaker[AsyncSession]:
     return create_session_factory(create_engine())
 
 
-async def verify_bridge_token(
-    x_bridge_token: Annotated[str | None, Header()] = None,
-) -> str:
-    """X-Bridge-Token を環境変数 ATELIER_BRIDGE_TOKEN と照合する。
+@dataclass(frozen=True)
+class BridgeIdentity:
+    """Bridge 認証の主体 (GAP-122)。
 
-    未設定の場合は 500 (誤設定を明示)。不一致は 401。
+    - kind='instance': ATELIER_BRIDGE_TOKEN (インスタンス共通) — 全権
+    - kind='user': ユーザー別トークン — chat-relay (本人の job のみ) + ping 限定
     """
-    expected = os.environ.get("ATELIER_BRIDGE_TOKEN")
-    if not expected:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "bridge token not configured (set ATELIER_BRIDGE_TOKEN)",
-        )
-    if not x_bridge_token or x_bridge_token != expected:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
-    return x_bridge_token
+
+    kind: str  # 'instance' | 'user'
+    user_id: str | None = None
 
 
 async def get_bridge_session() -> AsyncGenerator[AsyncSession, None]:
@@ -89,8 +85,48 @@ async def get_bridge_session() -> AsyncGenerator[AsyncSession, None]:
             await session.commit()
 
 
-BridgeAuth = Annotated[str, Depends(verify_bridge_token)]
 BridgeSession = Annotated[AsyncSession, Depends(get_bridge_session)]
+
+
+async def verify_bridge_token(
+    session: BridgeSession,
+    x_bridge_token: Annotated[str | None, Header()] = None,
+) -> BridgeIdentity:
+    """X-Bridge-Token を照合する (GAP-122 で二段化)。
+
+    1. ATELIER_BRIDGE_TOKEN と一致 → インスタンス トークン (全権)
+    2. bridge_user_tokens の有効トークン → ユーザー トークン
+       (chat-relay 本人分 + ping のみ。kanban 系は 403)
+    未設定は 500 (誤設定を明示)。どちらにも一致しなければ 401。
+    """
+    expected = os.environ.get("ATELIER_BRIDGE_TOKEN")
+    if not expected:
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "bridge token not configured (set ATELIER_BRIDGE_TOKEN)",
+        )
+    if not x_bridge_token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
+    if hmac.compare_digest(x_bridge_token, expected):
+        return BridgeIdentity(kind="instance")
+    from src.services import bridge_tokens as user_tokens_svc
+
+    user_id = await user_tokens_svc.verify_user_token(session, raw=x_bridge_token)
+    if user_id is not None:
+        return BridgeIdentity(kind="user", user_id=user_id)
+    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
+
+
+BridgeAuth = Annotated[BridgeIdentity, Depends(verify_bridge_token)]
+
+
+def _require_instance(identity: BridgeIdentity) -> None:
+    """タスク実行系はインスタンス トークン限定 (ユーザー トークンに過剰権限を与えない)。"""
+    if identity.kind != "instance":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "このトークンはチャット接続専用です (タスク実行はインスタンス トークンが必要)",
+        )
 
 
 def _raise_for(code: str, message: str) -> NoReturn:
@@ -105,6 +141,7 @@ def _raise_for(code: str, message: str) -> NoReturn:
 async def kanban_pick(
     body: KanbanPickRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanPickResponse]:
+    _require_instance(_token)
     result, exec_id, wt, task_context = await svc.pick_task(
         session, worker_pid=body.worker_pid, project_id=body.project_id
     )
@@ -127,6 +164,7 @@ async def kanban_pick(
 async def kanban_start(
     body: KanbanStartRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.start_task(
             session,
@@ -144,6 +182,7 @@ async def kanban_start(
 async def kanban_complete(
     body: KanbanCompleteRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.complete_task(
             session,
@@ -162,6 +201,7 @@ async def kanban_complete(
 async def kanban_request_review(
     body: KanbanRequestReviewRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.request_review(
             session,
@@ -178,6 +218,7 @@ async def kanban_request_review(
 async def kanban_request_change(
     body: KanbanRequestChangeRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.request_change(
             session,
@@ -194,6 +235,7 @@ async def kanban_request_change(
 async def kanban_heartbeat(
     body: KanbanHeartbeatRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.heartbeat(session, task_id=body.task_id, worker_pid=body.worker_pid)
     except svc.DispatcherError as exc:
@@ -205,6 +247,7 @@ async def kanban_heartbeat(
 async def kanban_kill(
     body: KanbanKillRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, KanbanResponse]:
+    _require_instance(_token)
     try:
         result = await svc.kill_task(
             session,
@@ -228,6 +271,7 @@ async def bridge_ping(
         host_label=body.host_label,
         version=body.version,
         worker_pid=body.worker_pid,
+        user_id=_token.user_id,
     )
     return {"data": {"status": "ok"}}
 
@@ -240,7 +284,9 @@ async def chat_relay_pick(
     body: ChatRelayPickRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, ChatRelayPickResponse]:
     """queued なチャット中継ジョブを 1 件 claim する (queued→running)。"""
-    picked = await relay_svc.pick_job(session, worker_id=body.worker_id)
+    picked = await relay_svc.pick_job(
+        session, worker_id=body.worker_id, requested_by=_token.user_id
+    )
     if picked is None:
         return {"data": ChatRelayPickResponse(no_available_job=True)}
     return {

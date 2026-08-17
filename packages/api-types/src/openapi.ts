@@ -10121,6 +10121,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bridge-tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bridge 接続トークン一覧（GAP-122 — 本人のみ・raw なし） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 本人のトークン一覧（新しい順） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BridgeTokenRow"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Bridge 接続トークン発行（GAP-122 — raw は 1 度だけ返す） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BridgeTokenCreate"];
+                };
+            };
+            responses: {
+                /** @description 発行済トークン（raw 含む — 以後は取得不可） */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["BridgeTokenCreated"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bridge-tokens/{token_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bridge 接続トークン失効（GAP-122 — 本人のみ・冪等） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 失効完了 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 他人のトークン */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/connection-status": {
         parameters: {
             query?: never;
@@ -15722,6 +15858,31 @@ export interface components {
         ChatRelayChunksRequest: {
             seq_start: number;
             texts: string[];
+        };
+        /** @description GAP-122 — Bridge 接続トークン発行リクエスト */
+        BridgeTokenCreate: {
+            label?: string | null;
+        };
+        /** @description GAP-122 — 発行応答 (raw token はこの応答で 1 度だけ) */
+        BridgeTokenCreated: {
+            /** Format: uuid */
+            id: string;
+            token: string;
+            label: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        /** @description GAP-122 — トークン一覧行 (raw/hash なし) */
+        BridgeTokenRow: {
+            /** Format: uuid */
+            id: string;
+            label: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            last_used_at?: string | null;
+            /** Format: date-time */
+            revoked_at?: string | null;
         };
         /** @description GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送） */
         ChatRelayRateLimitObservation: {

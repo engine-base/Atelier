@@ -46,6 +46,14 @@
     ],
     "asar": true,
     "compression": "store",
+    "protocols": [
+      {
+        "name": "Atelier Bridge",
+        "schemes": [
+          "atelier-bridge"
+        ]
+      }
+    ],
     "linux": {
       "category": "Development",
       "target": [

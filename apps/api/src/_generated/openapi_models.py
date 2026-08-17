@@ -2007,6 +2007,37 @@ class ChatRelayChunksRequest(BaseModel):
     texts: Annotated[list[str], Field(max_length=200, min_length=1)]
 
 
+class BridgeTokenCreate(BaseModel):
+    """
+    GAP-122 — Bridge 接続トークン発行リクエスト
+    """
+
+    label: Annotated[str | None, Field(max_length=100)] = None
+
+
+class BridgeTokenCreated(BaseModel):
+    """
+    GAP-122 — 発行応答 (raw token はこの応答で 1 度だけ)
+    """
+
+    id: UUID
+    token: str
+    label: str
+    created_at: AwareDatetime
+
+
+class BridgeTokenRow(BaseModel):
+    """
+    GAP-122 — トークン一覧行 (raw/hash なし)
+    """
+
+    id: UUID
+    label: str
+    created_at: AwareDatetime
+    last_used_at: AwareDatetime | None = None
+    revoked_at: AwareDatetime | None = None
+
+
 class Status15(StrEnum):
     allowed = "allowed"
     allowed_warning = "allowed_warning"

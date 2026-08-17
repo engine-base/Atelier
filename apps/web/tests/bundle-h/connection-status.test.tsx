@@ -87,9 +87,13 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
     expect(screen.getByText(/直近の実行: 成功/)).toBeInTheDocument();
   });
 
-  it("relay + offline: chip warns and panel shows connect flow with copyable command", async () => {
+  it("relay + offline: connect flow issues a token then offers one-click app link (GAP-122)", async () => {
     const writeText = vi.fn((_text: string) => Promise.resolve());
     Object.assign(navigator, { clipboard: { writeText } });
+    // sendJson は data を unwrap して返す (connector 仕様)
+    vi.spyOn(api, "sendJson").mockResolvedValue({
+      token: "raw-user-token-xyz",
+    } as never);
     renderChip({
       mode: "relay",
       bridge_online: false,
@@ -104,10 +108,25 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
     expect(await screen.findByText("接続の手順")).toBeInTheDocument();
     // プラン未計測の誠実案内
     expect(screen.getByText(/まだ計測がありません/)).toBeInTheDocument();
+    // ダウンロード導線 (全デスクトップ OS)
+    expect(
+      screen.getByRole("link", { name: /Mac \/ Windows \/ Linux/ }),
+    ).toHaveAttribute("href", expect.stringContaining("/releases"));
+    // トークン発行 → アプリで接続 (atelier-bridge:// ディープリンク)
+    fireEvent.click(screen.getByRole("button", { name: "接続トークンを発行" }));
+    const connectLink = await screen.findByRole("link", { name: "アプリで接続" });
+    expect(connectLink.getAttribute("href")).toContain("atelier-bridge://connect?");
+    expect(connectLink.getAttribute("href")).toContain(
+      encodeURIComponent("raw-user-token-xyz"),
+    );
+    expect(api.sendJson).toHaveBeenCalledWith("POST", "/bridge-tokens", {
+      label: "Bridge",
+    });
+    // fallback コマンドにも実トークンが入る
     fireEvent.click(screen.getByRole("button", { name: "起動コマンドをコピー" }));
-    expect(writeText).toHaveBeenCalledTimes(1);
     const copiedArg: unknown = writeText.mock.calls[0]?.[0];
     expect(String(copiedArg)).toContain("headless.js --loop");
+    expect(String(copiedArg)).toContain("raw-user-token-xyz");
   });
 
   it("api mode is labeled as metered billing honestly", async () => {

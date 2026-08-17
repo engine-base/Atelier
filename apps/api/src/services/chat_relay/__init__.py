@@ -98,17 +98,23 @@ async def enqueue_job(
     return job_id
 
 
-async def pick_job(session: AsyncSession, *, worker_id: str) -> dict[str, Any] | None:
+async def pick_job(
+    session: AsyncSession, *, worker_id: str, requested_by: str | None = None
+) -> dict[str, Any] | None:
     """最古の queued job を 1 件 atomic に claim (queued→running)。
 
     kanban pick と同じ `for update skip locked` で並行 worker と競合しない。
     無ければ None。
+
+    GAP-122: requested_by (user トークンの本人) が指定されたら本人の job のみ
+    確保する — 他人のプロンプトが他人の PC に流れない (R-T08 系の分離)。
     """
     res = await session.execute(
         text(
             "with picked as ("
             "  select id from public.chat_relay_jobs "
             "  where status = 'queued' "
+            "  and (cast(:u as uuid) is null or requested_by = cast(:u as uuid)) "
             "  order by created_at "
             "  limit 1 for update skip locked"
             ") update public.chat_relay_jobs j set status = 'running', "
@@ -116,7 +122,7 @@ async def pick_job(session: AsyncSession, *, worker_id: str) -> dict[str, Any] |
             "where j.id in (select id from picked) "
             "returning j.id, j.system_prompt, j.prompt"
         ),
-        {"w": worker_id},
+        {"w": worker_id, "u": requested_by},
     )
     row = res.first()
     if row is None:
@@ -332,13 +338,16 @@ async def connection_status(session: AsyncSession, *, user_id: str) -> dict[str,
     - last_job: 本人の直近 relay 実行 (status/created_at/finished_at/error)
     - plan: 本人の直近プラン枠観測 (chat_plan_status — 無ければ null)
     """
+    # GAP-122: 自分の worker (user_id = 本人) と インスタンス worker (user_id null)
+    # のみを見せる — 他ユーザーの Bridge は自分の接続状態ではない
     workers_res = await session.execute(
         text(
             "select host_label, version, last_seen_at from public.bridge_workers "
             "where last_seen_at > now() - make_interval(secs => :fresh) "
+            "and (user_id is null or user_id = cast(:u as uuid)) "
             "order by last_seen_at desc limit 10"
         ),
-        {"fresh": PRESENCE_FRESH_SECONDS},
+        {"fresh": PRESENCE_FRESH_SECONDS, "u": user_id},
     )
     workers = [
         {

@@ -13,15 +13,19 @@
  *   ATELIER_BRIDGE_CHAT_RELAY '0' でチャット中継 (GAP-114) を無効化 (既定 ON)
  */
 
-import { hostname } from 'node:os';
+import { homedir, hostname } from 'node:os';
 
 import { ApiClient } from './api-client.js';
 import { ChatRelayWorker, chatRelayEnabled, type ChatRelayOutcome } from './chat-relay.js';
+import { configFilePath, loadConnectConfig } from './deep-link.js';
 import { DEFAULT_DISPATCHER_CONFIG, Dispatcher, type CycleOutcome } from './dispatcher.js';
 
 export interface HeadlessRunner {
   runOnce(): Promise<CycleOutcome>;
 }
+
+/** GAP-122: チャット専用降格時に presence を維持する ping 関数。 */
+export type PresencePinger = () => Promise<void>;
 
 export interface ChatRelayRunner {
   runOnce(): Promise<ChatRelayOutcome>;
@@ -36,6 +40,10 @@ export interface HeadlessOptions {
   readonly makeChatRelay?: (token: string) => ChatRelayRunner;
   /** loop 時の待機 (テストでは 0 に)。 */
   readonly sleepMs?: number;
+  /** GAP-122: ワンクリック接続の設定ファイル (テスト注入用。省略時 ~/.atelier-bridge.json)。 */
+  readonly configPath?: string;
+  /** GAP-122: チャット専用降格時の presence pinger (テスト注入用)。 */
+  readonly makePinger?: (token: string) => PresencePinger;
 }
 
 export function makeDefaultRunner(
@@ -73,13 +81,47 @@ export function makeDefaultChatRelay(
   });
 }
 
+/** GAP-122: 実 ApiClient で presence を送る pinger。 */
+export function makeDefaultPinger(
+  token: string,
+  env: Readonly<Record<string, string | undefined>>,
+): PresencePinger {
+  const api = new ApiClient({
+    baseUrl: env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
+    token,
+  });
+  return () =>
+    api.ping({
+      workerId: `${hostname()}#${process.pid}`,
+      hostLabel: hostname(),
+      version: '0.1.0',
+      workerPid: process.pid,
+    });
+}
+
 export async function runHeadless(opts: HeadlessOptions): Promise<number> {
-  const token = opts.env.ATELIER_BRIDGE_TOKEN;
+  // GAP-122: env に無ければワンクリック接続の設定ファイルを読む
+  // (env が常に優先 — 明示指定を黙って上書きしない)
+  let env = opts.env;
+  if (!env.ATELIER_BRIDGE_TOKEN) {
+    const stored = loadConnectConfig(opts.configPath ?? configFilePath(homedir()));
+    if (stored) {
+      env = {
+        ...env,
+        ATELIER_BRIDGE_TOKEN: stored.token,
+        ATELIER_API_URL: env.ATELIER_API_URL ?? stored.apiUrl,
+      };
+      console.log('[bridge] ワンクリック接続の保存設定を使用します');
+    }
+  }
+  const token = env.ATELIER_BRIDGE_TOKEN;
   if (!token) {
-    console.error('ATELIER_BRIDGE_TOKEN が未設定です。claim せず終了します。');
+    console.error(
+      'ATELIER_BRIDGE_TOKEN が未設定です (アプリの「接続」も未実行)。claim せず終了します。',
+    );
     return 2;
   }
-  const runner = (opts.makeRunner ?? ((t) => makeDefaultRunner(t, opts.env)))(token);
+  const runner = (opts.makeRunner ?? ((t) => makeDefaultRunner(t, env)))(token);
   const loop = opts.argv.includes('--loop');
 
   // GAP-114: チャット中継 (既定 ON)。タスク claim とは独立の高頻度ループで回す
@@ -115,7 +157,34 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
 
   try {
     do {
-      const outcome = await runner.runOnce();
+      let outcome: CycleOutcome;
+      try {
+        outcome = await runner.runOnce();
+      } catch (err: unknown) {
+        // GAP-122: user トークンはタスク実行 (kanban) が 403 — チャット中継専用
+        // として降格し、チャットループだけで待機し続ける (fatal 終了させない)。
+        // presence (接続バッジ) は task ループが送っていたため、降格後は
+        // 自前の ping ループで維持する。
+        if (loop && String(err).includes('403')) {
+          console.log(
+            '[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)',
+          );
+          const ping =
+            (opts.makePinger ?? ((t: string) => makeDefaultPinger(t, env)))(token);
+          const pingLoop = (async () => {
+            while (!chatLoopStop) {
+              await ping().catch(() => {
+                /* presence 失敗は致命ではない */
+              });
+              await new Promise((r) => setTimeout(r, opts.sleepMs ?? 10_000));
+            }
+          })();
+          await chatLoopDone; // chatLoopStop が立つまで回り続ける (実質常駐)
+          await pingLoop;
+          return 0;
+        }
+        throw err;
+      }
       console.log(`[bridge] cycle outcome: ${outcome}`);
       if (outcome === 'auth-error') return 2;
       if (outcome === 'no-task') {
