@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # ローカル開発フルスタック ブートストラップ (登録→ログイン→画面 を実際に動かす)。
 #
-# 前提: ローカルに PostgreSQL 16 が起動していること (port 5432)。
-#   - macOS: brew services start postgresql@16
+# 前提: ローカルに PostgreSQL 16+ が起動していること (port 5432)。
+#   - macOS: brew install postgresql@17 pgvector && brew services start postgresql@17
+#     (pgvector はナレッジ RAG の vector 型に必要 — 無いと該当 migration が skip され
+#      チャットが 500 になる)
 #   - Ubuntu: sudo service postgresql start
 #
 # このスクリプトは:
@@ -21,16 +23,32 @@ DB_PASS="${ATELIER_DEV_DB_PASS:-devpass}"
 DB_NAME="${ATELIER_DEV_DB_NAME:-atelier_dev}"
 PGHOST="${PGHOST:-localhost}"
 
+# superuser 接続の OS 差分:
+#   - Linux (apt): postgres OS ユーザー経由 (sudo -u postgres)
+#   - macOS (Homebrew): postgres OS ユーザーは存在せず、brew services で起動した
+#     PostgreSQL は現ユーザーが superuser。psql -d postgres で直接接続する。
+if [[ "$(uname)" == "Darwin" ]]; then
+  super_psql() { psql -d postgres "$@"; }
+  super_createdb() { createdb "$@"; }
+else
+  super_psql() { sudo -u postgres psql "$@"; }
+  super_createdb() { sudo -u postgres createdb "$@"; }
+fi
+
 echo "→ DB / ロール作成 ($DB_NAME)"
-sudo -u postgres psql -c "DROP DATABASE IF EXISTS $DB_NAME" 2>/dev/null || true
-sudo -u postgres psql -tc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1 \
-  || sudo -u postgres psql -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS' SUPERUSER" 2>/dev/null || true
-sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+super_psql -c "DROP DATABASE IF EXISTS $DB_NAME" 2>/dev/null || true
+super_psql -tc "SELECT 1 FROM pg_roles WHERE rolname='$DB_USER'" | grep -q 1 \
+  || super_psql -c "CREATE ROLE $DB_USER LOGIN PASSWORD '$DB_PASS' SUPERUSER" 2>/dev/null || true
+super_createdb -O "$DB_USER" "$DB_NAME"
 
 echo "→ Supabase 互換 shim 適用"
 PGPASSWORD="$DB_PASS" psql -h "$PGHOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
 create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto;
+-- Supabase 互換: extensions スキーマ (migration が extensions.vector を参照する。
+-- スキーマが無いと vector 系 → chat_threads → chat 全テーブルが連鎖 skip し
+-- チャットが動かない DB になる)
+create schema if not exists extensions;
 create schema if not exists auth;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
@@ -86,6 +104,7 @@ grant all on all sequences in schema public to authenticated, service_role;
 alter default privileges in schema public grant all on tables to authenticated, service_role;
 alter default privileges in schema public grant all on sequences to authenticated, service_role;
 grant usage on schema auth to authenticated, anon, service_role;
+grant usage on schema extensions to authenticated, anon, service_role;
 grant execute on all functions in schema auth to authenticated, anon, service_role;
 grant select on auth.users to authenticated, service_role;
 alter default privileges in schema auth grant execute on functions to authenticated, anon, service_role;

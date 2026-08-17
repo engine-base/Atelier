@@ -12,7 +12,11 @@
 
 - Node.js 20.x + pnpm 9.x
 - Python 3.12 + uv
-- PostgreSQL 16（ローカル, port 5432）
+- PostgreSQL 16+（ローカル, port 5432）+ **pgvector**
+  - macOS: `brew install postgresql@17 pgvector && brew services start postgresql@17`
+  - Ubuntu: `sudo apt install postgresql-16 postgresql-16-pgvector`
+  - pgvector が無いと vector 型を使う migration → chat 系テーブルが連鎖 skip され
+    チャットが動かない DB になる (dev-bootstrap.sh のログで skip 数を確認できる)
 
 ## 1. DB ブートストラップ
 
