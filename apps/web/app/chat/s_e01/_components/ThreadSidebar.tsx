@@ -16,7 +16,7 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search } from "lucide-react";
+import { ChevronDown, Plus, Search } from "lucide-react";
 
 import * as api from "../../../../lib/auth/connector";
 import {
@@ -140,6 +140,8 @@ export function ThreadSidebar({
   const queryClient = useQueryClient();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
+  // GAP-123 追補: 社員セクションの開閉 (既定はすべて開)
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [formProjectId, setFormProjectId] = useState("");
   const [formEmployeeId, setFormEmployeeId] = useState("");
   const [formPhaseId, setFormPhaseId] = useState("");
@@ -378,10 +380,25 @@ export function ThreadSidebar({
           <>
             {employeeGroups.map(({ empId, employee, threads: ts }) => {
               const name = employeeName(employee) ?? "AI 社員";
+              const isOpen = !collapsed.has(empId);
               return (
                 <div key={empId} className="mb-1">
-                  {/* AI 社員セクション見出し (GAP-123: 一覧 > 社員 > 各スレッド) */}
-                  <div className="flex items-center gap-2 px-[10px] pb-1 pt-2">
+                  {/* AI 社員セクション見出し (GAP-123: 一覧 > 社員 > 各スレッド。
+                      クリックで開閉 — 経営者指示) */}
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    aria-label={`${name}のスレッドを${isOpen ? "折りたたむ" : "開く"}`}
+                    onClick={() =>
+                      setCollapsed((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(empId)) next.delete(empId);
+                        else next.add(empId);
+                        return next;
+                      })
+                    }
+                    className="flex w-full items-center gap-2 rounded-md px-[10px] pb-1 pt-2 text-left transition-colors hover:bg-surface-variant"
+                  >
                     <span
                       aria-hidden="true"
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
@@ -395,22 +412,32 @@ export function ThreadSidebar({
                     <span className="ml-auto rounded-full bg-surface-variant px-2 py-[1px] text-[10.5px] font-semibold tabular-nums text-on-surface-variant">
                       {ts.length}
                     </span>
-                  </div>
-                  <div className="border-l border-border pl-2 ml-[21px]">
-                    {ts.map((t) => (
-                      <ThreadCard
-                        key={t.id}
-                        thread={t}
-                        employee={employee}
-                        active={selectedId === t.id}
-                        onSelect={onSelect}
-                        showEmployee={false}
-                        phaseName={
-                          t.phase_id ? phaseNameById.get(t.phase_id) : undefined
-                        }
-                      />
-                    ))}
-                  </div>
+                    <ChevronDown
+                      size={13}
+                      aria-hidden="true"
+                      className={cn(
+                        "shrink-0 text-on-surface-variant transition-transform",
+                        !isOpen && "-rotate-90",
+                      )}
+                    />
+                  </button>
+                  {isOpen ? (
+                    <div className="border-l border-border pl-2 ml-[21px]">
+                      {ts.map((t) => (
+                        <ThreadCard
+                          key={t.id}
+                          thread={t}
+                          employee={employee}
+                          active={selectedId === t.id}
+                          onSelect={onSelect}
+                          showEmployee={false}
+                          phaseName={
+                            t.phase_id ? phaseNameById.get(t.phase_id) : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

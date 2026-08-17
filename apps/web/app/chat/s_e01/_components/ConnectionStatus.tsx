@@ -53,19 +53,19 @@ export interface ConnectionStatus {
 const MODE_LABEL: Record<ConnectionStatus["mode"], string> = {
   relay: "自分の Claude プランで実行",
   agent_sdk: "オーナーの Claude プランで実行",
-  api: "API キーで実行 (従量課金)",
+  api: "API 接続 (使った分だけ課金)",
   fake: "開発用ダミー応答",
-  unconfigured: "LLM 未接続",
+  unconfigured: "AI 未接続",
 };
 
 const MODE_DETAIL: Record<ConnectionStatus["mode"], string> = {
   relay:
-    "チャットの実行はあなたの PC の Bridge に中継され、その PC の Claude ログイン (= あなたの月額プラン) で実行されます。プロンプトも実行もあなたの PC 内で完結します。",
+    "チャットはあなたのパソコンを経由して、あなたの Claude 月額プランの範囲内で実行されます。追加の従量課金は発生しません。",
   agent_sdk:
-    "このインスタンスのオーナーの Claude サブスクリプションで実行されます (セルフホスト個人インスタンス専用モード)。",
-  api: "サーバーに設定された API キーで実行されます (Anthropic API 従量課金)。",
-  fake: "開発環境のダミー応答です。実際の LLM は呼ばれていません。",
-  unconfigured: "LLM の実行手段が設定されていません。チャットは送信できません。",
+    "チャットはこの Atelier のオーナーの Claude 月額プランの範囲内で実行されます。追加の従量課金は発生しません。プラン枠の使用率は下に表示されます (チャットを 1 回実行すると更新されます)。",
+  api: "サーバーに設定された API キーで実行されます。使った分だけ料金が発生する方式です。",
+  fake: "開発環境のダミー応答です。実際の AI は呼ばれていません。",
+  unconfigured: "AI の実行手段が設定されていないため、チャットは送信できません。",
 };
 
 function fmtDateTime(iso: string): string {
@@ -164,7 +164,7 @@ function ConnectFlow() {
       <p className="text-[12px] font-bold text-on-surface">接続の手順</p>
       <ol className="mt-1.5 list-decimal space-y-1 pl-4 text-[11.5px] leading-[1.6] text-on-surface-variant">
         <li>
-          Atelier Bridge アプリをインストール (
+          接続アプリ (Atelier Bridge) をインストール (
           <a
             href={BRIDGE_RELEASES_URL}
             target="_blank"
@@ -176,7 +176,7 @@ function ConnectFlow() {
           )
         </li>
         <li>下の「接続トークンを発行」→「アプリで接続」を押す</li>
-        <li>この表示が「Bridge 接続中」になれば完了</li>
+        <li>この表示が「接続中」になれば完了</li>
       </ol>
 
       {issued === null ? (
@@ -261,8 +261,8 @@ export function ConnectionStatusChip() {
     ? "接続状態"
     : status.mode === "relay"
       ? status.bridge_online
-        ? "自分のプランで実行"
-        : "Bridge 未接続"
+        ? "自分のプランで実行中"
+        : "プラン未接続 — ここから接続"
       : MODE_LABEL[status.mode];
   const tone = !status
     ? "bg-on-surface-variant"
@@ -348,7 +348,7 @@ export function ConnectionStatusChip() {
                 status.bridge_online ? (
                   <div className="rounded-md border border-border p-2.5">
                     <p className="text-[11.5px] font-bold text-on-surface">
-                      Bridge 接続中
+                      お使いのパソコンと接続中
                     </p>
                     <ul className="mt-1 space-y-0.5">
                       {status.workers.map((w) => (
@@ -406,10 +406,11 @@ export function ConnectionStatusChip() {
                     のチャット実行時点の観測値です (Claude が実行時に報告した実値のみを表示します)。
                   </p>
                 </div>
-              ) : status.mode === "relay" ? (
+              ) : status.mode === "relay" || status.mode === "agent_sdk" ? (
                 <p className="text-[11px] leading-[1.6] text-on-surface-variant">
-                  プラン枠はまだ計測がありません。チャットを実行すると、Claude
-                  が報告した時点の使用率がここに表示されます。
+                  プラン枠 (5 時間 / 7 日) の使用率はまだ計測がありません。チャットを
+                  1 回実行すると、その時点の実測値がここに表示されます (Claude
+                  が実行時に報告した値のみを表示します)。
                 </p>
               ) : null}
 

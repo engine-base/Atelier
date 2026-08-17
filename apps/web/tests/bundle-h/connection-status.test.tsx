@@ -62,11 +62,11 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
   it("relay + online: chip shows own-plan label and panel lists workers", async () => {
     renderChip(RELAY_ONLINE);
     await waitFor(() =>
-      expect(screen.getByText("自分のプランで実行")).toBeInTheDocument(),
+      expect(screen.getByText("自分のプランで実行中")).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
     expect(await screen.findByRole("dialog", { name: "Claude 接続状態" })).toBeVisible();
-    expect(screen.getByText("Bridge 接続中")).toBeInTheDocument();
+    expect(screen.getByText("お使いのパソコンと接続中")).toBeInTheDocument();
     expect(screen.getByText(/my-mac · v1\.2\.0/)).toBeInTheDocument();
   });
 
@@ -102,7 +102,7 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
       plan: null,
     });
     await waitFor(() =>
-      expect(screen.getByText("Bridge 未接続")).toBeInTheDocument(),
+      expect(screen.getByText(/プラン未接続/)).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
     expect(await screen.findByText("接続の手順")).toBeInTheDocument();
@@ -138,11 +138,11 @@ describe("S-E01 ConnectionStatusChip (GAP-119)", () => {
       plan: null,
     });
     await waitFor(() =>
-      expect(screen.getByText("API キーで実行 (従量課金)")).toBeInTheDocument(),
+      expect(screen.getByText("API 接続 (使った分だけ課金)")).toBeInTheDocument(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Claude 接続状態を確認" }));
     expect(
-      await screen.findByText(/Anthropic API 従量課金/),
+      await screen.findByText(/使った分だけ料金が発生/),
     ).toBeInTheDocument();
     // relay 以外では接続フローもプラン未計測案内も出さない
     expect(screen.queryByText("接続の手順")).toBeNull();
