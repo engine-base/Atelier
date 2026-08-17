@@ -83,8 +83,8 @@ export function ChatEmptyState({ projectId, onOpenThread }: ChatEmptyStateProps)
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col px-md py-10">
-      <h2 className="text-[22px] font-bold tracking-tight text-on-surface">
+    <div className="flex h-full w-full flex-col px-8 py-8 xl:px-12">
+      <h2 className="text-[24px] font-bold tracking-tight text-on-surface">
         AI 社員とチャットを始める
       </h2>
       <p className="mt-1.5 text-body-md text-on-surface-variant">
@@ -129,7 +129,7 @@ export function ChatEmptyState({ projectId, onOpenThread }: ChatEmptyStateProps)
           AI 社員がまだいません。ワークスペースを作成すると自動配備されます。
         </p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {employees.map((emp) => {
             const name = employeeName(emp) ?? "AI 社員";
             const title = employeeTitle(emp);
@@ -141,7 +141,7 @@ export function ChatEmptyState({ projectId, onOpenThread }: ChatEmptyStateProps)
                 disabled={!effectiveProject || createMut.isPending}
                 onClick={() => start(emp.id)}
                 aria-label={`${name}と新しいスレッドを開始`}
-                className="group flex items-center gap-3 rounded-lg border border-border bg-white px-4 py-3.5 text-left transition-all hover:-translate-y-px hover:border-primary hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex items-center gap-3 rounded-lg border border-border bg-white px-4 py-4 text-left transition-all hover:-translate-y-px hover:border-primary hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span
                   aria-hidden="true"
@@ -175,6 +175,34 @@ export function ChatEmptyState({ projectId, onOpenThread }: ChatEmptyStateProps)
           })}
         </div>
       )}
+
+      {/* 下段: できることの案内 (縦余白を実用情報で使う) */}
+      <div className="mt-auto grid grid-cols-1 gap-3 pt-10 md:grid-cols-3">
+        {[
+          {
+            title: "相談から始める",
+            body: "要件の整理・見積もり・設計方針など、担当の社員にそのまま日本語で相談できます。回答は表やコード付きで返ります。",
+          },
+          {
+            title: "会話をタスクにする",
+            body: "会話中に「/タスク化 タイトル」と送ると、その場でタスクが起票され、タスクボードに実物が並びます。",
+          },
+          {
+            title: "ナレッジを参照させる",
+            body: "コンポーザの「ナレッジ参照」から蓄積済みナレッジを文脈に取り込めます。送信時の自動検索も常に有効です。",
+          },
+        ].map((c) => (
+          <div
+            key={c.title}
+            className="rounded-lg border border-border bg-surface-variant/40 px-4 py-3.5"
+          >
+            <p className="text-[12.5px] font-bold text-on-surface">{c.title}</p>
+            <p className="mt-1 text-[12px] leading-[1.7] text-on-surface-variant">
+              {c.body}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

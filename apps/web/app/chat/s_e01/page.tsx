@@ -134,12 +134,15 @@ function SE01Inner() {
 
   const handleContext = useCallback((c: ChatContextSummary) => setCtx(c), []);
 
+  // GAP-124 追補: 右ペイン (コンテキスト) はスレッド選択中しか描画しないため、
+  // 未選択時は列自体を確保しない — 右側に幅 340px の空白が残る実バグの是正
+  const showRightPane = rightOpen && !!threadId;
   const gridCols =
-    leftOpen && rightOpen
+    leftOpen && showRightPane
       ? "lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)_340px]"
       : leftOpen
         ? "lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]"
-        : rightOpen
+        : showRightPane
           ? "lg:grid-cols-[minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_340px]"
           : "lg:grid-cols-[minmax(0,1fr)]";
 
