@@ -23,6 +23,7 @@
 
 "use client";
 
+import { progressColor } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -853,9 +854,10 @@ export function TaskDetailContainer({
                 </span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
                   <span
-                    className="block h-full rounded-full bg-progress-gradient"
+                    className="block h-full rounded-full"
                     style={{
                       width: `${Math.round((latestAcRate ?? 0) * 100)}%`,
+                      backgroundColor: progressColor(latestAcRate ?? 0),
                     }}
                   />
                 </span>
@@ -871,9 +873,10 @@ export function TaskDetailContainer({
                 </span>
                 <span className="h-2 overflow-hidden rounded-full bg-surface-variant">
                   <span
-                    className="block h-full rounded-full bg-progress-gradient"
+                    className="block h-full rounded-full"
                     style={{
                       width: `${Math.round((latestScore ?? 0) * 100)}%`,
+                      backgroundColor: progressColor(latestScore ?? 0),
                     }}
                   />
                 </span>

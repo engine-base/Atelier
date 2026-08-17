@@ -35,14 +35,27 @@ export const colors = {
 export type ColorToken = keyof typeof colors;
 
 /**
- * グラデーション (2026-08-17 経営者指示: 進捗ゲージはブランド単色ではなく
- * 鮮やかなグラデーションにする。ゲージ以外への流用は不可)。
+ * 進捗ゲージの色ランプ (2026-08-17 経営者指示の確定形):
+ * 1 本のゲージ内にグラデーションはかけない。**塗りは単色**で、
+ * 進捗が進むほどランプ上の色 (teal → lime → amber) に進む。
+ * アニメーションも付けない。ゲージ以外への流用は不可。
  */
-export const gradients = {
-  progress: 'linear-gradient(90deg, #14B8A6 0%, #84CC16 55%, #F59E0B 100%)',
-} as const;
+export const progressRamp = ['#14B8A6', '#84CC16', '#F59E0B'] as const;
 
-export type GradientToken = keyof typeof gradients;
+/** 進捗 t (0.0-1.0) に対応するランプ上の単色を返す。 */
+export function progressColor(t: number): string {
+  const stops = progressRamp;
+  const clamped = Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : 0;
+  const pos = clamped * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(pos));
+  const f = pos - i;
+  const hex = (c: string) =>
+    [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)) as [number, number, number];
+  const [r1, g1, b1] = hex(stops[i]!);
+  const [r2, g2, b2] = hex(stops[i + 1]!);
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * f);
+  return `rgb(${mix(r1, r2)}, ${mix(g1, g2)}, ${mix(b1, b2)})`;
+}
 
 export const spacing = {
   xs: '4px',
@@ -135,7 +148,7 @@ export type TypographyToken = keyof typeof typography;
 
 export const tokens = {
   colors,
-  gradients,
+  progressRamp,
   spacing,
   rounded,
   fontFamily,

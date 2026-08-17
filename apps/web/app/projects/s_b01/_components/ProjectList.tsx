@@ -9,6 +9,7 @@
 
 "use client";
 
+import { progressColor } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { ListChecks, Plus, Search } from "lucide-react";
@@ -145,11 +146,14 @@ function ProjectCard({
             key={p}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              // 進捗ゲージはグラデーション (GAP-121 経営者指示 — 現在工程は pulse で区別)
-              i < doneUpto && "bg-progress-gradient",
-              i === doneUpto && "animate-pulse bg-progress-gradient",
               i > doneUpto && "bg-surface-variant",
             )}
+            // GAP-121: ゲージは単色。工程が進むほどランプ上の色 (teal→amber) に進む
+            style={
+              i <= doneUpto
+                ? { backgroundColor: progressColor(i / (PHASE_ORDER.length - 1)) }
+                : undefined
+            }
           />
         ))}
       </div>

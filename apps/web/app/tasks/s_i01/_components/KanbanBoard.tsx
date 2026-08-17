@@ -16,7 +16,7 @@
 
 "use client";
 
-import { colors } from "@atelier/design-tokens";
+import { colors, progressColor } from "@atelier/design-tokens";
 import * as React from "react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -530,8 +530,8 @@ export function KanbanBoard({
                     <span className="ml-auto flex items-center gap-2 text-[11px] font-semibold tabular-nums text-on-surface-variant">
                       <span className="h-1.5 w-[120px] overflow-hidden rounded-full bg-surface-variant">
                         <span
-                          className="block h-full rounded-full bg-progress-gradient"
-                          style={{ width: `${pct}%` }}
+                          className="block h-full rounded-full"
+                          style={{ width: `${pct}%`, backgroundColor: progressColor(pct / 100) }}
                         />
                       </span>
                       完了 {pct}%

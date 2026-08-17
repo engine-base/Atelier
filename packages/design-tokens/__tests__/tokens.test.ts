@@ -105,3 +105,19 @@ describe('@atelier/design-tokens — aggregate tokens', () => {
     expect(tokens.typography).toBe(typography);
   });
 });
+
+describe('progressColor (GAP-121 — 進捗ゲージの単色ランプ)', () => {
+  it('端点はランプの両端色、中間は補間色を返す', async () => {
+    const { progressColor, progressRamp } = await import('../src/index');
+    expect(progressColor(0)).toBe('rgb(20, 184, 166)'); // #14B8A6
+    expect(progressColor(1)).toBe('rgb(245, 158, 11)'); // #F59E0B
+    expect(progressColor(0.5)).toBe('rgb(132, 204, 22)'); // 中点 = #84CC16
+    expect(progressRamp).toHaveLength(3);
+  });
+  it('範囲外・非数は 0 側へクランプ (例外を出さない)', async () => {
+    const { progressColor } = await import('../src/index');
+    expect(progressColor(-1)).toBe('rgb(20, 184, 166)');
+    expect(progressColor(2)).toBe('rgb(245, 158, 11)');
+    expect(progressColor(Number.NaN)).toBe('rgb(20, 184, 166)');
+  });
+});

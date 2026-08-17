@@ -11,7 +11,7 @@
 
 "use client";
 
-import { colors } from "@atelier/design-tokens";
+import { colors, progressColor } from "@atelier/design-tokens";
 import * as React from "react";
 import { useState } from "react";
 import Link from "next/link";
@@ -190,8 +190,9 @@ export function StageHeader({
           className="h-[6px] max-w-[320px] flex-1 basis-[180px] overflow-hidden rounded-full bg-white/50"
         >
           <div
-            className="h-full rounded-full bg-progress-gradient"
-            style={{ width: `${progressPct}%` }}
+            className="h-full rounded-full"
+            // GAP-121: 単色。進捗率が高いほどランプ上の色に進む
+            style={{ width: `${progressPct}%`, backgroundColor: progressColor(progressPct / 100) }}
           />
         </div>
         <span className="text-[12px] tabular-nums">全体 {progressPct}%</span>

@@ -22,6 +22,7 @@
 
 "use client";
 
+import { progressColor } from "@atelier/design-tokens";
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -646,11 +647,15 @@ export function FleetMonitorContainer({
               <span
                 className={cn(
                   "block h-full rounded-full",
-                  // 要対応は semantic に secondary 維持、通常進捗はグラデーション
-                  attentionCard ? "bg-secondary" : "bg-progress-gradient",
+                  // 要対応は semantic に secondary 維持
+                  attentionCard && "bg-secondary",
                 )}
+                // GAP-121: 通常進捗は単色 (進捗が高いほどランプ上の色に進む)
                 style={{
                   width: `${Math.round(((score ?? acRate) ?? 0) * 100)}%`,
+                  ...(attentionCard
+                    ? {}
+                    : { backgroundColor: progressColor((score ?? acRate) ?? 0) }),
                 }}
               />
             </div>

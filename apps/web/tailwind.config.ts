@@ -2,7 +2,6 @@ import type { Config } from 'tailwindcss';
 
 import {
   colors,
-  gradients,
   rounded,
   spacing,
   typography,
@@ -30,10 +29,6 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      backgroundImage: {
-        // 進捗ゲージ専用グラデーション (design-tokens gradients.progress)
-        'progress-gradient': gradients.progress,
-      },
       boxShadow: {
         // primary 系フォーカスリング (旧 shadow-[0_0_0_3px_<hex>] のトークン化)
         'focus-ring': `0 0 0 3px ${colors.primaryContainer}`,
