@@ -66,6 +66,22 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
     return create_session_factory(create_engine())
 
 
+async def record_plan_observations(user_id: str, observations: list[dict[str, object]]) -> None:
+    """GAP-124: agent_sdk 経路の RateLimitEvent 観測値を本人へ記録する。
+
+    ベストエフォート (失敗してもチャット応答は既に返っている)。
+    書き込みは service session (chat_plan_status は RLS default deny)。
+    """
+    if not observations:
+        return
+    factory = _session_factory()
+    async with factory() as session:
+        await chat_relay.record_plan_status_for_user(
+            session, user_id=user_id, observations=list(observations)
+        )
+        await session.commit()
+
+
 async def relay_stream_chunks(
     *,
     system_prompt: str,

@@ -266,12 +266,7 @@ async def record_plan_status(
     job_id: str,
     observations: list[dict[str, Any]],
 ) -> None:
-    """Bridge が返送した rate_limit_event 観測値を本人の行へ upsert する。
-
-    値は claude CLI が実行中に発行した実値のみ (推測で補完しない)。
-    five_hour / seven_day 以外の window は overall status にだけ寄与する。
-    観測が空・不正のみなら何も書かない (誠実: 無いものは無いまま)。
-    """
+    """Bridge が返送した rate_limit_event 観測値を job の本人へ upsert する。"""
     job_id = _validated_job_id(job_id)
     res = await session.execute(
         text("select requested_by from public.chat_relay_jobs where id = cast(:i as uuid)"),
@@ -280,8 +275,24 @@ async def record_plan_status(
     row = res.first()
     if row is None:
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
-    user_id = str(row.requested_by)
+    await record_plan_status_for_user(
+        session, user_id=str(row.requested_by), observations=observations
+    )
 
+
+async def record_plan_status_for_user(
+    session: AsyncSession,
+    *,
+    user_id: str,
+    observations: list[dict[str, Any]],
+) -> None:
+    """rate_limit_event 観測値を本人の chat_plan_status へ upsert する。
+
+    値は claude CLI が実行中に発行した実値のみ (推測で補完しない)。
+    five_hour / seven_day 以外の window は overall status にだけ寄与する。
+    観測が空・不正のみなら何も書かない (誠実: 無いものは無いまま)。
+    relay (GAP-119) と agent_sdk (GAP-124) の両経路がここに合流する。
+    """
     worst = -1
     fields: dict[str, Any] = {
         "five_hour_utilization": None,

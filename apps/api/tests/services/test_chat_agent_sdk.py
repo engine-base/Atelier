@@ -35,6 +35,19 @@ class _FakeStreamEvent:
     event: dict[str, Any] = field(default_factory=lambda: {})
 
 
+@dataclass
+class _FakeRateLimitInfo:
+    status: str
+    rate_limit_type: str | None = None
+    utilization: float | None = None
+    resets_at: float | None = None
+
+
+@dataclass
+class _FakeRateLimitEvent:
+    rate_limit_info: _FakeRateLimitInfo
+
+
 class _FakeOptions:
     def __init__(self, **kwargs: Any) -> None:
         self.kwargs = kwargs
@@ -55,6 +68,7 @@ def _install_fake_sdk(monkeypatch: pytest.MonkeyPatch, messages: list[Any]) -> d
     mod.ClaudeAgentOptions = _FakeOptions  # pyright: ignore[reportAttributeAccessIssue]
     mod.StreamEvent = _FakeStreamEvent  # pyright: ignore[reportAttributeAccessIssue]
     mod.TextBlock = _FakeTextBlock  # pyright: ignore[reportAttributeAccessIssue]
+    mod.RateLimitEvent = _FakeRateLimitEvent  # pyright: ignore[reportAttributeAccessIssue]
     mod.query = _fake_query  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "claude_agent_sdk", mod)
     return captured
@@ -324,3 +338,40 @@ async def test_stream_chat_relay_offline_message(
     joined = "".join(events)
     assert "Bridge" in joined and "オフライン" in joined
     assert '"end"' not in joined
+
+
+@pytest.mark.asyncio
+async def test_stream_collects_rate_limit_events(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GAP-124: RateLimitEvent (5h/7日枠の実測) を収集する — 応答 delta は不変。"""
+    _install_fake_sdk(
+        monkeypatch,
+        [
+            _FakeRateLimitEvent(
+                _FakeRateLimitInfo(
+                    status="allowed_warning",
+                    rate_limit_type="five_hour",
+                    utilization=0.42,
+                    resets_at=1_800_000_000.0,
+                )
+            ),
+            _delta_event("やあ"),
+            _FakeRateLimitEvent(
+                _FakeRateLimitInfo(status="allowed", rate_limit_type="seven_day", utilization=0.1)
+            ),
+            # 不正 status は収集しない (実値以外を記録しない)
+            _FakeRateLimitEvent(_FakeRateLimitInfo(status="bogus")),
+        ],
+    )
+    from src.services.chat_sse.agent_sdk import agent_sdk_stream_chunks
+
+    out: list[dict[str, Any]] = []
+    chunks = await _collect(
+        agent_sdk_stream_chunks(
+            system_prompt="s", history=[], user_message="u", rate_limits_out=out
+        )
+    )
+    assert chunks == ["やあ"]
+    assert len(out) == 2
+    assert out[0]["rate_limit_type"] == "five_hour"
+    assert out[0]["utilization"] == 0.42
+    assert out[1]["rate_limit_type"] == "seven_day"

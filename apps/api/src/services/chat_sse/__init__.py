@@ -528,6 +528,8 @@ async def stream_chat(
         )
         return
     use_real = use_subscription or use_relay or bool(os.environ.get("ANTHROPIC_API_KEY"))
+    # GAP-124: agent_sdk 経路のプラン枠観測 (RateLimitEvent) の収集先
+    sdk_rate_limits: list[dict[str, Any]] = []
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
     if not use_real and not allow_fake:
         # 本番では LLM 未接続時に fake/stub を黙って返さない (F-CTX01 / 鉄則: stub 排除)。
@@ -583,10 +585,12 @@ async def stream_chat(
         elif use_subscription:
             from .agent_sdk import agent_sdk_stream_chunks
 
+            # GAP-124: 実行中の RateLimitEvent (プラン枠実測) を収集して記録する
             chunks = agent_sdk_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,
                 user_message=user_message,
+                rate_limits_out=sdk_rate_limits,
             )
         elif use_real:
             chunks = _real_stream_chunks(
@@ -600,6 +604,15 @@ async def stream_chat(
         async for chunk in chunks:
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})
+        # GAP-124: プラン枠観測の記録 (best-effort — 応答自体は既に届いている)
+        if use_subscription and sdk_rate_limits:
+            import contextlib
+
+            from .relay import record_plan_observations
+
+            # 観測記録の失敗でチャットを壊さない (best-effort)
+            with contextlib.suppress(Exception):
+                await record_plan_observations(actor_id, sdk_rate_limits)
     except Exception as exc:  # pragma: no cover  - 実 LLM 障害は別レイヤ
         # GAP-114: リレー固有の失敗は原因を偽らず具体的に伝える (誠実設計)。
         from .relay import RelayFailed, RelayTimeout, RelayUnavailable

@@ -88,12 +88,18 @@ async def agent_sdk_stream_chunks(
     system_prompt: str,
     history: list[tuple[str, str]],
     user_message: str,
+    rate_limits_out: list[dict[str, Any]] | None = None,
 ) -> AsyncIterator[str]:
     """Agent SDK (サブスク認証) で実 stream。text delta を yield する。
 
     include_partial_messages=True で CLI の raw stream event を受け、
     content_block_delta/text_delta を逐次 yield する。partial が一度も
     届かない場合 (旧 CLI 等) は完成 AssistantMessage の TextBlock で代替する。
+
+    GAP-124: 実行中に CLI が発行する RateLimitEvent (5 時間 / 7 日枠の実測
+    使用率 — API 応答ヘッダー由来) を rate_limits_out に収集する。呼び出し側が
+    chat_plan_status へ記録し、接続状態パネルの「プラン枠」表示の実体になる。
+    観測されなければ何も足さない (推測で埋めない)。
     """
     from claude_agent_sdk import (  # pyright: ignore[reportMissingImports]
         AssistantMessage,
@@ -102,6 +108,13 @@ async def agent_sdk_stream_chunks(
         TextBlock,
         query,
     )
+
+    try:
+        from claude_agent_sdk import (  # pyright: ignore[reportMissingImports]
+            RateLimitEvent,
+        )
+    except ImportError:  # 旧 SDK — プラン枠観測なしで動作継続 (誠実: 出さない)
+        RateLimitEvent = None  # type: ignore[assignment]
 
     options_kwargs: dict[str, Any] = {
         "system_prompt": system_prompt,
@@ -136,3 +149,19 @@ async def agent_sdk_stream_chunks(
             for block in msg.content:
                 if isinstance(block, TextBlock) and block.text:
                     yield block.text
+        elif (
+            rate_limits_out is not None
+            and RateLimitEvent is not None
+            and isinstance(msg, RateLimitEvent)
+        ):
+            info = msg.rate_limit_info
+            status = getattr(info, "status", None)
+            if status in ("allowed", "allowed_warning", "rejected"):
+                rate_limits_out.append(
+                    {
+                        "status": status,
+                        "rate_limit_type": getattr(info, "rate_limit_type", None),
+                        "utilization": getattr(info, "utilization", None),
+                        "resets_at": getattr(info, "resets_at", None),
+                    }
+                )
