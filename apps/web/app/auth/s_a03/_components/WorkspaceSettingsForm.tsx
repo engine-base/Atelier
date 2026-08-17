@@ -191,7 +191,9 @@ export function WorkspaceSettingsForm({
         id="ws-panel-basic"
         aria-labelledby="ws-tab-basic"
         hidden={activeTab !== "basic"}
-        className="grid grid-cols-1 gap-6 md:grid-cols-2"
+        className={cn(
+          activeTab === "basic" ? "grid grid-cols-1 gap-6 md:grid-cols-2" : "hidden",
+        )}
       >
         {/* 基本情報 — フォーム本体 (name + アイコン + 保存) */}
         <section id="ws-basic" className="contents">
@@ -301,7 +303,7 @@ export function WorkspaceSettingsForm({
         id="ws-panel-members"
         aria-labelledby="ws-tab-members"
         hidden={activeTab !== "members"}
-        className="grid grid-cols-1 gap-6"
+        className={cn(activeTab === "members" ? "grid grid-cols-1 gap-6" : "hidden")}
       >
         {membersSlot}
       </div>
@@ -312,7 +314,7 @@ export function WorkspaceSettingsForm({
         id="ws-panel-tokens"
         aria-labelledby="ws-tab-tokens"
         hidden={activeTab !== "tokens"}
-        className="grid grid-cols-1 gap-6"
+        className={cn(activeTab === "tokens" ? "grid grid-cols-1 gap-6" : "hidden")}
       >
         {tokensSlot}
       </div>
@@ -323,7 +325,7 @@ export function WorkspaceSettingsForm({
         id="ws-panel-ai"
         aria-labelledby="ws-tab-ai"
         hidden={activeTab !== "ai"}
-        className="grid grid-cols-1 gap-6"
+        className={cn(activeTab === "ai" ? "grid grid-cols-1 gap-6" : "hidden")}
       >
         <section
           id="ws-ai"
@@ -368,13 +370,16 @@ export function WorkspaceSettingsForm({
         id="ws-panel-plan"
         aria-labelledby="ws-tab-plan"
         hidden={activeTab !== "plan"}
-        className="grid grid-cols-1 gap-6"
+        className={cn(activeTab === "plan" ? "grid grid-cols-1 gap-6" : "hidden")}
       >
         {planSlot}
       </div>
 
       {/* 危険な操作 (Danger Zone) — 基本情報タブの末尾 (onDelete がある時のみ) */}
-      <div hidden={activeTab !== "basic"}>
+      <div
+        hidden={activeTab !== "basic"}
+        className={cn(activeTab === "basic" ? "" : "hidden")}
+      >
         {onDelete ? (
           <section
             aria-label="Danger zone"
