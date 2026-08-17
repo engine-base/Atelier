@@ -79,3 +79,34 @@
     padding: var(--space-lg);
   }
 }
+
+/* GAP-118: チャット markdown のコードハイライト (rehype-highlight = highlight.js
+   のクラスに対する最小配色。ダークカード (#0F172A) 前提のスコープ付き) */
+.chat-md .hljs-keyword,
+.chat-md .hljs-selector-tag,
+.chat-md .hljs-literal,
+.chat-md .hljs-section {
+  color: #93c5fd;
+}
+.chat-md .hljs-string,
+.chat-md .hljs-attr,
+.chat-md .hljs-symbol,
+.chat-md .hljs-addition {
+  color: #86efac;
+}
+.chat-md .hljs-number,
+.chat-md .hljs-built_in,
+.chat-md .hljs-type {
+  color: #fcd34d;
+}
+.chat-md .hljs-comment,
+.chat-md .hljs-quote,
+.chat-md .hljs-deletion {
+  color: #94a3b8;
+  font-style: italic;
+}
+.chat-md .hljs-title,
+.chat-md .hljs-function .hljs-title,
+.chat-md .hljs-name {
+  color: #f9a8d4;
+}

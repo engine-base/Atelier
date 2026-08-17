@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 
 import { fmtTime } from "../../../../lib/format";
+import { MessageContent } from "./MessageContent";
 
 export type ChatRole = "user" | "assistant" | "system" | "tool";
 
@@ -314,9 +315,7 @@ function MessageRow({
             </span>
           ) : null}
         </div>
-        <div className="whitespace-pre-wrap text-[14px] leading-[1.75] text-on-surface">
-          {message.content}
-        </div>
+        <MessageContent content={message.content} />
         {message.persisted ? (
           // モック .msg-action-row 準拠 (役立った / コピー / 分岐 — GAP-031① 解消:
           // 分岐は履歴コピー + parent_message_id 連鎖で新スレッドへ)。
