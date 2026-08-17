@@ -90,3 +90,41 @@ describe("stripMarkdown (GAP-118 追補 — プレビューの生記号除去)",
     expect(stripMarkdown("")).toBe("");
   });
 });
+
+describe("ThreadSidebar — AI 社員階層 (GAP-123)", () => {
+  it("同じ社員のスレッドが社員セクション配下にまとまり件数が出る", async () => {
+    getJson.mockImplementation(async (path: string) => {
+      if (path.startsWith("/chat/threads"))
+        return {
+          data: [
+            { id: "t1", project_id: "p1", ai_employee_id: "e1", title: "見積の相談", updated_at: "2026-08-17T09:00:00Z" },
+            { id: "t2", project_id: "p1", ai_employee_id: "e1", title: "要件の整理", updated_at: "2026-08-17T08:00:00Z" },
+            { id: "t3", project_id: "p1", ai_employee_id: "e2", title: "DB 設計", updated_at: "2026-08-17T07:00:00Z" },
+          ],
+        };
+      if (path.startsWith("/projects")) return { data: [{ id: "p1", name: "小松案件" }] };
+      if (path.startsWith("/ai-employees"))
+        return {
+          data: [
+            { id: "e1", name: "tony", display_name: "トニー" },
+            { id: "e2", name: "strange", display_name: "ストレンジ" },
+          ],
+        };
+      return { data: [] };
+    });
+    renderWithQuery(<ThreadSidebar selectedId={null} onSelect={() => undefined} />);
+    // 社員見出しが 2 つ (トニー / ストレンジ)、トニー配下に 2 スレッド
+    await screen.findByText("見積の相談");
+    expect(screen.getByText("トニー")).toBeInTheDocument();
+    expect(screen.getByText("ストレンジ")).toBeInTheDocument();
+    // トニーの件数バッジ = 2
+    const tonyHeader = screen.getByText("トニー").parentElement!;
+    expect(tonyHeader.textContent).toContain("2");
+    // 直近更新が新しい社員 (トニー) が先に並ぶ
+    const names = screen.getAllByText(/トニー|ストレンジ/).map((n) => n.textContent);
+    expect(names[0]).toBe("トニー");
+    // 各スレッドカードには社員名を重複表示しない (見出しに集約)
+    expect(screen.getByText("要件の整理")).toBeInTheDocument();
+    expect(screen.getByText("DB 設計")).toBeInTheDocument();
+  });
+});

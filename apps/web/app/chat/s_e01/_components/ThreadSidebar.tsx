@@ -16,7 +16,7 @@
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import * as api from "../../../../lib/auth/connector";
 import {
@@ -59,11 +59,17 @@ function ThreadCard({
   employee,
   active,
   onSelect,
+  showEmployee = true,
+  phaseName,
 }: {
   readonly thread: Thread;
   readonly employee?: EmployeeLike;
   readonly active: boolean;
   readonly onSelect: (id: string) => void;
+  /** AI 社員セクション配下では社員行を出さない (見出しと重複するため)。 */
+  readonly showEmployee?: boolean;
+  /** 工程スレッドのとき工程名チップを出す (GAP-123 — 社員グルーピング後の文脈補助)。 */
+  readonly phaseName?: string;
 }) {
   const name = employeeName(employee) ?? "AI 社員";
   return (
@@ -75,21 +81,33 @@ function ThreadCard({
         active ? "bg-primary-container" : "hover:bg-surface-variant",
       )}
     >
-      <span className="mb-[2px] flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
-          style={{ backgroundColor: employeeColor(employee) }}
-        >
-          {name.charAt(0)}
+      {showEmployee ? (
+        <span className="mb-[2px] flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+            style={{ backgroundColor: employeeColor(employee) }}
+          >
+            {name.charAt(0)}
+          </span>
+          <span className="text-[12px] font-bold text-on-surface">{name}</span>
+          <span className="ml-auto text-[10.5px] tabular-nums text-on-surface-variant">
+            {relTime(thread.updated_at)}
+          </span>
         </span>
-        <span className="text-[12px] font-bold text-on-surface">{name}</span>
-        <span className="ml-auto text-[10.5px] tabular-nums text-on-surface-variant">
-          {relTime(thread.updated_at)}
-        </span>
-      </span>
+      ) : null}
       <span className="line-clamp-2 block text-[12px] leading-[1.4] text-on-surface">
         {stripMarkdown(thread.title ?? thread.last_message_preview ?? "") || "無題スレッド"}
+      </span>
+      <span className="mt-[2px] flex items-center gap-2 text-[10.5px] text-on-surface-variant">
+        {phaseName ? (
+          <span className="rounded-sm bg-surface-variant px-1.5 py-[1px] font-semibold">
+            {phaseName}工程
+          </span>
+        ) : null}
+        {!showEmployee ? (
+          <span className="ml-auto tabular-nums">{relTime(thread.updated_at)}</span>
+        ) : null}
       </span>
     </button>
   );
@@ -211,34 +229,33 @@ export function ThreadSidebar({
     });
   }, [threads, search, employeeById]);
 
-  // 工程グルーピング: 各工程 (スレッドを持つもののみ) → 工程横断
-  const groups = useMemo(() => {
-    const byPhase = new Map<string, Thread[]>();
-    const cross: Thread[] = [];
+  // GAP-123 (経営者指示): スレッド一覧 > AI 社員 > 各スレッド の階層。
+  // 同じ社員のスレッドは社員セクション配下にまとまり、社員は直近更新順に並ぶ。
+  // 工程の文脈は各スレッドカード内の工程チップで補う (旧: 工程グルーピング)。
+  const phaseNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of phases) m.set(p.id, p.name);
+    return m;
+  }, [phases]);
+  const employeeGroups = useMemo(() => {
+    const byEmp = new Map<string, Thread[]>();
     for (const t of visible) {
-      if (t.phase_id) {
-        const arr = byPhase.get(t.phase_id) ?? [];
-        arr.push(t);
-        byPhase.set(t.phase_id, arr);
-      } else {
-        cross.push(t);
-      }
+      const arr = byEmp.get(t.ai_employee_id) ?? [];
+      arr.push(t);
+      byEmp.set(t.ai_employee_id, arr);
     }
-    // モック準拠の並び: 現在(in_progress) → その他 (工程の逆順 = 直近工程が上)
-    const ordered = [
-      ...phases.filter((p) => p.status === "in_progress"),
-      ...[...phases.filter((p) => p.status !== "in_progress")].reverse(),
-    ];
-    const phaseGroups = ordered
-      .filter((p) => byPhase.has(p.id))
-      .map((p) => ({ phase: p, threads: byPhase.get(p.id)! }));
-    // phases 未取得でも phase_id 付きスレッドは落とさない
-    const knownIds = new Set(phases.map((p) => p.id));
-    for (const [pid, arr] of byPhase) {
-      if (!knownIds.has(pid)) cross.push(...arr);
-    }
-    return { phaseGroups, cross };
-  }, [visible, phases]);
+    const groups = [...byEmp.entries()].map(([empId, ts]) => ({
+      empId,
+      employee: employeeById.get(empId),
+      threads: [...ts].sort((a, b) =>
+        (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
+      ),
+    }));
+    groups.sort((a, b) =>
+      (b.threads[0]?.updated_at ?? "").localeCompare(a.threads[0]?.updated_at ?? ""),
+    );
+    return groups;
+  }, [visible, employeeById]);
 
   return (
     <aside
@@ -359,59 +376,44 @@ export function ThreadSidebar({
           </p>
         ) : (
           <>
-            {groups.phaseGroups.map(({ phase, threads: ts }) => {
-              const current = phase.status === "in_progress";
-              const done = phase.status === "completed";
+            {employeeGroups.map(({ empId, employee, threads: ts }) => {
+              const name = employeeName(employee) ?? "AI 社員";
               return (
-                <div key={phase.id}>
-                  <div
-                    className={cn(
-                      "flex items-center gap-[6px] px-[10px] pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.1em]",
-                      current
-                        ? "text-primary"
-                        : done
-                          ? "text-tertiary"
-                          : "text-on-surface-variant",
-                    )}
-                  >
-                    {current ? (
-                      <span
-                        aria-hidden="true"
-                        className="h-[6px] w-[6px] rounded-full bg-primary"
-                      />
-                    ) : done ? (
-                      <Check size={10} aria-hidden="true" />
-                    ) : null}
-                    {phase.name}工程{current ? "（現在）" : done ? "（完了）" : ""}
+                <div key={empId} className="mb-1">
+                  {/* AI 社員セクション見出し (GAP-123: 一覧 > 社員 > 各スレッド) */}
+                  <div className="flex items-center gap-2 px-[10px] pb-1 pt-2">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ backgroundColor: employeeColor(employee) }}
+                    >
+                      {name.charAt(0)}
+                    </span>
+                    <span className="text-[12px] font-bold text-on-surface">
+                      {name}
+                    </span>
+                    <span className="ml-auto rounded-full bg-surface-variant px-2 py-[1px] text-[10.5px] font-semibold tabular-nums text-on-surface-variant">
+                      {ts.length}
+                    </span>
                   </div>
-                  {ts.map((t) => (
-                    <ThreadCard
-                      key={t.id}
-                      thread={t}
-                      employee={employeeById.get(t.ai_employee_id)}
-                      active={selectedId === t.id}
-                      onSelect={onSelect}
-                    />
-                  ))}
+                  <div className="border-l border-border pl-2 ml-[21px]">
+                    {ts.map((t) => (
+                      <ThreadCard
+                        key={t.id}
+                        thread={t}
+                        employee={employee}
+                        active={selectedId === t.id}
+                        onSelect={onSelect}
+                        showEmployee={false}
+                        phaseName={
+                          t.phase_id ? phaseNameById.get(t.phase_id) : undefined
+                        }
+                      />
+                    ))}
+                  </div>
                 </div>
               );
             })}
-            {groups.cross.length > 0 ? (
-              <div>
-                <div className="px-[10px] pb-1 pt-2 text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">
-                  工程横断
-                </div>
-                {groups.cross.map((t) => (
-                  <ThreadCard
-                    key={t.id}
-                    thread={t}
-                    employee={employeeById.get(t.ai_employee_id)}
-                    active={selectedId === t.id}
-                    onSelect={onSelect}
-                  />
-                ))}
-              </div>
-            ) : null}
           </>
         )}
       </div>
