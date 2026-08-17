@@ -188,20 +188,21 @@ describe("S-A03 WorkspaceSettingsContainer (T-UC-02)", () => {
       />,
     );
     await screen.findByDisplayValue("My WS");
-    const nav = screen.getByRole("navigation", { name: "設定セクション" });
-    const labels = Array.from(nav.querySelectorAll("a")).map(
+    // GAP-116: パネルタブは tablist、招待管理/退会は実ページへのリンク (tablist 外 —
+    // ARIA: tablist の子は tab のみ)
+    const nav = screen.getByRole("tablist", { name: "設定セクション" });
+    const labels = Array.from(nav.querySelectorAll("button[role='tab']")).map(
       (a) => a.textContent,
     );
-    // モックのタブ順 (プランは AI学習 と 退会 の間)
-    expect(labels).toEqual([
-      "基本情報",
-      "メンバー",
-      "招待管理",
-      "MCPトークン",
-      "AI学習",
-      "プラン",
-      "退会",
-    ]);
+    expect(labels).toEqual(["基本情報", "メンバー", "MCPトークン", "AI学習", "プラン"]);
+    expect(screen.getByRole("link", { name: "招待管理" })).toHaveAttribute(
+      "href",
+      "/portal/invitations",
+    );
+    expect(screen.getByRole("link", { name: "退会" })).toHaveAttribute(
+      "href",
+      "/data-deletion",
+    );
     // プランセクション実体 (PlanSection) も描画される
     expect(
       document.getElementById("ws-plan"),
@@ -224,5 +225,43 @@ describe("S-A03 WorkspaceSettingsContainer (T-UC-02)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "権限がありません",
     );
+  });
+
+  it("switches panels per tab instead of stacking sections (GAP-116)", async () => {
+    const get = vi.fn(async () => ({ data: { name: "My WS" } }));
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get })}
+      />,
+    );
+    await screen.findByDisplayValue("My WS");
+    // 初期表示は基本情報のみ (AI 学習のチェックは隠れている)
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "AI学習" }));
+    // AI タブに切替: チェックボックスが見え、基本情報の名前入力は隠れる
+    expect(screen.getByRole("checkbox")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("My WS")).not.toBeVisible();
+    fireEvent.click(screen.getByRole("tab", { name: "基本情報" }));
+    expect(screen.getByDisplayValue("My WS")).toBeVisible();
+  });
+
+  it("opens the plan tab when returning from Stripe (GAP-116)", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.startsWith("/billing/plan")) {
+        return { data: { plan: "free", status: "inactive", stripe_configured: true } };
+      }
+      return { data: { name: "My WS" } };
+    });
+    renderWithQuery(
+      <WorkspaceSettingsContainer
+        workspaceId="w1"
+        client={fakeClient({ get })}
+        initialTab="plan"
+      />,
+    );
+    await screen.findByRole("tab", { name: "プラン", selected: true });
+    // プランパネルが表示され、基本情報は隠れている
+    expect(screen.getByDisplayValue("My WS")).not.toBeVisible();
   });
 });

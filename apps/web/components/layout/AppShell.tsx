@@ -38,6 +38,8 @@ export interface AppShellProps {
   readonly onSelectWorkspace?: (id: string) => void;
   /** TopBar のパンくず末尾ラベル (現在セクション名) */
   readonly breadcrumb?: string;
+  /** GAP-117: プロジェクト文脈時に TopBar に出すプロジェクト名ピル */
+  readonly projectName?: string;
   /** TopBar 右端 slot (通知/ユーザー) */
   readonly topBarTrailing?: ReactNode;
   /** main の既定 padding を外す (S-F01 のようなフルブリード画面用) */
@@ -56,6 +58,7 @@ export function AppShell({
   currentWorkspaceId,
   onSelectWorkspace,
   breadcrumb,
+  projectName,
   topBarTrailing,
   fullBleed = false,
   className,
@@ -130,6 +133,7 @@ export function AppShell({
           currentWorkspaceId={currentWorkspaceId}
           onSelectWorkspace={onSelectWorkspace}
           breadcrumb={breadcrumb}
+          projectName={projectName}
           trailing={topBarTrailing}
         />
         <main

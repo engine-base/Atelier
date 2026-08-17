@@ -158,9 +158,13 @@ def _http_client(settings: BillingSettings) -> httpx.AsyncClient:
 
 
 async def create_checkout_session(
-    settings: BillingSettings, *, workspace_id: str
+    settings: BillingSettings, *, workspace_id: str, customer_email: str | None = None
 ) -> dict[str, Any]:
-    """Stripe Checkout Session (mode=subscription, price_data インライン) を実作成する。"""
+    """Stripe Checkout Session (mode=subscription, price_data インライン) を実作成する。
+
+    customer_email: 実行ユーザーの登録済みメール。渡すと Stripe の決済画面に
+    自動入力される (GAP-115 — 登録済みなのに手入力させられる不整合の解消)。
+    """
     base = settings.atelier_public_base_url.rstrip("/")
     form: dict[str, str] = {
         "mode": "subscription",
@@ -176,6 +180,8 @@ async def create_checkout_session(
         "line_items[0][price_data][recurring][interval]": "month",
         "line_items[0][price_data][product_data][name]": PRO_PLAN_NAME,
     }
+    if customer_email:
+        form["customer_email"] = customer_email
     async with _http_client(settings) as client:
         res = await client.post("/v1/checkout/sessions", data=form)
     if res.status_code >= 400:

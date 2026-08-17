@@ -41,6 +41,8 @@ export interface TopBarProps {
   readonly onSelectWorkspace?: (id: string) => void;
   /** パンくずの末尾ラベル (現在セクション名) */
   readonly breadcrumb?: string;
+  /** GAP-117: プロジェクト文脈時に表示するプロジェクト名ピル */
+  readonly projectName?: string;
   /** 右端 slot (ユーザーメニュー等) */
   readonly trailing?: ReactNode;
   readonly className?: string;
@@ -156,6 +158,7 @@ export function TopBar({
   currentWorkspaceId,
   onSelectWorkspace,
   breadcrumb,
+  projectName,
   trailing,
   className,
 }: TopBarProps) {
@@ -196,6 +199,17 @@ export function TopBar({
             <PillBody label={wsLabel} icon={workspaceIcon} />
           </div>
         )}
+
+        {/* GAP-117: プロジェクト文脈ピル (WS ピッカーの右) */}
+        {projectName ? (
+          <div
+            className="flex min-w-0 items-center gap-1.5 rounded-full border border-primary-container bg-primary-container/60 px-3 py-1 text-[12.5px] font-semibold text-on-primary-container"
+            aria-label={`プロジェクト: ${projectName}`}
+          >
+            <span aria-hidden="true">📁</span>
+            <span className="truncate">{projectName}</span>
+          </div>
+        ) : null}
 
         {/* パンくず */}
         {breadcrumb ? (

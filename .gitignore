@@ -74,3 +74,6 @@ supabase/.temp/
 # Claude Code のローカル設定 (環境固有)
 .claude/settings.local.json
 .lighthouseci/
+
+# vitest --coverage の生成物 (ローカル計測用 — commit しない)
+coverage/

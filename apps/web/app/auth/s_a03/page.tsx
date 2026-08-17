@@ -25,6 +25,9 @@ function SA03Inner() {
   const fromUrl = params.get("workspace");
   // GAP-021: Stripe checkout から戻った時の ?session_id= (プランタブが照会する)
   const checkoutSessionId = params.get("session_id");
+  // GAP-116: Stripe から戻った時 (成功/キャンセルとも) はプランタブを開く
+  const initialTab =
+    checkoutSessionId || params.get("checkout") === "cancel" ? ("plan" as const) : undefined;
   const [workspaceId, setWorkspaceId] = useState<string | null | undefined>(
     fromUrl ?? undefined,
   );
@@ -61,6 +64,7 @@ function SA03Inner() {
         <WorkspaceSettingsContainer
           workspaceId={workspaceId}
           checkoutSessionId={checkoutSessionId}
+          initialTab={initialTab}
           onDeleted={() => {
             window.localStorage.removeItem(CURRENT_WS_KEY);
             router.push("/projects");

@@ -350,6 +350,8 @@ class TestBillingCheckout:
             assert "currency%5D=jpy" in form or "currency]=jpy" in form
             assert "5000" in form
             assert wid in form
+            # GAP-115: 登録済みメールが Stripe 決済画面に自動入力される
+            assert f"customer_email=gap021-{u_a[:8]}%40t.invalid" in form
             assert seen[0].headers["Authorization"] == "Bearer sk_test_dummy_key"
 
             with sync_engine.connect() as c:

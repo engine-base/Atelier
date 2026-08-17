@@ -44,18 +44,25 @@ export interface WorkspaceSettingsFormProps {
   readonly icon?: string | null;
   /** アイコン保存 (null = クリア)。未指定なら「変更」ボタンを出さない (死にボタン禁止)。 */
   readonly onIconSave?: (icon: string | null) => void;
+  /** 初期表示タブ (GAP-116)。Stripe checkout から戻った時は 'plan' を渡す。 */
+  readonly initialTab?: SettingsTabKey;
 }
 
-/** モックの settings-tabs を実リンク化 (design-audit v2 — 死にタブ 7 個を是正)。
- * 同一ページ内セクションはアンカー、招待管理/退会は実ページへ。
- * 「プラン」は GAP-021 で課金 API (Stripe) が実装されたため復活 (モックのタブ順)。 */
-const SETTINGS_TABS: ReadonlyArray<{ label: string; href: string }> = [
-  { label: "基本情報", href: "#ws-basic" },
-  { label: "メンバー", href: "#ws-members" },
+/** GAP-116 (経営者指示の仕様変更): タブは「ページ内アンカーで縦積み全表示」から
+ * 「選択タブの節のみ表示」へ変更。招待管理/退会は実ページへのリンクのため
+ * tablist の外 (末尾) に置く (ARIA: tablist の子は tab のみ — axe critical)。 */
+export type SettingsTabKey = "basic" | "members" | "tokens" | "ai" | "plan";
+
+const PANEL_TABS: ReadonlyArray<{ label: string; key: SettingsTabKey }> = [
+  { label: "基本情報", key: "basic" },
+  { label: "メンバー", key: "members" },
+  { label: "MCPトークン", key: "tokens" },
+  { label: "AI学習", key: "ai" },
+  { label: "プラン", key: "plan" },
+];
+
+const LINK_TABS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "招待管理", href: "/portal/invitations" },
-  { label: "MCPトークン", href: "#ws-tokens" },
-  { label: "AI学習", href: "#ws-ai" },
-  { label: "プラン", href: "#ws-plan" },
   { label: "退会", href: "/data-deletion" },
 ];
 
@@ -102,8 +109,12 @@ export function WorkspaceSettingsForm({
   planSlot,
   icon,
   onIconSave,
+  initialTab,
 }: WorkspaceSettingsFormProps) {
   const form = useAtelierForm({ schema: Schema, defaultValues });
+  // GAP-116: 選択タブの節のみ表示 (非アクティブは hidden — unmount しないので
+  // フォーム状態と Stripe 戻りポーリングはタブ切替を跨いで保持される)
+  const [activeTab, setActiveTab] = React.useState<SettingsTabKey>(initialTab ?? "basic");
   const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const [editingIcon, setEditingIcon] = React.useState(false);
   const [iconDraft, setIconDraft] = React.useState("");
@@ -132,26 +143,41 @@ export function WorkspaceSettingsForm({
         </p>
       </header>
 
-      <nav
-        aria-label="設定セクション"
-        className="flex gap-1 overflow-x-auto border-b border-border"
-      >
-        {SETTINGS_TABS.map((tab, i) => (
+      <div className="flex gap-1 overflow-x-auto border-b border-border">
+        <div role="tablist" aria-label="設定セクション" className="flex gap-1">
+          {PANEL_TABS.map((tab) => {
+            const selected = activeTab === tab.key;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                role="tab"
+                id={`ws-tab-${tab.key}`}
+                aria-selected={selected}
+                aria-controls={`ws-panel-${tab.key}`}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "whitespace-nowrap border-b-2 px-4 py-2.5 text-label-lg font-semibold transition",
+                  selected
+                    ? "border-primary text-primary"
+                    : "border-transparent text-on-surface-variant hover:text-on-surface",
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        {LINK_TABS.map((tab) => (
           <a
             key={tab.label}
             href={tab.href}
-            aria-current={i === 0 ? "page" : undefined}
-            className={cn(
-              "whitespace-nowrap border-b-2 px-4 py-2.5 text-label-lg font-semibold transition",
-              i === 0
-                ? "border-primary text-primary"
-                : "border-transparent text-on-surface-variant hover:text-on-surface",
-            )}
+            className="whitespace-nowrap border-b-2 border-transparent px-4 py-2.5 text-label-lg font-semibold text-on-surface-variant transition hover:text-on-surface"
           >
             {tab.label}
           </a>
         ))}
-      </nav>
+      </div>
 
       {serverError ? (
         <p role="alert" className="text-label-lg text-error">
@@ -159,7 +185,14 @@ export function WorkspaceSettingsForm({
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      {/* GAP-116: 各タブパネル。hidden で切替 (unmount しない) */}
+      <div
+        role="tabpanel"
+        id="ws-panel-basic"
+        aria-labelledby="ws-tab-basic"
+        hidden={activeTab !== "basic"}
+        className="grid grid-cols-1 gap-6 md:grid-cols-2"
+      >
         {/* 基本情報 — フォーム本体 (name + アイコン + 保存) */}
         <section id="ws-basic" className="contents">
         <Form form={form} onValid={onSubmit} className={cn(CARD, "gap-4")}>
@@ -260,21 +293,41 @@ export function WorkspaceSettingsForm({
           </button>
         </Form>
         </section>
+      </div>
 
-        {/* メンバー (実 API 配線 section) */}
-        <div id="ws-members" className="contents">
-          {membersSlot}
-        </div>
+      {/* メンバー (実 API 配線 section) */}
+      <div
+        role="tabpanel"
+        id="ws-panel-members"
+        aria-labelledby="ws-tab-members"
+        hidden={activeTab !== "members"}
+        className="grid grid-cols-1 gap-6"
+      >
+        {membersSlot}
+      </div>
 
-        {/* MCPトークン (実 API 配線 section) */}
-        <div id="ws-tokens" className="contents">
-          {tokensSlot}
-        </div>
+      {/* MCPトークン (実 API 配線 section) */}
+      <div
+        role="tabpanel"
+        id="ws-panel-tokens"
+        aria-labelledby="ws-tab-tokens"
+        hidden={activeTab !== "tokens"}
+        className="grid grid-cols-1 gap-6"
+      >
+        {tokensSlot}
+      </div>
 
-        {/* AI 学習設定 */}
+      {/* AI 学習設定 */}
+      <div
+        role="tabpanel"
+        id="ws-panel-ai"
+        aria-labelledby="ws-tab-ai"
+        hidden={activeTab !== "ai"}
+        className="grid grid-cols-1 gap-6"
+      >
         <section
           id="ws-ai"
-          className={cn(CARD, "md:col-span-2")}
+          className={CARD}
           aria-label="AI 学習設定"
         >
           <h2 className={cn(SECTION_TITLE, "mb-4")}>AI 学習設定</h2>
@@ -297,12 +350,31 @@ export function WorkspaceSettingsForm({
               AI 学習への利用を許可する（推奨：OFF）
             </span>
           </label>
+          {/* GAP-116: タブ分離で基本情報の保存ボタンが同時に見えなくなったため、
+              同一フォームの保存をこのタブにも置く */}
+          <button
+            type="button"
+            onClick={() => void form.handleSubmit((v) => onSubmit(v))()}
+            className={cn(BTN_PRIMARY, "mt-4")}
+          >
+            {t("common.save")}
+          </button>
         </section>
+      </div>
 
-        {/* プラン (GAP-021 — 実 billing API 配線 section) */}
+      {/* プラン (GAP-021 — 実 billing API 配線 section) */}
+      <div
+        role="tabpanel"
+        id="ws-panel-plan"
+        aria-labelledby="ws-tab-plan"
+        hidden={activeTab !== "plan"}
+        className="grid grid-cols-1 gap-6"
+      >
         {planSlot}
+      </div>
 
-        {/* 危険な操作 (Danger Zone) — onDelete が渡された時のみ */}
+      {/* 危険な操作 (Danger Zone) — 基本情報タブの末尾 (onDelete がある時のみ) */}
+      <div hidden={activeTab !== "basic"}>
         {onDelete ? (
           <section
             aria-label="Danger zone"

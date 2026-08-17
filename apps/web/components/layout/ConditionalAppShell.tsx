@@ -250,20 +250,43 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const currentWs = workspaces.find((w) => w.id === currentWsId);
   const workspaceName = currentWs?.name;
   const workspaceIcon = currentWs?.icon ?? null;
-  const sections: NavSection[] = [
-    {
-      id: 'workspace',
-      label: `ワークスペース · ${workspaceName ?? '…'}`,
-      items: WS_NAV,
-    },
-  ];
-  if (project) {
-    sections.push({
-      id: 'project',
-      label: `プロジェクト · ${project.name}`,
-      items: projectNav(project.id),
-    });
-  }
+
+  // GAP-117 (経営者指示の IA 変更): 文脈を分離する。
+  //   - プロジェクト系画面ではプロジェクト nav のみ + 「WS 全体へ戻る」導線
+  //   - WS 系画面では WS nav のみ (プロジェクトを覚えていても混ぜない)
+  const projectItems = project ? projectNav(project.id) : [];
+  const inProject =
+    project !== undefined &&
+    projectItems.some((n) => pathname === n.match || pathname.startsWith(`${n.match}/`));
+
+  const sections: NavSection[] = inProject
+    ? [
+        {
+          id: 'workspace-back',
+          label: `ワークスペース · ${workspaceName ?? '…'}`,
+          items: [
+            {
+              id: 'back-to-ws',
+              labelKey: '← ワークスペース全体へ',
+              href: '/projects',
+              match: '/__never__',
+              icon: <Folder className={ICON} />,
+            },
+          ],
+        },
+        {
+          id: 'project',
+          label: `プロジェクト · ${project!.name}`,
+          items: projectItems,
+        },
+      ]
+    : [
+        {
+          id: 'workspace',
+          label: `ワークスペース · ${workspaceName ?? '…'}`,
+          items: WS_NAV,
+        },
+      ];
 
   const allNav = sections.flatMap((s) => s.items);
   const activeNav = allNav.find(
@@ -285,6 +308,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
         writeCurrentWorkspace(id);
         setCurrentWsId(id);
       }}
+      projectName={inProject ? project!.name : undefined}
       breadcrumb={activeNav?.labelKey}
       topBarTrailing={<TopBarTrailing me={me} pendingCount={pendingCount} />}
       fullBleed={fullBleed}

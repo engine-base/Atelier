@@ -16,6 +16,7 @@ import json
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
@@ -70,8 +71,18 @@ async def create_checkout(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "Stripe is not configured (STRIPE_SECRET_KEY missing)",
         )
+    # GAP-115: 登録済みメールを Stripe 決済画面に自動入力する (取得失敗時は
+    # 未入力のまま = Stripe 側で入力させる誠実 fallback)
+    email_res = await session.execute(
+        text("select email from public.users where id = cast(:u as uuid)"),
+        {"u": user.id},
+    )
+    email_row = email_res.first()
+    customer_email = None if email_row is None else str(email_row.email)
     try:
-        created = await svc.create_checkout_session(settings, workspace_id=body.workspace_id)
+        created = await svc.create_checkout_session(
+            settings, workspace_id=body.workspace_id, customer_email=customer_email
+        )
     except StripeApiError as exc:
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY, "Stripe checkout session creation failed"

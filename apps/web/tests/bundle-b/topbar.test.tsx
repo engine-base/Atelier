@@ -100,4 +100,16 @@ describe('TopBar', () => {
     render(<TopBar />);
     expect(screen.getByRole('banner')).toBeInTheDocument();
   });
+
+  it('renders the project context pill when projectName is set (GAP-117)', () => {
+    render(<TopBar workspaceName="WS-A" projectName="プロジェクトX" />);
+    expect(screen.getByLabelText('プロジェクト: プロジェクトX')).toHaveTextContent(
+      'プロジェクトX',
+    );
+  });
+
+  it('renders no project pill without projectName (GAP-117)', () => {
+    render(<TopBar workspaceName="WS-A" />);
+    expect(screen.queryByLabelText(/プロジェクト:/)).not.toBeInTheDocument();
+  });
 });

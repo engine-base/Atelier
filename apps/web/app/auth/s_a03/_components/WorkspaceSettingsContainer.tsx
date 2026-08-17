@@ -24,6 +24,7 @@ import { McpTokensSection } from "./McpTokensSection";
 import { PlanSection } from "./PlanSection";
 import {
   WorkspaceSettingsForm,
+  type SettingsTabKey,
   type WorkspaceSettingsValues,
 } from "./WorkspaceSettingsForm";
 
@@ -43,6 +44,8 @@ export interface WorkspaceSettingsContainerProps {
   readonly onDeleted?: () => void;
   /** Stripe checkout から戻った時の ?session_id= (GAP-021 プランタブが照会する)。 */
   readonly checkoutSessionId?: string | null;
+  /** 初期表示タブ (GAP-116)。Stripe 戻りは 'plan'。 */
+  readonly initialTab?: SettingsTabKey;
 }
 
 function isForbidden(error: unknown): boolean {
@@ -54,6 +57,7 @@ export function WorkspaceSettingsContainer({
   client: injected,
   onDeleted,
   checkoutSessionId,
+  initialTab,
 }: WorkspaceSettingsContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
@@ -179,6 +183,7 @@ export function WorkspaceSettingsContainer({
       defaultValues={initial}
       onSubmit={onSubmit}
       serverError={serverError}
+      initialTab={initialTab}
       onDelete={() => deleteMut.mutate()}
       icon={ws.data.icon ?? null}
       onIconSave={(icon) => iconMut.mutate(icon)}
