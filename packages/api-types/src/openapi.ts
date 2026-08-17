@@ -10121,6 +10121,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/connection-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Claude プラン接続の状態（GAP-119 — 実測値のみ） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行モード / Bridge presence（90 秒鮮度）/ 本人の直近 relay 実行 / プラン枠観測値。jobs / plan は RLS で本人行のみ可視 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatConnectionStatusResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/tool-approvals": {
         parameters: {
             query?: never;
@@ -15676,9 +15723,56 @@ export interface components {
             seq_start: number;
             texts: string[];
         };
+        /** @description GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送） */
+        ChatRelayRateLimitObservation: {
+            /** @enum {string} */
+            status: "allowed" | "allowed_warning" | "rejected";
+            rate_limit_type?: string | null;
+            utilization?: number | null;
+            resets_at?: number | null;
+        };
         ChatRelayCompleteRequest: {
             ok: boolean;
             error?: string | null;
+            rate_limits?: components["schemas"]["ChatRelayRateLimitObservation"][] | null;
+        };
+        /** @description GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台 */
+        ChatConnectionWorker: {
+            host_label: string;
+            version: string;
+            /** Format: date-time */
+            last_seen_at: string;
+        };
+        /** @description GAP-119 — 本人の直近 relay 実行（chat_relay_jobs、RLS で本人のみ） */
+        ChatConnectionLastJob: {
+            status: string;
+            error?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            finished_at?: string | null;
+        };
+        /** @description GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない） */
+        ChatConnectionPlan: {
+            /** @enum {string} */
+            status: "allowed" | "allowed_warning" | "rejected";
+            five_hour_utilization?: number | null;
+            /** Format: date-time */
+            five_hour_resets_at?: string | null;
+            seven_day_utilization?: number | null;
+            /** Format: date-time */
+            seven_day_resets_at?: string | null;
+            /** Format: date-time */
+            observed_at: string;
+        };
+        /** @description GAP-119 — S-E01 接続状態パネル（実測値のみで構成） */
+        ChatConnectionStatusResponse: {
+            /** @enum {string} */
+            mode: "relay" | "agent_sdk" | "api" | "fake" | "unconfigured";
+            bridge_online: boolean;
+            workers: components["schemas"]["ChatConnectionWorker"][];
+            last_job?: components["schemas"]["ChatConnectionLastJob"] | null;
+            plan?: components["schemas"]["ChatConnectionPlan"] | null;
         };
         KanbanPickRequest: {
             worker_pid: number;

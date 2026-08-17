@@ -119,6 +119,13 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
     with sync_engine.begin() as c:
         c.execute(
             text(
+                "delete from public.chat_plan_status "
+                "where user_id in (cast(:a as uuid), cast(:b as uuid))"
+            ),
+            {"a": u_a, "b": u_b},
+        )
+        c.execute(
+            text(
                 "delete from public.chat_relay_jobs where thread_id=cast(:t as uuid)"
             ),  # chunks は FK cascade
             {"t": thread},
@@ -498,3 +505,222 @@ def test_relay_stream_timeout_expires_job(
             {"t": seeded["thread"]},
         ).scalar_one()
         assert status == "expired"
+
+
+# ─────────────────────────────────────────────────────────
+# GAP-119: Claude プラン接続の状態表示
+# ─────────────────────────────────────────────────────────
+
+import base64  # noqa: E402
+import hashlib  # noqa: E402
+import hmac  # noqa: E402
+import json  # noqa: E402
+import time  # noqa: E402
+from collections.abc import AsyncGenerator  # noqa: E402
+from typing import Annotated  # noqa: E402
+
+from fastapi import Depends  # noqa: E402
+
+from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
+
+JWT_SECRET = os.environ["ATELIER_AUTH_JWT_SECRET"]
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _mint_jwt(user_id: str) -> str:
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    payload = _b64url(
+        json.dumps(
+            {
+                "sub": user_id,
+                "role": "authenticated",
+                "aud": "authenticated",
+                "exp": int(time.time()) + 3600,
+            }
+        ).encode()
+    )
+    sig = _b64url(
+        hmac.new(
+            JWT_SECRET.encode(), f"{header}.{payload}".encode("ascii"), hashlib.sha256
+        ).digest()
+    )
+    return f"{header}.{payload}.{sig}"
+
+
+@pytest.fixture()
+def authed_app() -> Iterator[FastAPI]:
+    """BridgeSession + RLS session の両方を override した app (GAP-119 用)。"""
+    test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+
+    async def _bridge_override() -> object:
+        async with AsyncSession(test_engine) as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            else:
+                await session.commit()
+
+    async def _rls_override(
+        user: Annotated[CurrentUser, Depends(get_current_user)],
+    ) -> AsyncGenerator[AsyncSession, None]:
+        claims = json.dumps({"sub": user.id, "role": user.role})
+        async with AsyncSession(test_engine) as session:
+            await session.execute(
+                text("select set_config('request.jwt.claims', :c, true)"), {"c": claims}
+            )
+            await session.execute(text("set local role authenticated"))
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+            else:
+                await session.commit()
+
+    from src.routes import api_router
+    from src.routes.dispatcher import get_bridge_session
+
+    application = FastAPI()
+    application.include_router(api_router)
+    application.dependency_overrides[get_bridge_session] = _bridge_override
+    application.dependency_overrides[get_rls_session] = _rls_override
+    yield application
+    asyncio.run(test_engine.dispose())
+
+
+@pytest.mark.integration
+def test_complete_with_rate_limits_records_plan_status(
+    authed_app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-119: complete に添えた rate_limit_event 観測値が本人の行へ upsert される。"""
+    job_id = _enqueue(seeded)
+    with TestClient(authed_app) as client:
+        client.post("/chat-relay/pick", json={"worker_id": "w1"}, headers=HEADERS)
+        done = client.post(
+            f"/chat-relay/{job_id}/complete",
+            json={
+                "ok": True,
+                "rate_limits": [
+                    {
+                        "status": "allowed_warning",
+                        "rate_limit_type": "five_hour",
+                        "utilization": 0.42,
+                        "resets_at": time.time() + 3600,
+                    },
+                    {
+                        "status": "allowed",
+                        "rate_limit_type": "seven_day",
+                        "utilization": 0.1,
+                        "resets_at": time.time() + 86400,
+                    },
+                ],
+            },
+            headers=HEADERS,
+        )
+        assert done.status_code == 200
+
+    with sync_engine.connect() as c:
+        row = c.execute(
+            text(
+                "select status, five_hour_utilization, seven_day_utilization "
+                "from public.chat_plan_status where user_id=cast(:u as uuid)"
+            ),
+            {"u": seeded["u_a"]},
+        ).first()
+        assert row is not None
+        # overall status は最悪値 (allowed_warning > allowed)
+        assert row.status == "allowed_warning"
+        assert row.five_hour_utilization == pytest.approx(0.42)
+        assert row.seven_day_utilization == pytest.approx(0.1)
+
+
+@pytest.mark.integration
+def test_complete_without_rate_limits_writes_nothing(
+    authed_app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """観測なし complete では chat_plan_status に何も書かない (推測で埋めない)。"""
+    job_id = _enqueue(seeded)
+    with TestClient(authed_app) as client:
+        client.post("/chat-relay/pick", json={"worker_id": "w1"}, headers=HEADERS)
+        done = client.post(f"/chat-relay/{job_id}/complete", json={"ok": True}, headers=HEADERS)
+        assert done.status_code == 200
+    with sync_engine.connect() as c:
+        n = c.execute(
+            text("select count(*) from public.chat_plan_status where user_id=cast(:u as uuid)"),
+            {"u": seeded["u_a"]},
+        ).scalar_one()
+        assert int(n) == 0
+
+
+@pytest.mark.integration
+def test_connection_status_requires_auth(authed_app: FastAPI) -> None:
+    with TestClient(authed_app) as client:
+        assert client.get("/chat/connection-status").status_code == 401
+
+
+@pytest.mark.integration
+def test_connection_status_reports_measured_values_only(
+    authed_app: FastAPI,
+    seeded: dict[str, str],
+    sync_engine: sqlalchemy.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-119: mode / presence / plan / last_job を実測値のみで返す。
+
+    - relay モード + presence 鮮度切れ → bridge_online=false, plan=null
+    - 観測 upsert 後は本人にだけ plan が見え、他人 (u_b) には見えない (RLS)
+    """
+    monkeypatch.setenv("ATELIER_LLM_PROVIDER", "relay")
+    _clear_workers(sync_engine)
+    headers_a = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+    headers_b = {"Authorization": f"Bearer {_mint_jwt(seeded['u_b'])}"}
+
+    with TestClient(authed_app) as client:
+        res = client.get("/chat/connection-status", headers=headers_a)
+        assert res.status_code == 200
+        data = res.json()["data"]
+        assert data["mode"] == "relay"
+        assert data["bridge_online"] is False
+        assert data["workers"] == []
+        assert data["plan"] is None
+
+        # presence + relay 一周 (rate_limits 付き complete)
+        _ping_worker(sync_engine)
+        job_id = _enqueue(seeded)
+        client.post("/chat-relay/pick", json={"worker_id": "w1"}, headers=HEADERS)
+        client.post(
+            f"/chat-relay/{job_id}/complete",
+            json={
+                "ok": True,
+                "rate_limits": [
+                    {
+                        "status": "allowed",
+                        "rate_limit_type": "five_hour",
+                        "utilization": 0.25,
+                        "resets_at": time.time() + 1800,
+                    }
+                ],
+            },
+            headers=HEADERS,
+        )
+
+        res_a = client.get("/chat/connection-status", headers=headers_a)
+        data_a = res_a.json()["data"]
+        assert data_a["bridge_online"] is True
+        assert len(data_a["workers"]) >= 1
+        assert data_a["plan"] is not None
+        assert data_a["plan"]["five_hour_utilization"] == pytest.approx(0.25)
+        assert data_a["plan"]["seven_day_utilization"] is None  # 未観測は null のまま
+        assert data_a["last_job"] is not None
+        assert data_a["last_job"]["status"] == "done"
+
+        # R-T08: 他人からは plan / last_job とも見えない
+        res_b = client.get("/chat/connection-status", headers=headers_b)
+        data_b = res_b.json()["data"]
+        assert data_b["plan"] is None
+        assert data_b["last_job"] is None

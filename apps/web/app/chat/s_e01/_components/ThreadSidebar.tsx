@@ -89,10 +89,29 @@ function ThreadCard({
         </span>
       </span>
       <span className="line-clamp-2 block text-[12px] leading-[1.4] text-on-surface">
-        {thread.title ?? thread.last_message_preview ?? "無題スレッド"}
+        {stripMarkdown(thread.title ?? thread.last_message_preview ?? "") || "無題スレッド"}
       </span>
     </button>
   );
+}
+
+/**
+ * GAP-118 追補: プレビュー 1〜2 行に markdown 記号 (`#` `**` `|---|` 等) を
+ * 生のまま見せない。描画はせず記号だけ落とす軽量整形 (本文は MessageContent が担当)。
+ */
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ") // コードブロックは中身ごと除去
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "") // 見出し記号
+    .replace(/^\s{0,3}>\s?/gm, "") // 引用記号
+    .replace(/^\s{0,3}[-*+]\s+/gm, "") // 箇条書き記号
+    .replace(/\|/g, " ") // 表の罫線
+    .replace(/^[\s-]{3,}$/gm, " ") // 区切り線・表ヘッダ行
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // 強調
+    .replace(/`([^`]+)`/g, "$1") // インラインコード
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // リンクはラベルのみ
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function ThreadSidebar({

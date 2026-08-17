@@ -73,3 +73,20 @@ describe("S-E01 ThreadSidebar", () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith("t2"));
   });
 });
+
+describe("stripMarkdown (GAP-118 追補 — プレビューの生記号除去)", () => {
+  it("見出し/強調/表/コード/リンクの記号を落として平文にする", async () => {
+    const { stripMarkdown } = await import("../../app/chat/s_e01/_components/ThreadSidebar");
+    expect(
+      stripMarkdown("# 見積もりのご提案\n\nご依頼の **API 実装** について"),
+    ).toBe("見積もりのご提案 ご依頼の API 実装 について");
+    expect(stripMarkdown("| 項目 | 値 |\n| --- | --- |\n| 単価 | 100 |")).toBe(
+      "項目 値 単価 100",
+    );
+    expect(stripMarkdown("実行は `uv run` で [仕様書](https://x) を見る")).toBe(
+      "実行は uv run で 仕様書 を見る",
+    );
+    expect(stripMarkdown("```python\ncode\n```\n- 項目A\n> 引用")).toBe("項目A 引用");
+    expect(stripMarkdown("")).toBe("");
+  });
+});

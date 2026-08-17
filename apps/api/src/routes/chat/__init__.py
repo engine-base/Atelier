@@ -19,6 +19,7 @@ from src.schemas.chat import (
     ChatAttachmentUrlResponse,
     ChatCommandRequest,
     ChatCommandResponse,
+    ChatConnectionStatusResponse,
     MessageCreate,
     MessageFeedbackCreate,
     MessageFeedbackResponse,
@@ -30,6 +31,7 @@ from src.schemas.chat import (
     ToolApprovalResponse,
 )
 from src.services import chat as svc
+from src.services import chat_relay as relay_status_svc
 from src.services.chat_sse import tools as tools_svc
 from src.storage_signing import StorageSigningError
 
@@ -292,3 +294,45 @@ async def reject_tool_approval(
     if code == "already_resolved":
         raise HTTPException(status.HTTP_409_CONFLICT, "approval already resolved")
     return {"data": True}
+
+
+def _llm_mode() -> str:
+    """chat_sse と同じ優先順で実行モードを判定する (GAP-119)。
+
+    relay > agent_sdk > api (ANTHROPIC_API_KEY) > fake (dev 明示) > unconfigured。
+    """
+    import os
+
+    from src.services.chat_sse.agent_sdk import subscription_mode_enabled
+    from src.services.chat_sse.relay import relay_mode_enabled
+
+    if relay_mode_enabled():
+        return "relay"
+    if subscription_mode_enabled():
+        return "agent_sdk"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "api"
+    if os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
+        return "fake"
+    return "unconfigured"
+
+
+@router.get(
+    "/chat/connection-status",
+    summary="Claude プラン接続の状態 (GAP-119 — 実測値のみ)",
+)
+async def get_connection_status(
+    session: SessionDep, user: UserDep
+) -> dict[str, ChatConnectionStatusResponse]:
+    """実行モード / Bridge presence / 本人の直近 relay 実行 / プラン枠観測値。
+
+    bridge_workers・chat_relay_jobs・chat_plan_status は RLS session で読む
+    (jobs / plan は本人行のみ可視 — 越境は RLS 自体が遮断する)。
+    """
+    measured = await relay_status_svc.connection_status(session, user_id=user.id)
+    return {
+        "data": ChatConnectionStatusResponse(
+            mode=_llm_mode(),  # type: ignore[arg-type]
+            **measured,
+        )
+    }

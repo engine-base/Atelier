@@ -40,6 +40,8 @@ export interface ChatHeaderProps {
   readonly onToggleRight: () => void;
   /** モバイル: スレッド一覧へ戻る */
   readonly onBack?: () => void;
+  /** GAP-119: Claude 接続状態チップ (ペイントグルの左に描画)。 */
+  readonly connectionSlot?: React.ReactNode;
 }
 
 export function ChatHeader({
@@ -54,6 +56,7 @@ export function ChatHeader({
   onToggleLeft,
   onToggleRight,
   onBack,
+  connectionSlot,
 }: ChatHeaderProps) {
   const name = employeeName(employee) ?? "AI 社員";
   const title = employeeTitle(employee);
@@ -121,6 +124,7 @@ export function ChatHeader({
               : "稼働中 · F-CTX01 文脈を参照して応答します"}
           </div>
         </div>
+        {connectionSlot}
         <button
           type="button"
           aria-label="スレッド一覧を開閉"

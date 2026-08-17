@@ -276,8 +276,18 @@ async def chat_relay_chunks(
 async def chat_relay_complete(
     job_id: str, body: ChatRelayCompleteRequest, session: BridgeSession, _token: BridgeAuth
 ) -> dict[str, dict[str, str]]:
-    """running ジョブを done / error で確定する。"""
+    """running ジョブを done / error で確定する。
+
+    GAP-119: Bridge が実行中に観測した rate_limit_event (本人プラン枠) が
+    付いていれば chat_plan_status へ upsert する (無ければ何も書かない)。
+    """
     try:
+        if body.rate_limits:
+            await relay_svc.record_plan_status(
+                session,
+                job_id=job_id,
+                observations=[o.model_dump() for o in body.rate_limits],
+            )
         await relay_svc.complete_job(session, job_id=job_id, ok=body.ok, error=body.error)
     except ChatRelayError as exc:
         _raise_for(exc.code, exc.message)

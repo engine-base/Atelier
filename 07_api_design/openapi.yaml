@@ -1892,12 +1892,79 @@ components:
           maxItems: 200
           items: { type: string }
 
+    ChatRelayRateLimitObservation:
+      type: object
+      description: GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
+      required: [status]
+      properties:
+        status: { type: string, enum: [allowed, allowed_warning, rejected] }
+        rate_limit_type: { type: string, maxLength: 40, nullable: true }
+        utilization: { type: number, minimum: 0, maximum: 2, nullable: true }
+        resets_at: { type: number, nullable: true }
+
     ChatRelayCompleteRequest:
       type: object
       required: [ok]
       properties:
         ok: { type: boolean }
         error: { type: string, maxLength: 2000, nullable: true }
+        rate_limits:
+          type: array
+          maxItems: 20
+          nullable: true
+          items: { $ref: '#/components/schemas/ChatRelayRateLimitObservation' }
+
+    ChatConnectionWorker:
+      type: object
+      description: GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台
+      required: [host_label, version, last_seen_at]
+      properties:
+        host_label: { type: string }
+        version: { type: string }
+        last_seen_at: { type: string, format: date-time }
+
+    ChatConnectionLastJob:
+      type: object
+      description: GAP-119 — 本人の直近 relay 実行（chat_relay_jobs、RLS で本人のみ）
+      required: [status, created_at]
+      properties:
+        status: { type: string }
+        error: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+
+    ChatConnectionPlan:
+      type: object
+      description: >-
+        GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。
+        未観測の window は null — 推測で埋めない）
+      required: [status, observed_at]
+      properties:
+        status: { type: string, enum: [allowed, allowed_warning, rejected] }
+        five_hour_utilization: { type: number, nullable: true }
+        five_hour_resets_at: { type: string, format: date-time, nullable: true }
+        seven_day_utilization: { type: number, nullable: true }
+        seven_day_resets_at: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+
+    ChatConnectionStatusResponse:
+      type: object
+      description: GAP-119 — S-E01 接続状態パネル（実測値のみで構成）
+      required: [mode, bridge_online, workers]
+      properties:
+        mode: { type: string, enum: [relay, agent_sdk, api, fake, unconfigured] }
+        bridge_online: { type: boolean }
+        workers:
+          type: array
+          items: { $ref: '#/components/schemas/ChatConnectionWorker' }
+        last_job:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ChatConnectionLastJob'
+        plan:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/ChatConnectionPlan'
 
     KanbanPickRequest:
       type: object
@@ -6497,6 +6564,25 @@ paths:
                   data: { $ref: '#/components/schemas/ChatMessage' }
         '403': { description: 投稿権限なし (viewer 等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/connection-status:
+    get:
+      tags: [chat]
+      summary: Claude プラン接続の状態（GAP-119 — 実測値のみ）
+      x-implementation-path: apps/api/src/routes/chat/__init__.py::get_connection_status
+      x-screen-ids: [S-E01]
+      responses:
+        '200':
+          description: >-
+            実行モード / Bridge presence（90 秒鮮度）/ 本人の直近 relay 実行 /
+            プラン枠観測値。jobs / plan は RLS で本人行のみ可視
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatConnectionStatusResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/tool-approvals:
     get:

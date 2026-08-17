@@ -247,3 +247,171 @@ async def job_result(session: AsyncSession, *, job_id: str) -> tuple[str, str | 
     if row is None:
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
     return str(row.status), None if row.result_error is None else str(row.result_error)
+
+
+# ── GAP-119: Claude プラン接続の状態表示 ────────────────────────
+
+_RATE_LIMIT_STATUSES = ("allowed", "allowed_warning", "rejected")
+
+
+async def record_plan_status(
+    session: AsyncSession,
+    *,
+    job_id: str,
+    observations: list[dict[str, Any]],
+) -> None:
+    """Bridge が返送した rate_limit_event 観測値を本人の行へ upsert する。
+
+    値は claude CLI が実行中に発行した実値のみ (推測で補完しない)。
+    five_hour / seven_day 以外の window は overall status にだけ寄与する。
+    観測が空・不正のみなら何も書かない (誠実: 無いものは無いまま)。
+    """
+    job_id = _validated_job_id(job_id)
+    res = await session.execute(
+        text("select requested_by from public.chat_relay_jobs where id = cast(:i as uuid)"),
+        {"i": job_id},
+    )
+    row = res.first()
+    if row is None:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    user_id = str(row.requested_by)
+
+    worst = -1
+    fields: dict[str, Any] = {
+        "five_hour_utilization": None,
+        "five_hour_resets_at": None,
+        "seven_day_utilization": None,
+        "seven_day_resets_at": None,
+    }
+    for obs in observations:
+        status = obs.get("status")
+        if status not in _RATE_LIMIT_STATUSES:
+            continue
+        worst = max(worst, _RATE_LIMIT_STATUSES.index(str(status)))
+        window = obs.get("rate_limit_type")
+        if window not in ("five_hour", "seven_day"):
+            continue
+        utilization = obs.get("utilization")
+        if isinstance(utilization, int | float) and 0 <= float(utilization) <= 2:
+            fields[f"{window}_utilization"] = float(utilization)
+        resets_at = obs.get("resets_at")
+        if isinstance(resets_at, int | float) and resets_at > 0:
+            fields[f"{window}_resets_at"] = float(resets_at)
+    if worst < 0:
+        return
+
+    await session.execute(
+        text(
+            "insert into public.chat_plan_status "
+            "(user_id, status, five_hour_utilization, five_hour_resets_at, "
+            " seven_day_utilization, seven_day_resets_at, observed_at) "
+            "values (cast(:u as uuid), :st, :fu, to_timestamp(:fr), :su, to_timestamp(:sr), now()) "
+            "on conflict (user_id) do update set "
+            "status = excluded.status, "
+            "five_hour_utilization = excluded.five_hour_utilization, "
+            "five_hour_resets_at = excluded.five_hour_resets_at, "
+            "seven_day_utilization = excluded.seven_day_utilization, "
+            "seven_day_resets_at = excluded.seven_day_resets_at, "
+            "observed_at = now()"
+        ),
+        {
+            "u": user_id,
+            "st": _RATE_LIMIT_STATUSES[worst],
+            "fu": fields["five_hour_utilization"],
+            "fr": fields["five_hour_resets_at"],
+            "su": fields["seven_day_utilization"],
+            "sr": fields["seven_day_resets_at"],
+        },
+    )
+
+
+async def connection_status(session: AsyncSession, *, user_id: str) -> dict[str, Any]:
+    """S-E01 接続状態パネル用の実測値を返す (取れない値は null のまま)。
+
+    - workers: presence 鮮度内 (90 秒) の Bridge (host/version/last_seen_at)
+    - last_job: 本人の直近 relay 実行 (status/created_at/finished_at/error)
+    - plan: 本人の直近プラン枠観測 (chat_plan_status — 無ければ null)
+    """
+    workers_res = await session.execute(
+        text(
+            "select host_label, version, last_seen_at from public.bridge_workers "
+            "where last_seen_at > now() - make_interval(secs => :fresh) "
+            "order by last_seen_at desc limit 10"
+        ),
+        {"fresh": PRESENCE_FRESH_SECONDS},
+    )
+    workers = [
+        {
+            "host_label": str(r.host_label),
+            "version": str(r.version),
+            "last_seen_at": r.last_seen_at.isoformat(),
+        }
+        for r in workers_res.all()
+    ]
+
+    job_res = await session.execute(
+        text(
+            "select status, result_error, created_at, finished_at "
+            "from public.chat_relay_jobs where requested_by = cast(:u as uuid) "
+            "order by created_at desc limit 1"
+        ),
+        {"u": user_id},
+    )
+    job_row = job_res.first()
+    last_job = (
+        None
+        if job_row is None
+        else {
+            "status": str(job_row.status),
+            "error": None if job_row.result_error is None else str(job_row.result_error),
+            "created_at": job_row.created_at.isoformat(),
+            "finished_at": (
+                None if job_row.finished_at is None else job_row.finished_at.isoformat()
+            ),
+        }
+    )
+
+    plan_res = await session.execute(
+        text(
+            "select status, five_hour_utilization, five_hour_resets_at, "
+            "seven_day_utilization, seven_day_resets_at, observed_at "
+            "from public.chat_plan_status where user_id = cast(:u as uuid)"
+        ),
+        {"u": user_id},
+    )
+    plan_row = plan_res.first()
+    plan = (
+        None
+        if plan_row is None
+        else {
+            "status": str(plan_row.status),
+            "five_hour_utilization": (
+                None
+                if plan_row.five_hour_utilization is None
+                else float(plan_row.five_hour_utilization)
+            ),
+            "five_hour_resets_at": (
+                None
+                if plan_row.five_hour_resets_at is None
+                else plan_row.five_hour_resets_at.isoformat()
+            ),
+            "seven_day_utilization": (
+                None
+                if plan_row.seven_day_utilization is None
+                else float(plan_row.seven_day_utilization)
+            ),
+            "seven_day_resets_at": (
+                None
+                if plan_row.seven_day_resets_at is None
+                else plan_row.seven_day_resets_at.isoformat()
+            ),
+            "observed_at": plan_row.observed_at.isoformat(),
+        }
+    )
+
+    return {
+        "bridge_online": len(workers) > 0,
+        "workers": workers,
+        "last_job": last_job,
+        "plan": plan,
+    }

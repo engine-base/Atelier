@@ -12,7 +12,7 @@
 
 import { spawn } from 'node:child_process';
 
-import type { ChatRelayPicked } from './api-client.js';
+import type { ChatRelayPicked, ChatRelayRateLimitObservation } from './api-client.js';
 
 export const CHAT_RELAY_ENABLED_ENV = 'ATELIER_BRIDGE_CHAT_RELAY';
 
@@ -54,13 +54,15 @@ export function buildChatArgs(systemPrompt: string): string[] {
 export type ChatStreamItem =
   | { readonly kind: 'delta'; readonly text: string }
   | { readonly kind: 'assistant_text'; readonly text: string }
-  | { readonly kind: 'result'; readonly ok: boolean };
+  | { readonly kind: 'result'; readonly ok: boolean }
+  | { readonly kind: 'rate_limit'; readonly observation: ChatRelayRateLimitObservation };
 
 /**
  * stream-json の 1 行を解釈する。対象外の行 (init/その他) は null。
  * - stream_event / content_block_delta / text_delta → delta
  * - assistant (完成 message) → assistant_text (partial 不達時の代替)
  * - result → ok (subtype === 'success')
+ * - rate_limit_event → rate_limit (GAP-119: 本人プラン枠の実観測値)
  */
 export function parseStreamLine(line: string): ChatStreamItem | null {
   const trimmed = line.trim();
@@ -95,6 +97,23 @@ export function parseStreamLine(line: string): ChatStreamItem | null {
   if (obj.type === 'result') {
     return { kind: 'result', ok: obj.subtype === 'success' };
   }
+  if (obj.type === 'rate_limit_event') {
+    // claude CLI がプラン枠の状態変化時に発行する実値 (推測なし)。
+    const info = obj.rate_limit_info as Record<string, unknown> | undefined;
+    const status = info?.status;
+    if (status !== 'allowed' && status !== 'allowed_warning' && status !== 'rejected')
+      return null;
+    return {
+      kind: 'rate_limit',
+      observation: {
+        status,
+        rate_limit_type:
+          typeof info?.rate_limit_type === 'string' ? info.rate_limit_type : null,
+        utilization: typeof info?.utilization === 'number' ? info.utilization : null,
+        resets_at: typeof info?.resets_at === 'number' ? info.resets_at : null,
+      },
+    };
+  }
   return null;
 }
 
@@ -110,7 +129,12 @@ export interface ChatRelayConfig {
 export interface ChatRelaySender {
   chatRelayPick(workerId: string): Promise<ChatRelayPicked | null>;
   chatRelayChunks(jobId: string, seqStart: number, texts: readonly string[]): Promise<void>;
-  chatRelayComplete(jobId: string, ok: boolean, error?: string): Promise<void>;
+  chatRelayComplete(
+    jobId: string,
+    ok: boolean,
+    error?: string,
+    rateLimits?: readonly ChatRelayRateLimitObservation[],
+  ): Promise<void>;
 }
 
 export type ChatRelayOutcome = 'no-job' | 'completed' | 'failed';
@@ -155,12 +179,17 @@ export class ChatRelayWorker {
       });
     };
 
+    // GAP-119: 実行中に観測した rate_limit_event を window 別に最新値で保持
+    const rateLimits = new Map<string, ChatRelayRateLimitObservation>();
+
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
     let run;
     try {
       run = await this.runChild(systemPrompt, prompt, (item) => {
         if (item.kind === 'delta') pending.push(item.text);
+        else if (item.kind === 'rate_limit')
+          rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
       });
     } finally {
       clearInterval(timer);
@@ -182,7 +211,7 @@ export class ChatRelayWorker {
             : `claude 実行失敗 (exit=${run.exitCode})`
         ).slice(0, 2000);
     try {
-      await this.api.chatRelayComplete(jobId, ok, error);
+      await this.api.chatRelayComplete(jobId, ok, error, [...rateLimits.values()]);
     } catch (err: unknown) {
       console.error('[bridge:chat-relay] complete 送信失敗:', err);
       return 'failed';
@@ -218,6 +247,8 @@ export class ChatRelayWorker {
         if (item === null) return;
         if (item.kind === 'delta') {
           sawDelta = true;
+          onItem(item);
+        } else if (item.kind === 'rate_limit') {
           onItem(item);
         } else if (item.kind === 'assistant_text') {
           assistantText += item.text;

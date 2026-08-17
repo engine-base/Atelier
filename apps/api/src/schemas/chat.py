@@ -152,3 +152,48 @@ class ToolApprovalExecuteResponse(BaseModel):
     """「承認して実行」の結果 (実行済みツールの tool_result 文字列)。"""
 
     result: str
+
+
+# ── GAP-119: Claude プラン接続の状態表示 ────────────────────────
+
+
+class ChatConnectionWorker(BaseModel):
+    """presence 鮮度内 (90 秒) の Bridge worker 1 台。"""
+
+    host_label: str
+    version: str
+    last_seen_at: datetime
+
+
+class ChatConnectionLastJob(BaseModel):
+    """本人の直近 relay 実行 (chat_relay_jobs — RLS で本人のみ)。"""
+
+    status: str
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class ChatConnectionPlan(BaseModel):
+    """本人 Claude プラン枠の直近観測値 (claude CLI rate_limit_event の実値のみ)。
+
+    utilization は 0.0-1.0 (超過許容で 2 まで受理)。イベントが観測されて
+    いない window は null — 推測で埋めない。observed_at は観測時点。
+    """
+
+    status: Literal["allowed", "allowed_warning", "rejected"]
+    five_hour_utilization: float | None
+    five_hour_resets_at: datetime | None
+    seven_day_utilization: float | None
+    seven_day_resets_at: datetime | None
+    observed_at: datetime
+
+
+class ChatConnectionStatusResponse(BaseModel):
+    """S-E01 接続状態パネル (GAP-119) — 実測値のみで構成する。"""
+
+    mode: Literal["relay", "agent_sdk", "api", "fake", "unconfigured"]
+    bridge_online: bool
+    workers: list[ChatConnectionWorker]
+    last_job: ChatConnectionLastJob | None
+    plan: ChatConnectionPlan | None

@@ -156,8 +156,19 @@ class ChatRelayChunksRequest(BaseModel):
     texts: list[str] = Field(min_length=1, max_length=200)
 
 
+class ChatRelayRateLimitObservation(BaseModel):
+    """GAP-119: claude CLI の rate_limit_event 観測値 1 件 (実値のみ転送)。"""
+
+    status: Literal["allowed", "allowed_warning", "rejected"]
+    rate_limit_type: str | None = Field(default=None, max_length=40)
+    utilization: float | None = Field(default=None, ge=0, le=2)
+    resets_at: float | None = Field(default=None, gt=0)
+
+
 class ChatRelayCompleteRequest(BaseModel):
     """running ジョブを done / error で確定する。"""
 
     ok: bool
     error: str | None = Field(default=None, max_length=2000)
+    # GAP-119: 実行中に観測した本人プラン枠 (rate_limit_event)。未観測なら省略
+    rate_limits: list[ChatRelayRateLimitObservation] | None = Field(default=None, max_length=20)

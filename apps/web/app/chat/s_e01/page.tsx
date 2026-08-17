@@ -22,6 +22,7 @@ import { employeeColor, employeeName } from "../../../lib/aiEmployees";
 import type { KnowledgeCandidate, MentionCandidate } from "./_components/ChatPanel";
 import { ChatContainer, type ChatContextSummary } from "./_components/ChatContainer";
 import { ChatHeader } from "./_components/ChatHeader";
+import { ConnectionStatusChip } from "./_components/ConnectionStatus";
 import { ContextPane } from "./_components/ContextPane";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
 
@@ -176,6 +177,7 @@ function SE01Inner() {
               phaseTotal={phases.length || undefined}
               employee={employee}
               busy={busy}
+              connectionSlot={<ConnectionStatusChip />}
               leftOpen={leftOpen}
               rightOpen={rightOpen}
               onToggleLeft={() => setLeftOpen((v) => !v)}
@@ -209,14 +211,21 @@ function SE01Inner() {
             </div>
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-sm p-md text-center">
-            <p className="text-body-lg font-bold text-on-surface">
-              スレッドを選択してください
-            </p>
-            <p className="max-w-md text-body-md text-on-surface-variant">
-              左の一覧からスレッドを選ぶか、「新規スレッド」で AI
-              社員との会話を開始できます。
-            </p>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {/* GAP-119: スレッド未選択でも接続状態 (Bridge 生死・接続フロー) は
+                確認できる必要がある — 未接続だと送信自体ができないため */}
+            <div className="flex shrink-0 justify-end border-b border-border bg-surface/95 px-md py-2 sm:px-[24px]">
+              <ConnectionStatusChip />
+            </div>
+            <div className="flex flex-1 flex-col items-center justify-center gap-sm p-md text-center">
+              <p className="text-body-lg font-bold text-on-surface">
+                スレッドを選択してください
+              </p>
+              <p className="max-w-md text-body-md text-on-surface-variant">
+                左の一覧からスレッドを選ぶか、「新規スレッド」で AI
+                社員との会話を開始できます。
+              </p>
+            </div>
           </div>
         )}
       </div>

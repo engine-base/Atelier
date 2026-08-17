@@ -2007,9 +2007,83 @@ class ChatRelayChunksRequest(BaseModel):
     texts: Annotated[list[str], Field(max_length=200, min_length=1)]
 
 
+class Status15(StrEnum):
+    allowed = "allowed"
+    allowed_warning = "allowed_warning"
+    rejected = "rejected"
+
+
+class ChatRelayRateLimitObservation(BaseModel):
+    """
+    GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
+    """
+
+    status: Status15
+    rate_limit_type: Annotated[str | None, Field(max_length=40)] = None
+    utilization: Annotated[float | None, Field(ge=0.0, le=2.0)] = None
+    resets_at: float | None = None
+
+
 class ChatRelayCompleteRequest(BaseModel):
     ok: bool
     error: Annotated[str | None, Field(max_length=2000)] = None
+    rate_limits: Annotated[
+        list[ChatRelayRateLimitObservation] | None, Field(max_length=20)
+    ] = None
+
+
+class ChatConnectionWorker(BaseModel):
+    """
+    GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台
+    """
+
+    host_label: str
+    version: str
+    last_seen_at: AwareDatetime
+
+
+class ChatConnectionLastJob(BaseModel):
+    """
+    GAP-119 — 本人の直近 relay 実行（chat_relay_jobs、RLS で本人のみ）
+    """
+
+    status: str
+    error: str | None = None
+    created_at: AwareDatetime
+    finished_at: AwareDatetime | None = None
+
+
+class ChatConnectionPlan(BaseModel):
+    """
+    GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない）
+    """
+
+    status: Status15
+    five_hour_utilization: float | None = None
+    five_hour_resets_at: AwareDatetime | None = None
+    seven_day_utilization: float | None = None
+    seven_day_resets_at: AwareDatetime | None = None
+    observed_at: AwareDatetime
+
+
+class Mode(StrEnum):
+    relay = "relay"
+    agent_sdk = "agent_sdk"
+    api = "api"
+    fake = "fake"
+    unconfigured = "unconfigured"
+
+
+class ChatConnectionStatusResponse(BaseModel):
+    """
+    GAP-119 — S-E01 接続状態パネル（実測値のみで構成）
+    """
+
+    mode: Mode
+    bridge_online: bool
+    workers: list[ChatConnectionWorker]
+    last_job: ChatConnectionLastJob | None = None
+    plan: ChatConnectionPlan | None = None
 
 
 class KanbanPickRequest(BaseModel):

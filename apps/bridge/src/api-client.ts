@@ -39,14 +39,27 @@ export interface ChatRelayPicked {
   readonly prompt: string;
 }
 
+/** GAP-119: claude CLI の rate_limit_event 観測値 (実値のみ complete へ転送)。 */
+export interface ChatRelayRateLimitObservation {
+  readonly status: 'allowed' | 'allowed_warning' | 'rejected';
+  readonly rate_limit_type: string | null;
+  readonly utilization: number | null;
+  readonly resets_at: number | null;
+}
+
 export interface BridgeApi {
   pick(workerPid: number, projectId?: string): Promise<KanbanPickResult>;
   /** GAP-114: チャット中継 job を 1 件確保 (無ければ null)。 */
   chatRelayPick(workerId: string): Promise<ChatRelayPicked | null>;
   /** GAP-114: text delta を追記 (seqStart からの連番)。 */
   chatRelayChunks(jobId: string, seqStart: number, texts: readonly string[]): Promise<void>;
-  /** GAP-114: job を done / error で確定。 */
-  chatRelayComplete(jobId: string, ok: boolean, error?: string): Promise<void>;
+  /** GAP-114: job を done / error で確定 (GAP-119: プラン枠観測値も同送可)。 */
+  chatRelayComplete(
+    jobId: string,
+    ok: boolean,
+    error?: string,
+    rateLimits?: readonly ChatRelayRateLimitObservation[],
+  ): Promise<void>;
   start(taskId: string, executionId: string, workerPid: number): Promise<void>;
   complete(
     taskId: string,
@@ -207,10 +220,17 @@ export class ApiClient implements BridgeApi {
     });
   }
 
-  async chatRelayComplete(jobId: string, ok: boolean, error?: string): Promise<void> {
+  async chatRelayComplete(
+    jobId: string,
+    ok: boolean,
+    error?: string,
+    rateLimits?: readonly ChatRelayRateLimitObservation[],
+  ): Promise<void> {
     await this.post(`/chat-relay/${jobId}/complete`, {
       ok,
       error: error ?? null,
+      // GAP-119: 観測が無いときは送らない (無いものを送らない誠実設計)
+      ...(rateLimits && rateLimits.length > 0 ? { rate_limits: rateLimits } : {}),
     });
   }
 }

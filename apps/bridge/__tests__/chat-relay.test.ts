@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import type { ChatRelayPicked } from '../src/api-client.js';
+import type { ChatRelayPicked, ChatRelayRateLimitObservation } from '../src/api-client.js';
 import {
   ChatRelayWorker,
   buildChatArgs,
@@ -24,7 +24,11 @@ import {
 class FakeSender implements ChatRelaySender {
   picked: ChatRelayPicked | null = null;
   readonly chunks: Array<{ seqStart: number; texts: readonly string[] }> = [];
-  readonly completes: Array<{ ok: boolean; error?: string }> = [];
+  readonly completes: Array<{
+    ok: boolean;
+    error?: string;
+    rateLimits?: readonly ChatRelayRateLimitObservation[];
+  }> = [];
 
   async chatRelayPick(): Promise<ChatRelayPicked | null> {
     return this.picked;
@@ -36,8 +40,13 @@ class FakeSender implements ChatRelaySender {
   ): Promise<void> {
     this.chunks.push({ seqStart, texts });
   }
-  async chatRelayComplete(_jobId: string, ok: boolean, error?: string): Promise<void> {
-    this.completes.push({ ok, error });
+  async chatRelayComplete(
+    _jobId: string,
+    ok: boolean,
+    error?: string,
+    rateLimits?: readonly ChatRelayRateLimitObservation[],
+  ): Promise<void> {
+    this.completes.push({ ok, error, rateLimits });
   }
 }
 
@@ -95,6 +104,36 @@ describe('parseStreamLine', () => {
   it('result の成否を判定する', () => {
     expect(parseStreamLine(RESULT_OK)).toEqual({ kind: 'result', ok: true });
     expect(parseStreamLine(RESULT_ERR)).toEqual({ kind: 'result', ok: false });
+  });
+  it('rate_limit_event を観測値として取り出す (GAP-119)', () => {
+    const line = JSON.stringify({
+      type: 'rate_limit_event',
+      rate_limit_info: {
+        status: 'allowed_warning',
+        rate_limit_type: 'five_hour',
+        utilization: 0.42,
+        resets_at: 1_800_000_000,
+      },
+      uuid: 'u',
+      session_id: 's',
+    });
+    expect(parseStreamLine(line)).toEqual({
+      kind: 'rate_limit',
+      observation: {
+        status: 'allowed_warning',
+        rate_limit_type: 'five_hour',
+        utilization: 0.42,
+        resets_at: 1_800_000_000,
+      },
+    });
+  });
+  it('rate_limit_event の不正 status は null (実値以外を転送しない)', () => {
+    expect(
+      parseStreamLine(
+        JSON.stringify({ type: 'rate_limit_event', rate_limit_info: { status: 'bogus' } }),
+      ),
+    ).toBeNull();
+    expect(parseStreamLine(JSON.stringify({ type: 'rate_limit_event' }))).toBeNull();
   });
   it('対象外の行 (init/非JSON/thinking delta) は null', () => {
     expect(parseStreamLine('{"type":"system","subtype":"init"}')).toBeNull();
@@ -157,7 +196,7 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(sent.join('')).toBe('やあ、こんにちは');
     // seq は 0 起点の連番
     expect(sender.chunks[0]?.seqStart).toBe(0);
-    expect(sender.completes).toEqual([{ ok: true, error: undefined }]);
+    expect(sender.completes).toEqual([{ ok: true, error: undefined, rateLimits: [] }]);
   });
 
   it('partial 不達時は assistant 完成 text で代替する', async () => {
@@ -183,5 +222,30 @@ describe('ChatRelayWorker.runOnce', () => {
     const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_ERR], 0));
     expect(await worker.runOnce()).toBe('failed');
     expect(sender.completes[0]?.ok).toBe(false);
+  });
+
+  it('rate_limit_event を window 別の最新値で complete に同送する (GAP-119)', async () => {
+    const rl = (type: string, utilization: number) =>
+      JSON.stringify({
+        type: 'rate_limit_event',
+        rate_limit_info: {
+          status: 'allowed',
+          rate_limit_type: type,
+          utilization,
+          resets_at: 1_800_000_000,
+        },
+      });
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    const worker = makeWorker(
+      sender,
+      // five_hour は 2 回出る → 最新値 (0.5) だけが送られる
+      makeFakeClaude([rl('five_hour', 0.4), DELTA_A, rl('seven_day', 0.1), rl('five_hour', 0.5), RESULT_OK]),
+    );
+    expect(await worker.runOnce()).toBe('completed');
+    const sent = sender.completes[0]?.rateLimits ?? [];
+    expect(sent).toHaveLength(2);
+    expect(sent.find((o) => o.rate_limit_type === 'five_hour')?.utilization).toBe(0.5);
+    expect(sent.find((o) => o.rate_limit_type === 'seven_day')?.utilization).toBe(0.1);
   });
 });
