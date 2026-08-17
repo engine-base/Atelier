@@ -33,14 +33,14 @@ export default function SL02Page() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center bg-[linear-gradient(180deg,var(--color-surface)_0%,var(--color-surface-variant)_100%)] px-5 py-8">
       <div className="w-full max-w-[480px]">
-        {/* ブランド */}
-        <div className="mb-6 flex items-center justify-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-[17px] font-bold text-primary-fg">
-            A
-          </div>
-          <div className="text-[22px] font-extrabold tracking-[-0.02em] text-on-surface">
-            Atelier
-          </div>
+        {/* ブランド (GAP-126: 公式ロックアップ — 文字を別タイプしない) */}
+        <div className="mb-6 flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+          <img
+            src="/brand/logo-horizontal-lockup.svg"
+            alt="Atelier"
+            className="h-11 w-auto object-contain"
+          />
         </div>
 
         {/* 招待グリーティングカード + サインインカード (実フォーム) —

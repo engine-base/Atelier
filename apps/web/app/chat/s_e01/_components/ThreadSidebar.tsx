@@ -205,8 +205,9 @@ function ThreadCard({
           ) : null}
         </span>
       </button>
-      {/* hover / キーボードフォーカスで出る操作 (死にボタン禁止: 常に実処理に接続) */}
-      <span className="absolute right-1.5 top-1.5 flex gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+      {/* hover / キーボードフォーカスで出る操作 (死にボタン禁止: 常に実処理に接続)。
+          GAP-126: 経営者指示「もう少し小さく」— 20px 枠 / 10px アイコンに縮小 */}
+      <span className="absolute right-1 top-1 flex gap-px opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
         <button
           type="button"
           aria-label={`スレッド「${title}」の名前を変更`}
@@ -214,17 +215,17 @@ function ThreadCard({
             setDraft(thread.title ?? "");
             setEditing(true);
           }}
-          className="flex h-6 w-6 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-primary"
+          className="flex h-5 w-5 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-primary"
         >
-          <Pencil size={12} aria-hidden="true" />
+          <Pencil size={10} aria-hidden="true" />
         </button>
         <button
           type="button"
           aria-label={`スレッド「${title}」を削除`}
           onClick={() => setConfirming(true)}
-          className="flex h-6 w-6 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-error"
+          className="flex h-5 w-5 items-center justify-center rounded-sm bg-white/80 text-on-surface-variant shadow-sm transition-colors hover:bg-white hover:text-error"
         >
-          <Trash2 size={12} aria-hidden="true" />
+          <Trash2 size={10} aria-hidden="true" />
         </button>
       </span>
     </div>

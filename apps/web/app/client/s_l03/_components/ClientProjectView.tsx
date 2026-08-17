@@ -143,16 +143,15 @@ export function ClientProjectView({
       {/* クライアントヘッダ (サイドバー無し・専用トップバー) */}
       <header className="flex items-center justify-between gap-4 border-b border-border bg-white px-6 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-[13px] font-bold text-on-primary">
-            A
-          </div>
-          <div>
-            <div className="text-[15px] font-bold leading-tight tracking-tight text-on-surface">
-              Atelier
-            </div>
-            <div className="text-sm text-on-surface-variant">
-              Client Portal · {data.name}
-            </div>
+          {/* GAP-126: 公式ロックアップ (Atelier 文字入り) — 文字を別タイプしない */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+          <img
+            src="/brand/logo-horizontal-lockup.svg"
+            alt="Atelier"
+            className="h-7 w-auto object-contain"
+          />
+          <div className="border-l border-border pl-3 text-sm text-on-surface-variant">
+            Client Portal · {data.name}
           </div>
         </div>
         <div className="flex items-center gap-3">

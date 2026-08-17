@@ -75,17 +75,14 @@ function OAuthCompleteInner() {
   return (
     <main className="flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-surface to-surface-variant px-md py-xl">
       <div className="w-full max-w-[440px]">
-        {/* ブランドロゴ + マーク (S-A01 と同一) */}
-        <div className="mb-lg flex items-center justify-center gap-2.5">
-          <span
-            aria-hidden="true"
-            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-[17px] font-bold text-on-primary"
-          >
-            A
-          </span>
-          <span className="text-[22px] font-extrabold tracking-tight text-on-surface">
-            Atelier
-          </span>
+        {/* ブランドロゴ (S-A01 と同一 — GAP-126: 公式ロックアップ) */}
+        <div className="mb-lg flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
+          <img
+            src="/brand/logo-horizontal-lockup.svg"
+            alt="Atelier"
+            className="h-11 w-auto object-contain"
+          />
         </div>
 
         <div className="rounded-lg border border-border bg-white px-8 py-9 shadow-sm">

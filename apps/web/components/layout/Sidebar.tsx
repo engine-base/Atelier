@@ -140,18 +140,23 @@ export function Sidebar({
           collapsed && 'justify-center px-0',
         )}
       >
-        {/* GAP-120: ブランドロゴ実画像 (public/brand/logo-mark.svg — 経営者支給の公式マーク) */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
-        <img
-          src="/brand/logo-mark.svg"
-          alt=""
-          aria-hidden="true"
-          className="h-7 w-7 shrink-0 object-contain"
-        />
-        {collapsed ? null : (
-          <span className="text-[16px] font-bold tracking-[-0.01em] text-on-surface">
-            {t('common.appName')}
-          </span>
+        {/* GAP-126: ロゴは経営者支給の公式ロックアップ (マーク + Atelier 文字入り
+            logo-horizontal.svg の実描画領域を viewBox 化した -lockup 派生) を使う。
+            文字をアプリ側で別途タイプしない (経営者指示)。折りたたみ時のみマーク単体。 */}
+        {collapsed ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */
+          <img
+            src="/brand/logo-mark.svg"
+            alt={t('common.appName')}
+            className="h-7 w-7 shrink-0 object-contain"
+          />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */
+          <img
+            src="/brand/logo-horizontal-lockup.svg"
+            alt={t('common.appName')}
+            className="h-8 w-auto shrink-0 object-contain"
+          />
         )}
       </div>
 

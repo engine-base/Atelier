@@ -73,18 +73,14 @@ function SA01Inner() {
     <main className="flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-surface to-surface-variant px-md py-xl">
       <div className="w-full max-w-[440px]">
         {/* ブランドロゴ + マーク */}
-        <div className="mb-lg flex items-center justify-center gap-2.5">
-          {/* GAP-120: ブランドロゴ実画像 */}
+        <div className="mb-lg flex items-center justify-center">
+          {/* GAP-126: 公式ロックアップ (Atelier 文字入り) — 文字を別タイプしない */}
           {/* eslint-disable-next-line @next/next/no-img-element -- 静的 SVG のためサイズ最適化不要 */}
           <img
-            src="/brand/logo-mark.svg"
-            alt=""
-            aria-hidden="true"
-            className="h-10 w-10 object-contain"
+            src="/brand/logo-horizontal-lockup.svg"
+            alt="Atelier"
+            className="h-11 w-auto object-contain"
           />
-          <span className="text-[22px] font-extrabold tracking-tight text-on-surface">
-            Atelier
-          </span>
         </div>
 
         {/* 中央カード */}

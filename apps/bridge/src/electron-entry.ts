@@ -17,6 +17,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { hasConnection, installLinuxAutostart } from './auto-launch.js';
 import {
   PROTOCOL_SCHEME,
   configFilePath,
@@ -65,8 +66,32 @@ function handleConnectUrl(raw: string): void {
   }
   saveConnectConfig(configFilePath(homedir()), parsed);
   console.log('[bridge] 接続設定を保存しました。再起動します');
+  ensureAutoLaunch(); // 接続が成立したのでログイン時自動起動も同時に登録
   app.relaunch();
   app.exit(0);
+}
+
+/* ------------------------------------------------------------------ */
+/* GAP-126: ログイン時自動起動 (OS 再起動後も自動で接続に戻る)           */
+/* ------------------------------------------------------------------ */
+
+function ensureAutoLaunch(): void {
+  // dev 実行 (未パッケージ) では electron バイナリを OS に誤登録しない
+  if (!app.isPackaged) return;
+  // 未接続のまま常駐させない — 接続済みのときだけ登録
+  if (!hasConnection(process.env, configFilePath(homedir()))) return;
+  try {
+    if (process.platform === 'linux') {
+      // AppImage は実行のたびにマウント先が変わるため APPIMAGE 実体を登録する
+      installLinuxAutostart(homedir(), process.env.APPIMAGE ?? process.execPath);
+    } else {
+      app.setLoginItemSettings({ openAtLogin: true });
+    }
+    console.log('[bridge] ログイン時自動起動を登録しました');
+  } catch (err: unknown) {
+    // 自動起動の登録失敗は接続自体を止めない (手動起動 + 再接続フローで回復可能)
+    console.error('[bridge] 自動起動の登録に失敗:', err);
+  }
 }
 
 /** チャット中継 + presence のループを起動する (設定 or env が無ければ何もしない)。 */
@@ -106,6 +131,7 @@ if (!gotLock) {
     }
     createWindow();
     ensureBridgeLoop();
+    ensureAutoLaunch();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
