@@ -18,9 +18,9 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 
 import type {
   ChatRelayApprovalDecision,
@@ -118,6 +118,83 @@ export function summarizeToolInput(tool: string, input: Record<string, unknown>)
     text = keys !== '' ? keys : '(入力なし)';
   }
   return text.length > 200 ? `${text.slice(0, 199)}…` : text;
+}
+
+/* ------------------------------------------------------------------ */
+/* GAP-137: PC 操作の成果物 (HTML) 検出 — モック自動反映のデータ源       */
+/* ------------------------------------------------------------------ */
+
+export const MAX_ARTIFACTS_PER_JOB = 10;
+export const MAX_ARTIFACT_BYTES = 512 * 1024;
+const ARTIFACT_SKIP_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv']);
+const ARTIFACT_MAX_DEPTH = 3;
+
+/** 作業フォルダ内の *.html/.htm の mtime を記録する (深さ 3 まで)。 */
+export function snapshotHtmlFiles(root: string): Map<string, number> {
+  const out = new Map<string, number>();
+  const walk = (dir: string, depth: number): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (
+          depth < ARTIFACT_MAX_DEPTH &&
+          !ARTIFACT_SKIP_DIRS.has(entry.name) &&
+          !entry.name.startsWith('.')
+        ) {
+          walk(full, depth + 1);
+        }
+      } else if (/\.html?$/i.test(entry.name)) {
+        try {
+          out.set(full, statSync(full).mtimeMs);
+        } catch {
+          /* 消えた直後など — 記録しない */
+        }
+      }
+    }
+  };
+  walk(root, 0);
+  return out;
+}
+
+export interface ChatArtifact {
+  readonly fileName: string;
+  readonly html: string;
+}
+
+/** スナップショット比較で新規/更新 HTML を集める (新しい順・上限つき)。 */
+export function collectNewHtmlArtifacts(
+  root: string,
+  before: ReadonlyMap<string, number>,
+): ChatArtifact[] {
+  const after = snapshotHtmlFiles(root);
+  const changed = [...after.entries()]
+    .filter(([path, mtime]) => {
+      const prev = before.get(path);
+      return prev === undefined || mtime > prev;
+    })
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_ARTIFACTS_PER_JOB);
+  const out: ChatArtifact[] = [];
+  for (const [path] of changed) {
+    let raw;
+    try {
+      raw = readFileSync(path);
+    } catch {
+      continue;
+    }
+    if (raw.byteLength > MAX_ARTIFACT_BYTES) continue;
+    out.push({
+      fileName: relative(root, path).split(sep).join('/'),
+      html: raw.toString('utf8'),
+    });
+  }
+  return out;
 }
 
 export type ChatStreamItem =
@@ -268,6 +345,8 @@ export interface ChatRelaySender {
   ): Promise<void>;
   chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
+  /** GAP-137: 成果物 (HTML) を送る — complete の前に呼ぶ契約。 */
+  chatRelayUploadArtifacts(jobId: string, artifacts: readonly ChatArtifact[]): Promise<void>;
   chatRelayComplete(
     jobId: string,
     ok: boolean,
@@ -389,6 +468,10 @@ export class ChatRelayWorker {
     // GAP-119: 実行中に観測した rate_limit_event を window 別に最新値で保持
     const rateLimits = new Map<string, ChatRelayRateLimitObservation>();
 
+    // GAP-137: PC 操作の成果物検出 — 実行前スナップショット
+    const workspace = toolsMode !== 'off' ? chatWorkspaceDir(this.config.env) : null;
+    const wsBefore = workspace !== null ? snapshotHtmlFiles(workspace) : null;
+
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
     let run;
@@ -409,6 +492,20 @@ export class ChatRelayWorker {
     }
     flush();
     await sendChain;
+
+    // GAP-137: 成功時のみ、作業フォルダの新規/更新 HTML をモックとして
+    // ツール内へ反映する (complete 前に送る — SSE が同一ストリームで
+    // 「モック保存」カードを配れる)。送信失敗は応答自体を壊さない。
+    if (run.ok && sendError === null && workspace !== null && wsBefore !== null) {
+      const artifacts = collectNewHtmlArtifacts(workspace, wsBefore);
+      if (artifacts.length > 0) {
+        try {
+          await this.api.chatRelayUploadArtifacts(jobId, artifacts);
+        } catch (err: unknown) {
+          console.error('[bridge:chat-relay] 成果物送信失敗 (応答は継続):', err);
+        }
+      }
+    }
 
     const ok = run.ok && sendError === null;
     const error = ok

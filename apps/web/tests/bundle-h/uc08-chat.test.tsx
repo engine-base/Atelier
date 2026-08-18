@@ -604,3 +604,32 @@ describe("S-E01 PC 操作の承認フロー (GAP-130)", () => {
     expect(screen.queryByRole("region", { name: "PC 操作の承認" })).toBeNull();
   });
 });
+
+describe("S-E01 成果物のモック自動反映 (GAP-137)", () => {
+  it("artifact chunk で「モックとして保存」カードが出て S-H01 リンクを持つ", async () => {
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({ type: "delta", content: "作りました" });
+      args.onChunk({
+        type: "artifact",
+        metadata: { mock_id: "mk-1", screen_name: "LP", version: 2 },
+      });
+      args.onChunk({ type: "end" });
+    });
+    render(
+      <ChatContainer threadId="t1" streamFn={streamFn} fetchMessagesFn={async () => []} />,
+    );
+    send("LP のモックを作って");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("region", { name: "モックとして保存" }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByText("LP (v2)")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "モックで開く →" });
+    expect(link).toHaveAttribute("href", "/mocks/s_h01?mock=mk-1");
+    // ストリーム完了後もカードは残る (完了と同時に消えては開けない)
+    expect(
+      screen.getByRole("region", { name: "モックとして保存" }),
+    ).toBeInTheDocument();
+  });
+});

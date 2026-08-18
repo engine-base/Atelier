@@ -180,6 +180,27 @@ class ChatRelayApprovalStatusResponse(BaseModel):
     decision: Literal["pending", "allow", "deny", "timeout"]
 
 
+class ChatRelayArtifactItem(BaseModel):
+    """GAP-137: PC 操作で生まれた成果物 (HTML) 1 件。"""
+
+    file_name: str = Field(min_length=1, max_length=200)
+    html: str = Field(min_length=1, max_length=512 * 1024)
+
+
+class ChatRelayArtifactsRequest(BaseModel):
+    """GAP-137: 成果物一括送信 (complete 前に呼ぶ — SSE が同一ストリームで配る)。"""
+
+    artifacts: list[ChatRelayArtifactItem] = Field(min_length=1, max_length=10)
+
+
+class ChatRelayArtifactResult(BaseModel):
+    """GAP-137: 取り込み結果 (モック行)。"""
+
+    mock_id: str
+    screen_name: str
+    version: int
+
+
 class ChatRelayRateLimitObservation(BaseModel):
     """GAP-119: claude CLI の rate_limit_event 観測値 1 件 (実値のみ転送)。"""
 

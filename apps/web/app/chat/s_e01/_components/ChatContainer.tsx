@@ -199,6 +199,11 @@ export function ChatContainer({
   const toolStartRef = useRef<number | null>(null);
   // GAP-130: approve モードの承認待ちカード (SSE pc_approval chunk の実値)
   const [pcApprovals, setPcApprovals] = useState<readonly PcApprovalInfo[]>([]);
+  // GAP-137: 成果物のモック取り込み結果 (SSE artifact chunk の実値)。
+  // 応答完了後も残す — ユーザーがリンクから S-H01 を開けるように (次送信でクリア)。
+  const [savedArtifacts, setSavedArtifacts] = useState<
+    readonly { mockId: string; screenName: string; version: number }[]
+  >([]);
   const connQuery = useQuery({
     queryKey: ["chat-connection-status"],
     queryFn: async () =>
@@ -402,6 +407,7 @@ export function ChatContainer({
       setToolActivity([]);
       setToolRunSummary(null);
       setToolStartedAt(null);
+      setSavedArtifacts([]);
       toolLogRef.current = [];
       toolStartRef.current = null;
 
@@ -438,6 +444,21 @@ export function ChatContainer({
                 id,
                 tool: typeof meta.tool === "string" ? meta.tool : "",
                 summary: typeof meta.summary === "string" ? meta.summary : "",
+              },
+            ]);
+          }
+        } else if (chunk.type === "artifact") {
+          // GAP-137: 作業フォルダの成果物がモックとして取り込まれた実値
+          const meta = chunk.metadata ?? {};
+          const mockId = typeof meta.mock_id === "string" ? meta.mock_id : "";
+          if (mockId) {
+            setSavedArtifacts((prev) => [
+              ...prev,
+              {
+                mockId,
+                screenName:
+                  typeof meta.screen_name === "string" ? meta.screen_name : "",
+                version: typeof meta.version === "number" ? meta.version : 1,
               },
             ]);
           }
@@ -654,6 +675,7 @@ export function ChatContainer({
           toolActivity={toolActivity}
           toolStartedAt={toolStartedAt}
           toolRunSummary={toolRunSummary}
+          savedArtifacts={savedArtifacts}
           pcApprovals={pcApprovals}
           onPcApprovalDecision={handlePcApprovalDecision}
           {...(toolsAvailable

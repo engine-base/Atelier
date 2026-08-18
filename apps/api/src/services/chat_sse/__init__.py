@@ -594,6 +594,9 @@ async def stream_chat(
     use_real = use_subscription or use_relay or bool(os.environ.get("ANTHROPIC_API_KEY"))
     # GAP-124: agent_sdk 経路のプラン枠観測 (RateLimitEvent) の収集先
     sdk_rate_limits: list[dict[str, Any]] = []
+    # GAP-137: agent_sdk 経路の成果物反映用スナップショット (tools 時のみ実値)
+    sdk_workspace = ""
+    sdk_ws_before: dict[str, float] = {}
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
     if not use_real and not allow_fake:
         # 本番では LLM 未接続時に fake/stub を黙って返さない (F-CTX01 / 鉄則: stub 排除)。
@@ -649,7 +652,14 @@ async def stream_chat(
                 tools_mode=tools_mode,
             )
         elif use_subscription:
-            from .agent_sdk import agent_sdk_stream_chunks
+            from .agent_sdk import agent_sdk_stream_chunks, chat_workspace_dir
+
+            # GAP-137: サーバー内実行の成果物反映 — 実行前スナップショット
+            if tools_mode in ("approve", "auto"):
+                from .pc_artifacts import snapshot_html_files
+
+                sdk_workspace = chat_workspace_dir()
+                sdk_ws_before = snapshot_html_files(sdk_workspace)
 
             # GAP-124: 実行中の RateLimitEvent (プラン枠実測) を収集して記録する
             # GAP-129: tools_mode="auto" で Claude Code 同等の PC 操作を許可
@@ -686,11 +696,28 @@ async def stream_chat(
                             "metadata": chunk["pc_approval_resolved"],
                         }
                     )
+                elif "artifact" in chunk:
+                    # GAP-137: 成果物のモック取り込み結果 — UI が「モック保存」
+                    # カード (S-H01 へのリンク) を出すための実値。
+                    yield _sse_event({"type": "artifact", "metadata": chunk["artifact"]})
                 else:
                     yield _sse_event({"type": "tool", "content": str(chunk.get("tool", ""))})
                 continue
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})
+        # GAP-137: agent_sdk 経路の成果物反映 (relay 経路は Bridge が担当)。
+        # 失敗してもチャット応答は壊さない (best-effort、ただし黙って捨てず log)。
+        if use_subscription and tools_mode in ("approve", "auto"):
+            try:
+                from .pc_artifacts import collect_new_html, ingest_for_thread
+
+                new_files = collect_new_html(sdk_workspace, sdk_ws_before)
+                for ingested in await ingest_for_thread(
+                    thread_id=thread_id, files=new_files
+                ):
+                    yield _sse_event({"type": "artifact", "metadata": dict(ingested)})
+            except Exception as exc:  # pragma: no cover  - fs/DB 例外は環境依存
+                logger.error("chat artifact reflect failed (thread=%s): %s", thread_id, exc)
         # GAP-124: プラン枠観測の記録 (best-effort — 応答自体は既に届いている)
         if use_subscription and sdk_rate_limits:
             import contextlib

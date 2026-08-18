@@ -133,6 +133,12 @@ export interface ChatPanelProps {
   readonly toolStartedAt?: number | null;
   /** GAP-136: 直前応答の PC 操作サマリ (完了後も痕跡を残す。次送信でクリア)。 */
   readonly toolRunSummary?: { count: number; seconds: number } | null;
+  /** GAP-137: 成果物のモック取り込み結果 (SSE artifact chunk の実値)。 */
+  readonly savedArtifacts?: readonly {
+    mockId: string;
+    screenName: string;
+    version: number;
+  }[];
   /**
    * GAP-130: approve モードの承認待ちカード (SSE pc_approval の実値)。
    * onPcApprovalDecision 未指定ならカードを出さない (Rule 10)。
@@ -500,6 +506,7 @@ export function ChatPanel({
   toolActivity,
   toolStartedAt,
   toolRunSummary,
+  savedArtifacts,
   pcApprovals,
   onPcApprovalDecision,
 }: ChatPanelProps) {
@@ -809,6 +816,33 @@ export function ChatPanel({
                   ))}
                 </ul>
               ) : null}
+            </div>
+          ) : null}
+          {/* GAP-137: 成果物のモック取り込みカード (S-H01 へのリンク) */}
+          {savedArtifacts && savedArtifacts.length > 0 ? (
+            <div
+              role="region"
+              aria-label="モックとして保存"
+              className="mt-2 rounded-md border border-border bg-surface px-3 py-2 text-[11.5px]"
+            >
+              <p className="mb-1 font-semibold text-on-surface">
+                成果物をモックとして保存しました
+              </p>
+              <ul className="flex flex-col gap-1">
+                {savedArtifacts.map((a) => (
+                  <li key={a.mockId} className="flex items-center gap-2">
+                    <span className="text-on-surface-variant">
+                      {a.screenName} (v{a.version})
+                    </span>
+                    <a
+                      href={`/mocks/s_h01?mock=${encodeURIComponent(a.mockId)}`}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      モックで開く →
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           ) : null}
           {/* GAP-136: 直前応答の PC 操作サマリ (実況が消えた後も痕跡を残す) */}

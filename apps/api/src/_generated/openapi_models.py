@@ -2159,6 +2159,31 @@ class ChatRelayCompleteRequest(BaseModel):
     ] = None
 
 
+class ChatRelayArtifactItem(BaseModel):
+    """
+    GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件
+    """
+
+    file_name: Annotated[str, Field(max_length=200, min_length=1)]
+    html: Annotated[str, Field(max_length=524288, min_length=1)]
+
+
+class ChatRelayArtifactsRequest(BaseModel):
+    artifacts: Annotated[
+        list[ChatRelayArtifactItem], Field(max_length=10, min_length=1)
+    ]
+
+
+class ChatRelayArtifactResult(BaseModel):
+    """
+    GAP-137 — モック取り込み結果
+    """
+
+    mock_id: UUID
+    screen_name: str
+    version: int
+
+
 class ChatConnectionWorker(BaseModel):
     """
     GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台

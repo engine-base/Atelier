@@ -16,7 +16,8 @@ export type ChatChunkType =
   | "context"
   | "tool"
   | "pc_approval"
-  | "pc_approval_resolved";
+  | "pc_approval_resolved"
+  | "artifact";
 
 /**
  * GAP-129/130: PC 操作モード。off=ツールなし (既定) /

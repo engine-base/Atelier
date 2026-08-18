@@ -19,6 +19,7 @@ state-changing 操作は audit_logs に記録 (actor_type='system', actor_id='br
 
 from __future__ import annotations
 
+import json
 import uuid as uuid_mod
 from typing import Any
 
@@ -203,6 +204,94 @@ async def append_chunks(
             ),
             {"j": job_id, "s": seq_start + offset, "c": content, "k": kind},
         )
+
+
+async def save_job_artifacts(
+    session: AsyncSession,
+    *,
+    job_id: str,
+    artifacts: list[dict[str, str]],
+    requester_user_id: str | None = None,
+) -> list[dict[str, object]]:
+    """GAP-137: Bridge がジョブ完了直前に成果物 (HTML) を送り、モックへ取り込む。
+
+    - job は running であること (complete 前に呼ぶ契約 — 取り込み結果の
+      artifact chunk を SSE が同一ストリームで配れる)
+    - user トークンの Bridge は本人のジョブのみ (requested_by 照合)
+    - thread.project_id のモックとして ingest (同名画面は新バージョン連鎖)
+    - 取り込み結果を kind='artifact' の chunk (content=JSON) として追記する
+    """
+    from src.services.mocks.artifacts import (
+        MAX_ARTIFACTS_PER_JOB,
+        ArtifactIngestError,
+        ingest_html_artifact,
+    )
+
+    job_id = _validated_job_id(job_id)
+    row = (
+        await session.execute(
+            text(
+                "select j.status, j.requested_by, t.project_id "
+                "from public.chat_relay_jobs j "
+                "join public.chat_threads t on t.id = j.thread_id "
+                "where j.id = cast(:i as uuid)"
+            ),
+            {"i": job_id},
+        )
+    ).first()
+    if row is None:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    if str(row.status) != "running":
+        raise ChatRelayError("invalid_state", f"job is {row.status}, not running")
+    if requester_user_id is not None and str(row.requested_by) != requester_user_id:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    if len(artifacts) > MAX_ARTIFACTS_PER_JOB:
+        raise ChatRelayError(
+            "invalid_state", f"artifacts exceed limit ({MAX_ARTIFACTS_PER_JOB})"
+        )
+    project_id = str(row.project_id)
+
+    results: list[dict[str, object]] = []
+    next_seq = int(
+        (
+            await session.execute(
+                text(
+                    "select coalesce(max(seq), -1) + 1 from public.chat_relay_chunks "
+                    "where job_id = cast(:j as uuid)"
+                ),
+                {"j": job_id},
+            )
+        ).scalar_one()
+    )
+    for artifact in artifacts:
+        try:
+            ingested = await ingest_html_artifact(
+                session,
+                project_id=project_id,
+                file_name=str(artifact.get("file_name", "")),
+                html=str(artifact.get("html", "")),
+                source="chat_pc_tools",
+                actor_label="bridge",
+            )
+        except ArtifactIngestError as exc:
+            raise ChatRelayError(exc.code, exc.message) from exc
+        await session.execute(
+            text(
+                "insert into public.chat_relay_chunks (job_id, seq, content, kind) "
+                "values (cast(:j as uuid), :s, :c, 'artifact') "
+                "on conflict (job_id, seq) do nothing"
+            ),
+            {"j": job_id, "s": next_seq, "c": json.dumps(ingested)},
+        )
+        next_seq += 1
+        results.append(dict(ingested))
+    await _audit(
+        session,
+        action="chat_relay.artifacts",
+        target_id=job_id,
+        after={"count": len(results)},
+    )
+    return results
 
 
 async def complete_job(

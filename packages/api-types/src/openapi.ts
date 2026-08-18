@@ -4398,6 +4398,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mocks/{mock_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** mockdb モック HTML の配信（自己署名トークン / GAP-137） */
+        get: {
+            parameters: {
+                query: {
+                    exp: number;
+                    sig: string;
+                };
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description モック HTML (content-url が発行した期限付きトークンで到達) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/html": string;
+                    };
+                };
+                /** @description トークン不正/期限切れ */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description mockdb コンテンツ不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mocks/{mock_id}/revise": {
         parameters: {
             query?: never;
@@ -9260,6 +9319,77 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-relay/{job_id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** chat relay PC 操作の成果物送信 → モック取り込み（GAP-137 / BridgeAuth） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChatRelayArtifactsRequest"];
+                };
+            };
+            responses: {
+                /** @description 取り込み結果 (モック行) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRelayArtifactResult"][];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description job 不在 (他人のジョブ含む) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description job が running でない / 上限超過 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -16210,6 +16340,21 @@ export interface components {
             ok: boolean;
             error?: string | null;
             rate_limits?: components["schemas"]["ChatRelayRateLimitObservation"][] | null;
+        };
+        /** @description GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件 */
+        ChatRelayArtifactItem: {
+            file_name: string;
+            html: string;
+        };
+        ChatRelayArtifactsRequest: {
+            artifacts: components["schemas"]["ChatRelayArtifactItem"][];
+        };
+        /** @description GAP-137 — モック取り込み結果 */
+        ChatRelayArtifactResult: {
+            /** Format: uuid */
+            mock_id: string;
+            screen_name: string;
+            version: number;
         };
         /** @description GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台 */
         ChatConnectionWorker: {

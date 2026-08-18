@@ -32,6 +32,8 @@ from src.schemas.dispatcher import (
     ChatRelayApprovalCreateRequest,
     ChatRelayApprovalCreateResponse,
     ChatRelayApprovalStatusResponse,
+    ChatRelayArtifactResult,
+    ChatRelayArtifactsRequest,
     ChatRelayChunksRequest,
     ChatRelayCompleteRequest,
     ChatRelayPickRequest,
@@ -363,6 +365,34 @@ async def chat_relay_approval_status(
     return {
         "data": ChatRelayApprovalStatusResponse(decision=decision)  # type: ignore[arg-type]
     }
+
+
+@router.post(
+    "/chat-relay/{job_id}/artifacts",
+    summary="chat relay PC 操作の成果物送信 → モック取り込み (GAP-137 / BridgeAuth)",
+)
+async def chat_relay_artifacts(
+    job_id: str,
+    body: ChatRelayArtifactsRequest,
+    session: BridgeSession,
+    _token: BridgeAuth,
+) -> dict[str, list[ChatRelayArtifactResult]]:
+    """Bridge がジョブ完了直前に成果物 (HTML) を送る。
+
+    thread の project のモックとして取り込み (同名画面は新バージョン連鎖)、
+    kind='artifact' の chunk を積む — SSE が「モック保存」カードとして配信する。
+    user トークンは本人のジョブのみ (requested_by 照合)。
+    """
+    try:
+        results = await relay_svc.save_job_artifacts(
+            session,
+            job_id=job_id,
+            artifacts=[{"file_name": a.file_name, "html": a.html} for a in body.artifacts],
+            requester_user_id=_token.user_id,
+        )
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
+    return {"data": [ChatRelayArtifactResult(**r) for r in results]}  # type: ignore[arg-type]
 
 
 @router.post(

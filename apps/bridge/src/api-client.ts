@@ -70,6 +70,11 @@ export interface BridgeApi {
   chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
   /** GAP-134: 承認決定をポーリングで読む。 */
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
+  /** GAP-137: 成果物 (HTML) の送信 — complete の前に呼ぶ。 */
+  chatRelayUploadArtifacts(
+    jobId: string,
+    artifacts: readonly { readonly fileName: string; readonly html: string }[],
+  ): Promise<void>;
   /** GAP-114: job を done / error で確定 (GAP-119: プラン枠観測値も同送可)。 */
   chatRelayComplete(
     jobId: string,
@@ -273,6 +278,16 @@ export class ApiClient implements BridgeApi {
       data: { decision: ChatRelayApprovalDecision };
     };
     return json.data.decision;
+  }
+
+  async chatRelayUploadArtifacts(
+    jobId: string,
+    artifacts: readonly { readonly fileName: string; readonly html: string }[],
+  ): Promise<void> {
+    // GAP-137: PC 操作の成果物 (HTML) をモックとして取り込む (complete 前)
+    await this.post(`/chat-relay/${jobId}/artifacts`, {
+      artifacts: artifacts.map((a) => ({ file_name: a.fileName, html: a.html })),
+    });
   }
 
   async chatRelayComplete(

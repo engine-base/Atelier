@@ -5,7 +5,7 @@
  * stream-json の delta / assistant / result 経路を検証する。
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,13 +21,16 @@ import {
   ChatRelayWorker,
   ERROR_TAG_CLAUDE_NOT_FOUND,
   ERROR_TAG_CLAUDE_NOT_LOGGED_IN,
+  MAX_ARTIFACT_BYTES,
   buildChatArgs,
   buildControlResponse,
   chatRelayEnabled,
   chatWorkspaceDir,
   classifyRunFailure,
+  collectNewHtmlArtifacts,
   parseStreamLine,
   sanitizedChildEnv,
+  snapshotHtmlFiles,
   summarizeToolInput,
   type ChatRelaySender,
 } from '../src/chat-relay.js';
@@ -47,6 +50,11 @@ class FakeSender implements ChatRelaySender {
     error?: string;
     rateLimits?: readonly ChatRelayRateLimitObservation[];
   }> = [];
+  /** GAP-137: 成果物送信の記録 (complete との順序検証用に順序も記録) */
+  readonly artifactUploads: Array<
+    readonly { readonly fileName: string; readonly html: string }[]
+  > = [];
+  readonly callOrder: string[] = [];
 
   async chatRelayPick(): Promise<ChatRelayPicked | null> {
     return this.picked;
@@ -66,12 +74,20 @@ class FakeSender implements ChatRelaySender {
   async chatRelayApprovalDecision(): Promise<ChatRelayApprovalDecision> {
     return this.approvalDecision;
   }
+  async chatRelayUploadArtifacts(
+    _jobId: string,
+    artifacts: readonly { readonly fileName: string; readonly html: string }[],
+  ): Promise<void> {
+    this.callOrder.push('artifacts');
+    this.artifactUploads.push(artifacts);
+  }
   async chatRelayComplete(
     _jobId: string,
     ok: boolean,
     error?: string,
     rateLimits?: readonly ChatRelayRateLimitObservation[],
   ): Promise<void> {
+    this.callOrder.push('complete');
     this.completes.push({ ok, error, rateLimits });
   }
 }
@@ -520,3 +536,100 @@ describe('ChatRelayWorker — approve 往復 (GAP-134)', () => {
   });
 });
 
+
+/* ------------------------------------------------------------------ */
+/* GAP-137: PC 操作の成果物検出とモック反映送信                          */
+/* ------------------------------------------------------------------ */
+
+describe('snapshotHtmlFiles / collectNewHtmlArtifacts (GAP-137)', () => {
+  it('新規/更新された HTML のみを新しい順に集める (スキップ dir・上限つき)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ws-'));
+    writeFileSync(join(root, 'old.html'), '<html>old</html>');
+    utimesSync(join(root, 'old.html'), new Date(1000000), new Date(1000000));
+    const before = snapshotHtmlFiles(root);
+
+    // 新規 2 件 + 既存の更新 1 件 + 対象外 (txt / node_modules)
+    writeFileSync(join(root, 'a.html'), '<html><title>LP</title></html>');
+    utimesSync(join(root, 'a.html'), new Date(3000000), new Date(3000000));
+    mkdirSync(join(root, 'sub'));
+    writeFileSync(join(root, 'sub', 'b.htm'), '<html>b</html>');
+    utimesSync(join(root, 'sub', 'b.htm'), new Date(4000000), new Date(4000000));
+    writeFileSync(join(root, 'old.html'), '<html>updated</html>');
+    utimesSync(join(root, 'old.html'), new Date(2000000), new Date(2000000));
+    writeFileSync(join(root, 'note.txt'), 'x');
+    mkdirSync(join(root, 'node_modules'));
+    writeFileSync(join(root, 'node_modules', 'skip.html'), '<html>skip</html>');
+
+    const artifacts = collectNewHtmlArtifacts(root, before);
+    expect(artifacts.map((a) => a.fileName)).toEqual(['sub/b.htm', 'a.html', 'old.html']);
+    expect(artifacts[0]?.html).toBe('<html>b</html>');
+  });
+
+  it('サイズ上限超の HTML は取り込まない', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ws-'));
+    const before = snapshotHtmlFiles(root);
+    writeFileSync(join(root, 'big.html'), 'x'.repeat(MAX_ARTIFACT_BYTES + 1));
+    writeFileSync(join(root, 'ok.html'), '<html>ok</html>');
+    const names = collectNewHtmlArtifacts(root, before).map((a) => a.fileName);
+    expect(names).toEqual(['ok.html']);
+  });
+});
+
+describe('ChatRelayWorker 成果物送信 (GAP-137)', () => {
+  /** cwd に HTML を書いてから完走する fake CLI。 */
+  function makeArtifactFakeClaude(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'fake-claude-'));
+    const path = join(dir, 'fake-claude.mjs');
+    writeFileSync(
+      path,
+      [
+        '#!/usr/bin/env node',
+        "import { writeFileSync } from 'node:fs';",
+        'process.stdin.resume();',
+        "process.stdin.on('data', () => {});",
+        "process.stdin.on('end', () => {",
+        "  writeFileSync('lp.html', '<html><title>LP</title><body>done</body></html>');",
+        `  console.log(${JSON.stringify(DELTA_A)});`,
+        `  console.log(${JSON.stringify(RESULT_OK)});`,
+        '  process.exit(0);',
+        '});',
+      ].join('\n'),
+    );
+    chmodSync(path, 0o755);
+    return path;
+  }
+
+  it('tools job は新規 HTML を complete の前に送信する', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'ws-'));
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'LP作って', toolsMode: 'auto' };
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeArtifactFakeClaude(),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH, ATELIER_BRIDGE_CHAT_WORKSPACE: workspace },
+      flushIntervalMs: 10,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.artifactUploads).toHaveLength(1);
+    expect(sender.artifactUploads[0]?.map((a) => a.fileName)).toEqual(['lp.html']);
+    expect(sender.artifactUploads[0]?.[0]?.html).toContain('<title>LP</title>');
+    // complete より前に送っている (SSE が同一ストリームでカードを配れる契約)
+    expect(sender.callOrder).toEqual(['artifacts', 'complete']);
+  });
+
+  it('toolsMode=off はスナップショットも送信もしない', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'こんにちは', toolsMode: 'off' };
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeFakeClaude([DELTA_A, RESULT_OK]),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH },
+      flushIntervalMs: 10,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.artifactUploads).toHaveLength(0);
+    expect(sender.callOrder).toEqual(['complete']);
+  });
+});

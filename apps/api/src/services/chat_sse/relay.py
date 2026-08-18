@@ -19,6 +19,7 @@ session は SSE の寿命と合わず、Bridge の書き込みを見るには co
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -144,6 +145,14 @@ async def relay_stream_chunks(
                 continue
             if kind == "tool":
                 yield {"tool": content}
+            elif kind == "artifact":
+                # GAP-137: 成果物のモック取り込み結果 (JSON) — 壊れた行は捨てる
+                try:
+                    payload = json.loads(content)
+                except ValueError:
+                    continue
+                if isinstance(payload, dict):
+                    yield {"artifact": payload}
             else:
                 yield content
         for ap in approvals:

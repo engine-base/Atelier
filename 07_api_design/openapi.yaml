@@ -2002,6 +2002,33 @@ components:
           nullable: true
           items: { $ref: '#/components/schemas/ChatRelayRateLimitObservation' }
 
+    ChatRelayArtifactItem:
+      type: object
+      description: GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件
+      required: [file_name, html]
+      properties:
+        file_name: { type: string, minLength: 1, maxLength: 200 }
+        html: { type: string, minLength: 1, maxLength: 524288 }
+
+    ChatRelayArtifactsRequest:
+      type: object
+      required: [artifacts]
+      properties:
+        artifacts:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/ChatRelayArtifactItem' }
+
+    ChatRelayArtifactResult:
+      type: object
+      description: GAP-137 — モック取り込み結果
+      required: [mock_id, screen_name, version]
+      properties:
+        mock_id: { type: string, format: uuid }
+        screen_name: { type: string }
+        version: { type: integer }
+
     ChatConnectionWorker:
       type: object
       description: GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台
@@ -4324,6 +4351,25 @@ paths:
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /mocks/{mock_id}/content:
+    get:
+      tags: [mocks]
+      summary: mockdb モック HTML の配信（自己署名トークン / GAP-137）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::get_mock_content
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: exp, in: query, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: sig, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 128 } }
+      responses:
+        '200':
+          description: モック HTML (content-url が発行した期限付きトークンで到達)
+          content:
+            text/html:
+              schema: { type: string }
+        '403': { description: トークン不正/期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: mockdb コンテンツ不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /mocks/{mock_id}/revise:
     post:
       tags: [mocks]
@@ -6302,6 +6348,36 @@ paths:
                   data: { $ref: '#/components/schemas/ChatRelayApprovalStatusResponse' }
         '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: approval 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/{job_id}/artifacts:
+    post:
+      tags: [kanban-tools]
+      summary: chat relay PC 操作の成果物送信 → モック取り込み（GAP-137 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_artifacts
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRelayArtifactsRequest' }
+      responses:
+        '200':
+          description: 取り込み結果 (モック行)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatRelayArtifactResult' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: job 不在 (他人のジョブ含む), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: job が running でない / 上限超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat-relay/{job_id}/complete:
     post:

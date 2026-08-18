@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>料金ページ</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #f5f6f8;
+    color: #222;
+  }
+  header {
+    text-align: center;
+    padding: 48px 16px 24px;
+  }
+  header h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+  }
+  header p {
+    margin: 0;
+    color: #666;
+  }
+  .plans {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .plan {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 32px 24px;
+    width: 260px;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  }
+  .plan.featured {
+    border: 2px solid #4a6cf7;
+    transform: scale(1.03);
+  }
+  .plan h2 {
+    margin: 0 0 8px;
+    font-size: 18px;
+  }
+  .price {
+    font-size: 32px;
+    font-weight: bold;
+    margin: 16px 0;
+  }
+  .price span {
+    font-size: 14px;
+    font-weight: normal;
+    color: #888;
+  }
+  .plan ul {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 24px;
+    text-align: left;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .plan button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #4a6cf7;
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .plan.featured button {
+    background: #2f4fdb;
+  }
+  .compare {
+    max-width: 700px;
+    margin: 8px auto 48px;
+    padding: 0 24px;
+  }
+  .compare h2 {
+    text-align: center;
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+  .compare table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  }
+  .compare th, .compare td {
+    border: 1px solid #e0e0e0;
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 14px;
+  }
+  .compare th {
+    background: #f0f2f7;
+  }
+  .compare td:first-child, .compare th:first-child {
+    text-align: left;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>料金プラン</h1>
+    <p>ニーズに合わせてお選びいただけます</p>
+  </header>
+  <main class="plans">
+    <section class="plan">
+      <h2>ライト</h2>
+      <div class="price">¥980 <span>/ 月</span></div>
+      <ul>
+        <li>基本機能</li>
+        <li>メールサポート</li>
+        <li>1ユーザー</li>
+      </ul>
+      <button>選択する</button>
+    </section>
+    <section class="plan featured">
+      <h2>スタンダード</h2>
+      <div class="price">¥2,980 <span>/ 月</span></div>
+      <ul>
+        <li>全機能利用可能</li>
+        <li>優先サポート</li>
+        <li>5ユーザーまで</li>
+      </ul>
+      <button>選択する</button>
+    </section>
+    <section class="plan">
+      <h2>プレミアム</h2>
+      <div class="price">¥9,800 <span>/ 月</span></div>
+      <ul>
+        <li>全機能 + 拡張機能</li>
+        <li>専任サポート</li>
+        <li>無制限ユーザー</li>
+      </ul>
+      <button>選択する</button>
+    </section>
+  </main>
+  <section class="compare">
+    <h2>プラン比較表</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>ライト</th>
+          <th>スタンダード</th>
+          <th>プレミアム</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>月額料金</td>
+          <td>¥980</td>
+          <td>¥2,980</td>
+          <td>¥9,800</td>
+        </tr>
+        <tr>
+          <td>利用可能人数</td>
+          <td>1ユーザー</td>
+          <td>5ユーザーまで</td>
+          <td>無制限</td>
+        </tr>
+        <tr>
+          <td>サポート</td>
+          <td>メール</td>
+          <td>優先サポート</td>
+          <td>専任サポート</td>
+        </tr>
+        <tr>
+          <td>拡張機能</td>
+          <td>—</td>
+          <td>—</td>
+          <td>◯</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
