@@ -27,6 +27,7 @@ from src.routes.decisions import router as decisions_router
 from src.routes.dispatcher import router as dispatcher_router
 from src.routes.exec_logs import router as exec_logs_router
 from src.routes.executions import router as executions_router
+from src.routes.flow import router as flow_router
 from src.routes.impact import router as impact_router
 from src.routes.knowledge import router as knowledge_router
 from src.routes.mcp_tokens import router as mcp_tokens_router
@@ -52,6 +53,7 @@ api_router.include_router(projects_router)
 api_router.include_router(project_credentials_router)
 api_router.include_router(tasks_router)
 api_router.include_router(mocks_router)
+api_router.include_router(flow_router)
 api_router.include_router(ai_employees_router)
 api_router.include_router(admin_router)
 api_router.include_router(admin_knowledge_router)

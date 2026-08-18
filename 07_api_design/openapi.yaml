@@ -40,6 +40,8 @@ tags:
     description: チャット (F-CTX01)
   - name: workflow
     description: 9 工程ワークフロー
+  - name: flow
+    description: プロジェクト進行フロー（GAP-150 — COO ハブ&スポーク / ステージゲート）
   - name: tasks
     description: タスク管理（6 列ライフサイクル）
   - name: kanban-tools
@@ -532,6 +534,27 @@ components:
         logs_storage_path: { type: string, nullable: true }
         error_summary: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
+
+    FlowStage:
+      type: object
+      description: GAP-150 — プロジェクト進行フローの 1 ステージ (現在ステージは最小 seq の pending)
+      required: [id, stage_key, seq, title, department, status, skippable, hard_gate, current]
+      properties:
+        id: { type: string, format: uuid }
+        stage_key: { type: string }
+        seq: { type: integer }
+        title: { type: string }
+        department: { type: string }
+        status: { type: string, enum: [pending, done, skipped] }
+        skippable: { type: boolean }
+        hard_gate: { type: boolean, description: 致命工程 — 完了に confirm=true 必須・スキップ不可 }
+        skip_reason: { type: string, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        current: { type: boolean }
+        employee_id: { type: string, format: uuid, nullable: true }
+        employee_name: { type: string, nullable: true }
+        employee_icon: { type: string, nullable: true }
+        thread_id: { type: string, format: uuid, nullable: true }
 
     Mock:
       type: object
@@ -4360,6 +4383,108 @@ paths:
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/flow:
+    get:
+      tags: [flow]
+      summary: プロジェクトフロー取得（GAP-150 — 未初期化ならテンプレから自動生成）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::get_flow
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: seq 昇順のステージ一覧 (current=現在のステージ / 担当社員・既存スレッド解決済み)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FlowStage' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/flow/{stage_key}/complete:
+    post:
+      tags: [flow]
+      summary: ステージ完了（GAP-150 — hard_gate は confirm=true 必須）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::complete_stage
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage_key, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm: { type: boolean, default: false }
+      responses:
+        '200':
+          description: 完了後のフロー全体 (current の移動 = 次ステージへの引き継ぎ)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FlowStage' } }
+        '403': { description: hard_gate 未確認, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 完了済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/flow/{stage_key}/skip:
+    post:
+      tags: [flow]
+      summary: ステージスキップ（GAP-150 — skippable のみ・理由必須）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::skip_stage
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage_key, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '200':
+          description: スキップ後のフロー全体
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FlowStage' } }
+        '403': { description: hard_gate はスキップ不可, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: skippable でない or 完了済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/flow/{stage_key}/reopen:
+    post:
+      tags: [flow]
+      summary: ステージ差し戻し（GAP-150 — done/skipped → pending）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::reopen_stage
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage_key, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 差し戻し後のフロー全体
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FlowStage' } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 未完了ステージ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /projects/{project_id}/design-note:
     parameters:

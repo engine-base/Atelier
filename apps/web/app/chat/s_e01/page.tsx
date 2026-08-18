@@ -25,6 +25,7 @@ import { ChatEmptyState } from "./_components/ChatEmptyState";
 import { ChatHeader } from "./_components/ChatHeader";
 import { ConnectionStatusChip } from "./_components/ConnectionStatus";
 import { ContextPane } from "./_components/ContextPane";
+import { FlowRail } from "./_components/FlowRail";
 import { ThreadSidebar } from "./_components/ThreadSidebar";
 
 interface ThreadDetail {
@@ -158,6 +159,14 @@ function SE01Inner() {
           leftOpen ? "lg:block" : "lg:hidden",
         )}
       >
+        {/* GAP-150: フローが背骨 — 進行フローを最上部に常設し、そこから話す */}
+        {projectId ? (
+          <FlowRail
+            projectId={projectId}
+            selectedThreadId={threadId}
+            onSelectThread={setThreadId}
+          />
+        ) : null}
         <ThreadSidebar
           selectedId={threadId}
           onSelect={setThreadId}

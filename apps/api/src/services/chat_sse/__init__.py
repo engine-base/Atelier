@@ -278,6 +278,12 @@ async def build_context(
         proj_state = await _load_project_state(session, project_id=project_id)
         if proj_state:
             parts.append(proj_state)
+        # GAP-150: フロー進行状況 (現在のステージ/担当) — COO 窓口運用の中核
+        from src.services.flow import flow_context_block
+
+        flow_block = await flow_context_block(session, project_id=project_id)
+        if flow_block:
+            parts.append(flow_block)
         # GAP-149: 他 AI 社員との会話の要約を横断注入 (社員間の引き継ぎ)
         peers = await _peer_thread_summaries(session, project_id=project_id, thread_id=thread_id)
         if peers:
