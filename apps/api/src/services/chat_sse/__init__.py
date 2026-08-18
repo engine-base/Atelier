@@ -713,7 +713,7 @@ async def stream_chat(
 
                 new_files = collect_new_html(sdk_workspace, sdk_ws_before)
                 for ingested in await ingest_for_thread(
-                    thread_id=thread_id, files=new_files
+                    thread_id=thread_id, files=new_files, instruction=user_message
                 ):
                     yield _sse_event({"type": "artifact", "metadata": dict(ingested)})
             except Exception as exc:  # pragma: no cover  - fs/DB 例外は環境依存

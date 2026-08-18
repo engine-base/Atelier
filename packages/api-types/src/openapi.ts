@@ -6386,6 +6386,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/outputs/{output_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** mockdb 成果物 HTML の配信（自己署名トークン / GAP-139） */
+        get: {
+            parameters: {
+                query: {
+                    exp: number;
+                    sig: string;
+                };
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成果物 HTML (content-url が発行した期限付きトークンで到達) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/html": string;
+                    };
+                };
+                /** @description トークン不正/期限切れ */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description mockdb コンテンツ不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/outputs/{output_id}/versions": {
         parameters: {
             query?: never;
@@ -16434,12 +16493,21 @@ export interface components {
         ChatRelayArtifactsRequest: {
             artifacts: components["schemas"]["ChatRelayArtifactItem"][];
         };
-        /** @description GAP-137 — モック取り込み結果 */
+        /** @description GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等) */
         ChatRelayArtifactResult: {
-            /** Format: uuid */
-            mock_id: string;
-            screen_name: string;
+            /**
+             * @default mock
+             * @enum {string}
+             */
+            type: "mock" | "output";
             version: number;
+            /** Format: uuid */
+            mock_id?: string | null;
+            screen_name?: string | null;
+            /** Format: uuid */
+            output_id?: string | null;
+            stage?: string | null;
+            title?: string | null;
         };
         /** @description GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台 */
         ChatConnectionWorker: {

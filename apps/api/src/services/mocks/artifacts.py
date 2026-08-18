@@ -191,6 +191,156 @@ async def ingest_html_artifact(
     return {"mock_id": new_id, "screen_name": screen_name, "version": version}
 
 
+# ── GAP-139: 成果物の自動仕分け (モック / 提案書・見積 等) ────────────
+#
+# HTML だから何でもモック、は誤り (経営者指摘)。見積・提案書・テスト仕様書
+# なども HTML で作られるため、種類を判定して適切なストアへ入れる:
+#   - mock            → mocks (画面モック)
+#   - それ以外の stage → workflow_outputs (S-G01 成果物 — 既存の stage 体系)
+#
+# 判定は決定的なキーワード規則 (LLM は使わない — 取り込みは Bridge の
+# complete 直前の同期処理で、relay に再入すると自分のジョブ完了を
+# 待ち合ってデッドロックするため)。優先順は「文書自身のタイトル →
+# ファイル名 → 直近のユーザー指示」— 文書自身の宣言が最も信頼できる。
+
+ARTIFACT_KIND_MOCK = "mock"
+
+_STAGE_RULES: list[tuple[str, str]] = [
+    (r"見積", "estimate"),
+    (r"提案", "proposal"),
+    (r"請求", "invoice"),
+    (r"NDA|秘密保持", "nda"),
+    (r"契約", "contract"),
+    (r"テスト仕様|試験仕様|テスト計画|テストケース", "verification"),
+    (r"要件定義|要求仕様", "requirements"),
+    (r"議事録", "hearing"),
+]
+
+# 英語ファイル名の対応 (quote.html / proposal.html 等)
+_STAGE_RULES_FILENAME: list[tuple[str, str]] = [
+    (r"estimate|quote", "estimate"),
+    (r"proposal", "proposal"),
+    (r"invoice", "invoice"),
+    (r"nda", "nda"),
+    (r"contract", "contract"),
+    (r"test[-_]?(spec|plan|case)", "verification"),
+    (r"requirements?", "requirements"),
+]
+
+STAGE_LABELS: dict[str, str] = {
+    "estimate": "見積書",
+    "proposal": "提案書",
+    "invoice": "請求書",
+    "nda": "NDA",
+    "contract": "契約書",
+    "verification": "テスト仕様書",
+    "requirements": "要件定義書",
+    "hearing": "議事録",
+}
+
+
+def extract_latest_user_message(prompt: str) -> str:
+    """fold_prompt 形式から直近のユーザーメッセージ部分を取り出す。
+
+    履歴に「見積」等が混ざっていても直近の依頼だけを判定材料にするため。
+    """
+    marker = "新しいユーザーメッセージ (これに応答する): "
+    return prompt.rsplit(marker, 1)[-1] if marker in prompt else prompt
+
+
+def classify_artifact(*, file_name: str, html: str, instruction: str) -> str:
+    """成果物の種類を判定する。返り値: 'mock' または workflow stage 名。"""
+    m = _TITLE_RE.search(html)
+    title = (m.group(1) if m else "").strip()
+    for pattern, stage in _STAGE_RULES:
+        if re.search(pattern, title, re.IGNORECASE):
+            return stage
+    base = file_name.rsplit("/", 1)[-1]
+    for pattern, stage in _STAGE_RULES_FILENAME:
+        if re.search(pattern, base, re.IGNORECASE):
+            return stage
+    for pattern, stage in _STAGE_RULES:
+        if re.search(pattern, base, re.IGNORECASE):
+            return stage
+    latest = extract_latest_user_message(instruction)[-500:]
+    for pattern, stage in _STAGE_RULES:
+        if re.search(pattern, latest, re.IGNORECASE):
+            return stage
+    return ARTIFACT_KIND_MOCK
+
+
+async def ingest_html_output(
+    session: AsyncSession,
+    *,
+    project_id: str,
+    file_name: str,
+    html: str,
+    stage: str,
+    source: str,
+    actor_label: str,
+) -> dict[str, object]:
+    """HTML 1 件を成果物 (workflow_outputs) として取り込む。
+
+    同一 project + stage の既存成果物があれば新バージョン。HTML 実体は
+    mockdb ストア (mocks と共用) — Storage 未設定でも閲覧できる。
+    """
+    if len(html.encode("utf-8")) > MAX_HTML_BYTES:
+        raise ArtifactIngestError(
+            "too_large", f"{file_name}: HTML が上限 {MAX_HTML_BYTES // 1024}KB を超えています"
+        )
+    title = derive_screen_name(file_name, html)
+    content_id = await store_mock_content(session, html=html)
+    version = int(
+        (
+            await session.execute(
+                text(
+                    "select coalesce(max(version), 0) + 1 from public.workflow_outputs "
+                    "where project_id = cast(:pid as uuid) and stage = cast(:st as workflow_stage_enum) "
+                    "and deleted_at is null"
+                ),
+                {"pid": project_id, "st": stage},
+            )
+        ).scalar_one()
+    )
+    new_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "insert into public.workflow_outputs "
+            "(id, project_id, stage, html_path, summary, version, meta) "
+            "values (cast(:id as uuid), cast(:pid as uuid), cast(:st as workflow_stage_enum), "
+            "        :path, :summary, :ver, cast(:meta as jsonb))"
+        ),
+        {
+            "id": new_id,
+            "pid": project_id,
+            "st": stage,
+            "path": f"{MOCKDB_PREFIX}{content_id}",
+            "summary": title,
+            "ver": version,
+            "meta": json.dumps(
+                {"author": actor_label, "source": source, "file_name": file_name}
+            ),
+        },
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="output.ingest_artifact",
+            target_type="workflow_output",
+            actor_type="system",
+            actor_id=actor_label,
+            target_id=new_id,
+            after={"stage": stage, "version": version, "source": source},
+        )
+    )
+    return {
+        "type": "output",
+        "output_id": new_id,
+        "stage": stage,
+        "title": title,
+        "version": version,
+    }
+
+
 # ── mockdb 閲覧 URL の自己署名 (routes/mocks が使う) ────────────────
 
 
@@ -215,8 +365,11 @@ def verify_content_token(mock_id: str, expires_at: int, token: str) -> bool:
     return hmac.compare_digest(expected, token)
 
 
-def build_content_url(base_url: str, mock_id: str) -> str:
-    """自己署名の閲覧 URL を組み立てる (TTL は Supabase 署名 URL と同水準)。"""
+def build_content_url(base_url: str, mock_id: str, *, resource: str = "mocks") -> str:
+    """自己署名の閲覧 URL を組み立てる (TTL は Supabase 署名 URL と同水準)。
+
+    GAP-139: resource="outputs" で成果物 (workflow_outputs) の mockdb 配信にも使う。
+    """
     exp = int(time.time()) + CONTENT_URL_TTL_S
     sig = sign_content_token(mock_id, exp)
-    return f"{base_url.rstrip('/')}/mocks/{mock_id}/content?exp={exp}&sig={sig}"
+    return f"{base_url.rstrip('/')}/{resource}/{mock_id}/content?exp={exp}&sig={sig}"

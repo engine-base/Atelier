@@ -220,20 +220,24 @@ async def save_job_artifacts(
     - job は running であること (complete 前に呼ぶ契約 — 取り込み結果の
       artifact chunk を SSE が同一ストリームで配れる)
     - user トークンの Bridge は本人のジョブのみ (requested_by 照合)
-    - thread.project_id のモックとして ingest (同名画面は新バージョン連鎖)
+    - GAP-139: 種類を判定して振り分ける — モックは mocks、見積・提案書・
+      テスト仕様書等は workflow_outputs (stage 別)。HTML=全部モック、にしない
     - 取り込み結果を kind='artifact' の chunk (content=JSON) として追記する
     """
     from src.services.mocks.artifacts import (
+        ARTIFACT_KIND_MOCK,
         MAX_ARTIFACTS_PER_JOB,
         ArtifactIngestError,
+        classify_artifact,
         ingest_html_artifact,
+        ingest_html_output,
     )
 
     job_id = _validated_job_id(job_id)
     row = (
         await session.execute(
             text(
-                "select j.status, j.requested_by, t.project_id "
+                "select j.status, j.requested_by, j.prompt, t.project_id "
                 "from public.chat_relay_jobs j "
                 "join public.chat_threads t on t.id = j.thread_id "
                 "where j.id = cast(:i as uuid)"
@@ -266,15 +270,34 @@ async def save_job_artifacts(
         ).scalar_one()
     )
     for artifact in artifacts:
+        file_name = str(artifact.get("file_name", ""))
+        html = str(artifact.get("html", ""))
+        kind = classify_artifact(
+            file_name=file_name, html=html, instruction=str(row.prompt)
+        )
         try:
-            ingested = await ingest_html_artifact(
-                session,
-                project_id=project_id,
-                file_name=str(artifact.get("file_name", "")),
-                html=str(artifact.get("html", "")),
-                source="chat_pc_tools",
-                actor_label="bridge",
-            )
+            if kind == ARTIFACT_KIND_MOCK:
+                ingested: dict[str, object] = {
+                    "type": "mock",
+                    **await ingest_html_artifact(
+                        session,
+                        project_id=project_id,
+                        file_name=file_name,
+                        html=html,
+                        source="chat_pc_tools",
+                        actor_label="bridge",
+                    ),
+                }
+            else:
+                ingested = await ingest_html_output(
+                    session,
+                    project_id=project_id,
+                    file_name=file_name,
+                    html=html,
+                    stage=kind,
+                    source="chat_pc_tools",
+                    actor_label="bridge",
+                )
         except ArtifactIngestError as exc:
             raise ChatRelayError(exc.code, exc.message) from exc
         await session.execute(

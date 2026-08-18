@@ -17,11 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.services.mocks.artifacts import (
+    ARTIFACT_KIND_MOCK,
     MAX_ARTIFACTS_PER_JOB,
     MAX_HTML_BYTES,
     ArtifactIngestError,
-    IngestedMock,
+    classify_artifact,
     ingest_html_artifact,
+    ingest_html_output,
 )
 
 _SKIP_DIRS = {".git", "node_modules", "__pycache__", ".venv"}
@@ -90,16 +92,18 @@ def _service_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def ingest_for_thread(
-    *, thread_id: str, files: list[tuple[str, str]]
-) -> list[IngestedMock]:
+    *, thread_id: str, files: list[tuple[str, str]], instruction: str = ""
+) -> list[dict[str, object]]:
     """thread の project へ成果物を取り込む (自前 service session / commit 込み)。
 
-    失敗しても呼び出し側のチャット応答を壊さない — 取り込めた分だけ返す。
+    GAP-139: 種類を判定して振り分ける (mock → mocks / それ以外 →
+    workflow_outputs)。失敗しても呼び出し側のチャット応答を壊さない —
+    取り込めた分だけ返す。
     """
     if not files:
         return []
     factory = _service_session_factory()
-    results: list[IngestedMock] = []
+    results: list[dict[str, object]] = []
     async with factory() as session:
         row = (
             await session.execute(
@@ -114,17 +118,36 @@ async def ingest_for_thread(
             return []
         project_id = str(row.project_id)
         for file_name, html in files:
+            kind = classify_artifact(
+                file_name=file_name, html=html, instruction=instruction
+            )
             try:
-                results.append(
-                    await ingest_html_artifact(
-                        session,
-                        project_id=project_id,
-                        file_name=file_name,
-                        html=html,
-                        source="chat_pc_tools",
-                        actor_label="agent_sdk",
+                if kind == ARTIFACT_KIND_MOCK:
+                    results.append(
+                        {
+                            "type": "mock",
+                            **await ingest_html_artifact(
+                                session,
+                                project_id=project_id,
+                                file_name=file_name,
+                                html=html,
+                                source="chat_pc_tools",
+                                actor_label="agent_sdk",
+                            ),
+                        }
                     )
-                )
+                else:
+                    results.append(
+                        await ingest_html_output(
+                            session,
+                            project_id=project_id,
+                            file_name=file_name,
+                            html=html,
+                            stage=kind,
+                            source="chat_pc_tools",
+                            actor_label="agent_sdk",
+                        )
+                    )
             except ArtifactIngestError:
                 continue
         await session.commit()

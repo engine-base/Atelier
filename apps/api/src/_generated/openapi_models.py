@@ -2174,14 +2174,23 @@ class ChatRelayArtifactsRequest(BaseModel):
     ]
 
 
+class Type7(StrEnum):
+    mock = "mock"
+    output = "output"
+
+
 class ChatRelayArtifactResult(BaseModel):
     """
-    GAP-137 — モック取り込み結果
+    GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等)
     """
 
-    mock_id: UUID
-    screen_name: str
+    type: Type7
     version: int
+    mock_id: UUID | None = None
+    screen_name: str | None = None
+    output_id: UUID | None = None
+    stage: str | None = None
+    title: str | None = None
 
 
 class ChatConnectionWorker(BaseModel):
@@ -2340,7 +2349,7 @@ class ByokKey(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Type7(StrEnum):
+class Type8(StrEnum):
     task_approval = "task_approval"
     phase_approval = "phase_approval"
     knowledge_write = "knowledge_write"
@@ -2355,7 +2364,7 @@ class ApprovalInboxEntry(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    type: Type7 | None = None
+    type: Type8 | None = None
     target_type: str | None = None
     target_id: UUID | None = None
     title: str | None = None

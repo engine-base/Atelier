@@ -133,11 +133,15 @@ export interface ChatPanelProps {
   readonly toolStartedAt?: number | null;
   /** GAP-136: 直前応答の PC 操作サマリ (完了後も痕跡を残す。次送信でクリア)。 */
   readonly toolRunSummary?: { count: number; seconds: number } | null;
-  /** GAP-137: 成果物のモック取り込み結果 (SSE artifact chunk の実値)。 */
+  /** GAP-137/139: 成果物の取り込み結果 (SSE artifact chunk の実値)。
+      container が種類 (モック/提案書/見積書…) 別のラベルとリンク先を組む。 */
   readonly savedArtifacts?: readonly {
-    mockId: string;
-    screenName: string;
+    id: string;
+    kindLabel: string;
+    name: string;
     version: number;
+    href: string;
+    openLabel: string;
   }[];
   /**
    * GAP-130: approve モードの承認待ちカード (SSE pc_approval の実値)。
@@ -818,27 +822,30 @@ export function ChatPanel({
               ) : null}
             </div>
           ) : null}
-          {/* GAP-137: 成果物のモック取り込みカード (S-H01 へのリンク) */}
+          {/* GAP-137/139: 成果物の取り込みカード (種類別にモック/成果物へリンク) */}
           {savedArtifacts && savedArtifacts.length > 0 ? (
             <div
               role="region"
-              aria-label="モックとして保存"
+              aria-label="成果物の保存"
               className="mt-2 rounded-md border border-border bg-surface px-3 py-2 text-[11.5px]"
             >
               <p className="mb-1 font-semibold text-on-surface">
-                成果物をモックとして保存しました
+                成果物を保存しました
               </p>
               <ul className="flex flex-col gap-1">
                 {savedArtifacts.map((a) => (
-                  <li key={a.mockId} className="flex items-center gap-2">
+                  <li key={a.id} className="flex items-center gap-2">
+                    <span className="rounded-sm bg-surface-variant px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface">
+                      {a.kindLabel}
+                    </span>
                     <span className="text-on-surface-variant">
-                      {a.screenName} (v{a.version})
+                      {a.name} (v{a.version})
                     </span>
                     <a
-                      href={`/mocks?mock=${encodeURIComponent(a.mockId)}`}
+                      href={a.href}
                       className="font-semibold text-primary hover:underline"
                     >
-                      モックで開く →
+                      {a.openLabel} →
                     </a>
                   </li>
                 ))}

@@ -194,11 +194,19 @@ class ChatRelayArtifactsRequest(BaseModel):
 
 
 class ChatRelayArtifactResult(BaseModel):
-    """GAP-137: 取り込み結果 (モック行)。"""
+    """GAP-137/139: 取り込み結果。
 
-    mock_id: str
-    screen_name: str
+    type="mock" は mocks 行 (mock_id/screen_name)、type="output" は
+    workflow_outputs 行 (output_id/stage/title — 見積・提案書等)。
+    """
+
+    type: Literal["mock", "output"] = "mock"
     version: int
+    mock_id: str | None = None
+    screen_name: str | None = None
+    output_id: str | None = None
+    stage: str | None = None
+    title: str | None = None
 
 
 class ChatRelayRateLimitObservation(BaseModel):

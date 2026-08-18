@@ -149,3 +149,77 @@ async def test_relay_adapter_maps_artifact_chunks(monkeypatch: pytest.MonkeyPatc
     assert {"artifact": {"mock_id": "m-1", "screen_name": "LP", "version": 2}} in out
     assert all(not (isinstance(c, dict) and "artifact" in c and c["artifact"] == "broken json") for c in out)
     assert len([c for c in out if isinstance(c, dict) and "artifact" in c]) == 1
+
+
+class TestClassifyArtifact:
+    """GAP-139: HTML=全部モックにしない — 種類判定 (title → ファイル名 → 直近指示)。"""
+
+    def test_title_declares_document_type(self) -> None:
+        from src.services.mocks.artifacts import classify_artifact
+
+        assert (
+            classify_artifact(
+                file_name="doc.html",
+                html="<title>お見積書</title>",
+                instruction="よろしく",
+            )
+            == "estimate"
+        )
+        assert (
+            classify_artifact(
+                file_name="doc.html", html="<title>ご提案資料</title>", instruction=""
+            )
+            == "proposal"
+        )
+        assert (
+            classify_artifact(
+                file_name="doc.html", html="<title>テスト仕様書 v1</title>", instruction=""
+            )
+            == "verification"
+        )
+
+    def test_filename_fallback(self) -> None:
+        from src.services.mocks.artifacts import classify_artifact
+
+        assert (
+            classify_artifact(file_name="quote.html", html="<title>ACME</title>", instruction="")
+            == "estimate"
+        )
+        assert (
+            classify_artifact(file_name="見積_2026.html", html="<html/>", instruction="")
+            == "estimate"
+        )
+
+    def test_instruction_uses_latest_user_message_only(self) -> None:
+        from src.services.mocks.artifacts import classify_artifact
+
+        # 履歴に「見積」が混ざっていても、直近の依頼がモックならモック
+        folded = (
+            "これまでの会話:\n[ユーザー] 見積の話は前にしたよね\n\n"
+            "新しいユーザーメッセージ (これに応答する): LP のモックを作って"
+        )
+        assert (
+            classify_artifact(file_name="lp.html", html="<title>LP</title>", instruction=folded)
+            == "mock"
+        )
+        # 直近の依頼が見積なら estimate
+        folded2 = (
+            "これまでの会話:\n[ユーザー] モックありがとう\n\n"
+            "新しいユーザーメッセージ (これに応答する): 見積書を作って"
+        )
+        assert (
+            classify_artifact(file_name="doc.html", html="<html/>", instruction=folded2)
+            == "estimate"
+        )
+
+    def test_default_is_mock(self) -> None:
+        from src.services.mocks.artifacts import classify_artifact
+
+        assert (
+            classify_artifact(
+                file_name="index.html",
+                html="<title>LP トップ</title>",
+                instruction="LP を作って",
+            )
+            == "mock"
+        )

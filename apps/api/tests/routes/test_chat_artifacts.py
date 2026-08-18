@@ -68,14 +68,13 @@ def app(monkeypatch: pytest.MonkeyPatch) -> Iterator[FastAPI]:
 
     from src.routes import api_router
     from src.routes import mocks as mocks_routes
+    from src.routes import outputs as outputs_routes
     from src.routes.dispatcher import get_bridge_session
 
-    # GAP-137: mockdb 配信は自前 session factory — テスト PG に向ける
-    monkeypatch.setattr(
-        mocks_routes,
-        "_content_session_factory",
-        lambda: async_sessionmaker(test_engine, class_=AsyncSession),
-    )
+    # GAP-137/139: mockdb 配信は自前 session factory — テスト PG に向ける
+    factory = lambda: async_sessionmaker(test_engine, class_=AsyncSession)  # noqa: E731
+    monkeypatch.setattr(mocks_routes, "_content_session_factory", factory)
+    monkeypatch.setattr(outputs_routes, "_content_session_factory", factory)
 
     application = FastAPI()
     application.include_router(api_router)
@@ -278,3 +277,72 @@ def test_mockdb_content_served_with_signed_url(app: FastAPI, seeded: dict[str, s
         # 改竄トークンは 403
         bad = client.get(path.replace("sig=", "sig=00"))
         assert bad.status_code == 403
+
+
+@pytest.mark.integration
+def test_artifacts_estimate_routes_to_workflow_outputs(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-139: 見積 HTML はモックではなく成果物 (workflow_outputs) に入る。"""
+    with TestClient(app) as client:
+        job_id = _enqueue_and_pick(client, seeded)
+        res = client.post(
+            f"/chat-relay/{job_id}/artifacts",
+            json={
+                "artifacts": [
+                    {
+                        "file_name": "quote.html",
+                        "html": "<html><title>お見積書</title><body>合計 100 万円</body></html>",
+                    }
+                ]
+            },
+            headers=HEADERS,
+        )
+        assert res.status_code == 200, res.text
+        data = res.json()["data"][0]
+        assert data["type"] == "output"
+        assert data["stage"] == "estimate"
+        assert data["title"] == "お見積書"
+        assert data["version"] == 1
+        output_id = data["output_id"]
+
+        # 成果物 content endpoint が実 HTML を配信 (自己署名 URL)
+        url = build_content_url("http://testserver/", output_id, resource="outputs")
+        page = client.get(url[len("http://testserver") :])
+        assert page.status_code == 200
+        assert "合計 100 万円" in page.text
+
+    with sync_engine.connect() as c:
+        row = c.execute(
+            text(
+                "select stage::text as stage, html_path, summary from public.workflow_outputs "
+                "where id = cast(:i as uuid)"
+            ),
+            {"i": output_id},
+        ).one()
+        assert row.stage == "estimate"
+        assert row.html_path.startswith("mockdb://")
+        assert row.summary == "お見積書"
+        # モック側には入っていない (仕分けの証明)
+        n = c.execute(
+            text(
+                "select count(*) from public.mocks "
+                "where project_id = cast(:p as uuid) and screen_name = 'お見積書'"
+            ),
+            {"p": seeded["proj"]},
+        ).scalar_one()
+        assert n == 0
+    # 掃除 (seeded の teardown は mocks 側のみ削除するため)
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.mock_contents where id = ("
+                "  select substring(html_path from 10)::uuid from public.workflow_outputs "
+                "  where id = cast(:i as uuid))"
+            ),
+            {"i": output_id},
+        )
+        c.execute(
+            text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+            {"i": output_id},
+        )

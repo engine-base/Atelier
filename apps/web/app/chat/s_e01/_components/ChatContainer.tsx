@@ -88,6 +88,18 @@ const ATTACH_ALLOWED_MIME = new Set([
 const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
 const ATTACH_MAX_COUNT = 10;
 
+// GAP-139: 成果物 stage → 表示ラベル (サーバー側 STAGE_LABELS と同一)
+const ARTIFACT_STAGE_LABELS: Record<string, string> = {
+  estimate: "見積書",
+  proposal: "提案書",
+  invoice: "請求書",
+  nda: "NDA",
+  contract: "契約書",
+  verification: "テスト仕様書",
+  requirements: "要件定義書",
+  hearing: "議事録",
+};
+
 type StreamFn = (args: StreamChatArgs) => Promise<void>;
 
 export interface ChatContextSummary {
@@ -199,10 +211,18 @@ export function ChatContainer({
   const toolStartRef = useRef<number | null>(null);
   // GAP-130: approve モードの承認待ちカード (SSE pc_approval chunk の実値)
   const [pcApprovals, setPcApprovals] = useState<readonly PcApprovalInfo[]>([]);
-  // GAP-137: 成果物のモック取り込み結果 (SSE artifact chunk の実値)。
-  // 応答完了後も残す — ユーザーがリンクから S-H01 を開けるように (次送信でクリア)。
+  // GAP-137/139: 成果物の取り込み結果 (SSE artifact chunk の実値)。
+  // 種類 (モック / 提案書・見積書等) 別にラベルとリンク先を組んで保持し、
+  // 応答完了後も残す (次送信でクリア)。
   const [savedArtifacts, setSavedArtifacts] = useState<
-    readonly { mockId: string; screenName: string; version: number }[]
+    readonly {
+      id: string;
+      kindLabel: string;
+      name: string;
+      version: number;
+      href: string;
+      openLabel: string;
+    }[]
   >([]);
   const connQuery = useQuery({
     queryKey: ["chat-connection-status"],
@@ -448,17 +468,33 @@ export function ChatContainer({
             ]);
           }
         } else if (chunk.type === "artifact") {
-          // GAP-137: 作業フォルダの成果物がモックとして取り込まれた実値
+          // GAP-137/139: 作業フォルダの成果物が取り込まれた実値。
+          // type=mock はモック、type=output は成果物 (提案書・見積書等)。
           const meta = chunk.metadata ?? {};
-          const mockId = typeof meta.mock_id === "string" ? meta.mock_id : "";
-          if (mockId) {
+          const version = typeof meta.version === "number" ? meta.version : 1;
+          if (meta.type === "output" && typeof meta.output_id === "string") {
+            const stage = typeof meta.stage === "string" ? meta.stage : "";
             setSavedArtifacts((prev) => [
               ...prev,
               {
-                mockId,
-                screenName:
-                  typeof meta.screen_name === "string" ? meta.screen_name : "",
-                version: typeof meta.version === "number" ? meta.version : 1,
+                id: meta.output_id as string,
+                kindLabel: ARTIFACT_STAGE_LABELS[stage] ?? "成果物",
+                name: typeof meta.title === "string" ? meta.title : "",
+                version,
+                href: `/outputs?output=${encodeURIComponent(meta.output_id as string)}`,
+                openLabel: "成果物で開く",
+              },
+            ]);
+          } else if (typeof meta.mock_id === "string" && meta.mock_id) {
+            setSavedArtifacts((prev) => [
+              ...prev,
+              {
+                id: meta.mock_id as string,
+                kindLabel: "モック",
+                name: typeof meta.screen_name === "string" ? meta.screen_name : "",
+                version,
+                href: `/mocks?mock=${encodeURIComponent(meta.mock_id as string)}`,
+                openLabel: "モックで開く",
               },
             ]);
           }

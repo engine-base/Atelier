@@ -2022,12 +2022,16 @@ components:
 
     ChatRelayArtifactResult:
       type: object
-      description: GAP-137 — モック取り込み結果
-      required: [mock_id, screen_name, version]
+      description: GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等)
+      required: [type, version]
       properties:
-        mock_id: { type: string, format: uuid }
-        screen_name: { type: string }
+        type: { type: string, enum: [mock, output], default: mock }
         version: { type: integer }
+        mock_id: { type: string, format: uuid, nullable: true }
+        screen_name: { type: string, nullable: true }
+        output_id: { type: string, format: uuid, nullable: true }
+        stage: { type: string, nullable: true }
+        title: { type: string, nullable: true }
 
     ChatConnectionWorker:
       type: object
@@ -5178,6 +5182,25 @@ paths:
         '409': { description: 該当 format 未生成, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /outputs/{output_id}/content:
+    get:
+      tags: [outputs]
+      summary: mockdb 成果物 HTML の配信（自己署名トークン / GAP-139）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_output_content
+      x-screen-ids: [S-G01]
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: exp, in: query, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: sig, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 128 } }
+      responses:
+        '200':
+          description: 成果物 HTML (content-url が発行した期限付きトークンで到達)
+          content:
+            text/html:
+              schema: { type: string }
+        '403': { description: トークン不正/期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: mockdb コンテンツ不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /outputs/{output_id}/versions:
     parameters:

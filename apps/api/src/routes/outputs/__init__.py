@@ -7,11 +7,16 @@
 
 from __future__ import annotations
 
+import uuid as uuid_mod
+from functools import lru_cache
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.outputs import (
     FixProposalApproveResponse,
@@ -22,6 +27,12 @@ from src.schemas.outputs import (
 )
 from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
+from src.services.mocks.artifacts import (
+    MOCKDB_PREFIX,
+    build_content_url,
+    fetch_mock_content,
+    verify_content_token,
+)
 from src.services.outputs import fix_proposals as fix_svc
 from src.services.outputs import revise as revise_svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
@@ -30,6 +41,12 @@ router = APIRouter(tags=["outputs"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+@lru_cache(maxsize=1)
+def _content_session_factory() -> async_sessionmaker[AsyncSession]:
+    """GAP-139: mockdb 成果物配信用の service session (routes/mocks と同じ方式)。"""
+    return create_session_factory(create_engine())
 
 
 @router.get("/outputs", summary="成果物一覧")
@@ -66,12 +83,14 @@ async def get_output_content_url(
     output_id: str,
     session: SessionDep,
     _user: UserDep,
+    request: Request,
     format: Annotated[Literal["html", "json", "md"], Query()] = "html",
 ) -> dict[str, ContentUrlResponse]:
     """RLS で可視な output の format 別パスに対する署名付き閲覧 URL を返す。
 
     GAP-023: S-G01 の HTML/JSON/MD タブ + DL の実体。該当 format が未生成なら
     409 (存在しない版を偽装しない)。
+    GAP-139: mockdb:// (チャット成果物の取り込み等) は自己署名 URL を返す。
     """
     out = await svc.get_output(session, output_id)
     if out is None:
@@ -81,6 +100,12 @@ async def get_output_content_url(
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"output has no rendered {format.upper()} yet"
         )
+    if path.startswith(MOCKDB_PREFIX):
+        return {
+            "data": ContentUrlResponse(
+                url=build_content_url(str(request.base_url), output_id, resource="outputs")
+            )
+        }
     try:
         url = await create_signed_download_url(path)
     except StorageSigningError as exc:
@@ -88,6 +113,55 @@ async def get_output_content_url(
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": ContentUrlResponse(url=url)}
+
+
+@router.get(
+    "/outputs/{output_id}/content",
+    summary="mockdb 成果物 HTML の配信 (自己署名トークン / GAP-139)",
+    response_class=HTMLResponse,
+)
+async def get_output_content(
+    output_id: str,
+    exp: Annotated[int, Query(ge=0)],
+    sig: Annotated[str, Query(min_length=32, max_length=128)],
+) -> HTMLResponse:
+    """content-url が発行した期限付きトークンで mockdb 成果物 HTML を返す。
+
+    routes/mocks の /mocks/{id}/content と同じ契約 — 可視性は content-url
+    発行時に RLS で確認済みで、その証明が sig (HMAC)。
+    """
+    if not verify_content_token(output_id, exp, sig):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
+    try:
+        uuid_mod.UUID(output_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found") from None
+    factory = _content_session_factory()
+    async with factory() as session:
+        row = (
+            await session.execute(
+                text(
+                    "select html_path from public.workflow_outputs "
+                    "where id = cast(:i as uuid) and deleted_at is null"
+                ),
+                {"i": output_id},
+            )
+        ).first()
+        if (
+            row is None
+            or row.html_path is None
+            or not str(row.html_path).startswith(MOCKDB_PREFIX)
+        ):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+        html = await fetch_mock_content(
+            session, content_id=str(row.html_path)[len(MOCKDB_PREFIX) :]
+        )
+    if html is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},
+    )
 
 
 @router.get("/outputs/{output_id}/versions", summary="成果物のバージョン履歴")
