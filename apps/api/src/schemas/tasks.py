@@ -29,6 +29,9 @@ class TaskCreate(BaseModel):
     estimated_hours: int = Field(ge=1, le=24)
     description: str | None = None
     priority: TaskPriority = "medium"
+    # GAP-140: 画面タスクは分解時に対象画面を宣言する。同名モックチェーンの
+    # 最新に紐づけ、無ければプレースホルダーモック v1 を自動作成して紐づける。
+    screen_name: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class TaskUpdate(BaseModel):
@@ -41,6 +44,8 @@ class TaskUpdate(BaseModel):
     blocked_reason: str | None = None
     # GAP-025: 検証担当 (AI 社員)。"" で解除
     verifier_employee_id: str | None = None
+    # GAP-140: 後付けの画面紐づけ (挙動は TaskCreate.screen_name と同じ)
+    screen_name: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class TaskResponse(BaseModel):
@@ -70,6 +75,9 @@ class TaskResponse(BaseModel):
     # GAP-025: 検証担当 + 変更ファイル (S-I02 メタ行)
     verifier_employee_id: str | None = None
     files_changed: list[str] = Field(default_factory=lambda: list[str]())
+    # GAP-140: 紐づく画面モック (プレースホルダー含む)
+    mock_id: str | None = None
+    mock_screen_name: str | None = None
     deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime

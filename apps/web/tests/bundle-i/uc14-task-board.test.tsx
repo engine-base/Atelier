@@ -122,3 +122,48 @@ describe("S-I01 TaskBoardContainer (T-UC-14)", () => {
     );
   });
 });
+
+describe("S-I01 タスク作成の画面紐づけ (GAP-140)", () => {
+  it("対象画面を入れて作成すると screen_name が API に渡る", async () => {
+    const get = vi.fn(async () => ({ data: TASKS }));
+    const post = vi.fn(async (path: string, opts: unknown) => {
+      expect(path).toBe("/tasks");
+      const body = (opts as { body: Record<string, unknown> }).body;
+      expect(body.screen_name).toBe("ログイン画面");
+      return { data: { id: "t9" } };
+    });
+    renderWithQuery(
+      <TaskBoardContainer projectId="p1" client={fakeClient({ get, post })} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "タスクを追加" }));
+    const dialog = await screen.findByRole("dialog", { name: "タスクを追加" });
+    fireEvent.change(within(dialog).getByLabelText("タイトル"), {
+      target: { value: "ログイン画面の実装" },
+    });
+    fireEvent.change(
+      within(dialog).getByLabelText(/対象画面/),
+      { target: { value: "ログイン画面" } },
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "作成" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+  });
+
+  it("対象画面が空なら screen_name を送らない", async () => {
+    const get = vi.fn(async () => ({ data: TASKS }));
+    const post = vi.fn(async (_p: string, opts: unknown) => {
+      const body = (opts as { body: Record<string, unknown> }).body;
+      expect("screen_name" in body).toBe(false);
+      return { data: { id: "t9" } };
+    });
+    renderWithQuery(
+      <TaskBoardContainer projectId="p1" client={fakeClient({ get, post })} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "タスクを追加" }));
+    const dialog = await screen.findByRole("dialog", { name: "タスクを追加" });
+    fireEvent.change(within(dialog).getByLabelText("タイトル"), {
+      target: { value: "一般タスク" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "作成" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+  });
+});

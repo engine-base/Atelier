@@ -2796,6 +2796,8 @@ export interface paths {
                         description?: string;
                         /** @enum {string} */
                         priority?: "critical" | "high" | "medium" | "low";
+                        /** @description GAP-140: 対象画面。同名モックチェーン最新に紐づけ、無ければプレースホルダー v1 を自動作成 */
+                        screen_name?: string | null;
                     };
                 };
             };
@@ -3130,6 +3132,8 @@ export interface paths {
                         blocked_reason?: string;
                         /** @description GAP-025: 検証担当 AI 社員 id。"" で解除。他 WS 社員は 422 */
                         verifier_employee_id?: string;
+                        /** @description GAP-140: 後付けの画面紐づけ (同名チェーン最新 or プレースホルダー自動作成) */
+                        screen_name?: string | null;
                     };
                 };
             };
@@ -15026,6 +15030,7 @@ export interface components {
             /** Format: uuid */
             verifier_employee_id?: string | null;
             files_changed?: string[];
+            mock_screen_name?: string | null;
             /** Format: uuid */
             parent_task_id?: string | null;
             /** @enum {string} */

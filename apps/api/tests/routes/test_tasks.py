@@ -881,3 +881,155 @@ class TestSpecChangesAndRelated:
             # "" で解除
             r = client.patch(f"/tasks/{task_id}", headers=h, json={"verifier_employee_id": ""})
             assert r.json()["data"]["verifier_employee_id"] is None
+
+
+@pytest.mark.integration
+class TestScreenMockLink:
+    """GAP-140: タスク⇄画面モックの双方向ループ (分解時プレースホルダー)。"""
+
+    @pytest.fixture(autouse=True)
+    def _patch_content_store(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # mock_contents (RLS default deny) はテスト PG に向けた service 経路で書く
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+        from sqlalchemy.pool import NullPool as _NP
+
+        from src.services.mocks import artifacts as artifacts_svc
+
+        eng = create_async_engine(PG_ASYNC, poolclass=_NP)
+        monkeypatch.setattr(
+            artifacts_svc,
+            "service_session_factory",
+            lambda: async_sessionmaker(eng, class_=AsyncSession),
+        )
+
+    def _cleanup_screen(self, sync_engine: sqlalchemy.Engine, proj: str) -> None:
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "delete from public.mock_contents where id in ("
+                    "  select substring(html_storage_path from 10)::uuid from public.mocks "
+                    "  where project_id=cast(:p as uuid) and html_storage_path like 'mockdb://%')"
+                ),
+                {"p": proj},
+            )
+
+    def test_create_with_screen_name_makes_placeholder_and_links(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "screen",
+                    "title": "ログイン画面の実装",
+                    "type": "feature",
+                    "estimated_hours": 4,
+                    "screen_name": "ログイン画面",
+                },
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            task = r.json()["data"]
+            assert task["mock_id"] is not None
+            assert task["mock_screen_name"] == "ログイン画面"
+
+            # プレースホルダー v1 が S-H01 に見える (mockdb 保存)
+            mock = client.get(f"/mocks/{task['mock_id']}", headers=h).json()["data"]
+            assert mock["version"] == 1
+            assert mock["html_storage_path"].startswith("mockdb://")
+            assert mock["meta_tags"]["source"] == "task_placeholder"
+
+            # 同じ画面名の 2 個目のタスクは新規作成せず同じチェーンに紐づく
+            r2 = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "screen",
+                    "title": "ログイン画面のバリデーション",
+                    "type": "feature",
+                    "estimated_hours": 2,
+                    "screen_name": "ログイン画面",
+                },
+                headers=h,
+            )
+            assert r2.json()["data"]["mock_id"] == task["mock_id"]
+        self._cleanup_screen(sync_engine, seeded["proj_a"])
+
+    def test_placeholder_then_new_version_triggers_spec_change(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """分解 → プレースホルダー → 作り込み (新版) → 仕様変更カード (GAP-025 連動)。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            task = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "screen",
+                    "title": "設定画面の実装",
+                    "type": "feature",
+                    "estimated_hours": 4,
+                    "screen_name": "設定画面",
+                },
+                headers=h,
+            ).json()["data"]
+
+            # チャット成果物の取り込みと同じ経路で v2 (作り込み) が生まれる
+            async def _ingest() -> None:
+                from sqlalchemy.ext.asyncio import create_async_engine
+                from sqlalchemy.pool import NullPool as _NP
+
+                from src.services.mocks.artifacts import ingest_html_artifact
+
+                eng = create_async_engine(PG_ASYNC, poolclass=_NP)
+                try:
+                    async with AsyncSession(eng) as s:
+                        await ingest_html_artifact(
+                            s,
+                            project_id=seeded["proj_a"],
+                            file_name="settings.html",
+                            html="<html><title>設定画面</title><body>作り込み</body></html>",
+                            source="chat_pc_tools",
+                            actor_label="bridge",
+                        )
+                        await s.commit()
+                finally:
+                    await eng.dispose()
+
+            asyncio.run(_ingest())
+
+            sc = client.get(f"/tasks/{task['id']}/spec-changes", headers=h)
+            assert sc.status_code == 200
+            data = sc.json()["data"]
+            assert data is not None and data["kind"] == "mock_updated"
+            assert data["screen_name"] == "設定画面"
+            assert data["latest_version"] == 2
+        self._cleanup_screen(sync_engine, seeded["proj_a"])
+
+    def test_update_links_screen_after_the_fact(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            task = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "general",
+                    "title": "後付けタスク",
+                    "type": "feature",
+                    "estimated_hours": 1,
+                },
+                headers=h,
+            ).json()["data"]
+            assert task["mock_id"] is None
+            r = client.patch(
+                f"/tasks/{task['id']}",
+                json={"screen_name": "ダッシュボード"},
+                headers=h,
+            )
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["mock_screen_name"] == "ダッシュボード"
+        self._cleanup_screen(sync_engine, seeded["proj_a"])

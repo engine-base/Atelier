@@ -63,6 +63,9 @@ interface ApiTask {
   blocks?: readonly string[];
   verifier_employee_id?: string | null;
   files_changed?: readonly string[];
+  // GAP-140: 紐づく画面モック
+  mock_id?: string | null;
+  mock_screen_name?: string | null;
 }
 interface ApiAc {
   items?: readonly unknown[];
@@ -311,6 +314,15 @@ function TaskHero({
           <span className="rounded-full bg-[#FEE2E2] px-2.5 py-[3px] text-label-sm font-semibold text-[#991B1B]">
             要対応
           </span>
+        ) : null}
+        {/* GAP-140: 紐づく画面モック (分解時プレースホルダー含む) */}
+        {task.mock_id && task.mock_screen_name ? (
+          <a
+            href={`/mocks?mock=${encodeURIComponent(task.mock_id)}`}
+            className="rounded-full border border-border px-2.5 py-[3px] text-label-sm font-semibold text-primary hover:bg-primary-container/30"
+          >
+            画面: {task.mock_screen_name} →
+          </a>
         ) : null}
       </div>
 

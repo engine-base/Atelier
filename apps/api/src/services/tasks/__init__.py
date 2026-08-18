@@ -55,6 +55,8 @@ _SELECT_COLS = (
     "t.blocked_reason, t.retry_count, t.worktree_path, t.worker_pid, "
     "t.dependencies, t.prerequisites, t.blocks, "
     "t.acceptance_criteria_id, t.verifier_employee_id, t.files_changed, "
+    "t.mock_id, "
+    "(select m.screen_name from public.mocks m where m.id = t.mock_id) AS mock_screen_name, "
     "t.created_at, t.updated_at, t.deleted_at, "
     "(select ph.name from public.phases ph where ph.id = t.phase_id) AS phase_name, "
     "(select e.name from public.ai_employees e where e.id = t.assigned_employee_id) AS assignee_name"
@@ -99,6 +101,10 @@ def _row_to_response(row: Any) -> TaskResponse:
             None if row.verifier_employee_id is None else str(row.verifier_employee_id)
         ),
         files_changed=[str(x) for x in list(row.files_changed or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        mock_id=(None if row.mock_id is None else str(row.mock_id)),
+        mock_screen_name=(
+            None if row.mock_screen_name is None else str(row.mock_screen_name)
+        ),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -143,14 +149,100 @@ async def get_task(session: AsyncSession, task_id: str) -> TaskResponse | None:
     return None if row is None else _row_to_response(row)
 
 
+def _placeholder_mock_html(screen_name: str) -> str:
+    """GAP-140: タスク分解時に用意する「まっさらのデザイン」プレースホルダー。
+
+    タイトルだけを持つ空のキャンバス — ここに作り込む (チャットの成果物は
+    同じ画面名で自動的に v2, v3… と連鎖し、S-H01 の履歴に乗る)。"""
+    import html as html_mod
+
+    safe = html_mod.escape(screen_name)
+    return (
+        "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
+        f"<title>{safe}</title>"
+        "<style>body{margin:0;font-family:sans-serif;background:#f8fafc;color:#0f172a;"
+        "display:grid;place-items:center;min-height:100vh}"
+        ".ph{border:2px dashed #cbd5e1;border-radius:16px;padding:48px 64px;text-align:center}"
+        ".ph h1{font-size:22px;margin:0 0 8px}.ph p{color:#64748b;font-size:13px;margin:0}"
+        "</style></head><body>"
+        f'<div class="ph" data-placeholder="1"><h1>{safe}</h1>'
+        "<p>タスク分解で用意されたプレースホルダーです。<br>"
+        "チャットの PC 操作や「編集」(ワンダへの依頼) でここに作り込んでください。</p>"
+        "</div></body></html>"
+    )
+
+
+async def ensure_screen_mock(
+    session: AsyncSession, *, actor_id: str, project_id: str, screen_name: str
+) -> str:
+    """GAP-140: 画面名に対応するモックを保証して mock_id を返す。
+
+    既に同 project + 画面名のチェーンがあれば最新版に紐づけ、無ければ
+    プレースホルダー v1 (mockdb 保存) を作成する。"""
+    from src.services.mocks.artifacts import MOCKDB_PREFIX, store_content_service
+
+    latest = (
+        await session.execute(
+            text(
+                "select id from public.mocks "
+                "where project_id = cast(:pid as uuid) and screen_name = :sn "
+                "and deleted_at is null order by version desc limit 1"
+            ),
+            {"pid": project_id, "sn": screen_name},
+        )
+    ).first()
+    if latest is not None:
+        return str(latest.id)
+
+    content_id = await store_content_service(_placeholder_mock_html(screen_name))
+    mock_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "insert into public.mocks "
+            "(id, project_id, screen_name, html_storage_path, version, meta_tags) "
+            "values (cast(:id as uuid), cast(:pid as uuid), :sn, :path, 1, "
+            "        cast(:meta as jsonb))"
+        ),
+        {
+            "id": mock_id,
+            "pid": project_id,
+            "sn": screen_name,
+            "path": f"{MOCKDB_PREFIX}{content_id}",
+            "meta": json.dumps({"author": "system", "source": "task_placeholder"}),
+        },
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="mock.create_placeholder",
+            target_type="mock",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=mock_id,
+            after={"screen_name": screen_name, "source": "task_placeholder"},
+        )
+    )
+    return mock_id
+
+
 async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate) -> TaskResponse:
     new_id = str(uuid.uuid4())
+    # GAP-140: 画面タスクは分解時に画面モック (プレースホルダー) を保証して紐づける
+    mock_id: str | None = None
+    if data.screen_name is not None and data.screen_name.strip() != "":
+        mock_id = await ensure_screen_mock(
+            session,
+            actor_id=actor_id,
+            project_id=data.project_id,
+            screen_name=data.screen_name.strip(),
+        )
     await session.execute(
         text(
             "insert into public.tasks "
-            "(id, project_id, category, title, description, type, estimated_hours, priority) "
+            "(id, project_id, category, title, description, type, estimated_hours, priority, "
+            " mock_id) "
             "values (cast(:id as uuid), cast(:pid as uuid), :cat, :title, :desc, "
-            "        cast(:ttype as task_type_enum), :est, cast(:prio as task_priority_enum))"
+            "        cast(:ttype as task_type_enum), :est, cast(:prio as task_priority_enum), "
+            "        cast(:mock as uuid))"
         ),
         {
             "id": new_id,
@@ -161,6 +253,7 @@ async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate)
             "ttype": _TYPE_TO_DB[data.type],
             "est": data.estimated_hours,
             "prio": _PRIORITY_TO_DB[data.priority],
+            "mock": mock_id,
         },
     )
     await AuditWriter(session).write(
@@ -224,6 +317,18 @@ async def update_task(
                 raise ValueError("verifier must belong to the task's workspace")
             sets.append("verifier_employee_id = cast(:vid as uuid)")
             params["vid"] = data.verifier_employee_id
+    if data.screen_name is not None and data.screen_name.strip() != "":
+        # GAP-140: 後付けの画面紐づけ — 既存チェーン最新 or プレースホルダー作成
+        current = await get_task(session, task_id)
+        if current is None:
+            return None
+        params["mock"] = await ensure_screen_mock(
+            session,
+            actor_id=actor_id,
+            project_id=current.project_id,
+            screen_name=data.screen_name.strip(),
+        )
+        sets.append("mock_id = cast(:mock as uuid)")
     if not sets:
         return await get_task(session, task_id)
 

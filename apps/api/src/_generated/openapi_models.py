@@ -472,6 +472,7 @@ class Task(BaseModel):
     mock_id: UUID | None = None
     verifier_employee_id: UUID | None = None
     files_changed: list[str] | None = None
+    mock_screen_name: str | None = None
     parent_task_id: UUID | None = None
     origin_type: OriginType | None = None
     created_at: AwareDatetime | None = None

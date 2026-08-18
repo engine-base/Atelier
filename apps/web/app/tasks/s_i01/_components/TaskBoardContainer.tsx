@@ -93,6 +93,8 @@ export function TaskBoardContainer({
   const [addType, setAddType] =
     useState<(typeof TASK_TYPES)[number]>("feature");
   const [addError, setAddError] = useState<string | null>(null);
+  // GAP-140: 対象画面 (任意)。指定するとプレースホルダーモックが自動作成されて紐づく
+  const [addScreen, setAddScreen] = useState("");
 
   // ダイアログの標準操作: Escape でタスク追加モーダルを閉じる
   useEffect(() => {
@@ -172,12 +174,15 @@ export function TaskBoardContainer({
           title: addTitle.trim(),
           type: addType,
           estimated_hours: Math.min(24, Math.max(1, Number(addHours) || 4)),
+          // GAP-140: 画面タスクは対象画面を宣言 → プレースホルダーモック自動作成
+          ...(addScreen.trim() !== "" ? { screen_name: addScreen.trim() } : {}),
         },
       }),
     onSuccess: () => {
       setAdding(false);
       setAddTitle("");
       setAddCategory("");
+      setAddScreen("");
       setAddError(null);
       invalidate();
     },
@@ -333,6 +338,18 @@ export function TaskBoardContainer({
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="mb-3 block">
+              <span className="mb-1 block text-label-sm font-medium text-on-surface-variant">
+                対象画面 (任意 — 例: ログイン画面)
+              </span>
+              <input
+                value={addScreen}
+                onChange={(e) => setAddScreen(e.target.value)}
+                maxLength={80}
+                placeholder="指定するとモックタブに画面の枠が自動作成されます"
+                className="h-9 w-full rounded-md border border-border px-2 text-body-sm text-on-surface focus:border-primary focus:outline-none"
+              />
             </label>
             {addError ? (
               <p role="alert" className="mb-2 text-body-sm text-error">
