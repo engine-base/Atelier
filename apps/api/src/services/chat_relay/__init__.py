@@ -319,6 +319,123 @@ async def save_job_artifacts(
     return results
 
 
+_SEED_MAX_FILES = 20
+
+
+def _jsonb_dict(value: Any) -> dict[str, Any]:
+    """jsonb 列を dict に正規化する (driver により str で返るため)。"""
+    if isinstance(value, dict):
+        return dict(value)  # pyright: ignore[reportUnknownArgumentType]
+    if isinstance(value, str):
+        try:
+            parsed: Any = json.loads(value)
+            if isinstance(parsed, dict):
+                out: dict[str, Any] = {}
+                for k, v in parsed.items():  # pyright: ignore[reportUnknownVariableType]
+                    out[str(k)] = v  # pyright: ignore[reportUnknownArgumentType]
+                return out
+            return {}
+        except ValueError:
+            return {}
+    return {}
+
+
+def _sanitize_seed_name(name: str, fallback: str) -> str:
+    """seed ファイル名の安全化 (パス区切り・ .. を除去、拡張子 .html 保証)。"""
+    import re as _re
+
+    base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip()
+    base = _re.sub(r"[^\w\-. ぁ-んァ-ヶ一-龠ー]", "_", base)
+    if base in ("", ".", ".."):
+        base = fallback
+    if not base.lower().endswith((".html", ".htm")):
+        base += ".html"
+    return base[:120]
+
+
+async def get_job_workspace_seed(
+    session: AsyncSession,
+    *,
+    job_id: str,
+    requester_user_id: str | None = None,
+) -> list[dict[str, str]]:
+    """GAP-141: ツールジョブ開始前にローカル作業場へ実体化する「正本」一式。
+
+    ローカル作業フォルダに古いファイルが残っていると、AI が古い版を土台に
+    編集してしまい版連鎖が乱れる (ローカルと Supabase の二重化問題)。
+    ジョブの project の最新版 (モック各画面 + mockdb 成果物各 stage) を返し、
+    Bridge が作業フォルダへ上書き展開してから CLI を起動する — ローカルは
+    常に「正本のチェックアウト」になる。
+    """
+    from src.services.mocks.artifacts import MOCKDB_PREFIX, fetch_mock_content
+
+    job_id = _validated_job_id(job_id)
+    row = (
+        await session.execute(
+            text(
+                "select j.status, j.requested_by, t.project_id "
+                "from public.chat_relay_jobs j "
+                "join public.chat_threads t on t.id = j.thread_id "
+                "where j.id = cast(:i as uuid)"
+            ),
+            {"i": job_id},
+        )
+    ).first()
+    if row is None:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    if requester_user_id is not None and str(row.requested_by) != requester_user_id:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    project_id = str(row.project_id)
+
+    files: list[dict[str, str]] = []
+    used_names: set[str] = set()
+
+    async def _append(path: str, name_hint: str, fallback: str) -> None:
+        if len(files) >= _SEED_MAX_FILES or not path.startswith(MOCKDB_PREFIX):
+            return
+        html = await fetch_mock_content(session, content_id=path[len(MOCKDB_PREFIX) :])
+        if html is None:
+            return
+        name = _sanitize_seed_name(name_hint, fallback)
+        while name in used_names:
+            name = f"_{name}"
+        used_names.add(name)
+        files.append({"file_name": name, "html": html})
+
+    mock_rows = (
+        await session.execute(
+            text(
+                "select distinct on (screen_name) screen_name, html_storage_path, meta_tags "
+                "from public.mocks where project_id = cast(:pid as uuid) "
+                "and deleted_at is null order by screen_name, version desc"
+            ),
+            {"pid": project_id},
+        )
+    ).all()
+    for m in mock_rows:
+        meta = _jsonb_dict(m.meta_tags)
+        name_hint = str(meta.get("file_name") or f"{m.screen_name}.html")
+        await _append(str(m.html_storage_path), name_hint, f"{m.screen_name}.html")
+
+    output_rows = (
+        await session.execute(
+            text(
+                "select distinct on (stage) stage::text as stage, html_path, summary, meta "
+                "from public.workflow_outputs where project_id = cast(:pid as uuid) "
+                "and deleted_at is null and html_path is not null "
+                "order by stage, version desc"
+            ),
+            {"pid": project_id},
+        )
+    ).all()
+    for o in output_rows:
+        meta = _jsonb_dict(o.meta)
+        name_hint = str(meta.get("file_name") or f"{o.summary or o.stage}.html")
+        await _append(str(o.html_path), name_hint, f"{o.stage}.html")
+
+    return files
+
+
 async def complete_job(
     session: AsyncSession,
     *,

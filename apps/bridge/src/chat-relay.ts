@@ -18,7 +18,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 
@@ -347,6 +347,8 @@ export interface ChatRelaySender {
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
   /** GAP-137: 成果物 (HTML) を送る — complete の前に呼ぶ契約。 */
   chatRelayUploadArtifacts(jobId: string, artifacts: readonly ChatArtifact[]): Promise<void>;
+  /** GAP-141: ツールジョブ開始前に作業場へ展開する「正本」一式。 */
+  chatRelayWorkspaceSeed(jobId: string): Promise<readonly ChatArtifact[]>;
   chatRelayComplete(
     jobId: string,
     ok: boolean,
@@ -468,8 +470,30 @@ export class ChatRelayWorker {
     // GAP-119: 実行中に観測した rate_limit_event を window 別に最新値で保持
     const rateLimits = new Map<string, ChatRelayRateLimitObservation>();
 
-    // GAP-137: PC 操作の成果物検出 — 実行前スナップショット
+    // GAP-141: ツールジョブは開始前に「正本」(プロジェクト最新版) を作業場へ
+    // 展開する — ローカルに残った古いファイルを土台に編集させない。
+    // 展開後にスナップショットするので、未編集の seed は再取り込みされない。
     const workspace = toolsMode !== 'off' ? chatWorkspaceDir(this.config.env) : null;
+    if (workspace !== null) {
+      try {
+        mkdirSync(workspace, { recursive: true });
+        const seed = await this.api.chatRelayWorkspaceSeed(jobId);
+        for (const f of seed) {
+          const safe = f.fileName.replaceAll('\\', '/').split('/').pop() ?? '';
+          if (safe === '' || safe === '.' || safe === '..') continue;
+          const target = join(workspace, safe);
+          try {
+            writeFileSync(target, f.html);
+          } catch {
+            /* 個別の書込失敗は seed 全体を止めない */
+          }
+        }
+      } catch (err: unknown) {
+        // seed 取得失敗は実行を止めない (作業場が空のまま = 従来動作)
+        console.error('[bridge:chat-relay] workspace seed 失敗 (続行):', err);
+      }
+    }
+    // GAP-137: PC 操作の成果物検出 — 実行前スナップショット (seed 展開後)
     const wsBefore = workspace !== null ? snapshotHtmlFiles(workspace) : null;
 
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される

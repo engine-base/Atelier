@@ -6407,6 +6407,30 @@ paths:
         '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: approval 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /chat-relay/{job_id}/workspace:
+    get:
+      tags: [kanban-tools]
+      summary: chat relay ツールジョブの作業場シード（GAP-141 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_workspace_seed
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: プロジェクト最新版 (モック各画面 + mockdb 成果物各 stage) — Bridge が CLI 起動前にローカル作業場へ上書き展開する
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatRelayArtifactItem' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: job 不在 (他人のジョブ含む), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /chat-relay/{job_id}/artifacts:
     post:
       tags: [kanban-tools]

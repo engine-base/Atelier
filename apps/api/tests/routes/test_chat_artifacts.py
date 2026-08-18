@@ -346,3 +346,37 @@ def test_artifacts_estimate_routes_to_workflow_outputs(
             text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
             {"i": output_id},
         )
+
+
+@pytest.mark.integration
+def test_workspace_seed_returns_latest_versions(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-141: seed はモック各画面の最新版 + mockdb 成果物を返す。"""
+    with TestClient(app) as client:
+        # v1 → v2 と作り、seed が v2 (最新) を返すことを確認
+        job1 = _enqueue_and_pick(client, seeded)
+        client.post(
+            f"/chat-relay/{job1}/artifacts",
+            json={"artifacts": [{"file_name": "lp.html", "html": "<title>LP</title>v1"}]},
+            headers=HEADERS,
+        )
+        client.post(f"/chat-relay/{job1}/complete", json={"ok": True}, headers=HEADERS)
+        job2 = _enqueue_and_pick(client, seeded)
+        client.post(
+            f"/chat-relay/{job2}/artifacts",
+            json={"artifacts": [{"file_name": "lp.html", "html": "<title>LP</title>v2-latest"}]},
+            headers=HEADERS,
+        )
+        client.post(f"/chat-relay/{job2}/complete", json={"ok": True}, headers=HEADERS)
+
+        job3 = _enqueue_and_pick(client, seeded)
+        res = client.get(f"/chat-relay/{job3}/workspace", headers=HEADERS)
+        assert res.status_code == 200
+        files = res.json()["data"]
+        assert len(files) == 1
+        assert files[0]["file_name"] == "lp.html"
+        assert "v2-latest" in files[0]["html"]  # 最新版のみ
+
+        res401 = client.get(f"/chat-relay/{job3}/workspace")
+        assert res401.status_code == 401

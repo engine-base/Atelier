@@ -32,6 +32,7 @@ from src.schemas.dispatcher import (
     ChatRelayApprovalCreateRequest,
     ChatRelayApprovalCreateResponse,
     ChatRelayApprovalStatusResponse,
+    ChatRelayArtifactItem,
     ChatRelayArtifactResult,
     ChatRelayArtifactsRequest,
     ChatRelayChunksRequest,
@@ -364,6 +365,32 @@ async def chat_relay_approval_status(
         _raise_for(exc.code, exc.message)
     return {
         "data": ChatRelayApprovalStatusResponse(decision=decision)  # type: ignore[arg-type]
+    }
+
+
+@router.get(
+    "/chat-relay/{job_id}/workspace",
+    summary="chat relay ツールジョブの作業場シード (GAP-141 / BridgeAuth)",
+)
+async def chat_relay_workspace_seed(
+    job_id: str,
+    session: BridgeSession,
+    _token: BridgeAuth,
+) -> dict[str, list[ChatRelayArtifactItem]]:
+    """ジョブの project の最新版 (モック + mockdb 成果物) を返す。
+
+    Bridge が CLI 起動前にローカル作業フォルダへ上書き展開する — ローカルは
+    常に「正本のチェックアウト」になり、古いファイルを土台にした編集
+    (版連鎖の乱れ) を防ぐ。user トークンは本人のジョブのみ。
+    """
+    try:
+        files = await relay_svc.get_job_workspace_seed(
+            session, job_id=job_id, requester_user_id=_token.user_id
+        )
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
+    return {
+        "data": [ChatRelayArtifactItem(file_name=f["file_name"], html=f["html"]) for f in files]
     }
 
 

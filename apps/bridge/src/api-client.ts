@@ -75,6 +75,10 @@ export interface BridgeApi {
     jobId: string,
     artifacts: readonly { readonly fileName: string; readonly html: string }[],
   ): Promise<void>;
+  /** GAP-141: 作業場シードの取得。 */
+  chatRelayWorkspaceSeed(
+    jobId: string,
+  ): Promise<readonly { readonly fileName: string; readonly html: string }[]>;
   /** GAP-114: job を done / error で確定 (GAP-119: プラン枠観測値も同送可)。 */
   chatRelayComplete(
     jobId: string,
@@ -288,6 +292,16 @@ export class ApiClient implements BridgeApi {
     await this.post(`/chat-relay/${jobId}/artifacts`, {
       artifacts: artifacts.map((a) => ({ file_name: a.fileName, html: a.html })),
     });
+  }
+
+  async chatRelayWorkspaceSeed(
+    jobId: string,
+  ): Promise<readonly { readonly fileName: string; readonly html: string }[]> {
+    // GAP-141: プロジェクト最新版をローカル作業場へ展開するための seed
+    const json = (await this.get(`/chat-relay/${jobId}/workspace`)) as {
+      data: readonly { file_name: string; html: string }[];
+    };
+    return json.data.map((f) => ({ fileName: f.file_name, html: f.html }));
   }
 
   async chatRelayComplete(

@@ -81,6 +81,14 @@ class FakeSender implements ChatRelaySender {
     this.callOrder.push('artifacts');
     this.artifactUploads.push(artifacts);
   }
+  /** GAP-141: 作業場シード (テストが設定)。 */
+  seed: readonly { readonly fileName: string; readonly html: string }[] = [];
+  async chatRelayWorkspaceSeed(): Promise<
+    readonly { readonly fileName: string; readonly html: string }[]
+  > {
+    this.callOrder.push('seed');
+    return this.seed;
+  }
   async chatRelayComplete(
     _jobId: string,
     ok: boolean,
@@ -614,8 +622,8 @@ describe('ChatRelayWorker 成果物送信 (GAP-137)', () => {
     expect(sender.artifactUploads).toHaveLength(1);
     expect(sender.artifactUploads[0]?.map((a) => a.fileName)).toEqual(['lp.html']);
     expect(sender.artifactUploads[0]?.[0]?.html).toContain('<title>LP</title>');
-    // complete より前に送っている (SSE が同一ストリームでカードを配れる契約)
-    expect(sender.callOrder).toEqual(['artifacts', 'complete']);
+    // seed → 実行 → artifacts → complete の順 (artifacts は complete より前)
+    expect(sender.callOrder).toEqual(['seed', 'artifacts', 'complete']);
   });
 
   it('toolsMode=off はスナップショットも送信もしない', async () => {
@@ -630,6 +638,45 @@ describe('ChatRelayWorker 成果物送信 (GAP-137)', () => {
     });
     expect(await worker.runOnce()).toBe('completed');
     expect(sender.artifactUploads).toHaveLength(0);
+    expect(sender.callOrder).toEqual(['complete']);
+  });
+});
+
+describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
+  it('ツールジョブは開始前に正本を展開し、未編集の seed は再取り込みしない', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'ws-'));
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: '確認して', toolsMode: 'auto' };
+    sender.seed = [
+      { fileName: '料金ページ.html', html: '<html><title>料金ページ</title>v2</html>' },
+      { fileName: '../evil.html', html: 'x' }, // パス逸脱は無視される
+    ];
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeFakeClaude([DELTA_A, RESULT_OK]),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH, ATELIER_BRIDGE_CHAT_WORKSPACE: workspace },
+      flushIntervalMs: 10,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    // 正本がローカルに展開されている
+    const { readFileSync: rf, existsSync: ex } = await import('node:fs');
+    expect(rf(join(workspace, '料金ページ.html'), 'utf8')).toContain('v2');
+    // 逸脱ファイルは workspace 外に書かれていない (basename 化され上書きされる場合も
+    // workspace 内に留まる)
+    expect(ex(join(workspace, '..', 'evil.html'))).toBe(false);
+    // 未編集の seed は成果物として送信されない (展開後スナップショット)
+    expect(sender.artifactUploads).toHaveLength(0);
+    // seed → (実行) → complete の順
+    expect(sender.callOrder[0]).toBe('seed');
+    expect(sender.callOrder[sender.callOrder.length - 1]).toBe('complete');
+  });
+
+  it('off ジョブは seed を取得しない', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'こんにちは', toolsMode: 'off' };
+    const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_OK]));
+    expect(await worker.runOnce()).toBe('completed');
     expect(sender.callOrder).toEqual(['complete']);
   });
 });
