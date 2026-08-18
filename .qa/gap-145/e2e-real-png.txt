@@ -1,0 +1,12 @@
+HTTP 200
+EVENT {"type": "tool", "content": "Bash"}
+EVENT {"type": "artifact", "metadata": {"type": "file", "output_id": "681e7eb8-51df-4599-9d47-af471bd55fa5", "stage": "design", "title": "atelier-logo.png", "version": 1, "file_kind": "image"}}
+EVENT {"type": "end", "metadata": {"assistant_message_id": "8549af46-8db9-4e8b-9242-6816ce8a5819", "user_message_id": "4ff4d9c3-4cc5-4021-9b81-ec546f1d58d8", "total_chars": 2}}
+FILE_ARTIFACT: {"type": "file", "output_id": "681e7eb8-51df-4599-9d47-af471bd55fa5", "stage": "design", "title": "atelier-logo.png", "version": 1, "file_kind": "image"}
+CONTENT-URL: 200
+CONTENT: 200 image/png bytes=74
+DISPOSITION: inline; filename*=UTF-8''atelier-logo.png
+IS_REAL_PNG: True
+DL_DISPOSITION: attachment; filename*=UTF-8''atelier-logo.png
+OUTPUT_ROW: design filedb://eb8d18c9-f8cb-4fe2-9b {"mime": "image/png", "author": "bridge", "source": "chat_pc_tools", "byte_size": 74, "file_kind": "image", "file_name": "atelier-logo.png"}
+E2E_OK: True

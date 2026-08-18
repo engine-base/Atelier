@@ -414,7 +414,15 @@ async def chat_relay_artifacts(
         results = await relay_svc.save_job_artifacts(
             session,
             job_id=job_id,
-            artifacts=[{"file_name": a.file_name, "html": a.html} for a in body.artifacts],
+            artifacts=[
+                {
+                    "file_name": a.file_name,
+                    **({"html": a.html} if a.html is not None else {}),
+                    # GAP-145: バイナリ成果物 (画像 / PPTX / PDF 等)
+                    **({"content_b64": a.content_b64} if a.content_b64 is not None else {}),
+                }
+                for a in body.artifacts
+            ],
             requester_user_id=_token.user_id,
         )
     except ChatRelayError as exc:

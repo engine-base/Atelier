@@ -27,10 +27,10 @@ import {
   chatRelayEnabled,
   chatWorkspaceDir,
   classifyRunFailure,
-  collectNewHtmlArtifacts,
+  collectNewArtifacts,
   parseStreamLine,
   sanitizedChildEnv,
-  snapshotHtmlFiles,
+  snapshotArtifactFiles,
   summarizeToolInput,
   type ChatRelaySender,
 } from '../src/chat-relay.js';
@@ -568,12 +568,12 @@ describe('ChatRelayWorker — approve 往復 (GAP-134)', () => {
 /* GAP-137: PC 操作の成果物検出とモック反映送信                          */
 /* ------------------------------------------------------------------ */
 
-describe('snapshotHtmlFiles / collectNewHtmlArtifacts (GAP-137)', () => {
+describe('snapshotArtifactFiles / collectNewArtifacts (GAP-137/145)', () => {
   it('新規/更新された HTML のみを新しい順に集める (スキップ dir・上限つき)', () => {
     const root = mkdtempSync(join(tmpdir(), 'ws-'));
     writeFileSync(join(root, 'old.html'), '<html>old</html>');
     utimesSync(join(root, 'old.html'), new Date(1000000), new Date(1000000));
-    const before = snapshotHtmlFiles(root);
+    const before = snapshotArtifactFiles(root);
 
     // 新規 2 件 + 既存の更新 1 件 + 対象外 (txt / node_modules)
     writeFileSync(join(root, 'a.html'), '<html><title>LP</title></html>');
@@ -587,18 +587,35 @@ describe('snapshotHtmlFiles / collectNewHtmlArtifacts (GAP-137)', () => {
     mkdirSync(join(root, 'node_modules'));
     writeFileSync(join(root, 'node_modules', 'skip.html'), '<html>skip</html>');
 
-    const artifacts = collectNewHtmlArtifacts(root, before);
+    const artifacts = collectNewArtifacts(root, before);
     expect(artifacts.map((a) => a.fileName)).toEqual(['sub/b.htm', 'a.html', 'old.html']);
     expect(artifacts[0]?.html).toBe('<html>b</html>');
   });
 
   it('サイズ上限超の HTML は取り込まない', () => {
     const root = mkdtempSync(join(tmpdir(), 'ws-'));
-    const before = snapshotHtmlFiles(root);
+    const before = snapshotArtifactFiles(root);
     writeFileSync(join(root, 'big.html'), 'x'.repeat(MAX_ARTIFACT_BYTES + 1));
     writeFileSync(join(root, 'ok.html'), '<html>ok</html>');
-    const names = collectNewHtmlArtifacts(root, before).map((a) => a.fileName);
+    const names = collectNewArtifacts(root, before).map((a) => a.fileName);
     expect(names).toEqual(['ok.html']);
+  });
+
+  it('GAP-145: バイナリ成果物 (png/pptx 等) は base64 で拾い、対象外拡張子は拾わない', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ws-'));
+    const before = snapshotArtifactFiles(root);
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    writeFileSync(join(root, 'logo.png'), png);
+    writeFileSync(join(root, 'deck.pptx'), Buffer.from('PK-fake-pptx'));
+    writeFileSync(join(root, 'app.exe'), Buffer.from('MZ')); // 対象外
+    const artifacts = collectNewArtifacts(root, before);
+    const byName = new Map(artifacts.map((a) => [a.fileName, a]));
+    expect(byName.has('app.exe')).toBe(false);
+    expect(byName.get('logo.png')?.contentB64).toBe(png.toString('base64'));
+    expect(byName.get('logo.png')?.html).toBeUndefined();
+    expect(byName.get('deck.pptx')?.contentB64).toBe(
+      Buffer.from('PK-fake-pptx').toString('base64'),
+    );
   });
 });
 

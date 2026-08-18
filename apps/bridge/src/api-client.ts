@@ -70,10 +70,14 @@ export interface BridgeApi {
   chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
   /** GAP-134: 承認決定をポーリングで読む。 */
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
-  /** GAP-137: 成果物 (HTML) の送信 — complete の前に呼ぶ。 */
+  /** GAP-137/145: 成果物 (HTML + 画像/PPTX/PDF 等バイナリ) の送信 — complete の前に呼ぶ。 */
   chatRelayUploadArtifacts(
     jobId: string,
-    artifacts: readonly { readonly fileName: string; readonly html: string }[],
+    artifacts: readonly {
+      readonly fileName: string;
+      readonly html?: string;
+      readonly contentB64?: string;
+    }[],
   ): Promise<void>;
   /** GAP-141: 作業場シードの取得。 */
   chatRelayWorkspaceSeed(
@@ -286,11 +290,20 @@ export class ApiClient implements BridgeApi {
 
   async chatRelayUploadArtifacts(
     jobId: string,
-    artifacts: readonly { readonly fileName: string; readonly html: string }[],
+    artifacts: readonly {
+      readonly fileName: string;
+      readonly html?: string;
+      readonly contentB64?: string;
+    }[],
   ): Promise<void> {
-    // GAP-137: PC 操作の成果物 (HTML) をモックとして取り込む (complete 前)
+    // GAP-137/145: PC 操作の成果物をツール内へ取り込む (complete 前)。
+    // HTML は html、バイナリ (画像/PPTX/PDF/Excel/動画 等) は content_b64。
     await this.post(`/chat-relay/${jobId}/artifacts`, {
-      artifacts: artifacts.map((a) => ({ file_name: a.fileName, html: a.html })),
+      artifacts: artifacts.map((a) => ({
+        file_name: a.fileName,
+        ...(a.html !== undefined ? { html: a.html } : {}),
+        ...(a.contentB64 !== undefined ? { content_b64: a.contentB64 } : {}),
+      })),
     });
   }
 

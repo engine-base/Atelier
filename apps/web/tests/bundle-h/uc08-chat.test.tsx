@@ -661,6 +661,32 @@ describe("S-E01 成果物の自動反映 (GAP-137/139)", () => {
     ).toHaveAttribute("href", "/outputs?output=out-1");
   });
 
+  it("GAP-145: artifact chunk (file=画像) は種類ラベルつきの成果物リンクで出る", async () => {
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({
+        type: "artifact",
+        metadata: {
+          type: "file",
+          output_id: "out-9",
+          stage: "design",
+          title: "logo.png",
+          version: 1,
+          file_kind: "image",
+        },
+      });
+      args.onChunk({ type: "end" });
+    });
+    render(
+      <ChatContainer threadId="t1" streamFn={streamFn} fetchMessagesFn={async () => []} />,
+    );
+    send("ロゴ画像を作って");
+    await waitFor(() => expect(screen.getByText("画像")).toBeInTheDocument());
+    expect(screen.getByText("logo.png (v1)")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "成果物で開く →" }),
+    ).toHaveAttribute("href", "/outputs?output=out-9");
+  });
+
   it("type 無し (旧形式) は mock として後方互換で表示する", async () => {
     const streamFn = vi.fn(async (args: StreamChatArgs) => {
       args.onChunk({

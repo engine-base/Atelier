@@ -14,7 +14,7 @@ import pytest
 
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", "test-jwt-secret")
 
-from src.services.chat_sse.pc_artifacts import collect_new_html, snapshot_html_files
+from src.services.chat_sse.pc_artifacts import collect_new_artifacts, snapshot_artifact_files
 from src.services.mocks.artifacts import (
     build_content_url,
     derive_screen_name,
@@ -62,7 +62,7 @@ class TestWorkspaceDetection:
         old = tmp_path / "old.html"
         old.write_text("<html>old</html>")
         os.utime(old, (1_000_000, 1_000_000))
-        before = snapshot_html_files(str(tmp_path))
+        before = snapshot_artifact_files(str(tmp_path))
 
         (tmp_path / "new.html").write_text("<html><title>New</title></html>")
         os.utime(tmp_path / "new.html", (3_000_000, 3_000_000))
@@ -71,23 +71,23 @@ class TestWorkspaceDetection:
         sub.mkdir()
         (sub / "skip.html").write_text("<html>skip</html>")
 
-        files = collect_new_html(str(tmp_path), before)
-        assert [name for name, _ in files] == ["new.html"]
-        assert "<title>New</title>" in files[0][1]
+        files = collect_new_artifacts(str(tmp_path), before)
+        assert [f["file_name"] for f in files] == ["new.html"]
+        assert "<title>New</title>" in str(files[0]["html"])
 
     def test_updated_file_is_collected(self, tmp_path: Path) -> None:
         page = tmp_path / "page.html"
         page.write_text("<html>v1</html>")
         os.utime(page, (1_000_000, 1_000_000))
-        before = snapshot_html_files(str(tmp_path))
+        before = snapshot_artifact_files(str(tmp_path))
         page.write_text("<html>v2</html>")
         os.utime(page, (2_000_000, 2_000_000))
-        files = collect_new_html(str(tmp_path), before)
-        assert [name for name, _ in files] == ["page.html"]
+        files = collect_new_artifacts(str(tmp_path), before)
+        assert [f["file_name"] for f in files] == ["page.html"]
 
     def test_missing_root_is_empty(self, tmp_path: Path) -> None:
-        assert snapshot_html_files(str(tmp_path / "none")) == {}
-        assert collect_new_html(str(tmp_path / "none"), {}) == []
+        assert snapshot_artifact_files(str(tmp_path / "none")) == {}
+        assert collect_new_artifacts(str(tmp_path / "none"), {}) == []
 
 
 @pytest.mark.asyncio
@@ -147,7 +147,10 @@ async def test_relay_adapter_maps_artifact_chunks(monkeypatch: pytest.MonkeyPatc
     ]
     assert "できました" in out
     assert {"artifact": {"mock_id": "m-1", "screen_name": "LP", "version": 2}} in out
-    assert all(not (isinstance(c, dict) and "artifact" in c and c["artifact"] == "broken json") for c in out)
+    assert all(
+        not (isinstance(c, dict) and "artifact" in c and c["artifact"] == "broken json")
+        for c in out
+    )
     assert len([c for c in out if isinstance(c, dict) and "artifact" in c]) == 1
 
 
@@ -243,3 +246,56 @@ class TestSelectionInjection:
         out = inject_selection_script("<h1>fragment</h1>")
         assert out.startswith("<h1>fragment</h1>")
         assert "data-atelier-select" in out
+
+
+class TestFileArtifacts:
+    """GAP-145: バイナリ成果物 (画像/PPTX/PDF/Excel/動画 等) の unit tests。"""
+
+    def test_file_type_for_known_and_unknown(self) -> None:
+        from src.services.mocks.artifacts import file_type_for
+
+        assert file_type_for("logo.PNG") == ("image", "image/png")
+        assert file_type_for("deck.pptx") == (
+            "slides",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
+        assert file_type_for("movie.mp4") == ("video", "video/mp4")
+        assert file_type_for("app.exe") is None
+        assert file_type_for("no-extension") is None
+
+    def test_classify_file_stage_rules(self) -> None:
+        from src.services.mocks.artifacts import classify_file_stage
+
+        # ファイル名キーワード (英/日) が最優先
+        assert (
+            classify_file_stage(file_name="estimate.xlsx", instruction="", file_kind="sheet")
+            == "estimate"
+        )
+        assert (
+            classify_file_stage(file_name="見積書.pdf", instruction="", file_kind="pdf")
+            == "estimate"
+        )
+        # 次に直近ユーザー指示
+        assert (
+            classify_file_stage(
+                file_name="doc.pptx", instruction="提案資料を作って", file_kind="slides"
+            )
+            == "proposal"
+        )
+        # どれにも当たらない: 画像/動画 → design、その他 → delivery
+        assert (
+            classify_file_stage(file_name="logo.png", instruction="ロゴ作って", file_kind="image")
+            == "design"
+        )
+        assert (
+            classify_file_stage(file_name="data.xlsx", instruction="集計して", file_kind="sheet")
+            == "delivery"
+        )
+
+    def test_collect_picks_binary_and_skips_unsupported(self, tmp_path: Path) -> None:
+        before = snapshot_artifact_files(str(tmp_path))
+        (tmp_path / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n123")
+        (tmp_path / "app.exe").write_bytes(b"MZ")
+        files = collect_new_artifacts(str(tmp_path), before)
+        assert [f["file_name"] for f in files] == ["logo.png"]
+        assert files[0]["data"] == b"\x89PNG\r\n\x1a\n123"

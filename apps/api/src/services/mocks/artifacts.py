@@ -173,9 +173,7 @@ async def ingest_html_artifact(
             "path": f"{MOCKDB_PREFIX}{content_id}",
             "ver": version,
             "parent": parent_id,
-            "meta": json.dumps(
-                {"author": actor_label, "source": source, "file_name": file_name}
-            ),
+            "meta": json.dumps({"author": actor_label, "source": source, "file_name": file_name}),
         },
     )
     await AuditWriter(session).write(
@@ -317,9 +315,7 @@ async def ingest_html_output(
             "path": f"{MOCKDB_PREFIX}{content_id}",
             "summary": title,
             "ver": version,
-            "meta": json.dumps(
-                {"author": actor_label, "source": source, "file_name": file_name}
-            ),
+            "meta": json.dumps({"author": actor_label, "source": source, "file_name": file_name}),
         },
     )
     await AuditWriter(session).write(
@@ -338,6 +334,197 @@ async def ingest_html_output(
         "stage": stage,
         "title": title,
         "version": version,
+    }
+
+
+# ── GAP-145: HTML 以外の成果物 (画像 / PPTX / PDF / Excel / 動画 等) ──────
+#
+# 実行エンジン (本人 PC の Bridge + claude CLI) は HTML と同じ — 拾って
+# 保管・配信する配線が無かっただけ (経営者指摘)。バイナリ実体は
+# artifact_files (RLS default deny) に置き、workflow_outputs.html_path に
+# 'filedb://{id}' を記録する。配信は自己署名 URL (mockdb と同じ契約)。
+
+FILEDB_PREFIX = "filedb://"
+MAX_FILE_BYTES = 8 * 1024 * 1024
+
+# 取り込み対象の拡張子 → (種類, MIME)。ここに無い拡張子は取り込まない
+# (Bridge 側も同じ一覧でフィルタする — サーバは送信値の MIME を信用しない)。
+FILE_TYPES: dict[str, tuple[str, str]] = {
+    "png": ("image", "image/png"),
+    "jpg": ("image", "image/jpeg"),
+    "jpeg": ("image", "image/jpeg"),
+    "gif": ("image", "image/gif"),
+    "webp": ("image", "image/webp"),
+    "svg": ("image", "image/svg+xml"),
+    "pdf": ("pdf", "application/pdf"),
+    "pptx": ("slides", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    "ppt": ("slides", "application/vnd.ms-powerpoint"),
+    "xlsx": ("sheet", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    "xls": ("sheet", "application/vnd.ms-excel"),
+    "csv": ("sheet", "text/csv"),
+    "docx": ("doc", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "doc": ("doc", "application/msword"),
+    "mp4": ("video", "video/mp4"),
+    "webm": ("video", "video/webm"),
+    "mov": ("video", "video/quicktime"),
+}
+
+FILE_KIND_LABELS: dict[str, str] = {
+    "image": "画像",
+    "pdf": "PDF",
+    "slides": "スライド",
+    "sheet": "表計算",
+    "doc": "文書",
+    "video": "動画",
+}
+
+
+def file_type_for(file_name: str) -> tuple[str, str] | None:
+    """拡張子から (種類, MIME) を引く。対象外は None。"""
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+    return FILE_TYPES.get(ext)
+
+
+def classify_file_stage(*, file_name: str, instruction: str, file_kind: str) -> str:
+    """バイナリ成果物の stage を決める (HTML と同じ決定的規則)。
+
+    ファイル名 → 直近ユーザー指示の順でキーワード判定し、どれにも
+    当たらなければ 画像/動画 は design、その他は delivery (納品物)。
+    """
+    base = file_name.rsplit("/", 1)[-1]
+    for pattern, stage in _STAGE_RULES_FILENAME:
+        if re.search(pattern, base, re.IGNORECASE):
+            return stage
+    for pattern, stage in _STAGE_RULES:
+        if re.search(pattern, base, re.IGNORECASE):
+            return stage
+    latest = extract_latest_user_message(instruction)[-500:]
+    for pattern, stage in _STAGE_RULES:
+        if re.search(pattern, latest, re.IGNORECASE):
+            return stage
+    return "design" if file_kind in ("image", "video") else "delivery"
+
+
+async def store_file_content(
+    session: AsyncSession, *, data: bytes, mime: str, file_name: str
+) -> str:
+    """バイナリを artifact_files へ保存し file_id を返す。"""
+    res = await session.execute(
+        text(
+            "insert into public.artifact_files (data, mime, file_name, byte_size) "
+            "values (:d, :m, :n, :s) returning id"
+        ),
+        {"d": data, "m": mime, "n": file_name, "s": len(data)},
+    )
+    return str(res.scalar_one())
+
+
+async def fetch_file_content(
+    session: AsyncSession, *, file_id: str
+) -> tuple[bytes, str, str] | None:
+    """filedb コンテンツを (bytes, mime, file_name) で返す (無ければ None)。"""
+    try:
+        fid = str(uuid.UUID(file_id))
+    except ValueError:
+        return None
+    res = await session.execute(
+        text("select data, mime, file_name from public.artifact_files where id = cast(:i as uuid)"),
+        {"i": fid},
+    )
+    row = res.first()
+    return None if row is None else (bytes(row.data), str(row.mime), str(row.file_name))
+
+
+async def ingest_file_artifact(
+    session: AsyncSession,
+    *,
+    project_id: str,
+    file_name: str,
+    data: bytes,
+    source: str,
+    actor_label: str,
+    instruction: str,
+) -> dict[str, object]:
+    """バイナリ成果物 1 件を workflow_outputs として取り込む。
+
+    バージョンは同一 project + stage + ファイル名で連鎖 (logo.png v1, v2, …)。
+    HTML の stage 連鎖と違いファイル名を鍵に含めるのは、画像などは同一 stage に
+    複数の独立ファイル (logo.png / hero.png) が並ぶのが普通のため。
+    """
+    ftype = file_type_for(file_name)
+    if ftype is None:
+        raise ArtifactIngestError("unsupported", f"{file_name}: 対応していない形式です")
+    file_kind, mime = ftype
+    if len(data) > MAX_FILE_BYTES:
+        raise ArtifactIngestError(
+            "too_large",
+            f"{file_name}: ファイルが上限 {MAX_FILE_BYTES // (1024 * 1024)}MB を超えています",
+        )
+    stage = classify_file_stage(file_name=file_name, instruction=instruction, file_kind=file_kind)
+    base_name = file_name.rsplit("/", 1)[-1][:200]
+    file_id = await store_file_content(session, data=data, mime=mime, file_name=base_name)
+    version = int(
+        (
+            await session.execute(
+                text(
+                    "select coalesce(max(version), 0) + 1 from public.workflow_outputs "
+                    "where project_id = cast(:pid as uuid) "
+                    "and stage = cast(:st as workflow_stage_enum) "
+                    "and meta ->> 'file_name' = :fn and deleted_at is null"
+                ),
+                {"pid": project_id, "st": stage, "fn": base_name},
+            )
+        ).scalar_one()
+    )
+    new_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "insert into public.workflow_outputs "
+            "(id, project_id, stage, html_path, summary, version, meta) "
+            "values (cast(:id as uuid), cast(:pid as uuid), cast(:st as workflow_stage_enum), "
+            "        :path, :summary, :ver, cast(:meta as jsonb))"
+        ),
+        {
+            "id": new_id,
+            "pid": project_id,
+            "st": stage,
+            "path": f"{FILEDB_PREFIX}{file_id}",
+            "summary": base_name,
+            "ver": version,
+            "meta": json.dumps(
+                {
+                    "author": actor_label,
+                    "source": source,
+                    "file_name": base_name,
+                    "file_kind": file_kind,
+                    "mime": mime,
+                    "byte_size": len(data),
+                }
+            ),
+        },
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="output.ingest_file",
+            target_type="workflow_output",
+            actor_type="system",
+            actor_id=actor_label,
+            target_id=new_id,
+            after={
+                "stage": stage,
+                "version": version,
+                "source": source,
+                "file_kind": file_kind,
+            },
+        )
+    )
+    return {
+        "type": "file",
+        "output_id": new_id,
+        "stage": stage,
+        "title": base_name,
+        "version": version,
+        "file_kind": file_kind,
     }
 
 

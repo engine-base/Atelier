@@ -182,7 +182,10 @@ def test_artifacts_ingest_creates_mock_and_chunk(
             f"/chat-relay/{job_id}/artifacts",
             json={
                 "artifacts": [
-                    {"file_name": "lp.html", "html": "<html><title>LP</title><body>v1</body></html>"}
+                    {
+                        "file_name": "lp.html",
+                        "html": "<html><title>LP</title><body>v1</body></html>",
+                    }
                 ]
             },
             headers=HEADERS,
@@ -380,3 +383,138 @@ def test_workspace_seed_returns_latest_versions(
 
         res401 = client.get(f"/chat-relay/{job3}/workspace")
         assert res401.status_code == 401
+
+
+@pytest.mark.integration
+def test_artifacts_binary_file_ingest_and_serving(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-145: バイナリ成果物 (PNG) は workflow_outputs (filedb) に入り実 MIME で配信される。"""
+    import base64 as b64
+
+    png = b"\x89PNG\r\n\x1a\n" + bytes(range(48))
+    with TestClient(app) as client:
+        job_id = _enqueue_and_pick(client, seeded)
+        res = client.post(
+            f"/chat-relay/{job_id}/artifacts",
+            json={
+                "artifacts": [
+                    {"file_name": "logo.png", "content_b64": b64.b64encode(png).decode()},
+                    # 対応外拡張子は誠実に拒否される (下の別ジョブで検証するため未混在)
+                ]
+            },
+            headers=HEADERS,
+        )
+        assert res.status_code == 200, res.text
+        data = res.json()["data"][0]
+        assert data["type"] == "file"
+        assert data["file_kind"] == "image"
+        assert data["stage"] == "design"  # キーワード無し画像の既定
+        assert data["title"] == "logo.png"
+        assert data["version"] == 1
+        output_id = data["output_id"]
+
+        # filedb 配信: bytes 一致 + 実 MIME + inline / dl=1 で attachment
+        url = build_content_url("http://testserver/", output_id, resource="outputs")
+        page = client.get(url[len("http://testserver") :])
+        assert page.status_code == 200
+        assert page.content == png
+        assert page.headers["content-type"].startswith("image/png")
+        assert "inline" in page.headers["content-disposition"]
+        dl = client.get(url[len("http://testserver") :] + "&dl=1")
+        assert "attachment" in dl.headers["content-disposition"]
+
+    with sync_engine.connect() as c:
+        # chunk (kind=artifact) にも type=file が積まれている
+        chunk = c.execute(
+            text(
+                "select content from public.chat_relay_chunks "
+                "where job_id=cast(:j as uuid) and kind='artifact'"
+            ),
+            {"j": job_id},
+        ).one()
+        assert '"type": "file"' in chunk.content and '"file_kind": "image"' in chunk.content
+        row = c.execute(
+            text(
+                "select stage::text as stage, html_path, meta ->> 'mime' as mime "
+                "from public.workflow_outputs where id = cast(:i as uuid)"
+            ),
+            {"i": output_id},
+        ).one()
+        assert row.stage == "design"
+        assert row.html_path.startswith("filedb://")
+        assert row.mime == "image/png"
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.artifact_files where id = ("
+                "  select substring(html_path from 10)::uuid from public.workflow_outputs "
+                "  where id = cast(:i as uuid))"
+            ),
+            {"i": output_id},
+        )
+        c.execute(
+            text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+            {"i": output_id},
+        )
+
+
+@pytest.mark.integration
+def test_artifacts_unsupported_extension_rejected(app: FastAPI, seeded: dict[str, str]) -> None:
+    """GAP-145: 対応外拡張子 (exe 等) は黙って捨てず 4xx で誠実に拒否する。"""
+    import base64 as b64
+
+    with TestClient(app) as client:
+        job_id = _enqueue_and_pick(client, seeded)
+        res = client.post(
+            f"/chat-relay/{job_id}/artifacts",
+            json={
+                "artifacts": [
+                    {"file_name": "app.exe", "content_b64": b64.b64encode(b"MZ").decode()}
+                ]
+            },
+            headers=HEADERS,
+        )
+        assert res.status_code in (400, 409, 422), res.text
+
+
+@pytest.mark.integration
+def test_artifacts_estimate_named_file_routes_by_filename(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-145: 見積 xlsx はファイル名キーワードで stage=estimate に入る。"""
+    import base64 as b64
+
+    with TestClient(app) as client:
+        job_id = _enqueue_and_pick(client, seeded)
+        res = client.post(
+            f"/chat-relay/{job_id}/artifacts",
+            json={
+                "artifacts": [
+                    {
+                        "file_name": "見積書.xlsx",
+                        "content_b64": b64.b64encode(b"PK-fake-xlsx").decode(),
+                    }
+                ]
+            },
+            headers=HEADERS,
+        )
+        assert res.status_code == 200, res.text
+        data = res.json()["data"][0]
+        assert data["type"] == "file"
+        assert data["stage"] == "estimate"
+        assert data["file_kind"] == "sheet"
+        output_id = data["output_id"]
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.artifact_files where id = ("
+                "  select substring(html_path from 10)::uuid from public.workflow_outputs "
+                "  where id = cast(:i as uuid))"
+            ),
+            {"i": output_id},
+        )
+        c.execute(
+            text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+            {"i": output_id},
+        )

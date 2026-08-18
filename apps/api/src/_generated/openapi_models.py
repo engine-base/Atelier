@@ -2162,11 +2162,12 @@ class ChatRelayCompleteRequest(BaseModel):
 
 class ChatRelayArtifactItem(BaseModel):
     """
-    GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件
+    GAP-137/145 — PC 操作で生まれた成果物 1 件 (HTML は html / バイナリは content_b64 のどちらか一方。MIME はサーバが拡張子から導出)
     """
 
     file_name: Annotated[str, Field(max_length=200, min_length=1)]
-    html: Annotated[str, Field(max_length=524288, min_length=1)]
+    html: Annotated[str | None, Field(max_length=524288, min_length=1)] = None
+    content_b64: Annotated[str | None, Field(max_length=11534336, min_length=1)] = None
 
 
 class ChatRelayArtifactsRequest(BaseModel):
@@ -2178,11 +2179,12 @@ class ChatRelayArtifactsRequest(BaseModel):
 class Type7(StrEnum):
     mock = "mock"
     output = "output"
+    file = "file"
 
 
 class ChatRelayArtifactResult(BaseModel):
     """
-    GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等)
+    GAP-137/139/145 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等 / type=file はバイナリ成果物 — 画像・PPTX・PDF・Excel・動画 等)
     """
 
     type: Type7
@@ -2192,6 +2194,7 @@ class ChatRelayArtifactResult(BaseModel):
     output_id: UUID | None = None
     stage: str | None = None
     title: str | None = None
+    file_kind: str | None = None
 
 
 class ChatConnectionWorker(BaseModel):

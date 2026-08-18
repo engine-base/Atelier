@@ -2006,11 +2006,12 @@ components:
 
     ChatRelayArtifactItem:
       type: object
-      description: GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件
-      required: [file_name, html]
+      description: GAP-137/145 — PC 操作で生まれた成果物 1 件 (HTML は html / バイナリは content_b64 のどちらか一方。MIME はサーバが拡張子から導出)
+      required: [file_name]
       properties:
         file_name: { type: string, minLength: 1, maxLength: 200 }
-        html: { type: string, minLength: 1, maxLength: 524288 }
+        html: { type: string, minLength: 1, maxLength: 524288, nullable: true }
+        content_b64: { type: string, minLength: 1, maxLength: 11534336, nullable: true }
 
     ChatRelayArtifactsRequest:
       type: object
@@ -2024,16 +2025,17 @@ components:
 
     ChatRelayArtifactResult:
       type: object
-      description: GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等)
+      description: GAP-137/139/145 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等 / type=file はバイナリ成果物 — 画像・PPTX・PDF・Excel・動画 等)
       required: [type, version]
       properties:
-        type: { type: string, enum: [mock, output], default: mock }
+        type: { type: string, enum: [mock, output, file], default: mock }
         version: { type: integer }
         mock_id: { type: string, format: uuid, nullable: true }
         screen_name: { type: string, nullable: true }
         output_id: { type: string, format: uuid, nullable: true }
         stage: { type: string, nullable: true }
         title: { type: string, nullable: true }
+        file_kind: { type: string, nullable: true }
 
     ChatConnectionWorker:
       type: object
@@ -5243,19 +5245,22 @@ paths:
   /outputs/{output_id}/content:
     get:
       tags: [outputs]
-      summary: mockdb 成果物 HTML の配信（自己署名トークン / GAP-139）
+      summary: DB 内蔵成果物の配信 — mockdb=HTML / filedb=バイナリ（自己署名トークン / GAP-139/145）
       x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_output_content
       x-screen-ids: [S-G01]
       parameters:
         - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: exp, in: query, required: true, schema: { type: integer, minimum: 0 } }
         - { name: sig, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 128 } }
+        - { name: dl, in: query, required: false, schema: { type: boolean, default: false }, description: filedb のとき attachment (ダウンロード) で返す }
       responses:
         '200':
-          description: 成果物 HTML (content-url が発行した期限付きトークンで到達)
+          description: 成果物 (content-url が発行した期限付きトークンで到達)。mockdb は text/html、filedb は実 MIME (画像/PPTX/PDF/Excel/動画 等)
           content:
             text/html:
               schema: { type: string }
+            application/octet-stream:
+              schema: { type: string, format: binary }
         '403': { description: トークン不正/期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: mockdb コンテンツ不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 

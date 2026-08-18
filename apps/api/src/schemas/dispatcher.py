@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class KanbanPickRequest(BaseModel):
@@ -181,10 +181,22 @@ class ChatRelayApprovalStatusResponse(BaseModel):
 
 
 class ChatRelayArtifactItem(BaseModel):
-    """GAP-137: PC 操作で生まれた成果物 (HTML) 1 件。"""
+    """GAP-137/145: PC 操作で生まれた成果物 1 件。
+
+    HTML は html、バイナリ (画像/PPTX/PDF/Excel/動画 等) は content_b64 で
+    どちらか一方を送る。MIME はサーバが拡張子から導出する (送信値を信用しない)。
+    """
 
     file_name: str = Field(min_length=1, max_length=200)
-    html: str = Field(min_length=1, max_length=512 * 1024)
+    html: str | None = Field(default=None, min_length=1, max_length=512 * 1024)
+    # 8MB バイナリの base64 (約 4/3 倍) + 余裕
+    content_b64: str | None = Field(default=None, min_length=1, max_length=11 * 1024 * 1024)
+
+    @model_validator(mode="after")
+    def _exactly_one_body(self) -> ChatRelayArtifactItem:
+        if (self.html is None) == (self.content_b64 is None):
+            raise ValueError("exactly one of html / content_b64 is required")
+        return self
 
 
 class ChatRelayArtifactsRequest(BaseModel):
@@ -200,13 +212,15 @@ class ChatRelayArtifactResult(BaseModel):
     workflow_outputs 行 (output_id/stage/title — 見積・提案書等)。
     """
 
-    type: Literal["mock", "output"] = "mock"
+    type: Literal["mock", "output", "file"] = "mock"
     version: int
     mock_id: str | None = None
     screen_name: str | None = None
     output_id: str | None = None
     stage: str | None = None
     title: str | None = None
+    # GAP-145: type="file" のみ — image/pdf/slides/sheet/doc/video
+    file_kind: str | None = None
 
 
 class ChatRelayRateLimitObservation(BaseModel):

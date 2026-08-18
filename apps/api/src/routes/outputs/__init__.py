@@ -7,11 +7,12 @@
 
 from __future__ import annotations
 
+import urllib.parse
 import uuid as uuid_mod
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,8 +29,10 @@ from src.schemas.outputs import (
 from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
 from src.services.mocks.artifacts import (
+    FILEDB_PREFIX,
     MOCKDB_PREFIX,
     build_content_url,
+    fetch_file_content,
     fetch_mock_content,
     verify_content_token,
 )
@@ -100,7 +103,8 @@ async def get_output_content_url(
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"output has no rendered {format.upper()} yet"
         )
-    if path.startswith(MOCKDB_PREFIX):
+    if path.startswith(MOCKDB_PREFIX) or path.startswith(FILEDB_PREFIX):
+        # GAP-139/145: DB 内蔵ストア (HTML / バイナリ) は自己署名 URL で配信
         return {
             "data": ContentUrlResponse(
                 url=build_content_url(str(request.base_url), output_id, resource="outputs")
@@ -117,18 +121,20 @@ async def get_output_content_url(
 
 @router.get(
     "/outputs/{output_id}/content",
-    summary="mockdb 成果物 HTML の配信 (自己署名トークン / GAP-139)",
-    response_class=HTMLResponse,
+    summary="DB 内蔵成果物の配信 — mockdb=HTML / filedb=バイナリ (自己署名トークン / GAP-139/145)",
 )
 async def get_output_content(
     output_id: str,
     exp: Annotated[int, Query(ge=0)],
     sig: Annotated[str, Query(min_length=32, max_length=128)],
-) -> HTMLResponse:
-    """content-url が発行した期限付きトークンで mockdb 成果物 HTML を返す。
+    dl: Annotated[bool, Query()] = False,
+) -> Response:
+    """content-url が発行した期限付きトークンで DB 内蔵成果物を返す。
 
     routes/mocks の /mocks/{id}/content と同じ契約 — 可視性は content-url
     発行時に RLS で確認済みで、その証明が sig (HMAC)。
+    GAP-145: filedb (画像/PPTX/PDF/Excel/動画 等) は実 MIME で配信し、
+    dl=1 なら attachment (ダウンロード)、無指定なら inline (ブラウザ表示)。
     """
     if not verify_content_token(output_id, exp, sig):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
@@ -147,15 +153,26 @@ async def get_output_content(
                 {"i": output_id},
             )
         ).first()
-        if (
-            row is None
-            or row.html_path is None
-            or not str(row.html_path).startswith(MOCKDB_PREFIX)
-        ):
+        path = None if row is None or row.html_path is None else str(row.html_path)
+        if path is not None and path.startswith(FILEDB_PREFIX):
+            found = await fetch_file_content(session, file_id=path[len(FILEDB_PREFIX) :])
+            if found is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+            data, mime, file_name = found
+            quoted = urllib.parse.quote(file_name)
+            disposition = "attachment" if dl else "inline"
+            return Response(
+                content=data,
+                media_type=mime,
+                headers={
+                    "Cache-Control": "private, max-age=60",
+                    "X-Robots-Tag": "noindex",
+                    "Content-Disposition": f"{disposition}; filename*=UTF-8''{quoted}",
+                },
+            )
+        if path is None or not path.startswith(MOCKDB_PREFIX):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
-        html = await fetch_mock_content(
-            session, content_id=str(row.html_path)[len(MOCKDB_PREFIX) :]
-        )
+        html = await fetch_mock_content(session, content_id=path[len(MOCKDB_PREFIX) :])
     if html is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
     return HTMLResponse(

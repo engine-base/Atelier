@@ -140,11 +140,16 @@ export function summarizeToolInput(tool: string, input: Record<string, unknown>)
 
 export const MAX_ARTIFACTS_PER_JOB = 10;
 export const MAX_ARTIFACT_BYTES = 512 * 1024;
+// GAP-145: バイナリ成果物 (画像 / PPTX / PDF / Excel / 動画 等)。
+// 対応拡張子はサーバ (services/mocks/artifacts.py FILE_TYPES) と対で保守する。
+export const MAX_BINARY_ARTIFACT_BYTES = 8 * 1024 * 1024;
+export const BINARY_ARTIFACT_RE =
+  /\.(png|jpe?g|gif|webp|svg|pdf|pptx?|xlsx?|docx?|csv|mp4|webm|mov)$/i;
 const ARTIFACT_SKIP_DIRS = new Set(['.git', 'node_modules', '__pycache__', '.venv']);
 const ARTIFACT_MAX_DEPTH = 3;
 
-/** 作業フォルダ内の *.html/.htm の mtime を記録する (深さ 3 まで)。 */
-export function snapshotHtmlFiles(root: string): Map<string, number> {
+/** 作業フォルダ内の成果物候補 (*.html/.htm + 対応バイナリ) の mtime を記録する (深さ 3 まで)。 */
+export function snapshotArtifactFiles(root: string): Map<string, number> {
   const out = new Map<string, number>();
   const walk = (dir: string, depth: number): void => {
     let entries;
@@ -163,7 +168,7 @@ export function snapshotHtmlFiles(root: string): Map<string, number> {
         ) {
           walk(full, depth + 1);
         }
-      } else if (/\.html?$/i.test(entry.name)) {
+      } else if (/\.html?$/i.test(entry.name) || BINARY_ARTIFACT_RE.test(entry.name)) {
         try {
           out.set(full, statSync(full).mtimeMs);
         } catch {
@@ -178,15 +183,18 @@ export function snapshotHtmlFiles(root: string): Map<string, number> {
 
 export interface ChatArtifact {
   readonly fileName: string;
-  readonly html: string;
+  /** HTML 成果物 (どちらか一方が必ず入る)。 */
+  readonly html?: string;
+  /** GAP-145: バイナリ成果物の base64。 */
+  readonly contentB64?: string;
 }
 
-/** スナップショット比較で新規/更新 HTML を集める (新しい順・上限つき)。 */
-export function collectNewHtmlArtifacts(
+/** スナップショット比較で新規/更新の成果物を集める (新しい順・上限つき)。 */
+export function collectNewArtifacts(
   root: string,
   before: ReadonlyMap<string, number>,
 ): ChatArtifact[] {
-  const after = snapshotHtmlFiles(root);
+  const after = snapshotArtifactFiles(root);
   const changed = [...after.entries()]
     .filter(([path, mtime]) => {
       const prev = before.get(path);
@@ -202,11 +210,14 @@ export function collectNewHtmlArtifacts(
     } catch {
       continue;
     }
-    if (raw.byteLength > MAX_ARTIFACT_BYTES) continue;
-    out.push({
-      fileName: relative(root, path).split(sep).join('/'),
-      html: raw.toString('utf8'),
-    });
+    const fileName = relative(root, path).split(sep).join('/');
+    if (/\.html?$/i.test(path)) {
+      if (raw.byteLength > MAX_ARTIFACT_BYTES) continue;
+      out.push({ fileName, html: raw.toString('utf8') });
+    } else {
+      if (raw.byteLength > MAX_BINARY_ARTIFACT_BYTES) continue;
+      out.push({ fileName, contentB64: raw.toString('base64') });
+    }
   }
   return out;
 }
@@ -493,6 +504,7 @@ export class ChatRelayWorker {
         mkdirSync(workspace, { recursive: true });
         const seed = await this.api.chatRelayWorkspaceSeed(jobId);
         for (const f of seed) {
+          if (f.html === undefined) continue; // seed は HTML 正本のみ (GAP-141)
           const safe = f.fileName.replaceAll('\\', '/').split('/').pop() ?? '';
           if (safe === '' || safe === '.' || safe === '..') continue;
           const target = join(workspace, safe);
@@ -508,7 +520,7 @@ export class ChatRelayWorker {
       }
     }
     // GAP-137: PC 操作の成果物検出 — 実行前スナップショット (seed 展開後)
-    const wsBefore = workspace !== null ? snapshotHtmlFiles(workspace) : null;
+    const wsBefore = workspace !== null ? snapshotArtifactFiles(workspace) : null;
 
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
@@ -531,11 +543,11 @@ export class ChatRelayWorker {
     flush();
     await sendChain;
 
-    // GAP-137: 成功時のみ、作業フォルダの新規/更新 HTML をモックとして
+    // GAP-137/145: 成功時のみ、作業フォルダの新規/更新成果物 (HTML + 画像/PPTX/PDF 等) を
     // ツール内へ反映する (complete 前に送る — SSE が同一ストリームで
     // 「モック保存」カードを配れる)。送信失敗は応答自体を壊さない。
     if (run.ok && sendError === null && workspace !== null && wsBefore !== null) {
-      const artifacts = collectNewHtmlArtifacts(workspace, wsBefore);
+      const artifacts = collectNewArtifacts(workspace, wsBefore);
       if (artifacts.length > 0) {
         try {
           await this.api.chatRelayUploadArtifacts(jobId, artifacts);

@@ -6511,12 +6511,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** mockdb 成果物 HTML の配信（自己署名トークン / GAP-139） */
+        /** DB 内蔵成果物の配信 — mockdb=HTML / filedb=バイナリ（自己署名トークン / GAP-139/145） */
         get: {
             parameters: {
                 query: {
                     exp: number;
                     sig: string;
+                    /** @description filedb のとき attachment (ダウンロード) で返す */
+                    dl?: boolean;
                 };
                 header?: never;
                 path: {
@@ -6526,13 +6528,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description 成果物 HTML (content-url が発行した期限付きトークンで到達) */
+                /** @description 成果物 (content-url が発行した期限付きトークンで到達)。mockdb は text/html、filedb は実 MIME (画像/PPTX/PDF/Excel/動画 等) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "text/html": string;
+                        "application/octet-stream": string;
                     };
                 };
                 /** @description トークン不正/期限切れ */
@@ -16662,21 +16665,22 @@ export interface components {
             error?: string | null;
             rate_limits?: components["schemas"]["ChatRelayRateLimitObservation"][] | null;
         };
-        /** @description GAP-137 — PC 操作で生まれた成果物 (HTML) 1 件 */
+        /** @description GAP-137/145 — PC 操作で生まれた成果物 1 件 (HTML は html / バイナリは content_b64 のどちらか一方。MIME はサーバが拡張子から導出) */
         ChatRelayArtifactItem: {
             file_name: string;
-            html: string;
+            html?: string | null;
+            content_b64?: string | null;
         };
         ChatRelayArtifactsRequest: {
             artifacts: components["schemas"]["ChatRelayArtifactItem"][];
         };
-        /** @description GAP-137/139 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等) */
+        /** @description GAP-137/139/145 — 取り込み結果 (type=mock は mocks 行 / type=output は workflow_outputs 行 — 見積・提案書等 / type=file はバイナリ成果物 — 画像・PPTX・PDF・Excel・動画 等) */
         ChatRelayArtifactResult: {
             /**
              * @default mock
              * @enum {string}
              */
-            type: "mock" | "output";
+            type: "mock" | "output" | "file";
             version: number;
             /** Format: uuid */
             mock_id?: string | null;
@@ -16685,6 +16689,7 @@ export interface components {
             output_id?: string | null;
             stage?: string | null;
             title?: string | null;
+            file_kind?: string | null;
         };
         /** @description GAP-119 — presence 鮮度内（90 秒）の Bridge worker 1 台 */
         ChatConnectionWorker: {

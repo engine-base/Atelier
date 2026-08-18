@@ -229,6 +229,7 @@ async def save_job_artifacts(
         MAX_ARTIFACTS_PER_JOB,
         ArtifactIngestError,
         classify_artifact,
+        ingest_file_artifact,
         ingest_html_artifact,
         ingest_html_output,
     )
@@ -252,9 +253,7 @@ async def save_job_artifacts(
     if requester_user_id is not None and str(row.requested_by) != requester_user_id:
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
     if len(artifacts) > MAX_ARTIFACTS_PER_JOB:
-        raise ChatRelayError(
-            "invalid_state", f"artifacts exceed limit ({MAX_ARTIFACTS_PER_JOB})"
-        )
+        raise ChatRelayError("invalid_state", f"artifacts exceed limit ({MAX_ARTIFACTS_PER_JOB})")
     project_id = str(row.project_id)
 
     results: list[dict[str, object]] = []
@@ -271,10 +270,42 @@ async def save_job_artifacts(
     )
     for artifact in artifacts:
         file_name = str(artifact.get("file_name", ""))
+        content_b64 = artifact.get("content_b64")
+        if content_b64:
+            # GAP-145: バイナリ成果物 (画像 / PPTX / PDF / Excel / 動画 等)
+            import base64 as _b64
+
+            try:
+                data = _b64.b64decode(str(content_b64), validate=True)
+            except Exception as exc:
+                raise ChatRelayError(
+                    "invalid_state", f"{file_name}: content_b64 が不正です"
+                ) from exc
+            try:
+                ingested = await ingest_file_artifact(
+                    session,
+                    project_id=project_id,
+                    file_name=file_name,
+                    data=data,
+                    source="chat_pc_tools",
+                    actor_label="bridge",
+                    instruction=str(row.prompt),
+                )
+            except ArtifactIngestError as exc:
+                raise ChatRelayError(exc.code, exc.message) from exc
+            await session.execute(
+                text(
+                    "insert into public.chat_relay_chunks (job_id, seq, content, kind) "
+                    "values (cast(:j as uuid), :s, :c, 'artifact') "
+                    "on conflict (job_id, seq) do nothing"
+                ),
+                {"j": job_id, "s": next_seq, "c": json.dumps(ingested)},
+            )
+            next_seq += 1
+            results.append(dict(ingested))
+            continue
         html = str(artifact.get("html", ""))
-        kind = classify_artifact(
-            file_name=file_name, html=html, instruction=str(row.prompt)
-        )
+        kind = classify_artifact(file_name=file_name, html=html, instruction=str(row.prompt))
         try:
             if kind == ARTIFACT_KIND_MOCK:
                 ingested: dict[str, object] = {

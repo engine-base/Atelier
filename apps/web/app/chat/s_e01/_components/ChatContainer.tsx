@@ -100,6 +100,16 @@ const ARTIFACT_STAGE_LABELS: Record<string, string> = {
   hearing: "議事録",
 };
 
+// GAP-145: バイナリ成果物の種類ラベル (サーバー側 FILE_KIND_LABELS と同一)
+const ARTIFACT_FILE_KIND_LABELS: Record<string, string> = {
+  image: "画像",
+  pdf: "PDF",
+  slides: "スライド",
+  sheet: "表計算",
+  doc: "文書",
+  video: "動画",
+};
+
 type StreamFn = (args: StreamChatArgs) => Promise<void>;
 
 export interface ChatContextSummary {
@@ -472,7 +482,21 @@ export function ChatContainer({
           // type=mock はモック、type=output は成果物 (提案書・見積書等)。
           const meta = chunk.metadata ?? {};
           const version = typeof meta.version === "number" ? meta.version : 1;
-          if (meta.type === "output" && typeof meta.output_id === "string") {
+          if (meta.type === "file" && typeof meta.output_id === "string") {
+            // GAP-145: バイナリ成果物 (画像/PPTX/PDF/Excel/動画 等)
+            const fileKind = typeof meta.file_kind === "string" ? meta.file_kind : "";
+            setSavedArtifacts((prev) => [
+              ...prev,
+              {
+                id: meta.output_id as string,
+                kindLabel: ARTIFACT_FILE_KIND_LABELS[fileKind] ?? "ファイル",
+                name: typeof meta.title === "string" ? meta.title : "",
+                version,
+                href: `/outputs?output=${encodeURIComponent(meta.output_id as string)}`,
+                openLabel: "成果物で開く",
+              },
+            ]);
+          } else if (meta.type === "output" && typeof meta.output_id === "string") {
             const stage = typeof meta.stage === "string" ? meta.stage : "";
             setSavedArtifacts((prev) => [
               ...prev,
