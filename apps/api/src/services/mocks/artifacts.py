@@ -341,6 +341,51 @@ async def ingest_html_output(
     }
 
 
+# ── GAP-142: Open Design 型の要素選択 (プレビュー内クリック → 親へ通知) ──
+#
+# mockdb 配信 HTML に ?sel=1 のときだけ注入する軽量スクリプト。
+# hover で紫の点線ハイライト、クリックで既定動作を止めて parent へ
+# postMessage({type:'atelier-element-selected', selector, label, html})。
+# iframe は API オリジン (web とは別オリジン) なので親 DOM には触れない —
+# 通信は postMessage のみ (安全)。
+
+SELECTION_SCRIPT = (
+    "<script data-atelier-select>(function(){"
+    "var cur=null;"
+    "var st=document.createElement('style');"
+    "st.textContent='.__atsel{outline:2px dashed #7c3aed !important;"
+    "outline-offset:2px;cursor:crosshair !important}';"
+    "document.head.appendChild(st);"
+    "function lbl(el){var t=(el.innerText||'').trim().replace(/\\s+/g,' ').slice(0,40);"
+    "return '<'+el.tagName.toLowerCase()+'>'+(t?' '+t:'');}"
+    "function sel(el){var p=[],e=el;"
+    "while(e&&e.nodeType===1&&p.length<5&&e.tagName!=='BODY'){"
+    "var tg=e.tagName.toLowerCase();var par=e.parentElement;var idx=1;"
+    "if(par){var sib=par.children;var n=0;for(var i=0;i<sib.length;i++){"
+    "if(sib[i].tagName===e.tagName){n++;if(sib[i]===e){idx=n;}}}}"
+    "p.unshift(e.id?tg+'#'+e.id:tg+':nth-of-type('+idx+')');"
+    "if(e.id)break;e=par;}return p.join(' > ');}"
+    "document.addEventListener('mouseover',function(ev){"
+    "if(cur&&cur.classList)cur.classList.remove('__atsel');cur=ev.target;"
+    "if(cur&&cur.classList)cur.classList.add('__atsel');},true);"
+    "document.addEventListener('click',function(ev){"
+    "ev.preventDefault();ev.stopPropagation();var el=ev.target;"
+    "parent.postMessage({type:'atelier-element-selected',"
+    "selector:sel(el),label:lbl(el),html:(el.outerHTML||'').slice(0,600)},'*');"
+    "},true);"
+    "})();</script>"
+)
+
+
+def inject_selection_script(html: str) -> str:
+    """</body> の直前 (無ければ末尾) に要素選択スクリプトを注入する。"""
+    lower = html.lower()
+    idx = lower.rfind("</body>")
+    if idx < 0:
+        return html + SELECTION_SCRIPT
+    return html[:idx] + SELECTION_SCRIPT + html[idx:]
+
+
 # ── mockdb 閲覧 URL の自己署名 (routes/mocks が使う) ────────────────
 
 

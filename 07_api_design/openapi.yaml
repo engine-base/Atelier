@@ -4400,6 +4400,7 @@ paths:
         - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: exp, in: query, required: true, schema: { type: integer, minimum: 0 } }
         - { name: sig, in: query, required: true, schema: { type: string, minLength: 32, maxLength: 128 } }
+        - { name: sel, in: query, required: false, schema: { type: integer, minimum: 0, maximum: 1, default: 0 }, description: "GAP-142: 1 で要素選択スクリプト (Open Design 型クリック選択) を注入" }
       responses:
         '200':
           description: モック HTML (content-url が発行した期限付きトークンで到達)

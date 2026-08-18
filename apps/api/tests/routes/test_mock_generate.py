@@ -274,3 +274,30 @@ def test_revise_on_mockdb_mock_stays_in_mockdb(app: FastAPI, seeded: dict[str, s
         page = client.get(cu[cu.index("/mocks/") :])
         assert page.status_code == 200
         assert "data-fake-revision" in page.text
+
+
+@pytest.mark.integration
+def test_content_sel_param_injects_selection_script(
+    app: FastAPI, seeded: dict[str, str]
+) -> None:
+    """GAP-142: sel=1 のときだけ要素選択スクリプトが注入される。"""
+    h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
+    with TestClient(app) as client:
+        mock = client.post(
+            "/mocks/generate",
+            json={
+                "project_id": seeded["proj"],
+                "screen_name": "選択検証",
+                "instruction": "画面を作って",
+            },
+            headers=h,
+        ).json()["data"]
+        url = client.get(f"/mocks/{mock['id']}/content-url", headers=h).json()["data"]["url"]
+        path = url[url.index("/mocks/") :]
+        plain = client.get(path)
+        assert plain.status_code == 200
+        assert "data-atelier-select" not in plain.text
+        injected = client.get(f"{path}&sel=1")
+        assert injected.status_code == 200
+        assert "data-atelier-select" in injected.text
+        assert "atelier-element-selected" in injected.text

@@ -18,10 +18,29 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { cn } from "../../../../lib/cn";
+
+/** GAP-142: プレビュー内クリックで選択された要素 (postMessage の実値)。 */
+export interface SelectedElement {
+  readonly selector: string;
+  readonly label: string;
+  readonly html: string;
+}
+
+/** 選択要素を添えた修正指示の合成 (純関数 — テスト対象)。 */
+export function composeInstruction(
+  text: string,
+  selected: SelectedElement | null,
+): string {
+  if (selected === null) return text;
+  return (
+    `対象要素 (CSS: ${selected.selector} / ${selected.label}) について: ${text}\n\n` +
+    `対象要素の現在の HTML:\n${selected.html}`
+  );
+}
 
 export type ViewportPreset = "320" | "768" | "1024" | "1440";
 
@@ -149,24 +168,6 @@ function MessageIcon() {
   );
 }
 
-function EditIcon() {
-  return (
-    <svg
-      width={13}
-      height={13}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
-}
 
 /** バージョン履歴カード 1 件分 (実 /mocks/{id}/versions の 1 行)。 */
 export interface MockVersionItem {
@@ -253,13 +254,40 @@ export function MockViewer({
 }: MockViewerProps) {
   const [preset, setPreset] = useState<ViewportPreset>(initialPreset);
   const [draft, setDraft] = useState("");
-  const [editOpen, setEditOpen] = useState(false);
   const [instructionDraft, setInstructionDraft] = useState("");
   // 破棄の 2 段階確認: 対象バージョン id (null = 確認中なし)
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  // GAP-142 (Open Design / Studio 型): 要素選択モード + 選択中要素
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<SelectedElement | null>(null);
+  useEffect(() => {
+    const onMessage = (ev: MessageEvent) => {
+      const d = ev.data as
+        | { type?: string; selector?: string; label?: string; html?: string }
+        | null;
+      if (
+        d &&
+        d.type === "atelier-element-selected" &&
+        typeof d.selector === "string" &&
+        typeof d.label === "string"
+      ) {
+        setSelected({
+          selector: d.selector,
+          label: d.label,
+          html: typeof d.html === "string" ? d.html : "",
+        });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
   const width = VIEWPORT_W[preset];
   const openCount = (comments ?? []).filter((c) => !c.resolved).length;
   const hasSidePanel = versions !== undefined || comments !== undefined;
+  // 選択モード中は配信 HTML に選択スクリプトを注入した URL を使う (mockdb のみ有効)
+  const frameSrc = src === null ? null : selecting ? `${src}&sel=1` : src;
+  // 会話パネル: バージョン履歴を「指示 → ワンダの応答」の会話として古い順に描く
+  const conversation = [...(versions ?? [])].sort((a, b) => a.version - b.version);
 
   return (
     <section
@@ -297,9 +325,142 @@ export function MockViewer({
       <div
         className={cn(
           "grid grid-cols-1",
-          hasSidePanel && "lg:grid-cols-[1fr_320px]",
+          onRevise && hasSidePanel
+            ? "lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_320px]"
+            : onRevise
+              ? "lg:grid-cols-[300px_1fr]"
+              : hasSidePanel && "lg:grid-cols-[1fr_320px]",
         )}
       >
+        {/* ── GAP-142: ワンダのスタジオパネル (Open Design / Studio 型) ──
+            会話 (バージョン履歴) + 指示入力 + 要素クリック選択をプレビューの
+            隣に常設する。 */}
+        {onRevise ? (
+          <aside
+            aria-label="ワンダとデザイン"
+            className="flex min-h-0 flex-col border-b border-border bg-surface lg:max-h-[720px] lg:border-b-0 lg:border-r"
+          >
+            <div className="border-b border-border px-md py-3.5">
+              <h2 className="text-[13px] font-bold text-on-surface">
+                ワンダとデザイン
+              </h2>
+              <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                指示するたびに新しいバージョンが作られます
+              </p>
+            </div>
+            <div
+              role="log"
+              aria-label="デザインの会話履歴"
+              className="min-h-0 flex-1 overflow-y-auto px-md py-sm"
+            >
+              <ul className="space-y-2">
+              {conversation.length === 0 ? (
+                <li className="text-[12px] text-on-surface-variant">
+                  まだ履歴がありません。下の入力からワンダに指示してください。
+                </li>
+              ) : null}
+              {conversation.map((v) => (
+                <li key={v.id} className="space-y-1.5">
+                  {v.instruction ? (
+                    <p className="ml-6 rounded-lg rounded-br-sm bg-primary-container px-2.5 py-1.5 text-[12px] leading-relaxed text-primary-container-fg">
+                      {v.instruction}
+                    </p>
+                  ) : null}
+                  <p className="mr-6 rounded-lg rounded-bl-sm bg-surface-variant px-2.5 py-1.5 text-[12px] leading-relaxed text-on-surface">
+                    <span className="font-semibold">ワンダ:</span> v{v.version}{" "}
+                    を作成しました
+                    {v.note ? ` — ${v.note}` : ""}
+                    {v.current ? (
+                      <span className="ml-1 text-[10.5px] text-primary">
+                        (表示中)
+                      </span>
+                    ) : null}
+                  </p>
+                </li>
+              ))}
+              </ul>
+            </div>
+            <div className="border-t border-border px-md py-sm">
+              {/* 要素クリック選択 (Open Design 型): プレビュー内をクリックして対象を指定 */}
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={selecting}
+                  onClick={() => {
+                    setSelecting((v) => !v);
+                    if (selecting) setSelected(null);
+                  }}
+                  className={cn(
+                    "rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors",
+                    selecting
+                      ? "border-primary bg-primary text-on-primary"
+                      : "border-border text-on-surface-variant hover:border-primary hover:text-primary",
+                  )}
+                >
+                  {selecting ? "要素を選択中 (クリックで指定)" : "要素を選択"}
+                </button>
+                {selected ? (
+                  <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-tertiary-container px-2 py-0.5 text-[11px] text-tertiary-container-fg">
+                    <span className="truncate">選択中: {selected.label}</span>
+                    <button
+                      type="button"
+                      aria-label="選択を解除"
+                      onClick={() => setSelected(null)}
+                      className="font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ) : null}
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const text = instructionDraft.trim();
+                  if (!text || revising) return;
+                  onRevise(composeInstruction(text, selected));
+                  setInstructionDraft("");
+                }}
+              >
+                <label className="block">
+                  <span className="sr-only">ワンダへの指示</span>
+                  <textarea
+                    value={instructionDraft}
+                    onChange={(e) => setInstructionDraft(e.target.value)}
+                    rows={3}
+                    maxLength={4000}
+                    disabled={revising}
+                    placeholder={
+                      selected
+                        ? "選択した要素をどう変えますか？ (例: 文言を「今すぐ試す」に)"
+                        : "例: ヘッダーをブランドカラーに。CTA を右上に移動"
+                    }
+                    className="w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[12.5px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
+                  />
+                </label>
+                <div className="mt-1.5 flex items-center justify-between gap-xs">
+                  {revising ? (
+                    <span role="status" className="text-[11.5px] text-on-surface-variant">
+                      ワンダが改訂中…
+                    </span>
+                  ) : (
+                    <span className="text-[10.5px] text-on-surface-variant">
+                      あなたの Claude プランで実行
+                    </span>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!instructionDraft.trim() || revising}
+                    className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    送信
+                  </button>
+                </div>
+              </form>
+            </div>
+          </aside>
+        ) : null}
+
         {/* ── viewer-main ─────────────────────────────── */}
         <div className="flex min-w-0 flex-col">
           {/* ツールバー: デバイス切替 + 寸法 + アクション */}
@@ -356,83 +517,9 @@ export function MockViewer({
                     </a>
                   </>
                 ) : null}
-                {onRevise ? (
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen((v) => !v)}
-                    aria-expanded={editOpen}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
-                  >
-                    <EditIcon />
-                    編集
-                  </button>
-                ) : null}
               </div>
             ) : null}
           </div>
-
-          {/* 編集 = ワンダ (AI デザイナー) への修正依頼フォーム (Open Design パターン) */}
-          {onRevise && editOpen ? (
-            <div
-              role="dialog"
-              aria-label="ワンダに修正を依頼"
-              className="border-b border-border bg-secondary-container/40 px-md py-md"
-            >
-              <h3 className="text-[13px] font-bold text-on-surface">
-                ワンダに修正を依頼
-              </h3>
-              <p className="mt-0.5 text-[11.5px] text-on-surface-variant">
-                デザイナー AI「ワンダ」が指示に従って HTML
-                を改訂し、新しいバージョンを作成します。
-              </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const text = instructionDraft.trim();
-                  if (!text || revising) return;
-                  onRevise(text);
-                }}
-              >
-                <label className="mt-2 block">
-                  <span className="sr-only">修正指示</span>
-                  <textarea
-                    value={instructionDraft}
-                    onChange={(e) => setInstructionDraft(e.target.value)}
-                    rows={3}
-                    maxLength={4000}
-                    disabled={revising}
-                    placeholder="例: ヘッダーの背景色をブランドカラーに変更して、CTA ボタンを右上に移動してください"
-                    className="w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[13px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
-                  />
-                </label>
-                <div className="mt-2 flex items-center justify-end gap-xs">
-                  {revising ? (
-                    <span
-                      role="status"
-                      className="mr-auto text-[12px] text-on-surface-variant"
-                    >
-                      ワンダが改訂中です…（数十秒かかることがあります）
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => setEditOpen(false)}
-                    disabled={revising}
-                    className="rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant disabled:opacity-50"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!instructionDraft.trim() || revising}
-                    className="inline-flex items-center rounded-md bg-primary px-4 py-1.5 text-[12px] font-semibold text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    修正を依頼
-                  </button>
-                </div>
-              </form>
-            </div>
-          ) : null}
 
           {/* バージョン操作の結果通知 (成功 / 失敗) */}
           {actionError ? (
@@ -457,10 +544,10 @@ export function MockViewer({
               className="overflow-hidden rounded-lg bg-surface shadow-md transition-[width] duration-300 ease-out-expo"
               style={{ width }}
             >
-              {src ? (
+              {frameSrc ? (
                 <iframe
                   title={title}
-                  src={src}
+                  src={frameSrc}
                   width={width}
                   height={VIEWPORT_H}
                   className="block w-full border-0 bg-surface"

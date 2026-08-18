@@ -31,6 +31,7 @@ from src.services.mocks.artifacts import (
     MOCKDB_PREFIX,
     build_content_url,
     fetch_mock_content,
+    inject_selection_script,
     verify_content_token,
 )
 from src.storage_signing import StorageSigningError, create_signed_download_url
@@ -121,11 +122,13 @@ async def get_mock_content(
     mock_id: str,
     exp: Annotated[int, Query(ge=0)],
     sig: Annotated[str, Query(min_length=32, max_length=128)],
+    sel: Annotated[int, Query(ge=0, le=1)] = 0,
 ) -> HTMLResponse:
     """content-url が発行した期限付きトークンで mockdb HTML を返す。
 
     iframe から Authorization 無しで届くため JWT は使わない — 可視性は
     content-url 発行時に RLS で確認済みで、その証明が sig (HMAC)。
+    GAP-142: sel=1 で要素選択スクリプト (Open Design 型のクリック選択) を注入。
     """
     if not verify_content_token(mock_id, exp, sig):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
@@ -151,6 +154,8 @@ async def get_mock_content(
         )
     if html is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock content not found")
+    if sel == 1:
+        html = inject_selection_script(html)
     return HTMLResponse(
         content=html,
         headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},

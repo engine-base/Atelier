@@ -223,3 +223,23 @@ class TestClassifyArtifact:
             )
             == "mock"
         )
+
+
+class TestSelectionInjection:
+    """GAP-142: Open Design 型の要素選択スクリプト注入。"""
+
+    def test_injects_before_body_close(self) -> None:
+        from src.services.mocks.artifacts import SELECTION_SCRIPT, inject_selection_script
+
+        html = "<html><body><h1>x</h1></body></html>"
+        out = inject_selection_script(html)
+        assert SELECTION_SCRIPT in out
+        assert out.index(SELECTION_SCRIPT) < out.index("</body>")
+        assert "atelier-element-selected" in out
+
+    def test_appends_when_no_body_close(self) -> None:
+        from src.services.mocks.artifacts import inject_selection_script
+
+        out = inject_selection_script("<h1>fragment</h1>")
+        assert out.startswith("<h1>fragment</h1>")
+        assert "data-atelier-select" in out

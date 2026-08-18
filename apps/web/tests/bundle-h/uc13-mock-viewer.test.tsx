@@ -270,14 +270,14 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
     renderWithQuery(
       <MockViewerContainer mockId="m2" client={client as never} />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: /編集/ }));
+    // GAP-142: Open Design (Studio) 型 — 常設のワンダパネルから直接指示する
     expect(
-      screen.getByRole("dialog", { name: "ワンダに修正を依頼" }),
+      await screen.findByRole("complementary", { name: "ワンダとデザイン" }),
     ).toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox", { name: "修正指示" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "ワンダへの指示" }), {
       target: { value: "CTA を右上へ移動" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     const [path, init] = post.mock.calls[0]! as unknown as [
       string,
@@ -310,11 +310,11 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
     renderWithQuery(
       <MockViewerContainer mockId="m2" client={client as never} />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: /編集/ }));
-    fireEvent.change(screen.getByRole("textbox", { name: "修正指示" }), {
-      target: { value: "直して" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
+    fireEvent.change(
+      await screen.findByRole("textbox", { name: "ワンダへの指示" }),
+      { target: { value: "直して" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
     // 503 は retry 2 回 (指数バックオフ) を経て確定するため待ちを延ばす
     expect(
       await screen.findByRole("alert", {}, { timeout: 10000 }),
@@ -567,5 +567,57 @@ describe("S-H01 MockListContainer (一覧ピッカー)", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
     await waitFor(() => expect(post).toHaveBeenCalled());
+  });
+});
+
+describe("S-H01 モックスタジオ (GAP-142 — Open Design 型)", () => {
+  it("要素選択トグルで iframe が sel=1 の注入 URL に切り替わる", async () => {
+    renderWithQuery(<MockViewerContainer mockId="m2" client={fakeClient(standardGet())} />);
+    const frame = await screen.findByTitle("ログイン画面");
+    const base = frame.getAttribute("src")!;
+    expect(base).not.toContain("sel=1");
+    fireEvent.click(screen.getByRole("button", { name: "要素を選択" }));
+    await waitFor(() =>
+      expect(screen.getByTitle("ログイン画面")).toHaveAttribute("src", `${base}&sel=1`),
+    );
+  });
+
+  it("プレビューからの postMessage で選択チップが出て、指示に要素情報が添付される", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => ({ data: { id: "m3", version: 3 } }));
+    const client = { ...fakeClient(get), post } as unknown as ApiClient;
+    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    await screen.findByRole("complementary", { name: "ワンダとデザイン" });
+    fireEvent.click(screen.getByRole("button", { name: "要素を選択" }));
+    // iframe 内クリック相当 (選択スクリプトの postMessage 実値と同形)
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        data: {
+          type: "atelier-element-selected",
+          selector: "main > button:nth-of-type(1)",
+          label: "<button> ログイン",
+          html: "<button>ログイン</button>",
+        },
+      }),
+    );
+    expect(await screen.findByText(/選択中: <button> ログイン/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "ワンダへの指示" }), {
+      target: { value: "文言を「今すぐ試す」に" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const body = (post.mock.calls[0]! as unknown as [string, { body: { instruction: string } }])[1]
+      .body;
+    expect(body.instruction).toContain("対象要素 (CSS: main > button:nth-of-type(1)");
+    expect(body.instruction).toContain("文言を「今すぐ試す」に");
+    expect(body.instruction).toContain("<button>ログイン</button>");
+  });
+
+  it("会話パネルにバージョン履歴が「指示 → ワンダの応答」として並ぶ", async () => {
+    renderWithQuery(<MockViewerContainer mockId="m2" client={fakeClient(standardGet())} />);
+    const log = await screen.findByRole("log", { name: "デザインの会話履歴" });
+    expect(log).toHaveTextContent("v1 を作成しました");
+    expect(log).toHaveTextContent("v2 を作成しました");
   });
 });

@@ -4500,6 +4500,8 @@ export interface paths {
                 query: {
                     exp: number;
                     sig: string;
+                    /** @description GAP-142: 1 で要素選択スクリプト (Open Design 型クリック選択) を注入 */
+                    sel?: number;
                 };
                 header?: never;
                 path: {
