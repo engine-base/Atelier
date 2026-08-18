@@ -15574,6 +15574,11 @@ export interface components {
             query: string;
             hits: components["schemas"]["KnowledgeSearchHit"][];
             total: number;
+            /**
+             * @description GAP-133: 検索モードの誠実表示。semantic:voyage-3-large / semantic:local:<model> / text_fallback (意味検索が効いていない状態を UI に隠さない)
+             * @default text_fallback
+             */
+            search_mode: string;
         };
         KnowledgePromoteRequest: {
             /** Format: uuid */

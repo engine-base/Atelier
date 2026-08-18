@@ -23,6 +23,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# GAP-133: ローカル埋め込み (課金ゼロの意味検索)。導入は任意 —
+# 未導入でも import は失敗せず ilike フォールバックで誠実 degrade する。
+localrag = [
+  "fastembed>=0.7.0",
+]
+# GAP-113/129/130: オーナーの Claude サブスク実行 (agent_sdk モード)。任意 —
+# 未導入でも import は失敗せず、opt-in 時に誠実エラーを返す。
+subscription = [
+  "claude-agent-sdk>=0.2.139",
+]
 dev = [
   "pytest>=8.3.0",
   "pytest-asyncio>=0.24.0",

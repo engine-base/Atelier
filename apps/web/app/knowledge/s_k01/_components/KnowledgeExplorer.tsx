@@ -154,6 +154,8 @@ export function KnowledgeExplorer({
   };
   const [searchInput, setSearchInput] = useState("");
   const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
+  // GAP-133: 検索モードの誠実表示 (semantic:… / text_fallback)
+  const [searchMode, setSearchMode] = useState<string | null>(null);
 
   const rootKey = ["knowledge", "tree", accountId, scope] as const;
 
@@ -202,9 +204,14 @@ export function KnowledgeExplorer({
       const res = await client.post("/knowledge/search", {
         body: { query: q, account_id: accountId, limit: 20 },
       });
-      return unwrapHits(res);
+      const mode =
+        (res as { data?: { search_mode?: string } }).data?.search_mode ?? null;
+      return { hits: unwrapHits(res), mode };
     },
-    onSuccess: (hits) => setSearchHits(hits),
+    onSuccess: ({ hits, mode }) => {
+      setSearchHits(hits);
+      setSearchMode(mode);
+    },
   });
 
   const runSearch = (): void => {
@@ -214,6 +221,7 @@ export function KnowledgeExplorer({
   const clearSearch = (): void => {
     setSearchInput("");
     setSearchHits(null);
+    setSearchMode(null);
   };
 
   // 関連ナレッジ (RAG): タイトル → タグの順で類似検索し、自分自身を除く上位 3 件。
@@ -629,7 +637,18 @@ export function KnowledgeExplorer({
           <div aria-label="検索結果" className="flex flex-col gap-px">
             <p className="px-2.5 py-1 text-[11px] text-on-surface-variant">
               検索結果 {searchHits.length} 件
+              {searchMode?.startsWith("semantic:") ? (
+                <span className="ml-1 text-primary">
+                  (意味検索: {searchMode.includes("local") ? "ローカル" : "Voyage"})
+                </span>
+              ) : null}
             </p>
+            {searchMode === "text_fallback" ? (
+              <p className="mx-2.5 mb-1 rounded-sm bg-surface-variant px-2 py-1 text-[11px] text-on-surface-variant">
+                意味検索は無効です (キーワード一致のみ)。ローカル埋め込みの導入または
+                VOYAGE_API_KEY の設定で有効になります。
+              </p>
+            ) : null}
             {searchMut.isPending ? (
               <Loading className="py-sm" />
             ) : searchHits.length === 0 ? (

@@ -1432,6 +1432,10 @@ components:
         query: { type: string }
         hits: { type: array, items: { $ref: '#/components/schemas/KnowledgeSearchHit' } }
         total: { type: integer }
+        search_mode:
+          type: string
+          default: text_fallback
+          description: "GAP-133: 検索モードの誠実表示。semantic:voyage-3-large / semantic:local:<model> / text_fallback (意味検索が効いていない状態を UI に隠さない)"
 
     KnowledgePromoteRequest:
       type: object

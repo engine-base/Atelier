@@ -88,6 +88,10 @@ class KnowledgeSearchResponse(BaseModel):
     query: str
     hits: list[KnowledgeSearchHit]
     total: int
+    # GAP-133: 検索モードの誠実表示。"semantic:voyage-3-large" /
+    # "semantic:local:<model>" / "text_fallback" (意味検索が効いていない状態を
+    # UI に隠さない)。
+    search_mode: str = "text_fallback"
 
 
 # --------------------------------------------------------------------------- #

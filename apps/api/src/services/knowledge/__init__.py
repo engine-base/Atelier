@@ -86,18 +86,38 @@ def _embedding_to_pg_literal(vec: list[float]) -> str:
     return "[" + ",".join(f"{v:.7f}" for v in vec) + "]"
 
 
-async def _embed_text(content: str, *, input_type: str = "document") -> list[float] | None:
-    """Voyage で content を embed。VOYAGE_API_KEY 未設定なら None を返す。"""
-    if not os.environ.get("VOYAGE_API_KEY"):
-        return None
-    try:
-        client = VoyageClient()
-        if input_type == "query":
-            return await client.embed_query(content)
-        result = await client.embed([content], input_type="document")
-        return result.embeddings[0]
-    except VoyageError:
-        return None
+async def _embed_text(
+    content: str, *, input_type: str = "document"
+) -> tuple[list[float] | None, str | None]:
+    """content を埋め込み、(vector, モデル空間タグ) を返す (GAP-133 provider 抽象化)。
+
+    優先順:
+      1. Voyage (VOYAGE_API_KEY 設定時) — 最高精度・従量課金 (タグ 'voyage-3-large')
+      2. ローカル (fastembed / ONNX) — 課金ゼロの意味検索 (タグ 'local:<model>')
+      3. どちらも不可 → (None, None) — 呼出側が ilike に誠実 degrade
+    モデルが違えばベクトル空間が違うため、タグは埋め込みと必ず対で扱う。
+    """
+    if os.environ.get("VOYAGE_API_KEY"):
+        try:
+            client = VoyageClient()
+            if input_type == "query":
+                return await client.embed_query(content), "voyage-3-large"
+            result = await client.embed([content], input_type="document")
+            return result.embeddings[0], "voyage-3-large"
+        except VoyageError:
+            return None, None
+    from src.embeddings import local as local_emb
+
+    if local_emb.local_available():
+        try:
+            if input_type == "query":
+                return await local_emb.embed_query(content), local_emb.local_model_tag()
+            vecs = await local_emb.embed_documents([content])
+            return vecs[0], local_emb.local_model_tag()
+        except Exception:
+            # モデル DL 失敗等 — 黙って壊さず text fallback へ (log は local 側)
+            return None, None
+    return None, None
 
 
 async def list_knowledge(
@@ -162,7 +182,7 @@ async def create_knowledge(
     session: AsyncSession, *, actor_id: str, data: KnowledgeCreate
 ) -> KnowledgeResponse | None:
     new_id = str(uuid.uuid4())
-    embedding = await _embed_text(data.content_md, input_type="document")
+    embedding, embedding_model = await _embed_text(data.content_md, input_type="document")
     # platform(運営デフォルト)は account_id を信頼せず sentinel に固定する。
     account_id = _PLATFORM_ACCOUNT_SENTINEL if data.account_type == "platform" else data.account_id
     params: dict[str, object] = {
@@ -187,18 +207,21 @@ async def create_knowledge(
         emb_sql = "cast(:emb as extensions.vector)"
     else:
         emb_sql = "null"
+    params["emb_model"] = embedding_model
     try:
         res = await session.execute(
             text(
                 f"insert into public.knowledge_nodes "
                 f"(id, account_id, account_type, scope, owner_employee_id, parent_id, "
                 f"visible_in_tree, category, "
-                f"title, content_md, tags, embedding, source_type, source_project_id, "
+                f"title, content_md, tags, embedding, embedding_model, "
+                f"source_type, source_project_id, "
                 f"confidence_score, is_anonymized) "
                 f"values (cast(:id as uuid), cast(:aid as uuid), "
                 f"cast(:at as knowledge_account_type_enum), "
                 f"cast(:sc as knowledge_scope_enum), "
                 f"cast(:oeid as uuid), cast(:pid as uuid), :vit, :cat, :tt, :cm, :tg, {emb_sql}, "
+                f":emb_model, "
                 f":st, cast(:spid as uuid), :cs, :ia) "
                 f"returning id"
             ),
@@ -239,11 +262,13 @@ async def update_knowledge(
     if data.content_md is not None:
         sets.append("content_md = :cm")
         params["cm"] = data.content_md
-        # content_md 変更時は embedding を再計算
-        new_embedding = await _embed_text(data.content_md, input_type="document")
+        # content_md 変更時は embedding を再計算 (モデルタグも対で更新)
+        new_embedding, new_emb_model = await _embed_text(data.content_md, input_type="document")
         if new_embedding is not None:
             sets.append("embedding = cast(:emb as extensions.vector)")
+            sets.append("embedding_model = :emb_model")
             params["emb"] = _embedding_to_pg_literal(new_embedding)
+            params["emb_model"] = new_emb_model
     if data.category is not None:
         sets.append("category = :cat")
         params["cat"] = data.category
@@ -354,17 +379,26 @@ async def search_knowledge(
         )
         params["pid"] = project_id
 
-    query_emb = await _embed_text(query, input_type="query")
+    query_emb, emb_model = await _embed_text(query, input_type="query")
     hits: list[KnowledgeSearchHit] = []
+    search_mode = "text_fallback"
     if query_emb is not None:
-        # pgvector cosine: 1 - (a <=> b)、より高い score がより類似
+        # pgvector cosine: 1 - (a <=> b)、より高い score がより類似。
+        # GAP-133: モデルが違えばベクトル空間が違う — 同一モデルタグの行のみ対象
+        # (異空間の距離比較は無意味なスコアになるため黙って混ぜない)。
+        search_mode = f"semantic:{emb_model}"
         params["q"] = _embedding_to_pg_literal(query_emb)
+        params["emb_model"] = emb_model
+        # operator(extensions.<=>): search_path に extensions が無い環境でも
+        # 動く明示演算子構文 (裸の <=> は "No operator matches" で落ちる — e2e で実測)
         sql = (
             f"select {_COLS}, "
-            f"(1 - (embedding <=> cast(:q as extensions.vector))) as similarity "
+            f"(1 - (embedding operator(extensions.<=>) cast(:q as extensions.vector))) "
+            f"as similarity "
             f"from public.knowledge_nodes "
             f"where {' and '.join(where)} and embedding is not null "
-            f"order by embedding <=> cast(:q as extensions.vector) "
+            f"and embedding_model = cast(:emb_model as text) "
+            f"order by embedding operator(extensions.<=>) cast(:q as extensions.vector) "
             f"limit :lim"
         )
         res = await session.execute(text(sql), params)
@@ -375,7 +409,11 @@ async def search_knowledge(
                     score=float(r.similarity),
                 )
             )
-    else:
+    if not hits:
+        # 意味検索が使えない (プロバイダ皆無) か、同一モデルの埋め込み行がまだ
+        # 1 件も無い (モデル切替直後 — scripts/reembed_knowledge.py 実行まで) は
+        # ilike に誠実 degrade する。mode を text_fallback にして UI に明示する。
+        search_mode = "text_fallback"
         params["pat"] = f"%{query}%"
         sql = (
             f"select {_COLS} from public.knowledge_nodes "
@@ -397,7 +435,7 @@ async def search_knowledge(
             ),
             {"ids": hit_ids},
         )
-    return KnowledgeSearchResponse(query=query, hits=hits, total=len(hits))
+    return KnowledgeSearchResponse(query=query, hits=hits, total=len(hits), search_mode=search_mode)
 
 
 # --------------------------------------------------------------------------- #

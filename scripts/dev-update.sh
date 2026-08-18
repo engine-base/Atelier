@@ -27,6 +27,9 @@ bash scripts/dev-bootstrap.sh | tail -4
 echo "== [3/4] API 再起動 =="
 # uv の PATH (公式インストーラ配置) を通す
 [ -f "$HOME/.local/bin/env" ] && source "$HOME/.local/bin/env"
+# GAP-133: 依存を lock に完全同期 (localrag=ローカル埋め込み /
+# subscription=Claude サブスク実行 を含む — 手動 install の漏れを構造的に防ぐ)
+(cd apps/api && uv sync --frozen --all-extras >/dev/null)
 lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 (cd apps/api && nohup uv run --no-sync uvicorn main:app --host 127.0.0.1 --port 8000 > /tmp/atelier-api.log 2>&1 &)
 

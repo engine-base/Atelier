@@ -1,0 +1,11 @@
+ws=e0c26b31-615f-43d2-bd7a-3c342fa5f370 acc=e0c26b31-615f-43d2-bd7a-3c342fa5f370
+PASS  ナレッジ 2 件を登録
+embed_info=2:local:intfloat/multilingual-e5-large
+PASS  両ノードにローカル埋め込みが保存 (モデルタグ付き)
+PASS  search_mode が semantic:local (誠実表示)
+PASS  意味検索: 共通語ゼロの質問で見積書がトップヒット
+PASS  同クエリは旧 ilike 方式では 0 件 (改善の実証)
+reembed: done=1 failed=0
+PASS  reembed_knowledge.py で埋め込みが復元される
+
+6 PASS / 0 FAIL
