@@ -196,7 +196,11 @@ export function ChatContainer({
     retry: false,
     refetchInterval: 30_000,
   });
-  const toolsAvailable = connQuery.data?.mode === "agent_sdk";
+  // GAP-134: PC 操作は「本人の Claude プランで実行できる経路」で可能 —
+  // relay (本人 PC の Bridge が実行。全ユーザーの標準構成) / agent_sdk
+  // (サーバー内サブスク実行 — オーナー個人インスタンスの特殊形)。
+  const toolsAvailable =
+    connQuery.data?.mode === "agent_sdk" || connQuery.data?.mode === "relay";
   const [error, setError] = useState<string | null>(null);
   const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
     new Set(),

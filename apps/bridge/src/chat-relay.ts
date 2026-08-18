@@ -1,9 +1,16 @@
 /**
- * Atelier Bridge — チャットのローカル実行リレー (GAP-114)
+ * Atelier Bridge — チャットのローカル実行リレー (GAP-114 / GAP-134)
  *
  * サーバー (chat_relay_jobs) から queued job を pick し、この PC の
  * Claude ログイン (= 本人の月額プラン) で `claude -p` を実行、text delta を
  * chunks として逐次返送する。S-E01 チャットの SSE がそれを中継する。
+ *
+ * GAP-134 (PC 操作 — すり合わせ確定「全ユーザーが自分の PC + 自分のプランで」):
+ *   - tools_mode=auto: Claude Code 同等ツールを確認なしで実行 (bypassPermissions)
+ *   - tools_mode=approve: CLI の許可要求 (control_request can_use_tool) を
+ *     サーバーの承認キューへ積み、ユーザーが画面で 許可/拒否 するまで待って
+ *     CLI へ control_response を返す (Claude Code の permission prompt と同じ体験)
+ *   - 作業フォルダ: ~/AtelierChatWork (ATELIER_BRIDGE_CHAT_WORKSPACE で変更可)
  *
  * 課金安全: 子プロセス env から ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN /
  * CLAUDE_CODE_API_KEY を必ず除去する (残っていると OAuth より優先されて
@@ -11,14 +18,34 @@
  */
 
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-import type { ChatRelayPicked, ChatRelayRateLimitObservation } from './api-client.js';
+import type {
+  ChatRelayApprovalDecision,
+  ChatRelayChunkKind,
+  ChatRelayPicked,
+  ChatRelayRateLimitObservation,
+} from './api-client.js';
 
 export const CHAT_RELAY_ENABLED_ENV = 'ATELIER_BRIDGE_CHAT_RELAY';
+export const CHAT_WORKSPACE_ENV = 'ATELIER_BRIDGE_CHAT_WORKSPACE';
+
+export type ChatToolsMode = 'off' | 'approve' | 'auto';
+
+/** GAP-134: PC 操作で使える Claude Code ツール (サーバー側 _AUTO_TOOLS と同一)。 */
+export const ALLOWED_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'] as const;
 
 /** chat relay が有効か (既定 ON。'0' で明示 OFF)。 */
 export function chatRelayEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
   return env[CHAT_RELAY_ENABLED_ENV] !== '0';
+}
+
+/** GAP-134: PC 操作の作業フォルダ (本人 PC 上の成果物置き場)。 */
+export function chatWorkspaceDir(env: Readonly<Record<string, string | undefined>>): string {
+  const configured = (env[CHAT_WORKSPACE_ENV] ?? '').trim();
+  return configured !== '' ? configured : join(homedir(), 'AtelierChatWork');
 }
 
 /** 子プロセスへ渡す env (API キー系 3 変数を除去 — サブスク課金を保証)。 */
@@ -34,11 +61,16 @@ export function sanitizedChildEnv(
 }
 
 /**
- * claude -p の引数を組み立てる。prompt は argv 長制限を避けて stdin で渡す。
- * --include-partial-messages で text delta (stream_event) を逐次受ける。
+ * claude の引数を tools_mode ごとに組み立てる。
+ * - off: ツールなし・1 往復 (従来)。prompt は stdin テキスト
+ * - auto: Claude Code 同等ツールを確認なしで実行 (bypassPermissions)
+ * - approve: 許可要求を stdio control protocol で受ける
+ *   (--permission-prompt-tool stdio + --input-format stream-json。
+ *    prompt は stream-json の user メッセージで送り、承認往復のため
+ *    stdin を result まで開いたままにする — GAP-130 で実証した実プロトコル)
  */
-export function buildChatArgs(systemPrompt: string): string[] {
-  return [
+export function buildChatArgs(systemPrompt: string, toolsMode: ChatToolsMode = 'off'): string[] {
+  const base = [
     '-p',
     '--append-system-prompt',
     systemPrompt,
@@ -46,20 +78,66 @@ export function buildChatArgs(systemPrompt: string): string[] {
     'stream-json',
     '--include-partial-messages',
     '--verbose',
-    '--max-turns',
-    '1',
   ];
+  if (toolsMode === 'auto') {
+    return [
+      ...base,
+      '--max-turns',
+      '25',
+      '--allowedTools',
+      ALLOWED_TOOLS.join(','),
+      '--permission-mode',
+      'bypassPermissions',
+    ];
+  }
+  if (toolsMode === 'approve') {
+    return [
+      ...base,
+      '--max-turns',
+      '25',
+      '--permission-mode',
+      'default',
+      '--permission-prompt-tool',
+      'stdio',
+      '--input-format',
+      'stream-json',
+    ];
+  }
+  return [...base, '--max-turns', '1'];
+}
+
+/** GAP-134: 承認カードに出すツール入力の 1 行要約 (サーバー側と同一ロジック)。 */
+export function summarizeToolInput(tool: string, input: Record<string, unknown>): string {
+  let primary: unknown;
+  if (tool === 'Bash') primary = input.command;
+  else if (tool === 'Read' || tool === 'Write' || tool === 'Edit') primary = input.file_path;
+  else if (tool === 'Glob' || tool === 'Grep') primary = input.pattern;
+  let text = typeof primary === 'string' && primary !== '' ? primary : '';
+  if (text === '') {
+    const keys = Object.keys(input).sort().join(', ');
+    text = keys !== '' ? keys : '(入力なし)';
+  }
+  return text.length > 200 ? `${text.slice(0, 199)}…` : text;
 }
 
 export type ChatStreamItem =
   | { readonly kind: 'delta'; readonly text: string }
   | { readonly kind: 'assistant_text'; readonly text: string }
+  | { readonly kind: 'tool_start'; readonly tool: string }
+  | {
+      readonly kind: 'permission_request';
+      readonly requestId: string;
+      readonly tool: string;
+      readonly input: Record<string, unknown>;
+    }
   | { readonly kind: 'result'; readonly ok: boolean; readonly detail?: string }
   | { readonly kind: 'rate_limit'; readonly observation: ChatRelayRateLimitObservation };
 
 /**
  * stream-json の 1 行を解釈する。対象外の行 (init/その他) は null。
  * - stream_event / content_block_delta / text_delta → delta
+ * - stream_event / content_block_start / tool_use → tool_start (GAP-134 実況)
+ * - control_request / can_use_tool → permission_request (GAP-134 承認)
  * - assistant (完成 message) → assistant_text (partial 不達時の代替)
  * - result → ok (subtype === 'success')
  * - rate_limit_event → rate_limit (GAP-119: 本人プラン枠の実観測値)
@@ -77,11 +155,33 @@ export function parseStreamLine(line: string): ChatStreamItem | null {
   const obj = json as Record<string, unknown>;
   if (obj.type === 'stream_event') {
     const event = obj.event as Record<string, unknown> | undefined;
+    if (event?.type === 'content_block_start') {
+      // GAP-134: ツール実行開始の実況 (UI の「ツール実行中: Bash」)
+      const block = event.content_block as Record<string, unknown> | undefined;
+      if (block?.type === 'tool_use' && typeof block.name === 'string' && block.name !== '') {
+        return { kind: 'tool_start', tool: block.name };
+      }
+      return null;
+    }
     if (event?.type !== 'content_block_delta') return null;
     const delta = event.delta as Record<string, unknown> | undefined;
     if (delta?.type !== 'text_delta' || typeof delta.text !== 'string' || delta.text === '')
       return null;
     return { kind: 'delta', text: delta.text };
+  }
+  if (obj.type === 'control_request') {
+    // GAP-134: CLI の許可要求 (--permission-prompt-tool stdio)。
+    // 実プロトコル (GAP-130 で raw 検証済): request.subtype === 'can_use_tool'
+    const request = obj.request as Record<string, unknown> | undefined;
+    if (request?.subtype !== 'can_use_tool') return null;
+    const requestId = obj.request_id;
+    const toolName = request.tool_name;
+    if (typeof requestId !== 'string' || typeof toolName !== 'string') return null;
+    const input =
+      typeof request.input === 'object' && request.input !== null
+        ? (request.input as Record<string, unknown>)
+        : {};
+    return { kind: 'permission_request', requestId, tool: toolName, input };
   }
   if (obj.type === 'assistant') {
     const message = obj.message as Record<string, unknown> | undefined;
@@ -128,6 +228,22 @@ export function parseStreamLine(line: string): ChatStreamItem | null {
   return null;
 }
 
+/** GAP-134: CLI へ返す control_response 行を組み立てる (実プロトコル準拠)。 */
+export function buildControlResponse(
+  requestId: string,
+  decision: 'allow' | 'deny',
+  input: Record<string, unknown>,
+): string {
+  const inner =
+    decision === 'allow'
+      ? { behavior: 'allow', updatedInput: input }
+      : { behavior: 'deny', message: 'ユーザーがこのツール実行を拒否しました' };
+  return `${JSON.stringify({
+    type: 'control_response',
+    response: { subtype: 'success', request_id: requestId, response: inner },
+  })}\n`;
+}
+
 export interface ChatRelayConfig {
   readonly workerId: string;
   readonly command: string; // 既定 'claude'
@@ -135,11 +251,21 @@ export interface ChatRelayConfig {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** chunk 送信のバッチ間隔 (ms)。テストでは 0 にできる。 */
   readonly flushIntervalMs: number;
+  /** GAP-134: 承認待ちのポーリング間隔 / 上限 (テストで短縮可)。 */
+  readonly approvalPollMs?: number;
+  readonly approvalTimeoutMs?: number;
 }
 
 export interface ChatRelaySender {
   chatRelayPick(workerId: string): Promise<ChatRelayPicked | null>;
-  chatRelayChunks(jobId: string, seqStart: number, texts: readonly string[]): Promise<void>;
+  chatRelayChunks(
+    jobId: string,
+    seqStart: number,
+    texts: readonly string[],
+    kinds?: readonly ChatRelayChunkKind[],
+  ): Promise<void>;
+  chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
+  chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
   chatRelayComplete(
     jobId: string,
     ok: boolean,
@@ -184,6 +310,11 @@ export function classifyRunFailure(run: {
     : `claude 実行失敗 (exit=${run.exitCode})`;
 }
 
+interface PendingChunk {
+  readonly text: string;
+  readonly chunkKind: ChatRelayChunkKind;
+}
+
 /**
  * 1 job を pick → 実行 → 返送する。job が無ければ 'no-job'。
  *
@@ -200,10 +331,10 @@ export class ChatRelayWorker {
   async runOnce(): Promise<ChatRelayOutcome> {
     const picked = await this.api.chatRelayPick(this.config.workerId);
     if (picked === null) return 'no-job';
-    const { jobId, systemPrompt, prompt } = picked;
+    const { jobId, systemPrompt, prompt, toolsMode } = picked;
 
     let seq = 0;
-    let pending: string[] = [];
+    let pending: PendingChunk[] = [];
     let sendError: unknown = null;
     let sendChain: Promise<void> = Promise.resolve();
 
@@ -217,11 +348,40 @@ export class ChatRelayWorker {
       sendChain = sendChain.then(async () => {
         if (sendError !== null) return;
         try {
-          await this.api.chatRelayChunks(jobId, seqStart, batch);
+          await this.api.chatRelayChunks(
+            jobId,
+            seqStart,
+            batch.map((c) => c.text),
+            batch.map((c) => c.chunkKind),
+          );
         } catch (err: unknown) {
           sendError = err;
         }
       });
+    };
+
+    // GAP-134: 承認往復 — CLI の許可要求をサーバーへ積み、決定を待って返す。
+    // 許可対象外ツール (WebSearch 等) はカードを出さず即拒否 (サーバー側と同一)。
+    const allowed = new Set<string>(ALLOWED_TOOLS);
+    const decideApproval = async (
+      tool: string,
+      input: Record<string, unknown>,
+    ): Promise<'allow' | 'deny'> => {
+      if (!allowed.has(tool)) return 'deny';
+      const approvalId = await this.api.chatRelayCreateApproval(
+        jobId,
+        tool,
+        summarizeToolInput(tool, input),
+      );
+      const pollMs = this.config.approvalPollMs ?? 700;
+      const deadline = Date.now() + (this.config.approvalTimeoutMs ?? 300_000);
+      for (;;) {
+        const decision = await this.api.chatRelayApprovalDecision(jobId, approvalId);
+        if (decision === 'allow') return 'allow';
+        if (decision === 'deny' || decision === 'timeout') return 'deny';
+        if (Date.now() > deadline) return 'deny'; // 無応答は拒否に倒す (勝手に実行しない)
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
     };
 
     // GAP-119: 実行中に観測した rate_limit_event を window 別に最新値で保持
@@ -231,8 +391,10 @@ export class ChatRelayWorker {
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
     let run;
     try {
-      run = await this.runChild(systemPrompt, prompt, (item) => {
-        if (item.kind === 'delta') pending.push(item.text);
+      run = await this.runChild(systemPrompt, prompt, toolsMode, decideApproval, (item) => {
+        if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
+        else if (item.kind === 'tool_start')
+          pending.push({ text: item.tool, chunkKind: 'tool' });
         else if (item.kind === 'rate_limit')
           rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
       });
@@ -241,7 +403,7 @@ export class ChatRelayWorker {
     }
     // partial が 1 つも取れなかった場合は完成 assistant text で代替
     if (seq === 0 && pending.length === 0 && run.assistantText !== '') {
-      pending.push(run.assistantText);
+      pending.push({ text: run.assistantText, chunkKind: 'delta' });
     }
     flush();
     await sendChain;
@@ -252,7 +414,7 @@ export class ChatRelayWorker {
       : (sendError !== null
           ? `chunk 送信失敗: ${String(sendError)}`
           : run.timedOut
-            ? `claude 実行タイムアウト (${this.config.timeoutMs}ms)`
+            ? `claude 実行タイムアウト (${this.jobTimeoutMs(toolsMode)}ms)`
             : classifyRunFailure(run) // GAP-127: 未ログイン/未インストールをタグ付け
         ).slice(0, 2000);
     try {
@@ -264,9 +426,21 @@ export class ChatRelayWorker {
     return ok ? 'completed' : 'failed';
   }
 
+  /** GAP-134: ツールありは複数ターン + 承認待ちを含むためタイムアウトを引き上げる。 */
+  private jobTimeoutMs(toolsMode: ChatToolsMode): number {
+    return toolsMode === 'off'
+      ? this.config.timeoutMs
+      : Math.max(this.config.timeoutMs, 600_000);
+  }
+
   private runChild(
     systemPrompt: string,
     prompt: string,
+    toolsMode: ChatToolsMode,
+    decideApproval: (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<'allow' | 'deny'>,
     onItem: (item: ChatStreamItem) => void,
   ): Promise<{
     ok: boolean;
@@ -278,12 +452,38 @@ export class ChatRelayWorker {
     resultDetail: string;
   }> {
     return new Promise((resolve) => {
-      const child = spawn(this.config.command, buildChatArgs(systemPrompt), {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: sanitizedChildEnv(this.config.env),
-      });
-      child.stdin.write(prompt);
-      child.stdin.end();
+      // GAP-134: PC 操作は本人 PC の作業フォルダをカレントにして実行する
+      const spawnOpts: { stdio: ['pipe', 'pipe', 'pipe']; env: Record<string, string>; cwd?: string } =
+        {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: sanitizedChildEnv(this.config.env),
+        };
+      if (toolsMode !== 'off') {
+        const workspace = chatWorkspaceDir(this.config.env);
+        try {
+          mkdirSync(workspace, { recursive: true });
+        } catch {
+          /* 既存 or 権限 — CLI 側のエラーに任せる */
+        }
+        spawnOpts.cwd = workspace;
+      }
+      const child = spawn(this.config.command, buildChatArgs(systemPrompt, toolsMode), spawnOpts);
+      if (toolsMode === 'approve') {
+        // stream-json 入力: user メッセージ 1 件を送り、承認往復のため
+        // stdin は result まで開いたままにする (閉じると CLI の許可要求が
+        // "Stream closed" で全滅する — GAP-130 の SDK バグと同根)
+        child.stdin.write(
+          `${JSON.stringify({
+            type: 'user',
+            session_id: '',
+            message: { role: 'user', content: prompt },
+            parent_tool_use_id: null,
+          })}\n`,
+        );
+      } else {
+        child.stdin.write(prompt);
+        child.stdin.end();
+      }
 
       let timedOut = false;
       let sawDelta = false;
@@ -298,14 +498,27 @@ export class ChatRelayWorker {
         if (item.kind === 'delta') {
           sawDelta = true;
           onItem(item);
-        } else if (item.kind === 'rate_limit') {
+        } else if (item.kind === 'tool_start' || item.kind === 'rate_limit') {
           onItem(item);
+        } else if (item.kind === 'permission_request') {
+          // GAP-134: 承認往復は stdout 読み取りを止めない (非同期で決定を書き戻す)
+          void decideApproval(item.tool, item.input)
+            .catch(() => 'deny' as const)
+            .then((decision) => {
+              if (!child.stdin.destroyed) {
+                child.stdin.write(buildControlResponse(item.requestId, decision, item.input));
+              }
+            });
         } else if (item.kind === 'assistant_text') {
           assistantText += item.text;
         } else {
           resultOk = item.ok;
           // GAP-127: 失敗時の result 本文は原因分類の材料 (成功時は不要)
           if (!item.ok && item.detail) resultDetail = item.detail;
+          if (toolsMode === 'approve' && !child.stdin.destroyed) {
+            // result を受けたら入力を閉じて CLI を終了させる
+            child.stdin.end();
+          }
         }
       };
       child.stdout.on('data', (chunk: Buffer) => {
@@ -324,7 +537,7 @@ export class ChatRelayWorker {
       const timer = setTimeout(() => {
         timedOut = true;
         child.kill('SIGKILL');
-      }, this.config.timeoutMs);
+      }, this.jobTimeoutMs(toolsMode));
       child.on('close', (code) => {
         clearTimeout(timer);
         if (buffer !== '') handleLine(buffer);

@@ -29,6 +29,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.schemas.dispatcher import (
+    ChatRelayApprovalCreateRequest,
+    ChatRelayApprovalCreateResponse,
+    ChatRelayApprovalStatusResponse,
     ChatRelayChunksRequest,
     ChatRelayCompleteRequest,
     ChatRelayPickRequest,
@@ -294,6 +297,7 @@ async def chat_relay_pick(
             job_id=picked["job_id"],
             system_prompt=picked["system_prompt"],
             prompt=picked["prompt"],
+            tools_mode=picked["tools_mode"],
         )
     }
 
@@ -308,11 +312,57 @@ async def chat_relay_chunks(
     """running ジョブへ text delta を追記する (SSE 側がポーリングで中継)。"""
     try:
         await relay_svc.append_chunks(
-            session, job_id=job_id, seq_start=body.seq_start, texts=body.texts
+            session,
+            job_id=job_id,
+            seq_start=body.seq_start,
+            texts=body.texts,
+            kinds=list(body.kinds) if body.kinds is not None else None,
         )
     except ChatRelayError as exc:
         _raise_for(exc.code, exc.message)
     return {"data": {"status": "ok"}}
+
+
+@router.post(
+    "/chat-relay/{job_id}/approvals",
+    summary="chat relay PC 操作の承認要求 (GAP-134 / BridgeAuth)",
+)
+async def chat_relay_create_approval(
+    job_id: str,
+    body: ChatRelayApprovalCreateRequest,
+    session: BridgeSession,
+    _token: BridgeAuth,
+) -> dict[str, ChatRelayApprovalCreateResponse]:
+    """Bridge が CLI の許可要求を承認キューへ積む (SSE が承認カードとして配信)。"""
+    try:
+        approval_id = await relay_svc.create_approval(
+            session, job_id=job_id, tool=body.tool, summary=body.summary
+        )
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
+    return {"data": ChatRelayApprovalCreateResponse(approval_id=approval_id)}
+
+
+@router.get(
+    "/chat-relay/{job_id}/approvals/{approval_id}",
+    summary="chat relay PC 操作の承認決定を取得 (GAP-134 / BridgeAuth)",
+)
+async def chat_relay_approval_status(
+    job_id: str,
+    approval_id: str,
+    session: BridgeSession,
+    _token: BridgeAuth,
+) -> dict[str, ChatRelayApprovalStatusResponse]:
+    """Bridge がポーリングする決定 (pending のうちは実行を待つ)。"""
+    try:
+        decision = await relay_svc.approval_decision(
+            session, job_id=job_id, approval_id=approval_id
+        )
+    except ChatRelayError as exc:
+        _raise_for(exc.code, exc.message)
+    return {
+        "data": ChatRelayApprovalStatusResponse(decision=decision)  # type: ignore[arg-type]
+    }
 
 
 @router.post(

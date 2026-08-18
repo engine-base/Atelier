@@ -563,16 +563,18 @@ async def stream_chat(
 
     use_subscription = subscription_mode_enabled()
     use_relay = relay_mode_enabled()
-    # GAP-129/130: PC 操作 (auto/approve) は agent_sdk (オーナーの Claude プラン
-    # 実行) 限定。他モードで要求されたら黙って無視せず誠実にエラーで返す
-    # (UI は agent_sdk 以外でトグル自体を出さないので、これは防御層)。
-    if tools_mode in ("auto", "approve") and not use_subscription:
+    # GAP-129/130/134: PC 操作 (auto/approve) は本人の Claude プランで実行できる
+    # 経路 (relay = 本人 PC の Bridge / agent_sdk = サーバー内サブスク実行) 限定。
+    # 他モードで要求されたら黙って無視せず誠実にエラーで返す
+    # (UI は対応モード以外でトグル自体を出さないので、これは防御層)。
+    if tools_mode in ("auto", "approve") and not (use_subscription or use_relay):
         yield _sse_event(
             {
                 "type": "error",
                 "content": (
-                    "PC 操作は「オーナーの Claude プランで実行」モード"
-                    "のときだけ使えます。PC 操作をオフにして再送してください。"
+                    "PC 操作は Bridge (自分の PC で実行) または"
+                    "「オーナーの Claude プランで実行」モードのときだけ使えます。"
+                    "PC 操作をオフにして再送してください。"
                 ),
             }
         )
@@ -637,12 +639,14 @@ async def stream_chat(
         if use_relay:
             from .relay import relay_stream_chunks
 
+            # GAP-134: tools_mode を Bridge へ伝える — PC 操作は本人の PC で実行
             chunks = relay_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,
                 user_message=user_message,
                 thread_id=thread_id,
                 actor_id=actor_id,
+                tools_mode=tools_mode,
             )
         elif use_subscription:
             from .agent_sdk import agent_sdk_stream_chunks

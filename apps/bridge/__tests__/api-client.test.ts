@@ -128,7 +128,25 @@ describe('ApiClient — chat relay (GAP-114)', () => {
       }),
     );
     const r = await client().chatRelayPick('host#1');
-    expect(r).toEqual({ jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' });
+    // GAP-134: tools_mode 不在 (旧サーバー) は off に既定化する
+    expect(r).toEqual({ jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' });
+  });
+
+  it('chatRelayPick: tools_mode=approve を写像する (GAP-134)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch(200, {
+        data: {
+          job_id: 'j2',
+          system_prompt: 'SYS',
+          prompt: 'PROMPT',
+          tools_mode: 'approve',
+          no_available_job: false,
+        },
+      }),
+    );
+    const r = await client().chatRelayPick('host#1');
+    expect(r?.toolsMode).toBe('approve');
   });
 
   it('chatRelayPick: no_available_job は null を返す', async () => {

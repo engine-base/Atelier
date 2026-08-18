@@ -2044,16 +2044,63 @@ class ChatRelayPickRequest(BaseModel):
     worker_id: Annotated[str, Field(max_length=200, min_length=1)]
 
 
+class ToolsMode1(StrEnum):
+    """
+    GAP-134: PC 操作モード — Bridge が本人 PC で実行する
+    """
+
+    off = "off"
+    approve = "approve"
+    auto = "auto"
+
+
 class ChatRelayPickResponse(BaseModel):
     job_id: UUID | None = None
     system_prompt: str | None = None
     prompt: str | None = None
+    tools_mode: ToolsMode1 | None = None
+    """
+    GAP-134: PC 操作モード — Bridge が本人 PC で実行する
+    """
     no_available_job: bool
+
+
+class Kind7(StrEnum):
+    delta = "delta"
+    tool = "tool"
 
 
 class ChatRelayChunksRequest(BaseModel):
     seq_start: Annotated[int, Field(ge=0)]
     texts: Annotated[list[str], Field(max_length=200, min_length=1)]
+    kinds: Annotated[list[Kind7] | None, Field(max_length=200)] = None
+    """
+    GAP-134: texts と同長の種別 (delta=本文 / tool=実況)。省略時は全て delta
+    """
+
+
+class ChatRelayApprovalCreateRequest(BaseModel):
+    """
+    GAP-134: Bridge が CLI の許可要求を承認キューへ積む
+    """
+
+    tool: Annotated[str, Field(max_length=60, min_length=1)]
+    summary: Annotated[str | None, Field(max_length=500)] = None
+
+
+class ChatRelayApprovalCreateResponse(BaseModel):
+    approval_id: UUID
+
+
+class Decision2(StrEnum):
+    pending = "pending"
+    allow = "allow"
+    deny = "deny"
+    timeout = "timeout"
+
+
+class ChatRelayApprovalStatusResponse(BaseModel):
+    decision: Decision2
 
 
 class BridgeTokenCreate(BaseModel):
@@ -2295,13 +2342,13 @@ class ApprovalInboxEntry(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Decision2(StrEnum):
+class Decision3(StrEnum):
     approve = "approve"
     reject = "reject"
 
 
 class ApprovalDecideRequest(BaseModel):
-    decision: Decision2
+    decision: Decision3
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 

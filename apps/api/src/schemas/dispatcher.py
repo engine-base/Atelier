@@ -146,14 +146,38 @@ class ChatRelayPickResponse(BaseModel):
     job_id: str | None = None
     system_prompt: str | None = None
     prompt: str | None = None
+    # GAP-134: PC 操作モード (off/approve/auto) — Bridge が本人 PC で実行する
+    tools_mode: str | None = None
     no_available_job: bool = False
 
 
 class ChatRelayChunksRequest(BaseModel):
-    """running ジョブへ text delta を追記 (seq_start からの連番)。"""
+    """running ジョブへ chunk を追記 (seq_start からの連番)。
+
+    GAP-134: kinds (texts と同長) で種別指定可 — delta (本文) / tool (実況)。
+    省略時は全て delta (後方互換)。
+    """
 
     seq_start: int = Field(ge=0)
     texts: list[str] = Field(min_length=1, max_length=200)
+    kinds: list[Literal["delta", "tool"]] | None = Field(default=None, max_length=200)
+
+
+class ChatRelayApprovalCreateRequest(BaseModel):
+    """GAP-134: Bridge が CLI の許可要求を承認キューへ積む。"""
+
+    tool: str = Field(min_length=1, max_length=60)
+    summary: str = Field(max_length=500)
+
+
+class ChatRelayApprovalCreateResponse(BaseModel):
+    approval_id: str
+
+
+class ChatRelayApprovalStatusResponse(BaseModel):
+    """GAP-134: Bridge がポーリングする決定。"""
+
+    decision: Literal["pending", "allow", "deny", "timeout"]
 
 
 class ChatRelayRateLimitObservation(BaseModel):

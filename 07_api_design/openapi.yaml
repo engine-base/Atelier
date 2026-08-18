@@ -1909,6 +1909,11 @@ components:
         job_id: { type: string, format: uuid, nullable: true }
         system_prompt: { type: string, nullable: true }
         prompt: { type: string, nullable: true }
+        tools_mode:
+          type: string
+          enum: [off, approve, auto]
+          nullable: true
+          description: "GAP-134: PC 操作モード — Bridge が本人 PC で実行する"
         no_available_job: { type: boolean }
 
     ChatRelayChunksRequest:
@@ -1921,6 +1926,32 @@ components:
           minItems: 1
           maxItems: 200
           items: { type: string }
+        kinds:
+          type: array
+          maxItems: 200
+          nullable: true
+          items: { type: string, enum: [delta, tool] }
+          description: "GAP-134: texts と同長の種別 (delta=本文 / tool=実況)。省略時は全て delta"
+
+    ChatRelayApprovalCreateRequest:
+      type: object
+      required: [tool]
+      description: "GAP-134: Bridge が CLI の許可要求を承認キューへ積む"
+      properties:
+        tool: { type: string, minLength: 1, maxLength: 60 }
+        summary: { type: string, maxLength: 500 }
+
+    ChatRelayApprovalCreateResponse:
+      type: object
+      required: [approval_id]
+      properties:
+        approval_id: { type: string, format: uuid }
+
+    ChatRelayApprovalStatusResponse:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [pending, allow, deny, timeout] }
 
     BridgeTokenCreate:
       type: object
@@ -6194,6 +6225,57 @@ paths:
         '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: job 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: job が running でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/{job_id}/approvals:
+    post:
+      tags: [kanban-tools]
+      summary: chat relay PC 操作の承認要求（GAP-134 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_create_approval
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRelayApprovalCreateRequest' }
+      responses:
+        '200':
+          description: 承認キューへ登録 (SSE が pc_approval カードとして配信)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRelayApprovalCreateResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: job 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: job が running でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat-relay/{job_id}/approvals/{approval_id}:
+    get:
+      tags: [kanban-tools]
+      summary: chat relay PC 操作の承認決定を取得（GAP-134 / BridgeAuth）
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_approval_status
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+        - { name: approval_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 決定 (pending のうちは Bridge が実行を待つ)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRelayApprovalStatusResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: approval 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat-relay/{job_id}/complete:
     post:

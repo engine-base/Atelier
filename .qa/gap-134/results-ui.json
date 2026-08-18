@@ -1,0 +1,32 @@
+[
+  {
+    "name": "relay (Bridge) モードで PC 操作トグルが表示される",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "承認して実行に切替",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "承認カードが表示される (Bridge 発の許可要求が SSE で届く)",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "カード時点ではユーザー PC にファイル無し",
+    "ok": true,
+    "note": ""
+  },
+  {
+    "name": "許可 → ユーザー PC 側 (/root/UserPCWork) に実ファイルが作られる",
+    "ok": true,
+    "note": "clicks=1"
+  },
+  {
+    "name": "拒否 → ユーザー PC にファイルは作られない",
+    "ok": true,
+    "note": ""
+  }
+]

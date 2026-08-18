@@ -82,19 +82,32 @@ async def enqueue_job(
     requested_by: str,
     system_prompt: str,
     prompt: str,
+    tools_mode: str = "off",
 ) -> str:
-    """queued ジョブを積み、job_id を返す。"""
+    """queued ジョブを積み、job_id を返す。
+
+    GAP-134: tools_mode (off/approve/auto) を Bridge へ伝える — 本人の PC で
+    本人のプランを使った PC 操作 (Claude Code 同等) を有効化する。
+    """
     res = await session.execute(
         text(
             "insert into public.chat_relay_jobs "
-            "(thread_id, requested_by, status, system_prompt, prompt) "
-            "values (cast(:t as uuid), cast(:u as uuid), 'queued', :sp, :p) "
+            "(thread_id, requested_by, status, system_prompt, prompt, tools_mode) "
+            "values (cast(:t as uuid), cast(:u as uuid), 'queued', :sp, :p, :tm) "
             "returning id"
         ),
-        {"t": thread_id, "u": requested_by, "sp": system_prompt, "p": prompt},
+        {
+            "t": thread_id,
+            "u": requested_by,
+            "sp": system_prompt,
+            "p": prompt,
+            "tm": tools_mode,
+        },
     )
     job_id = str(res.scalar_one())
-    await _audit(session, action="chat_relay.enqueue", target_id=job_id)
+    await _audit(
+        session, action="chat_relay.enqueue", target_id=job_id, after={"tools_mode": tools_mode}
+    )
     return job_id
 
 
@@ -120,7 +133,7 @@ async def pick_job(
             ") update public.chat_relay_jobs j set status = 'running', "
             "worker_id = :w, started_at = now() "
             "where j.id in (select id from picked) "
-            "returning j.id, j.system_prompt, j.prompt"
+            "returning j.id, j.system_prompt, j.prompt, j.tools_mode"
         ),
         {"w": worker_id, "u": requested_by},
     )
@@ -135,6 +148,7 @@ async def pick_job(
         "job_id": job_id,
         "system_prompt": str(row.system_prompt),
         "prompt": str(row.prompt),
+        "tools_mode": str(row.tools_mode),
     }
 
 
@@ -161,9 +175,12 @@ async def append_chunks(
     job_id: str,
     seq_start: int,
     texts: list[str],
+    kinds: list[str] | None = None,
 ) -> None:
-    """running ジョブへ text delta を追記する (seq は seq_start からの連番)。
+    """running ジョブへ chunk を追記する (seq は seq_start からの連番)。
 
+    GAP-134: kinds (texts と同長) で種別を指定できる — 'delta' (本文) /
+    'tool' (ツール実況、content はツール名)。省略時は全て delta (後方互換)。
     running 以外 (done/expired 等) への追記は invalid_state — SSE 側が
     タイムアウト済みのジョブに遅延書き込みされるのを拒否する。
     """
@@ -173,13 +190,18 @@ async def append_chunks(
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
     if status != "running":
         raise ChatRelayError("invalid_state", f"job is {status}, not running")
+    if kinds is not None and len(kinds) != len(texts):
+        raise ChatRelayError("invalid_state", "kinds must match texts length")
     for offset, content in enumerate(texts):
+        kind = "delta" if kinds is None else kinds[offset]
+        if kind not in ("delta", "tool"):
+            raise ChatRelayError("invalid_state", f"unknown chunk kind {kind!r}")
         await session.execute(
             text(
-                "insert into public.chat_relay_chunks (job_id, seq, content) "
-                "values (cast(:j as uuid), :s, :c) on conflict (job_id, seq) do nothing"
+                "insert into public.chat_relay_chunks (job_id, seq, content, kind) "
+                "values (cast(:j as uuid), :s, :c, :k) on conflict (job_id, seq) do nothing"
             ),
-            {"j": job_id, "s": seq_start + offset, "c": content},
+            {"j": job_id, "s": seq_start + offset, "c": content, "k": kind},
         )
 
 
@@ -204,6 +226,14 @@ async def complete_job(
             "finished_at = now() where id = cast(:i as uuid)"
         ),
         {"st": new_status, "er": error, "i": job_id},
+    )
+    # GAP-134: 未決の承認は timeout で閉じる (SSE が resolved を配ってカードを掃除)
+    await session.execute(
+        text(
+            "update public.chat_relay_approvals set decision = 'timeout', decided_at = now() "
+            "where job_id = cast(:i as uuid) and decision = 'pending'"
+        ),
+        {"i": job_id},
     )
     await _audit(
         session,
@@ -231,16 +261,116 @@ async def fetch_chunks(
     *,
     job_id: str,
     after_seq: int,
-) -> list[tuple[int, str]]:
-    """after_seq より後の chunk を seq 昇順で返す (SSE 中継のポーリング単位)。"""
+) -> list[tuple[int, str, str]]:
+    """after_seq より後の chunk を (seq, kind, content) の昇順で返す。"""
     res = await session.execute(
         text(
-            "select seq, content from public.chat_relay_chunks "
+            "select seq, kind, content from public.chat_relay_chunks "
             "where job_id = cast(:j as uuid) and seq > :s order by seq"
         ),
         {"j": job_id, "s": after_seq},
     )
-    return [(int(r.seq), str(r.content)) for r in res.all()]
+    return [(int(r.seq), str(r.kind), str(r.content)) for r in res.all()]
+
+
+# ── GAP-134: PC 操作の承認往復 (Bridge ⇄ サーバー ⇄ ユーザー) ────────
+
+
+async def create_approval(session: AsyncSession, *, job_id: str, tool: str, summary: str) -> str:
+    """Bridge が CLI の許可要求を受けて承認行を作る (pending)。"""
+    job_id = _validated_job_id(job_id)
+    status = await _job_status(session, job_id)
+    if status is None:
+        raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    if status != "running":
+        raise ChatRelayError("invalid_state", f"job is {status}, not running")
+    res = await session.execute(
+        text(
+            "insert into public.chat_relay_approvals (job_id, tool, summary) "
+            "values (cast(:j as uuid), :t, :s) returning id"
+        ),
+        {"j": job_id, "t": tool, "s": summary[:500]},
+    )
+    approval_id = str(res.scalar_one())
+    await _audit(
+        session,
+        action="chat_relay.approval_request",
+        target_id=approval_id,
+        after={"job_id": job_id, "tool": tool},
+    )
+    return approval_id
+
+
+async def approval_decision(session: AsyncSession, *, job_id: str, approval_id: str) -> str:
+    """Bridge がポーリングする決定 (pending/allow/deny/timeout)。"""
+    res = await session.execute(
+        text(
+            "select decision from public.chat_relay_approvals "
+            "where id = cast(:a as uuid) and job_id = cast(:j as uuid)"
+        ),
+        {"a": _validated_job_id(approval_id), "j": _validated_job_id(job_id)},
+    )
+    row = res.first()
+    if row is None:
+        raise ChatRelayError("not_found", f"approval {approval_id} not found")
+    return str(row.decision)
+
+
+async def list_job_approvals(session: AsyncSession, *, job_id: str) -> list[dict[str, str]]:
+    """job の承認行を作成順で返す (SSE が pending の出現/解決を検知する)。"""
+    res = await session.execute(
+        text(
+            "select id, tool, summary, decision from public.chat_relay_approvals "
+            "where job_id = cast(:j as uuid) order by created_at"
+        ),
+        {"j": job_id},
+    )
+    return [
+        {
+            "id": str(r.id),
+            "tool": str(r.tool),
+            "summary": str(r.summary),
+            "decision": str(r.decision),
+        }
+        for r in res.all()
+    ]
+
+
+async def resolve_approval_for_user(
+    session: AsyncSession, *, approval_id: str, user_id: str, decision: str
+) -> bool:
+    """ユーザーの決定 (allow/deny) を承認行へ書く。
+
+    本人の job に紐づく pending の行のみ更新できる (他人の承認 ID や解決済みは
+    False — 呼出側は 404 にする)。service セッションで呼ぶこと (RLS は
+    default deny で UPDATE policy を作っていない)。
+    """
+    if decision not in ("allow", "deny"):
+        return False
+    try:
+        validated = _validated_job_id(approval_id)
+    except ChatRelayError:
+        return False
+    res = await session.execute(
+        text(
+            "update public.chat_relay_approvals a set decision = :d, decided_at = now() "
+            "where a.id = cast(:a as uuid) and a.decision = 'pending' "
+            "and exists ("
+            "  select 1 from public.chat_relay_jobs j "
+            "  where j.id = a.job_id and j.requested_by = cast(:u as uuid)"
+            ") returning a.id"
+        ),
+        {"d": decision, "a": validated, "u": user_id},
+    )
+    ok = res.first() is not None
+    if ok:
+        await _audit(
+            session,
+            action="chat_relay.approval_decision",
+            target_id=validated,
+            after={"decision": decision},
+        )
+    return ok
 
 
 async def job_result(session: AsyncSession, *, job_id: str) -> tuple[str, str | None]:

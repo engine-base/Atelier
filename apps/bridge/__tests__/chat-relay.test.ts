@@ -11,22 +11,37 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import type { ChatRelayPicked, ChatRelayRateLimitObservation } from '../src/api-client.js';
+import type {
+  ChatRelayApprovalDecision,
+  ChatRelayChunkKind,
+  ChatRelayPicked,
+  ChatRelayRateLimitObservation,
+} from '../src/api-client.js';
 import {
   ChatRelayWorker,
   ERROR_TAG_CLAUDE_NOT_FOUND,
   ERROR_TAG_CLAUDE_NOT_LOGGED_IN,
   buildChatArgs,
+  buildControlResponse,
   chatRelayEnabled,
+  chatWorkspaceDir,
   classifyRunFailure,
   parseStreamLine,
   sanitizedChildEnv,
+  summarizeToolInput,
   type ChatRelaySender,
 } from '../src/chat-relay.js';
 
 class FakeSender implements ChatRelaySender {
   picked: ChatRelayPicked | null = null;
-  readonly chunks: Array<{ seqStart: number; texts: readonly string[] }> = [];
+  readonly chunks: Array<{
+    seqStart: number;
+    texts: readonly string[];
+    kinds?: readonly ChatRelayChunkKind[];
+  }> = [];
+  /** GAP-134: 承認要求の記録 + 返す決定 (テストが設定) */
+  readonly approvals: Array<{ tool: string; summary: string }> = [];
+  approvalDecision: ChatRelayApprovalDecision = 'allow';
   readonly completes: Array<{
     ok: boolean;
     error?: string;
@@ -40,8 +55,16 @@ class FakeSender implements ChatRelaySender {
     _jobId: string,
     seqStart: number,
     texts: readonly string[],
+    kinds?: readonly ChatRelayChunkKind[],
   ): Promise<void> {
-    this.chunks.push({ seqStart, texts });
+    this.chunks.push({ seqStart, texts, ...(kinds ? { kinds } : {}) });
+  }
+  async chatRelayCreateApproval(_jobId: string, tool: string, summary: string): Promise<string> {
+    this.approvals.push({ tool, summary });
+    return `ap-${this.approvals.length}`;
+  }
+  async chatRelayApprovalDecision(): Promise<ChatRelayApprovalDecision> {
+    return this.approvalDecision;
   }
   async chatRelayComplete(
     _jobId: string,
@@ -229,7 +252,7 @@ describe('ChatRelayWorker.runOnce', () => {
 
   it('delta を chunks として返送し complete(ok) する', async () => {
     const sender = new FakeSender();
-    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
     const worker = makeWorker(sender, makeFakeClaude([DELTA_A, DELTA_B, RESULT_OK]));
     expect(await worker.runOnce()).toBe('completed');
     const sent = sender.chunks.flatMap((c) => [...c.texts]);
@@ -241,7 +264,7 @@ describe('ChatRelayWorker.runOnce', () => {
 
   it('partial 不達時は assistant 完成 text で代替する', async () => {
     const sender = new FakeSender();
-    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
     const worker = makeWorker(sender, makeFakeClaude([ASSISTANT, RESULT_OK]));
     expect(await worker.runOnce()).toBe('completed');
     expect(sender.chunks.flatMap((c) => [...c.texts])).toEqual(['完成応答']);
@@ -249,7 +272,7 @@ describe('ChatRelayWorker.runOnce', () => {
 
   it('exit 非 0 は complete(ok=false) + error 文字列', async () => {
     const sender = new FakeSender();
-    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
     const worker = makeWorker(sender, makeFakeClaude([], 3));
     expect(await worker.runOnce()).toBe('failed');
     expect(sender.completes[0]?.ok).toBe(false);
@@ -258,7 +281,7 @@ describe('ChatRelayWorker.runOnce', () => {
 
   it('result が error subtype なら exit 0 でも failed', async () => {
     const sender = new FakeSender();
-    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
     const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_ERR], 0));
     expect(await worker.runOnce()).toBe('failed');
     expect(sender.completes[0]?.ok).toBe(false);
@@ -276,7 +299,7 @@ describe('ChatRelayWorker.runOnce', () => {
         },
       });
     const sender = new FakeSender();
-    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT' };
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
     const worker = makeWorker(
       sender,
       // five_hour は 2 回出る → 最新値 (0.5) だけが送られる
@@ -319,3 +342,163 @@ describe('classifyRunFailure (GAP-127 — 失敗原因の分類タグ)', () => {
     expect(msg.includes('[claude-')).toBe(false);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* GAP-134: PC 操作 (tools_mode) — 引数 / 解釈 / 承認往復              */
+/* ------------------------------------------------------------------ */
+
+describe('buildChatArgs — tools_mode (GAP-134)', () => {
+  it('off は従来どおり 1 往復・ツールなし', () => {
+    const args = buildChatArgs('SYS', 'off');
+    expect(args).toContain('--max-turns');
+    expect(args[args.indexOf('--max-turns') + 1]).toBe('1');
+    expect(args).not.toContain('--permission-prompt-tool');
+  });
+  it('auto は Claude Code 同等ツール + bypassPermissions + 25 turns', () => {
+    const args = buildChatArgs('SYS', 'auto');
+    expect(args[args.indexOf('--allowedTools') + 1]).toBe('Read,Write,Edit,Bash,Glob,Grep');
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('bypassPermissions');
+    expect(args[args.indexOf('--max-turns') + 1]).toBe('25');
+  });
+  it('approve は stdio 承認プロトコル + stream-json 入力', () => {
+    const args = buildChatArgs('SYS', 'approve');
+    expect(args[args.indexOf('--permission-prompt-tool') + 1]).toBe('stdio');
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('default');
+    expect(args[args.indexOf('--input-format') + 1]).toBe('stream-json');
+    expect(args).not.toContain('--allowedTools'); // 載せると聞かずに自動許可される
+  });
+});
+
+describe('parseStreamLine — GAP-134 追加分', () => {
+  it('content_block_start の tool_use を tool_start として取り出す', () => {
+    const line = JSON.stringify({
+      type: 'stream_event',
+      event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'Bash' } },
+    });
+    expect(parseStreamLine(line)).toEqual({ kind: 'tool_start', tool: 'Bash' });
+  });
+  it('control_request can_use_tool を permission_request として取り出す', () => {
+    const line = JSON.stringify({
+      type: 'control_request',
+      request_id: 'req-1',
+      request: { subtype: 'can_use_tool', tool_name: 'Write', input: { file_path: '/tmp/a' } },
+    });
+    expect(parseStreamLine(line)).toEqual({
+      kind: 'permission_request',
+      requestId: 'req-1',
+      tool: 'Write',
+      input: { file_path: '/tmp/a' },
+    });
+  });
+  it('can_use_tool 以外の control_request は無視する', () => {
+    const line = JSON.stringify({
+      type: 'control_request',
+      request_id: 'req-2',
+      request: { subtype: 'initialize' },
+    });
+    expect(parseStreamLine(line)).toBeNull();
+  });
+});
+
+describe('buildControlResponse / summarizeToolInput (GAP-134)', () => {
+  it('allow は updatedInput を返す実プロトコル形式', () => {
+    const line = buildControlResponse('req-1', 'allow', { command: 'ls' });
+    const obj = JSON.parse(line);
+    expect(obj.response.request_id).toBe('req-1');
+    expect(obj.response.response).toEqual({ behavior: 'allow', updatedInput: { command: 'ls' } });
+  });
+  it('deny は拒否メッセージを返す', () => {
+    const obj = JSON.parse(buildControlResponse('req-1', 'deny', {}));
+    expect(obj.response.response.behavior).toBe('deny');
+  });
+  it('要約は Bash=command / Write=file_path / 長文は切り詰め', () => {
+    expect(summarizeToolInput('Bash', { command: 'echo hi' })).toBe('echo hi');
+    expect(summarizeToolInput('Write', { file_path: '/tmp/x', content: '秘密' })).toBe('/tmp/x');
+    expect(summarizeToolInput('Bash', { command: 'x'.repeat(300) })).toHaveLength(200);
+  });
+  it('作業フォルダは env 優先・既定 ~/AtelierChatWork', () => {
+    expect(chatWorkspaceDir({ ATELIER_BRIDGE_CHAT_WORKSPACE: '/tmp/ws' })).toBe('/tmp/ws');
+    expect(chatWorkspaceDir({})).toContain('AtelierChatWork');
+  });
+});
+
+/** GAP-134: 承認往復する対話型 fake-claude (許可要求 → stdin の決定を待って続行)。 */
+function makeApprovalFakeClaude(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'fake-claude-approve-'));
+  const path = join(dir, 'fake-claude-approve.mjs');
+  const script = `#!/usr/bin/env node
+// user メッセージ受信 → 許可要求を出す → control_response を待つ →
+// allow なら tool_start + delta + result(success) / deny なら delta + result
+let buf = '';
+const out = (o) => console.log(JSON.stringify(o));
+process.stdin.on('data', (d) => {
+  buf += d.toString();
+  let nl;
+  while ((nl = buf.indexOf('\\n')) >= 0) {
+    const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+    if (!line.trim()) continue;
+    const obj = JSON.parse(line);
+    if (obj.type === 'user') {
+      out({ type: 'control_request', request_id: 'req-1',
+            request: { subtype: 'can_use_tool', tool_name: 'Bash', input: { command: 'touch out.txt' } } });
+    } else if (obj.type === 'control_response') {
+      const behavior = obj.response?.response?.behavior;
+      if (behavior === 'allow') {
+        out({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: 'Bash' } } });
+        out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '実行しました' } } });
+      } else {
+        out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: '拒否を受けました' } } });
+      }
+      out({ type: 'result', subtype: 'success', result: 'done' });
+      process.exit(0);
+    }
+  }
+});
+`;
+  writeFileSync(path, script);
+  chmodSync(path, 0o755);
+  return path;
+}
+
+describe('ChatRelayWorker — approve 往復 (GAP-134)', () => {
+  it('許可要求 → サーバー承認 allow → control_response → tool 実況 + 本文が返る', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'ファイル作って', toolsMode: 'approve' };
+    sender.approvalDecision = 'allow';
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeApprovalFakeClaude(),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH, ATELIER_BRIDGE_CHAT_WORKSPACE: tmpdir() },
+      flushIntervalMs: 10,
+      approvalPollMs: 10,
+      approvalTimeoutMs: 5_000,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.approvals).toEqual([{ tool: 'Bash', summary: 'touch out.txt' }]);
+    const all = sender.chunks.flatMap((c) =>
+      c.texts.map((t, i) => ({ text: t, kind: c.kinds?.[i] ?? 'delta' })),
+    );
+    expect(all).toContainEqual({ text: 'Bash', kind: 'tool' });
+    expect(all.map((c) => c.text).join('')).toContain('実行しました');
+  });
+
+  it('サーバー承認 deny → CLI に deny が返り、本文で拒否を報告して完走する', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'ファイル作って', toolsMode: 'approve' };
+    sender.approvalDecision = 'deny';
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeApprovalFakeClaude(),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH, ATELIER_BRIDGE_CHAT_WORKSPACE: tmpdir() },
+      flushIntervalMs: 10,
+      approvalPollMs: 10,
+      approvalTimeoutMs: 5_000,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    const joined = sender.chunks.flatMap((c) => c.texts).join('');
+    expect(joined).toContain('拒否を受けました');
+  });
+});
+

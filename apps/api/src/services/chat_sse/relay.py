@@ -89,8 +89,15 @@ async def relay_stream_chunks(
     user_message: str,
     thread_id: str,
     actor_id: str,
-) -> AsyncIterator[str]:
-    """Bridge 中継で text delta を逐次 yield する。
+    tools_mode: str = "off",
+) -> AsyncIterator[str | dict[str, object]]:
+    """Bridge 中継でイベントを逐次 yield する。
+
+    yield するもの (agent_sdk_stream_chunks と同一形 — SSE 側は共通処理):
+      - str: 応答本文の text delta
+      - {"tool": name}: ツール実行の実況 (GAP-134)
+      - {"pc_approval": {...}} / {"pc_approval_resolved": {...}}: 承認カード
+        (Bridge が CLI の許可要求を DB に積み、ここで検知して配信する)
 
     presence 不在は最初の yield 前に RelayUnavailable を raise する
     (呼び出し側が SSE error に変換する)。
@@ -108,20 +115,51 @@ async def relay_stream_chunks(
             requested_by=actor_id,
             system_prompt=system_prompt,
             prompt=fold_prompt(history, user_message),
+            tools_mode=tools_mode,
         )
         await session.commit()
 
-    deadline = asyncio.get_event_loop().time() + _timeout_seconds()
+    # PC 操作 (approve/auto) は複数ターンのツール実行 + ユーザー承認待ちを含む
+    # ため、既定タイムアウトを長めに取る (env 明示があればそちらを尊重)。
+    timeout = _timeout_seconds()
+    if tools_mode in ("approve", "auto") and not os.environ.get(TIMEOUT_ENV, "").strip():
+        timeout = max(timeout, 600.0)
+
+    deadline = asyncio.get_event_loop().time() + timeout
     last_seq = -1
+    seen_approvals: dict[str, str] = {}  # id -> 最後に配信した decision
     while True:
         await asyncio.sleep(_POLL_INTERVAL_SECONDS)
         async with factory() as session:
             chunks = await chat_relay.fetch_chunks(session, job_id=job_id, after_seq=last_seq)
             status, error = await chat_relay.job_result(session, job_id=job_id)
-        for seq, content in chunks:
+            approvals = (
+                await chat_relay.list_job_approvals(session, job_id=job_id)
+                if tools_mode == "approve"
+                else []
+            )
+        for seq, kind, content in chunks:
             last_seq = seq
-            if content:
+            if not content:
+                continue
+            if kind == "tool":
+                yield {"tool": content}
+            else:
                 yield content
+        for ap in approvals:
+            prev = seen_approvals.get(ap["id"])
+            if prev is None and ap["decision"] == "pending":
+                seen_approvals[ap["id"]] = "pending"
+                yield {
+                    "pc_approval": {
+                        "id": ap["id"],
+                        "tool": ap["tool"],
+                        "summary": ap["summary"],
+                    }
+                }
+            elif prev == "pending" and ap["decision"] != "pending":
+                seen_approvals[ap["id"]] = ap["decision"]
+                yield {"pc_approval_resolved": {"id": ap["id"], "decision": ap["decision"]}}
         if status == "done":
             return
         if status == "error":
@@ -131,7 +169,7 @@ async def relay_stream_chunks(
         if asyncio.get_event_loop().time() > deadline:
             async with factory() as session:
                 await chat_relay.expire_job(
-                    session, job_id=job_id, reason=f"SSE timeout ({_timeout_seconds():.0f}s)"
+                    session, job_id=job_id, reason=f"SSE timeout ({timeout:.0f}s)"
                 )
                 await session.commit()
             raise RelayTimeout

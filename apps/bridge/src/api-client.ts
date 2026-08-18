@@ -37,7 +37,15 @@ export interface ChatRelayPicked {
   readonly jobId: string;
   readonly systemPrompt: string;
   readonly prompt: string;
+  /** GAP-134: PC 操作モード (off/approve/auto) — 本人 PC で実行する。 */
+  readonly toolsMode: 'off' | 'approve' | 'auto';
 }
+
+/** GAP-134: chunk 種別 — delta (本文) / tool (ツール実況、content はツール名)。 */
+export type ChatRelayChunkKind = 'delta' | 'tool';
+
+/** GAP-134: 承認決定 (Bridge がポーリングで読む)。 */
+export type ChatRelayApprovalDecision = 'pending' | 'allow' | 'deny' | 'timeout';
 
 /** GAP-119: claude CLI の rate_limit_event 観測値 (実値のみ complete へ転送)。 */
 export interface ChatRelayRateLimitObservation {
@@ -51,8 +59,17 @@ export interface BridgeApi {
   pick(workerPid: number, projectId?: string): Promise<KanbanPickResult>;
   /** GAP-114: チャット中継 job を 1 件確保 (無ければ null)。 */
   chatRelayPick(workerId: string): Promise<ChatRelayPicked | null>;
-  /** GAP-114: text delta を追記 (seqStart からの連番)。 */
-  chatRelayChunks(jobId: string, seqStart: number, texts: readonly string[]): Promise<void>;
+  /** GAP-114/134: chunk を追記 (seqStart からの連番)。kinds 省略時は全て delta。 */
+  chatRelayChunks(
+    jobId: string,
+    seqStart: number,
+    texts: readonly string[],
+    kinds?: readonly ChatRelayChunkKind[],
+  ): Promise<void>;
+  /** GAP-134: CLI の許可要求を承認キューへ積む → approval_id。 */
+  chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
+  /** GAP-134: 承認決定をポーリングで読む。 */
+  chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
   /** GAP-114: job を done / error で確定 (GAP-119: プラン枠観測値も同送可)。 */
   chatRelayComplete(
     jobId: string,
@@ -97,6 +114,19 @@ export class ApiClient implements BridgeApi {
     });
     if (res.status === 401 || res.status === 500) {
       // 401 = token 不一致 / 500 = ATELIER_BRIDGE_TOKEN 未設定 (API 側)
+      throw new BridgeAuthError(`bridge auth failed: ${res.status} ${await res.text()}`);
+    }
+    if (!res.ok) {
+      throw new Error(`${path} failed: ${res.status} ${await res.text()}`);
+    }
+    return res.json();
+  }
+
+  private async get(path: string): Promise<unknown> {
+    const res = await fetch(`${this.config.baseUrl}${path}`, {
+      headers: { 'X-Bridge-Token': this.config.token },
+    });
+    if (res.status === 401 || res.status === 500) {
       throw new BridgeAuthError(`bridge auth failed: ${res.status} ${await res.text()}`);
     }
     if (!res.ok) {
@@ -197,15 +227,19 @@ export class ApiClient implements BridgeApi {
         job_id: string | null;
         system_prompt: string | null;
         prompt: string | null;
+        tools_mode?: string | null;
         no_available_job: boolean;
       };
     };
     const d = json.data;
     if (d.no_available_job || d.job_id === null) return null;
+    const toolsMode =
+      d.tools_mode === 'approve' || d.tools_mode === 'auto' ? d.tools_mode : 'off';
     return {
       jobId: d.job_id,
       systemPrompt: d.system_prompt ?? '',
       prompt: d.prompt ?? '',
+      toolsMode,
     };
   }
 
@@ -213,11 +247,32 @@ export class ApiClient implements BridgeApi {
     jobId: string,
     seqStart: number,
     texts: readonly string[],
+    kinds?: readonly ChatRelayChunkKind[],
   ): Promise<void> {
     await this.post(`/chat-relay/${jobId}/chunks`, {
       seq_start: seqStart,
       texts: [...texts],
+      // GAP-134: 全部 delta なら省略 (後方互換 + ペイロード節約)
+      ...(kinds && kinds.some((k) => k !== 'delta') ? { kinds: [...kinds] } : {}),
     });
+  }
+
+  async chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string> {
+    const json = (await this.post(`/chat-relay/${jobId}/approvals`, {
+      tool,
+      summary,
+    })) as { data: { approval_id: string } };
+    return json.data.approval_id;
+  }
+
+  async chatRelayApprovalDecision(
+    jobId: string,
+    approvalId: string,
+  ): Promise<ChatRelayApprovalDecision> {
+    const json = (await this.get(`/chat-relay/${jobId}/approvals/${approvalId}`)) as {
+      data: { decision: ChatRelayApprovalDecision };
+    };
+    return json.data.decision;
   }
 
   async chatRelayComplete(

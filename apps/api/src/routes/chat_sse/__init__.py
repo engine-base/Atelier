@@ -99,10 +99,28 @@ async def resolve_pc_approval(
 ) -> dict[str, PcApprovalDecisionResponse]:
     """SSE の pc_approval カードで提示した実行を許可/拒否する。
 
-    レジストリはプロセス内 (agent_sdk セルフホスト単一プロセス前提)。
-    未知 ID・他ユーザーの ID・期限切れは 404 (存在を漏らさない)。
+    2 系統を同じ入口で解決する (フロントは経路を意識しない):
+      1. agent_sdk: プロセス内レジストリ (サーバー内実行)
+      2. relay (GAP-134): chat_relay_approvals 行 (本人の PC の Bridge が
+         ポーリングで決定を読む)。本人の job に紐づく pending のみ更新可。
+    未知 ID・他ユーザーの ID・解決済みは 404 (存在を漏らさない)。
     """
     ok = pc_approvals.resolve_request(approval_id, user_id=user.id, decision=body.decision)
+    if not ok:
+        from src.services import chat_relay as relay_svc
+        from src.services.project_credentials import (
+            _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+        )
+
+        async with _service_session_factory()() as svc_session:
+            ok = await relay_svc.resolve_approval_for_user(
+                svc_session,
+                approval_id=approval_id,
+                user_id=user.id,
+                decision=body.decision,
+            )
+            if ok:
+                await svc_session.commit()
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "pc approval not found")
     return {"data": PcApprovalDecisionResponse(resolved=True)}

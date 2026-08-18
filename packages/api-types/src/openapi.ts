@@ -9091,6 +9091,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat-relay/{job_id}/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** chat relay PC 操作の承認要求（GAP-134 / BridgeAuth） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChatRelayApprovalCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description 承認キューへ登録 (SSE が pc_approval カードとして配信) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRelayApprovalCreateResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description job 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description job が running でない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat-relay/{job_id}/approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** chat relay PC 操作の承認決定を取得（GAP-134 / BridgeAuth） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                    approval_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 決定 (pending のうちは Bridge が実行を待つ) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRelayApprovalStatusResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description approval 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat-relay/{job_id}/complete": {
         parameters: {
             query?: never;
@@ -15972,11 +16102,31 @@ export interface components {
             job_id?: string | null;
             system_prompt?: string | null;
             prompt?: string | null;
+            /**
+             * @description GAP-134: PC 操作モード — Bridge が本人 PC で実行する
+             * @enum {string|null}
+             */
+            tools_mode?: "off" | "approve" | "auto" | null;
             no_available_job: boolean;
         };
         ChatRelayChunksRequest: {
             seq_start: number;
             texts: string[];
+            /** @description GAP-134: texts と同長の種別 (delta=本文 / tool=実況)。省略時は全て delta */
+            kinds?: ("delta" | "tool")[] | null;
+        };
+        /** @description GAP-134: Bridge が CLI の許可要求を承認キューへ積む */
+        ChatRelayApprovalCreateRequest: {
+            tool: string;
+            summary?: string;
+        };
+        ChatRelayApprovalCreateResponse: {
+            /** Format: uuid */
+            approval_id: string;
+        };
+        ChatRelayApprovalStatusResponse: {
+            /** @enum {string} */
+            decision: "pending" | "allow" | "deny" | "timeout";
         };
         /** @description GAP-122 — Bridge 接続トークン発行リクエスト */
         BridgeTokenCreate: {
