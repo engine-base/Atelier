@@ -332,12 +332,52 @@ describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129/130)", () => {
     expect(screen.queryByText(/PC 操作/)).toBeNull();
   });
 
-  it("toolActivity があるとツール実行の実況を表示する", () => {
+  it("toolActivity があるとタイムライン表示 (実行中 + 完了 ✓) になる (GAP-136)", () => {
     render(
-      <ChatPanel messages={[]} onSend={noop} toolActivity={["Bash", "Write"]} />,
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        toolActivity={["Bash", "Write"]}
+        toolStartedAt={Date.now() - 5000}
+      />,
     );
     expect(screen.getByText("ツール実行中: Write")).toBeInTheDocument();
-    expect(screen.getByText(/これまで: Bash/)).toBeInTheDocument();
+    // 完了済みツールは ✓ 付きの行で残る
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    // 経過秒 (実イベント由来の開始時刻から算出)
+    expect(screen.getByText(/経過 \d+ 秒/)).toBeInTheDocument();
+  });
+
+  it("GAP-136: 完了後は toolRunSummary で「PC 操作完了」の痕跡を残す", () => {
+    render(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        toolRunSummary={{ count: 3, seconds: 42 }}
+      />,
+    );
+    expect(
+      screen.getByText("PC 操作完了: 3 ツール実行 (42 秒)"),
+    ).toBeInTheDocument();
+  });
+
+  it("GAP-136: 実行中 (disabled) は PC 操作トグルが変更不可", () => {
+    const onChange = vi.fn();
+    render(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        disabled
+        toolsMode="approve"
+        onToolsModeChange={onChange}
+      />,
+    );
+    const btn = screen.getByRole("button", {
+      name: "PC 操作を切り替える (現在: 承認して実行)",
+    });
+    expect(btn).toBeDisabled();
+    fireEvent.click(btn);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

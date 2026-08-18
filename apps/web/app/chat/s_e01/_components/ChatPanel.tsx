@@ -129,6 +129,10 @@ export interface ChatPanelProps {
   readonly onToolsModeChange?: (mode: "off" | "approve" | "auto") => void;
   /** GAP-129: 実行中ツールの実況 (SSE tool chunk の実値)。 */
   readonly toolActivity?: readonly string[];
+  /** GAP-136: 最初のツール開始時刻 (epoch ms)。経過秒の表示に使う。 */
+  readonly toolStartedAt?: number | null;
+  /** GAP-136: 直前応答の PC 操作サマリ (完了後も痕跡を残す。次送信でクリア)。 */
+  readonly toolRunSummary?: { count: number; seconds: number } | null;
   /**
    * GAP-130: approve モードの承認待ちカード (SSE pc_approval の実値)。
    * onPcApprovalDecision 未指定ならカードを出さない (Rule 10)。
@@ -494,10 +498,25 @@ export function ChatPanel({
   toolsMode = "off",
   onToolsModeChange,
   toolActivity,
+  toolStartedAt,
+  toolRunSummary,
   pcApprovals,
   onPcApprovalDecision,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
+  // GAP-136: 実行中の経過秒 (1 秒刻み)。toolStartedAt が無ければ表示しない。
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    if (toolStartedAt == null) {
+      setElapsedSec(0);
+      return;
+    }
+    const tick = () =>
+      setElapsedSec(Math.max(0, Math.round((Date.now() - toolStartedAt) / 1000)));
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [toolStartedAt]);
   const [picker, setPicker] = useState<"mention" | "knowledge" | "command" | null>(
     null,
   );
@@ -753,22 +772,56 @@ export function ChatPanel({
               </div>
             </div>
           ) : null}
-          {/* GAP-129: ツール実行の実況 (auto モード中のランタイム状態) */}
+          {/* GAP-129/136: ツール実行のタイムライン (完了 ✓ / 実行中 + 経過秒) */}
           {toolActivity && toolActivity.length > 0 ? (
             <div
               role="status"
               aria-live="polite"
+              className="mt-2 rounded-md bg-surface-variant px-3 py-2 text-[11.5px] text-on-surface-variant"
+            >
+              <div className="flex items-center gap-2">
+                <Terminal
+                  size={12}
+                  aria-hidden="true"
+                  className="shrink-0 text-primary"
+                />
+                <span className="font-semibold text-on-surface">
+                  ツール実行中: {toolActivity[toolActivity.length - 1]}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary"
+                />
+                {toolStartedAt != null ? (
+                  <span className="tabular-nums">経過 {elapsedSec} 秒</span>
+                ) : null}
+                <span className="ml-auto">応答はツール完了後に届きます</span>
+              </div>
+              {toolActivity.length > 1 ? (
+                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-[20px]">
+                  {toolActivity.slice(0, -1).map((name, i) => (
+                    <li key={`${i}-${name}`} className="flex items-center gap-1">
+                      <span aria-hidden="true" className="text-[10px] text-primary">
+                        ✓
+                      </span>
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {/* GAP-136: 直前応答の PC 操作サマリ (実況が消えた後も痕跡を残す) */}
+          {(!toolActivity || toolActivity.length === 0) && toolRunSummary ? (
+            <div
+              role="status"
               className="mt-2 flex items-center gap-2 rounded-md bg-surface-variant px-3 py-1.5 text-[11.5px] text-on-surface-variant"
             >
               <Terminal size={12} aria-hidden="true" className="shrink-0 text-primary" />
-              <span className="font-semibold text-on-surface">
-                ツール実行中: {toolActivity[toolActivity.length - 1]}
+              <span>
+                PC 操作完了: {toolRunSummary.count} ツール実行 (
+                {toolRunSummary.seconds} 秒)
               </span>
-              {toolActivity.length > 1 ? (
-                <span className="truncate">
-                  (これまで: {toolActivity.slice(0, -1).join(" → ")})
-                </span>
-              ) : null}
             </div>
           ) : null}
           <div className="relative mt-2 flex items-center gap-1 border-t border-border pt-2">
@@ -820,20 +873,28 @@ export function ChatPanel({
               <AtSign size={12} aria-hidden="true" />
               <span className="hidden sm:inline">@メンション</span>
             </button>
-            {/* GAP-129/130: PC 操作トグル (agent_sdk モードのときだけ親が props を渡す)。
-                クリックで なし → 承認して実行 → 自動 → なし を循環する。 */}
+            {/* GAP-129/130: PC 操作トグル (agent_sdk/relay モードのときだけ親が props を渡す)。
+                クリックで なし → 承認して実行 → 自動 → なし を循環する。
+                GAP-136: 実行中は変更不可 — 走行中の CLI は起動時のモードで固定されて
+                おり途中変更は反映されない (次の送信から適用)。誤解を生む操作を塞ぐ。 */}
             {onToolsModeChange ? (
               <button
                 type="button"
+                disabled={disabled}
                 aria-pressed={toolsMode !== "off"}
                 aria-label={`PC 操作を切り替える (現在: ${TOOLS_MODE_LABEL[toolsMode]})`}
+                title={
+                  disabled
+                    ? "実行中は変更できません (次の送信から変更できます)"
+                    : undefined
+                }
                 onClick={() => {
                   const i = TOOLS_MODE_CYCLE.indexOf(toolsMode);
                   onToolsModeChange(
                     TOOLS_MODE_CYCLE[(i + 1) % TOOLS_MODE_CYCLE.length] ?? "off",
                   );
                 }}
-                className={cnToggle(toolsMode !== "off")}
+                className={`${cnToggle(toolsMode !== "off")} disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 <Terminal size={12} aria-hidden="true" />
                 <span className="hidden sm:inline">

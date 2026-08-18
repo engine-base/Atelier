@@ -12,7 +12,7 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Brain } from "lucide-react";
@@ -187,6 +187,16 @@ export function ChatContainer({
   // トグルを出す (死にボタン禁止)。既定は off — ユーザーが明示的に有効化する。
   const [toolsMode, setToolsMode] = useState<"off" | "approve" | "auto">("off");
   const [toolActivity, setToolActivity] = useState<readonly string[]>([]);
+  // GAP-136: PC 操作の経過時間 (最初のツール開始時刻) と完了サマリ。
+  // 長時間のツール実行で「止まって見える」UX を解消する — 実イベント由来の
+  // 値のみ表示し、進捗の推測 (%) はしない。
+  const [toolStartedAt, setToolStartedAt] = useState<number | null>(null);
+  const [toolRunSummary, setToolRunSummary] = useState<{
+    count: number;
+    seconds: number;
+  } | null>(null);
+  const toolLogRef = useRef<string[]>([]);
+  const toolStartRef = useRef<number | null>(null);
   // GAP-130: approve モードの承認待ちカード (SSE pc_approval chunk の実値)
   const [pcApprovals, setPcApprovals] = useState<readonly PcApprovalInfo[]>([]);
   const connQuery = useQuery({
@@ -390,6 +400,10 @@ export function ChatContainer({
       setPendingId(assistantId);
       setPendingStage("context");
       setToolActivity([]);
+      setToolRunSummary(null);
+      setToolStartedAt(null);
+      toolLogRef.current = [];
+      toolStartRef.current = null;
 
       const onChunk = (chunk: ChatStreamChunk): void => {
         if (chunk.type === "context") {
@@ -405,9 +419,14 @@ export function ChatContainer({
             ),
           );
         } else if (chunk.type === "tool" && chunk.content) {
-          // GAP-129: ツール実行の実況 (auto モード) — 直近の実行を積む
+          // GAP-129/136: ツール実行の実況 — タイムライン表示用に積む
           const name = chunk.content;
-          setToolActivity((prev) => [...prev.slice(-4), name]);
+          if (toolStartRef.current === null) {
+            toolStartRef.current = Date.now();
+            setToolStartedAt(toolStartRef.current);
+          }
+          toolLogRef.current = [...toolLogRef.current.slice(-29), name];
+          setToolActivity(toolLogRef.current);
         } else if (chunk.type === "pc_approval") {
           // GAP-130: 承認カードの表示要求 (approve モード)
           const meta = chunk.metadata ?? {};
@@ -465,7 +484,19 @@ export function ChatContainer({
         setSending(false);
         setPendingId(null);
         setPendingStage(null);
+        // GAP-136: ツールを実行した応答は「完了: N ツール (M 秒)」を残す
+        // (実況が消えて何も痕跡が無い、を解消。次の送信でクリア)
+        if (toolLogRef.current.length > 0) {
+          setToolRunSummary({
+            count: toolLogRef.current.length,
+            seconds:
+              toolStartRef.current !== null
+                ? Math.max(1, Math.round((Date.now() - toolStartRef.current) / 1000))
+                : 0,
+          });
+        }
         setToolActivity([]);
+        setToolStartedAt(null);
         setPcApprovals([]);
       }
     },
@@ -621,6 +652,8 @@ export function ChatContainer({
           pendingAssistantId={pendingId}
           pendingStage={pendingStage}
           toolActivity={toolActivity}
+          toolStartedAt={toolStartedAt}
+          toolRunSummary={toolRunSummary}
           pcApprovals={pcApprovals}
           onPcApprovalDecision={handlePcApprovalDecision}
           {...(toolsAvailable
