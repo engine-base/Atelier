@@ -32,6 +32,12 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # DB pool / LLM client 等の初期化は T-F-11 / T-F-12 で追加
+    # GAP-133: ローカル埋め込みのウォームアップ (バックグラウンド —
+    # 初回のモデル DL でユーザー操作をブロックしない。完了後に未埋め込み行を
+    # 自動バックフィル。失敗しても API は正常稼働)
+    from src.services.knowledge import schedule_local_embedding_warmup
+
+    schedule_local_embedding_warmup()
     yield
 
 

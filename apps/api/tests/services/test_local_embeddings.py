@@ -73,9 +73,22 @@ async def test_embed_text_prefers_voyage(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_embed_text_skips_local_while_model_loading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """初回モデル DL 中 (is_ready=False) はブロックせず (None, None) で degrade。"""
+    monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
+    monkeypatch.setattr(local_emb, "local_available", lambda: True)
+    monkeypatch.setattr(local_emb, "is_ready", lambda: False)
+    vec, tag = await kn._embed_text("x")  # pyright: ignore[reportPrivateUsage]
+    assert vec is None and tag is None
+
+
+@pytest.mark.asyncio
 async def test_embed_text_falls_to_local(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("VOYAGE_API_KEY", raising=False)
     monkeypatch.setattr(local_emb, "local_available", lambda: True)
+    monkeypatch.setattr(local_emb, "is_ready", lambda: True)
 
     async def _fake_q(_q: str) -> list[float]:
         return [0.3] * 1024

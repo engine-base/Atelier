@@ -108,14 +108,17 @@ async def _embed_text(
             return None, None
     from src.embeddings import local as local_emb
 
-    if local_emb.local_available():
+    if local_emb.local_available() and local_emb.is_ready():
+        # is_ready ガード: 初回モデル DL 中はユーザー操作を分単位でブロック
+        # しない (このターンは ilike に degrade し、起動時ウォームアップ完了後の
+        # 自動バックフィルが埋め込みを補完する — UX を犠牲にしない)。
         try:
             if input_type == "query":
                 return await local_emb.embed_query(content), local_emb.local_model_tag()
             vecs = await local_emb.embed_documents([content])
             return vecs[0], local_emb.local_model_tag()
         except Exception:
-            # モデル DL 失敗等 — 黙って壊さず text fallback へ (log は local 側)
+            # 実行時失敗 — 黙って壊さず text fallback へ (log は local 側)
             return None, None
     return None, None
 
@@ -828,3 +831,97 @@ async def extract_patterns(
 
     patterns.sort(key=lambda p: (-p.occurrence_count, -p.avg_confidence, p.pattern_tags))
     return KnowledgePatternResponse(total=len(patterns), patterns=patterns[:limit])
+
+
+# --------------------------------------------------------------------------- #
+# GAP-133: ローカル埋め込みのウォームアップ + 自動バックフィル
+# --------------------------------------------------------------------------- #
+
+
+async def backfill_missing_embeddings(*, batch: int = 20) -> int:
+    """現行モデルの埋め込みが無い行を埋める (冪等)。
+
+    対象: deleted_at is null かつ (embedding 無し or embedding_model が現行と
+    不一致)。ウォームアップ完了後の自動実行と、reembed_knowledge.py の両方が
+    これを使う (実装は 1 箇所)。埋め込み不可 (プロバイダ皆無) なら 0 件で戻る。
+    戻り値は更新した行数。
+    """
+    import logging
+
+    from src.services.project_credentials import (
+        _service_session_factory,  # pyright: ignore[reportPrivateUsage]
+    )
+
+    logger = logging.getLogger(__name__)
+    probe_vec, tag = await _embed_text("probe", input_type="document")
+    if probe_vec is None or tag is None:
+        return 0
+    done = 0
+    async with _service_session_factory()() as session:
+        res = await session.execute(
+            text(
+                "select id, content_md from public.knowledge_nodes "
+                "where deleted_at is null "
+                "and (embedding is null or embedding_model is distinct from cast(:tag as text)) "
+                "order by created_at"
+            ),
+            {"tag": tag},
+        )
+        rows = res.all()
+        for i, row in enumerate(rows, start=1):
+            vec, model = await _embed_text(str(row.content_md), input_type="document")
+            if vec is None or model != tag:
+                logger.warning("embedding backfill skipped id=%s", row.id)
+                continue
+            await session.execute(
+                text(
+                    "update public.knowledge_nodes "
+                    "set embedding = cast(:emb as extensions.vector), "
+                    "embedding_model = cast(:m as text) where id = cast(:id as uuid)"
+                ),
+                {"emb": _embedding_to_pg_literal(vec), "m": model, "id": str(row.id)},
+            )
+            done += 1
+            if i % batch == 0:
+                await session.commit()
+        await session.commit()
+    return done
+
+
+_warmup_tasks: set[Any] = set()
+
+
+def schedule_local_embedding_warmup() -> None:
+    """API 起動時のバックグラウンドウォームアップ (main.py lifespan から呼ぶ)。
+
+    ローカル埋め込みが現行プロバイダのとき:
+      1. モデルの DL + ロードを別スレッドで実施 (初回のみ数分 — ユーザーの
+         リクエストは一切ブロックしない。完了までの検索は ilike に誠実 degrade)
+      2. 完了後、未埋め込み行を自動バックフィル (ロード前に登録された
+         ナレッジも人手なしで意味検索の対象になる)
+    失敗しても API は正常稼働を続ける (ログのみ)。
+    """
+    import asyncio
+    import logging
+
+    from src.embeddings import local as local_emb
+
+    logger = logging.getLogger(__name__)
+    if os.environ.get("VOYAGE_API_KEY") or not local_emb.local_available():
+        return
+
+    async def _run() -> None:
+        try:
+            await asyncio.to_thread(local_emb.warmup)
+            n = await backfill_missing_embeddings()
+            logger.info(
+                "local embedding warmup done (model=%s, backfilled=%d)",
+                local_emb.local_embedding_model(),
+                n,
+            )
+        except Exception as exc:  # ウォームアップ失敗で API を落とさない
+            logger.warning("local embedding warmup failed: %s", exc)
+
+    task = asyncio.create_task(_run())
+    _warmup_tasks.add(task)
+    task.add_done_callback(_warmup_tasks.discard)

@@ -1,5 +1,13 @@
 """GAP-131: Vault 鍵ローテーション — 全シークレット行を新しい先頭鍵で再暗号化する。
 
+【重要 — 誤解しやすい 2 点】
+  1. **保管されたシークレットの値 (Supabase キー / API キー等) は 1 文字も
+     変わらない**。交換するのは「保管庫の扉の鍵 (暗号化鍵)」だけで、中身は
+     復号 → 新しい鍵で再暗号化されるのみ。登録済みの値はそのまま使い続けられる。
+  2. **自動では絶対に実行されない**。スケジューラ・CI・AI からの呼び出しは無く、
+     経営者が本スクリプトを手で実行したときだけ動く。さらに --yes 無しの
+     実行は確認入力 (rotate と打つ) を要求する。
+
 使い方 (詳細な手順は docs/vault-key-operations.md):
   1. 新しい鍵を発行する:
        python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -86,7 +94,20 @@ async def rotate(dry_run: bool) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Vault 鍵ローテーション (再暗号化)")
     parser.add_argument("--dry-run", action="store_true", help="件数確認のみ (書き込みなし)")
+    parser.add_argument(
+        "--yes", action="store_true", help="確認入力をスキップ (自動化された運用手順専用)"
+    )
     args = parser.parse_args()
+    if not args.dry_run and not args.yes:
+        # 誤実行ガード: 対話確認を必須にする (保管された値は変わらないが、
+        # 鍵運用は経営者の明示的な意思で行う操作のため)
+        print("Vault の暗号化鍵を交換します。保管されたシークレットの値は変わりません。")
+        try:
+            answer = input("続行するには rotate と入力してください: ").strip()
+        except EOFError:  # 非対話実行 (パイプ等) は明示 --yes が無い限り拒否
+            raise SystemExit("中止しました (非対話実行は --yes が必要です)") from None
+        if answer != "rotate":
+            raise SystemExit("中止しました (入力が rotate ではありません)")
     raise SystemExit(asyncio.run(rotate(dry_run=args.dry_run)))
 
 

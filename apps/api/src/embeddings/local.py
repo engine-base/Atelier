@@ -131,6 +131,26 @@ def _get_model(name: str) -> Any:
         return model
 
 
+def is_ready() -> bool:
+    """現行モデルがロード済みか。
+
+    GAP-133 UX 保証: 未ロード (= 初回 DL 中) のときユーザーのリクエストを
+    分単位でブロックしない — 呼出側は False なら埋め込みをスキップして
+    ilike に degrade し、起動時ウォームアップの完了後に自動バックフィルされる。
+    """
+    return local_embedding_model() in _model_cache
+
+
+def warmup() -> None:
+    """モデルの DL + ロードを行う (同期・CPU/IO 拘束)。
+
+    API 起動時にバックグラウンドスレッドで呼ぶ (main.py lifespan →
+    knowledge.schedule_local_embedding_warmup)。手動バッチ
+    (reembed_knowledge.py) も実行前にこれを呼ぶ。
+    """
+    _get_model(local_embedding_model())
+
+
 def _embed_sync(texts: list[str], *, is_query: bool) -> list[list[float]]:
     model = _get_model(local_embedding_model())
     if is_query:
