@@ -154,28 +154,73 @@ async def _load_project_state(session: AsyncSession, *, project_id: str) -> str:
 
 
 async def _fold_older_history(
-    session: AsyncSession, *, thread_id: str, recent_window: int, char_budget: int = 1200
+    session: AsyncSession,
+    *,
+    thread_id: str,
+    recent_window: int,
+    char_budget: int = 1200,
+    after: Any = None,
 ) -> str:
-    """直近 recent_window より前の発言を「これまでの経緯」として畳み込む。
+    """直近 recent_window より前の発言を文字数で畳み込む (切り捨て版)。
 
-    threads に context_summary 列が無いため毎ターン算出 (ローリング要約の簡易版)。
-    長スレッドでも古い文脈を落とさず保持する。char_budget で全体長を制限。
+    GAP-132 以降はローリング要約 (chat_threads.context_summary) が主で、
+    本関数は「要約に未反映の溢れ分」と「要約が無い/失敗した場合」の
+    フォールバックを担う。after 指定時は created_at > after の行のみ対象
+    (= 要約反映済みを二重に含めない)。
     """
+    params: dict[str, Any] = {"t": thread_id, "off": recent_window}
+    after_clause = ""
+    if after is not None:
+        after_clause = "where created_at > :after "
+        params["after"] = after
     res = await session.execute(
         text(
-            "select role, content from public.chat_messages "
-            "where thread_id = cast(:t as uuid) order by created_at desc offset :off"
+            "select role, content from ("
+            "  select role, content, created_at from public.chat_messages "
+            "  where thread_id = cast(:t as uuid) "
+            "  order by created_at desc offset :off"
+            ") older "
+            f"{after_clause}"
+            "order by created_at asc"
         ),
-        {"t": thread_id, "off": recent_window},
+        params,
     )
     rows = list(res.all())
     if not rows:
         return ""
-    rows.reverse()
     joined = " / ".join(f"{r.role}: {str(r.content)[:120]}" for r in rows)
     if len(joined) > char_budget:
         joined = "…" + joined[-char_budget:]
-    return f"これまでの経緯(要約): {joined}"
+    return joined
+
+
+async def _summary_context_block(
+    session: AsyncSession, *, thread_id: str, recent_window: int
+) -> str:
+    """「これまでの経緯」ブロック (GAP-132 ローリング要約 + フォールバック)。
+
+    保存済み LLM 要約 (context_summary) を主とし、要約に未反映の溢れ分
+    (context_summary_upto より後) だけを切り捨て版で補う。
+    """
+    from .summary import compose_context_block
+
+    res = await session.execute(
+        text(
+            "select context_summary, context_summary_upto "
+            "from public.chat_threads where id = cast(:t as uuid)"
+        ),
+        {"t": thread_id},
+    )
+    row = res.first()
+    stored: str | None = None
+    upto: Any = None
+    if row is not None:
+        stored = None if row.context_summary is None else str(row.context_summary)
+        upto = row.context_summary_upto
+    unfolded = await _fold_older_history(
+        session, thread_id=thread_id, recent_window=recent_window, after=upto
+    )
+    return compose_context_block(stored, unfolded)
 
 
 async def build_context(
@@ -209,7 +254,9 @@ async def build_context(
         if proj_state:
             parts.append(proj_state)
 
-    summary = await _fold_older_history(session, thread_id=thread_id, recent_window=include_history)
+    summary = await _summary_context_block(
+        session, thread_id=thread_id, recent_window=include_history
+    )
     if summary:
         parts.append(summary)
 
@@ -695,6 +742,13 @@ async def stream_chat(
             after={"thread_id": thread_id, "role": "assistant"},
         )
     )
+
+    # GAP-132: 応答完了後にローリング要約を非同期更新する (溢れが無ければ
+    # no-op)。応答自体は既に配信済みなので体感遅延ゼロ。失敗しても
+    # 切り捨て版フォールバックが生きるためチャットは壊れない。
+    from .summary import schedule_summary_update
+
+    schedule_summary_update(thread_id=thread_id, actor_id=actor_id, recent_window=include_history)
 
     yield _sse_event(
         {

@@ -85,6 +85,11 @@ def build_options_kwargs(
         "allowed_tools": [],
         "max_turns": 1,
         "include_partial_messages": True,
+        # GAP-132: ホストの CLAUDE.md / ~/.claude 設定を子 CLI に読ませない。
+        # 読ませると API 実行ディレクトリ (リポジトリ) のプロジェクト指示や
+        # 個人設定がチャット応答・要約に混入する (実測: 要約に CLAUDE.md の
+        # 実装ルールが紛れ込んだ)。Atelier の文脈は system_prompt が全て。
+        "setting_sources": [],
     }
     if tools_mode in ("auto", "approve"):
         workspace = chat_workspace_dir(env)
