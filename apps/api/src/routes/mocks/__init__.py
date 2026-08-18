@@ -11,7 +11,7 @@ from functools import lru_cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlalchemy import text
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -309,6 +309,37 @@ async def revise_mock(
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": created}
+
+
+@router.post(
+    "/mocks/{mock_id}/revise/stream",
+    summary="修正依頼の進行状況ストリーミング (GAP-147 — SSE: stage/progress/result)",
+)
+async def revise_mock_stream(
+    mock_id: str, body: MockReviseRequest, session: SessionDep, user: UserDep
+) -> StreamingResponse:
+    """ワンダの改訂を SSE で逐次配信する。
+
+    data: {"stage": "loading"|"generating"|"saving", ...}
+    data: {"progress": {"chars": n}}       — 生成済み文字数 (実測)
+    data: {"result": {...新バージョン, "summary"}} — 完了
+    data: {"error": {"code", "message"}}   — 失敗 (誠実にそのまま)
+    """
+    import json as _json
+
+    from src.services.mocks import revise as revise_svc
+
+    async def _events():
+        async for ev in revise_svc.revise_mock_stream(
+            session, actor_id=user.id, mock_id=mock_id, instruction=body.instruction
+        ):
+            yield f"data: {_json.dumps(ev, ensure_ascii=False)}\n\n".encode()
+
+    return StreamingResponse(
+        _events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post(

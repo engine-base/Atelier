@@ -22,6 +22,7 @@ import uuid
 from typing import Any, Protocol
 
 import httpx
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.llm.client import LLMMessage
@@ -34,12 +35,50 @@ REVISE_MODEL = os.environ.get("ATELIER_DESIGN_MODEL", "claude-sonnet-4-6")
 
 _MAX_HTML_CHARS = 60_000
 
+# GAP-147: 改訂契約を system prompt の**先頭**に置く (実機バグの教訓 —
+# 参考資料が契約の前にあると、モデルがスキルの手順に従って画面を作り直す)。
+SUMMARY_MARKER = "---SUMMARY---"
+
 _SYSTEM = (
     "あなたは開発案件管理 SaaS のデザイナー AI「ワンダ」です。"
-    "与えられた HTML モックを、修正指示に従って改訂してください。"
-    "出力は改訂後の完全な HTML 全文のみ。説明・コードフェンス・前置きを一切出力しないこと。"
-    "指示に無関係な部分は変更しないこと。"
+    "与えられた「現行 HTML」を、修正指示に従って**改訂**してください。\n"
+    "絶対ルール (この契約が最優先 — 後述の参考資料より強い):\n"
+    "1. 既存 HTML の構成・見出し・文言・データを保持し、指示に関係する箇所"
+    "だけを変更する。全面的な作り直し・別デザインへの置き換えは禁止。\n"
+    "2. 参考資料 (スキル・サンプル) 内の画面例・ダミーデータ・別プロダクトの"
+    "構成を成果物に持ち込まない。\n"
+    "3. 出力形式: 改訂後の完全な HTML 全文 → 最終行に "
+    f"{SUMMARY_MARKER} → 次の行に「何をどう変えたか」の要約 (日本語 1〜2 文)。\n"
+    "4. HTML の前に説明・コードフェンス・前置きを出力しない。"
 )
+
+
+def split_summary(text_out: str) -> tuple[str, str]:
+    """モデル出力を (HTML, 変更サマリー) に分ける。マーカー無しはサマリー空。"""
+    if SUMMARY_MARKER in text_out:
+        html_part, _, tail = text_out.rpartition(SUMMARY_MARKER)
+        return html_part.strip(), " ".join(tail.strip().split())[:300]
+    return text_out.strip(), ""
+
+
+async def _instruction_history(
+    session: AsyncSession, *, project_id: str, screen_name: str, before_version: int
+) -> list[str]:
+    """同一画面チェーンの過去の修正指示 (古い順・最大 5 件) — 会話の文脈。"""
+    rows = (
+        await session.execute(
+            text(
+                "select meta_tags ->> 'revision_instruction' as ins "
+                "from public.mocks "
+                "where project_id = cast(:p as uuid) and screen_name = :sn "
+                "and version < :v and deleted_at is null "
+                "and meta_tags ->> 'revision_instruction' is not null "
+                "order by version desc limit 5"
+            ),
+            {"p": project_id, "sn": screen_name, "v": before_version},
+        )
+    ).all()
+    return [str(r.ins)[:300] for r in reversed(rows) if r.ins]
 
 
 class MockReviseError(Exception):
@@ -75,15 +114,16 @@ def _fake_revision(html: str, instruction: str) -> str:
         'font-size:12px;border-bottom:1px solid #F59E0B;">'
         f"[fake LLM] 修正依頼を適用: {instruction}</div>"
     )
+    tail_summary = f"\n{SUMMARY_MARKER}\n[fake] 修正依頼を反映: {instruction[:120]}"
     if "<body" in html:
         head, sep, tail = html.partition(">")
         if sep and "<body" in head:
-            return f"{head}>{banner}{tail}"
+            return f"{head}>{banner}{tail}{tail_summary}"
         idx = html.find("<body")
         end = html.find(">", idx)
         if end >= 0:
-            return html[: end + 1] + banner + html[end + 1 :]
-    return banner + html
+            return html[: end + 1] + banner + html[end + 1 :] + tail_summary
+    return banner + html + tail_summary
 
 
 async def _download_html(storage_path: str) -> str:
@@ -138,12 +178,7 @@ async def revise_mock(
     current = await get_mock(session, mock_id)
     if current is None:
         return None
-
-    html = await _download_html(current.html_storage_path)
-    if len(html) > _MAX_HTML_CHARS:
-        raise MockReviseError(
-            "too_large", f"mock html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
-        )
+    html = await _load_current_html(current)
 
     if client is not None:
         # テスト注入経路 (決定的クライアント) — 実運用は下の共通チェーン
@@ -162,38 +197,94 @@ async def revise_mock(
             )
         except Exception as e:
             raise MockReviseError("llm_failed", f"LLM 呼出に失敗: {e}") from e
-        revised = _strip_fence(str(res.text))
+        revised, summary = split_summary(_strip_fence(str(res.text)))
         used_model = REVISE_MODEL
     else:
         # GAP-138: 確定アーキテクチャの費用順 (relay=本人サブスク → agent_sdk →
         # API → fake)。ANTHROPIC_API_KEY 直依存をやめる。
         from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
 
-        # GAP-143: デザインノート + ワンダのペルソナ/装着スキルを全改訂に注入
-        from .design_note import build_design_context
-
-        design_ctx = await build_design_context(session, project_id=current.project_id)
-        system_prompt = f"{design_ctx}\n\n{_SYSTEM}" if design_ctx else _SYSTEM
-
+        system_prompt, user_text = await _build_prompts(
+            session, current=current, html=html, instruction=instruction
+        )
         try:
             out, provider = await llm_complete(
                 system_prompt=system_prompt,
-                user_text=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
+                user_text=user_text,
                 actor_id=actor_id,
                 max_tokens=16384,
                 fake=lambda: _fake_revision(html, instruction),
             )
         except LLMUnavailable as exc:
-            code = {
-                "bridge_offline": "bridge_offline",
-                "unconfigured": "llm_unconfigured",
-            }.get(exc.code, "llm_failed")
-            raise MockReviseError(code, exc.message) from exc
-        revised = _strip_fence(out)
+            raise MockReviseError(_map_unavailable(exc.code), exc.message) from exc
+        revised, summary = split_summary(_strip_fence(out))
         used_model = provider
     if not revised:
         raise MockReviseError("llm_failed", "LLM が空の改訂を返しました")
+    return await _persist_revision(
+        session,
+        actor_id=actor_id,
+        mock_id=mock_id,
+        current=current,
+        revised=revised,
+        summary=summary,
+        instruction=instruction,
+        used_model=used_model,
+    )
 
+
+def _map_unavailable(code: str) -> str:
+    return {
+        "bridge_offline": "bridge_offline",
+        "unconfigured": "llm_unconfigured",
+    }.get(code, "llm_failed")
+
+
+async def _load_current_html(current: MockResponse) -> str:
+    html = await _download_html(current.html_storage_path)
+    if len(html) > _MAX_HTML_CHARS:
+        raise MockReviseError(
+            "too_large", f"mock html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
+        )
+    return html
+
+
+async def _build_prompts(
+    session: AsyncSession, *, current: MockResponse, html: str, instruction: str
+) -> tuple[str, str]:
+    """GAP-147: 契約が先頭・参考資料は後段の system prompt + 履歴つき user prompt。"""
+    from .design_note import build_design_context
+
+    design_ctx = await build_design_context(session, project_id=current.project_id)
+    system_prompt = f"{_SYSTEM}\n\n{design_ctx}" if design_ctx else _SYSTEM
+    history = await _instruction_history(
+        session,
+        project_id=current.project_id,
+        screen_name=current.screen_name,
+        before_version=current.version + 1,
+    )
+    history_block = (
+        "これまでの指示履歴 (古い順 — 文脈として維持すること):\n"
+        + "\n".join(f"- {h}" for h in history)
+        + "\n\n"
+        if history
+        else ""
+    )
+    user_text = f"{history_block}今回の修正指示:\n{instruction}\n\n現行 HTML:\n{html}"
+    return system_prompt, user_text
+
+
+async def _persist_revision(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    mock_id: str,
+    current: MockResponse,
+    revised: str,
+    summary: str,
+    instruction: str,
+    used_model: str,
+) -> MockResponse | None:
     # GAP-138: mockdb モックは mockdb へ、Supabase 由来は Supabase へ (系を跨がない)
     from .artifacts import MOCKDB_PREFIX, store_content_service
 
@@ -209,17 +300,92 @@ async def revise_mock(
     schedule_design_note_learning(
         project_id=current.project_id, instruction=instruction, actor_id=actor_id
     )
+    meta: dict[str, object] = {
+        "author": "wanda",
+        "revision_instruction": instruction,
+        "revised_from_version": current.version,
+        "model": used_model,
+    }
+    if summary:
+        # GAP-147: 「何をどう変えたか」— 会話バブル/バージョン履歴に表示される
+        meta["note"] = summary
     return await create_version(
         session,
         actor_id=actor_id,
         mock_id=mock_id,
-        data=MockVersionCreate(
-            html_storage_path=new_path,
-            meta_tags={
-                "author": "wanda",
-                "revision_instruction": instruction,
-                "revised_from_version": current.version,
-                "model": used_model,
-            },
-        ),
+        data=MockVersionCreate(html_storage_path=new_path, meta_tags=meta),
     )
+
+
+async def revise_mock_stream(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    mock_id: str,
+    instruction: str,
+):
+    """GAP-147: 改訂の進行状況を逐次 yield する (「何をしているか」の可視化)。
+
+    yield (dict):
+      {"stage": "loading"}                 — 現行 HTML の取得
+      {"stage": "generating", "provider"}  — ワンダが改訂を生成中
+      {"progress": {"chars": n}}           — 生成済み文字数 (実測)
+      {"stage": "saving"}                  — 新バージョンの保存
+      {"result": {mock..., "summary"}}     — 完了 (新バージョン)
+      {"error": {"code", "message"}}       — 失敗 (誠実にそのまま)
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_stream
+
+    try:
+        current = await get_mock(session, mock_id)
+        if current is None:
+            yield {"error": {"code": "not_found", "message": "mock not found"}}
+            return
+        yield {"stage": "loading"}
+        html = await _load_current_html(current)
+        system_prompt, user_text = await _build_prompts(
+            session, current=current, html=html, instruction=instruction
+        )
+        parts: list[str] = []
+        chars = 0
+        last_reported = 0
+        provider = ""
+        async for kind, payload in llm_stream(
+            system_prompt=system_prompt,
+            user_text=user_text,
+            actor_id=actor_id,
+            max_tokens=16384,
+            fake=lambda: _fake_revision(html, instruction),
+        ):
+            if kind == "provider":
+                provider = payload
+                yield {"stage": "generating", "provider": provider}
+                continue
+            parts.append(payload)
+            chars += len(payload)
+            if chars - last_reported >= 1500:
+                last_reported = chars
+                yield {"progress": {"chars": chars}}
+        revised, summary = split_summary(_strip_fence("".join(parts)))
+        if not revised:
+            yield {"error": {"code": "llm_failed", "message": "LLM が空の改訂を返しました"}}
+            return
+        yield {"stage": "saving"}
+        created = await _persist_revision(
+            session,
+            actor_id=actor_id,
+            mock_id=mock_id,
+            current=current,
+            revised=revised,
+            summary=summary,
+            instruction=instruction,
+            used_model=provider or "unknown",
+        )
+        if created is None:
+            yield {"error": {"code": "not_found", "message": "mock not found"}}
+            return
+        yield {"result": {**created.model_dump(mode="json"), "summary": summary}}
+    except LLMUnavailable as exc:
+        yield {"error": {"code": _map_unavailable(exc.code), "message": exc.message}}
+    except MockReviseError as exc:
+        yield {"error": {"code": exc.code, "message": exc.message}}

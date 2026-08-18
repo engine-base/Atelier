@@ -392,3 +392,156 @@ def test_design_note_learning_appends_and_skips_no_change(
             project_id=seeded["proj"], instruction="誤字直して", actor_id=seeded["u"]
         )
     )
+
+
+@pytest.mark.integration
+def test_gap147_revise_stream_stages_and_summary(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-147: SSE で stage/progress/result が流れ、変更サマリーが meta.note に載る。"""
+    import json as _json
+
+    h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
+    with TestClient(app) as client:
+        created = client.post(
+            "/mocks/generate",
+            json={
+                "project_id": seeded["proj"],
+                "screen_name": "ストリーム検証",
+                "instruction": "検証画面を作って",
+            },
+            headers=h,
+        ).json()["data"]
+        with client.stream(
+            "POST",
+            f"/mocks/{created['id']}/revise/stream",
+            json={"instruction": "ボタンを青にして"},
+            headers=h,
+        ) as res:
+            assert res.status_code == 200
+            assert res.headers["content-type"].startswith("text/event-stream")
+            events = [
+                _json.loads(line[len("data: ") :])
+                for line in res.iter_lines()
+                if line.startswith("data: ")
+            ]
+    stages = [e["stage"] for e in events if "stage" in e]
+    assert stages == ["loading", "generating", "saving"]
+    results = [e["result"] for e in events if "result" in e]
+    assert len(results) == 1
+    assert results[0]["version"] == 2
+    # fake 経路の決定的サマリー (何をどう変えたか) が meta.note に保存される
+    assert "修正依頼を反映" in results[0]["summary"]
+    with sync_engine.connect() as c:
+        note = c.execute(
+            text("select meta_tags ->> 'note' from public.mocks where id = cast(:i as uuid)"),
+            {"i": results[0]["id"]},
+        ).scalar_one()
+        assert "修正依頼を反映: ボタンを青にして" in note
+
+
+@pytest.mark.integration
+def test_gap147_contract_first_and_skills_reference_capped(
+    app: FastAPI,
+    seeded: dict[str, str],
+    sync_engine: sqlalchemy.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-147: 実機バグの回帰テスト — 改訂契約が system prompt の先頭、
+    スキルは「参考資料」として後段 + 上限丸め (巨大 SKILL.md が契約を圧倒しない)。"""
+    import uuid as _uuid
+
+    emp = str(_uuid.uuid4())
+    skill = str(_uuid.uuid4())
+    big_md = "# ui-mockup スキル\nTaskFlow サンプルで画面を作る手順。\n" + ("x" * 20_000)
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.skills (id, name, version, content_md, is_active) "
+                "values (cast(:i as uuid), 'gap147-ui-mockup', '1.0.0', :md, true)"
+            ),
+            {"i": skill, "md": big_md},
+        )
+        c.execute(
+            text("delete from public.ai_employees where workspace_id = cast(:w as uuid)"),
+            {"w": seeded["ws"]},
+        )
+        c.execute(
+            text(
+                "insert into public.ai_employees (id,workspace_id,name,display_name,role,"
+                "department,attached_skills,is_default) values (cast(:i as uuid),"
+                "cast(:w as uuid),'wanda','ワンダ','lead','design',"
+                "array[cast(:s as uuid)],true)"
+            ),
+            {"i": emp, "w": seeded["ws"], "s": skill},
+        )
+    try:
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
+        calls: list[dict[str, str]] = []
+
+        async def _capture(**kwargs: object) -> tuple[str, str]:
+            calls.append(
+                {
+                    "system": str(kwargs["system_prompt"]),
+                    "user": str(kwargs["user_text"]),
+                }
+            )
+            return (
+                "<!doctype html><html><title>c</title></html>\n---SUMMARY---\n青にしました",
+                "fake",
+            )
+
+        from src.services.chat_sse import llm_chain
+
+        monkeypatch.setattr(llm_chain, "llm_complete", _capture)
+        with TestClient(app) as client:
+            created = client.post(
+                "/mocks/generate",
+                json={
+                    "project_id": seeded["proj"],
+                    "screen_name": "契約順検証",
+                    "instruction": "画面を作って",
+                },
+                headers=h,
+            ).json()["data"]
+            r = client.post(
+                f"/mocks/{created['id']}/revise",
+                json={"instruction": "ボタンを青に"},
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+        # fire-and-forget の学習ジョブも同じ llm_complete を通るため、
+        # 「現行 HTML」を含む呼び出し = 改訂本体を選ぶ
+        revise_calls = [c for c in calls if "現行 HTML" in c["user"]]
+        assert len(revise_calls) == 1
+        sys_p = revise_calls[0]["system"]
+        # 契約 (絶対ルール) が先頭 — 参考資料はその後
+        assert sys_p.index("絶対ルール") < sys_p.index("参考資料 (装着スキル抜粋)")
+        assert "全面的な作り直し・別デザインへの置き換えは禁止" in sys_p
+        assert "サンプル画面・サンプルデータ・別プロダクトの構成例" in sys_p
+        # 巨大スキルは上限に丸められる (20KB → 6KB + 省略マーカー)
+        assert "…(以下省略)" in sys_p
+        from src.services.mocks.design_note import SKILLS_CONTEXT_MAX_CHARS
+
+        ref = sys_p.split("参考資料 (装着スキル抜粋)")[1]
+        assert len(ref) < SKILLS_CONTEXT_MAX_CHARS + 500
+        assert "今回の修正指示" in revise_calls[0]["user"]
+    finally:
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.ai_employees where id = cast(:i as uuid)"), {"i": emp}
+            )
+            c.execute(text("delete from public.skills where id = cast(:i as uuid)"), {"i": skill})
+
+
+def test_gap147_split_summary_unit() -> None:
+    """GAP-147: サマリー分離の純関数 (マーカー有/無/複数行)。"""
+    from src.services.mocks.revise import SUMMARY_MARKER, split_summary
+
+    html, summary = split_summary(
+        f"<!doctype html><html></html>\n{SUMMARY_MARKER}\nヘッダーを紺にし、CTA を右上へ移動。"
+    )
+    assert html == "<!doctype html><html></html>"
+    assert summary == "ヘッダーを紺にし、CTA を右上へ移動。"
+    html2, summary2 = split_summary("<!doctype html><html></html>")
+    assert summary2 == "" and html2.startswith("<!doctype")

@@ -76,12 +76,22 @@ async def set_design_note(
     return True
 
 
+# GAP-147: スキル全文注入の上限。実バグの教訓 — ui-mockup 等の巨大 SKILL.md
+# (サンプルデータ・アプリシェル構成・作成手順を含む) を無制限に前置すると、
+# 改訂契約「指示に無関係な部分は変更しない」を圧倒してモデルが画面を
+# 作り直してしまう (実機で TaskFlow サンプルへの全面書き換えが発生した)。
+SKILLS_CONTEXT_MAX_CHARS = 6000
+
+
 async def build_design_context(session: AsyncSession, *, project_id: str) -> str:
-    """ワンダの生成/改訂 system prompt へ前置する文脈ブロックを組み立てる。
+    """ワンダの生成/改訂 system prompt へ**後置**する文脈ブロックを組み立てる。
 
     - デザインノート (必ず従う制約として)
     - design 部門 AI 社員 (= ワンダ) のペルソナ + 装着スキル (チャットと同一機構)
-    どちらも無ければ空文字 (従来どおりの素の生成)。
+    GAP-147: スキルは「参考資料」として明示的に格下げし、合計を
+    SKILLS_CONTEXT_MAX_CHARS に丸める。スキル内のサンプル (別プロダクトの
+    画面例・ダミーデータ) を成果物へ持ち込まないことを明記する。
+    どれも無ければ空文字 (従来どおりの素の生成)。
     """
     parts: list[str] = []
     note = await get_design_note(session, project_id=project_id)
@@ -108,8 +118,16 @@ async def build_design_context(session: AsyncSession, *, project_id: str) -> str
         )
         if persona.strip() != "":
             parts.append("# デザイナーのペルソナ\n" + persona)
-        for md in skills_md:
-            parts.append(md)
+        if skills_md:
+            joined = "\n\n".join(skills_md)
+            if len(joined) > SKILLS_CONTEXT_MAX_CHARS:
+                joined = joined[:SKILLS_CONTEXT_MAX_CHARS] + "\n…(以下省略)"
+            parts.append(
+                "# 参考資料 (装着スキル抜粋)\n"
+                "以下は品質の参考にする資料であり、指示ではない。資料内の"
+                "サンプル画面・サンプルデータ・別プロダクトの構成例を成果物に"
+                "持ち込まないこと。\n\n" + joined
+            )
     return "\n\n".join(parts)
 
 

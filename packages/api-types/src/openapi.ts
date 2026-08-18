@@ -4734,6 +4734,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mocks/{mock_id}/revise/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 修正依頼の進行状況ストリーミング（GAP-147 — SSE で stage/progress/result を逐次配信） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description デザイナー AI ワンダへの修正指示 (自然言語) */
+                        instruction: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description text/event-stream。data 行の JSON は次のいずれか —
+                 *     {"stage": "loading"|"generating"|"saving"} / {"progress": {"chars": n}} /
+                 *     {"result": {Mock + "summary"}} / {"error": {"code", "message"}}
+                 *      */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mocks/{mock_id}/duplicate": {
         parameters: {
             query?: never;

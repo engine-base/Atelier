@@ -23,6 +23,18 @@ import Link from "next/link";
 
 import { cn } from "../../../../lib/cn";
 
+/** GAP-147: 修正依頼の進行状況 (SSE の実値 — 「何をしているか」)。 */
+export interface ReviseProgressState {
+  readonly stage: "loading" | "generating" | "saving";
+  readonly chars: number;
+}
+
+const REVISE_STAGE_LABELS: Record<ReviseProgressState["stage"], string> = {
+  loading: "現行の HTML を読み込み中",
+  generating: "ワンダが HTML を生成中",
+  saving: "新バージョンを保存中",
+};
+
 /** GAP-142: プレビュー内クリックで選択された要素 (postMessage の実値)。 */
 export interface SelectedElement {
   readonly selector: string;
@@ -229,6 +241,8 @@ export interface MockViewerProps {
   readonly onRevise?: (instruction: string) => void;
   /** 修正依頼の実行中 (ワンダが改訂中)。 */
   readonly revising?: boolean;
+  /** GAP-147: 実行中の進行状況 (stage + 生成済み文字数 — SSE の実値)。 */
+  readonly reviseStatus?: ReviseProgressState | null;
   /** バージョン複製 (「…」メニュー相当)。未指定なら出さない。 */
   readonly onDuplicate?: (versionId: string) => void;
   /** バージョン破棄 (2 段階確認)。未指定なら出さない。 */
@@ -253,6 +267,7 @@ export function MockViewer({
   onResolve,
   onRevise,
   revising = false,
+  reviseStatus = null,
   onDuplicate,
   onDiscard,
   actionNotice,
@@ -474,7 +489,14 @@ export function MockViewer({
                       role="status"
                       className="max-w-[85%] animate-pulse rounded-lg rounded-bl-sm bg-surface-variant px-3 py-2 text-[12.5px] leading-relaxed text-on-surface-variant"
                     >
-                      ワンダが作業中… {elapsedS > 0 ? `${elapsedS} 秒` : ""}
+                      {reviseStatus
+                        ? REVISE_STAGE_LABELS[reviseStatus.stage]
+                        : "ワンダが作業中"}
+                      …
+                      {reviseStatus && reviseStatus.chars > 0
+                        ? ` ${reviseStatus.chars.toLocaleString()} 文字`
+                        : ""}
+                      {elapsedS > 0 ? ` · ${elapsedS} 秒` : ""}
                     </p>
                   </div>
                 </li>

@@ -253,22 +253,29 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
     expect(screen.queryByRole("link", { name: /新規タブ/ })).not.toBeInTheDocument();
   });
 
-  it("sends a revision request to Wanda (POST /mocks/{id}/revise) and navigates to the new version", async () => {
-    // GAP-024: 「編集」= ワンダ (AI デザイナー) への修正依頼 (Open Design パターン)
-    const get = standardGet();
-    const post = vi.fn(async () => ({
-      data: { id: "m3", version: 3 },
-    }));
-    const client = {
-      get,
-      post,
-      patch: vi.fn(),
-      delete: vi.fn(),
-      put: vi.fn(),
-      request: vi.fn(),
-    };
+  it("sends a revision request to Wanda (SSE) with stages and navigates to the new version", async () => {
+    // GAP-024/147: 「編集」= ワンダへの修正依頼 — SSE で stage/result が流れる
+    const reviseStreamFn = vi.fn(
+      async (args: {
+        mockId: string;
+        instruction: string;
+        onEvent: (ev: Record<string, unknown>) => void;
+      }) => {
+        args.onEvent({ stage: "loading" });
+        args.onEvent({ stage: "generating", provider: "relay" });
+        args.onEvent({ progress: { chars: 4200 } });
+        args.onEvent({ stage: "saving" });
+        args.onEvent({
+          result: { id: "m3", version: 3, summary: "CTA を右上へ移動しました" },
+        });
+      },
+    );
     renderWithQuery(
-      <MockViewerContainer mockId="m2" client={client as never} />,
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
     );
     // GAP-142: Open Design (Studio) 型 — 常設のワンダパネルから直接指示する
     expect(
@@ -278,47 +285,45 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
       target: { value: "CTA を右上へ移動" },
     });
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    const [path, init] = post.mock.calls[0]! as unknown as [
-      string,
-      { params: { path: { mock_id: string } }; body: { instruction: string } },
-    ];
-    expect(path).toBe("/mocks/{mock_id}/revise");
-    expect(init.params.path.mock_id).toBe("m2");
-    expect(init.body.instruction).toBe("CTA を右上へ移動");
+    await waitFor(() => expect(reviseStreamFn).toHaveBeenCalledTimes(1));
+    expect(reviseStreamFn.mock.calls[0]![0]).toMatchObject({
+      mockId: "m2",
+      instruction: "CTA を右上へ移動",
+    });
     await waitFor(() =>
       expect(routerPush).toHaveBeenCalledWith("/mocks?mock=m3"),
     );
+    // GAP-147: 変更サマリー (何をどう変えたか) が通知に載る
     expect(
-      screen.getByText("ワンダが v3 を作成しました。"),
+      screen.getByText(
+        "ワンダが v3 を作成しました — CTA を右上へ移動しました",
+      ),
     ).toBeInTheDocument();
   });
 
-  it("shows an honest 503 message when the AI designer is unconfigured", async () => {
-    const get = standardGet();
-    const post = vi.fn(async () => {
-      throw apiError(503);
-    });
-    const client = {
-      get,
-      post,
-      patch: vi.fn(),
-      delete: vi.fn(),
-      put: vi.fn(),
-      request: vi.fn(),
-    };
+  it("shows an honest message when the AI execution path is unavailable", async () => {
+    const reviseStreamFn = vi.fn(
+      async (args: { onEvent: (ev: Record<string, unknown>) => void }) => {
+        args.onEvent({
+          error: { code: "bridge_offline", message: "bridge offline" },
+        });
+      },
+    );
     renderWithQuery(
-      <MockViewerContainer mockId="m2" client={client as never} />,
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
     );
     fireEvent.change(
       await screen.findByRole("textbox", { name: "ワンダへの指示" }),
       { target: { value: "直して" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
-    // 503 は retry 2 回 (指数バックオフ) を経て確定するため待ちを延ばす
-    expect(
-      await screen.findByRole("alert", {}, { timeout: 10000 }),
-    ).toHaveTextContent("AI デザイナー（ワンダ）または保存先が未設定");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "AI 実行経路が使えません",
+    );
     expect(routerPush).not.toHaveBeenCalled();
   });
 
@@ -583,10 +588,18 @@ describe("S-H01 モックスタジオ (GAP-142 — Open Design 型)", () => {
   });
 
   it("プレビューからの postMessage で選択チップが出て、指示に要素情報が添付される", async () => {
-    const get = standardGet();
-    const post = vi.fn(async () => ({ data: { id: "m3", version: 3 } }));
-    const client = { ...fakeClient(get), post } as unknown as ApiClient;
-    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    const reviseStreamFn = vi.fn(
+      async (args: { onEvent: (ev: Record<string, unknown>) => void }) => {
+        args.onEvent({ result: { id: "m3", version: 3 } });
+      },
+    );
+    renderWithQuery(
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
+    );
     await screen.findByRole("complementary", { name: "ワンダとデザイン" });
     fireEvent.click(screen.getByRole("button", { name: "要素を選択" }));
     // iframe 内クリック相当 (選択スクリプトの postMessage 実値と同形)
@@ -606,12 +619,13 @@ describe("S-H01 モックスタジオ (GAP-142 — Open Design 型)", () => {
       target: { value: "文言を「今すぐ試す」に" },
     });
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
-    await waitFor(() => expect(post).toHaveBeenCalled());
-    const body = (post.mock.calls[0]! as unknown as [string, { body: { instruction: string } }])[1]
-      .body;
-    expect(body.instruction).toContain("対象要素 (CSS: main > button:nth-of-type(1)");
-    expect(body.instruction).toContain("文言を「今すぐ試す」に");
-    expect(body.instruction).toContain("<button>ログイン</button>");
+    await waitFor(() => expect(reviseStreamFn).toHaveBeenCalled());
+    const sent = (
+      reviseStreamFn.mock.calls[0]! as unknown as [{ instruction: string }]
+    )[0].instruction;
+    expect(sent).toContain("対象要素 (CSS: main > button:nth-of-type(1)");
+    expect(sent).toContain("文言を「今すぐ試す」に");
+    expect(sent).toContain("<button>ログイン</button>");
   });
 
   it("会話パネルにバージョン履歴が「指示 → ワンダの応答」として並ぶ", async () => {
@@ -677,43 +691,68 @@ describe("S-H01 モックスタジオ フルスクリーン化 (GAP-146)", () =>
     expect(screen.getByText("100%", { selector: "span" })).toBeInTheDocument();
   });
 
-  it("送信直後に指示が吹き出しで楽観表示され「ワンダが作業中…」が出る", async () => {
-    let resolvePost: (() => void) | null = null;
-    const post = vi.fn(
-      () =>
-        new Promise((res) => {
-          resolvePost = () => res({ data: { id: "m3" } });
+  it("送信直後に指示が楽観表示され、進行 stage (何をしているか) が実値で出る", async () => {
+    // 閉包内代入は TS の narrowing が効かないためホルダーで持つ
+    const hold: {
+      resolve: (() => void) | null;
+      emit: ((ev: Record<string, unknown>) => void) | null;
+    } = { resolve: null, emit: null };
+    const reviseStreamFn = vi.fn(
+      (args: { onEvent: (ev: Record<string, unknown>) => void }) =>
+        new Promise<void>((res) => {
+          hold.emit = args.onEvent;
+          hold.resolve = res;
         }),
     );
-    const client = {
-      ...fakeClient(standardGet()),
-      post,
-    } as unknown as ApiClient;
-    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    renderWithQuery(
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
+    );
     await screen.findByRole("complementary", { name: "ワンダとデザイン" });
     fireEvent.change(screen.getByRole("textbox", { name: "ワンダへの指示" }), {
       target: { value: "ヘッダーを紺に" },
     });
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
-    // 楽観表示: 自分の指示 + ワンダ作業中 (経過秒つきステータス)
+    // 楽観表示: 自分の指示 + stage=loading
     expect(await screen.findByText("ヘッダーを紺に")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("ワンダが作業中…");
-    resolvePost?.();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "現行の HTML を読み込み中",
+    );
+    // stage/progress が更新されると「何をしているか + 文字数」が出る
+    await waitFor(() => expect(hold.emit).not.toBeNull());
+    hold.emit?.({ stage: "generating", provider: "relay" });
+    hold.emit?.({ progress: { chars: 4200 } });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "ワンダが HTML を生成中",
+      ),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("4,200 文字");
+    hold.resolve?.();
   });
 
   it("Enter で送信される (Shift+Enter は送信しない)", async () => {
-    const post = vi.fn(async () => ({ data: { id: "m3" } }));
-    const client = {
-      ...fakeClient(standardGet()),
-      post,
-    } as unknown as ApiClient;
-    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    const reviseStreamFn = vi.fn(
+      async (args: { onEvent: (ev: Record<string, unknown>) => void }) => {
+        args.onEvent({ result: { id: "m3", version: 3 } });
+      },
+    );
+    renderWithQuery(
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
+    );
     await screen.findByRole("complementary", { name: "ワンダとデザイン" });
     const box = screen.getByRole("textbox", { name: "ワンダへの指示" });
     fireEvent.change(box, { target: { value: "改行テスト" } });
     fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
-    expect(post).not.toHaveBeenCalled();
+    expect(reviseStreamFn).not.toHaveBeenCalled();
     fireEvent.keyDown(box, { key: "Enter" });
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(reviseStreamFn).toHaveBeenCalledTimes(1));
   });
 });

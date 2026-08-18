@@ -30,6 +30,87 @@ class LLMUnavailable(Exception):
         self.message = message
 
 
+async def llm_stream(
+    *,
+    system_prompt: str,
+    user_text: str,
+    actor_id: str,
+    thread_id: str | None = None,
+    max_tokens: int = 4096,
+    fake: Callable[[], str] | None = None,
+):
+    """1 往復の LLM 補完を逐次 yield する (GAP-147: 進行状況の可視化用)。
+
+    yield: ("provider", name) を最初に 1 回 → ("delta", text) を逐次。
+    経路の解決順・誠実設計は llm_complete と同一。API 経路 (非ストリーム) と
+    fake は 1 回で全文を yield する。
+    """
+    from .agent_sdk import sdk_available, subscription_mode_enabled
+    from .relay import RelayUnavailable, relay_mode_enabled
+
+    if relay_mode_enabled():
+        from .relay import relay_stream_chunks
+
+        yield ("provider", "relay")
+        got = False
+        try:
+            async for c in relay_stream_chunks(
+                system_prompt=system_prompt,
+                history=[],
+                user_message=user_text,
+                thread_id=thread_id,
+                actor_id=actor_id,
+            ):
+                if isinstance(c, str):
+                    got = True
+                    yield ("delta", c)
+        except RelayUnavailable:
+            raise LLMUnavailable(
+                "bridge_offline",
+                "お使いの PC の Bridge がオフラインのため AI 実行ができません。"
+                "Bridge アプリを起動してから再実行してください。",
+            ) from None
+        except LLMUnavailable:
+            raise
+        except Exception as exc:
+            raise LLMUnavailable("failed", f"ローカル実行が失敗しました: {exc}") from exc
+        if not got:
+            raise LLMUnavailable("failed", "ローカル実行が空の応答を返しました")
+        return
+
+    if subscription_mode_enabled() and sdk_available():
+        from .agent_sdk import agent_sdk_stream_chunks
+
+        yield ("provider", "agent_sdk")
+        got = False
+        try:
+            async for c in agent_sdk_stream_chunks(
+                system_prompt=system_prompt, history=[], user_message=user_text
+            ):
+                if isinstance(c, str):
+                    got = True
+                    yield ("delta", c)
+        except LLMUnavailable:
+            raise
+        except Exception as exc:
+            raise LLMUnavailable("failed", f"サブスク実行が失敗しました: {exc}") from exc
+        if not got:
+            raise LLMUnavailable("failed", "サブスク実行が空の応答を返しました")
+        return
+
+    # API / fake は非ストリーム — llm_complete に委譲して 1 回で返す
+    out, provider = await llm_complete(
+        system_prompt=system_prompt,
+        user_text=user_text,
+        actor_id=actor_id,
+        thread_id=thread_id,
+        max_tokens=max_tokens,
+        fake=fake,
+    )
+    yield ("provider", provider)
+    yield ("delta", out)
+
+
 async def llm_complete(
     *,
     system_prompt: str,

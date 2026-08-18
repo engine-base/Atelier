@@ -1,0 +1,21 @@
+HTTP 200 text/event-stream; charset=utf-8
+[  0s] stage=loading
+[  0s] stage=generating
+[ 25s] progress 1512 chars
+[ 26s] stage=saving
+[ 26s] result v2
+STAGES: ['loading', 'generating', 'saving'] PROGRESS_EVENTS: 1
+SUMMARY: viewportメタタグの追加と、テーブルレイアウトを768px以下で縦積みに切り替えるメディアクエリ・入力欄の幅可変化を行い、スマホ表示時のはみ出しを解消しました。あわせてスタイル部分にプロジェクト規定のメインカラー・アクセントカラー・角丸12px・見出しフォントを適用しています。
+NOTE_META: viewportメタタグの追加と、テーブルレイアウトを768px以下で縦積みに切り替えるメディアクエリ・入力欄の幅可変化を行い、スマホ表示時のはみ出しを解消しました。あわせてスタイル部分にプロジェクト規定のメインカラー・アクセントカラー・角丸12px・見出しフォントを適用しています。
+MODEL: relay
+KEEPS_TITLE: True
+KEEPS_FIELDS: True
+KEEPS_STEPS: True
+HAS_VIEWPORT: True
+HAS_MEDIA_QUERY: True
+NO_TASKFLOW: True
+NO_SAMPLE_SHELL: True
+HAS_SUMMARY: True
+STAGE_ORDER_OK: True
+HAS_PROGRESS: True
+E2E_OK: True

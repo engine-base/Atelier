@@ -30,7 +30,9 @@ import {
   MockViewer,
   type MockCommentItem,
   type MockVersionItem,
+  type ReviseProgressState,
 } from "./MockViewer";
+import { streamReviseMock } from "./reviseStream";
 
 interface ApiMock {
   id: string;
@@ -63,11 +65,14 @@ function dateLabel(iso: string | undefined): string {
 export interface MockViewerContainerProps {
   readonly mockId: string;
   readonly client?: ApiClient;
+  /** GAP-147: 修正依頼の SSE (テスト注入用。省略時は実 streamReviseMock)。 */
+  readonly reviseStreamFn?: typeof streamReviseMock;
 }
 
 export function MockViewerContainer({
   mockId,
   client: injected,
+  reviseStreamFn,
 }: MockViewerContainerProps) {
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
@@ -78,6 +83,11 @@ export function MockViewerContainer({
     kind: "notice" | "error";
     text: string;
   } | null>(null);
+  // GAP-147: 修正依頼の進行状況 (何をしているか — SSE の実値)
+  const [revising, setRevising] = useState(false);
+  const [reviseStatus, setReviseStatus] = useState<ReviseProgressState | null>(
+    null,
+  );
 
   const meta = useQuery({
     queryKey: ["mock", mockId],
@@ -164,38 +174,62 @@ export function MockViewerContainer({
       void queryClient.invalidateQueries({ queryKey: COMMENTS_KEY }),
   });
 
-  // 「編集」= ワンダ (AI) への修正依頼 → 新バージョン生成 (GAP-024)。
-  const reviseMut = useMutation({
-    mutationFn: async (instruction: string) => {
-      const res = await client.post("/mocks/{mock_id}/revise", {
-        params: { path: { mock_id: mockId } },
-        body: { instruction },
-      });
-      return (res as { data?: ApiMock }).data ?? null;
-    },
-    onSuccess: (created) => {
-      void queryClient.invalidateQueries({ queryKey: ["mock"] });
-      if (created) {
+  // GAP-147: 「編集」= ワンダへの修正依頼を SSE で実行 — 進行状況 (何をして
+  // いるか) を実測で表示し、完了時は変更サマリーつきで新バージョンへ遷移。
+  const reviseErrorText = (code: string): string => {
+    if (code === "bridge_offline" || code === "llm_unconfigured")
+      return "AI 実行経路が使えません (Bridge がオフラインの可能性)。Bridge を起動して再試行してください。";
+    if (code === "too_large")
+      return "モック HTML が大きすぎるため自動改訂できません。画面の分割を検討してください。";
+    return "修正依頼に失敗しました。時間をおいて再度お試しください。";
+  };
+  const startRevise = (instruction: string): void => {
+    if (revising) return;
+    setRevising(true);
+    setReviseStatus({ stage: "loading", chars: 0 });
+    setAction(null);
+    const run = reviseStreamFn ?? streamReviseMock;
+    void run({
+      mockId,
+      instruction,
+      onEvent: (ev) => {
+        if (ev.stage) {
+          setReviseStatus((p) => ({
+            stage: ev.stage as ReviseProgressState["stage"],
+            chars: p?.chars ?? 0,
+          }));
+        } else if (ev.progress) {
+          setReviseStatus((p) => ({
+            stage: p?.stage ?? "generating",
+            chars: ev.progress?.chars ?? 0,
+          }));
+        } else if (ev.result) {
+          void queryClient.invalidateQueries({ queryKey: ["mock"] });
+          const summary =
+            typeof ev.result.summary === "string" && ev.result.summary !== ""
+              ? ` — ${ev.result.summary}`
+              : "";
+          setAction({
+            kind: "notice",
+            text: `ワンダが v${ev.result.version} を作成しました${summary}`,
+          });
+          router.push(`/mocks?mock=${ev.result.id}`);
+        } else if (ev.error) {
+          setAction({ kind: "error", text: reviseErrorText(ev.error.code) });
+        }
+      },
+    })
+      .catch(() =>
         setAction({
-          kind: "notice",
-          text: `ワンダが v${created.version} を作成しました。`,
-        });
-        router.push(`/mocks?mock=${created.id}`);
-      }
-    },
-    onError: (e) => {
-      const s = statusOf(e);
-      setAction({
-        kind: "error",
-        text:
-          s === 503
-            ? "AI デザイナー（ワンダ）または保存先が未設定のため、修正を実行できません。"
-            : s === 413
-              ? "モック HTML が大きすぎるため自動改訂できません。画面の分割を検討してください。"
-              : "修正依頼に失敗しました。時間をおいて再度お試しください。",
+          kind: "error",
+          text: "修正依頼に失敗しました。時間をおいて再度お試しください。",
+        }),
+      )
+      .finally(() => {
+        setRevising(false);
+        setReviseStatus(null);
       });
-    },
-  });
+  };
 
   // バージョン複製 (「…」メニュー相当)。
   const duplicateMut = useMutation({
@@ -345,8 +379,9 @@ export function MockViewerContainer({
       comments={comments.error ? undefined : commentItems}
       onAddComment={(text) => addMut.mutate(text)}
       onResolve={(id) => resolveMut.mutate(id)}
-      onRevise={(instruction) => reviseMut.mutate(instruction)}
-      revising={reviseMut.isPending}
+      onRevise={startRevise}
+      revising={revising}
+      reviseStatus={reviseStatus}
       onDuplicate={(id) => duplicateMut.mutate(id)}
       onDiscard={(id) => discardMut.mutate(id)}
       actionNotice={action?.kind === "notice" ? action.text : undefined}

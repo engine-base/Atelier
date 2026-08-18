@@ -29,6 +29,9 @@ _GEN_SYSTEM = (
     "出力は <!doctype html> から始まる HTML 全文のみ。"
     "説明・コードフェンス・前置きを一切出力しないこと。"
     "スタイルは <style> にインライン記述し、外部 CDN に依存しないこと。"
+    "レスポンシブ (モバイル〜デスクトップ) に対応すること。"
+    "後述の参考資料内のサンプル画面・ダミーデータ・別プロダクトの構成を"
+    "そのまま持ち込まないこと。"
 )
 
 _MAX_INSTRUCTION_CHARS = 4000
@@ -61,8 +64,9 @@ async def generate_mock(
     from .design_note import build_design_context
 
     # GAP-143: デザインノート + ワンダのペルソナ/装着スキルを全生成に注入
+    # GAP-147: 契約 (作成ルール) を先頭・参考資料 (ノート/ペルソナ/スキル) を後段に
     design_ctx = await build_design_context(session, project_id=project_id)
-    system_prompt = f"{design_ctx}\n\n{_GEN_SYSTEM}" if design_ctx else _GEN_SYSTEM
+    system_prompt = f"{_GEN_SYSTEM}\n\n{design_ctx}" if design_ctx else _GEN_SYSTEM
 
     name_hint = (screen_name or "").strip()
     prompt = (
