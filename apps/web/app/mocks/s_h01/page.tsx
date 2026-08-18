@@ -19,9 +19,11 @@ function SH01Inner() {
   const params = useSearchParams();
   const mockId = params.get("mock");
 
+  // GAP-146: スタジオ (?mock=) はフルスクリーン overlay — 一覧のみ通常レイアウト
+  if (mockId) return <MockViewerContainer mockId={mockId} />;
   return (
     <div className="mx-auto w-full max-w-[1200px] px-md py-lg">
-      {mockId ? <MockViewerContainer mockId={mockId} /> : <MockListContainer />}
+      <MockListContainer />
     </div>
   );
 }

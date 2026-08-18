@@ -643,3 +643,77 @@ describe("S-H01 デザインノート (GAP-143)", () => {
     await waitFor(() => expect(put).toHaveBeenCalled());
   });
 });
+
+describe("S-H01 モックスタジオ フルスクリーン化 (GAP-146)", () => {
+  it("スタジオはフルスクリーン overlay で「← モック一覧」の脱出路を持つ", async () => {
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={fakeClient(standardGet())} />,
+    );
+    const studio = await screen.findByRole("region", { name: "モックスタジオ" });
+    expect(studio.className).toContain("fixed");
+    expect(studio.className).toContain("inset-0");
+    expect(screen.getByRole("link", { name: "← モック一覧" })).toHaveAttribute(
+      "href",
+      "/mocks",
+    );
+  });
+
+  it("ズーム切替 (フィット/100%) があり、iframe はデバイス実寸で描画される", async () => {
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={fakeClient(standardGet())} />,
+    );
+    const frame = (await screen.findByTitle(
+      "ログイン画面",
+    )) as HTMLIFrameElement;
+    // 実寸: デスクトップ preset (1024) の実 CSS px を width に持つ
+    expect(frame).toHaveAttribute("width", "1024");
+    const zoomGroup = screen.getByRole("group", { name: "ズーム" });
+    expect(zoomGroup).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "100%" }));
+    expect(
+      screen.getByRole("button", { name: "100%" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // jsdom はレイアウト実測 0 のため scale=1 (100%) 表示になる
+    expect(screen.getByText("100%", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("送信直後に指示が吹き出しで楽観表示され「ワンダが作業中…」が出る", async () => {
+    let resolvePost: (() => void) | null = null;
+    const post = vi.fn(
+      () =>
+        new Promise((res) => {
+          resolvePost = () => res({ data: { id: "m3" } });
+        }),
+    );
+    const client = {
+      ...fakeClient(standardGet()),
+      post,
+    } as unknown as ApiClient;
+    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    await screen.findByRole("complementary", { name: "ワンダとデザイン" });
+    fireEvent.change(screen.getByRole("textbox", { name: "ワンダへの指示" }), {
+      target: { value: "ヘッダーを紺に" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    // 楽観表示: 自分の指示 + ワンダ作業中 (経過秒つきステータス)
+    expect(await screen.findByText("ヘッダーを紺に")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("ワンダが作業中…");
+    resolvePost?.();
+  });
+
+  it("Enter で送信される (Shift+Enter は送信しない)", async () => {
+    const post = vi.fn(async () => ({ data: { id: "m3" } }));
+    const client = {
+      ...fakeClient(standardGet()),
+      post,
+    } as unknown as ApiClient;
+    renderWithQuery(<MockViewerContainer mockId="m2" client={client} />);
+    await screen.findByRole("complementary", { name: "ワンダとデザイン" });
+    const box = screen.getByRole("textbox", { name: "ワンダへの指示" });
+    fireEvent.change(box, { target: { value: "改行テスト" } });
+    fireEvent.keyDown(box, { key: "Enter", shiftKey: true });
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+  });
+});

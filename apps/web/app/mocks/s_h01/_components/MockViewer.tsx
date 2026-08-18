@@ -1,24 +1,24 @@
 /**
- * S-H01 モックビューア — T-UC-13 / モック忠実再構築 (design-audit v2)
+ * S-H01 モックスタジオ — GAP-146 (フルスクリーン化 / 実寸プレビュー / 会話強化)
  *
- * 06_mockups/mock/S-H01-viewer.html の viewer-layout を忠実に再現する:
- *   - viewer-main : 見出し(バージョンピル + 修正依頼) → ツールバー(デバイス切替 +
- *     寸法 + 新規タブ/HTML DL) → プレビュー frame(iframe)
- *   - version-panel : バージョン履歴 (実 /mocks/{id}/versions) + コメント
- *     (実 /comments target_type=mock: 一覧/追加/解決)
- * 320 / 768 / 1024 / 1440 のレスポンシブ切替 (web/testing.md)。
- * storage 未設定 (content-url 503) 時は iframe 領域に honest メッセージを出しつつ
- * バージョン/コメントパネルは生かす (メタ系 API は dev でも動作するため)。
- * 「編集」= ワンダ (AI デザイナー) への修正依頼 (GAP-024 / Open Design パターン:
- * 自然言語指示 → LLM が HTML を改訂 → 新バージョン)。POST /mocks/{id}/revise。
- * バージョン操作 (複製 / 破棄) はモックの「…」メニュー相当。破棄は 2 段階確認 +
- * 唯一の生存バージョンは API が 409 で拒否。実 API 配線は MockViewerContainer が担う。
+ * 経営者指摘「ツールの中に組み込まれてますよ感がすごい / 枠の入れ子 /
+ * デスクトップなのにスマホ幅でしか見えない / チャットがしょぼい」への対応:
+ *   - **fixed inset-0 のフルスクリーン overlay** — アプリのサイドバー・余白の
+ *     外に出て「独自ツール」として全画面を使う (「← モック一覧」で必ず戻れる)
+ *   - **実寸プレビュー**: デバイス幅 (1440/1024/768/390) の実 CSS px で iframe を
+ *     描画し、キャンバス幅に収まらないときは transform scale で自動フィット
+ *     (Figma / Open Design と同じ方式)。ズーム % 表示 + フィット/100% 切替
+ *   - **ワンダとの会話を S-E01 同等の作法に**: タイムスタンプ付き吹き出し・
+ *     送信直後の楽観表示・実行中の経過秒カウンタ・Enter 送信・自動スクロール
+ * 「編集」= ワンダ (AI デザイナー) への修正依頼 (GAP-024 / Open Design パターン)。
+ * バージョン操作 (複製 / 破棄 / 2 段階確認) と コメントは右パネルに常設。
+ * 実 API 配線は MockViewerContainer が担う。
  */
 
 "use client";
 
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { cn } from "../../../../lib/cn";
@@ -51,7 +51,10 @@ const VIEWPORT_W: Record<ViewportPreset, number> = {
   "1440": 1440,
 };
 
-const VIEWPORT_H = 600;
+/** キャンバス測定前 / 測定不能時のプレビュー高さの既定値。 */
+const FALLBACK_PREVIEW_H = 800;
+/** キャンバスの余白 (px) — スケール計算で差し引く。 */
+const CANVAS_PAD = 48;
 
 /** device-toggle 表示順 (モック Desktop → Tablet → Mobile の大→小に準拠)。 */
 const PRESET_ORDER: readonly ViewportPreset[] = ["1440", "1024", "768", "320"];
@@ -205,6 +208,8 @@ export interface MockViewerProps {
   /** 署名付き閲覧 URL。null なら frame 領域に srcError を表示する。 */
   readonly src: string | null;
   readonly title: string;
+  /** 「← モック一覧」の戻り先 (GAP-146 フルスクリーン化で必須の脱出路)。 */
+  readonly backHref?: string;
   readonly initialPreset?: ViewportPreset;
   /** src=null 時に frame 領域へ出すメッセージ。 */
   readonly srcError?: string;
@@ -237,6 +242,7 @@ export interface MockViewerProps {
 export function MockViewer({
   src,
   title,
+  backHref = "/mocks",
   initialPreset = "1024",
   srcError,
   versionLabel,
@@ -260,6 +266,14 @@ export function MockViewer({
   // GAP-142 (Open Design / Studio 型): 要素選択モード + 選択中要素
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<SelectedElement | null>(null);
+  // GAP-146: 実寸プレビュー — キャンバス実測 + フィット/100% ズーム
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [avail, setAvail] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [zoom, setZoom] = useState<"fit" | "100">("fit");
+  // GAP-146: 会話の楽観表示 (送信直後の指示) + 実行中の経過秒
+  const [pendingText, setPendingText] = useState<string | null>(null);
+  const [elapsedS, setElapsedS] = useState(0);
+  const logRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const onMessage = (ev: MessageEvent) => {
       const d = ev.data as
@@ -281,34 +295,102 @@ export function MockViewer({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+  useEffect(() => {
+    // キャンバス実測 (リサイズ追従) — 測定不能 (jsdom 等) は 0 のまま = scale 1
+    const el = canvasRef.current;
+    if (el === null) return;
+    const update = () => setAvail({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  useEffect(() => {
+    // 実行中の経過秒 (GAP-136 のツールタイムラインと同じ「実測だけ出す」方針)
+    if (!revising) {
+      setElapsedS(0);
+      setPendingText(null);
+      return;
+    }
+    const startedAt = Date.now();
+    const t = setInterval(
+      () => setElapsedS(Math.floor((Date.now() - startedAt) / 1000)),
+      1000,
+    );
+    return () => clearInterval(t);
+  }, [revising]);
   const width = VIEWPORT_W[preset];
+  const scale =
+    zoom === "100"
+      ? 1
+      : avail.w > CANVAS_PAD
+        ? Math.min(1, (avail.w - CANVAS_PAD) / width)
+        : 1;
+  // プレビューはキャンバスの縦いっぱいまで使う (実寸 CSS px、縦はスクロール)
+  const previewH =
+    avail.h > CANVAS_PAD
+      ? Math.max(480, Math.round((avail.h - CANVAS_PAD) / scale))
+      : FALLBACK_PREVIEW_H;
   const openCount = (comments ?? []).filter((c) => !c.resolved).length;
   const hasSidePanel = versions !== undefined || comments !== undefined;
   // 選択モード中は配信 HTML に選択スクリプトを注入した URL を使う (mockdb のみ有効)
   const frameSrc = src === null ? null : selecting ? `${src}&sel=1` : src;
   // 会話パネル: バージョン履歴を「指示 → ワンダの応答」の会話として古い順に描く
   const conversation = [...(versions ?? [])].sort((a, b) => a.version - b.version);
+  useEffect(() => {
+    // 新しい発言・実行状態の変化で会話ログを最下部へ (S-E01 と同じ作法)
+    const el = logRef.current;
+    if (el !== null) el.scrollTop = el.scrollHeight;
+  }, [conversation.length, revising, pendingText]);
 
   return (
     <section
-      aria-label="モックビューア"
-      className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface"
+      aria-label="モックスタジオ"
+      className="fixed inset-0 z-[500] flex flex-col bg-surface"
     >
-      {/* 見出し (モック topbar: breadcrumb 末尾 + version-pill + 修正依頼) */}
-      <header className="flex flex-wrap items-end justify-between gap-sm border-b border-border bg-surface px-md py-md">
-        <div>
-          <p className="text-label-sm font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-            モック
-          </p>
-          <h1 className="mt-1 text-headline-md font-bold tracking-tight text-on-surface">
-            {title}
-          </h1>
-        </div>
-        <div className="flex items-center gap-sm">
-          {versionLabel ? (
-            <span className="inline-flex items-center rounded-full bg-tertiary-container px-2.5 py-1 text-[11px] font-semibold text-tertiary-container-fg">
-              {versionLabel}
-            </span>
+      {/* ── スタジオ topbar: 戻る / タイトル / バージョン / アクション ── */}
+      <header className="flex flex-wrap items-center gap-sm border-b border-border bg-surface px-md py-2">
+        <Link
+          href={backHref}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-[12.5px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          ← モック一覧
+        </Link>
+        <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border" />
+        <h1 className="min-w-0 truncate text-[14px] font-bold tracking-tight text-on-surface">
+          {title}
+        </h1>
+        {versionLabel ? (
+          <span className="inline-flex shrink-0 items-center rounded-full bg-tertiary-container px-2.5 py-0.5 text-[11px] font-semibold text-tertiary-container-fg">
+            {versionLabel}
+          </span>
+        ) : null}
+        <div className="ml-auto flex items-center gap-xs">
+          {src ? (
+            <>
+              <a
+                href={src}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <ExternalLinkIcon />
+                新規タブ
+              </a>
+              <a
+                href={src}
+                download
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-sm py-1.5 text-label-sm font-semibold text-on-surface transition-colors hover:border-primary hover:text-primary focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <DownloadIcon />
+                HTML
+              </a>
+            </>
           ) : null}
           {chatHref ? (
             <Link
@@ -316,45 +398,45 @@ export function MockViewer({
               className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
             >
               <MessageIcon />
-              修正依頼
+              チャットで依頼
             </Link>
           ) : null}
         </div>
       </header>
 
-      <div
-        className={cn(
-          "grid grid-cols-1",
-          onRevise && hasSidePanel
-            ? "lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_320px]"
-            : onRevise
-              ? "lg:grid-cols-[300px_1fr]"
-              : hasSidePanel && "lg:grid-cols-[1fr_320px]",
-        )}
-      >
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
         {/* ── GAP-142: ワンダのスタジオパネル (Open Design / Studio 型) ──
             会話 (バージョン履歴) + 指示入力 + 要素クリック選択をプレビューの
             隣に常設する。 */}
         {onRevise ? (
           <aside
             aria-label="ワンダとデザイン"
-            className="flex min-h-0 flex-col border-b border-border bg-surface lg:max-h-[720px] lg:border-b-0 lg:border-r"
+            className="flex min-h-0 flex-col border-b border-border bg-surface lg:w-[340px] lg:shrink-0 lg:border-b-0 lg:border-r"
           >
-            <div className="border-b border-border px-md py-3.5">
-              <h2 className="text-[13px] font-bold text-on-surface">
-                ワンダとデザイン
-              </h2>
-              <p className="mt-0.5 text-[11px] text-on-surface-variant">
-                指示するたびに新しいバージョンが作られます
-              </p>
+            <div className="flex items-center gap-2 border-b border-border px-md py-3">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-on-primary"
+              >
+                ワ
+              </span>
+              <div>
+                <h2 className="text-[13px] font-bold leading-tight text-on-surface">
+                  ワンダ
+                </h2>
+                <p className="text-[10.5px] leading-tight text-on-surface-variant">
+                  AI デザイナー · 指示ごとに新バージョン
+                </p>
+              </div>
             </div>
             <div
               role="log"
               aria-label="デザインの会話履歴"
+              ref={logRef}
               className="min-h-0 flex-1 overflow-y-auto px-md py-sm"
             >
-              <ul className="space-y-2">
-              {conversation.length === 0 ? (
+              <ul className="space-y-2.5">
+              {conversation.length === 0 && pendingText === null ? (
                 <li className="text-[12px] text-on-surface-variant">
                   まだ履歴がありません。下の入力からワンダに指示してください。
                 </li>
@@ -362,22 +444,41 @@ export function MockViewer({
               {conversation.map((v) => (
                 <li key={v.id} className="space-y-1.5">
                   {v.instruction ? (
-                    <p className="ml-6 rounded-lg rounded-br-sm bg-primary-container px-2.5 py-1.5 text-[12px] leading-relaxed text-primary-container-fg">
-                      {v.instruction}
-                    </p>
+                    <div className="flex flex-col items-end">
+                      <p className="max-w-[85%] whitespace-pre-wrap rounded-lg rounded-br-sm bg-primary px-3 py-2 text-[12.5px] leading-relaxed text-on-primary">
+                        {v.instruction}
+                      </p>
+                    </div>
                   ) : null}
-                  <p className="mr-6 rounded-lg rounded-bl-sm bg-surface-variant px-2.5 py-1.5 text-[12px] leading-relaxed text-on-surface">
-                    <span className="font-semibold">ワンダ:</span> v{v.version}{" "}
-                    を作成しました
-                    {v.note ? ` — ${v.note}` : ""}
-                    {v.current ? (
-                      <span className="ml-1 text-[10.5px] text-primary">
-                        (表示中)
-                      </span>
-                    ) : null}
-                  </p>
+                  <div className="flex flex-col items-start">
+                    <p className="max-w-[85%] rounded-lg rounded-bl-sm bg-surface-variant px-3 py-2 text-[12.5px] leading-relaxed text-on-surface">
+                      v{v.version} を作成しました
+                      {v.note ? ` — ${v.note}` : ""}
+                    </p>
+                    <span className="mt-0.5 text-[10px] tabular-nums text-on-surface-variant">
+                      ワンダ · {v.createdAt}
+                      {v.current ? " · 表示中" : ""}
+                    </span>
+                  </div>
                 </li>
               ))}
+              {pendingText !== null ? (
+                <li className="space-y-1.5">
+                  <div className="flex flex-col items-end">
+                    <p className="max-w-[85%] whitespace-pre-wrap rounded-lg rounded-br-sm bg-primary px-3 py-2 text-[12.5px] leading-relaxed text-on-primary">
+                      {pendingText}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <p
+                      role="status"
+                      className="max-w-[85%] animate-pulse rounded-lg rounded-bl-sm bg-surface-variant px-3 py-2 text-[12.5px] leading-relaxed text-on-surface-variant"
+                    >
+                      ワンダが作業中… {elapsedS > 0 ? `${elapsedS} 秒` : ""}
+                    </p>
+                  </div>
+                </li>
+              ) : null}
               </ul>
             </div>
             <div className="border-t border-border px-md py-sm">
@@ -418,6 +519,7 @@ export function MockViewer({
                   e.preventDefault();
                   const text = instructionDraft.trim();
                   if (!text || revising) return;
+                  setPendingText(text);
                   onRevise(composeInstruction(text, selected));
                   setInstructionDraft("");
                 }}
@@ -427,6 +529,13 @@ export function MockViewer({
                   <textarea
                     value={instructionDraft}
                     onChange={(e) => setInstructionDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      // S-E01 と同じ作法: Enter 送信 / Shift+Enter 改行
+                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        e.currentTarget.form?.requestSubmit();
+                      }
+                    }}
                     rows={3}
                     maxLength={4000}
                     disabled={revising}
@@ -439,15 +548,9 @@ export function MockViewer({
                   />
                 </label>
                 <div className="mt-1.5 flex items-center justify-between gap-xs">
-                  {revising ? (
-                    <span role="status" className="text-[11.5px] text-on-surface-variant">
-                      ワンダが改訂中…
-                    </span>
-                  ) : (
-                    <span className="text-[10.5px] text-on-surface-variant">
-                      あなたの Claude プランで実行
-                    </span>
-                  )}
+                  <span className="text-[10.5px] text-on-surface-variant">
+                    Enter で送信 · あなたの Claude プランで実行
+                  </span>
                   <button
                     type="submit"
                     disabled={!instructionDraft.trim() || revising}
@@ -461,10 +564,10 @@ export function MockViewer({
           </aside>
         ) : null}
 
-        {/* ── viewer-main ─────────────────────────────── */}
-        <div className="flex min-w-0 flex-col">
-          {/* ツールバー: デバイス切替 + 寸法 + アクション */}
-          <div className="flex flex-wrap items-center gap-sm border-b border-border bg-surface px-md py-sm">
+        {/* ── viewer-main (キャンバス) ─────────────────── */}
+        <div className="flex min-h-[480px] min-w-0 flex-1 flex-col lg:min-h-0">
+          {/* ツールバー: デバイス切替 + 実寸 + ズーム */}
+          <div className="flex flex-wrap items-center gap-sm border-b border-border bg-surface px-md py-1.5">
             <div
               role="group"
               aria-label="ビューポート切替"
@@ -491,34 +594,45 @@ export function MockViewer({
             </div>
 
             <div className="flex items-center gap-1 text-body-sm tabular-nums text-on-surface-variant">
-              {width} × {VIEWPORT_H}
+              {width} × {previewH}
             </div>
 
-            {src || onRevise ? (
-              <div className="ml-auto flex items-center gap-xs">
-                {src ? (
-                  <>
-                    <a
-                      href={src}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-md px-sm py-1.5 text-label-sm font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-primary"
-                    >
-                      <ExternalLinkIcon />
-                      新規タブ
-                    </a>
-                    <a
-                      href={src}
-                      download
-                      className="inline-flex items-center gap-1.5 rounded-md border border-primary px-sm py-1.5 text-label-sm font-semibold text-primary transition-colors hover:bg-primary-container focus-visible:outline-2 focus-visible:outline-primary"
-                    >
-                      <DownloadIcon />
-                      HTML
-                    </a>
-                  </>
-                ) : null}
-              </div>
-            ) : null}
+            {/* GAP-146: 実寸プレビューのズーム (フィット = 自動スケール / 100% = 原寸) */}
+            <div
+              role="group"
+              aria-label="ズーム"
+              className="ml-auto inline-flex items-center gap-1 rounded-md bg-surface-variant p-1"
+            >
+              <button
+                type="button"
+                onClick={() => setZoom("fit")}
+                aria-pressed={zoom === "fit"}
+                className={cn(
+                  "rounded-sm px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                  zoom === "fit"
+                    ? "bg-surface text-on-surface shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface",
+                )}
+              >
+                フィット
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom("100")}
+                aria-pressed={zoom === "100"}
+                className={cn(
+                  "rounded-sm px-2 py-0.5 text-[11px] font-semibold transition-colors",
+                  zoom === "100"
+                    ? "bg-surface text-on-surface shadow-sm"
+                    : "text-on-surface-variant hover:text-on-surface",
+                )}
+              >
+                100%
+              </button>
+              <span className="px-1 text-[11px] tabular-nums text-on-surface-variant">
+                {Math.round(scale * 100)}%
+              </span>
+            </div>
           </div>
 
           {/* バージョン操作の結果通知 (成功 / 失敗) */}
@@ -538,24 +652,38 @@ export function MockViewer({
             </p>
           ) : null}
 
-          {/* プレビュー frame (device-frame) */}
-          <div className="flex justify-center overflow-auto bg-surface-variant/40 p-lg">
-            <div
-              className="overflow-hidden rounded-lg bg-surface shadow-md transition-[width] duration-300 ease-out-expo"
-              style={{ width }}
-            >
+          {/* キャンバス: デバイス実寸の iframe を transform scale でフィット表示 */}
+          <div
+            ref={canvasRef}
+            className="min-h-0 flex-1 overflow-auto bg-surface-variant/40 p-lg"
+          >
+            <div className="flex min-w-fit justify-center">
               {frameSrc ? (
-                <iframe
-                  title={title}
-                  src={frameSrc}
-                  width={width}
-                  height={VIEWPORT_H}
-                  className="block w-full border-0 bg-surface"
-                />
+                <div
+                  className="overflow-hidden rounded-lg bg-surface shadow-md"
+                  style={{
+                    width: Math.round(width * scale),
+                    height: Math.round(previewH * scale),
+                  }}
+                >
+                  <iframe
+                    title={title}
+                    src={frameSrc}
+                    width={width}
+                    height={previewH}
+                    className="block border-0 bg-surface"
+                    style={{
+                      width,
+                      height: previewH,
+                      transform: `scale(${scale})`,
+                      transformOrigin: "top left",
+                    }}
+                  />
+                </div>
               ) : (
                 <p
                   role="alert"
-                  className="flex min-h-[240px] items-center justify-center px-lg text-center text-body-md text-on-surface-variant"
+                  className="flex min-h-[240px] w-full max-w-[560px] items-center justify-center rounded-lg bg-surface px-lg text-center text-body-md text-on-surface-variant shadow-md"
                 >
                   {srcError ?? "モックを表示できません。"}
                 </p>
@@ -564,11 +692,11 @@ export function MockViewer({
           </div>
         </div>
 
-        {/* ── version-panel (モック .version-panel 準拠) ── */}
+        {/* ── version-panel (バージョン履歴 + コメント) ── */}
         {hasSidePanel ? (
           <aside
             aria-label="バージョンとコメント"
-            className="flex min-w-0 flex-col border-t border-border bg-surface lg:border-l lg:border-t-0"
+            className="flex min-w-0 flex-col border-t border-border bg-surface lg:w-[300px] lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0"
           >
             {versions !== undefined ? (
               <>
