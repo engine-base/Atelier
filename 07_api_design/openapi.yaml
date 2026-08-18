@@ -426,6 +426,12 @@ components:
         name: { type: string, minLength: 1, maxLength: 200, nullable: true }
         kind: { type: string, enum: [api_key, password, token, connection_string, other], nullable: true }
 
+    CredentialRevealRequest:
+      type: object
+      description: "GAP-131: reveal の再認証。TTL (既定 300 秒) 内の再認証が残っていれば省略可"
+      properties:
+        password: { type: string, maxLength: 200, nullable: true, description: ログインパスワードの再入力 }
+
     CredentialReveal:
       type: object
       description: reveal 応答（権限者のみ・監査記録済の上で plaintext を返す）
@@ -3499,9 +3505,15 @@ paths:
       - { name: credential_id, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [project-credentials]
-      summary: シークレットの値を復号して 1 度返す（権限者のみ・監査記録）
+      summary: シークレットの値を復号して 1 度返す（再認証 + 権限者のみ・監査記録）
       x-implementation-path: apps/api/src/routes/project_credentials/__init__.py::reveal_credential
       x-screen-ids: [S-B04]
+      x-rate-limit: 10/min/user
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CredentialRevealRequest' }
       responses:
         '200':
           description: 復号成功（plaintext を返す。監査記録済）
@@ -3512,7 +3524,9 @@ paths:
                 properties:
                   data: { $ref: '#/components/schemas/CredentialReveal' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: "再認証が必要 (detail: reauth_required) / パスワード不一致 (detail: invalid_password — credential.reveal_denied として監査記録)", content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: rate limit 超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /account/ai-learning:
     post:

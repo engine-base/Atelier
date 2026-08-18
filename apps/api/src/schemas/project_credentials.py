@@ -45,6 +45,12 @@ class CredentialResponse(BaseModel):
     updated_at: datetime
 
 
+class CredentialRevealRequest(BaseModel):
+    """GAP-131: reveal の再認証。TTL 内の再認証が残っていれば省略可。"""
+
+    password: str | None = Field(default=None, max_length=200)
+
+
 class CredentialReveal(BaseModel):
     """reveal 応答。権限者のみ・監査記録済の上で plaintext を 1 度返す。"""
 

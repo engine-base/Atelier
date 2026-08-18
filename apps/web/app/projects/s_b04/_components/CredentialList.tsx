@@ -40,7 +40,7 @@ const KIND_LABEL: Record<string, string> = {
 
 interface CredentialListProps {
   readonly rows: readonly CredentialRow[];
-  readonly onReveal: (id: string) => Promise<string>;
+  readonly onReveal: (id: string, password?: string) => Promise<string>;
   readonly onDelete: (id: string) => void;
 }
 
@@ -53,17 +53,34 @@ export function CredentialList({
   const [busy, setBusy] = useState<string | null>(null);
   const [revealError, setRevealError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  // GAP-131: 再認証 — reveal が reauth_required を返した行のパスワード入力
+  const [pwPromptId, setPwPromptId] = useState<string | null>(null);
+  const [pw, setPw] = useState("");
+  const [pwError, setPwError] = useState<string | null>(null);
 
-  const reveal = async (id: string): Promise<void> => {
+  const reveal = async (id: string, password?: string): Promise<void> => {
     setBusy(id);
     setRevealError(null);
+    setPwError(null);
     try {
-      const value = await onReveal(id);
+      const value =
+        password === undefined ? await onReveal(id) : await onReveal(id, password);
       setRevealed((p) => ({ ...p, [id]: value }));
-    } catch {
-      setRevealError(
-        "復号に失敗しました（権限がないか、サーバー側で問題が発生しました）。",
-      );
+      setPwPromptId(null);
+      setPw("");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg === "reauth_required") {
+        // TTL 切れ or 初回 — パスワード入力を出す (エラー表示にしない)
+        setPwPromptId(id);
+      } else if (msg === "invalid_password") {
+        setPwPromptId(id);
+        setPwError("パスワードが違います。");
+      } else {
+        setRevealError(
+          "復号に失敗しました（権限がないか、サーバー側で問題が発生しました）。",
+        );
+      }
     } finally {
       setBusy(null);
     }
@@ -153,6 +170,52 @@ export function CredentialList({
                         隠す
                       </button>
                     </>
+                  ) : pwPromptId === r.id ? (
+                    // GAP-131: 再認証 — ログインパスワードを再入力して表示
+                    <form
+                      className="inline-flex items-center gap-1.5"
+                      onSubmit={(ev) => {
+                        ev.preventDefault();
+                        if (pw) void reveal(r.id, pw);
+                      }}
+                    >
+                      <input
+                        type="password"
+                        value={pw}
+                        onChange={(ev) => setPw(ev.target.value)}
+                        placeholder="ログインパスワード"
+                        aria-label={`${r.name} の表示のためパスワードを再入力`}
+                        autoComplete="current-password"
+                        className="w-40 rounded-sm border border-border bg-surface px-2 py-1 text-sm text-on-surface"
+                      />
+                      <button
+                        type="submit"
+                        disabled={busy === r.id || !pw}
+                        className={cn(
+                          ghostBtn,
+                          "font-semibold",
+                          (busy === r.id || !pw) && "opacity-50",
+                        )}
+                      >
+                        {busy === r.id ? "確認中…" : "確認して表示"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPwPromptId(null);
+                          setPw("");
+                          setPwError(null);
+                        }}
+                        className={cn(ghostBtn, "text-on-surface-variant")}
+                      >
+                        キャンセル
+                      </button>
+                      {pwError ? (
+                        <span role="alert" className="text-xs font-semibold text-error">
+                          {pwError}
+                        </span>
+                      ) : null}
+                    </form>
                   ) : (
                     <button
                       type="button"

@@ -1,0 +1,14 @@
+PASS  登録: 応答に平文が含まれない
+PASS  reveal(パスワード無し) は 403
+PASS  detail=reauth_required
+PASS  reveal(誤パスワード) は 403
+PASS  detail=invalid_password
+PASS  reveal(正パスワード) は 200
+PASS  平文が復号されている
+PASS  TTL 内の再 reveal はパスワード無しで 200
+PASS  authenticated から encrypted_value は SELECT 不可
+PASS  非機密列 (id 等) は SELECT 可 (列 grant)
+PASS  監査に credential.reveal が記録
+PASS  監査に credential.reveal_denied が記録
+
+12 PASS / 0 FAIL

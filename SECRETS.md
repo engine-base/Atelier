@@ -97,3 +97,10 @@ git log -p --all | grep -iE "service_role|sb_secret|FlyV1|postgres://.*:.*@" | h
 git ls-files | grep -E '\.env$|\.env\.' | grep -v example
 ```
 ヒットしたら該当を履歴から除去 (`git filter-repo`) し、全シークレットをローテーションする。
+
+## Vault (project_credentials) の鍵運用 (GAP-131)
+
+- 鍵は `ATELIER_VAULT_ENCRYPTION_KEYS` (カンマ区切り、先頭=暗号化・全鍵=復号)。
+  ローテーション手順・喪失時手順・監査の見方は **docs/vault-key-operations.md** を正とする。
+- **AI が触るホストに本番の vault 鍵を置かない** (開発ホストは開発鍵 + ダミーデータ)。
+  構造的遮断 (KMS 化) はホスト版の必須要件 — docs/adr/ADR-020 参照。

@@ -184,3 +184,67 @@ describe("S-B04 CredentialForm (T-UC-41)", () => {
     );
   });
 });
+
+describe("S-B04 reveal 再認証 (GAP-131)", () => {
+  const ROWS2 = [
+    {
+      id: "c1",
+      name: "Slack Bot Token",
+      kind: "token",
+      last4: "1a2b",
+      created_by_name: "田中",
+      created_at: "2026-08-01T09:00:00Z",
+    },
+  ] as const;
+
+  it("reauth_required でパスワード入力が出て、再入力後に平文が表示される", async () => {
+    const onReveal = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("reauth_required"))
+      .mockResolvedValueOnce("xoxb-secret-1a2b");
+    render(
+      <CredentialList rows={[...ROWS2]} onReveal={onReveal} onDelete={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /表示/ }));
+    const pw = await screen.findByLabelText(
+      "Slack Bot Token の表示のためパスワードを再入力",
+    );
+    fireEvent.change(pw, { target: { value: "my-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "確認して表示" }));
+    expect(await screen.findByText("xoxb-secret-1a2b")).toBeInTheDocument();
+    expect(onReveal).toHaveBeenLastCalledWith("c1", "my-password");
+  });
+
+  it("誤パスワードは「パスワードが違います」を出し、入力を維持する", async () => {
+    const onReveal = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("reauth_required"))
+      .mockRejectedValueOnce(new Error("invalid_password"));
+    render(
+      <CredentialList rows={[...ROWS2]} onReveal={onReveal} onDelete={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /表示/ }));
+    const pw = await screen.findByLabelText(
+      "Slack Bot Token の表示のためパスワードを再入力",
+    );
+    fireEvent.change(pw, { target: { value: "wrong" } });
+    fireEvent.click(screen.getByRole("button", { name: "確認して表示" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "パスワードが違います。",
+    );
+    // 入力 UI は残っている (やり直せる)
+    expect(
+      screen.getByLabelText("Slack Bot Token の表示のためパスワードを再入力"),
+    ).toBeInTheDocument();
+  });
+
+  it("TTL 内 (再認証済) はパスワードなしで即表示される", async () => {
+    const onReveal = vi.fn(async () => "xoxb-secret-1a2b");
+    render(
+      <CredentialList rows={[...ROWS2]} onReveal={onReveal} onDelete={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /表示/ }));
+    expect(await screen.findByText("xoxb-secret-1a2b")).toBeInTheDocument();
+    expect(onReveal).toHaveBeenCalledWith("c1");
+  });
+});

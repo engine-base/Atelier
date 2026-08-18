@@ -14,10 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.rate_limit import rate_limit_user
 from src.schemas.project_credentials import (
     CredentialCreate,
     CredentialResponse,
     CredentialReveal,
+    CredentialRevealRequest,
     CredentialUpdate,
 )
 from src.services import project_credentials as svc
@@ -94,13 +96,26 @@ async def delete_credential(
 
 @router.post(
     "/projects/{project_id}/credentials/{credential_id}/reveal",
-    summary="シークレットの値を復号して 1 度返す（権限者のみ・監査記録）",
+    dependencies=[Depends(rate_limit_user(10))],  # x-rate-limit: 10/min/user
+    summary="シークレットの値を復号して 1 度返す（再認証 + 権限者のみ・監査記録）",
 )
 async def reveal_credential(
-    project_id: str, credential_id: str, session: SessionDep, user: UserDep
+    project_id: str,
+    credential_id: str,
+    session: SessionDep,
+    user: UserDep,
+    body: CredentialRevealRequest | None = None,
 ) -> dict[str, CredentialReveal]:
+    """GAP-131: パスワード再認証必須 (成功後 TTL の間は省略可)。
+
+    403 detail: "reauth_required" (パスワード未入力) / "invalid_password"。
+    """
     revealed = await svc.reveal_credential(
-        session, actor_id=user.id, project_id=project_id, credential_id=credential_id
+        session,
+        actor_id=user.id,
+        project_id=project_id,
+        credential_id=credential_id,
+        password=None if body is None else body.password,
     )
     if revealed is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "credential not found")

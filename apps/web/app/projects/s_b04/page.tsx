@@ -59,8 +59,15 @@ function SB04Inner() {
     await load();
   };
 
-  const onReveal = async (id: string): Promise<string> => {
-    const data = await api.sendJson<{ value: string }>('POST', `${base}/${id}/reveal`);
+  // GAP-131: reveal は再認証必須。password なしで試し、403 の機械可読 detail
+  // (reauth_required / invalid_password) はそのまま throw して List 側が
+  // パスワード入力 UI に分岐する。
+  const onReveal = async (id: string, password?: string): Promise<string> => {
+    const data = await api.sendJson<{ value: string }>(
+      'POST',
+      `${base}/${id}/reveal`,
+      password ? { password } : {},
+    );
     return data?.value ?? '';
   };
 

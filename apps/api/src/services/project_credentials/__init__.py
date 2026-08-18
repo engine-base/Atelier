@@ -1,8 +1,21 @@
-"""プロジェクト・シークレットサービス層 (T-A-46)。
+"""プロジェクト・シークレットサービス層 (T-A-46 / GAP-131 強化)。
 
 plaintext は Fernet で対称暗号化して `project_credentials.encrypted_value` に
-urlsafe-base64 文字列で保存する。鍵は `ATELIER_VAULT_ENCRYPTION_KEY` env から
-生成する (未設定時は HTTP 500)。
+urlsafe-base64 文字列で保存する。
+
+鍵 (GAP-131: MultiFernet でローテーション可能):
+- `ATELIER_VAULT_ENCRYPTION_KEYS` (カンマ区切り・複数可) を最優先。
+  **先頭の鍵で暗号化**し、復号は全鍵で試す — 旧鍵で暗号化された既存行を
+  読みながら新鍵へ移行できる。全行の再暗号化は
+  `apps/api/scripts/rotate_vault_key.py` で行う。
+- 未設定時は従来の `ATELIER_VAULT_ENCRYPTION_KEY` (単鍵) に後方互換で退避。
+- どちらも無ければ HTTP 500 (黙って平文保存に落ちない)。
+
+GAP-131 の防御層:
+- encrypted_value は authenticated から列レベル revoke 済
+  (gap-131_project_credentials_hardening.sql)。reveal だけが service
+  セッション (role を下げない接続) で ciphertext を読む。
+- reveal はパスワード再認証 (成功後 TTL の間は省略可) + レート制限 + 監査。
 
 RLS は project の workspace member のみ可視/編集可能 (T-D-36)。状態変更 +
 reveal はすべて audit_logs に記録する (誰がいつ復号したか)。
@@ -15,10 +28,10 @@ import uuid
 from functools import lru_cache
 from typing import Any
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, InvalidToken, MultiFernet
 from fastapi import HTTPException, status
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.project_credentials import (
@@ -28,22 +41,38 @@ from src.schemas.project_credentials import (
     CredentialUpdate,
 )
 
+KEYS_ENV = "ATELIER_VAULT_ENCRYPTION_KEYS"
+LEGACY_KEY_ENV = "ATELIER_VAULT_ENCRYPTION_KEY"
+
 _COLS = (
     "c.id, c.project_id, c.name, c.kind, c.last4, c.created_at, c.updated_at, "
     "u.display_name AS created_by_name"
 )
 
 
+def vault_key_material(env: dict[str, str] | None = None) -> list[str]:
+    """鍵素材を env から読む (先頭 = 暗号化用)。テスト可能な純粋部分。"""
+    e = env if env is not None else dict(os.environ)
+    multi = (e.get(KEYS_ENV) or "").strip()
+    if multi:
+        return [k.strip() for k in multi.split(",") if k.strip()]
+    legacy = (e.get(LEGACY_KEY_ENV) or "").strip()
+    return [legacy] if legacy else []
+
+
 @lru_cache(maxsize=1)
-def _fernet() -> Fernet:
-    """Fernet インスタンスを env から構築 (process 単位で 1 度)。"""
-    raw = os.environ.get("ATELIER_VAULT_ENCRYPTION_KEY", "")
-    if not raw:
+def _fernet() -> MultiFernet:
+    """MultiFernet インスタンスを env から構築 (process 単位で 1 度)。
+
+    encrypt は先頭鍵、decrypt は全鍵で試す (鍵ローテーションの移行期対応)。
+    """
+    keys = vault_key_material()
+    if not keys:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR, "vault encryption key not configured"
         )
     try:
-        return Fernet(raw.encode("ascii"))
+        return MultiFernet([Fernet(k.encode("ascii")) for k in keys])
     except (ValueError, TypeError) as exc:
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR, "vault encryption key is invalid"
@@ -51,18 +80,40 @@ def _fernet() -> Fernet:
 
 
 def encrypt_value(plaintext: str) -> str:
-    """plaintext → urlsafe-base64 文字列 (Fernet token)。"""
+    """plaintext → urlsafe-base64 文字列 (Fernet token、先頭鍵で暗号化)。"""
     return _fernet().encrypt(plaintext.encode("utf-8")).decode("ascii")
 
 
 def decrypt_value(ciphertext: str) -> str:
-    """Fernet token → plaintext。鍵が違う / 改竄では HTTP 500。"""
+    """Fernet token → plaintext (全鍵で試行)。どの鍵でも開かない / 改竄は HTTP 500。"""
     try:
         return _fernet().decrypt(ciphertext.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:  # pragma: no cover - 鍵入替や改竄の防御
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR, "vault decryption failed"
         ) from exc
+
+
+@lru_cache(maxsize=8)
+def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
+    """RLS role を下げない service セッション (ciphertext 読み出し専用)。
+
+    encrypted_value は GAP-131 で authenticated から列レベル revoke 済のため、
+    RLS セッションでは読めない。可視性チェック (RLS) を通過した後にのみ
+    この factory で ciphertext を 1 行だけ取得する。
+    asyncpg 接続は event loop を跨げないため loop 毎に分離 (skills と同じ)。
+    """
+    del loop_key  # cache key 専用
+    from src.db.session import create_engine, create_session_factory
+
+    return create_session_factory(create_engine())
+
+
+def _service_session_factory() -> async_sessionmaker[AsyncSession]:
+    """実行中 event loop に紐づく sessionmaker を返す。"""
+    import asyncio
+
+    return _session_factory_for_loop(id(asyncio.get_running_loop()))
 
 
 def _last4(plaintext: str) -> str:
@@ -219,13 +270,63 @@ async def delete_credential(
     return True
 
 
+async def _require_reauth(*, actor_id: str, credential_id: str, password: str | None) -> None:
+    """GAP-131: reveal のパスワード再認証。
+
+    - 有効な再認証 (TTL 内) が残っていればパスワード不要。
+    - 無ければ password 必須 — 現パスワードを照合し、成功で TTL 付与。
+    - 失敗・未入力は 403 (detail はフロントが分岐する機械可読コード)。
+      失敗は audit に credential.reveal_denied として記録する
+      (セッション奪取での吸い出し試行を後から追える)。
+    """
+    from . import reauth
+
+    if reauth.is_valid(actor_id):
+        return
+    if password is None or not password:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "reauth_required")
+    from src.services import auth as auth_svc
+
+    ok = await auth_svc.verify_reauth_password(user_id=actor_id, password=password)
+    if not ok:
+        # 403 で RLS セッションの txn は rollback されるため、失敗監査は
+        # 独立した service セッションで確実に commit する (消えると
+        # 総当たりの痕跡が残らない)。
+        async with _service_session_factory()() as audit_session:
+            await AuditWriter(audit_session).write(
+                AuditEvent(
+                    action="credential.reveal_denied",
+                    target_type="project_credential",
+                    actor_type="user",
+                    actor_id=actor_id,
+                    target_id=credential_id,
+                    after={"reason": "invalid_password"},
+                )
+            )
+            await audit_session.commit()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid_password")
+    reauth.grant(actor_id)
+
+
 async def reveal_credential(
-    session: AsyncSession, *, actor_id: str, project_id: str, credential_id: str
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    project_id: str,
+    credential_id: str,
+    password: str | None = None,
 ) -> CredentialReveal | None:
-    """plaintext を 1 度返す。RLS 通過 = 権限あり。必ず audit に記録する。"""
+    """plaintext を 1 度返す。必ず audit に記録する。
+
+    GAP-131 の 2 段構成:
+      1. RLS セッションで可視性チェック (encrypted_value は列 revoke 済のため
+         ここでは読まない/読めない)
+      2. パスワード再認証 (TTL 内は省略可)
+      3. service セッションで ciphertext を 1 行だけ取得して復号
+    """
     res = await session.execute(
         text(
-            "select id, name, encrypted_value from public.project_credentials "
+            "select id, name from public.project_credentials "
             "where id = cast(:id as uuid) and project_id = cast(:pid as uuid) "
             "and deleted_at is null"
         ),
@@ -234,7 +335,19 @@ async def reveal_credential(
     row = res.first()
     if row is None:
         return None
-    plaintext = decrypt_value(str(row.encrypted_value))
+    await _require_reauth(actor_id=actor_id, credential_id=credential_id, password=password)
+    async with _service_session_factory()() as svc_session:
+        enc_res = await svc_session.execute(
+            text(
+                "select encrypted_value from public.project_credentials "
+                "where id = cast(:id as uuid) and deleted_at is null"
+            ),
+            {"id": credential_id},
+        )
+        enc_row = enc_res.first()
+    if enc_row is None:  # pragma: no cover - 可視チェック直後の競合削除のみ
+        return None
+    plaintext = decrypt_value(str(enc_row.encrypted_value))
     # 誰がいつ復号したかを必ず記録 (平文は記録しない)
     await AuditWriter(session).write(
         AuditEvent(

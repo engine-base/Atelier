@@ -354,6 +354,17 @@ class CredentialUpdate(BaseModel):
     kind: Kind1 | None = None
 
 
+class CredentialRevealRequest(BaseModel):
+    """
+    GAP-131: reveal の再認証。TTL (既定 300 秒) 内の再認証が残っていれば省略可
+    """
+
+    password: Annotated[str | None, Field(max_length=200)] = None
+    """
+    ログインパスワードの再入力
+    """
+
+
 class CredentialReveal(BaseModel):
     """
     reveal 応答（権限者のみ・監査記録済の上で plaintext を返す）

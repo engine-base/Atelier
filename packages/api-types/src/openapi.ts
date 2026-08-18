@@ -2575,7 +2575,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** シークレットの値を復号して 1 度返す（権限者のみ・監査記録） */
+        /** シークレットの値を復号して 1 度返す（再認証 + 権限者のみ・監査記録） */
         post: {
             parameters: {
                 query?: never;
@@ -2586,7 +2586,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CredentialRevealRequest"];
+                };
+            };
             responses: {
                 /** @description 復号成功（plaintext を返す。監査記録済） */
                 200: {
@@ -2608,8 +2612,26 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description 再認証が必要 (detail: reauth_required) / パスワード不一致 (detail: invalid_password — credential.reveal_denied として監査記録) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
                 /** @description 不在 */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description rate limit 超過 */
+                429: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -14494,6 +14516,11 @@ export interface components {
             name?: string | null;
             /** @enum {string|null} */
             kind?: "api_key" | "password" | "token" | "connection_string" | "other" | null;
+        };
+        /** @description GAP-131: reveal の再認証。TTL (既定 300 秒) 内の再認証が残っていれば省略可 */
+        CredentialRevealRequest: {
+            /** @description ログインパスワードの再入力 */
+            password?: string | null;
         };
         /** @description reveal 応答（権限者のみ・監査記録済の上で plaintext を返す） */
         CredentialReveal: {

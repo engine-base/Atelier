@@ -474,6 +474,32 @@ async def _verify_password_local(session: AsyncSession, *, email: str, password:
     return str(row.id)
 
 
+async def verify_reauth_password(*, user_id: str, password: str) -> bool:
+    """GAP-131: ログイン済ユーザーの現パスワード再照合 (vault reveal の再認証)。
+
+    user_id → email を引き、signin と同じ検証経路 (Supabase Auth 優先 /
+    ローカル stub フォールバック) を通す。成否のみ返す — signin の
+    ロックアウトは共有しない (呼出側がレート制限 + 失敗 audit を持つ)。
+    """
+    factory = _service_session_factory()
+    async with factory() as session:
+        res = await session.execute(
+            text("select email from auth.users where id = cast(:i as uuid)"),
+            {"i": user_id},
+        )
+        row = res.first()
+        if row is None or not row.email:
+            return False
+        email = str(row.email)
+        try:
+            uid = await _verify_password_supabase(email=email, password=password)
+            if uid is None:
+                uid = await _verify_password_local(session, email=email, password=password)
+        except SigninError:
+            return False
+        return str(uid) == str(user_id)
+
+
 async def signin(
     *,
     email: str,
