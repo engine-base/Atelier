@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from sqlalchemy import text
@@ -84,7 +85,7 @@ class FlowError(Exception):
 
 _COLS = (
     "id, project_id, stage_key, seq, title, department::text as department, "
-    "status, skippable, hard_gate, skip_reason, completed_at"
+    "status, skippable, hard_gate, skip_reason, completed_at, thread_id"
 )
 
 
@@ -153,7 +154,10 @@ def _to_response(
 ) -> FlowStageResponse:
     dept = str(row.department)
     emp = employees.get(dept)
-    thread_id = None if emp is None else threads.get(emp["id"])
+    # GAP-151: 工程専用スレッド (保存済み) が正。未割当は null — 開いた時に
+    # ensure_stage_thread が作成/採用する (employee 別スレッドへは飛ばさない)
+    del threads
+    thread_id = None if row.thread_id is None else str(row.thread_id)
     return FlowStageResponse(
         id=str(row.id),
         stage_key=str(row.stage_key),
@@ -403,3 +407,67 @@ async def flow_context_block(session: AsyncSession, *, project_id: str) -> str:
         "切替を案内すること。順序を飛ばす場合は理由を確認すること。"
     )
     return "\n".join(lines)
+
+
+async def ensure_stage_thread(
+    session: AsyncSession, *, actor_id: str, project_id: str, stage_key: str
+) -> str:
+    """GAP-151: 工程専用スレッドを返す (無ければ作成して project_flow_stages に固定)。
+
+    担当社員は 工程 × 部門の代表 (運営テンプレで固定 — ユーザーは選ばない)。
+    既存プロジェクトの継続性: その社員の既存スレッドがまだどの工程にも
+    割り当てられていなければ採用する (会話が分断しない)。同部門の 2 工程目
+    以降は新規スレッド (工程 = 会話の入れ物)。
+    """
+    row = await _get_stage(session, project_id=project_id, stage_key=stage_key)
+    if row.thread_id is not None:
+        return str(row.thread_id)
+    employees = await _resolve_employees(session, project_id=project_id)
+    emp = employees.get(str(row.department))
+    if emp is None:
+        raise FlowError(
+            "no_employee",
+            f"「{row.title}」の担当部門 ({row.department}) に社員がいません",
+        )
+    adopt = (
+        await session.execute(
+            text(
+                "select t.id from public.chat_threads t "
+                "where t.project_id = cast(:p as uuid) "
+                "and t.ai_employee_id = cast(:e as uuid) "
+                "and not exists (select 1 from public.project_flow_stages fs "
+                "                where fs.thread_id = t.id) "
+                "order by t.updated_at desc limit 1"
+            ),
+            {"p": project_id, "e": emp["id"]},
+        )
+    ).first()
+    if adopt is not None:
+        thread_id = str(adopt.id)
+    else:
+        thread_id = str(uuid.uuid4())
+        await session.execute(
+            text(
+                "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), :t)"
+            ),
+            {"i": thread_id, "p": project_id, "e": emp["id"], "t": str(row.title)},
+        )
+    await session.execute(
+        text(
+            "update public.project_flow_stages set thread_id = cast(:t as uuid), "
+            "updated_at = now() where id = cast(:i as uuid)"
+        ),
+        {"t": thread_id, "i": str(row.id)},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="project.flow.thread",
+            target_type="project",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=project_id,
+            after={"stage": stage_key, "thread_id": thread_id, "adopted": adopt is not None},
+        )
+    )
+    return thread_id

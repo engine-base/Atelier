@@ -165,8 +165,14 @@ function SE01Inner() {
             projectId={projectId}
             selectedThreadId={threadId}
             onSelectThread={setThreadId}
+            autoOpenCurrent
           />
         ) : null}
+        {/* GAP-151: 工程外の会話は「その他の会話」に収容 (既定は閉) */}
+        <details className="min-h-0 flex-1 overflow-y-auto">
+          <summary className="cursor-pointer border-b border-border px-md py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface">
+            その他の会話
+          </summary>
         <ThreadSidebar
           selectedId={threadId}
           onSelect={setThreadId}
@@ -176,6 +182,7 @@ function SE01Inner() {
             if (threadId === id) setThreadId(null);
           }}
         />
+        </details>
       </div>
 
       {/* 中央: チャット */}

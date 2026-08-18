@@ -286,3 +286,42 @@ def test_flow_injected_into_chat_context(
         assert "✓ 1. 商談・ヒアリング" in sys_p
         assert "2. 提案" in sys_p and "← 現在のステージ" in sys_p
         assert "担当社員への切替を案内する" in sys_p
+
+
+@pytest.mark.integration
+def test_gap151_stage_thread_ensure_adopt_and_fixed_employee(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-151: 工程専用スレッド — 作成/固定/再利用/既存スレッド採用/担当固定。"""
+    h = _h(seeded["u"])
+    with TestClient(app) as client:
+        client.get(f"/projects/{seeded['proj']}/flow", headers=h)  # init
+
+        # COO (executive) 担当の delivery: 既存スレッド無し → 新規作成される
+        r1 = client.post(f"/projects/{seeded['proj']}/flow/delivery/thread", headers=h)
+        assert r1.status_code == 200, r1.text
+        t1 = r1.json()["data"]["thread_id"]
+        # 2 回目は同じスレッド (工程に固定済み)
+        r2 = client.post(f"/projects/{seeded['proj']}/flow/delivery/thread", headers=h)
+        assert r2.json()["data"]["thread_id"] == t1
+        # flow 応答にも載る
+        flow = client.get(f"/projects/{seeded['proj']}/flow", headers=h).json()["data"]
+        delivery = next(s for s in flow if s["stage_key"] == "delivery")
+        assert delivery["thread_id"] == t1
+        assert delivery["employee_name"] == "ジャービス"  # 担当は固定 (運営テンプレ)
+
+        # 担当部門に社員が居ない工程 (design) は 409 で誠実に伝える
+        r3 = client.post(f"/projects/{seeded['proj']}/flow/design/thread", headers=h)
+        assert r3.status_code == 409
+        assert "社員がいません" in r3.json()["detail"]
+
+    with sync_engine.connect() as c:
+        row = c.execute(
+            text(
+                "select ai_employee_id::text as eid, title from public.chat_threads "
+                "where id = cast(:t as uuid)"
+            ),
+            {"t": t1},
+        ).one()
+        assert row.eid == seeded["coo"]
+        assert row.title in ("納品・請求", "リリース判定")

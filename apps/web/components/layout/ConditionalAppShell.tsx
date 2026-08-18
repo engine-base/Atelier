@@ -64,7 +64,7 @@ function projectNav(projectId: string): readonly NavItem[] {
     { id: 'p-dashboard', labelKey: 'ダッシュボード', href: `/projects/dashboard${q}`, match: '/projects/dashboard', icon: <LayoutDashboard className={ICON} /> },
     { id: 'p-workflow', labelKey: '工程', href: `/workflow${q}`, match: '/workflow', icon: <Workflow className={ICON} /> },
     { id: 'p-tasks', labelKey: 'タスク', href: `/tasks${q}`, match: '/tasks', icon: <Kanban className={ICON} /> },
-    { id: 'p-chat', labelKey: 'チャット', href: `/chat${q}`, match: '/chat', icon: <MessageSquare className={ICON} /> },
+    { id: 'p-chat', labelKey: '進行', href: `/chat${q}`, match: '/chat', icon: <MessageSquare className={ICON} /> },
     { id: 'p-meetings', labelKey: '議事録', href: `/meetings${q}`, match: '/meetings', icon: <FileText className={ICON} /> },
     // モック appshell.js には無いが、S-O01 への UI 導線が皆無 (到達不能画面) だったため追加
     { id: 'p-schedules', labelKey: 'スケジュール', href: `/schedules${q}`, match: '/schedules', icon: <Clock className={ICON} /> },

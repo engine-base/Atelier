@@ -89,26 +89,50 @@ describe("FlowRail (GAP-150)", () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith("t-tony"));
   });
 
-  it("順序外 (これから) のステージはソフトゲート — 警告後「それでも開く」でスレッド作成", async () => {
+  it("順序外 (これから) のステージはソフトゲート — 警告後「それでも開く」で工程スレッド作成", async () => {
     const onSelect = vi.fn();
-    const createThreadFn = vi.fn(async () => ({ id: "t-new" }));
+    const ensureThreadFn = vi.fn(async () => ({ thread_id: "t-new" }));
     renderWithQuery(
       <FlowRail
         projectId="p1"
         onSelectThread={onSelect}
         getFlowFn={async () => FLOW}
-        createThreadFn={createThreadFn}
+        ensureThreadFn={ensureThreadFn}
       />,
     );
     fireEvent.click(await screen.findByRole("button", { name: "契約 を開く" }));
     // まだ作成されない (警告が出る)
-    expect(createThreadFn).not.toHaveBeenCalled();
+    expect(ensureThreadFn).not.toHaveBeenCalled();
     expect(
       screen.getByText(/先に「提案」が残っています。順序を飛ばして開きますか？/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "それでも開く" }));
-    await waitFor(() => expect(createThreadFn).toHaveBeenCalledWith("p1", "e-tony"));
+    await waitFor(() =>
+      expect(ensureThreadFn).toHaveBeenCalledWith("p1", "contract"),
+    );
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith("t-new"));
+  });
+
+  it("GAP-151: 未選択で開くと現在工程の会話が自動で開く", async () => {
+    const onSelect = vi.fn();
+    const ensureThreadFn = vi.fn(async () => ({ thread_id: "t-current" }));
+    const flow = FLOW.map((s) =>
+      s.current ? { ...s, thread_id: null } : s,
+    ) as FlowStage[];
+    renderWithQuery(
+      <FlowRail
+        projectId="p1"
+        onSelectThread={onSelect}
+        autoOpenCurrent
+        getFlowFn={async () => flow}
+        ensureThreadFn={ensureThreadFn}
+      />,
+    );
+    // 自動で現在工程 (提案) の専用スレッドが確保されて開く
+    await waitFor(() =>
+      expect(ensureThreadFn).toHaveBeenCalledWith("p1", "proposal"),
+    );
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith("t-current"));
   });
 
   it("現在ステージの完了 → 次ステージへの引き継ぎバナー (COO 案内)", async () => {

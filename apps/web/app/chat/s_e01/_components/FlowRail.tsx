@@ -48,10 +48,12 @@ export interface FlowRailProps {
     action: "complete" | "skip" | "reopen",
     body: Record<string, unknown>,
   ) => Promise<readonly FlowStage[]>;
-  readonly createThreadFn?: (
+  readonly ensureThreadFn?: (
     projectId: string,
-    aiEmployeeId: string,
-  ) => Promise<{ id: string }>;
+    stageKey: string,
+  ) => Promise<{ thread_id: string }>;
+  /** GAP-151: 選択スレッド未指定なら現在工程の会話を自動で開く。 */
+  readonly autoOpenCurrent?: boolean;
 }
 
 async function defaultGetFlow(projectId: string): Promise<readonly FlowStage[]> {
@@ -73,15 +75,16 @@ async function defaultPostFlow(
   return res ?? [];
 }
 
-async function defaultCreateThread(
+async function defaultEnsureThread(
   projectId: string,
-  aiEmployeeId: string,
-): Promise<{ id: string }> {
-  const res = await api.sendJson<{ id: string }>("POST", "/chat/threads", {
-    project_id: projectId,
-    ai_employee_id: aiEmployeeId,
-  });
-  if (!res?.id) throw new Error("thread create failed");
+  stageKey: string,
+): Promise<{ thread_id: string }> {
+  // GAP-151: 工程専用スレッド (無ければサーバーが作成し工程に固定する)
+  const res = await api.sendJson<{ thread_id: string }>(
+    "POST",
+    `/projects/${projectId}/flow/${stageKey}/thread`,
+  );
+  if (!res?.thread_id) throw new Error("stage thread failed");
   return res;
 }
 
@@ -97,7 +100,8 @@ export function FlowRail({
   onSelectThread,
   getFlowFn = defaultGetFlow,
   postFlowFn = defaultPostFlow,
-  createThreadFn = defaultCreateThread,
+  ensureThreadFn = defaultEnsureThread,
+  autoOpenCurrent = false,
 }: FlowRailProps) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -121,17 +125,18 @@ export function FlowRail({
       onSelectThread(s.thread_id);
       return;
     }
-    if (!s.employee_id) {
-      setError(`「${s.title}」の担当部門 (${s.department}) に社員がいません。`);
-      return;
-    }
     try {
-      const created = await createThreadFn(projectId, s.employee_id);
+      // GAP-151: 工程専用スレッド — 担当社員は工程 × 部門で固定 (サーバー解決)
+      const ensured = await ensureThreadFn(projectId, s.stage_key);
       void queryClient.invalidateQueries({ queryKey: ["project-flow", projectId] });
       void queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
-      onSelectThread(created.id);
-    } catch {
-      setError("スレッドの作成に失敗しました。");
+      onSelectThread(ensured.thread_id);
+    } catch (e) {
+      setError(
+        e instanceof api.ApiError && e.status === 409
+          ? e.message
+          : "工程の会話を開けませんでした。",
+      );
     }
   };
 
@@ -161,6 +166,21 @@ export function FlowRail({
 
   const stages = useMemo(() => flow.data ?? [], [flow.data]);
   const current = stages.find((s) => s.current) ?? null;
+
+  // GAP-151: 「開くと現在工程の会話が自動で開く」— 未選択時に一度だけ
+  const autoOpenedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!autoOpenCurrent || autoOpenedRef.current) return;
+    if (selectedThreadId) {
+      autoOpenedRef.current = true;
+      return;
+    }
+    if (current === null) return;
+    autoOpenedRef.current = true;
+    void openStage(current);
+    // openStage は安定参照でないが「一度だけ」ガードで再実行しない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenCurrent, selectedThreadId, current]);
 
   if (flow.isLoading || flow.error || stages.length === 0) return null;
 

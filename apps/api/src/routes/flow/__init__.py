@@ -108,3 +108,22 @@ async def reopen_stage(
         _raise(exc)
         raise
     return {"data": flow}
+
+
+@router.post(
+    "/projects/{project_id}/flow/{stage_key}/thread",
+    summary="工程専用スレッドの取得/作成 (GAP-151 — 工程 = 会話の入れ物)",
+)
+async def ensure_stage_thread(
+    project_id: str, stage_key: str, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    try:
+        thread_id = await svc.ensure_stage_thread(
+            session, actor_id=user.id, project_id=project_id, stage_key=stage_key
+        )
+    except svc.FlowError as exc:
+        if exc.code == "no_employee":
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        _raise(exc)
+        raise
+    return {"data": {"thread_id": thread_id}}

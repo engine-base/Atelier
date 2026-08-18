@@ -4486,6 +4486,31 @@ paths:
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 未完了ステージ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /projects/{project_id}/flow/{stage_key}/thread:
+    post:
+      tags: [flow]
+      summary: 工程専用スレッドの取得/作成（GAP-151 — 工程 = 会話の入れ物・担当は工程×部門で固定）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::ensure_stage_thread
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage_key, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 工程に固定されたスレッド (無ければ作成、担当社員の未割当スレッドがあれば採用)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [thread_id]
+                    properties:
+                      thread_id: { type: string, format: uuid }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 担当部門に社員がいない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /projects/{project_id}/design-note:
     parameters:
       - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
