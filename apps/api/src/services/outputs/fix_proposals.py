@@ -29,7 +29,7 @@ from .revise import (
     REVISE_MODEL,
     CompletionClient,
     OutputReviseError,
-    download_html,
+    load_source_html,
     revise_output,
 )
 
@@ -151,7 +151,7 @@ async def propose(
     if int(dup.scalar_one()) > 0:
         raise ValueError("a pending fix proposal already exists for this comment")
 
-    doc_html = "" if output.html_path is None else await download_html(output.html_path)
+    doc_html = "" if output.html_path is None else await load_source_html(output.html_path)
     proposal_text, _model = await _generate_proposal(doc_html, str(comment.content), client)
 
     row = await session.execute(

@@ -29,7 +29,7 @@ from src.llm.client import LLMMessage
 from src.schemas.mocks import MockResponse, MockVersionCreate
 from src.storage_signing import create_signed_download_url, create_signed_upload_url
 
-from . import create_version, get_mock
+from . import MockVersionConflict, create_version, get_mock
 
 REVISE_MODEL = os.environ.get("ATELIER_DESIGN_MODEL", "claude-sonnet-4-6")
 
@@ -309,12 +309,16 @@ async def _persist_revision(
     if summary:
         # GAP-147: 「何をどう変えたか」— 会話バブル/バージョン履歴に表示される
         meta["note"] = summary
-    return await create_version(
-        session,
-        actor_id=actor_id,
-        mock_id=mock_id,
-        data=MockVersionCreate(html_storage_path=new_path, meta_tags=meta),
-    )
+    try:
+        return await create_version(
+            session,
+            actor_id=actor_id,
+            mock_id=mock_id,
+            data=MockVersionCreate(html_storage_path=new_path, meta_tags=meta),
+        )
+    except MockVersionConflict as exc:
+        # GAP-155: 同時改訂 — 黙って積み直さず誠実に 409
+        raise MockReviseError("conflict", str(exc)) from exc
 
 
 async def revise_mock_stream(

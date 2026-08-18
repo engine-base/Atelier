@@ -5313,6 +5313,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mocks/{mock_id}/diff/{other_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** バージョン間差分（GAP-155 — {other_id} → {mock_id} の unified diff） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    mock_id: string;
+                    other_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 同一画面チェーン内 2 版の unified diff (実 HTML から計算) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["VersionDiff"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 別チェーン同士 / 差分が大きすぎる */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-employees": {
         parameters: {
             query?: never;
@@ -7005,6 +7073,141 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/diff/{other_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** バージョン間差分（GAP-155 — {other_id} → {output_id} の unified diff） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                    other_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 同一チェーン内 2 版の unified diff (実 HTML から計算) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["VersionDiff"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 別チェーン / バイナリ / 本文なし / 差分過大 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 旧バージョンを新バージョンとして復元（GAP-155 — 履歴は消さない） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 旧版と同内容の新バージョン (meta に author=restore / restored_from_version、audit output.restore) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkflowOutput"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 最新版 / 本文なし / 同時改訂と衝突 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -16205,6 +16408,23 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通) */
+        VersionDiff: {
+            /** Format: uuid */
+            from_id?: string;
+            from_version?: number;
+            /** Format: uuid */
+            to_id?: string;
+            to_version?: number;
+            /** @description 追加行数 */
+            added?: number;
+            /** @description 削除行数 */
+            removed?: number;
+            /** @description 内容が同一 (diff 空) */
+            identical?: boolean;
+            /** @description unified diff 全文 */
+            diff?: string;
         };
         /** @description 成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023) */
         OutputAnchor: {

@@ -11,6 +11,7 @@ import uuid
 from typing import Any, cast
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
@@ -104,6 +105,13 @@ async def list_versions(session: AsyncSession, mock_id: str) -> list[MockRespons
     return [_row_to_response(r) for r in res.all()]
 
 
+class MockVersionConflict(Exception):
+    """GAP-155: 同時改訂の衝突 (同 project+画面+version が先に作られた)。
+
+    黙って積み直すと「後勝ちに先勝ちの変更が含まれない」lost update に
+    見えるため、リトライせず 409 で誠実にユーザーへ返す。"""
+
+
 async def _insert_mock(
     session: AsyncSession,
     *,
@@ -179,16 +187,25 @@ async def create_version(
     )
     next_version = int(res.scalar_one()) + 1
     new_id = str(uuid.uuid4())
-    await _insert_mock(
-        session,
-        mock_id=new_id,
-        project_id=parent.project_id,
-        screen_name=parent.screen_name,
-        html_storage_path=data.html_storage_path,
-        version=next_version,
-        parent_mock_id=mock_id,
-        meta_tags=data.meta_tags,
-    )
+    # GAP-155: (project, 画面, version) 一意 — 同時改訂は savepoint で受けて
+    # 409 相当の typed error にする (黙って積み直さない)
+    try:
+        async with session.begin_nested():
+            await _insert_mock(
+                session,
+                mock_id=new_id,
+                project_id=parent.project_id,
+                screen_name=parent.screen_name,
+                html_storage_path=data.html_storage_path,
+                version=next_version,
+                parent_mock_id=mock_id,
+                meta_tags=data.meta_tags,
+            )
+    except IntegrityError as exc:
+        raise MockVersionConflict(
+            f"「{parent.screen_name}」は他のメンバーが同時に改訂しました "
+            f"(v{next_version} が先に作成)。最新を確認して再実行してください"
+        ) from exc
     await AuditWriter(session).write(
         AuditEvent(
             action="mock.version_create",

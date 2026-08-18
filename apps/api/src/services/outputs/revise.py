@@ -87,6 +87,30 @@ def _fake_revision(html: str, instruction: str) -> str:
     return banner + html
 
 
+async def load_source_html(storage_path: str) -> str:
+    """改訂対象 HTML を取得する — mockdb:// (DB 内蔵) と storage の両対応 (GAP-155)。
+
+    従来は storage 署名直行だったため、チャット取り込み等の mockdb 成果物への
+    修正依頼が 503 で不能だった。filedb:// (バイナリ) は改訂対象外として断る。
+    """
+    from src.services.mocks.artifacts import (
+        FILEDB_PREFIX,
+        MOCKDB_PREFIX,
+        fetch_content_service,
+    )
+
+    if storage_path.startswith(FILEDB_PREFIX):
+        raise OutputReviseError(
+            "no_html", "バイナリ形式のファイルは AI による改訂に対応していません"
+        )
+    if storage_path.startswith(MOCKDB_PREFIX):
+        html = await fetch_content_service(storage_path[len(MOCKDB_PREFIX) :])
+        if html is None:
+            raise OutputReviseError("content_unavailable", "mockdb content not found")
+        return html
+    return await download_html(storage_path)
+
+
 async def download_html(storage_path: str) -> str:
     url = await create_signed_download_url(storage_path)
     async with httpx.AsyncClient(timeout=30.0) as client:
@@ -200,7 +224,7 @@ async def revise_output(
     if current.html_path is None:
         raise OutputReviseError("no_html", "この成果物には改訂対象の HTML がありません")
 
-    html = await download_html(current.html_path)
+    html = await load_source_html(current.html_path)
     if len(html) > _MAX_HTML_CHARS:
         raise OutputReviseError(
             "too_large", f"output html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
@@ -208,8 +232,15 @@ async def revise_output(
 
     revised, used_model = await run_revision(html, instruction, client)
 
-    new_path = f"outputs/{current.project_id}/{uuid.uuid4()}/{current.stage}-rev.html"
-    await _upload_html(new_path, revised)
+    # GAP-155: mockdb 由来は mockdb へ保存 (storage 未設定でも編集ループが回る —
+    # GAP-138 の mocks revise と同じ設計)。storage 由来は従来どおり storage へ。
+    from src.services.mocks.artifacts import MOCKDB_PREFIX, store_content_service
+
+    if current.html_path.startswith(MOCKDB_PREFIX):
+        new_path = f"{MOCKDB_PREFIX}{await store_content_service(revised)}"
+    else:
+        new_path = f"outputs/{current.project_id}/{uuid.uuid4()}/{current.stage}-rev.html"
+        await _upload_html(new_path, revised)
 
     created = await insert_version(
         session,

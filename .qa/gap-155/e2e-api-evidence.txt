@@ -1,0 +1,32 @@
+== 1) 一意制約 (実 DB) ==
+             indexname             |                                                                                                indexdef                                                                                                
+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ mocks_project_screen_version_uq   | CREATE UNIQUE INDEX mocks_project_screen_version_uq ON public.mocks USING btree (project_id, screen_name, version) WHERE (deleted_at IS NULL)
+ workflow_outputs_chain_version_uq | CREATE UNIQUE INDEX workflow_outputs_chain_version_uq ON public.workflow_outputs USING btree (project_id, stage, COALESCE((meta ->> 'file_name'::text), ''::text), version) WHERE (deleted_at IS NULL)
+(2 rows)
+
+== 2) 同時複製の実レース (並列 curl 2 本 → 先勝ち 201 / 後着 409) ==
+req2: 201 → {"data":{...,"screen_name":"料金ページ","version":5,...}}
+req1: 409 → {"detail":"「料金ページ」は他のメンバーが同時に改訂しました (v5 が先に作成)。最新を確認して再実行してください"}
+== 3) モック差分 (料金ページ v3→v4, 実 API) ==
+v3 -> v4, +6/-0, identical=False
+--- v3
++++ v4
+@@ -4,6 +4,9 @@
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>料金ページ</title>
++<link rel="preconnect" href="https://fonts.googleapis.com">
++<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
++<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+ <style>
+   * { box-sizing: border-box; }
+   body {
+@@ -11,6 +14,9 @@
+     font-family: -apple-system, "Hira
+== 4) 成果物差分 + 復元 (御見積書, 実 API) ==
+v1 -> v2, +1/-1
+restore v1 → 201 v3 (meta: author=restore, restored_from_version=1) — 実行ログは本文参照
+restore 最新版 → 409 {"detail":"v4 はすでに最新版です — 復元は不要です"}
+== 5) anchors 是正 (mockdb 成果物で 503 → 200) ==
+{"data":[{"element_id":"added-terms","label":"お支払い条件: 月末締め翌月末払い"}]}

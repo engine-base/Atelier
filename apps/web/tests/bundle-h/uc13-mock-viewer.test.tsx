@@ -756,3 +756,105 @@ describe("S-H01 モックスタジオ フルスクリーン化 (GAP-146)", () =>
     await waitFor(() => expect(reviseStreamFn).toHaveBeenCalledTimes(1));
   });
 });
+
+describe("S-H01 バージョン差分 (GAP-155)", () => {
+  const DIFF = {
+    from_id: "m1",
+    from_version: 1,
+    to_id: "m2",
+    to_version: 2,
+    added: 2,
+    removed: 1,
+    identical: false,
+    diff: "--- v1\n+++ v2\n@@ -1,3 +1,4 @@\n-<h1>旧見出し</h1>\n+<h1>新見出し</h1>\n+<p>追加の段落</p>",
+  };
+
+  it("旧版の「差分」で GET /mocks/{id}/diff/{other} を呼び、色分け diff がモーダル表示される", async () => {
+    const get = vi.fn(async (path: string, init?: unknown) => {
+      if (path === "/mocks/{mock_id}/diff/{other_id}") return { data: DIFF };
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/login.html?token=x" } };
+      if (path.includes("versions")) return { data: VERSIONS };
+      if (path === "/comments") return { data: [] };
+      void init;
+      return { data: MOCK_META };
+    });
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={fakeClient(get)} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "v1 と表示中バージョンの差分",
+      }),
+    );
+    // モーダル: 見出し + 追加/削除行数 + サーバ計算 diff の実値 (行単位色分け)
+    expect(
+      await screen.findByRole("dialog", { name: "バージョン間差分" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("v1 → v2 の差分")).toBeInTheDocument();
+    expect(screen.getByText("-<h1>旧見出し</h1>")).toBeInTheDocument();
+    expect(screen.getByText("+<h1>新見出し</h1>")).toBeInTheDocument();
+    expect(screen.getByText("+<p>追加の段落</p>")).toBeInTheDocument();
+    // 呼び出し: to=表示中 (m2) / from=選択した旧版 (m1)
+    const call = get.mock.calls.find(
+      (c) => c[0] === "/mocks/{mock_id}/diff/{other_id}",
+    ) as unknown as [string, { params: { path: Record<string, string> } }];
+    expect(call[1].params.path).toEqual({ mock_id: "m2", other_id: "m1" });
+    // 閉じる
+    fireEvent.click(screen.getByRole("button", { name: "差分を閉じる" }));
+    expect(
+      screen.queryByRole("dialog", { name: "バージョン間差分" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("差分 409 (バイナリ/別チェーン) は誠実メッセージ", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/mocks/{mock_id}/diff/{other_id}") throw apiError(409);
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/login.html?token=x" } };
+      if (path.includes("versions")) return { data: VERSIONS };
+      if (path === "/comments") return { data: [] };
+      return { data: MOCK_META };
+    });
+    renderWithQuery(
+      <MockViewerContainer mockId="m2" client={fakeClient(get)} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "v1 と表示中バージョンの差分",
+      }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "この 2 つのバージョンは差分を比較できません",
+    );
+  });
+
+  it("修正依頼の conflict (同時改訂 409) はサーバの honest 文言をそのまま表示", async () => {
+    const reviseStreamFn = vi.fn(
+      async (args: { onEvent: (ev: Record<string, unknown>) => void }) => {
+        args.onEvent({
+          error: {
+            code: "conflict",
+            message:
+              "「ログイン画面」は他のメンバーが同時に改訂しました (v3 が先に作成)。最新を確認して再実行してください",
+          },
+        });
+      },
+    );
+    renderWithQuery(
+      <MockViewerContainer
+        mockId="m2"
+        client={fakeClient(standardGet())}
+        reviseStreamFn={reviseStreamFn as never}
+      />,
+    );
+    await screen.findByRole("complementary", { name: "ワンダとデザイン" });
+    fireEvent.change(screen.getByRole("textbox", { name: "ワンダへの指示" }), {
+      target: { value: "ボタンを青に" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "他のメンバーが同時に改訂しました",
+    );
+  });
+});

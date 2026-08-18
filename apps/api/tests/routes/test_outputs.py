@@ -26,7 +26,11 @@ import sqlalchemy  # noqa: E402
 from fastapi import Depends, FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncEngine,
+    AsyncSession,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
@@ -479,3 +483,206 @@ class TestOutputViewerOps:
                     {"o": oid, "n2": body["new_output"]["id"]},
                 ).scalar_one()
             assert n >= 3
+
+
+# ── GAP-155: 成果物の差分 + 復元 + 同時改訂ガード ──────────────────────────
+
+_OLD_HTML = "<html>\n<body>\n<h2>1. 概要</h2>\n<p>旧仕様</p>\n</body>\n</html>"
+_NEW_HTML = "<html>\n<body>\n<h2>1. 概要</h2>\n<p>新仕様</p>\n<p>追記</p>\n</body>\n</html>"
+
+
+def _seed_output_version(
+    sync_engine: sqlalchemy.Engine,
+    *,
+    project_id: str,
+    stage: str,
+    html: str | None,
+    version: int,
+    path_override: str | None = None,
+    meta: str = "{}",
+) -> str:
+    """mock_contents に実 HTML を置き mockdb:// 参照の workflow_outputs 行を作る。"""
+    oid = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        path = path_override
+        if html is not None:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": html},
+            ).scalar_one()
+            path = f"mockdb://{cid}"
+        c.execute(
+            text(
+                "insert into public.workflow_outputs "
+                "(id, project_id, stage, html_path, summary, version, meta) "
+                "values (cast(:i as uuid), cast(:p as uuid), cast(:s as workflow_stage_enum), "
+                "        :path, 'sum', :v, cast(:m as jsonb))"
+            ),
+            {"i": oid, "p": project_id, "s": stage, "path": path, "v": version, "m": meta},
+        )
+    return oid
+
+
+@pytest.mark.integration
+class TestGap155OutputsDiffRestore:
+    def _patch_service_factory(self, monkeypatch: pytest.MonkeyPatch) -> AsyncEngine:
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from src.services.mocks import artifacts as artifacts_svc
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        monkeypatch.setattr(
+            artifacts_svc,
+            "service_session_factory",
+            lambda: async_sessionmaker(test_engine, class_=AsyncSession),
+        )
+        return test_engine
+
+    def test_diff_restore_roundtrip(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """差分は実 HTML から計算し、復元は履歴を消さず新版として積む。"""
+        test_engine = self._patch_service_factory(monkeypatch)
+        proj = seeded["proj_a"]
+        v1 = _seed_output_version(
+            sync_engine, project_id=proj, stage="requirements", html=_OLD_HTML, version=1
+        )
+        v2 = _seed_output_version(
+            sync_engine, project_id=proj, stage="requirements", html=_NEW_HTML, version=2
+        )
+        try:
+            h = _h(seeded["u_a"])
+            with TestClient(app) as client:
+                # 差分 (v1 → v2): 実コンテンツ由来の行が現れる
+                r = client.get(f"/outputs/{v2}/diff/{v1}", headers=h)
+                assert r.status_code == 200
+                d = r.json()["data"]
+                assert (d["from_version"], d["to_version"]) == (1, 2)
+                assert "-<p>旧仕様</p>" in d["diff"]
+                assert "+<p>新仕様</p>" in d["diff"]
+                assert d["added"] == 2 and d["removed"] == 1
+
+                # 復元: v1 の内容が新版 v3 として積まれる (履歴は消えない)
+                r2 = client.post(f"/outputs/{v1}/restore", headers=h)
+                assert r2.status_code == 201
+                restored = r2.json()["data"]
+                assert restored["version"] == 3
+                assert restored["meta"]["author"] == "restore"
+                assert restored["meta"]["restored_from_version"] == 1
+                # 復元版と v1 は同一内容 (identical) — 実体で確認
+                r3 = client.get(f"/outputs/{restored['id']}/diff/{v1}", headers=h)
+                assert r3.status_code == 200
+                assert r3.json()["data"]["identical"] is True
+                # 旧版はそのまま残る
+                assert client.get(f"/outputs/{v1}", headers=h).status_code == 200
+
+                # 最新版の復元は無意味な複製 — 409 で誠実に断る
+                r4 = client.post(f"/outputs/{restored['id']}/restore", headers=h)
+                assert r4.status_code == 409
+                assert "最新版" in r4.json()["detail"]
+
+                # 他 workspace ユーザーには不可視 (404)
+                assert (
+                    client.get(f"/outputs/{v2}/diff/{v1}", headers=_h(seeded["u_b"])).status_code
+                    == 404
+                )
+                assert (
+                    client.post(f"/outputs/{v1}/restore", headers=_h(seeded["u_b"])).status_code
+                    == 404
+                )
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs "
+                        "where project_id = cast(:p as uuid) and stage = 'requirements'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )
+
+    def test_diff_binary_and_no_html_409(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """バイナリ (filedb) はテキスト差分を偽装せず 409、本文なし復元も 409。"""
+        test_engine = self._patch_service_factory(monkeypatch)
+        proj = seeded["proj_a"]
+        fn_meta = '{"file_name": "deck.pptx"}'
+        b1 = _seed_output_version(
+            sync_engine,
+            project_id=proj,
+            stage="design",
+            html=None,
+            path_override=f"filedb://{uuid.uuid4()}",
+            version=1,
+            meta=fn_meta,
+        )
+        b2 = _seed_output_version(
+            sync_engine,
+            project_id=proj,
+            stage="design",
+            html=None,
+            path_override=f"filedb://{uuid.uuid4()}",
+            version=2,
+            meta=fn_meta,
+        )
+        try:
+            h = _h(seeded["u_a"])
+            with TestClient(app) as client:
+                r = client.get(f"/outputs/{b2}/diff/{b1}", headers=h)
+                assert r.status_code == 409
+                assert "バイナリ" in r.json()["detail"]
+                # 本文を持たない成果物 (seeded の out_a) は復元対象なし → 409
+                r2 = client.post(f"/outputs/{seeded['out_a']}/restore", headers=h)
+                assert r2.status_code == 409
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs "
+                        "where project_id = cast(:p as uuid) and stage = 'design' "
+                        "and id != cast(:keep as uuid)"
+                    ),
+                    {"p": seeded["proj_a"], "keep": seeded["out_a"]},
+                )
+
+    def test_anchors_work_for_mockdb_outputs(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-155 是正: mockdb 成果物の anchors が 503 にならず実 HTML から抽出される。"""
+        test_engine = self._patch_service_factory(monkeypatch)
+        v1 = _seed_output_version(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            stage="requirements",
+            html='<html><body><h2 id="sec-1">1. 概要</h2><p>x</p></body></html>',
+            version=1,
+        )
+        try:
+            with TestClient(app) as client:
+                r = client.get(f"/outputs/{v1}/anchors", headers=_h(seeded["u_a"]))
+                assert r.status_code == 200
+                assert r.json()["data"] == [{"element_id": "sec-1", "label": "1. 概要"}]
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs "
+                        "where project_id = cast(:p as uuid) and stage = 'requirements'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )

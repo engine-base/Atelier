@@ -29,6 +29,7 @@ import {
   type OutputFormat,
   type OutputVersionItem,
 } from "./OutputViewer";
+import type { VersionDiffView } from "../../../../components/VersionDiff";
 
 interface ApiOutput {
   id: string;
@@ -64,8 +65,26 @@ interface ApiProposal {
   applied_output_id?: string | null;
 }
 
+interface ApiVersionDiff {
+  from_id: string;
+  from_version: number;
+  to_id: string;
+  to_version: number;
+  added: number;
+  removed: number;
+  identical: boolean;
+  diff: string;
+}
+
 function statusOf(error: unknown): number | null {
   return error instanceof ApiError ? error.status : null;
+}
+
+/** API の honest エラーメッセージ (FastAPI detail) を取り出す。 */
+function detailOf(error: unknown): string | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  const payload = error.payload as { detail?: unknown } | undefined;
+  return typeof payload?.detail === "string" ? payload.detail : undefined;
 }
 
 /** ISO → "YYYY-MM-DD HH:mm" (鉄則: 生 ISO を画面に出さない)。 */
@@ -273,10 +292,73 @@ export function OutputViewerContainer({
             : s === 413
               ? "本文が大きすぎるため自動改訂できません。分割を検討してください。"
               : s === 409
-                ? "この成果物には改訂対象の HTML がありません。"
+                ? // GAP-155: 409 は「HTML なし」or「同時改訂の衝突」— サーバの
+                  // honest メッセージをそのまま出す
+                  (detailOf(e) ?? "この成果物には改訂対象の HTML がありません。")
                 : "修正依頼に失敗しました。時間をおいて再度お試しください。",
       });
     },
+  });
+
+  // GAP-155: 前版との差分 (サーバ側 difflib 計算の実値)
+  const [diffView, setDiffView] = useState<VersionDiffView | null>(null);
+  const diffMut = useMutation({
+    mutationFn: async (otherId: string) => {
+      const res = await client.get("/outputs/{output_id}/diff/{other_id}", {
+        params: { path: { output_id: outputId, other_id: otherId } },
+      });
+      return (res as { data?: ApiVersionDiff }).data ?? null;
+    },
+    onSuccess: (d) => {
+      if (d === null) {
+        setAction({ kind: "error", text: "差分の取得に失敗しました。" });
+        return;
+      }
+      setDiffView({
+        fromVersion: d.from_version,
+        toVersion: d.to_version,
+        added: d.added,
+        removed: d.removed,
+        identical: d.identical,
+        diff: d.diff,
+      });
+    },
+    onError: (e) =>
+      setAction({
+        kind: "error",
+        text:
+          statusOf(e) === 409
+            ? (detailOf(e) ?? "この 2 つのバージョンは差分を比較できません。")
+            : "差分の取得に失敗しました。",
+      }),
+  });
+
+  // GAP-155: 表示中の旧版を新バージョンとして復元 (履歴は消さない)
+  const restoreMut = useMutation({
+    mutationFn: async () => {
+      const res = await client.post("/outputs/{output_id}/restore", {
+        params: { path: { output_id: outputId } },
+      });
+      return (res as { data?: ApiOutput }).data ?? null;
+    },
+    onSuccess: (created) => {
+      void queryClient.invalidateQueries({ queryKey: ["output"] });
+      if (created) {
+        setAction({
+          kind: "notice",
+          text: `v${created.version} として復元しました。`,
+        });
+        router.push(`/outputs?output=${created.id}`);
+      }
+    },
+    onError: (e) =>
+      setAction({
+        kind: "error",
+        text:
+          statusOf(e) === 409
+            ? (detailOf(e) ?? "この版は復元できません。")
+            : "復元に失敗しました。時間をおいて再度お試しください。",
+      }),
   });
 
   // AI 修正提案の生成 (人間の明示操作起点 — 自動生成しない)
@@ -497,6 +579,12 @@ export function OutputViewerContainer({
         noPreview ? undefined : (instruction) => reviseMut.mutate(instruction)
       }
       revising={reviseMut.isPending}
+      onShowDiff={(otherId) => diffMut.mutate(otherId)}
+      diffView={diffView}
+      diffLoading={diffMut.isPending}
+      onCloseDiff={() => setDiffView(null)}
+      onRestore={noPreview ? undefined : () => restoreMut.mutate()}
+      restoring={restoreMut.isPending}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
       comments={outputComments}

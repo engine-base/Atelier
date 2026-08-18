@@ -29,6 +29,7 @@ import { Loading } from "../../../../components/Loading";
 import {
   MockViewer,
   type MockCommentItem,
+  type MockDiffView,
   type MockVersionItem,
   type ReviseProgressState,
 } from "./MockViewer";
@@ -41,6 +42,17 @@ interface ApiMock {
   version: number;
   meta_tags?: Record<string, unknown> | null;
   created_at?: string;
+}
+
+interface ApiVersionDiff {
+  from_id: string;
+  from_version: number;
+  to_id: string;
+  to_version: number;
+  added: number;
+  removed: number;
+  identical: boolean;
+  diff: string;
 }
 
 interface ApiComment {
@@ -176,11 +188,17 @@ export function MockViewerContainer({
 
   // GAP-147: 「編集」= ワンダへの修正依頼を SSE で実行 — 進行状況 (何をして
   // いるか) を実測で表示し、完了時は変更サマリーつきで新バージョンへ遷移。
-  const reviseErrorText = (code: string): string => {
+  const reviseErrorText = (code: string, message?: string): string => {
     if (code === "bridge_offline" || code === "llm_unconfigured")
       return "AI 実行経路が使えません (Bridge がオフラインの可能性)。Bridge を起動して再試行してください。";
     if (code === "too_large")
       return "モック HTML が大きすぎるため自動改訂できません。画面の分割を検討してください。";
+    if (code === "conflict")
+      // GAP-155: 同時改訂の衝突 — サーバの honest メッセージをそのまま出す
+      return (
+        message ??
+        "他のメンバーが同時に改訂しました。最新バージョンを確認して再実行してください。"
+      );
     return "修正依頼に失敗しました。時間をおいて再度お試しください。";
   };
   const startRevise = (instruction: string): void => {
@@ -215,7 +233,10 @@ export function MockViewerContainer({
           });
           router.push(`/mocks?mock=${ev.result.id}`);
         } else if (ev.error) {
-          setAction({ kind: "error", text: reviseErrorText(ev.error.code) });
+          setAction({
+            kind: "error",
+            text: reviseErrorText(ev.error.code, ev.error.message),
+          });
         }
       },
     })
@@ -230,6 +251,39 @@ export function MockViewerContainer({
         setReviseStatus(null);
       });
   };
+
+  // GAP-155: バージョン間差分 (旧版 → 表示中バージョン、サーバ側 difflib 計算)。
+  const [diffView, setDiffView] = useState<MockDiffView | null>(null);
+  const diffMut = useMutation({
+    mutationFn: async (versionId: string) => {
+      const res = await client.get("/mocks/{mock_id}/diff/{other_id}", {
+        params: { path: { mock_id: mockId, other_id: versionId } },
+      });
+      return (res as { data?: ApiVersionDiff }).data ?? null;
+    },
+    onSuccess: (d) => {
+      if (d === null) {
+        setAction({ kind: "error", text: "差分の取得に失敗しました。" });
+        return;
+      }
+      setDiffView({
+        fromVersion: d.from_version,
+        toVersion: d.to_version,
+        added: d.added,
+        removed: d.removed,
+        identical: d.identical,
+        diff: d.diff,
+      });
+    },
+    onError: (e) =>
+      setAction({
+        kind: "error",
+        text:
+          statusOf(e) === 409
+            ? "この 2 つのバージョンは差分を比較できません（バイナリ形式・別画面など）。"
+            : "差分の取得に失敗しました。",
+      }),
+  });
 
   // バージョン複製 (「…」メニュー相当)。
   const duplicateMut = useMutation({
@@ -384,6 +438,10 @@ export function MockViewerContainer({
       reviseStatus={reviseStatus}
       onDuplicate={(id) => duplicateMut.mutate(id)}
       onDiscard={(id) => discardMut.mutate(id)}
+      onShowDiff={(id) => diffMut.mutate(id)}
+      diffView={diffView}
+      diffLoading={diffMut.isPending}
+      onCloseDiff={() => setDiffView(null)}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
     />

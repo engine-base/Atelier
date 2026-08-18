@@ -13,9 +13,18 @@ import uuid as uuid_mod
 from typing import Any, cast
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import AuditEvent, AuditWriter
 from src.schemas.outputs import OutputResponse
+
+
+class OutputVersionConflict(Exception):
+    """GAP-155: 同時改訂の衝突 (同チェーンの同 version が先に作られた)。
+
+    黙って積み直すと lost update (先勝ちの変更を含まない後勝ち) を隠すため、
+    リトライせず 409 で誠実にユーザーへ返す。"""
 
 
 def is_uuid(value: str) -> bool:
@@ -139,28 +148,98 @@ async def insert_version(
 
     改訂は HTML に対して行われるため json/md は「未生成」(null) で正直に持つ
     (旧版の json/md を新版の内容として見せない)。
+    GAP-155: (project, stage, file_name, version) 一意 — 同時改訂の衝突は
+    savepoint で受けて OutputVersionConflict (→ 409) にする (黙って積み直さない)。
     """
-    res = await session.execute(
-        text(
-            "insert into public.workflow_outputs "
-            "(project_id, phase_id, stage, html_path, summary, version, meta) "
-            "select project_id, phase_id, stage, :hp, summary, "
-            "(select max(version) + 1 from public.workflow_outputs "
-            " where project_id = cast(:pid as uuid) "
-            " and stage = cast(:st as workflow_stage_enum) "
-            " and (phase_id is not distinct from cast(:ph as uuid)) "
-            " and deleted_at is null), "
-            "cast(:meta as jsonb) "
-            "from public.workflow_outputs where id = cast(:id as uuid) "
-            f"returning {_COLS}"
-        ),
-        {
-            "hp": html_path,
-            "pid": src.project_id,
-            "st": src.stage,
-            "ph": src.phase_id,
-            "meta": json.dumps(meta, ensure_ascii=False),
-            "id": src.id,
-        },
+    try:
+        async with session.begin_nested():
+            res = await session.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(project_id, phase_id, stage, html_path, summary, version, meta) "
+                    "select project_id, phase_id, stage, :hp, summary, "
+                    "(select max(version) + 1 from public.workflow_outputs "
+                    " where project_id = cast(:pid as uuid) "
+                    " and stage = cast(:st as workflow_stage_enum) "
+                    " and (phase_id is not distinct from cast(:ph as uuid)) "
+                    " and deleted_at is null), "
+                    "cast(:meta as jsonb) "
+                    "from public.workflow_outputs where id = cast(:id as uuid) "
+                    f"returning {_COLS}"
+                ),
+                {
+                    "hp": html_path,
+                    "pid": src.project_id,
+                    "st": src.stage,
+                    "ph": src.phase_id,
+                    "meta": json.dumps(meta, ensure_ascii=False),
+                    "id": src.id,
+                },
+            )
+            row = res.one()
+    except IntegrityError as exc:
+        raise OutputVersionConflict(
+            "この成果物は他のメンバーが同時に改訂しました。"
+            "最新バージョンを確認して再実行してください"
+        ) from exc
+    return _row_to_response(row)
+
+
+_RESTORE_PRESERVED_META_KEYS = ("file_name", "file_kind", "mime", "source")
+
+
+async def restore_version(
+    session: AsyncSession, *, actor_id: str, output_id: str
+) -> OutputResponse | None:
+    """旧バージョンの内容を新バージョンとして複製する (GAP-155 — 「戻せる」)。
+
+    履歴は消さない: 旧版行はそのまま残し、同じ本文パスを参照する新版を
+    チェーン先頭に積む (誰がいつ戻したかが履歴に残る)。
+    最新版の復元は無意味な複製なので ValueError (→ 409)。
+    返り値 None = output 不可視/不在。
+    """
+    src = await get_output(session, output_id)
+    if src is None:
+        return None
+    if src.html_path is None:
+        raise ValueError("この成果物には復元対象の本文がありません")
+    latest = (
+        await session.execute(
+            text(
+                "select max(version) from public.workflow_outputs "
+                "where project_id = cast(:pid as uuid) "
+                "and stage = cast(:st as workflow_stage_enum) "
+                "and (phase_id is not distinct from cast(:ph as uuid)) "
+                "and coalesce(meta ->> 'file_name', '') = :fn "
+                "and deleted_at is null"
+            ),
+            {
+                "pid": src.project_id,
+                "st": src.stage,
+                "ph": src.phase_id,
+                "fn": str(src.meta.get("file_name", "")),
+            },
+        )
+    ).scalar_one()
+    if int(latest) <= src.version:
+        raise ValueError(f"v{src.version} はすでに最新版です — 復元は不要です")
+    meta: dict[str, object] = {
+        k: src.meta[k] for k in _RESTORE_PRESERVED_META_KEYS if k in src.meta
+    }
+    meta.update({"author": "restore", "restored_from_version": src.version})
+    created = await insert_version(session, src=src, html_path=src.html_path, meta=meta)
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="output.restore",
+            target_type="workflow_output",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=created.id,
+            after={
+                "source_output_id": output_id,
+                "restored_from_version": src.version,
+                "version": created.version,
+            },
+        )
     )
-    return _row_to_response(res.one())
+    return created

@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.schemas.diffs import VersionDiffResponse
 from src.schemas.outputs import (
     FixProposalApproveResponse,
     FixProposalResponse,
@@ -193,6 +194,86 @@ async def list_output_versions(
 
 
 @router.get(
+    "/outputs/{output_id}/diff/{other_id}",
+    summary="バージョン間差分 (GAP-155 — {other_id} → {output_id} の unified diff)",
+    responses={409: {"description": "別チェーン / バイナリ / 差分が大きすぎる"}},
+)
+async def diff_output_versions(
+    output_id: str, other_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, VersionDiffResponse]:
+    """同一チェーン内の 2 版の差分をサーバ側で実 HTML から計算して返す。
+
+    バイナリ (filedb — 画像/PPTX 等) はテキスト差分に意味が無いため 409 で
+    誠実に断る (テキスト化偽装をしない)。
+    """
+    from src.services import version_diff as diff_svc
+
+    to_out = await svc.get_output(session, output_id)
+    from_out = await svc.get_output(session, other_id)
+    if to_out is None or from_out is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    same_chain = (
+        to_out.project_id == from_out.project_id
+        and to_out.stage == from_out.stage
+        and to_out.phase_id == from_out.phase_id
+        and str(to_out.meta.get("file_name", "")) == str(from_out.meta.get("file_name", ""))
+    )
+    if not same_chain:
+        raise HTTPException(status.HTTP_409_CONFLICT, "別の成果物同士は差分を比較できません")
+    if to_out.html_path is None or from_out.html_path is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "本文の無い版は差分を比較できません")
+    try:
+        from_html = await diff_svc.load_text_content(from_out.html_path)
+        to_html = await diff_svc.load_text_content(to_out.html_path)
+        diff, added, removed = diff_svc.unified_diff(
+            from_label=f"v{from_out.version}",
+            from_text=from_html,
+            to_label=f"v{to_out.version}",
+            to_text=to_html,
+        )
+    except diff_svc.VersionDiffError as exc:
+        if exc.code in ("binary", "too_large"):
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {
+        "data": VersionDiffResponse(
+            from_id=from_out.id,
+            from_version=from_out.version,
+            to_id=to_out.id,
+            to_version=to_out.version,
+            added=added,
+            removed=removed,
+            identical=diff == "",
+            diff=diff,
+        )
+    }
+
+
+@router.post(
+    "/outputs/{output_id}/restore",
+    status_code=status.HTTP_201_CREATED,
+    summary="旧バージョンを新バージョンとして復元 (GAP-155 — 履歴は消さない)",
+    responses={409: {"description": "最新版 / 本文なし / 同時改訂と衝突"}},
+)
+async def restore_output_version(
+    output_id: str, session: SessionDep, user: UserDep
+) -> dict[str, OutputResponse]:
+    try:
+        created = await svc.restore_version(session, actor_id=user.id, output_id=output_id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except svc.OutputVersionConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    return {"data": created}
+
+
+@router.get(
     "/outputs/{output_id}/anchors",
     summary="成果物 HTML 内の id 付き要素 (コメント対象位置の候補)",
     responses={503: {"description": "storage backend が未設定"}},
@@ -206,9 +287,15 @@ async def list_output_anchors(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
     if out.html_path is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "output has no rendered HTML yet")
+    from src.services import version_diff as diff_svc
+
     try:
-        html = await revise_svc.download_html(out.html_path)
-    except revise_svc.OutputReviseError as exc:
+        # GAP-155: mockdb:// (チャット取り込み等の DB 内蔵 HTML) も読めるローダーに
+        # 統一 — 従来は storage 署名直行で mockdb 成果物の anchors が 503 になっていた
+        html = await diff_svc.load_text_content(out.html_path)
+    except diff_svc.VersionDiffError as exc:
+        if exc.code == "binary":
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
@@ -240,6 +327,9 @@ async def revise_output(
         created = await revise_svc.revise_output(
             session, actor_id=user.id, output_id=output_id, instruction=body.instruction
         )
+    except svc.OutputVersionConflict as exc:
+        # GAP-155: 同時改訂の衝突は 409 で誠実に (lost update を隠さない)
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except revise_svc.OutputReviseError as exc:
         _raise_revise_error(exc)
         raise  # unreachable — 型のため
@@ -298,7 +388,7 @@ async def approve_fix_proposal(
 ) -> dict[str, FixProposalApproveResponse]:
     try:
         result = await fix_svc.approve(session, actor_id=user.id, proposal_id=proposal_id)
-    except ValueError as exc:
+    except (ValueError, svc.OutputVersionConflict) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except revise_svc.OutputReviseError as exc:
         _raise_revise_error(exc)

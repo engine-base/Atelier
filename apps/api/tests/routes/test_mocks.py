@@ -452,3 +452,242 @@ class TestMocksCrud:
                 ).scalar_one()
             assert n == 1
             client.delete(f"/mocks/{mid}", headers=h)
+
+
+# ── GAP-155: 同時編集ガード + バージョン間差分 ──────────────────────────────
+
+_V1_HTML = "<html>\n<body>\n<h1>旧見出し</h1>\n<p>共通の本文</p>\n</body>\n</html>"
+_V2_HTML = (
+    "<html>\n<body>\n<h1>新見出し</h1>\n<p>共通の本文</p>\n<p>追加の段落</p>\n</body>\n</html>"
+)
+
+
+@pytest.mark.integration
+class TestGap155VersionGuard:
+    """(project, 画面, version) 一意制約 + 409 + サーバ計算 diff の実挙動。"""
+
+    def _seed_mockdb_version(
+        self,
+        sync_engine: sqlalchemy.Engine,
+        *,
+        project_id: str,
+        screen: str,
+        html: str,
+        version: int,
+        parent: str | None = None,
+    ) -> str:
+        """mock_contents に実 HTML を置き mockdb:// 参照の mocks 行を作る。"""
+        mid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": html},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.mocks "
+                    "(id, project_id, screen_name, html_storage_path, version, parent_mock_id) "
+                    "values (cast(:i as uuid), cast(:p as uuid), :s, :path, :v, cast(:par as uuid))"
+                ),
+                {
+                    "i": mid,
+                    "p": project_id,
+                    "s": screen,
+                    "path": f"mockdb://{cid}",
+                    "v": version,
+                    "par": parent,
+                },
+            )
+        return mid
+
+    def test_diff_returns_real_unified_diff(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """差分はサーバが実 HTML 2 版から difflib で計算する (近似・推測なし)。"""
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from src.services.mocks import artifacts as artifacts_svc
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        monkeypatch.setattr(
+            artifacts_svc,
+            "service_session_factory",
+            lambda: async_sessionmaker(test_engine, class_=AsyncSession),
+        )
+        v1 = self._seed_mockdb_version(
+            sync_engine, project_id=seeded["proj_a"], screen="S-155", html=_V1_HTML, version=1
+        )
+        v2 = self._seed_mockdb_version(
+            sync_engine,
+            project_id=seeded["proj_a"],
+            screen="S-155",
+            html=_V2_HTML,
+            version=2,
+            parent=v1,
+        )
+        other_screen = self._seed_mockdb_version(
+            sync_engine, project_id=seeded["proj_a"], screen="S-OTHER", html=_V1_HTML, version=1
+        )
+        try:
+            with TestClient(app) as client:
+                r = client.get(f"/mocks/{v2}/diff/{v1}", headers=_h(seeded["u_a"]))
+                assert r.status_code == 200
+                d = r.json()["data"]
+                assert (d["from_version"], d["to_version"]) == (1, 2)
+                assert d["identical"] is False
+                # 実コンテンツ由来の行が diff に現れる
+                assert "-<h1>旧見出し</h1>" in d["diff"]
+                assert "+<h1>新見出し</h1>" in d["diff"]
+                assert "+<p>追加の段落</p>" in d["diff"]
+                assert d["added"] == 2 and d["removed"] == 1
+                # 同一版どうしは identical
+                r_same = client.get(f"/mocks/{v1}/diff/{v1}", headers=_h(seeded["u_a"]))
+                assert r_same.status_code == 200
+                assert r_same.json()["data"]["identical"] is True
+                # 別画面チェーンは比較不可 (409)
+                assert (
+                    client.get(
+                        f"/mocks/{v2}/diff/{other_screen}", headers=_h(seeded["u_a"])
+                    ).status_code
+                    == 409
+                )
+                # 他 workspace ユーザーには RLS で不可視 (404)
+                assert (
+                    client.get(f"/mocks/{v2}/diff/{v1}", headers=_h(seeded["u_b"])).status_code
+                    == 404
+                )
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.mocks where project_id = cast(:p as uuid)"),
+                    {"p": seeded["proj_a"]},
+                )
+
+    def test_concurrent_create_version_raises_conflict(
+        self, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """本物の同時改訂: 2 セッションが同じ次版番号を取り合うと後着は
+        MockVersionConflict (黙って積み直さない — lost update を隠さない)。"""
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from src.schemas.mocks import MockVersionCreate
+        from src.services import mocks as mocks_svc
+
+        parent = self._seed_mockdb_version(
+            sync_engine, project_id=seeded["proj_a"], screen="S-RACE", html=_V1_HTML, version=1
+        )
+
+        async def run() -> None:
+            eng = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(eng) as sess_a, AsyncSession(eng) as sess_b:
+                    created_a = await mocks_svc.create_version(
+                        sess_a,
+                        actor_id=seeded["u_a"],
+                        mock_id=parent,
+                        data=MockVersionCreate(html_storage_path="race-a.html"),
+                    )
+                    assert created_a is not None and created_a.version == 2
+                    # B は同じ v2 を計算して insert → A の未コミット行にブロック
+                    task = asyncio.create_task(
+                        mocks_svc.create_version(
+                            sess_b,
+                            actor_id=seeded["u_a"],
+                            mock_id=parent,
+                            data=MockVersionCreate(html_storage_path="race-b.html"),
+                        )
+                    )
+                    await asyncio.sleep(0.6)
+                    await sess_a.commit()  # A が先勝ち → B は unique 違反
+                    with pytest.raises(mocks_svc.MockVersionConflict):
+                        await task
+                    await sess_b.rollback()
+            finally:
+                await eng.dispose()
+
+        try:
+            asyncio.run(run())
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.mocks where project_id = cast(:p as uuid)"),
+                    {"p": seeded["proj_a"]},
+                )
+
+    def test_conflict_maps_to_409(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """route 層: MockVersionConflict → HTTP 409 + honest メッセージ。"""
+        from src.services import mocks as mocks_svc
+
+        async def _boom(*_a: object, **_k: object) -> None:
+            raise mocks_svc.MockVersionConflict(
+                "「S-X」は他のメンバーが同時に改訂しました (v2 が先に作成)。"
+                "最新を確認して再実行してください"
+            )
+
+        monkeypatch.setattr(mocks_svc, "create_version", _boom)
+        with TestClient(app) as client:
+            r = client.post(
+                f"/mocks/{uuid.uuid4()}/versions",
+                json={"html_storage_path": "x.html"},
+                headers=_h(seeded["u_a"]),
+            )
+            assert r.status_code == 409
+            assert "同時に改訂" in r.json()["detail"]
+
+    def test_ingest_retries_and_takes_next_version(
+        self, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """Bridge 取り込み (新規ファイル由来) は衝突時に version を採り直して
+        リトライで吸収する — 人間の改訂と違い 409 で止める相手がいない。"""
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from src.services.mocks.artifacts import ingest_html_artifact
+
+        async def run() -> None:
+            eng = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(eng) as sess_a, AsyncSession(eng) as sess_b:
+                    a = await ingest_html_artifact(
+                        sess_a,
+                        project_id=seeded["proj_a"],
+                        file_name="top.html",
+                        html="<html><title>TOP</title><body>A</body></html>",
+                        source="chat",
+                        actor_label="bridge-a",
+                    )
+                    assert a["version"] == 1
+                    # B も v1 を計算して insert → A の未コミット行にブロック →
+                    # A commit 後に unique 違反 → 採り直して v2 で成功するはず
+                    task = asyncio.create_task(
+                        ingest_html_artifact(
+                            sess_b,
+                            project_id=seeded["proj_a"],
+                            file_name="top.html",
+                            html="<html><title>TOP</title><body>B</body></html>",
+                            source="chat",
+                            actor_label="bridge-b",
+                        )
+                    )
+                    await asyncio.sleep(0.6)
+                    await sess_a.commit()
+                    b = await task
+                    assert b["version"] == 2  # リトライで次版を取得 (エラーにしない)
+                    await sess_b.commit()
+            finally:
+                await eng.dispose()
+
+        try:
+            asyncio.run(run())
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.mocks where project_id = cast(:p as uuid)"),
+                    {"p": seeded["proj_a"]},
+                )

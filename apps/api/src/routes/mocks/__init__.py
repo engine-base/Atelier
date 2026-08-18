@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.schemas.diffs import VersionDiffResponse
 from src.schemas.mocks import (
     DesignNoteUpdate,
     MockCreate,
@@ -197,14 +198,69 @@ async def list_versions(
     "/mocks/{mock_id}/versions",
     status_code=status.HTTP_201_CREATED,
     summary="モックの新バージョン作成",
+    responses={409: {"description": "他のメンバーの同時改訂と衝突 (GAP-155)"}},
 )
 async def create_version(
     mock_id: str, body: MockVersionCreate, session: SessionDep, user: UserDep
 ) -> dict[str, MockResponse]:
-    created = await svc.create_version(session, actor_id=user.id, mock_id=mock_id, data=body)
+    try:
+        created = await svc.create_version(session, actor_id=user.id, mock_id=mock_id, data=body)
+    except svc.MockVersionConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": created}
+
+
+@router.get(
+    "/mocks/{mock_id}/diff/{other_id}",
+    summary="バージョン間差分 (GAP-155 — {other_id} → {mock_id} の unified diff)",
+    responses={409: {"description": "別チェーン同士 / 差分が大きすぎる"}},
+)
+async def diff_mock_versions(
+    mock_id: str, other_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, VersionDiffResponse]:
+    """同一画面チェーン内の 2 版の差分をサーバ側で実 HTML から計算して返す。"""
+    from src.services import version_diff as diff_svc
+
+    to_mock = await svc.get_mock(session, mock_id)
+    from_mock = await svc.get_mock(session, other_id)
+    if to_mock is None or from_mock is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+    if (to_mock.project_id, to_mock.screen_name) != (
+        from_mock.project_id,
+        from_mock.screen_name,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, "別の画面同士は差分を比較できません")
+    try:
+        from_html = await diff_svc.load_text_content(from_mock.html_storage_path)
+        to_html = await diff_svc.load_text_content(to_mock.html_storage_path)
+        diff, added, removed = diff_svc.unified_diff(
+            from_label=f"v{from_mock.version}",
+            from_text=from_html,
+            to_label=f"v{to_mock.version}",
+            to_text=to_html,
+        )
+    except diff_svc.VersionDiffError as exc:
+        if exc.code in ("binary", "too_large"):
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    except StorageSigningError as exc:
+        if exc.code == "storage_unconfigured":
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    return {
+        "data": VersionDiffResponse(
+            from_id=from_mock.id,
+            from_version=from_mock.version,
+            to_id=to_mock.id,
+            to_version=to_mock.version,
+            added=added,
+            removed=removed,
+            identical=diff == "",
+            diff=diff,
+        )
+    }
 
 
 @router.get(
@@ -301,6 +357,9 @@ async def revise_mock(
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
         if exc.code == "too_large":
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+        if exc.code == "conflict":
+            # GAP-155: 同時改訂の衝突は 409 で誠実に (lost update を隠さない)
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
@@ -350,7 +409,10 @@ async def revise_mock_stream(
 async def duplicate_mock_version(
     mock_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, MockResponse]:
-    created = await svc.duplicate_version(session, actor_id=user.id, mock_id=mock_id)
+    try:
+        created = await svc.duplicate_version(session, actor_id=user.id, mock_id=mock_id)
+    except svc.MockVersionConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": created}

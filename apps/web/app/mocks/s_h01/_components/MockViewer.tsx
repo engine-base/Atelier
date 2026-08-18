@@ -22,6 +22,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { cn } from "../../../../lib/cn";
+import {
+  DiffModal,
+  type VersionDiffView,
+} from "../../../../components/VersionDiff";
 
 /** GAP-147: 修正依頼の進行状況 (SSE の実値 — 「何をしているか」)。 */
 export interface ReviseProgressState {
@@ -202,6 +206,9 @@ export interface MockVersionItem {
   readonly current: boolean;
 }
 
+/** GAP-155: バージョン間差分 (サーバ計算の unified diff — 共有 UI の型)。 */
+export type MockDiffView = VersionDiffView;
+
 export interface MockCommentItem {
   readonly id: string;
   readonly author: string;
@@ -247,6 +254,14 @@ export interface MockViewerProps {
   readonly onDuplicate?: (versionId: string) => void;
   /** バージョン破棄 (2 段階確認)。未指定なら出さない。 */
   readonly onDiscard?: (versionId: string) => void;
+  /** GAP-155: 表示中バージョンとの差分を開く。未指定なら出さない。 */
+  readonly onShowDiff?: (versionId: string) => void;
+  /** GAP-155: 開いている差分 (null = 閉)。 */
+  readonly diffView?: MockDiffView | null;
+  /** GAP-155: 差分の取得中。 */
+  readonly diffLoading?: boolean;
+  /** GAP-155: 差分モーダルを閉じる。 */
+  readonly onCloseDiff?: () => void;
   /** 直近のバージョン操作の結果通知 (成功)。 */
   readonly actionNotice?: string;
   /** 直近のバージョン操作の結果通知 (失敗)。 */
@@ -270,6 +285,10 @@ export function MockViewer({
   reviseStatus = null,
   onDuplicate,
   onDiscard,
+  onShowDiff,
+  diffView = null,
+  diffLoading = false,
+  onCloseDiff,
   actionNotice,
   actionError,
 }: MockViewerProps) {
@@ -778,7 +797,7 @@ export function MockViewer({
                           </>
                         );
                         const actions =
-                          onDuplicate || onDiscard ? (
+                          onDuplicate || onDiscard || onShowDiff ? (
                             <div className="mt-1 flex items-center justify-end gap-1 px-1.5">
                               {discardTarget === v.id ? (
                                 <>
@@ -807,6 +826,17 @@ export function MockViewer({
                                 </>
                               ) : (
                                 <>
+                                  {onShowDiff && !v.current ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => onShowDiff(v.id)}
+                                      disabled={diffLoading}
+                                      aria-label={`v${v.version} と表示中バージョンの差分`}
+                                      className="mr-auto rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-primary hover:bg-primary-container disabled:opacity-50"
+                                    >
+                                      差分
+                                    </button>
+                                  ) : null}
                                   {onDuplicate ? (
                                     <button
                                       type="button"
@@ -969,6 +999,11 @@ export function MockViewer({
           </aside>
         ) : null}
       </div>
+
+      {/* ── GAP-155: バージョン間差分モーダル (サーバ計算の unified diff) ── */}
+      {diffView !== null ? (
+        <DiffModal view={diffView} onClose={onCloseDiff} />
+      ) : null}
     </section>
   );
 }

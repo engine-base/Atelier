@@ -1067,6 +1067,19 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    VersionDiff:
+      type: object
+      description: バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通)
+      properties:
+        from_id: { type: string, format: uuid }
+        from_version: { type: integer }
+        to_id: { type: string, format: uuid }
+        to_version: { type: integer }
+        added: { type: integer, description: 追加行数 }
+        removed: { type: integer, description: 削除行数 }
+        identical: { type: boolean, description: 内容が同一 (diff 空) }
+        diff: { type: string, description: unified diff 全文 }
+
     OutputAnchor:
       type: object
       description: 成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023)
@@ -4748,6 +4761,28 @@ paths:
                   data: { $ref: '#/components/schemas/Mock' }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /mocks/{mock_id}/diff/{other_id}:
+    get:
+      tags: [mocks]
+      summary: バージョン間差分（GAP-155 — {other_id} → {mock_id} の unified diff）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::diff_mock_versions
+      x-screen-ids: [S-H01]
+      parameters:
+        - { name: mock_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: other_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 同一画面チェーン内 2 版の unified diff (実 HTML から計算)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/VersionDiff' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 別チェーン同士 / 差分が大きすぎる, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   # ==========================================================================
   # ai-employees (一覧・詳細・編集、固定 10 名)
   # ==========================================================================
@@ -5461,6 +5496,49 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/WorkflowOutput' } }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /outputs/{output_id}/diff/{other_id}:
+    get:
+      tags: [outputs]
+      summary: バージョン間差分（GAP-155 — {other_id} → {output_id} の unified diff）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::diff_output_versions
+      x-screen-ids: [S-G01]
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: other_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 同一チェーン内 2 版の unified diff (実 HTML から計算)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/VersionDiff' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 別チェーン / バイナリ / 本文なし / 差分過大, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /outputs/{output_id}/restore:
+    post:
+      tags: [outputs]
+      summary: 旧バージョンを新バージョンとして復元（GAP-155 — 履歴は消さない）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::restore_output_version
+      x-screen-ids: [S-G01]
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: 旧版と同内容の新バージョン (meta に author=restore / restored_from_version、audit output.restore)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkflowOutput' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 最新版 / 本文なし / 同時改訂と衝突, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /outputs/{output_id}/anchors:
     parameters:

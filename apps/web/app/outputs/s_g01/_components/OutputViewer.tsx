@@ -24,6 +24,10 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { cn } from "../../../../lib/cn";
+import {
+  DiffModal,
+  type VersionDiffView,
+} from "../../../../components/VersionDiff";
 
 export type OutputFormat = "html" | "json" | "md";
 
@@ -100,6 +104,15 @@ export interface OutputViewerProps {
   /** 「編集」= ドキュメント AI (スティーブ) への修正依頼。 */
   readonly onRevise?: (instruction: string) => void;
   readonly revising?: boolean;
+  /** GAP-155: 前版との差分を開く (引数 = 比較相手の output id)。 */
+  readonly onShowDiff?: (otherId: string) => void;
+  /** GAP-155: 開いている差分 (null = 閉)。 */
+  readonly diffView?: VersionDiffView | null;
+  readonly diffLoading?: boolean;
+  readonly onCloseDiff?: () => void;
+  /** GAP-155: 表示中の旧版を新バージョンとして復元 (最新版表示中は出さない)。 */
+  readonly onRestore?: () => void;
+  readonly restoring?: boolean;
   readonly actionNotice?: string;
   readonly actionError?: string;
   readonly comments: readonly OutputComment[];
@@ -136,6 +149,12 @@ export function OutputViewer({
   onDownload,
   onRevise,
   revising = false,
+  onShowDiff,
+  diffView = null,
+  diffLoading = false,
+  onCloseDiff,
+  onRestore,
+  restoring = false,
   actionNotice,
   actionError,
   comments,
@@ -176,6 +195,13 @@ export function OutputViewer({
       : jumpAnchor
         ? `${contentUrl}#${jumpAnchor}`
         : contentUrl;
+  // GAP-155: 表示中バージョンの直前の版 (差分の比較相手)
+  const prevVersion =
+    current !== undefined && versions !== undefined
+      ? [...versions]
+          .filter((v) => v.version < current.version)
+          .sort((a, b) => b.version - a.version)[0]
+      : undefined;
   const proposalOf = (commentId: string) =>
     proposals?.find((p) => p.commentId === commentId);
 
@@ -242,6 +268,27 @@ export function OutputViewer({
                   <span className="inline-flex items-center rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
                     最新版
                   </span>
+                ) : null}
+                {onShowDiff && prevVersion !== undefined ? (
+                  <button
+                    type="button"
+                    onClick={() => onShowDiff(prevVersion.id)}
+                    disabled={diffLoading}
+                    aria-label={`v${prevVersion.version} との差分`}
+                    className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant disabled:opacity-50"
+                  >
+                    前版との差分
+                  </button>
+                ) : null}
+                {onRestore && !isLatest ? (
+                  <button
+                    type="button"
+                    onClick={onRestore}
+                    disabled={restoring}
+                    className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface transition-colors hover:bg-surface-variant disabled:opacity-50"
+                  >
+                    {restoring ? "復元中…" : "この版を復元"}
+                  </button>
                 ) : null}
                 {onRevise ? (
                   <button
@@ -689,6 +736,11 @@ export function OutputViewer({
           </aside>
         </div>
       </div>
+
+      {/* ── GAP-155: バージョン間差分モーダル (サーバ計算の unified diff) ── */}
+      {diffView !== null ? (
+        <DiffModal view={diffView} onClose={onCloseDiff} />
+      ) : null}
     </article>
   );
 }

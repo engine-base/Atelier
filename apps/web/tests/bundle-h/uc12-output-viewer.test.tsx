@@ -424,3 +424,106 @@ describe("S-G01 OutputViewerContainer (T-UC-12 / GAP-023)", () => {
     );
   });
 });
+
+describe("S-G01 差分と復元 (GAP-155)", () => {
+  const DIFF = {
+    from_id: "o1",
+    from_version: 1,
+    to_id: "o2",
+    to_version: 2,
+    added: 2,
+    removed: 1,
+    identical: false,
+    diff: "--- v1\n+++ v2\n@@ -1,3 +1,4 @@\n-<p>旧仕様</p>\n+<p>新仕様</p>\n+<p>追記</p>",
+  };
+
+  it("最新版表示中は「前版との差分」→ GET diff → モーダル表示 (復元ボタンは出ない)", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/outputs/{output_id}/diff/{other_id}")
+        return { data: DIFF };
+      if (path.includes("content-url"))
+        return { data: { url: "https://storage/signed/out.html?token=x" } };
+      if (path.includes("versions")) return { data: VERSIONS };
+      if (path.includes("anchors")) return { data: [] };
+      if (path.includes("fix-proposals")) return { data: [] };
+      if (path === "/comments") return { data: [] };
+      return { data: { ...META, id: "o2", version: 2 } };
+    });
+    renderWithQuery(
+      <OutputViewerContainer outputId="o2" client={clientOf(get)} />,
+    );
+    await screen.findByTitle("要件定義書");
+    // 最新版 (v2) 表示中: 復元は無意味なので出さない
+    expect(
+      screen.queryByRole("button", { name: "この版を復元" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "v1 との差分" }));
+    expect(
+      await screen.findByRole("dialog", { name: "バージョン間差分" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("v1 → v2 の差分")).toBeInTheDocument();
+    expect(screen.getByText("-<p>旧仕様</p>")).toBeInTheDocument();
+    expect(screen.getByText("+<p>新仕様</p>")).toBeInTheDocument();
+    const call = get.mock.calls.find(
+      (c) => c[0] === "/outputs/{output_id}/diff/{other_id}",
+    ) as unknown as [string, { params: { path: Record<string, string> } }];
+    expect(call[1].params.path).toEqual({ output_id: "o2", other_id: "o1" });
+  });
+
+  it("旧版表示中は「この版を復元」→ POST restore → 新版へ遷移 (履歴は消さない)", async () => {
+    const get = standardGet(); // outputId=o1 (v1, 旧版)
+    const post = vi.fn(async (path: string) => {
+      if (path === "/outputs/{output_id}/restore")
+        return {
+          data: {
+            ...META,
+            id: "o3",
+            version: 3,
+            meta: { author: "restore", restored_from_version: 1 },
+          },
+        };
+      return { data: null };
+    });
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={clientOf(get, post)} />,
+    );
+    await screen.findByTitle("要件定義書");
+    // 旧版 (v1) 表示中: 前版が無いので差分は出さず、復元を出す
+    expect(
+      screen.queryByRole("button", { name: /との差分/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "この版を復元" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { output_id: string } } },
+    ];
+    expect(path).toBe("/outputs/{output_id}/restore");
+    expect(init.params.path.output_id).toBe("o1");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "v3 として復元しました。",
+    );
+    expect(routerPush).toHaveBeenCalledWith("/outputs?output=o3");
+  });
+
+  it("復元 409 (最新版など) はサーバの honest 文言を表示", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 409,
+        statusText: "conflict",
+        payload: { detail: "v1 はすでに最新版です — 復元は不要です" },
+        path: "/outputs/o1/restore",
+        method: "post",
+      });
+    });
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={clientOf(get, post)} />,
+    );
+    await screen.findByTitle("要件定義書");
+    fireEvent.click(screen.getByRole("button", { name: "この版を復元" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "すでに最新版です",
+    );
+  });
+});

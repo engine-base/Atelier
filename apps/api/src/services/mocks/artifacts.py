@@ -27,6 +27,7 @@ from functools import lru_cache
 from typing import TypedDict
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
@@ -159,23 +160,48 @@ async def ingest_html_artifact(
     parent_id = None if latest is None else str(latest.id)
 
     new_id = str(uuid.uuid4())
-    await session.execute(
-        text(
-            "insert into public.mocks "
-            "(id, project_id, screen_name, html_storage_path, version, parent_mock_id, meta_tags) "
-            "values (cast(:id as uuid), cast(:pid as uuid), :sn, :path, :ver, "
-            "        cast(:parent as uuid), cast(:meta as jsonb))"
-        ),
-        {
-            "id": new_id,
-            "pid": project_id,
-            "sn": screen_name,
-            "path": f"{MOCKDB_PREFIX}{content_id}",
-            "ver": version,
-            "parent": parent_id,
-            "meta": json.dumps({"author": actor_label, "source": source, "file_name": file_name}),
-        },
-    )
+    # GAP-155: (project, 画面, version) 一意。Bridge 取り込みは新規ファイル由来で
+    # lost update の意味論が無いため、衝突時は version を採り直してリトライする
+    # (人間の改訂と違い 409 で止める相手がいない)。
+    for _attempt in range(3):
+        try:
+            async with session.begin_nested():
+                await session.execute(
+                    text(
+                        "insert into public.mocks "
+                        "(id, project_id, screen_name, html_storage_path, version, "
+                        " parent_mock_id, meta_tags) "
+                        "values (cast(:id as uuid), cast(:pid as uuid), :sn, :path, :ver, "
+                        "        cast(:parent as uuid), cast(:meta as jsonb))"
+                    ),
+                    {
+                        "id": new_id,
+                        "pid": project_id,
+                        "sn": screen_name,
+                        "path": f"{MOCKDB_PREFIX}{content_id}",
+                        "ver": version,
+                        "parent": parent_id,
+                        "meta": json.dumps(
+                            {"author": actor_label, "source": source, "file_name": file_name}
+                        ),
+                    },
+                )
+            break
+        except IntegrityError:
+            row2 = (
+                await session.execute(
+                    text(
+                        "select id, version from public.mocks "
+                        "where project_id = cast(:pid as uuid) and screen_name = :sn "
+                        "and deleted_at is null order by version desc limit 1"
+                    ),
+                    {"pid": project_id, "sn": screen_name},
+                )
+            ).first()
+            version = 1 if row2 is None else int(row2.version) + 1
+            parent_id = None if row2 is None else str(row2.id)
+    else:
+        raise ArtifactIngestError("conflict", f"{file_name}: 同時取り込みが競合しました")
     await AuditWriter(session).write(
         AuditEvent(
             action="mock.ingest_artifact",
@@ -301,23 +327,50 @@ async def ingest_html_output(
         ).scalar_one()
     )
     new_id = str(uuid.uuid4())
-    await session.execute(
-        text(
-            "insert into public.workflow_outputs "
-            "(id, project_id, stage, html_path, summary, version, meta) "
-            "values (cast(:id as uuid), cast(:pid as uuid), cast(:st as workflow_stage_enum), "
-            "        :path, :summary, :ver, cast(:meta as jsonb))"
-        ),
-        {
-            "id": new_id,
-            "pid": project_id,
-            "st": stage,
-            "path": f"{MOCKDB_PREFIX}{content_id}",
-            "summary": title,
-            "ver": version,
-            "meta": json.dumps({"author": actor_label, "source": source, "file_name": file_name}),
-        },
-    )
+    # GAP-155: (project, stage, file_name, version) 一意。Bridge 取り込みは
+    # 新規ファイル由来で lost update の意味論が無いため、衝突時は version を
+    # 採り直してリトライする (人間の改訂と違い 409 で止める相手がいない)。
+    for _attempt in range(3):
+        try:
+            async with session.begin_nested():
+                await session.execute(
+                    text(
+                        "insert into public.workflow_outputs "
+                        "(id, project_id, stage, html_path, summary, version, meta) "
+                        "values (cast(:id as uuid), cast(:pid as uuid), "
+                        "        cast(:st as workflow_stage_enum), "
+                        "        :path, :summary, :ver, cast(:meta as jsonb))"
+                    ),
+                    {
+                        "id": new_id,
+                        "pid": project_id,
+                        "st": stage,
+                        "path": f"{MOCKDB_PREFIX}{content_id}",
+                        "summary": title,
+                        "ver": version,
+                        "meta": json.dumps(
+                            {"author": actor_label, "source": source, "file_name": file_name}
+                        ),
+                    },
+                )
+            break
+        except IntegrityError:
+            version = int(
+                (
+                    await session.execute(
+                        text(
+                            "select coalesce(max(version), 0) + 1 "
+                            "from public.workflow_outputs "
+                            "where project_id = cast(:pid as uuid) "
+                            "and stage = cast(:st as workflow_stage_enum) "
+                            "and deleted_at is null"
+                        ),
+                        {"pid": project_id, "st": stage},
+                    )
+                ).scalar_one()
+            )
+    else:
+        raise ArtifactIngestError("conflict", f"{file_name}: 同時取り込みが競合しました")
     await AuditWriter(session).write(
         AuditEvent(
             action="output.ingest_artifact",
@@ -477,32 +530,55 @@ async def ingest_file_artifact(
         ).scalar_one()
     )
     new_id = str(uuid.uuid4())
-    await session.execute(
-        text(
-            "insert into public.workflow_outputs "
-            "(id, project_id, stage, html_path, summary, version, meta) "
-            "values (cast(:id as uuid), cast(:pid as uuid), cast(:st as workflow_stage_enum), "
-            "        :path, :summary, :ver, cast(:meta as jsonb))"
-        ),
-        {
-            "id": new_id,
-            "pid": project_id,
-            "st": stage,
-            "path": f"{FILEDB_PREFIX}{file_id}",
-            "summary": base_name,
-            "ver": version,
-            "meta": json.dumps(
-                {
-                    "author": actor_label,
-                    "source": source,
-                    "file_name": base_name,
-                    "file_kind": file_kind,
-                    "mime": mime,
-                    "byte_size": len(data),
-                }
-            ),
-        },
-    )
+    # GAP-155: 一意制約下の Bridge 取り込みは衝突時 version 採り直しでリトライ
+    for _attempt in range(3):
+        try:
+            async with session.begin_nested():
+                await session.execute(
+                    text(
+                        "insert into public.workflow_outputs "
+                        "(id, project_id, stage, html_path, summary, version, meta) "
+                        "values (cast(:id as uuid), cast(:pid as uuid), "
+                        "        cast(:st as workflow_stage_enum), "
+                        "        :path, :summary, :ver, cast(:meta as jsonb))"
+                    ),
+                    {
+                        "id": new_id,
+                        "pid": project_id,
+                        "st": stage,
+                        "path": f"{FILEDB_PREFIX}{file_id}",
+                        "summary": base_name,
+                        "ver": version,
+                        "meta": json.dumps(
+                            {
+                                "author": actor_label,
+                                "source": source,
+                                "file_name": base_name,
+                                "file_kind": file_kind,
+                                "mime": mime,
+                                "byte_size": len(data),
+                            }
+                        ),
+                    },
+                )
+            break
+        except IntegrityError:
+            version = int(
+                (
+                    await session.execute(
+                        text(
+                            "select coalesce(max(version), 0) + 1 "
+                            "from public.workflow_outputs "
+                            "where project_id = cast(:pid as uuid) "
+                            "and stage = cast(:st as workflow_stage_enum) "
+                            "and meta ->> 'file_name' = :fn and deleted_at is null"
+                        ),
+                        {"pid": project_id, "st": stage, "fn": base_name},
+                    )
+                ).scalar_one()
+            )
+    else:
+        raise ArtifactIngestError("conflict", f"{base_name}: 同時取り込みが競合しました")
     await AuditWriter(session).write(
         AuditEvent(
             action="output.ingest_file",

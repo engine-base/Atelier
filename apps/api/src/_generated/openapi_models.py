@@ -1213,6 +1213,33 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class VersionDiff(BaseModel):
+    """
+    バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通)
+    """
+
+    from_id: UUID | None = None
+    from_version: int | None = None
+    to_id: UUID | None = None
+    to_version: int | None = None
+    added: int | None = None
+    """
+    追加行数
+    """
+    removed: int | None = None
+    """
+    削除行数
+    """
+    identical: bool | None = None
+    """
+    内容が同一 (diff 空)
+    """
+    diff: str | None = None
+    """
+    unified diff 全文
+    """
+
+
 class OutputAnchor(BaseModel):
     """
     成果物 HTML 内の id 付き要素 (コメント対象位置の候補 — GAP-023)
