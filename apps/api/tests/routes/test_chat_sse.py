@@ -473,3 +473,63 @@ class TestKnowledgeBacklinks:
             self._stream(client, s)
             r = client.get(f"/knowledge/{s['kid']}/references", headers=_h(s["u_b"]))
             assert r.status_code == 404
+
+
+@pytest.mark.integration
+def test_gap149_peer_thread_summaries_injected(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-149: 同一プロジェクトの別 AI 社員スレッドの要約が system prompt に載る。
+
+    スレッドは project × 社員で分かれるため、そのままでは社員間で会話が
+    引き継がれない — 他スレッドのローリング要約 (GAP-132) を横断注入する。
+    """
+    import uuid as _uuid
+
+    emp_b = str(_uuid.uuid4())
+    thread_b = str(_uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.ai_employees "
+                "(id, workspace_id, name, display_name, role, department) "
+                "values (cast(:i as uuid), cast(:w as uuid), :n, :d, 'lead', 'design')"
+            ),
+            {"i": emp_b, "w": seeded["ws_a"], "n": f"wanda-{emp_b[:6]}", "d": "ワンダ"},
+        )
+        c.execute(
+            text(
+                "insert into public.chat_threads "
+                "(id, project_id, ai_employee_id, title, context_summary) "
+                "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), :t, :s)"
+            ),
+            {
+                "i": thread_b,
+                "p": seeded["proj_a"],
+                "e": emp_b,
+                "t": "LP デザイン相談",
+                "s": "LP のメインカラーは紺に決定。ヒーローは 3 案から A 案を採用。",
+            },
+        )
+    try:
+        with TestClient(app) as client:
+            r = client.post(
+                f"/chat/threads/{seeded['thread_a']}/context-preview",
+                headers=_h(seeded["u_a"]),
+                json={"user_message": "現状教えて", "include_history": 5},
+            )
+            assert r.status_code == 200
+            sys_p = r.json()["data"]["system_prompt"]
+            assert "プロジェクト内の他の会話の要点" in sys_p
+            assert "ワンダとの会話「LP デザイン相談」" in sys_p
+            assert "メインカラーは紺に決定" in sys_p
+    finally:
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.chat_threads where id = cast(:i as uuid)"),
+                {"i": thread_b},
+            )
+            c.execute(
+                text("delete from public.ai_employees where id = cast(:i as uuid)"),
+                {"i": emp_b},
+            )

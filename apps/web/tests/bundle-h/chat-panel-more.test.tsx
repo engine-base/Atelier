@@ -332,18 +332,24 @@ describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129/130)", () => {
     expect(screen.queryByText(/PC 操作/)).toBeNull();
   });
 
-  it("toolActivity があるとタイムライン表示 (実行中 + 完了 ✓) になる (GAP-136)", () => {
+  it("toolActivity は Claude Code 風の実値行 (Bash(npm test) 等) で表示される (GAP-136/148)", () => {
     render(
       <ChatPanel
         messages={[]}
         onSend={noop}
-        toolActivity={["Bash", "Write"]}
+        toolActivity={[
+          { tool: "Bash", summary: "npm test" },
+          { tool: "Write", summary: "src/index.html" },
+        ]}
         toolStartedAt={Date.now() - 5000}
       />,
     );
-    expect(screen.getByText("ツール実行中: Write")).toBeInTheDocument();
-    // 完了済みツールは ✓ 付きの行で残る
+    expect(screen.getByText("PC 操作を実行中")).toBeInTheDocument();
+    // 実入力の要約つきの行 (完了 ✓ / 実行中 ⏺)
     expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("(npm test)")).toBeInTheDocument();
+    expect(screen.getByText("Write")).toBeInTheDocument();
+    expect(screen.getByText("(src/index.html)")).toBeInTheDocument();
     // 経過秒 (実イベント由来の開始時刻から算出)
     expect(screen.getByText(/経過 \d+ 秒/)).toBeInTheDocument();
   });
@@ -353,11 +359,13 @@ describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129/130)", () => {
       <ChatPanel
         messages={[]}
         onSend={noop}
-        toolRunSummary={{ count: 3, seconds: 42 }}
+        toolRunSummary={{ count: 3, seconds: 42, commands: 2, edits: 1 }}
       />,
     );
     expect(
-      screen.getByText("PC 操作完了: 3 ツール実行 (42 秒)"),
+      screen.getByText(
+        "PC 操作完了: 3 ツール実行 · コマンド 2 件 · ファイル編集 1 件 (42 秒)",
+      ),
     ).toBeInTheDocument();
   });
 

@@ -75,6 +75,13 @@ export interface KnowledgeCandidate {
   readonly title: string;
 }
 
+/** GAP-148: ツール実行 1 件 (Claude Code 風の行 — 実入力の要約つき)。 */
+export interface ToolRunItem {
+  readonly tool: string;
+  /** 実入力の要約 (Bash はコマンド、Edit/Write はファイルパス等)。 */
+  readonly summary?: string;
+}
+
 export interface ChatPanelProps {
   readonly messages: readonly ChatMessage[];
   readonly onSend: (text: string) => void;
@@ -128,11 +135,16 @@ export interface ChatPanelProps {
   readonly toolsMode?: "off" | "approve" | "auto";
   readonly onToolsModeChange?: (mode: "off" | "approve" | "auto") => void;
   /** GAP-129: 実行中ツールの実況 (SSE tool chunk の実値)。 */
-  readonly toolActivity?: readonly string[];
+  readonly toolActivity?: readonly ToolRunItem[];
   /** GAP-136: 最初のツール開始時刻 (epoch ms)。経過秒の表示に使う。 */
   readonly toolStartedAt?: number | null;
   /** GAP-136: 直前応答の PC 操作サマリ (完了後も痕跡を残す。次送信でクリア)。 */
-  readonly toolRunSummary?: { count: number; seconds: number } | null;
+  readonly toolRunSummary?: {
+    count: number;
+    seconds: number;
+    commands: number;
+    edits: number;
+  } | null;
   /** GAP-137/139: 成果物の取り込み結果 (SSE artifact chunk の実値)。
       container が種類 (モック/提案書/見積書…) 別のラベルとリンク先を組む。 */
   readonly savedArtifacts?: readonly {
@@ -783,7 +795,8 @@ export function ChatPanel({
               </div>
             </div>
           ) : null}
-          {/* GAP-129/136: ツール実行のタイムライン (完了 ✓ / 実行中 + 経過秒) */}
+          {/* GAP-129/136/148: ツール実行のタイムライン (Claude Code 風 —
+              「Bash(npm test)」等の実値行を時系列に。最後の行が実行中) */}
           {toolActivity && toolActivity.length > 0 ? (
             <div
               role="status"
@@ -797,7 +810,7 @@ export function ChatPanel({
                   className="shrink-0 text-primary"
                 />
                 <span className="font-semibold text-on-surface">
-                  ツール実行中: {toolActivity[toolActivity.length - 1]}
+                  PC 操作を実行中
                 </span>
                 <span
                   aria-hidden="true"
@@ -808,18 +821,36 @@ export function ChatPanel({
                 ) : null}
                 <span className="ml-auto">応答はツール完了後に届きます</span>
               </div>
-              {toolActivity.length > 1 ? (
-                <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-[20px]">
-                  {toolActivity.slice(0, -1).map((name, i) => (
-                    <li key={`${i}-${name}`} className="flex items-center gap-1">
-                      <span aria-hidden="true" className="text-[10px] text-primary">
-                        ✓
+              <ul className="mt-1.5 flex flex-col gap-0.5 font-mono text-[11px]">
+                {toolActivity.map((run, i) => {
+                  const isRunning = i === toolActivity.length - 1;
+                  return (
+                    <li
+                      key={`${i}-${run.tool}`}
+                      className={
+                        isRunning
+                          ? "flex items-start gap-1.5 text-on-surface"
+                          : "flex items-start gap-1.5 opacity-70"
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={
+                          isRunning
+                            ? "shrink-0 animate-pulse text-primary"
+                            : "shrink-0 text-[10px] text-primary"
+                        }
+                      >
+                        {isRunning ? "⏺" : "✓"}
                       </span>
-                      {name}
+                      <span className="min-w-0 break-all">
+                        <span className="font-semibold">{run.tool}</span>
+                        {run.summary ? <>({run.summary})</> : null}
+                      </span>
                     </li>
-                  ))}
-                </ul>
-              ) : null}
+                  );
+                })}
+              </ul>
             </div>
           ) : null}
           {/* GAP-137/139: 成果物の取り込みカード (種類別にモック/成果物へリンク) */}
@@ -860,8 +891,14 @@ export function ChatPanel({
             >
               <Terminal size={12} aria-hidden="true" className="shrink-0 text-primary" />
               <span>
-                PC 操作完了: {toolRunSummary.count} ツール実行 (
-                {toolRunSummary.seconds} 秒)
+                PC 操作完了: {toolRunSummary.count} ツール実行
+                {toolRunSummary.commands > 0
+                  ? ` · コマンド ${toolRunSummary.commands} 件`
+                  : ""}
+                {toolRunSummary.edits > 0
+                  ? ` · ファイル編集 ${toolRunSummary.edits} 件`
+                  : ""}{" "}
+                ({toolRunSummary.seconds} 秒)
               </span>
             </div>
           ) : null}

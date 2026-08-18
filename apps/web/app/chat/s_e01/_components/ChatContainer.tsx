@@ -27,6 +27,7 @@ import {
   type MentionCandidate,
   type PcApprovalInfo,
   type ToolApprovalInfo,
+  type ToolRunItem,
 } from "./ChatPanel";
 import {
   branchThreadAtMessage,
@@ -208,7 +209,8 @@ export function ChatContainer({
   // GAP-129: PC 操作 (Claude Code 同等ツール)。agent_sdk モードのときだけ
   // トグルを出す (死にボタン禁止)。既定は off — ユーザーが明示的に有効化する。
   const [toolsMode, setToolsMode] = useState<"off" | "approve" | "auto">("off");
-  const [toolActivity, setToolActivity] = useState<readonly string[]>([]);
+  // GAP-148: Claude Code 風のツール行 — 名前 + 実入力の要約 (Bash(npm test) 等)
+  const [toolActivity, setToolActivity] = useState<readonly ToolRunItem[]>([]);
   // GAP-136: PC 操作の経過時間 (最初のツール開始時刻) と完了サマリ。
   // 長時間のツール実行で「止まって見える」UX を解消する — 実イベント由来の
   // 値のみ表示し、進捗の推測 (%) はしない。
@@ -216,8 +218,10 @@ export function ChatContainer({
   const [toolRunSummary, setToolRunSummary] = useState<{
     count: number;
     seconds: number;
+    commands: number;
+    edits: number;
   } | null>(null);
-  const toolLogRef = useRef<string[]>([]);
+  const toolLogRef = useRef<ToolRunItem[]>([]);
   const toolStartRef = useRef<number | null>(null);
   // GAP-130: approve モードの承認待ちカード (SSE pc_approval chunk の実値)
   const [pcApprovals, setPcApprovals] = useState<readonly PcApprovalInfo[]>([]);
@@ -455,13 +459,48 @@ export function ChatContainer({
             ),
           );
         } else if (chunk.type === "tool" && chunk.content) {
-          // GAP-129/136: ツール実行の実況 — タイムライン表示用に積む
-          const name = chunk.content;
+          // GAP-129/136/148: ツール実行の実況。content は「名前」(tool_start) か
+          // JSON {tool, summary} (実入力の要約 — Claude Code 風の行の材料)。
           if (toolStartRef.current === null) {
             toolStartRef.current = Date.now();
             setToolStartedAt(toolStartRef.current);
           }
-          toolLogRef.current = [...toolLogRef.current.slice(-29), name];
+          let detail: { tool: string; summary?: string } | null = null;
+          if (chunk.content.startsWith("{")) {
+            try {
+              const parsed = JSON.parse(chunk.content) as {
+                tool?: unknown;
+                summary?: unknown;
+              };
+              if (typeof parsed.tool === "string" && parsed.tool !== "") {
+                detail = {
+                  tool: parsed.tool,
+                  ...(typeof parsed.summary === "string" && parsed.summary !== ""
+                    ? { summary: parsed.summary }
+                    : {}),
+                };
+              }
+            } catch {
+              /* JSON でなければ名前として扱う */
+            }
+          }
+          const log = [...toolLogRef.current];
+          if (detail?.summary) {
+            // 要約が届いたら、直近の「同名で要約なし」の行を実値行へ格上げする
+            let upgraded = false;
+            for (let i = log.length - 1; i >= 0; i--) {
+              const row = log[i]!;
+              if (row.tool === detail.tool && row.summary === undefined) {
+                log[i] = { tool: row.tool, summary: detail.summary };
+                upgraded = true;
+                break;
+              }
+            }
+            if (!upgraded) log.push({ tool: detail.tool, summary: detail.summary });
+          } else {
+            log.push({ tool: detail?.tool ?? chunk.content });
+          }
+          toolLogRef.current = log.slice(-30);
           setToolActivity(toolLogRef.current);
         } else if (chunk.type === "pc_approval") {
           // GAP-130: 承認カードの表示要求 (approve モード)
@@ -568,8 +607,15 @@ export function ChatContainer({
         // GAP-136: ツールを実行した応答は「完了: N ツール (M 秒)」を残す
         // (実況が消えて何も痕跡が無い、を解消。次の送信でクリア)
         if (toolLogRef.current.length > 0) {
+          // GAP-148: Claude Code 風の内訳 (コマンド実行 / ファイル編集)
+          const commands = toolLogRef.current.filter((t) => t.tool === "Bash").length;
+          const edits = toolLogRef.current.filter(
+            (t) => t.tool === "Edit" || t.tool === "Write",
+          ).length;
           setToolRunSummary({
             count: toolLogRef.current.length,
+            commands,
+            edits,
             seconds:
               toolStartRef.current !== null
                 ? Math.max(1, Math.round((Date.now() - toolStartRef.current) / 1000))

@@ -1,0 +1,7 @@
+HTTP 200
+TOOL: Bash
+TOOL: {"tool":"Bash","summary":"printf 'hello gap148' > gap148-check.txt && cat gap148-check.txt"}
+END
+PLAIN_NAMES: ['Bash']
+DETAILS: [{"tool": "Bash", "summary": "printf 'hello gap148' > gap148-check.txt && cat gap148-check.txt"}]
+E2E_OK: True

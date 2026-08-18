@@ -28,6 +28,7 @@ import {
   chatWorkspaceDir,
   classifyRunFailure,
   collectNewArtifacts,
+  extractToolDetails,
   parseStreamLine,
   sanitizedChildEnv,
   snapshotArtifactFiles,
@@ -427,6 +428,38 @@ describe('buildChatArgs — tools_mode (GAP-134)', () => {
     expect(args[args.indexOf('--permission-mode') + 1]).toBe('default');
     expect(args[args.indexOf('--input-format') + 1]).toBe('stream-json');
     expect(args).not.toContain('--allowedTools'); // 載せると聞かずに自動許可される
+  });
+});
+
+describe('extractToolDetails (GAP-148 — Claude Code 風の実値行)', () => {
+  it('assistant 完成メッセージの tool_use から {tool, summary} を取り出す', () => {
+    const line = JSON.stringify({
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'text', text: '実行します' },
+          { type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
+          { type: 'tool_use', name: 'Edit', input: { file_path: 'src/index.html' } },
+        ],
+      },
+    });
+    expect(extractToolDetails(line)).toEqual([
+      { tool: 'Bash', summary: 'npm test' },
+      { tool: 'Edit', summary: 'src/index.html' },
+    ]);
+  });
+
+  it('assistant 以外・tool_use 無しは空配列', () => {
+    expect(extractToolDetails('{"type":"result","subtype":"success"}')).toEqual([]);
+    expect(
+      extractToolDetails(
+        JSON.stringify({
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'x' }] },
+        }),
+      ),
+    ).toEqual([]);
+    expect(extractToolDetails('not json')).toEqual([]);
   });
 });
 

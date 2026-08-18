@@ -187,6 +187,38 @@ async def _fold_older_history(
     return joined
 
 
+async def _peer_thread_summaries(session: AsyncSession, *, project_id: str, thread_id: str) -> str:
+    """GAP-149: 同一プロジェクトの他スレッド (他 AI 社員との会話) の要約ブロック。
+
+    スレッドは project × AI 社員ごとに分かれるため、そのままだと社員間で
+    会話が引き継がれない (経営者指摘)。GAP-132 のローリング要約を横断で
+    注入し、どの社員もプロジェクト内の他の会話の要点を知った状態で応答する。
+    実在する要約のみ (推測で埋めない)。最新 4 スレッド・各 500 字まで。
+    """
+    rows = (
+        await session.execute(
+            text(
+                "select t.title, e.display_name, t.context_summary "
+                "from public.chat_threads t "
+                "left join public.ai_employees e on e.id = t.ai_employee_id "
+                "where t.project_id = cast(:p as uuid) and t.id <> cast(:t as uuid) "
+                "and coalesce(t.context_summary, '') <> '' "
+                "order by t.updated_at desc limit 4"
+            ),
+            {"p": project_id, "t": thread_id},
+        )
+    ).all()
+    if not rows:
+        return ""
+    lines: list[str] = ["# プロジェクト内の他の会話の要点 (他の AI 社員への相談内容 — 引き継ぎ用)"]
+    for r in rows:
+        who = str(r.display_name) if r.display_name else "別の社員"
+        title = str(r.title) if r.title else "無題"
+        summary = str(r.context_summary)[:500]
+        lines.append(f"- {who}との会話「{title}」: {summary}")
+    return "\n".join(lines)
+
+
 async def _summary_context_block(
     session: AsyncSession, *, thread_id: str, recent_window: int
 ) -> str:
@@ -246,6 +278,10 @@ async def build_context(
         proj_state = await _load_project_state(session, project_id=project_id)
         if proj_state:
             parts.append(proj_state)
+        # GAP-149: 他 AI 社員との会話の要約を横断注入 (社員間の引き継ぎ)
+        peers = await _peer_thread_summaries(session, project_id=project_id, thread_id=thread_id)
+        if peers:
+            parts.append(peers)
 
     summary = await _summary_context_block(
         session, thread_id=thread_id, recent_window=include_history

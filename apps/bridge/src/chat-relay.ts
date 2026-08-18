@@ -226,6 +226,7 @@ export type ChatStreamItem =
   | { readonly kind: 'delta'; readonly text: string }
   | { readonly kind: 'assistant_text'; readonly text: string }
   | { readonly kind: 'tool_start'; readonly tool: string }
+  | { readonly kind: 'tool_detail'; readonly tool: string; readonly summary: string }
   | {
       readonly kind: 'permission_request';
       readonly requestId: string;
@@ -234,6 +235,43 @@ export type ChatStreamItem =
     }
   | { readonly kind: 'result'; readonly ok: boolean; readonly detail?: string }
   | { readonly kind: 'rate_limit'; readonly observation: ChatRelayRateLimitObservation };
+
+/**
+ * GAP-148: assistant 完成メッセージから tool_use の実入力を要約して取り出す。
+ *
+ * Claude Code 風の「Bash(npm test)」「Edit(src/index.html)」行の材料。
+ * content_block_start は名前しか持たない (input は json_delta で後から届く)
+ * ため、完全な input を持つ assistant メッセージから拾う — CLI はツールを
+ * 実行する**前**に assistant メッセージを完成させるので実況として間に合う。
+ */
+export function extractToolDetails(
+  line: string,
+): { readonly tool: string; readonly summary: string }[] {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith('{')) return [];
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  if (typeof json !== 'object' || json === null) return [];
+  const obj = json as Record<string, unknown>;
+  if (obj.type !== 'assistant') return [];
+  const message = obj.message as Record<string, unknown> | undefined;
+  const content = Array.isArray(message?.content) ? message.content : [];
+  const out: { tool: string; summary: string }[] = [];
+  for (const block of content) {
+    const b = block as Record<string, unknown>;
+    if (b.type !== 'tool_use' || typeof b.name !== 'string' || b.name === '') continue;
+    const input =
+      typeof b.input === 'object' && b.input !== null
+        ? (b.input as Record<string, unknown>)
+        : {};
+    out.push({ tool: b.name, summary: summarizeToolInput(b.name, input) });
+  }
+  return out;
+}
 
 /**
  * stream-json の 1 行を解釈する。対象外の行 (init/その他) は null。
@@ -530,6 +568,12 @@ export class ChatRelayWorker {
         if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
         else if (item.kind === 'tool_start')
           pending.push({ text: item.tool, chunkKind: 'tool' });
+        else if (item.kind === 'tool_detail')
+          // GAP-148: 実入力の要約 (JSON) — UI が名前だけの行を実値行へ格上げする
+          pending.push({
+            text: JSON.stringify({ tool: item.tool, summary: item.summary }),
+            chunkKind: 'tool',
+          });
         else if (item.kind === 'rate_limit')
           rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
       });
@@ -646,6 +690,11 @@ export class ChatRelayWorker {
       let stderrTail = '';
       let buffer = '';
       const handleLine = (line: string): void => {
+        // GAP-148: tool_use の実入力要約 (assistant 完成メッセージ由来) —
+        // UI が「Bash(npm test)」のような Claude Code 風の行を出す材料
+        for (const d of extractToolDetails(line)) {
+          onItem({ kind: 'tool_detail', tool: d.tool, summary: d.summary });
+        }
         const item = parseStreamLine(line);
         if (item === null) return;
         if (item.kind === 'delta') {
@@ -664,6 +713,8 @@ export class ChatRelayWorker {
             });
         } else if (item.kind === 'assistant_text') {
           assistantText += item.text;
+        } else if (item.kind === 'tool_detail') {
+          onItem(item); // parseStreamLine は返さない (extractToolDetails 経由) — 型網羅
         } else {
           resultOk = item.ok;
           // GAP-127: 失敗時の result 本文は原因分類の材料 (成功時は不要)
