@@ -2459,6 +2459,32 @@ paths:
                   data: { $ref: '#/components/schemas/DataDeletionRequestResponse' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /public/bridge-latest:
+    get:
+      tags: [public]
+      summary: Bridge 最新版情報（公開・未認証可 / GAP-135 更新チェック）
+      x-implementation-path: apps/api/src/routes/public/__init__.py::get_bridge_latest
+      x-screen-ids: []
+      responses:
+        '200':
+          description: 最新版とダウンロード URL（未設定の OS キーは省略）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [version]
+                    properties:
+                      version: { type: string }
+                      download_urls:
+                        type: object
+                        properties:
+                          mac: { type: string }
+                          win: { type: string }
+                          linux: { type: string }
+
   # ==========================================================================
   # auth (11 endpoints)
   # ==========================================================================

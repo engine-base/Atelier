@@ -17,8 +17,10 @@ import { homedir, hostname } from 'node:os';
 
 import { ApiClient } from './api-client.js';
 import { ChatRelayWorker, chatRelayEnabled, type ChatRelayOutcome } from './chat-relay.js';
+import { resolveClaudeSpawn } from './command.js';
 import { configFilePath, loadConnectConfig } from './deep-link.js';
 import { DEFAULT_DISPATCHER_CONFIG, Dispatcher, type CycleOutcome } from './dispatcher.js';
+import { BRIDGE_VERSION } from './updates.js';
 
 export interface HeadlessRunner {
   runOnce(): Promise<CycleOutcome>;
@@ -54,11 +56,27 @@ export function makeDefaultRunner(
     baseUrl: env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
     token,
   });
+  // GAP-135: Windows ネイティブ (.cmd シム) / macOS GUI 起動 (最小 PATH) でも
+  // claude を起動できるように実体を解決してから渡す。
+  const spec = resolveClaudeSpawn(env.ATELIER_BRIDGE_CMD ?? DEFAULT_DISPATCHER_CONFIG.command, {
+    env,
+  });
+  const childEnv =
+    Object.keys(spec.extraEnv).length > 0
+      ? {
+          ...Object.fromEntries(
+            Object.entries(env).filter((e): e is [string, string] => e[1] !== undefined),
+          ),
+          ...spec.extraEnv,
+        }
+      : undefined;
   return new Dispatcher(api, {
     ...DEFAULT_DISPATCHER_CONFIG,
     workerPid: process.pid,
     projectId: env.ATELIER_BRIDGE_PROJECT,
-    command: env.ATELIER_BRIDGE_CMD ?? DEFAULT_DISPATCHER_CONFIG.command,
+    command: spec.command,
+    prependArgs: spec.prependArgs,
+    childEnv,
     timeoutMs: Number(env.ATELIER_BRIDGE_TIMEOUT_MS ?? DEFAULT_DISPATCHER_CONFIG.timeoutMs),
   });
 }
@@ -72,11 +90,14 @@ export function makeDefaultChatRelay(
     baseUrl: env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
     token,
   });
+  // GAP-135: claude 実体を解決 (npm-shim のときは extraEnv を子 env に合流)
+  const spec = resolveClaudeSpawn(env.ATELIER_BRIDGE_CMD ?? 'claude', { env });
   return new ChatRelayWorker(api, {
     workerId: `${hostname()}#${process.pid}`,
-    command: env.ATELIER_BRIDGE_CMD ?? 'claude',
+    command: spec.command,
+    prependArgs: spec.prependArgs,
     timeoutMs: Number(env.ATELIER_BRIDGE_TIMEOUT_MS ?? 180_000),
-    env,
+    env: { ...env, ...spec.extraEnv },
     flushIntervalMs: 300,
   });
 }
@@ -94,7 +115,7 @@ export function makeDefaultPinger(
     api.ping({
       workerId: `${hostname()}#${process.pid}`,
       hostLabel: hostname(),
-      version: '0.1.0',
+      version: BRIDGE_VERSION,
       workerPid: process.pid,
     });
 }

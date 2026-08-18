@@ -1,0 +1,40 @@
+--- (1) 通常 PATH での解決 ---
+{
+  "command": "/opt/node22/bin/claude",
+  "prependArgs": [],
+  "extraEnv": {},
+  "resolution": "path",
+  "claudePath": "/opt/node22/bin/claude"
+}
+--- (2) GUI 起動相当 (最小 PATH) + ~/.local/bin 配置での解決 ---
+{
+  "command": "/tmp/fake-home-Id1nec/.local/bin/claude",
+  "prependArgs": [],
+  "extraEnv": {},
+  "resolution": "path",
+  "claudePath": "/tmp/fake-home-Id1nec/.local/bin/claude"
+}
+--- (3) 解決結果での実 spawn ---
+(1): 2.1.234 (Claude Code)
+(2): 2.1.234 (Claude Code)
+--- (4) runDoctor 実走 (実 CLI / 実 auth status) ---
+{
+  "platform": "linux",
+  "cli": {
+    "status": "ok",
+    "path": "/opt/node22/bin/claude",
+    "version": "2.1.234 (Claude Code)",
+    "resolution": "path"
+  },
+  "auth": {
+    "status": "ok",
+    "loggedIn": true,
+    "method": "oauth_token"
+  },
+  "connection": {
+    "status": "fail",
+    "apiUrl": null,
+    "source": null
+  },
+  "workspace": "/root/AtelierChatWork"
+}

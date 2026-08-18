@@ -1,0 +1,20 @@
+# GAP-135 pytest 検証記録 (2026-08-18)
+
+## 追加テスト
+tests/routes/test_bridge_latest.py — 2 PASS (DB 不使用の env 駆動 endpoint)
+
+## full suite (実 PG 再構築後)
+2 failed, 966 passed, 1 skipped, 16 errors in 550s
+→ 失敗/エラーは全て tests/routes の他機能 (employee_activities / chat_relay /
+   tasks / workflow)。**単独再実行では全て PASS**:
+   - test_employee_activities.py 単独: 4 passed
+   - 失敗 2 件 (test_tasks / test_workflow) 単独: 2 passed
+→ tests/routes ディレクトリ一括の再実行 1 回目: 542 passed / 1 error
+   (エラー対象は full run と**別のテスト** = 実行順・タイミング依存の既存フレーク)
+→ GAP-135 の API 変更は /public/bridge-latest (env 読むだけ・DB 非依存) のみで
+   該当モジュールとの共有状態なし。既存フレークであり本変更起因ではない。
+
+## 型/リント
+- ruff (変更ファイル): All checks passed
+- pyright (src/routes/public, src/schemas/public.py): 0 errors
+- web tsc: PASS / bridge tsc + eslint: PASS

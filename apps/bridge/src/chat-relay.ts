@@ -247,6 +247,8 @@ export function buildControlResponse(
 export interface ChatRelayConfig {
   readonly workerId: string;
   readonly command: string; // 既定 'claude'
+  /** GAP-135: claude 引数の前に挿入する引数 (npm-shim 解決時の cli.js パス)。 */
+  readonly prependArgs?: readonly string[];
   readonly timeoutMs: number;
   readonly env: Readonly<Record<string, string | undefined>>;
   /** chunk 送信のバッチ間隔 (ms)。テストでは 0 にできる。 */
@@ -467,7 +469,11 @@ export class ChatRelayWorker {
         }
         spawnOpts.cwd = workspace;
       }
-      const child = spawn(this.config.command, buildChatArgs(systemPrompt, toolsMode), spawnOpts);
+      const child = spawn(
+        this.config.command,
+        [...(this.config.prependArgs ?? []), ...buildChatArgs(systemPrompt, toolsMode)],
+        spawnOpts,
+      );
       if (toolsMode === 'approve') {
         // stream-json 入力: user メッセージ 1 件を送り、承認往復のため
         // stdin は result まで開いたままにする (閉じると CLI の許可要求が

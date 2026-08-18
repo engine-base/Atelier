@@ -12,7 +12,7 @@
  * (vitest からの import が壊れないように分離)。
  */
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -22,11 +22,14 @@ import {
   PROTOCOL_SCHEME,
   configFilePath,
   findConnectUrlInArgv,
+  loadConnectConfig,
   parseConnectUrl,
   saveConnectConfig,
 } from './deep-link.js';
+import { runDoctor } from './doctor.js';
 import { runHeadless } from './headless.js';
 import { createBridge } from './main.js';
+import { BRIDGE_VERSION, checkForUpdate } from './updates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,16 +44,54 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.js'), // GAP-135: オンボーディング UI 用 IPC
     },
   });
 
-  // 配布物に同梱する index.html (Vibeyard 取り込み前の placeholder UI)
+  // GAP-135: 初回オンボーディング + 常駐状態を表示する UI
   const indexHtml = path.join(__dirname, '..', 'renderer', 'index.html');
   void win.loadFile(indexHtml, {
     query: { capacity: String(bridge.capacity) },
   });
 
   return win;
+}
+
+/* ------------------------------------------------------------------ */
+/* GAP-135: オンボーディング UI の IPC (診断 + 更新チェック + 外部リンク) */
+/* ------------------------------------------------------------------ */
+
+function registerIpcHandlers(): void {
+  ipcMain.handle('bridge:status', async () => {
+    const report = await runDoctor();
+    // 更新チェックは接続先 API が分かるときだけ (失敗しても更新なし扱い)
+    const apiUrl =
+      process.env.ATELIER_API_URL ??
+      loadConnectConfig(configFilePath(homedir()))?.apiUrl ??
+      null;
+    const update =
+      apiUrl !== null
+        ? await checkForUpdate(apiUrl)
+        : {
+            updateAvailable: false,
+            currentVersion: BRIDGE_VERSION,
+            latestVersion: null,
+            downloadUrl: null,
+          };
+    return { version: BRIDGE_VERSION, report, update };
+  });
+  ipcMain.handle('bridge:open-external', async (_event, url: unknown) => {
+    if (typeof url !== 'string') return false;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return false;
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+    await shell.openExternal(url);
+    return true;
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -129,6 +170,7 @@ if (!gotLock) {
       handleConnectUrl(url);
       return;
     }
+    registerIpcHandlers();
     createWindow();
     ensureBridgeLoop();
     ensureAutoLaunch();

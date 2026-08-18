@@ -15,9 +15,8 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 
 import { BridgeAuthError, type BridgeApi } from './api-client.js';
-
-/** Bridge の版数 (S-I03 接続バッジに表示。package.json と同期)。 */
-const BRIDGE_VERSION = '0.1.0';
+// Bridge の版数 (S-I03 接続バッジに表示) は updates.ts に一元化 (GAP-135)
+import { BRIDGE_VERSION } from './updates.js';
 
 export type CycleOutcome =
   | 'completed'
@@ -38,6 +37,10 @@ export interface DispatcherConfig {
   readonly projectId?: string;
   /** 実行コマンド。既定 'claude'。テストでは 'echo' 等に差し替える。 */
   readonly command: string;
+  /** GAP-135: コマンド引数の前に挿入する引数 (npm-shim 解決時の cli.js パス)。 */
+  readonly prependArgs?: readonly string[];
+  /** GAP-135: 子プロセス env の差し替え (npm-shim を Electron で走らせる時のみ)。 */
+  readonly childEnv?: Readonly<Record<string, string>>;
   /** コマンド引数を組み立てる。既定は ['-p', prompt]。 */
   readonly buildArgs: (task: TaskPromptContext) => readonly string[];
   /** 実行ログの出力ディレクトリ。 */
@@ -168,8 +171,9 @@ export class Dispatcher {
     const logPath = join(this.config.logDir, `${task.taskId}.log`);
     const args = this.config.buildArgs(task);
     return new Promise<RunResult>((resolve) => {
-      const child = spawn(this.config.command, args, {
+      const child = spawn(this.config.command, [...(this.config.prependArgs ?? []), ...args], {
         stdio: ['ignore', 'pipe', 'pipe'],
+        ...(this.config.childEnv !== undefined ? { env: { ...this.config.childEnv } } : {}),
       });
       let tail = '';
       let timedOut = false;

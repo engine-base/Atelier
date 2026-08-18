@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 from typing import Annotated
@@ -18,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.public import (
+    BridgeLatestResponse,
     DataDeletionRequestCreate,
     DataDeletionRequestResponse,
     LegalDocType,
@@ -79,6 +81,29 @@ async def get_legal_document(
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "legal document not found")
     return {"data": doc}
+
+
+@router.get("/public/bridge-latest", summary="Bridge 最新版情報（公開）")
+async def get_bridge_latest() -> dict[str, BridgeLatestResponse]:
+    """GAP-135: Bridge の更新チェック用フィード。
+
+    DB は使わず deploy 時の環境変数で配信する (リリース = env 更新のみ):
+      ATELIER_BRIDGE_LATEST_VERSION      最新版 (未設定なら 0.1.0 = 更新なし)
+      ATELIER_BRIDGE_DOWNLOAD_URL_MAC    .dmg の URL
+      ATELIER_BRIDGE_DOWNLOAD_URL_WIN    installer .exe の URL
+      ATELIER_BRIDGE_DOWNLOAD_URL_LINUX  AppImage の URL
+    """
+    version = os.environ.get("ATELIER_BRIDGE_LATEST_VERSION", "").strip() or "0.1.0"
+    download_urls: dict[str, str] = {}
+    for key, env_key in (
+        ("mac", "ATELIER_BRIDGE_DOWNLOAD_URL_MAC"),
+        ("win", "ATELIER_BRIDGE_DOWNLOAD_URL_WIN"),
+        ("linux", "ATELIER_BRIDGE_DOWNLOAD_URL_LINUX"),
+    ):
+        value = os.environ.get(env_key, "").strip()
+        if value != "":
+            download_urls[key] = value
+    return {"data": BridgeLatestResponse(version=version, download_urls=download_urls)}
 
 
 @router.post(

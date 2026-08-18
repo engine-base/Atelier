@@ -14,6 +14,8 @@ dev (実装) → qa (独立検証) → PM** のバトンリレーを自走させ
 - **Linux**: 1 画面 3 ペイン表示。`sudo apt install tmux` 等
 - **Windows**: **WSL2 (Ubuntu) 内で** Linux と同様に動く (WSL 内に claude + tmux)。
   ネイティブ Windows はセッション間メッセージが macOS/Linux のみ提供のため不可
+  ※ これは tmux 前提の**開発者向けフロー**の話。ユーザー向け **Bridge アプリは
+  Windows ネイティブで動く (WSL 不要)** — [docs/bridge-setup.md](../bridge-setup.md) 参照 (GAP-135)
 
 ### 初回セットアップ (まっさらな PC → 動くまで全コピペ / macOS)
 

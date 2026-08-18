@@ -2,58 +2,252 @@
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'" />
     <title>Atelier Bridge</title>
     <style>
       :root {
-        color-scheme: dark light;
+        color-scheme: dark;
         --bg: #0f172a;
+        --panel: rgba(255, 255, 255, 0.03);
+        --border: rgba(255, 255, 255, 0.1);
         --fg: #fefcf8;
+        --muted: rgba(254, 252, 248, 0.65);
         --accent: #7c3aed;
+        --ok: #34d399;
+        --fail: #f87171;
+        --warn: #fbbf24;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', Roboto, sans-serif;
         background: var(--bg);
         color: var(--fg);
         min-height: 100vh;
         display: grid;
         place-items: center;
+        padding: 32px 16px;
       }
+      .wrap { width: min(720px, 100%); display: grid; gap: 16px; }
       .card {
-        max-width: 640px;
-        padding: 32px 40px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 24px 28px;
+        border: 1px solid var(--border);
         border-radius: 16px;
-        background: rgba(255, 255, 255, 0.03);
+        background: var(--panel);
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
       }
-      h1 { font-size: 28px; margin: 0 0 8px; }
-      p { line-height: 1.7; opacity: 0.9; }
-      code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
-      .accent { color: var(--accent); font-weight: 600; }
-      .meta { margin-top: 24px; font-size: 13px; opacity: 0.7; }
+      h1 { font-size: 24px; margin: 0; }
+      .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+      .banner {
+        display: none;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        border: 1px solid var(--border);
+      }
+      .banner.show { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .banner.ready { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.4); }
+      .banner.update { background: rgba(124, 58, 237, 0.15); border-color: rgba(124, 58, 237, 0.5); }
+      .step { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 0; border-top: 1px solid var(--border); }
+      .step:first-of-type { border-top: none; }
+      .badge {
+        width: 24px; height: 24px; border-radius: 50%;
+        display: grid; place-items: center; font-size: 13px; font-weight: 700;
+        background: rgba(255,255,255,0.08);
+      }
+      .badge.ok { background: rgba(52, 211, 153, 0.2); color: var(--ok); }
+      .badge.fail { background: rgba(248, 113, 113, 0.18); color: var(--fail); }
+      .badge.unknown { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+      .step h2 { font-size: 15px; margin: 2px 0 4px; }
+      .step p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.7; }
+      .guide { display: none; margin-top: 8px; font-size: 13px; line-height: 1.8; }
+      .guide.show { display: block; }
+      code, pre {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      code { padding: 2px 6px; }
+      pre { padding: 10px 12px; overflow-x: auto; margin: 6px 0; user-select: all; }
+      button {
+        font: inherit; font-size: 13px; color: var(--fg);
+        background: var(--accent); border: none; border-radius: 8px;
+        padding: 8px 16px; cursor: pointer; white-space: nowrap;
+      }
+      button.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+      .meta { font-size: 12px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     </style>
   </head>
   <body>
-    <main class="card" role="main">
-      <h1>Atelier Bridge</h1>
-      <p>
-        Claude Code マルチセッション dispatcher の <span class="accent">最小ブートストラップ</span> です。
-        配布パイプライン (electron-builder → AppImage / .deb / .dmg / .msi) を実走確認するための
-        プレースホルダー UI で、Vibeyard fork (xterm.js + node-pty) 取り込み後に terminal
-        multiplexer に置き換わります (T-F-28 以降)。
-      </p>
-      <p class="meta">
-        dispatcher capacity: <code id="capacity">?</code> ・
-        version: <code id="version">?</code>
-      </p>
+    <main class="wrap" role="main">
+      <div class="card">
+        <div class="row">
+          <div>
+            <h1>Atelier Bridge</h1>
+            <p class="sub">
+              あなたの PC で、あなたの Claude プランを使って Atelier の AI 実行を担当します。
+              このアプリを入れておくだけで、チャットの応答・PC 操作がこの PC 上で動きます。
+            </p>
+          </div>
+          <button class="ghost" id="refresh">再チェック</button>
+        </div>
+      </div>
+
+      <div class="banner update" id="update-banner">
+        <span id="update-text">新しいバージョンがあります</span>
+        <button id="update-dl">ダウンロード</button>
+      </div>
+
+      <div class="banner ready" id="ready-banner">
+        <span>✅ セットアップ完了 — 常駐中です。このウィンドウは閉じても接続は続きます（ログイン時に自動起動）。</span>
+      </div>
+
+      <div class="card" id="steps">
+        <div class="step" id="step-cli">
+          <div class="badge" id="badge-cli">1</div>
+          <div>
+            <h2>Claude Code CLI のインストール</h2>
+            <p id="detail-cli">確認中…</p>
+            <div class="guide" id="guide-cli">
+              <div data-os="darwin">
+                ターミナルで次を実行してください（WSL や特別な環境は不要です）:
+                <pre>curl -fsSL https://claude.ai/install.sh | bash</pre>
+              </div>
+              <div data-os="win32">
+                PowerShell で次を実行してください（<strong>WSL は不要</strong>・Windows ネイティブで動きます）:
+                <pre>irm https://claude.ai/install.ps1 | iex</pre>
+                PC 操作（コマンド実行）を使う場合は
+                <a href="https://git-scm.com/download/win" data-external>Git for Windows</a>
+                も入れてください（Claude Code の Bash ツールが使用します）。
+              </div>
+              <div data-os="linux">
+                ターミナルで次を実行してください:
+                <pre>curl -fsSL https://claude.ai/install.sh | bash</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step" id="step-auth">
+          <div class="badge" id="badge-auth">2</div>
+          <div>
+            <h2>Claude アカウントにログイン</h2>
+            <p id="detail-auth">確認中…</p>
+            <div class="guide" id="guide-auth">
+              ターミナル（Windows は PowerShell）で次を実行し、ブラウザでログインしてください。
+              <strong>あなたの Claude サブスクプラン</strong>がそのまま使われます（Atelier 側に追加料金はありません）:
+              <pre>claude auth login</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="step" id="step-conn">
+          <div class="badge" id="badge-conn">3</div>
+          <div>
+            <h2>Atelier と接続</h2>
+            <p id="detail-conn">確認中…</p>
+            <div class="guide" id="guide-conn">
+              Atelier をブラウザで開き、<strong>設定 → Bridge 接続 → 「アプリで接続」</strong> を押してください。
+              このアプリが自動で接続設定を受け取ります（この操作は初回の 1 回だけです）。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="meta">
+          <span>version <code id="version">?</code></span>
+          <span>作業フォルダ <code id="workspace">?</code></span>
+          <span>接続先 <code id="api-url">未接続</code></span>
+        </div>
+      </div>
     </main>
+
     <script>
-      const params = new URLSearchParams(location.search);
-      document.getElementById('capacity').textContent = params.get('capacity') ?? '5';
-      document.getElementById('version').textContent = '0.1.0';
+      const $ = (id) => document.getElementById(id);
+      const badges = { ok: '✓', fail: '!', unknown: '…' };
+
+      function setStep(name, status, detail, showGuide) {
+        const badge = $('badge-' + name);
+        badge.className = 'badge ' + status;
+        if (status in badges) badge.textContent = badges[status];
+        $('detail-' + name).textContent = detail;
+        $('guide-' + name).className = 'guide' + (showGuide ? ' show' : '');
+      }
+
+      function render(status) {
+        const { version, report, update } = status;
+        $('version').textContent = version;
+        $('workspace').textContent = report.workspace ?? '?';
+        $('api-url').textContent = report.connection.apiUrl ?? (report.connection.status === 'ok' ? '設定済み' : '未接続');
+
+        // OS 別ガイドの出し分け
+        for (const el of document.querySelectorAll('#guide-cli [data-os]')) {
+          el.style.display = el.getAttribute('data-os') === report.platform ? 'block' : 'none';
+        }
+
+        if (report.cli.status === 'ok') {
+          setStep('cli', 'ok', `検出済み: ${report.cli.path ?? ''} (${report.cli.version ?? ''})`, false);
+        } else {
+          setStep('cli', 'fail', 'claude コマンドが見つかりません。下の手順でインストールしてください。', true);
+        }
+
+        if (report.auth.status === 'ok') {
+          setStep('auth', 'ok', `ログイン済み${report.auth.method ? ` (${report.auth.method})` : ''} — あなたのプランで実行されます。`, false);
+        } else if (report.auth.status === 'fail') {
+          setStep('auth', 'fail', '未ログインです。下の手順でログインしてください。', true);
+        } else {
+          setStep('auth', 'unknown', report.cli.status === 'ok' ? 'ログイン状態を確認できませんでした（実行時に自動判定されます）。' : 'CLI のインストール後に確認します。', report.cli.status === 'ok');
+        }
+
+        if (report.connection.status === 'ok') {
+          const src = report.connection.source === 'env' ? '環境変数' : '保存済み設定';
+          setStep('conn', 'ok', `接続設定あり（${src}）。ログイン時に自動起動して接続を維持します。`, false);
+        } else {
+          setStep('conn', 'fail', 'まだ Atelier と接続されていません。', true);
+        }
+
+        const allOk = report.cli.status === 'ok' && report.connection.status === 'ok' && report.auth.status !== 'fail';
+        $('ready-banner').className = 'banner ready' + (allOk ? ' show' : '');
+
+        if (update && update.updateAvailable) {
+          $('update-text').textContent = `新しいバージョン ${update.latestVersion} が利用できます（現在 ${update.currentVersion}）。`;
+          $('update-banner').className = 'banner update show';
+          $('update-dl').style.display = update.downloadUrl ? 'inline-block' : 'none';
+          $('update-dl').onclick = () => {
+            if (update.downloadUrl && window.atelierBridge) window.atelierBridge.openExternal(update.downloadUrl);
+          };
+        } else {
+          $('update-banner').className = 'banner update';
+        }
+      }
+
+      async function refresh() {
+        if (!window.atelierBridge) {
+          setStep('cli', 'unknown', 'Electron 外のプレビュー表示です（診断は取得できません）。', false);
+          setStep('auth', 'unknown', '—', false);
+          setStep('conn', 'unknown', '—', false);
+          return;
+        }
+        try {
+          render(await window.atelierBridge.getStatus());
+        } catch (err) {
+          console.error('status fetch failed', err);
+        }
+      }
+
+      document.addEventListener('click', (e) => {
+        const a = e.target.closest('a[data-external]');
+        if (a) {
+          e.preventDefault();
+          if (window.atelierBridge) window.atelierBridge.openExternal(a.getAttribute('href'));
+        }
+      });
+      $('refresh').addEventListener('click', refresh);
+      refresh();
+      setInterval(refresh, 10000);
     </script>
   </body>
 </html>

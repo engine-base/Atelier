@@ -1,0 +1,13 @@
+ ✓ __tests__/api-client.test.ts (13 tests) 13ms
+ ✓ __tests__/command.test.ts (11 tests) 11ms
+ ✓ __tests__/chat-relay.test.ts (33 tests) 294ms
+ ✓ __tests__/dispatcher.test.ts (8 tests) 327ms
+   ✓ Dispatcher.runOnce (T-F-41) > timeout で kill され request-change (timeout) になる 305ms
+ ✓ __tests__/doctor.test.ts (6 tests) 9ms
+ ✓ __tests__/deep-link.test.ts (9 tests) 26ms
+ ✓ __tests__/headless.test.ts (12 tests) 57ms
+ ✓ __tests__/auto-launch.test.ts (5 tests) 6ms
+ ✓ __tests__/updates.test.ts (8 tests) 7ms
+ ✓ __tests__/main.test.ts (3 tests) 3ms
+ Test Files  10 passed (10)
+      Tests  108 passed (108)

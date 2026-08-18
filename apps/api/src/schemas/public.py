@@ -35,3 +35,14 @@ class DataDeletionRequestResponse(BaseModel):
     request_id: str
     status: str
     requested_at: datetime
+
+
+class BridgeLatestResponse(BaseModel):
+    """GAP-135: Bridge 更新チェック用の最新版情報。
+
+    download_urls は OS キー (mac/win/linux) → installer URL。未設定の OS は
+    省略される (Bridge 側はバナーの案内文のみ表示)。
+    """
+
+    version: str
+    download_urls: dict[str, str] = Field(default_factory=dict)

@@ -262,6 +262,24 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(sender.completes).toEqual([{ ok: true, error: undefined, rateLimits: [] }]);
   });
 
+  it('GAP-135: prependArgs (npm-shim 解決の cli.js) が実 spawn に配線される', async () => {
+    // Windows npm 版の解決結果 (node <cli.js> <claude引数...>) と同じ形を
+    // 実プロセスで検証する: command=Node 実体 / prependArgs=fake CLI スクリプト
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: process.execPath,
+      prependArgs: [makeFakeClaude([DELTA_A, RESULT_OK])],
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH },
+      flushIntervalMs: 10,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toBe('やあ、');
+    expect(sender.completes).toEqual([{ ok: true, error: undefined, rateLimits: [] }]);
+  });
+
   it('partial 不達時は assistant 完成 text で代替する', async () => {
     const sender = new FakeSender();
     sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };

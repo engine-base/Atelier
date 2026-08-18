@@ -257,6 +257,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/bridge-latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bridge 最新版情報（公開・未認証可 / GAP-135 更新チェック） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 最新版とダウンロード URL（未設定の OS キーは省略） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                version: string;
+                                download_urls?: {
+                                    mac?: string;
+                                    win?: string;
+                                    linux?: string;
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/signin": {
         parameters: {
             query?: never;
