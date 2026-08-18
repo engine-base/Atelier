@@ -282,10 +282,10 @@ describe("ChatPanel 生成中インジケータ (GAP-128)", () => {
   });
 });
 
-describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129)", () => {
-  it("onToolsModeChange があるときだけトグルが出て、押すと auto に切り替わる", () => {
+describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129/130)", () => {
+  it("トグルは なし → 承認して実行 → 自動 → なし を循環する", () => {
     const onChange = vi.fn();
-    render(
+    const { rerender } = render(
       <ChatPanel
         messages={[]}
         onSend={noop}
@@ -294,11 +294,37 @@ describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129)", () => {
       />,
     );
     const toggle = screen.getByRole("button", {
-      name: "PC 操作をオンにする (自動実行)",
+      name: "PC 操作を切り替える (現在: なし)",
     });
     expect(toggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(toggle);
-    expect(onChange).toHaveBeenCalledWith("auto");
+    expect(onChange).toHaveBeenLastCalledWith("approve");
+    rerender(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        toolsMode="approve"
+        onToolsModeChange={onChange}
+      />,
+    );
+    const approveToggle = screen.getByRole("button", {
+      name: "PC 操作を切り替える (現在: 承認して実行)",
+    });
+    expect(approveToggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(approveToggle);
+    expect(onChange).toHaveBeenLastCalledWith("auto");
+    rerender(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        toolsMode="auto"
+        onToolsModeChange={onChange}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "PC 操作を切り替える (現在: 自動)" }),
+    );
+    expect(onChange).toHaveBeenLastCalledWith("off");
   });
 
   it("トグル未配線 (agent_sdk 以外) では PC 操作ボタン自体を出さない", () => {
@@ -312,5 +338,46 @@ describe("ChatPanel PC 操作トグル + ツール実況 (GAP-129)", () => {
     );
     expect(screen.getByText("ツール実行中: Write")).toBeInTheDocument();
     expect(screen.getByText(/これまで: Bash/)).toBeInTheDocument();
+  });
+});
+
+describe("ChatPanel PC 操作の承認カード (GAP-130)", () => {
+  const approvals = [
+    { id: "ap-1", tool: "Bash", summary: "echo hello" },
+    { id: "ap-2", tool: "Write", summary: "/tmp/a.txt" },
+  ];
+
+  it("先頭 1 件を提示し、許可/拒否がそれぞれ decision 付きで呼ばれる", () => {
+    const onDecision = vi.fn();
+    render(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        pcApprovals={approvals}
+        onPcApprovalDecision={onDecision}
+      />,
+    );
+    expect(
+      screen.getByRole("region", { name: "PC 操作の承認" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bash を実行してもよいですか？")).toBeInTheDocument();
+    expect(screen.getByText("echo hello")).toBeInTheDocument();
+    expect(screen.getByText(/他 1 件待ち/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "許可して実行" }));
+    expect(onDecision).toHaveBeenLastCalledWith("ap-1", "allow");
+    fireEvent.click(screen.getByRole("button", { name: "拒否" }));
+    expect(onDecision).toHaveBeenLastCalledWith("ap-1", "deny");
+  });
+
+  it("承認待ちが無ければカードを出さない (Rule 10)", () => {
+    render(
+      <ChatPanel
+        messages={[]}
+        onSend={noop}
+        pcApprovals={[]}
+        onPcApprovalDecision={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("region", { name: "PC 操作の承認" })).toBeNull();
   });
 });

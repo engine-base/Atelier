@@ -1832,10 +1832,11 @@ class SignupResponse(BaseModel):
 
 class ToolsMode(StrEnum):
     """
-    GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
+    GAP-129/130: PC 操作。off=ツールなし (既定) / approve=実行ごとにユーザー承認 (Claude Code の permission prompt 同等) / auto=確認なしで自動実行 (いずれも agent_sdk モード限定・本人 opt-in)
     """
 
     off = "off"
+    approve = "approve"
     auto = "auto"
 
 
@@ -1850,8 +1851,28 @@ class ChatStreamRequest(BaseModel):
     """
     tools_mode: ToolsMode | None = "off"
     """
-    GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
+    GAP-129/130: PC 操作。off=ツールなし (既定) / approve=実行ごとにユーザー承認 (Claude Code の permission prompt 同等) / auto=確認なしで自動実行 (いずれも agent_sdk モード限定・本人 opt-in)
     """
+
+
+class Decision1(StrEnum):
+    """
+    GAP-130: 承認カードへの決定。allow=実行を許可 / deny=拒否 (AI は拒否を踏まえて応答継続)
+    """
+
+    allow = "allow"
+    deny = "deny"
+
+
+class PcApprovalDecisionRequest(BaseModel):
+    decision: Decision1
+    """
+    GAP-130: 承認カードへの決定。allow=実行を許可 / deny=拒否 (AI は拒否を踏まえて応答継続)
+    """
+
+
+class PcApprovalDecisionResponse(BaseModel):
+    resolved: bool
 
 
 class ChatContextPreviewRequest(BaseModel):
@@ -2259,13 +2280,13 @@ class ApprovalInboxEntry(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class Decision1(StrEnum):
+class Decision2(StrEnum):
     approve = "approve"
     reject = "reject"
 
 
 class ApprovalDecideRequest(BaseModel):
-    decision: Decision1
+    decision: Decision2
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 

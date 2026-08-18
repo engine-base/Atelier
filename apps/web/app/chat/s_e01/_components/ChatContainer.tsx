@@ -25,6 +25,7 @@ import {
   type ChatMessage,
   type KnowledgeCandidate,
   type MentionCandidate,
+  type PcApprovalInfo,
   type ToolApprovalInfo,
 } from "./ChatPanel";
 import {
@@ -35,6 +36,7 @@ import {
   fetchToolApprovals,
   postMessageFeedback,
   rejectToolApproval,
+  resolvePcApproval,
   runChatCommand,
   streamChatThread,
   uploadChatAttachment,
@@ -128,6 +130,8 @@ export interface ChatContainerProps {
   readonly openUrlFn?: (url: string) => void;
   /** /コマンド (GAP-002) の注入用 (省略時は実 API)。 */
   readonly commandFn?: typeof runChatCommand;
+  /** GAP-130: PC 操作の承認決定 (approve モード) の注入用 (省略時は実 POST)。 */
+  readonly resolvePcApprovalFn?: typeof resolvePcApproval;
 }
 
 let _seq = 0;
@@ -168,6 +172,7 @@ export function ChatContainer({
   attachmentUrlFn = fetchChatAttachmentUrl,
   openUrlFn,
   commandFn = runChatCommand,
+  resolvePcApprovalFn = resolvePcApproval,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -180,8 +185,10 @@ export function ChatContainer({
   >(null);
   // GAP-129: PC 操作 (Claude Code 同等ツール)。agent_sdk モードのときだけ
   // トグルを出す (死にボタン禁止)。既定は off — ユーザーが明示的に有効化する。
-  const [toolsMode, setToolsMode] = useState<"off" | "auto">("off");
+  const [toolsMode, setToolsMode] = useState<"off" | "approve" | "auto">("off");
   const [toolActivity, setToolActivity] = useState<readonly string[]>([]);
+  // GAP-130: approve モードの承認待ちカード (SSE pc_approval chunk の実値)
+  const [pcApprovals, setPcApprovals] = useState<readonly PcApprovalInfo[]>([]);
   const connQuery = useQuery({
     queryKey: ["chat-connection-status"],
     queryFn: async () =>
@@ -397,6 +404,25 @@ export function ChatContainer({
           // GAP-129: ツール実行の実況 (auto モード) — 直近の実行を積む
           const name = chunk.content;
           setToolActivity((prev) => [...prev.slice(-4), name]);
+        } else if (chunk.type === "pc_approval") {
+          // GAP-130: 承認カードの表示要求 (approve モード)
+          const meta = chunk.metadata ?? {};
+          const id = typeof meta.id === "string" ? meta.id : "";
+          if (id) {
+            setPcApprovals((prev) => [
+              ...prev,
+              {
+                id,
+                tool: typeof meta.tool === "string" ? meta.tool : "",
+                summary: typeof meta.summary === "string" ? meta.summary : "",
+              },
+            ]);
+          }
+        } else if (chunk.type === "pc_approval_resolved") {
+          // タイムアウト等サーバー側で解決したカードを掃除する
+          const meta = chunk.metadata ?? {};
+          const id = typeof meta.id === "string" ? meta.id : "";
+          if (id) setPcApprovals((prev) => prev.filter((a) => a.id !== id));
         } else if (chunk.type === "error") {
           setError(chunk.content ?? "ストリーミング中にエラーが発生しました");
         }
@@ -436,6 +462,7 @@ export function ChatContainer({
         setPendingId(null);
         setPendingStage(null);
         setToolActivity([]);
+        setPcApprovals([]);
       }
     },
     [
@@ -450,6 +477,23 @@ export function ChatContainer({
       commandFn,
       reloadMessages,
     ],
+  );
+
+  // GAP-130: 承認カードの許可/拒否。成功時は即カードを消す (サーバーの
+  // resolved chunk でも消えるが、体感を待たせない)。失敗は inline error。
+  const handlePcApprovalDecision = useCallback(
+    (approvalId: string, decision: "allow" | "deny") => {
+      resolvePcApprovalFn(approvalId, decision)
+        .then(() => {
+          setPcApprovals((prev) => prev.filter((a) => a.id !== approvalId));
+        })
+        .catch(() => {
+          setError(
+            "承認の送信に失敗しました (期限切れの可能性があります)。再送してください。",
+          );
+        });
+    },
+    [resolvePcApprovalFn],
   );
 
   const handleFeedback = useCallback(
@@ -573,6 +617,8 @@ export function ChatContainer({
           pendingAssistantId={pendingId}
           pendingStage={pendingStage}
           toolActivity={toolActivity}
+          pcApprovals={pcApprovals}
+          onPcApprovalDecision={handlePcApprovalDecision}
           {...(toolsAvailable
             ? { toolsMode, onToolsModeChange: setToolsMode }
             : {})}

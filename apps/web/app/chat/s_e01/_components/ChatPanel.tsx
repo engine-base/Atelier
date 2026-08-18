@@ -125,10 +125,19 @@ export interface ChatPanelProps {
    * GAP-129: PC 操作 (Claude Code 同等ツール)。onToolsModeChange 未指定なら
    * トグル自体を出さない (agent_sdk モード以外 — 死にボタン禁止)。
    */
-  readonly toolsMode?: "off" | "auto";
-  readonly onToolsModeChange?: (mode: "off" | "auto") => void;
+  readonly toolsMode?: "off" | "approve" | "auto";
+  readonly onToolsModeChange?: (mode: "off" | "approve" | "auto") => void;
   /** GAP-129: 実行中ツールの実況 (SSE tool chunk の実値)。 */
   readonly toolActivity?: readonly string[];
+  /**
+   * GAP-130: approve モードの承認待ちカード (SSE pc_approval の実値)。
+   * onPcApprovalDecision 未指定ならカードを出さない (Rule 10)。
+   */
+  readonly pcApprovals?: readonly PcApprovalInfo[];
+  readonly onPcApprovalDecision?: (
+    approvalId: string,
+    decision: "allow" | "deny",
+  ) => void;
   readonly uploadingAttachments?: boolean;
   /** 永続化済みメッセージの添付を開く (署名付き URL 解決)。 */
   readonly onOpenAttachment?: (messageId: string, index: number) => void;
@@ -171,6 +180,21 @@ export interface ToolApprovalInfo {
   readonly tool: string;
   readonly tool_input: Record<string, unknown>;
 }
+
+/** GAP-130: PC 操作 (approve モード) の承認待ち 1 件。 */
+export interface PcApprovalInfo {
+  readonly id: string;
+  readonly tool: string;
+  readonly summary: string;
+}
+
+/** GAP-129/130: PC 操作トグルの表示順 (クリックで循環)。 */
+const TOOLS_MODE_CYCLE = ["off", "approve", "auto"] as const;
+const TOOLS_MODE_LABEL: Record<"off" | "approve" | "auto", string> = {
+  off: "なし",
+  approve: "承認して実行",
+  auto: "自動",
+};
 
 /** tool メッセージの content からツール名を推定する (JSON {tool|name} or 先頭行)。 */
 function toolNameOf(content: string): string {
@@ -470,6 +494,8 @@ export function ChatPanel({
   toolsMode = "off",
   onToolsModeChange,
   toolActivity,
+  pcApprovals,
+  onPcApprovalDecision,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const [picker, setPicker] = useState<"mention" | "knowledge" | "command" | null>(
@@ -678,6 +704,55 @@ export function ChatPanel({
               {attachmentError}
             </p>
           ) : null}
+          {/* GAP-130: PC 操作の承認カード (approve モード — Claude Code の
+              permission prompt 同等)。先頭 1 件だけ提示し、決定すると次が出る。 */}
+          {onPcApprovalDecision && pcApprovals && pcApprovals.length > 0 ? (
+            <div
+              role="region"
+              aria-label="PC 操作の承認"
+              className="mt-2 rounded-md border border-primary/40 bg-primary-container/40 px-3 py-2"
+            >
+              <div className="flex items-center gap-2 text-[12px] font-semibold text-on-surface">
+                <Terminal size={13} aria-hidden="true" className="shrink-0 text-primary" />
+                <span>
+                  {pcApprovals[0]?.tool} を実行してもよいですか？
+                  {pcApprovals.length > 1 ? (
+                    <span className="ml-1 font-normal text-on-surface-variant">
+                      (他 {pcApprovals.length - 1} 件待ち)
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <p className="mt-1 break-all rounded-sm bg-surface px-2 py-1 font-mono text-[11.5px] text-on-surface-variant">
+                {pcApprovals[0]?.summary}
+              </p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = pcApprovals[0]?.id;
+                    if (id) onPcApprovalDecision(id, "allow");
+                  }}
+                  className="rounded-sm bg-primary px-3 py-1 text-[11.5px] font-semibold text-on-primary hover:opacity-90"
+                >
+                  許可して実行
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = pcApprovals[0]?.id;
+                    if (id) onPcApprovalDecision(id, "deny");
+                  }}
+                  className="rounded-sm border border-border px-3 py-1 text-[11.5px] text-on-surface hover:bg-surface-variant"
+                >
+                  拒否
+                </button>
+                <span className="text-[11px] text-on-surface-variant">
+                  拒否すると AI は実行せずに続行します
+                </span>
+              </div>
+            </div>
+          ) : null}
           {/* GAP-129: ツール実行の実況 (auto モード中のランタイム状態) */}
           {toolActivity && toolActivity.length > 0 ? (
             <div
@@ -745,20 +820,24 @@ export function ChatPanel({
               <AtSign size={12} aria-hidden="true" />
               <span className="hidden sm:inline">@メンション</span>
             </button>
-            {/* GAP-129: PC 操作トグル (agent_sdk モードのときだけ親が props を渡す) */}
+            {/* GAP-129/130: PC 操作トグル (agent_sdk モードのときだけ親が props を渡す)。
+                クリックで なし → 承認して実行 → 自動 → なし を循環する。 */}
             {onToolsModeChange ? (
               <button
                 type="button"
-                aria-pressed={toolsMode === "auto"}
-                aria-label={`PC 操作を${toolsMode === "auto" ? "オフにする" : "オンにする (自動実行)"}`}
-                onClick={() =>
-                  onToolsModeChange(toolsMode === "auto" ? "off" : "auto")
-                }
-                className={cnToggle(toolsMode === "auto")}
+                aria-pressed={toolsMode !== "off"}
+                aria-label={`PC 操作を切り替える (現在: ${TOOLS_MODE_LABEL[toolsMode]})`}
+                onClick={() => {
+                  const i = TOOLS_MODE_CYCLE.indexOf(toolsMode);
+                  onToolsModeChange(
+                    TOOLS_MODE_CYCLE[(i + 1) % TOOLS_MODE_CYCLE.length] ?? "off",
+                  );
+                }}
+                className={cnToggle(toolsMode !== "off")}
               >
                 <Terminal size={12} aria-hidden="true" />
                 <span className="hidden sm:inline">
-                  PC 操作: {toolsMode === "auto" ? "自動" : "なし"}
+                  PC 操作: {TOOLS_MODE_LABEL[toolsMode]}
                 </span>
               </button>
             ) : null}

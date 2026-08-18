@@ -53,6 +53,22 @@ class _FakeOptions:
         self.kwargs = kwargs
 
 
+@dataclass
+class _FakeResultMessage:
+    result: str = ""
+
+
+@dataclass
+class _FakeAllow:
+    behavior: str = "allow"
+
+
+@dataclass
+class _FakeDeny:
+    message: str = ""
+    behavior: str = "deny"
+
+
 def _install_fake_sdk(monkeypatch: pytest.MonkeyPatch, messages: list[Any]) -> dict[str, Any]:
     """フェイク claude_agent_sdk を sys.modules に注入し、query 呼出を記録する。"""
     captured: dict[str, Any] = {}
@@ -69,6 +85,9 @@ def _install_fake_sdk(monkeypatch: pytest.MonkeyPatch, messages: list[Any]) -> d
     mod.StreamEvent = _FakeStreamEvent  # pyright: ignore[reportAttributeAccessIssue]
     mod.TextBlock = _FakeTextBlock  # pyright: ignore[reportAttributeAccessIssue]
     mod.RateLimitEvent = _FakeRateLimitEvent  # pyright: ignore[reportAttributeAccessIssue]
+    mod.ResultMessage = _FakeResultMessage  # pyright: ignore[reportAttributeAccessIssue]
+    mod.PermissionResultAllow = _FakeAllow  # pyright: ignore[reportAttributeAccessIssue]
+    mod.PermissionResultDeny = _FakeDeny  # pyright: ignore[reportAttributeAccessIssue]
     mod.query = _fake_query  # pyright: ignore[reportAttributeAccessIssue]
     monkeypatch.setitem(sys.modules, "claude_agent_sdk", mod)
     return captured
@@ -413,3 +432,164 @@ def test_chat_workspace_dir_default_and_override(tmp_path) -> None:
 
     assert chat_workspace_dir({}).endswith("AtelierChatWork")
     assert chat_workspace_dir({"ATELIER_CHAT_WORKSPACE": str(tmp_path)}) == str(tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# GAP-130: PC 操作の承認モード (approve)
+# --------------------------------------------------------------------------- #
+
+
+def test_build_options_approve_uses_permission_prompt(tmp_path) -> None:
+    """approve は allowed_tools に載せない (載せると聞かずに自動許可される)。"""
+    from src.services.chat_sse.agent_sdk import build_options_kwargs
+
+    kw = build_options_kwargs(
+        system_prompt="SYS",
+        tools_mode="approve",
+        env={"ATELIER_CHAT_WORKSPACE": str(tmp_path)},
+    )
+    assert kw["allowed_tools"] == []
+    assert kw["permission_mode"] == "default"
+    assert kw["cwd"] == str(tmp_path)
+    assert kw["max_turns"] > 1
+    assert "承認制" in kw["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_pc_can_use_tool_allow_flow() -> None:
+    """承認カード発行 → allow 決定 → 実行許可 + resolved イベント。"""
+    import asyncio
+
+    from src.services.chat_sse import pc_approvals
+    from src.services.chat_sse.agent_sdk import make_pc_can_use_tool
+
+    events: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+    cb = make_pc_can_use_tool(
+        user_id="u1",
+        thread_id="t1",
+        events=events,
+        allow_result=lambda: "ALLOWED",
+        deny_result=lambda m: ("DENIED", m),
+    )
+    task = asyncio.ensure_future(cb("Bash", {"command": "echo hi"}, None))
+    kind, payload = await asyncio.wait_for(events.get(), timeout=2)
+    assert kind == "approval"
+    assert payload["tool"] == "Bash"
+    assert payload["summary"] == "echo hi"
+    # 他ユーザーでは解決できない (403 相当 → False)
+    assert pc_approvals.resolve_request(payload["id"], user_id="mallory", decision="allow") is False
+    assert pc_approvals.resolve_request(payload["id"], user_id="u1", decision="allow") is True
+    assert await asyncio.wait_for(task, timeout=2) == "ALLOWED"
+    kind2, payload2 = await asyncio.wait_for(events.get(), timeout=2)
+    assert kind2 == "resolved" and payload2["decision"] == "allow"
+    assert pc_approvals.pending_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_pc_can_use_tool_deny_and_timeout() -> None:
+    """deny 決定は拒否、無応答はタイムアウトで拒否 (勝手に実行しない)。"""
+    import asyncio
+
+    from src.services.chat_sse import pc_approvals
+    from src.services.chat_sse.agent_sdk import make_pc_can_use_tool
+
+    events: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+    cb = make_pc_can_use_tool(
+        user_id="u1",
+        thread_id="t1",
+        events=events,
+        allow_result=lambda: "ALLOWED",
+        deny_result=lambda m: ("DENIED", m),
+        timeout_seconds=0.05,
+    )
+    # deny
+    task = asyncio.ensure_future(cb("Write", {"file_path": "/tmp/x.txt"}, None))
+    _, payload = await asyncio.wait_for(events.get(), timeout=2)
+    assert pc_approvals.resolve_request(payload["id"], user_id="u1", decision="deny") is True
+    result = await asyncio.wait_for(task, timeout=2)
+    assert result[0] == "DENIED" and "拒否" in result[1]
+    await events.get()  # resolved イベントを消費
+    # timeout (決定なし)
+    task2 = asyncio.ensure_future(cb("Bash", {"command": "rm -rf /"}, None))
+    await asyncio.wait_for(events.get(), timeout=2)
+    result2 = await asyncio.wait_for(task2, timeout=2)
+    assert result2[0] == "DENIED" and "時間内に承認しなかった" in result2[1]
+    _, resolved2 = await asyncio.wait_for(events.get(), timeout=2)
+    assert resolved2["decision"] == "timeout"
+    assert pc_approvals.pending_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_pc_can_use_tool_rejects_unlisted_tool() -> None:
+    """許可対象外ツール (WebSearch 等) は承認カードを出さず即拒否。"""
+    import asyncio
+
+    from src.services.chat_sse import pc_approvals
+    from src.services.chat_sse.agent_sdk import make_pc_can_use_tool
+
+    events: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
+    cb = make_pc_can_use_tool(
+        user_id="u1",
+        thread_id="t1",
+        events=events,
+        allow_result=lambda: "ALLOWED",
+        deny_result=lambda m: ("DENIED", m),
+    )
+    result = await cb("WebSearch", {"query": "x"}, None)
+    assert result[0] == "DENIED" and "許可されていません" in result[1]
+    assert events.empty()
+    assert pc_approvals.pending_count() == 0
+
+
+@pytest.mark.asyncio
+async def test_stream_approve_emits_approval_chunks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """approve モードの実ストリーム: 承認カード → allow → resolved → 応答 delta。"""
+    import asyncio
+
+    from src.services.chat_sse import pc_approvals
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_query(*, prompt: Any, options: Any = None) -> Any:
+        captured["prompt"] = prompt
+        captured["options"] = options
+        cb = options.kwargs["can_use_tool"]
+        result = await cb("Bash", {"command": "echo hi"}, None)
+        captured["perm_result"] = result
+        yield _delta_event("実行しました")
+
+    mod = types.ModuleType("claude_agent_sdk")
+    mod.AssistantMessage = _FakeAssistantMessage  # pyright: ignore[reportAttributeAccessIssue]
+    mod.ClaudeAgentOptions = _FakeOptions  # pyright: ignore[reportAttributeAccessIssue]
+    mod.StreamEvent = _FakeStreamEvent  # pyright: ignore[reportAttributeAccessIssue]
+    mod.TextBlock = _FakeTextBlock  # pyright: ignore[reportAttributeAccessIssue]
+    mod.RateLimitEvent = _FakeRateLimitEvent  # pyright: ignore[reportAttributeAccessIssue]
+    mod.ResultMessage = _FakeResultMessage  # pyright: ignore[reportAttributeAccessIssue]
+    mod.PermissionResultAllow = _FakeAllow  # pyright: ignore[reportAttributeAccessIssue]
+    mod.PermissionResultDeny = _FakeDeny  # pyright: ignore[reportAttributeAccessIssue]
+    mod.query = _fake_query  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk", mod)
+    monkeypatch.setenv("ATELIER_CHAT_WORKSPACE", str(tmp_path))
+
+    gen = agent_sdk.agent_sdk_stream_chunks(
+        system_prompt="s",
+        history=[],
+        user_message="ファイルを作って",
+        tools_mode="approve",
+        approval_user_id="u1",
+        approval_thread_id="t1",
+    )
+    first = await asyncio.wait_for(gen.__anext__(), timeout=2)
+    assert isinstance(first, dict) and "pc_approval" in first
+    ap = first["pc_approval"]
+    assert ap["tool"] == "Bash" and ap["summary"] == "echo hi"
+    assert pc_approvals.resolve_request(ap["id"], user_id="u1", decision="allow") is True
+    rest = [c async for c in gen]
+    assert {"pc_approval_resolved": {"id": ap["id"], "decision": "allow"}} in rest
+    assert "実行しました" in rest
+    # 許可の実型が SDK の PermissionResultAllow で返っている
+    assert isinstance(captured["perm_result"], _FakeAllow)
+    # streaming 入力 (AsyncIterable) で起動している (can_use_tool の SDK 制約)
+    assert not isinstance(captured["prompt"], str)

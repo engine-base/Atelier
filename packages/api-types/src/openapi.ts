@@ -10500,6 +10500,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat/pc-approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** PC 操作 (approve モード) の承認カードに許可/拒否を返す（GAP-130 / S-E01） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    approval_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PcApprovalDecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description 決定を受理 (SSE 側の can_use_tool が解除され、allow なら実行・deny なら拒否として続行) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PcApprovalDecisionResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 他ユーザーの承認 ID or 期限切れ (存在を漏らさない) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description rate limit 超過 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat/threads/{thread_id}/commands": {
         parameters: {
             query?: never;
@@ -15704,11 +15775,21 @@ export interface components {
             /** @description 事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続) */
             attachments?: components["schemas"]["ChatAttachment"][];
             /**
-             * @description GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)
+             * @description GAP-129/130: PC 操作。off=ツールなし (既定) / approve=実行ごとにユーザー承認 (Claude Code の permission prompt 同等) / auto=確認なしで自動実行 (いずれも agent_sdk モード限定・本人 opt-in)
              * @default off
              * @enum {string}
              */
-            tools_mode: "off" | "auto";
+            tools_mode: "off" | "approve" | "auto";
+        };
+        PcApprovalDecisionRequest: {
+            /**
+             * @description GAP-130: 承認カードへの決定。allow=実行を許可 / deny=拒否 (AI は拒否を踏まえて応答継続)
+             * @enum {string}
+             */
+            decision: "allow" | "deny";
+        };
+        PcApprovalDecisionResponse: {
+            resolved: boolean;
         };
         ChatContextPreviewRequest: {
             user_message: string;

@@ -23,8 +23,11 @@ from src.schemas.chat_sse import (
     ChatContextPreviewRequest,
     ChatContextPreviewResponse,
     ChatStreamRequest,
+    PcApprovalDecisionRequest,
+    PcApprovalDecisionResponse,
 )
 from src.services import chat_sse as svc
+from src.services.chat_sse import pc_approvals
 
 router = APIRouter(tags=["chat-sse"])
 
@@ -82,6 +85,27 @@ async def stream_chat_thread(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post(
+    "/chat/pc-approvals/{approval_id}",
+    dependencies=[Depends(rate_limit_user(60))],  # x-rate-limit: 60/min/user
+    summary="PC 操作 (approve モード) の承認カードに許可/拒否を返す (GAP-130)",
+)
+async def resolve_pc_approval(
+    approval_id: str,
+    body: PcApprovalDecisionRequest,
+    user: UserDep,
+) -> dict[str, PcApprovalDecisionResponse]:
+    """SSE の pc_approval カードで提示した実行を許可/拒否する。
+
+    レジストリはプロセス内 (agent_sdk セルフホスト単一プロセス前提)。
+    未知 ID・他ユーザーの ID・期限切れは 404 (存在を漏らさない)。
+    """
+    ok = pc_approvals.resolve_request(approval_id, user_id=user.id, decision=body.decision)
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "pc approval not found")
+    return {"data": PcApprovalDecisionResponse(resolved=True)}
 
 
 @router.post(

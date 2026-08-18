@@ -516,15 +516,15 @@ async def stream_chat(
 
     use_subscription = subscription_mode_enabled()
     use_relay = relay_mode_enabled()
-    # GAP-129: PC 操作 (auto) は agent_sdk (オーナーの Claude プラン実行) 限定。
-    # 他モードで要求されたら黙って無視せず誠実にエラーで返す (UI は agent_sdk
-    # 以外でトグル自体を出さないので、これは防御層)。
-    if tools_mode == "auto" and not use_subscription:
+    # GAP-129/130: PC 操作 (auto/approve) は agent_sdk (オーナーの Claude プラン
+    # 実行) 限定。他モードで要求されたら黙って無視せず誠実にエラーで返す
+    # (UI は agent_sdk 以外でトグル自体を出さないので、これは防御層)。
+    if tools_mode in ("auto", "approve") and not use_subscription:
         yield _sse_event(
             {
                 "type": "error",
                 "content": (
-                    "PC 操作 (自動実行) は「オーナーの Claude プランで実行」モード"
+                    "PC 操作は「オーナーの Claude プランで実行」モード"
                     "のときだけ使えます。PC 操作をオフにして再送してください。"
                 ),
             }
@@ -602,12 +602,15 @@ async def stream_chat(
 
             # GAP-124: 実行中の RateLimitEvent (プラン枠実測) を収集して記録する
             # GAP-129: tools_mode="auto" で Claude Code 同等の PC 操作を許可
+            # GAP-130: tools_mode="approve" は実行ごとにユーザー承認を待つ
             chunks = agent_sdk_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,
                 user_message=user_message,
                 rate_limits_out=sdk_rate_limits,
                 tools_mode=tools_mode,
+                approval_user_id=actor_id,
+                approval_thread_id=thread_id,
             )
         elif use_real:
             chunks = _real_stream_chunks(
@@ -620,10 +623,20 @@ async def stream_chat(
             chunks = _fake_stream_chunks(user_message)
         async for chunk in chunks:
             if isinstance(chunk, dict):
-                # GAP-129: ツール実行イベント (auto モード) — UI がランタイム
-                # 状態 (「Bash を実行中…」等) を実況するための実値。本文には
-                # 含めない (accumulated に足さない)。
-                yield _sse_event({"type": "tool", "content": str(chunk.get("tool", ""))})
+                # GAP-129/130: ツール実行・承認イベント — UI がランタイム状態
+                # (「Bash を実行中…」/ 承認カード) を実表示するための実値。
+                # 本文には含めない (accumulated に足さない)。
+                if "pc_approval" in chunk:
+                    yield _sse_event({"type": "pc_approval", "metadata": chunk["pc_approval"]})
+                elif "pc_approval_resolved" in chunk:
+                    yield _sse_event(
+                        {
+                            "type": "pc_approval_resolved",
+                            "metadata": chunk["pc_approval_resolved"],
+                        }
+                    )
+                else:
+                    yield _sse_event({"type": "tool", "content": str(chunk.get("tool", ""))})
                 continue
             accumulated.append(chunk)
             yield _sse_event({"type": "delta", "content": chunk})

@@ -1698,9 +1698,24 @@ components:
           description: "事前 upload-url → PUT 済の添付メタ (GAP-001 — user message に永続)"
         tools_mode:
           type: string
-          enum: [off, auto]
+          enum: [off, approve, auto]
           default: off
-          description: "GAP-129: PC 操作。off=ツールなし (既定) / auto=Claude Code 同等ツールを確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)"
+          description: "GAP-129/130: PC 操作。off=ツールなし (既定) / approve=実行ごとにユーザー承認 (Claude Code の permission prompt 同等) / auto=確認なしで自動実行 (いずれも agent_sdk モード限定・本人 opt-in)"
+
+    PcApprovalDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [allow, deny]
+          description: "GAP-130: 承認カードへの決定。allow=実行を許可 / deny=拒否 (AI は拒否を踏まえて応答継続)"
+
+    PcApprovalDecisionResponse:
+      type: object
+      required: [resolved]
+      properties:
+        resolved: { type: boolean }
 
     ChatContextPreviewRequest:
       type: object
@@ -6742,6 +6757,33 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 解決済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/pc-approvals/{approval_id}:
+    post:
+      tags: [chat]
+      summary: PC 操作 (approve モード) の承認カードに許可/拒否を返す（GAP-130 / S-E01）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::resolve_pc_approval
+      x-screen-ids: [S-E01]
+      x-rate-limit: 60/min/user
+      parameters:
+        - { name: approval_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PcApprovalDecisionRequest' }
+      responses:
+        '200':
+          description: 決定を受理 (SSE 側の can_use_tool が解除され、allow なら実行・deny なら拒否として続行)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PcApprovalDecisionResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 他ユーザーの承認 ID or 期限切れ (存在を漏らさない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: rate limit 超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat/threads/{thread_id}/commands:
     post:

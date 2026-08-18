@@ -8,10 +8,22 @@
 
 import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
 
-export type ChatChunkType = "start" | "delta" | "end" | "error" | "context" | "tool";
+export type ChatChunkType =
+  | "start"
+  | "delta"
+  | "end"
+  | "error"
+  | "context"
+  | "tool"
+  | "pc_approval"
+  | "pc_approval_resolved";
 
-/** GAP-129: PC 操作モード。off=ツールなし (既定) / auto=確認なしで自動実行。 */
-export type ChatToolsMode = "off" | "auto";
+/**
+ * GAP-129/130: PC 操作モード。off=ツールなし (既定) /
+ * approve=実行ごとにユーザー承認 (Claude Code の permission prompt 同等) /
+ * auto=確認なしで自動実行。
+ */
+export type ChatToolsMode = "off" | "approve" | "auto";
 
 export interface ChatStreamChunk {
   readonly type: ChatChunkType;
@@ -258,6 +270,31 @@ export async function runChatCommand(
   const json = (await res.json()) as { data?: ChatCommandResult };
   if (!json.data) throw new Error("unexpected command response");
   return json.data;
+}
+
+/**
+ * GAP-130: PC 操作 (approve モード) の承認カードに許可/拒否を返す。
+ * SSE の pc_approval chunk (metadata.id) と対になる。404 = 期限切れ等。
+ */
+export async function resolvePcApproval(
+  approvalId: string,
+  decision: "allow" | "deny",
+  opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
+): Promise<void> {
+  const baseURL = opts.baseURL ?? API_BASE;
+  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const doFetch = opts.fetchImpl ?? globalThis.fetch;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await doFetch(`${baseURL}/chat/pc-approvals/${approvalId}`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ decision }),
+  });
+  if (!res.ok) {
+    throw new Error(`pc approval failed: ${res.status}`);
+  }
 }
 
 /** GAP-001: 添付の署名付きダウンロード URL を解決する。 */

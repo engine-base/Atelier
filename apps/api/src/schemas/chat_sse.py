@@ -28,9 +28,10 @@ class ChatStreamRequest(BaseModel):
     use_knowledge_rag: bool = True
     include_history: int = Field(default=10, ge=0, le=50)
     rag_account_id: str | None = None
-    # GAP-129: PC 操作 (Claude Code 同等ツール)。"off"=従来 (ツールなし)、
-    # "auto"=確認なしで自動実行 (agent_sdk モード限定・本人 opt-in)。
-    tools_mode: Literal["off", "auto"] = "off"
+    # GAP-129/130: PC 操作 (Claude Code 同等ツール)。"off"=従来 (ツールなし)、
+    # "approve"=実行ごとにユーザー承認 (Claude Code の permission prompt 同等)、
+    # "auto"=確認なしで自動実行。いずれも agent_sdk モード限定・本人 opt-in。
+    tools_mode: Literal["off", "approve", "auto"] = "off"
     attachments: list[ChatAttachment] = Field(
         default_factory=lambda: list[ChatAttachment](), max_length=10
     )
@@ -39,9 +40,30 @@ class ChatStreamRequest(BaseModel):
 class ChatStreamChunk(BaseModel):
     """SSE 単一 event payload。"""
 
-    type: Literal["start", "delta", "end", "error", "context"]
+    type: Literal[
+        "start",
+        "delta",
+        "end",
+        "error",
+        "context",
+        "tool",
+        "pc_approval",
+        "pc_approval_resolved",
+    ]
     content: str | None = None
     metadata: dict[str, object] | None = None
+
+
+class PcApprovalDecisionRequest(BaseModel):
+    """GAP-130: PC 操作 (approve モード) の承認カードへの決定。"""
+
+    decision: Literal["allow", "deny"]
+
+
+class PcApprovalDecisionResponse(BaseModel):
+    """決定の受理結果。"""
+
+    resolved: bool
 
 
 class ChatContextPreviewRequest(BaseModel):

@@ -540,3 +540,67 @@ describe("S-E01 /コマンド (GAP-002)", () => {
     expect(streamFn).not.toHaveBeenCalled();
   });
 });
+
+describe("S-E01 PC 操作の承認フロー (GAP-130)", () => {
+  it("pc_approval chunk で承認カードが出て、許可すると decision API が呼ばれカードが消える", async () => {
+    let releaseStream: () => void = () => {};
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({
+        type: "pc_approval",
+        metadata: { id: "ap-9", tool: "Bash", summary: "echo hi" },
+      });
+      // 承認されるまでストリームは進行中のまま (実挙動と同じ)
+      await new Promise<void>((resolve) => {
+        releaseStream = resolve;
+      });
+    });
+    const resolveFn = vi.fn(async () => {});
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+        resolvePcApprovalFn={resolveFn}
+      />,
+    );
+    send("ファイルを作って");
+    expect(
+      await screen.findByRole("region", { name: "PC 操作の承認" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bash を実行してもよいですか？")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "許可して実行" }));
+    expect(resolveFn).toHaveBeenCalledWith("ap-9", "allow");
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "PC 操作の承認" }),
+      ).toBeNull(),
+    );
+    releaseStream();
+  });
+
+  it("pc_approval_resolved chunk (タイムアウト等) でもカードが消える", async () => {
+    const streamFn = vi.fn(async (args: StreamChatArgs) => {
+      args.onChunk({
+        type: "pc_approval",
+        metadata: { id: "ap-9", tool: "Write", summary: "/tmp/x" },
+      });
+      args.onChunk({
+        type: "pc_approval_resolved",
+        metadata: { id: "ap-9", decision: "timeout" },
+      });
+      args.onChunk({ type: "delta", content: "了解" });
+      args.onChunk({ type: "end" });
+    });
+    render(
+      <ChatContainer
+        threadId="t1"
+        streamFn={streamFn}
+        fetchMessagesFn={async () => []}
+        resolvePcApprovalFn={vi.fn(async () => {})}
+      />,
+    );
+    send("ファイルを作って");
+    await waitFor(() => expect(screen.getByText("了解")).toBeInTheDocument());
+    expect(screen.queryByRole("region", { name: "PC 操作の承認" })).toBeNull();
+  });
+});
