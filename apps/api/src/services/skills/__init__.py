@@ -59,6 +59,32 @@ _service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAcces
 )
 
 
+def service_session_factory() -> async_sessionmaker[AsyncSession]:
+    """service_role 相当セッション (GAP-144: content_md は列 revoke のため
+    authenticated role では読めない — 内部読取はこの経路に限定する)。"""
+    return _service_session_factory()
+
+
+async def fetch_skills_md(skill_ids: list[str]) -> list[str]:
+    """装着スキルの本文ブロック (`## スキル: name\\n content_md`) を返す。
+
+    GAP-144: skills.content_md は authenticated から列 revoke 済のため、
+    system prompt への注入用読取はここ (service 経路) に一本化する。
+    ユーザー応答に content_md を直接返す用途で使ってはならない。
+    """
+    if not skill_ids:
+        return []
+    async with _service_session_factory()() as session:
+        res = await session.execute(
+            text(
+                "select name, content_md from public.skills "
+                "where id = any(cast(:ids as uuid[])) and is_active = true"
+            ),
+            {"ids": skill_ids},
+        )
+        return [f"## スキル: {r.name}\n{r.content_md!s}" for r in res.all()]
+
+
 def _to_response(row: Any) -> AdminSkillResponse:
     raw_roles: list[object] = list(row.allowed_employee_roles) if row.allowed_employee_roles else []
     raw_ids: list[object] = list(row.allowed_employee_ids) if row.allowed_employee_ids else []

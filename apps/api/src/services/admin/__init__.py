@@ -122,9 +122,15 @@ def tpl_to_response(row: Any) -> AdminTemplateResponse:
 
 
 async def list_skills_admin(
-    session: AsyncSession, *, include_inactive: bool = True, name: str | None = None
+    *, include_inactive: bool = True, name: str | None = None
 ) -> list[AdminSkillResponse]:
-    """admin 横断: 全 skills 一覧。RLS skills_select_all。"""
+    """admin 横断: 全 skills 一覧。
+
+    GAP-144: content_md は authenticated から列 revoke 済のため service 経路で読む
+    (呼び出し元 route で is_admin gate 済が前提)。
+    """
+    from src.services.skills import service_session_factory
+
     where: list[str] = ["1=1"]
     params: dict[str, object] = {}
     if not include_inactive:
@@ -132,22 +138,27 @@ async def list_skills_admin(
     if name is not None:
         where.append("name = :n")
         params["n"] = name
-    res = await session.execute(
-        text(
-            f"select {_SKILL_COLS} from public.skills "
-            f"where {' and '.join(where)} order by name, version desc"
-        ),
-        params,
-    )
-    return [_skill_to_response(r) for r in res.all()]
+    async with service_session_factory()() as session:
+        res = await session.execute(
+            text(
+                f"select {_SKILL_COLS} from public.skills "
+                f"where {' and '.join(where)} order by name, version desc"
+            ),
+            params,
+        )
+        return [_skill_to_response(r) for r in res.all()]
 
 
-async def get_skill_admin(session: AsyncSession, skill_id: str) -> AdminSkillResponse | None:
-    res = await session.execute(
-        text(f"select {_SKILL_COLS} from public.skills where id = cast(:id as uuid)"),
-        {"id": skill_id},
-    )
-    row = res.first()
+async def get_skill_admin(skill_id: str) -> AdminSkillResponse | None:
+    """GAP-144: content_md 読取のため service 経路 (route で is_admin gate 済)。"""
+    from src.services.skills import service_session_factory
+
+    async with service_session_factory()() as session:
+        res = await session.execute(
+            text(f"select {_SKILL_COLS} from public.skills where id = cast(:id as uuid)"),
+            {"id": skill_id},
+        )
+        row = res.first()
     return None if row is None else _skill_to_response(row)
 
 

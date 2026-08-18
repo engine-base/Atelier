@@ -127,17 +127,10 @@ async def _load_persona_and_skills(
         persona_lines.append(str(row.system_prompt_override))
     raw_skills: list[object] = list(row.attached_skills) if row.attached_skills is not None else []
     skill_ids: list[str] = [str(s) for s in raw_skills]
-    skills_md: list[str] = []
-    if skill_ids:
-        sres = await session.execute(
-            text(
-                "select name, content_md from public.skills "
-                "where id = any(cast(:ids as uuid[])) and is_active = true"
-            ),
-            {"ids": skill_ids},
-        )
-        for s in sres.all():
-            skills_md.append(f"## スキル: {s.name}\n{s.content_md!s}")
+    # GAP-144: content_md は authenticated から列 revoke 済 — service 経路で読む
+    from src.services.skills import fetch_skills_md
+
+    skills_md = await fetch_skills_md(skill_ids)
     return "\n".join(persona_lines), skills_md
 
 
@@ -656,10 +649,10 @@ async def stream_chat(
 
             # GAP-137: サーバー内実行の成果物反映 — 実行前スナップショット
             if tools_mode in ("approve", "auto"):
-                from .pc_artifacts import snapshot_html_files
+                from .pc_artifacts import snapshot_artifact_files
 
                 sdk_workspace = chat_workspace_dir()
-                sdk_ws_before = snapshot_html_files(sdk_workspace)
+                sdk_ws_before = snapshot_artifact_files(sdk_workspace)
 
             # GAP-124: 実行中の RateLimitEvent (プラン枠実測) を収集して記録する
             # GAP-129: tools_mode="auto" で Claude Code 同等の PC 操作を許可
@@ -709,9 +702,9 @@ async def stream_chat(
         # 失敗してもチャット応答は壊さない (best-effort、ただし黙って捨てず log)。
         if use_subscription and tools_mode in ("approve", "auto"):
             try:
-                from .pc_artifacts import collect_new_html, ingest_for_thread
+                from .pc_artifacts import collect_new_artifacts, ingest_for_thread
 
-                new_files = collect_new_html(sdk_workspace, sdk_ws_before)
+                new_files = collect_new_artifacts(sdk_workspace, sdk_ws_before)
                 for ingested in await ingest_for_thread(
                     thread_id=thread_id, files=new_files, instruction=user_message
                 ):

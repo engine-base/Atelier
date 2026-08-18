@@ -520,3 +520,51 @@ def test_reimport_non_admin_403_and_missing_dir_409(
         monkeypatch.setenv("ATELIER_SKILLS_DIR", str(tmp_path / "nonexistent"))
         r = cl.post("/admin/skills/reimport", headers=_h(seeded["admin"], admin=True))
         assert r.status_code == 409
+
+
+def test_gap144_content_md_hidden_from_authenticated_role(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-144: スキル本文は DB 直叩き (authenticated role) でも読めない。
+
+    - authenticated: content_md 列 select → permission denied / 軽量列は select 可
+    - API: admin 詳細は content_md を返し続ける / 会員カタログは返さない
+    - 注入経路 (fetch_skills_md, service 経路) は引き続き本文を読める
+    """
+    with TestClient(app) as cl:
+        created = cl.post(
+            "/admin/skills", json=_create_body(), headers=_h(seeded["admin"], admin=True)
+        ).json()["data"]
+        sid = created["id"]
+        try:
+            # DB 直叩き相当: PostgREST が使う authenticated role では本文列は拒否
+            with sync_engine.connect() as c:
+                c.execute(text("set role authenticated"))
+                with pytest.raises(sqlalchemy.exc.ProgrammingError):
+                    c.execute(text("select content_md from public.skills limit 1"))
+            with sync_engine.connect() as c:
+                c.execute(text("set role authenticated"))
+                rows = c.execute(
+                    text(
+                        "select id, name, version, description, is_active "
+                        "from public.skills where id = cast(:i as uuid)"
+                    ),
+                    {"i": sid},
+                ).all()
+                assert len(rows) == 1  # カタログ用の軽量列は読める
+
+            # API 層: admin は本文を見られる / 会員カタログには本文が無い
+            detail = cl.get(f"/admin/skills/{sid}", headers=_h(seeded["admin"], admin=True))
+            assert detail.status_code == 200
+            assert "提案スキル" in detail.json()["data"]["content_md"]
+            catalog = cl.get("/skills", headers=_h(seeded["member"])).json()["data"]
+            mine = [s for s in catalog if s["id"] == sid]
+            assert len(mine) == 1 and "content_md" not in mine[0]
+
+            # 注入経路 (service): 本文ブロックを読めることが継続している
+            from src.services.skills import fetch_skills_md
+
+            blocks = asyncio.run(fetch_skills_md([sid]))
+            assert len(blocks) == 1 and "提案スキル" in blocks[0]
+        finally:
+            cl.delete(f"/admin/skills/{sid}", headers=_h(seeded["admin"], admin=True))

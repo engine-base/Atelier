@@ -82,25 +82,21 @@ async def list_audit_logs(
 # --------------------------------------------------------------------------- #
 @router.get("/admin/skills", summary="運営 admin: スキル一覧（全件 / read-only）")
 async def list_skills(
-    session: SessionDep,
     user: UserDep,
     include_inactive: Annotated[bool, Query()] = True,
     name: Annotated[str | None, Query()] = None,
 ) -> dict[str, list[AdminSkillResponse]]:
+    # GAP-144: content_md は列 revoke 済 — is_admin gate 後に service 経路で読む
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
-    return {
-        "data": await svc.list_skills_admin(session, include_inactive=include_inactive, name=name)
-    }
+    return {"data": await svc.list_skills_admin(include_inactive=include_inactive, name=name)}
 
 
 @router.get("/admin/skills/{skill_id}", summary="運営 admin: スキル詳細")
-async def get_skill(
-    skill_id: str, session: SessionDep, user: UserDep
-) -> dict[str, AdminSkillResponse]:
+async def get_skill(skill_id: str, user: UserDep) -> dict[str, AdminSkillResponse]:
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
-    item = await svc.get_skill_admin(session, skill_id)
+    item = await svc.get_skill_admin(skill_id)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "skill not found")
     return {"data": item}

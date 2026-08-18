@@ -1,0 +1,9 @@
+SET
+ERROR:  permission denied for table skills
+---
+SET
+ light_columns_ok 
+------------------
+                0
+(1 row)
+
