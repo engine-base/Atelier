@@ -4359,6 +4359,58 @@ paths:
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /projects/{project_id}/design-note:
+    parameters:
+      - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [mocks]
+      summary: デザインノート取得（GAP-143 — Open Design の DESIGN.md 相当）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::get_project_design_note
+      x-screen-ids: [S-H01]
+      responses:
+        '200':
+          description: プロジェクトのデザインノート (ワンダの全生成・改訂に自動注入)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [note]
+                    properties:
+                      note: { type: string, maxLength: 2000 }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在/不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    put:
+      tags: [mocks]
+      summary: デザインノート保存（GAP-143）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::put_project_design_note
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [note]
+              properties:
+                note: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: 保存後のノート
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      note: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在/不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /mocks/generate:
     post:
       tags: [mocks]

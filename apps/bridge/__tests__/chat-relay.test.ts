@@ -249,6 +249,23 @@ describe('sanitizedChildEnv', () => {
     expect(env.CLAUDE_CODE_API_KEY).toBeUndefined();
     expect(env.PATH).toBe('/usr/bin');
   });
+
+  it('GAP-143: CLAUDE_* / CLAUDECODE 系を除去する (親セッションの取り合い防止)', () => {
+    const env = sanitizedChildEnv({
+      CLAUDECODE: '1',
+      CLAUDE_CODE_SESSION_ID: 'sess-1',
+      CLAUDE_CODE_ENTRYPOINT: 'cli',
+      CLAUDE_PID: '123',
+      PATH: '/usr/bin',
+      IS_SANDBOX: '1',
+    });
+    expect(env.CLAUDECODE).toBeUndefined();
+    expect(env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
+    expect(env.CLAUDE_CODE_ENTRYPOINT).toBeUndefined();
+    expect(env.CLAUDE_PID).toBeUndefined();
+    expect(env.PATH).toBe('/usr/bin');
+    expect(env.IS_SANDBOX).toBe('1');
+  });
 });
 
 describe('buildChatArgs / chatRelayEnabled', () => {
@@ -258,6 +275,8 @@ describe('buildChatArgs / chatRelayEnabled', () => {
     expect(args[args.indexOf('--append-system-prompt') + 1]).toBe('SYS');
     expect(args).toContain('--include-partial-messages');
     expect(args).toContain('--max-turns');
+    // GAP-143: off はツール完全無効 (気まぐれ tool_use での間欠 exit 1 防止)
+    expect(args[args.indexOf('--tools') + 1]).toBe('');
   });
   it("既定 ON、'0' で明示 OFF", () => {
     expect(chatRelayEnabled({})).toBe(true);

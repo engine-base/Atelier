@@ -169,9 +169,15 @@ async def revise_mock(
         # API → fake)。ANTHROPIC_API_KEY 直依存をやめる。
         from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
 
+        # GAP-143: デザインノート + ワンダのペルソナ/装着スキルを全改訂に注入
+        from .design_note import build_design_context
+
+        design_ctx = await build_design_context(session, project_id=current.project_id)
+        system_prompt = f"{design_ctx}\n\n{_SYSTEM}" if design_ctx else _SYSTEM
+
         try:
             out, provider = await llm_complete(
-                system_prompt=_SYSTEM,
+                system_prompt=system_prompt,
                 user_text=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
                 actor_id=actor_id,
                 max_tokens=16384,
@@ -197,6 +203,12 @@ async def revise_mock(
         new_path = f"mocks/{current.project_id}/{uuid.uuid4()}/{current.screen_name}-rev.html"
         await _upload_html(new_path, revised)
 
+    # GAP-143: 修正指示から恒久的なデザイン決定をノートへ自動追記 (非同期)
+    from .design_note import schedule_design_note_learning
+
+    schedule_design_note_learning(
+        project_id=current.project_id, instruction=instruction, actor_id=actor_id
+    )
     return await create_version(
         session,
         actor_id=actor_id,

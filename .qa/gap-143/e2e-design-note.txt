@@ -1,0 +1,21 @@
+PUT_NOTE: 200
+GENERATE: 201
+PROVIDER: relay
+USES_NAVY(#1e3a5f): True USES_ACCENT(#f59e0b): True
+REVISE: 502
+NOTE_AFTER:
+- メインカラーは必ず紺 #1e3a5f を使う
+- アクセントカラーは #f59e0b
+- 角丸は 12px 基調
+LEARNED_FONT_RULE: False
+KEEPS_NAVY_RULE: True
+REVISE_RETRY: 502 {"detail":"ローカル実行が失敗しました: claude 実行失敗 (exit=1)"}
+REVISE_AFTER_FIX: 502 {"detail":"ローカル実行が失敗しました: claude 実行失敗 (exit=1)"}
+REVISE_TRY0: 201 
+V2: 2 PROVIDER: relay
+V2_USES_SERIF: True V2_KEEPS_NAVY: True
+NOTE_AFTER:
+- メインカラーは必ず紺 #1e3a5f を使う
+- アクセントカラーは #f59e0b
+- 角丸は 12px 基調
+LEARNED_FONT_RULE: False KEEPS_NAVY_RULE: True

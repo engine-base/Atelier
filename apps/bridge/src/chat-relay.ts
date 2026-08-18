@@ -48,14 +48,24 @@ export function chatWorkspaceDir(env: Readonly<Record<string, string | undefined
   return configured !== '' ? configured : join(homedir(), 'AtelierChatWork');
 }
 
-/** 子プロセスへ渡す env (API キー系 3 変数を除去 — サブスク課金を保証)。 */
+/** 子プロセスへ渡す env。
+
+ * - API キー系 3 変数を除去 — サブスク課金を保証 (GAP-114)
+ * - CLAUDE_* / CLAUDECODE 系を除去 (GAP-143 で実測した実バグ):
+ *   Bridge 自体が Claude Code セッション内で動いている場合 (開発コンテナ等)、
+ *   CLAUDE_CODE_SESSION_ID などが子 CLI に漏れて親セッションと同一セッションを
+ *   取り合い、間欠的に exit 1 で死ぬ。実ユーザー PC には存在しない変数なので
+ *   落として常にクリーンなセッションで実行する。
+ */
 export function sanitizedChildEnv(
   env: Readonly<Record<string, string | undefined>>,
 ): Record<string, string> {
   const drop = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_API_KEY']);
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) {
-    if (v !== undefined && !drop.has(k)) out[k] = v;
+    if (v === undefined || drop.has(k)) continue;
+    if (k === 'CLAUDECODE' || k.startsWith('CLAUDE_')) continue;
+    out[k] = v;
   }
   return out;
 }
@@ -103,7 +113,11 @@ export function buildChatArgs(systemPrompt: string, toolsMode: ChatToolsMode = '
       'stream-json',
     ];
   }
-  return [...base, '--max-turns', '1'];
+  // off = 純テキスト応答。GAP-143 で実測した実バグ対策として **ツールを完全
+  // 無効化**する: 既定ではツールが有効なため、長い HTML を含むプロンプト等で
+  // モデルが気まぐれに Read/Write を試み、--max-turns 1 と衝突して
+  // stop_reason: tool_use → exit 1 で間欠的に死ぬ (サンプリング依存)。
+  return [...base, '--max-turns', '1', '--tools', ''];
 }
 
 /** GAP-134: 承認カードに出すツール入力の 1 行要約 (サーバー側と同一ロジック)。 */

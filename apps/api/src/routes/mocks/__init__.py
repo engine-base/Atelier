@@ -13,11 +13,13 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy import text
+from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.mocks import (
+    DesignNoteUpdate,
     MockCreate,
     MockGenerateRequest,
     MockResponse,
@@ -101,9 +103,7 @@ async def get_mock_content_url(
     if mock is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     if mock.html_storage_path.startswith(MOCKDB_PREFIX):
-        return {
-            "data": ContentUrlResponse(url=build_content_url(str(request.base_url), mock_id))
-        }
+        return {"data": ContentUrlResponse(url=build_content_url(str(request.base_url), mock_id))}
     try:
         url = await create_signed_download_url(mock.html_storage_path)
     except StorageSigningError as exc:
@@ -205,6 +205,45 @@ async def create_version(
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
     return {"data": created}
+
+
+@router.get(
+    "/projects/{project_id}/design-note",
+    summary="デザインノート取得 (GAP-143 — Open Design の DESIGN.md 相当)",
+)
+async def get_project_design_note(
+    project_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, dict[str, str]]:
+    """プロジェクトのデザインノート。ワンダの全生成・改訂に自動注入される。"""
+    from src.services.mocks import design_note as note_svc
+
+    visible = (
+        await session.execute(
+            sql_text("select 1 from public.projects where id = cast(:p as uuid)"),
+            {"p": project_id},
+        )
+    ).first()
+    if visible is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    note = await note_svc.get_design_note(session, project_id=project_id)
+    return {"data": {"note": note}}
+
+
+@router.put(
+    "/projects/{project_id}/design-note",
+    summary="デザインノート保存 (GAP-143)",
+)
+async def put_project_design_note(
+    project_id: str, body: DesignNoteUpdate, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    from src.services.mocks import design_note as note_svc
+
+    ok = await note_svc.set_design_note(
+        session, actor_id=user.id, project_id=project_id, note=body.note
+    )
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    return {"data": {"note": body.note[: note_svc.DESIGN_NOTE_MAX_CHARS]}}
 
 
 @router.post(

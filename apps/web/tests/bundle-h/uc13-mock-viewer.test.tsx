@@ -621,3 +621,25 @@ describe("S-H01 モックスタジオ (GAP-142 — Open Design 型)", () => {
     expect(log).toHaveTextContent("v2 を作成しました");
   });
 });
+
+describe("S-H01 デザインノート (GAP-143)", () => {
+  it("開く → GET で読込 → 編集して PUT 保存", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/projects/{project_id}/design-note")
+        return { data: { note: "- 紺がメイン" } };
+      return { data: [] };
+    });
+    const put = vi.fn(async (_p: string, opts: unknown) => {
+      expect((opts as { body: { note: string } }).body.note).toContain("角丸");
+      return { data: { note: "x" } };
+    });
+    const client = { ...fakeClient(get), put } as unknown as ApiClient;
+    renderWithQuery(<MockListContainer client={client} />);
+    fireEvent.click(await screen.findByRole("button", { name: "デザインノート" }));
+    const ta = await screen.findByLabelText("デザインノート本文");
+    await waitFor(() => expect(ta).toHaveValue("- 紺がメイン"));
+    fireEvent.change(ta, { target: { value: "- 紺がメイン\n- 角丸は 12px" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(put).toHaveBeenCalled());
+  });
+});

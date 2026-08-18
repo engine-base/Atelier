@@ -277,9 +277,7 @@ def test_revise_on_mockdb_mock_stays_in_mockdb(app: FastAPI, seeded: dict[str, s
 
 
 @pytest.mark.integration
-def test_content_sel_param_injects_selection_script(
-    app: FastAPI, seeded: dict[str, str]
-) -> None:
+def test_content_sel_param_injects_selection_script(app: FastAPI, seeded: dict[str, str]) -> None:
     """GAP-142: sel=1 のときだけ要素選択スクリプトが注入される。"""
     h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
     with TestClient(app) as client:
@@ -301,3 +299,96 @@ def test_content_sel_param_injects_selection_script(
         assert injected.status_code == 200
         assert "data-atelier-select" in injected.text
         assert "atelier-element-selected" in injected.text
+
+
+@pytest.mark.integration
+def test_design_note_roundtrip_and_injection(
+    app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GAP-143: ノート保存 → 生成 system prompt に自動注入される。"""
+    h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
+    with TestClient(app) as client:
+        # 初期は空
+        r = client.get(f"/projects/{seeded['proj']}/design-note", headers=h)
+        assert r.status_code == 200
+        assert r.json()["data"]["note"] == ""
+        # 保存
+        r2 = client.put(
+            f"/projects/{seeded['proj']}/design-note",
+            json={"note": "- メインカラーは紺 #1e3a5f\n- 角丸は大きめ"},
+            headers=h,
+        )
+        assert r2.status_code == 200
+        assert (
+            "紺"
+            in client.get(f"/projects/{seeded['proj']}/design-note", headers=h).json()["data"][
+                "note"
+            ]
+        )
+
+        # 生成時に system prompt へ注入されることを llm_complete 差し替えで実測
+        captured: dict[str, str] = {}
+
+        async def _fake_complete(**kwargs: object) -> tuple[str, str]:
+            captured["system"] = str(kwargs["system_prompt"])
+            return "<!doctype html><html><title>注入検証</title></html>", "fake"
+
+        from src.services.chat_sse import llm_chain
+
+        monkeypatch.setattr(llm_chain, "llm_complete", _fake_complete)
+        r3 = client.post(
+            "/mocks/generate",
+            json={
+                "project_id": seeded["proj"],
+                "screen_name": "注入検証",
+                "instruction": "画面を作って",
+            },
+            headers=h,
+        )
+        assert r3.status_code == 201, r3.text
+        assert "デザインノート (必ず従うこと)" in captured["system"]
+        assert "#1e3a5f" in captured["system"]
+
+        # 不可視 project は 404 (存在秘匿)
+        import uuid as _uuid
+
+        r4 = client.get(f"/projects/{_uuid.uuid4()}/design-note", headers=h)
+        assert r4.status_code == 404
+
+
+@pytest.mark.integration
+def test_design_note_learning_appends_and_skips_no_change(
+    app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GAP-143: 指示からの自動追記 (fake 経路) と「変化なしは保存しない」。"""
+    import asyncio as _asyncio
+
+    from src.services.mocks import design_note as note_svc
+
+    # fake 経路: 既存ノート + 指示の要約が追記される
+    assert _asyncio.run(
+        note_svc.apply_design_note_learning(
+            project_id=seeded["proj"],
+            instruction="ボタンは全て角丸 12px にして",
+            actor_id=seeded["u"],
+        )
+    )
+    h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}
+    with TestClient(app) as client:
+        note = client.get(f"/projects/{seeded['proj']}/design-note", headers=h).json()["data"][
+            "note"
+        ]
+        assert "角丸 12px" in note
+
+    # LLM が既存ノートと同一を返した場合は保存しない (False)
+    async def _no_change(**kwargs: object) -> tuple[str, str]:
+        return note, "fake"
+
+    from src.services.chat_sse import llm_chain
+
+    monkeypatch.setattr(llm_chain, "llm_complete", _no_change)
+    assert not _asyncio.run(
+        note_svc.apply_design_note_learning(
+            project_id=seeded["proj"], instruction="誤字直して", actor_id=seeded["u"]
+        )
+    )

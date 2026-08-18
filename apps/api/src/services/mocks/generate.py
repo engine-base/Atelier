@@ -58,13 +58,19 @@ async def generate_mock(
 
     from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
 
+    from .design_note import build_design_context
+
+    # GAP-143: デザインノート + ワンダのペルソナ/装着スキルを全生成に注入
+    design_ctx = await build_design_context(session, project_id=project_id)
+    system_prompt = f"{design_ctx}\n\n{_GEN_SYSTEM}" if design_ctx else _GEN_SYSTEM
+
     name_hint = (screen_name or "").strip()
     prompt = (
         f"画面名: {name_hint}\n" if name_hint else ""
     ) + f"モック作成指示:\n{instruction[:_MAX_INSTRUCTION_CHARS]}"
     try:
         out, provider = await llm_complete(
-            system_prompt=_GEN_SYSTEM,
+            system_prompt=system_prompt,
             user_text=prompt,
             actor_id=actor_id,
             max_tokens=16384,
@@ -137,4 +143,8 @@ async def generate_mock(
             after={"screen_name": final_name, "version": version, "provider": provider},
         )
     )
+    # GAP-143: 指示から恒久的なデザイン決定をノートへ自動追記 (応答は待たせない)
+    from .design_note import schedule_design_note_learning
+
+    schedule_design_note_learning(project_id=project_id, instruction=instruction, actor_id=actor_id)
     return await get_mock(session, new_id)

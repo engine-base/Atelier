@@ -29,6 +29,12 @@ class MockReviseRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=4000)
 
 
+class DesignNoteUpdate(BaseModel):
+    """GAP-143: プロジェクトのデザインノート (DESIGN.md 相当)。"""
+
+    note: str = Field(max_length=2000)
+
+
 class MockGenerateRequest(BaseModel):
     """GAP-138: S-H01「新規モック」— ワンダによる新規生成。
 

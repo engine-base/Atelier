@@ -54,6 +54,36 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
   const [createOpen, setCreateOpen] = useState(false);
   const [screenName, setScreenName] = useState("");
   const [instruction, setInstruction] = useState("");
+  // GAP-143: デザインノート (DESIGN.md 相当) — ワンダの全生成・改訂に自動注入
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
+
+  const designNote = useQuery({
+    queryKey: ["design-note", projectId],
+    enabled: Boolean(projectId) && noteOpen,
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}/design-note", {
+        params: { path: { project_id: projectId ?? "" } },
+      });
+      return (res as { data?: { note?: string } }).data?.note ?? "";
+    },
+    retry: false,
+  });
+  const saveNote = useMutation({
+    retry: false,
+    mutationFn: async (note: string) => {
+      await client.put("/projects/{project_id}/design-note", {
+        params: { path: { project_id: projectId ?? "" } },
+        body: { note },
+      });
+      return note;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["design-note", projectId] });
+      setNoteOpen(false);
+      setNoteDraft(null);
+    },
+  });
 
   const generate = useMutation({
     // Bridge オフライン (503) は自動再試行しても直らない — 即時に誠実表示する
@@ -149,6 +179,14 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
         </div>
         <button
           type="button"
+          onClick={() => setNoteOpen((v) => !v)}
+          aria-expanded={noteOpen}
+          className="rounded-md border border-border px-3 py-1.5 text-body-sm font-semibold text-on-surface hover:border-primary hover:text-primary"
+        >
+          デザインノート
+        </button>
+        <button
+          type="button"
           onClick={() => setCreateOpen((v) => !v)}
           aria-expanded={createOpen}
           className="rounded-md bg-primary px-3 py-1.5 text-body-sm font-semibold text-on-primary hover:opacity-90"
@@ -156,6 +194,58 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
           新規モック
         </button>
       </div>
+
+      {/* GAP-143: デザインノート (Open Design の DESIGN.md 相当) */}
+      {noteOpen ? (
+        <form
+          aria-label="デザインノート"
+          className="mb-md rounded-lg border border-border bg-surface p-md"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!saveNote.isPending)
+              saveNote.mutate(noteDraft ?? designNote.data ?? "");
+          }}
+        >
+          <p className="mb-1 text-body-sm font-semibold text-on-surface">
+            このプロジェクトのデザインノート
+          </p>
+          <p className="mb-2 text-[11.5px] text-on-surface-variant">
+            ワンダの全生成・改訂に自動で反映されます。修正指示から学んだ決定
+            (色・フォント・トーン等) も自動で追記されていきます。
+          </p>
+          <textarea
+            value={noteDraft ?? designNote.data ?? ""}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            rows={6}
+            maxLength={2000}
+            disabled={designNote.isLoading}
+            placeholder={
+              "例:\n- メインカラー #1e3a5f / アクセント #f59e0b\n- フォントは Noto Sans JP、余白ゆったり\n- トーンは信頼感のある B2B"
+            }
+            aria-label="デザインノート本文"
+            className="w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-[12.5px] text-on-surface"
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="submit"
+              disabled={saveNote.isPending || designNote.isLoading}
+              className="rounded-md bg-primary px-4 py-1.5 text-body-sm font-semibold text-on-primary hover:opacity-90 disabled:opacity-50"
+            >
+              {saveNote.isPending ? "保存中…" : "保存"}
+            </button>
+            {designNote.error ? (
+              <span role="alert" className="text-body-sm text-error">
+                ノートの取得に失敗しました。
+              </span>
+            ) : null}
+            {saveNote.error ? (
+              <span role="alert" className="text-body-sm text-error">
+                保存に失敗しました。
+              </span>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
 
       {/* GAP-138: 新規モック = ワンダ (AI デザイナー) による生成 (Open Design パターン) */}
       {createOpen ? (
