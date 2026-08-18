@@ -551,20 +551,20 @@ export class ChatRelayWorker {
     resultDetail: string;
   }> {
     return new Promise((resolve) => {
-      // GAP-134: PC 操作は本人 PC の作業フォルダをカレントにして実行する
-      const spawnOpts: { stdio: ['pipe', 'pipe', 'pipe']; env: Record<string, string>; cwd?: string } =
+      // GAP-134/138: 常に本人 PC の作業フォルダをカレントにして実行する。
+      // off モードでも cwd を固定しないと、Bridge の起動場所がたまたま
+      // 開発リポジトリ等だった場合にそこの .claude (hooks / CLAUDE.md) を
+      // 拾ってチャット応答が汚染・失敗する (e2e で実測した実バグ)。
+      const spawnOpts: { stdio: ['pipe', 'pipe', 'pipe']; env: Record<string, string>; cwd: string } =
         {
           stdio: ['pipe', 'pipe', 'pipe'],
           env: sanitizedChildEnv(this.config.env),
+          cwd: chatWorkspaceDir(this.config.env),
         };
-      if (toolsMode !== 'off') {
-        const workspace = chatWorkspaceDir(this.config.env);
-        try {
-          mkdirSync(workspace, { recursive: true });
-        } catch {
-          /* 既存 or 権限 — CLI 側のエラーに任せる */
-        }
-        spawnOpts.cwd = workspace;
+      try {
+        mkdirSync(spawnOpts.cwd, { recursive: true });
+      } catch {
+        /* 既存 or 権限 — CLI 側のエラーに任せる */
       }
       const child = spawn(
         this.config.command,

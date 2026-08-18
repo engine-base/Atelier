@@ -476,7 +476,96 @@ describe("S-H01 MockListContainer (一覧ピッカー)", () => {
     const get = vi.fn(async () => ({ data: [] }));
     renderWithQuery(<MockListContainer client={fakeClient(get)} />);
     expect(
-      await screen.findByText("このプロジェクトにモックはまだありません。"),
+      await screen.findByText(/このプロジェクトにモックはまだありません/),
     ).toBeInTheDocument();
+  });
+
+  it("GAP-138: 新規モック = 指示を送ると POST /mocks/generate → 生成結果へ遷移", async () => {
+    const get = vi.fn(async () => ({ data: [] }));
+    const post = vi.fn(async (path: string, opts: unknown) => {
+      expect(path).toBe("/mocks/generate");
+      expect((opts as { body: { instruction: string } }).body.instruction).toBe(
+        "LP を作って",
+      );
+      return { data: { id: "new-1", screen_name: "LP", version: 1 } };
+    });
+    const client = { ...fakeClient(get), post } as unknown as ApiClient;
+    renderWithQuery(<MockListContainer client={client} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "新規モック" }),
+    );
+    const form = screen.getByRole("form", { name: "新規モック作成" });
+    expect(form).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/ワンダへの作成指示/), {
+      target: { value: "LP を作って" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成する" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/mocks?mock=new-1"));
+  });
+
+  it("GAP-138: 生成 503 (Bridge オフライン) は誠実メッセージ", async () => {
+    const get = vi.fn(async () => ({ data: [] }));
+    const post = vi.fn(async () => {
+      throw apiError(503);
+    });
+    const client = { ...fakeClient(get), post } as unknown as ApiClient;
+    renderWithQuery(<MockListContainer client={client} />);
+    fireEvent.click(await screen.findByRole("button", { name: "新規モック" }));
+    fireEvent.change(screen.getByLabelText(/ワンダへの作成指示/), {
+      target: { value: "x" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成する" }));
+    expect(
+      await screen.findByText(/Bridge がオフラインの可能性/),
+    ).toBeInTheDocument();
+  });
+
+  it("GAP-138: キャンバス表示 = 各画面の実 content-url を縮小 iframe で描画", async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path === "/mocks") {
+        return {
+          data: [
+            { id: "m1", screen_name: "LP", version: 3 },
+            { id: "m9", screen_name: "設定", version: 1 },
+          ],
+        };
+      }
+      expect(path).toBe("/mocks/{mock_id}/content-url");
+      return { data: { url: "http://api/mocks/x/content?exp=1&sig=abc" } };
+    });
+    renderWithQuery(<MockListContainer client={fakeClient(get)} />);
+    fireEvent.click(await screen.findByRole("button", { name: "キャンバス" }));
+    expect(
+      await screen.findByRole("region", { name: "モックキャンバス" }),
+    ).toBeInTheDocument();
+    const frame = await screen.findByTitle("LP v3");
+    expect(frame).toHaveAttribute("src", "http://api/mocks/x/content?exp=1&sig=abc");
+    expect(screen.getByTitle("設定 v1")).toBeInTheDocument();
+    expect(screen.getByLabelText("ズーム")).toBeInTheDocument();
+  });
+
+  it("GAP-138: キャンバスの「編集」からワンダに修正依頼できる", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/mocks"
+        ? { data: [{ id: "m1", screen_name: "LP", version: 1 }] }
+        : { data: { url: "http://api/c" } },
+    );
+    const post = vi.fn(async (path: string, opts: unknown) => {
+      expect(path).toBe("/mocks/{mock_id}/revise");
+      expect(
+        (opts as { body: { instruction: string } }).body.instruction,
+      ).toBe("見出しを大きく");
+      return { data: { id: "m2" } };
+    });
+    const client = { ...fakeClient(get), post } as unknown as ApiClient;
+    renderWithQuery(<MockListContainer client={client} />);
+    fireEvent.click(await screen.findByRole("button", { name: "キャンバス" }));
+    fireEvent.click(await screen.findByRole("button", { name: "編集" }));
+    fireEvent.change(screen.getByLabelText("LP への修正指示"), {
+      target: { value: "見出しを大きく" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "修正を依頼" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
   });
 });

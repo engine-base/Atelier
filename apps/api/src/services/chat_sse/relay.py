@@ -88,7 +88,7 @@ async def relay_stream_chunks(
     system_prompt: str,
     history: list[tuple[str, str]],
     user_message: str,
-    thread_id: str,
+    thread_id: str | None,
     actor_id: str,
     tools_mode: str = "off",
 ) -> AsyncIterator[str | dict[str, object]]:

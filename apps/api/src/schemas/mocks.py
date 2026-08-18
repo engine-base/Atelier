@@ -29,6 +29,17 @@ class MockReviseRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=4000)
 
 
+class MockGenerateRequest(BaseModel):
+    """GAP-138: S-H01「新規モック」— ワンダによる新規生成。
+
+    screen_name 省略時は生成 HTML の <title> から導出する。
+    """
+
+    project_id: str
+    instruction: str = Field(min_length=1, max_length=4000)
+    screen_name: str | None = Field(default=None, max_length=80)
+
+
 class MockVersionCreate(BaseModel):
     """既存モックの新バージョン (parent_mock_id で連結、version+1)。"""
 

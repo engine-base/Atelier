@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ダッシュボード | TaskFlow</title>
+<style>
+  :root {
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-border: #e3e5e9;
+    --color-text-primary: #1a1d24;
+    --color-text-secondary: #6b7280;
+    --color-text-muted: #9ca3af;
+    --color-accent: #4f6df5;
+    --color-accent-soft: #eef1fe;
+    --color-success: #16a34a;
+    --color-success-soft: #eafaf0;
+    --color-warning: #d97706;
+    --color-warning-soft: #fef6e7;
+    --color-danger: #dc2626;
+    --color-danger-soft: #fdecec;
+    --color-info: #0284c7;
+    --color-info-soft: #e8f6fd;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+    --shadow-md: 0 2px 8px rgba(16, 24, 40, 0.06);
+    --sidebar-w: 220px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------- Layout ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #4f6df5, #7c8cf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.2px;
+  }
+
+  .nav-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    margin-top: 8px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .nav-item:hover {
+    background: var(--color-bg);
+  }
+
+  .nav-item.active {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    font-weight: 700;
+  }
+
+  .nav-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav-icon svg { width: 100%; height: 100%; }
+
+  .sidebar-footer {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #dbe1fd;
+    color: var(--color-accent);
+    font-weight: 700;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .user-meta { min-width: 0; }
+  .user-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-role { font-size: 12px; color: var(--color-text-muted); }
+
+  /* ---------- Main ---------- */
+  .main {
+    padding: 28px 36px 48px;
+    max-width: 1240px;
+    width: 100%;
+  }
+
+  .page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: #1e3a5f;
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+  }
+
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    color: #ffffff;
+  }
+
+  .page-sub {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .header-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: var(--radius-md);
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+
+  .btn:hover { background: var(--color-bg); }
+
+  .btn-primary {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+  }
+
+  .btn-primary:hover { background: #3f5be0; }
+
+  /* ---------- KPI cards ---------- */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-bottom: 28px;
+  }
+
+  .kpi-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 20px 22px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .kpi-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .kpi-label {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    font-weight: 600;
+  }
+
+  .kpi-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .kpi-icon svg { width: 18px; height: 18px; }
+
+  .kpi-icon.blue { background: var(--color-accent-soft); color: var(--color-accent); }
+  .kpi-icon.orange { background: var(--color-warning-soft); color: var(--color-warning); }
+  .kpi-icon.green { background: var(--color-success-soft); color: var(--color-success); }
+
+  .kpi-value {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .kpi-value small {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-left: 2px;
+  }
+
+  .kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .kpi-trend.up { color: var(--color-success); }
+  .kpi-trend.down { color: var(--color-danger); }
+  .kpi-trend.flat { color: var(--color-text-muted); }
+
+  .kpi-trend-note {
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  /* ---------- Table card ---------- */
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--color-border);
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .card-title-group h2 {
+    font-size: 16px;
+    margin: 0 0 2px;
+    font-weight: 700;
+  }
+
+  .card-title-group p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+  }
+
+  .card-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 7px 12px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    min-width: 200px;
+  }
+
+  .search-box svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  .search-box input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    width: 100%;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 7px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: var(--color-surface);
+    cursor: pointer;
+  }
+
+  .filter-chip:hover { background: var(--color-bg); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    letter-spacing: 0.03em;
+    padding: 12px 22px;
+    background: #fafbfc;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+    font-size: 13.5px;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  tbody tr:hover { background: #fafbfd; }
+
+  .task-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .task-name {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .task-project {
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+
+  .assignee {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .assignee .avatar {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .badge.status-progress { background: var(--color-info-soft); color: var(--color-info); }
+  .badge.status-todo { background: #f1f2f5; color: var(--color-text-secondary); }
+  .badge.status-review { background: var(--color-warning-soft); color: var(--color-warning); }
+  .badge.status-done { background: var(--color-success-soft); color: var(--color-success); }
+
+  .priority {
+    font-weight: 700;
+    font-size: 12.5px;
+  }
+
+  .priority.high { color: var(--color-danger); }
+  .priority.medium { color: var(--color-warning); }
+  .priority.low { color: var(--color-text-muted); }
+
+  .due-date {
+    color: var(--color-text-secondary);
+  }
+
+  .due-date.overdue {
+    color: var(--color-danger);
+    font-weight: 700;
+  }
+
+  .progress-track {
+    width: 100px;
+    height: 6px;
+    border-radius: 999px;
+    background: #eceef2;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--color-accent);
+  }
+
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .progress-pct {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    width: 32px;
+  }
+
+  .row-more {
+    color: var(--color-text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+  }
+
+  .row-more:hover { background: var(--color-bg); }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px;
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .page-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+  }
+
+  .page-btn.active {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .page-btn:hover:not(.active) { background: var(--color-bg); }
+
+  @media (max-width: 1024px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .main { padding: 20px; }
+    table { display: block; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">TF</div>
+      <div class="brand-name">TaskFlow</div>
+    </div>
+
+    <nav class="nav-group">
+      <div class="nav-item active">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </span>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </span>
+        タスク
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </span>
+        プロジェクト
+      </div>
+      <div class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </span>
+        メンバー
+      </div>
+
+      <div class="nav-label">管理</div>
+      <div class="nav-item">
+        <span class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        設定
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="avatar">田</div>
+      <div class="user-meta">
+        <div class="user-name">田中 美咲</div>
+        <div class="user-role">プロジェクトマネージャー</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Atelier ダッシュボード</h1>
+        <p class="page-sub">2026年8月18日（火）のプロジェクト状況です</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          エクスポート
+        </button>
+        <button class="btn btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新規タスク
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI cards -->
+    <section class="kpi-grid">
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">進行中のタスク</span>
+          <span class="kpi-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+        </div>
+        <div class="kpi-value">128<small>件</small></div>
+        <span class="kpi-trend up">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          +8.2%
+          <span class="kpi-trend-note">先週比</span>
+        </span>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">期限超過</span>
+          <span class="kpi-icon orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </span>
+        </div>
+        <div class="kpi-value">14<small>件</small></div>
+        <span class="kpi-trend down">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+          +3件
+          <span class="kpi-trend-note">先週比</span>
+        </span>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <span class="kpi-label">今月の完了率</span>
+          <span class="kpi-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </span>
+        </div>
+        <div class="kpi-value">76<small>%</small></div>
+        <span class="kpi-trend up">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          +4.5pt
+          <span class="kpi-trend-note">先月比</span>
+        </span>
+      </div>
+
+    </section>
+
+    <!-- Task table -->
+    <section class="card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <h2>タスク一覧</h2>
+          <p>担当プロジェクト全体の直近タスク</p>
+        </div>
+        <div class="card-tools">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" placeholder="タスクを検索">
+          </div>
+          <button class="filter-chip">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            すべてのステータス
+          </button>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>タスク名</th>
+            <th>担当者</th>
+            <th>ステータス</th>
+            <th>優先度</th>
+            <th>期限</th>
+            <th>進捗</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">要件定義書のレビュー</span>
+                <span class="task-project">Atelier ダッシュボード刷新</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">佐</div>
+                佐藤 健太
+              </div>
+            </td>
+            <td><span class="badge status-progress">進行中</span></td>
+            <td><span class="priority high">高</span></td>
+            <td><span class="due-date">8/20（木）</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:65%"></div></div>
+                <span class="progress-pct">65%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">API 契約 v1 の凍結</span>
+                <span class="task-project">Bridge 基盤整備</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">中</div>
+                中村 亮
+              </div>
+            </td>
+            <td><span class="badge status-review">レビュー待ち</span></td>
+            <td><span class="priority high">高</span></td>
+            <td><span class="due-date overdue">8/16（日）超過</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:90%"></div></div>
+                <span class="progress-pct">90%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">オンボーディング画面のモック作成</span>
+                <span class="task-project">UI デザインシステム</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">山</div>
+                山田 花子
+              </div>
+            </td>
+            <td><span class="badge status-todo">未着手</span></td>
+            <td><span class="priority medium">中</span></td>
+            <td><span class="due-date">8/25（火）</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>
+                <span class="progress-pct">0%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">RLS 越境試験ケースの追加</span>
+                <span class="task-project">R-T08 クライアント分離</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">高</div>
+                高橋 誠
+              </div>
+            </td>
+            <td><span class="badge status-progress">進行中</span></td>
+            <td><span class="priority high">高</span></td>
+            <td><span class="due-date">8/22（土）</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:40%"></div></div>
+                <span class="progress-pct">40%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">週次進捗レポートの送付</span>
+                <span class="task-project">クライアント対応</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">田</div>
+                田中 美咲
+              </div>
+            </td>
+            <td><span class="badge status-done">完了</span></td>
+            <td><span class="priority low">低</span></td>
+            <td><span class="due-date">8/15（土）</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+                <span class="progress-pct">100%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+          <tr>
+            <td>
+              <div class="task-cell">
+                <span class="task-name">CI gate coverage 80% 対応</span>
+                <span class="task-project">Foundation 整備</span>
+              </div>
+            </td>
+            <td>
+              <div class="assignee">
+                <div class="avatar">鈴</div>
+                鈴木 陽菜
+              </div>
+            </td>
+            <td><span class="badge status-progress">進行中</span></td>
+            <td><span class="priority medium">中</span></td>
+            <td><span class="due-date">8/28（金）</span></td>
+            <td>
+              <div class="progress-row">
+                <div class="progress-track"><div class="progress-fill" style="width:22%"></div></div>
+                <span class="progress-pct">22%</span>
+              </div>
+            </td>
+            <td><span class="row-more">⋯</span></td>
+          </tr>
+
+        </tbody>
+      </table>
+
+      <div class="card-footer">
+        <span>全 128 件中 1–6 件を表示</span>
+        <div class="pagination">
+          <div class="page-btn">‹</div>
+          <div class="page-btn active">1</div>
+          <div class="page-btn">2</div>
+          <div class="page-btn">3</div>
+          <div class="page-btn">›</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</body>
+</html>

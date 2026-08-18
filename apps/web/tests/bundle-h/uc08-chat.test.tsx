@@ -626,7 +626,7 @@ describe("S-E01 成果物のモック自動反映 (GAP-137)", () => {
     );
     expect(screen.getByText("LP (v2)")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "モックで開く →" });
-    expect(link).toHaveAttribute("href", "/mocks/s_h01?mock=mk-1");
+    expect(link).toHaveAttribute("href", "/mocks?mock=mk-1");
     // ストリーム完了後もカードは残る (完了と同時に消えては開けない)
     expect(
       screen.getByRole("region", { name: "モックとして保存" }),

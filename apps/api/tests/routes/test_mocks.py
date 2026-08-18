@@ -328,7 +328,8 @@ class TestMocksCrud:
             assert v2["parent_mock_id"] == v1["id"]
             assert v2["meta_tags"]["author"] == "wanda"
             assert v2["meta_tags"]["revision_instruction"] == "ヘッダーをブランドカラーに変更"
-            assert v2["meta_tags"]["model"] == "fake-llm"
+            # GAP-138: model はチェーンの provider ラベル (relay/agent_sdk/api/fake)
+            assert v2["meta_tags"]["model"] == "fake"
             assert v2["html_storage_path"].endswith("-rev.html")
             # 改訂 HTML が実際にアップロードされ、指示バナーが入っている
             assert len(uploaded) == 1

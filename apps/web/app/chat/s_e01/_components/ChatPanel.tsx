@@ -835,7 +835,7 @@ export function ChatPanel({
                       {a.screenName} (v{a.version})
                     </span>
                     <a
-                      href={`/mocks/s_h01?mock=${encodeURIComponent(a.mockId)}`}
+                      href={`/mocks?mock=${encodeURIComponent(a.mockId)}`}
                       className="font-semibold text-primary hover:underline"
                     >
                       モックで開く →

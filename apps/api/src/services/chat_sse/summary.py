@@ -18,7 +18,6 @@ LLM 呼出は stream_chat と同じ provider 分岐 (relay / agent_sdk / API)。
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from sqlalchemy import text
@@ -81,49 +80,20 @@ async def llm_summarize(prompt_text: str, *, thread_id: str, actor_id: str) -> s
     - API: Anthropic 従量 (非ストリーム 1 発)
     - どれも無い場合、ATELIER_ALLOW_FAKE_LLM=1 のときだけ決定的な簡易要約
       (テスト/検証用)。それ以外は None (フォールバックに任せる)
+
+    GAP-138: 分岐の実体は llm_chain.llm_complete に一元化 (モック生成/改訂と同一)。
     """
-    from .agent_sdk import agent_sdk_stream_chunks, sdk_available, subscription_mode_enabled
-    from .relay import relay_mode_enabled
+    from .llm_chain import llm_complete
 
     try:
-        if relay_mode_enabled():
-            from .relay import relay_stream_chunks
-
-            parts = [
-                c
-                async for c in relay_stream_chunks(
-                    system_prompt=SUMMARY_SYSTEM_PROMPT,
-                    history=[],
-                    user_message=prompt_text,
-                    thread_id=thread_id,
-                    actor_id=actor_id,
-                )
-                if isinstance(c, str)
-            ]
-            out = "".join(parts).strip()
-        elif subscription_mode_enabled() and sdk_available():
-            chunks = agent_sdk_stream_chunks(
-                system_prompt=SUMMARY_SYSTEM_PROMPT,
-                history=[],
-                user_message=prompt_text,
-            )
-            out = "".join([c async for c in chunks if isinstance(c, str)]).strip()
-        elif os.environ.get("ANTHROPIC_API_KEY"):
-            from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
-
-            client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-            msg = await client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=800,
-                system=SUMMARY_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt_text}],
-            )
-            out = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text").strip()
-        elif os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
-            # テスト経路: 決定的な簡易要約 (配管の検証用 — 本番では使われない)
-            out = "(簡易要約) " + prompt_text.replace("\n", " ")[-300:]
-        else:
-            return None
+        out, _provider = await llm_complete(
+            system_prompt=SUMMARY_SYSTEM_PROMPT,
+            user_text=prompt_text,
+            actor_id=actor_id,
+            thread_id=thread_id,
+            max_tokens=800,
+            fake=lambda: "(簡易要約) " + prompt_text.replace("\n", " ")[-300:],
+        )
         if not out:
             return None
         return out[:SUMMARY_MAX_CHARS]

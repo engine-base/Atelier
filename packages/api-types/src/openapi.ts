@@ -4398,6 +4398,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mocks/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 新規モック生成 = ワンダ (AI) による新規作成（GAP-138） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        project_id: string;
+                        /** @description デザイナー AI ワンダへの作成指示 (自然言語) */
+                        instruction: string;
+                        /** @description 省略時は生成 HTML の <title> から導出 */
+                        screen_name?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description 生成されたモック (mockdb 保存・同名画面は版連鎖) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["Mock"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在/不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM 実行失敗 */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description LLM 実行経路が使えない (Bridge オフライン等) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mocks/{mock_id}/content": {
         parameters: {
             query?: never;
@@ -4514,7 +4599,7 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description LLM (ANTHROPIC_API_KEY) or storage 未設定 */
+                /** @description LLM 実行経路が使えない (Bridge オフライン等) or storage 未設定 */
                 503: {
                     headers: {
                         [name: string]: unknown;

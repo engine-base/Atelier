@@ -4351,6 +4351,37 @@ paths:
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /mocks/generate:
+    post:
+      tags: [mocks]
+      summary: 新規モック生成 = ワンダ (AI) による新規作成（GAP-138）
+      x-implementation-path: apps/api/src/routes/mocks/__init__.py::generate_mock
+      x-screen-ids: [S-H01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [project_id, instruction]
+              properties:
+                project_id: { type: string, format: uuid }
+                instruction: { type: string, minLength: 1, maxLength: 4000, description: "デザイナー AI ワンダへの作成指示 (自然言語)" }
+                screen_name: { type: string, maxLength: 80, nullable: true, description: "省略時は生成 HTML の <title> から導出" }
+      responses:
+        '201':
+          description: 生成されたモック (mockdb 保存・同名画面は版連鎖)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/Mock' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在/不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: LLM 実行失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: LLM 実行経路が使えない (Bridge オフライン等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /mocks/{mock_id}/content:
     get:
       tags: [mocks]
@@ -4398,7 +4429,7 @@ paths:
                   data: { $ref: '#/components/schemas/Mock' }
         '404': { description: mock 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '413': { description: HTML が改訂上限超, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '503': { description: LLM (ANTHROPIC_API_KEY) or storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: LLM 実行経路が使えない (Bridge オフライン等) or storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /mocks/{mock_id}/duplicate:
     post:

@@ -19,6 +19,7 @@ from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.mocks import (
     MockCreate,
+    MockGenerateRequest,
     MockResponse,
     MockReviseRequest,
     MockUpdate,
@@ -202,6 +203,40 @@ async def create_version(
 
 
 @router.post(
+    "/mocks/generate",
+    status_code=status.HTTP_201_CREATED,
+    summary="新規モック生成 = ワンダ (AI) による新規作成 (GAP-138)",
+    responses={503: {"description": "LLM 実行経路が使えない (Bridge オフライン等)"}},
+)
+async def generate_mock(
+    body: MockGenerateRequest, session: SessionDep, user: UserDep
+) -> dict[str, MockResponse]:
+    """指示文から 1 画面のモックを新規生成する (mockdb 保存・同名画面は版連鎖)。
+
+    LLM は relay (本人の Claude サブスク) → agent_sdk → API → fake の
+    費用順チェーン (GAP-138 — 確定アーキテクチャに整合)。
+    """
+    from src.services.mocks import generate as generate_svc
+    from src.services.mocks import revise as revise_svc
+
+    try:
+        created = await generate_svc.generate_mock(
+            session,
+            actor_id=user.id,
+            project_id=body.project_id,
+            instruction=body.instruction,
+            screen_name=body.screen_name,
+        )
+    except revise_svc.MockReviseError as exc:
+        if exc.code in ("llm_unconfigured", "bridge_offline"):
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    return {"data": created}
+
+
+@router.post(
     "/mocks/{mock_id}/revise",
     status_code=status.HTTP_201_CREATED,
     summary="編集 = ワンダ (AI) への修正依頼 → 新バージョン生成 (GAP-024 / Open Design パターン)",
@@ -217,7 +252,8 @@ async def revise_mock(
             session, actor_id=user.id, mock_id=mock_id, instruction=body.instruction
         )
     except revise_svc.MockReviseError as exc:
-        if exc.code in ("llm_unconfigured",):
+        if exc.code in ("llm_unconfigured", "bridge_offline"):
+            # GAP-138: Bridge オフラインも「実行経路が無い」— 黙って API 課金に落とさない
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
         if exc.code == "too_large":
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc

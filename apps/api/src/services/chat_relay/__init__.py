@@ -79,7 +79,7 @@ async def worker_online(session: AsyncSession) -> bool:
 async def enqueue_job(
     session: AsyncSession,
     *,
-    thread_id: str,
+    thread_id: str | None,
     requested_by: str,
     system_prompt: str,
     prompt: str,
@@ -89,6 +89,8 @@ async def enqueue_job(
 
     GAP-134: tools_mode (off/approve/auto) を Bridge へ伝える — 本人の PC で
     本人のプランを使った PC 操作 (Claude Code 同等) を有効化する。
+    GAP-138: thread_id=None はチャット外のシステムジョブ (モック生成等) —
+    requested_by 本人の Bridge が実行する点は同じ。
     """
     res = await session.execute(
         text(

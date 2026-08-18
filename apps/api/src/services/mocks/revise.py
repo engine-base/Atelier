@@ -87,6 +87,14 @@ def _fake_revision(html: str, instruction: str) -> str:
 
 
 async def _download_html(storage_path: str) -> str:
+    # GAP-138: mockdb (DB 内蔵 — チャット成果物/生成モック) は service 経由で読む
+    from .artifacts import MOCKDB_PREFIX, fetch_content_service
+
+    if storage_path.startswith(MOCKDB_PREFIX):
+        html = await fetch_content_service(storage_path[len(MOCKDB_PREFIX) :])
+        if html is None:
+            raise MockReviseError("content_unavailable", "mockdb content not found")
+        return html
     url = await create_signed_download_url(storage_path)
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.get(url)
@@ -137,22 +145,8 @@ async def revise_mock(
             "too_large", f"mock html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
         )
 
-    allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
-    used_model = REVISE_MODEL
-    if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
-        if allow_fake:
-            revised = _fake_revision(html, instruction)
-            used_model = "fake-llm"
-        else:
-            raise MockReviseError(
-                "llm_unconfigured",
-                "ANTHROPIC_API_KEY が未設定のため AI デザイナーによる改訂を実行できません",
-            )
-    else:
-        if client is None:
-            from src.llm.anthropic import AnthropicClient
-
-            client = AnthropicClient()
+    if client is not None:
+        # テスト注入経路 (決定的クライアント) — 実運用は下の共通チェーン
         try:
             res = await client.complete(
                 model=REVISE_MODEL,
@@ -169,11 +163,39 @@ async def revise_mock(
         except Exception as e:
             raise MockReviseError("llm_failed", f"LLM 呼出に失敗: {e}") from e
         revised = _strip_fence(str(res.text))
-        if not revised:
-            raise MockReviseError("llm_failed", "LLM が空の改訂を返しました")
+        used_model = REVISE_MODEL
+    else:
+        # GAP-138: 確定アーキテクチャの費用順 (relay=本人サブスク → agent_sdk →
+        # API → fake)。ANTHROPIC_API_KEY 直依存をやめる。
+        from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
 
-    new_path = f"mocks/{current.project_id}/{uuid.uuid4()}/{current.screen_name}-rev.html"
-    await _upload_html(new_path, revised)
+        try:
+            out, provider = await llm_complete(
+                system_prompt=_SYSTEM,
+                user_text=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
+                actor_id=actor_id,
+                max_tokens=16384,
+                fake=lambda: _fake_revision(html, instruction),
+            )
+        except LLMUnavailable as exc:
+            code = {
+                "bridge_offline": "bridge_offline",
+                "unconfigured": "llm_unconfigured",
+            }.get(exc.code, "llm_failed")
+            raise MockReviseError(code, exc.message) from exc
+        revised = _strip_fence(out)
+        used_model = provider
+    if not revised:
+        raise MockReviseError("llm_failed", "LLM が空の改訂を返しました")
+
+    # GAP-138: mockdb モックは mockdb へ、Supabase 由来は Supabase へ (系を跨がない)
+    from .artifacts import MOCKDB_PREFIX, store_content_service
+
+    if current.html_storage_path.startswith(MOCKDB_PREFIX):
+        new_path = f"{MOCKDB_PREFIX}{await store_content_service(revised)}"
+    else:
+        new_path = f"mocks/{current.project_id}/{uuid.uuid4()}/{current.screen_name}-rev.html"
+        await _upload_html(new_path, revised)
 
     return await create_version(
         session,

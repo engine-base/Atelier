@@ -23,12 +23,14 @@ import os
 import re
 import time
 import uuid
+from functools import lru_cache
 from typing import TypedDict
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
+from src.db.session import create_engine, create_session_factory
 
 MOCKDB_PREFIX = "mockdb://"
 
@@ -69,6 +71,32 @@ def derive_screen_name(file_name: str, html: str) -> str:
         title = re.sub(r"\.html?$", "", file_name.rsplit("/", 1)[-1], flags=re.IGNORECASE)
     title = title.strip() or "untitled"
     return title[:80]
+
+
+@lru_cache(maxsize=1)
+def service_session_factory() -> async_sessionmaker[AsyncSession]:
+    """mock_contents (RLS default deny) の読み書き用 service session。
+
+    RLS session (JWT ロール) からは mock_contents に触れない — mocks 行の
+    認可は RLS で確認しつつ、コンテンツ実体はこの factory で扱う (GAP-138)。
+    """
+    return create_session_factory(create_engine())
+
+
+async def store_content_service(html: str) -> str:
+    """service session で mock_contents に保存して content_id を返す (commit 込み)。"""
+    factory = service_session_factory()
+    async with factory() as session:
+        content_id = await store_mock_content(session, html=html)
+        await session.commit()
+    return content_id
+
+
+async def fetch_content_service(content_id: str) -> str | None:
+    """service session で mockdb コンテンツを読む。"""
+    factory = service_session_factory()
+    async with factory() as session:
+        return await fetch_mock_content(session, content_id=content_id)
 
 
 async def store_mock_content(session: AsyncSession, *, html: str) -> str:
