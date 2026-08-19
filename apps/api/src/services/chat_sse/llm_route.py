@@ -71,9 +71,10 @@ def resolve_llm_route(env: dict[str, str] | None = None) -> LLMRoute:
     has_key = bool((src.get(API_KEY_ENV) or "").strip())
     warnings: list[str] = []
 
-    # テスト専用スタブ。本番では絶対に設定しない env なので最優先で分岐させる
-    # (Bridge が存在しない CI / ローカルで実行経路を決定的にするため)。
-    if fake_ok:
+    # テスト専用スタブ。**明示指定 (relay/agent_sdk/api) がある場合は指定が勝つ** —
+    # ATELIER_ALLOW_FAKE_LLM は「経路を選んでいないテスト環境に Bridge が無い」
+    # ことを補うためのものであって、選んだ経路を上書きするものではない。
+    if fake_ok and raw == "":
         return LLMRoute(
             route="fake",
             payer=PAYER_LABEL["fake"],
