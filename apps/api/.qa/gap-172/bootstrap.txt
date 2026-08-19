@@ -1,0 +1,23 @@
+=== 修正前 (1 周だけ・GRANT は migration の後) ===
+→ migration: 63 applied / 20 skipped
+  ⚠ skip: gap-131 / gap-132 / gap-133 / gap-134 / gap-137 / gap-138 / gap-144 /
+         gap-145 / gap-150 / gap-151 / gap-152 / gap-153 / gap-154 / gap-155 /
+         gap-158 / gap-159 / gap-162 / gap-167 / t-d-31 / t-d-32
+  → それでも「✓ DB ブートストラップ完了」と表示していた
+  → public テーブル数: 48 (delivery_phases / mock_contents / output_design_templates /
+     knowledge_candidates / project_flow_stages / artifact_files が丸ごと無い)
+
+=== 修正後 (収束するまで繰り返す・GRANT を前後で適用) ===
+
+=== 検証 (新しい DB を実測) ===
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist
+  機密列 revoke (authenticated → encrypted_value):   非機密列は読める (count(id)): psql: error: connection to server at "127.0.0.1", port 5432 failed: FATAL:  database "atelier_gap172check" does not exist

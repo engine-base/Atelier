@@ -41,7 +41,9 @@ begin
   insert into auth.users (id, email) values (u_a,'td32-a@test.invalid'),(u_b,'td32-b@test.invalid');
   insert into public.users (id, email) values (u_a,'td32-a@test.invalid'),(u_b,'td32-b@test.invalid');
   insert into public.workspaces (id, owner_user_id, name) values (ws_a,u_a,'td32-wsA'),(ws_b,u_b,'td32-wsB');
-  insert into public.workspace_memberships (workspace_id, user_id, role) values (ws_a,u_a,'owner'),(ws_b,u_b,'owner');
+  -- GAP-172: owner membership 自動作成トリガと衝突するため conflict は無視する
+  insert into public.workspace_memberships (workspace_id, user_id, role) values (ws_a,u_a,'owner'),(ws_b,u_b,'owner')
+  on conflict (workspace_id, user_id) do nothing;
   insert into public.projects (id, workspace_id, name, project_type) values
     (p_a,ws_a,'td32-pA','internal_product'),(p_b,ws_b,'td32-pB','internal_product');
   insert into public.ai_employees (id, workspace_id, name, display_name, role, department) values

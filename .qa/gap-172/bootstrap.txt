@@ -1,0 +1,26 @@
+=== 修正前 (1 周だけ・GRANT は migration の後) ===
+→ migration: 63 applied / 20 skipped
+  ⚠ skip: gap-131 132 133 134 137 138 144 145 150 151 152 153 154 155 158 159 162 167 / t-d-31 t-d-32
+  → それでも「✓ DB ブートストラップ完了」と表示していた
+  → public テーブル数: 48 (delivery_phases / mock_contents / output_design_templates /
+     knowledge_candidates / project_flow_stages / artifact_files が丸ごと無い DB)
+
+=== 修正後 (収束するまで繰り返す・GRANT を migration の前後で適用) ===
+→ migration: 83 applied / 0 skipped (2 周で収束)
+→ revoke: 15 本を再適用
+→ seed: 2 applied
+✓ DB ブートストラップ完了。次は:
+
+=== 検証 (新しい DB を実測) ===
+public テーブル数: 56
+  delivery_phases: OK
+  mock_contents: OK
+  output_design_templates: OK
+  knowledge_candidates: OK
+  project_flow_stages: OK
+  artifact_files: OK
+  output_share_links: OK
+  bridge_user_tokens: OK
+  service_role BYPASSRLS: true
+  機密列 revoke (authenticated → encrypted_value): permission denied for table project_credentials
+  非機密列は読める (count(id)): 0

@@ -43,8 +43,12 @@ begin
     (u_a, 'td31-a@test.invalid'), (u_b, 'td31-b@test.invalid');
   insert into public.workspaces (id, owner_user_id, name) values
     (ws_a, u_a, 'td31-workspace-A'), (ws_b, u_b, 'td31-workspace-B');
+  -- GAP-172: workspaces に owner membership を自動作成するトリガ
+  -- (workspaces_bootstrap_owner_membership) が後から入ったため、明示 insert が
+  -- 重複キーで失敗するようになっていた。同じ行を意図しているので衝突は無視する。
   insert into public.workspace_memberships (workspace_id, user_id, role) values
-    (ws_a, u_a, 'owner'), (ws_b, u_b, 'owner');
+    (ws_a, u_a, 'owner'), (ws_b, u_b, 'owner')
+  on conflict (workspace_id, user_id) do nothing;
   insert into public.projects (id, workspace_id, name, project_type) values
     (p_a, ws_a, 'td31-project-A', 'internal_product'),
     (p_b, ws_b, 'td31-project-B', 'internal_product');
