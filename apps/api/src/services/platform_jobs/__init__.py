@@ -184,6 +184,9 @@ async def purge_deleted_accounts(session: AsyncSession) -> dict[str, str]:
                FK set null で匿名化される)。
     audit_logs は法定監査証跡として保持 (削除実行自体も audit に記録)。
     30 日未満 (復活猶予中 T-A-05) は絶対に触らない。
+
+    GAP-182: ついでに自前エラーログ (error_log) の保持期間 30 日も守る
+    (放置するとテーブルが無限に太る)。
     """
     res = await session.execute(
         text(
@@ -226,11 +229,17 @@ async def purge_deleted_accounts(session: AsyncSession) -> dict[str, str]:
         )
     if user_ids:
         logger.info("purged %d account(s), %d workspace(s)", len(user_ids), purged_workspaces)
+
+    from src.observability.errors import purge_old_errors
+
+    purged_errors = await purge_old_errors(session, days=30)
     return {
         "status": "ok",
         "name": "purge-deleted-accounts",
         "purged_users": str(len(user_ids)),
         "purged_workspaces": str(purged_workspaces),
+        # GAP-182: 自前エラーログの保持期間 (30 日) を同じ掃除ジョブで守る。
+        "purged_errors": str(purged_errors),
     }
 
 

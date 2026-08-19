@@ -14611,6 +14611,119 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 運営 admin: エラーログ (GAP-182 — 外部 SaaS に送らない自前記録)
+         * @description Sentry (外部 SaaS) を使わない選択にしたため、これが「本番で何が壊れたか」を 知る唯一の手段。秘匿値 (token / key / JWT / DB URL) はサーバー側でマスク済み。
+         *
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    hours?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 新しい順のエラー一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ErrorLogEntry"][];
+                        };
+                    };
+                };
+                /** @description 運営 admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/client-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 画面側エラーの報告 (GAP-182 — 認証ユーザー)
+         * @description Next.js 側で起きたエラーを自前のログに残す。外部には送らない。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        kind: string;
+                        message: string;
+                        path?: string | null;
+                        stack?: string | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description 受理 (記録は best-effort) */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            status?: string;
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/health": {
         parameters: {
             query?: never;
@@ -17998,6 +18111,27 @@ export interface components {
             }[];
             recent?: components["schemas"]["AcquisitionRecord"][];
             total?: number;
+        };
+        ErrorLogEntry: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** @enum {string} */
+            source: "api" | "web" | "worker";
+            /** @enum {string} */
+            level: "error" | "warning";
+            /** @description 例外クラス名 / エラー種別 */
+            kind: string;
+            /** @description 秘匿値はマスク済み */
+            message: string;
+            path?: string | null;
+            method?: string | null;
+            status_code?: number | null;
+            /** @description 同種エラーをまとめる key */
+            fingerprint: string;
+            /** @description 同じ fingerprint の直近 24h 件数 */
+            count_24h: number;
         };
         /** @description プラットフォーム健全性 1 行 (GAP-019 — 実計測/実設定状態のみ) */
         HealthCheckRow: {

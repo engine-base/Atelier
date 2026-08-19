@@ -37,6 +37,8 @@ from src.schemas.admin import (
     AuditLogResponse,
     BetaFeedbackCreate,
     BetaFeedbackResponse,
+    ClientErrorReport,
+    ErrorLogEntry,
     HealthCheckRow,
 )
 from src.schemas.support import (
@@ -298,6 +300,67 @@ async def delete_admin_acquisition(record_id: str, user: UserDep) -> None:
 async def get_admin_health(user: UserDep) -> dict[str, list[HealthCheckRow]]:
     _require_admin(user)
     return {"data": await ops.get_health()}
+
+
+@router.get(
+    "/admin/errors",
+    summary="運営 admin: エラーログ (GAP-182 — 外部 SaaS に送らない自前記録)",
+)
+async def list_admin_errors(
+    user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    hours: Annotated[int, Query(ge=1, le=720)] = 168,
+) -> dict[str, list[ErrorLogEntry]]:
+    """直近のエラーを新しい順で返す。
+
+    Sentry (外部 SaaS) を使わない選択にしたため、これが唯一の「本番で何が
+    壊れたか」を知る手段。秘匿値はサーバー側でマスク済み。
+    """
+    _require_admin(user)
+    from src.observability.errors import list_errors
+
+    rows = await list_errors(limit=limit, hours=hours)
+    return {
+        "data": [
+            ErrorLogEntry(
+                id=r.id,
+                occurred_at=r.occurred_at,
+                source=r.source,  # pyright: ignore[reportArgumentType]
+                level=r.level,  # pyright: ignore[reportArgumentType]
+                kind=r.kind,
+                message=r.message,
+                path=r.path,
+                method=r.method,
+                status_code=r.status_code,
+                fingerprint=r.fingerprint,
+                count_24h=r.count_24h,
+            )
+            for r in rows
+        ]
+    }
+
+
+@router.post(
+    "/client-errors",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="画面側エラーの報告 (GAP-182 — 認証ユーザー)",
+)
+async def report_client_error(body: ClientErrorReport, user: UserDep) -> dict[str, str]:
+    """Next.js 側で起きたエラーを自前のログに残す。
+
+    外部に送らないので、画面が白くなったことに運営が気づける唯一の経路。
+    """
+    from src.observability.errors import record_error
+
+    await record_error(
+        source="web",
+        kind=body.kind,
+        message=body.message,
+        path=body.path,
+        stack=body.stack,
+        user_id=user.id,
+    )
+    return {"status": "accepted"}
 
 
 @router.get("/admin/platform-stats", summary="運営 admin: platform 横断統計 (GAP-019)")

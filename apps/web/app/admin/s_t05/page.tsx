@@ -12,6 +12,7 @@ import * as React from "react";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { AuditLogContainer } from "./_components/AuditLogContainer";
+import { ErrorLogPanel } from "./_components/ErrorLogPanel";
 
 export default function ST05Page() {
   return (
@@ -51,6 +52,8 @@ export default function ST05Page() {
       </div>
       <QueryProvider>
         <AuditLogContainer />
+        {/* GAP-182: エラー監視は外部 SaaS ではなく自前。ここが唯一の記録先。 */}
+        <ErrorLogPanel />
       </QueryProvider>
     </div>
   );

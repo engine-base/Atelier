@@ -19,6 +19,24 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
+async def _record(exc: BaseException, scope: Scope) -> None:
+    """未捕捉例外を自前のエラーログに残す (best-effort — ここで失敗しても握る)。"""
+    try:
+        from src.observability.errors import record_exception
+
+        raw_path: Any = scope.get("path", "")
+        raw_method: Any = scope.get("method", "")
+        await record_exception(
+            exc,
+            source="api",
+            path=str(raw_path) if raw_path else None,
+            method=str(raw_method) if raw_method else None,
+            status_code=500,
+        )
+    except Exception:  # pragma: no cover - 記録失敗でレスポンスを壊さない
+        traceback.print_exc()
+
+
 class UnhandledErrorMiddleware:
     """未捕捉例外を JSON 500 に変換する ASGI ミドルウェア。"""
 
@@ -42,6 +60,9 @@ class UnhandledErrorMiddleware:
             await self.app(scope, receive, send_wrapper)
         except Exception as exc:  # 最後の受け皿 (再送出すると素の 500 に戻る)
             traceback.print_exc()
+            # GAP-182: 本番で落ちたことに誰も気づけない状態をやめる。
+            # 外部 SaaS には送らず自前の error_log に記録する (失敗しても無視)。
+            await _record(exc, scope)
             if response_started:
                 # 応答送信途中の失敗は差し替え不能 — そのまま伝播させる
                 raise

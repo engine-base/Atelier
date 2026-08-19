@@ -21,7 +21,7 @@
 ### Wave 0 Foundation
 - T-F-05, T-F-06, T-F-08, T-F-14, T-F-15, T-F-20, T-F-21, T-F-22, T-F-28
 - monorepo (pnpm + Turborepo) / Next.js 15 / FastAPI + uv / Husky + lint-staged
-- Vercel + Supabase + Fly.io NRT + Sentry EU 接続済
+- Vercel + Supabase + Fly.io NRT 接続済（エラー監視は GAP-182 で自前化。Sentry は使わない）
 - CI v3-gate.yml 13 gate 稼働
 
 ### Wave 1 Group D — Schema (T-D-01 ~ T-D-13)

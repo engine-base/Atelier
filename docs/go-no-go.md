@@ -12,7 +12,7 @@ Atelier の本番リリースは **致命級ゲート**であり、AI 単独で�
 T-I-01..18: E2E + RLS 越境 + Lighthouse + a11y + 統合・ストレス試験
 T-I-19:     dead code cleanup
 T-I-21:     DNS/SSL/カスタムドメイン
-T-I-22:     監視ダッシュボード (Better Stack + Sentry)
+T-I-22:     監視 (GAP-182: 自前のエラーログ + /admin/health。外部 SaaS は使わない)
 T-I-23:     ロールバック手順書 + 自動化スクリプト
 ```
 
@@ -65,7 +65,7 @@ T-I-23:     ロールバック手順書 + 自動化スクリプト
 ### 2.3 監視・運用
 
 - [ ] Better Stack の uptime monitor (web/api/client) が **全 GREEN** で 24h 以上継続
-- [ ] Sentry の直近 24h で新規 issue が **0 件**、既存 issue は全て resolved または won't-fix
+- [ ] 運営メニュー > エラーログ (24 時間) が **0 件**、または残りは既知として判断済み
 - [ ] PagerDuty の on-call rotation が当週分セット済
 - [ ] `./scripts/check-monitoring.sh` が exit 0
 - [ ] `./scripts/rollback.sh --dry-run` が正常終了 (ロールバック手順実行可能)
@@ -111,7 +111,7 @@ git push origin v1.0.0
 
 | 指標 | しきい値 |
 |---|---|
-| Sentry error rate | デプロイ前 baseline の 10x 超 |
+| エラーログ件数 (直近 24h) | デプロイ前 baseline の 10x 超 |
 | Uptime monitor | 3 endpoint のうち 1 つでも 5 分連続 fail |
 | API p95 latency | 2 連続 1 分 window が 3 秒超 |
 | DB pool 枯渇 | connections > 95% を 1 分継続 |

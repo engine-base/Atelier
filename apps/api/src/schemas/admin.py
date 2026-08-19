@@ -297,3 +297,33 @@ class AdminPlatformStatsResponse(BaseModel):
     users_total: int
     users_deleted_30d: int
     workspaces_added_30d: int
+
+
+class ErrorLogEntry(BaseModel):
+    """GAP-182: 自前のエラーログ 1 件 (運営 admin のみ閲覧)。
+
+    外部 SaaS (Sentry) には送らない。秘匿値はサーバー側でマスク済み。
+    """
+
+    id: str
+    occurred_at: datetime
+    source: Literal["api", "web", "worker"]
+    level: Literal["error", "warning"]
+    kind: str
+    message: str
+    path: str | None
+    method: str | None
+    status_code: int | None
+    #: 同種エラーをまとめる key
+    fingerprint: str
+    #: 同じ fingerprint の直近 24h 件数 (増えているかを見る)
+    count_24h: int
+
+
+class ClientErrorReport(BaseModel):
+    """画面 (Next.js) 側で起きたエラーの報告 (GAP-182)。"""
+
+    kind: str = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=1000)
+    path: str | None = Field(default=None, max_length=500)
+    stack: str | None = Field(default=None, max_length=8000)

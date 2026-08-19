@@ -8,7 +8,7 @@
 
 | 判断軸 | しきい値 |
 |---|---|
-| Sentry error rate | デプロイ前 baseline の **10x 超** |
+| エラーログ件数 (直近 24h) | デプロイ前 baseline の **10x 超** |
 | Uptime monitor | 3 endpoint のうち 1 つでも 5 分連続 fail |
 | p95 latency | API で 2 連続 1 分 window が **3 秒超** |
 | DB pool 枯渇 | connections > 95% を 1 分継続 |

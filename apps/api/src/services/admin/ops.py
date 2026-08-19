@@ -388,6 +388,24 @@ async def get_health() -> list[HealthCheckRow]:
         )
     )
 
+    # GAP-182: エラー監視は自前 (Sentry を使わない選択)。直近 24h の実件数を出す。
+    from src.observability.errors import error_count
+
+    errors_24h = await error_count(hours=24)
+    rows.append(
+        HealthCheckRow(
+            name="エラー監視 (自前 / 外部送信なし)",
+            status="ok" if errors_24h == 0 else "warn",
+            detail=(
+                "直近 24 時間のエラーは 0 件です"
+                if errors_24h == 0
+                else f"直近 24 時間に {errors_24h} 件のエラーが記録されています "
+                "(運営メニュー > エラーログで内容を確認)"
+            ),
+            meta="0 件" if errors_24h == 0 else f"{errors_24h} 件",
+        )
+    )
+
     # 外部 API は「設定の有無」という事実のみ (稼働率の推測はしない)
     externals = (
         ("Anthropic API キー (既定では未使用 — GAP-175)", "ANTHROPIC_API_KEY"),

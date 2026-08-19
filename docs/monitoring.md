@@ -1,54 +1,61 @@
-# 本番監視ダッシュボード (T-I-22)
+# 本番監視 (現状)
 
-Better Stack (旧 Logtail + Better Uptime) を中心とした本番監視構成。
+> **この文書は「実際にあるもの」だけを書く。** 以前の版は Better Stack / PagerDuty /
+> Sentry を前提に書かれていたが、**どれも配線されていなかった** (GAP-182 で発覚)。
+> 予定は「未実装」として明示する。
 
-## 監視対象
+## 1. エラー監視 — 自前 (実装済 / GAP-182)
 
-| 種別 | 対象 | 計測 | しきい値 |
-|---|---|---|---|
-| Uptime | `https://app.atelier.example` | 1 分 ping | 1 min 3 連続 fail で alert |
-| Uptime | `https://api.atelier.example/healthz` | 1 分 ping | 同上 |
-| Uptime | `https://client.atelier.example` | 5 分 ping | 同上 |
-| Logs | Fly.io apps/api stderr | 全件 | level=ERROR で alert |
-| Logs | Vercel apps/web edge | 全件 | 5xx rate > 1% で alert |
-| Metrics | apps/api 主要 endpoint p95 | 1 分 | > 500ms で warn / > 1s で alert |
-| Metrics | DB connection count | 1 分 | > 80% pool で alert |
-| RUM | apps/web Core Web Vitals | 全 page view | LCP > 2.5s / CLS > 0.1 で warn |
+外部の監視 SaaS は使わない（経営者判断 2026-08-19）。スタックトレース・URL・
+ユーザー ID を外部に出さず、追加費用もかからない。
 
-## 通知
-
-- **error 級**: PagerDuty → on-call SMS + Slack `#alerts`
-- **warn 級**: Slack `#alerts` のみ
-- **info 級**: メール daily digest
-
-## Sentry
-
-`apps/web/lib/sentry.client.ts` で Sentry SDK を初期化済 (T-F-XX)。
-`apps/api/src/observability/sentry.py` で Python 側も。
-
-- Release tag: GitHub Actions の `${{ github.sha }}` を Sentry に通知
-- Sourcemaps: Vercel から自動アップロード
-- PII scrub: 自動 (email / IP は hashed)
-
-## Better Stack ダッシュボード
-
-ダッシュボード ID: `atelier-prod-overview` (Better Stack の Workspace 内)。
-SLI / SLO:
-- Web availability: 99.9% (monthly)
-- API availability: 99.9% (monthly)
-- p95 latency: < 500ms (95% of 5min windows)
-
-## 復旧時間目標
-
-| 重大度 | RTO | RPO |
+| 何が | どこに記録されるか | どこで見るか |
 |---|---|---|
-| Sev-1 (全断) | 30 分 | 5 分 |
-| Sev-2 (一部障害) | 2 時間 | 30 分 |
-| Sev-3 (劣化) | 24 時間 | 24 時間 |
+| API の未捕捉例外 (500) | `public.error_log` (source=`api`) | 運営メニュー > 監査ログ > **エラーログ** |
+| 画面 (Next.js) のクラッシュ | 同上 (source=`web`) — `POST /client-errors` 経由 | 同上 |
+| バッチ (cron) の失敗 | `public.cron_run_history` | 自動スケジュール画面 > 実行履歴 |
 
-## チェックリスト
+- 秘匿値 (Bearer / API キー / JWT / DB URL / password=… ) は保存前にマスクされる。
+- テナントからは読めない (RLS で policy を一切与えていない)。運営 admin のみ。
+- 同種は `fingerprint` でまとまり、直近 24h の件数が一覧に出る。
+- 運営ヘルスチェック (`GET /admin/health`) に「エラー監視 (自前 / 外部送信なし)」行があり、
+  直近 24 時間の件数を返す。
 
-- [ ] Better Stack の uptime monitor が 3 ドメインで GREEN
-- [ ] Sentry に直近 24h の error 件数を確認、新規 issue 0 件
-- [ ] PagerDuty rotation が当週分セット
-- [ ] `./scripts/check-monitoring.sh` で全 endpoint が 200 を返すこと
+保持期間: 30 日（`purge_old_errors`）。
+
+## 2. 実行経路の可視化 (実装済)
+
+`GET /admin/health` が「誰の費用で何が動いているか」を実データで返す。
+
+| 行 | 何を見ているか |
+|---|---|
+| AI 実行経路 / 費用の出どころ | relay (本人サブスク) / agent_sdk / API 課金 のどれか (GAP-178) |
+| 意味検索 (埋め込み) の経路 | ローカル / Voyage / 利用不可 + 準備状況 (GAP-180) |
+| 議事録の文字起こし経路 | ローカル faster-whisper / OpenAI API (GAP-181) |
+| ディスパッチャ / Bridge | 接続 Bridge 数・実行中・キュー待ち |
+| エラー監視 | 直近 24h のエラー件数 (GAP-182) |
+
+起動時にも `atelier.llm_route` / `atelier.embedding_route` / `atelier.stt_route` の
+3 行がログに出る (警告があれば warning レベル)。
+
+## 3. プラットフォーム標準のログ (実装済 / 外部設定不要)
+
+- **Fly.io**: `flyctl logs --app atelier-api-eb` で API の stdout/stderr
+- **Vercel**: プロジェクトの Logs タブで画面側のビルド/実行ログ
+- **Supabase**: Dashboard の Logs で Postgres / Auth
+
+## 4. 未実装 (正直に書く)
+
+| 項目 | 状態 |
+|---|---|
+| Uptime 監視 (外形監視) | **未実装**。落ちても自動では気づけない |
+| エラー発生時の通知 (メール / Slack) | **未実装**。エラーログは「見に行けば分かる」段階 |
+| APM / p95 レイテンシ計測 | **未実装** |
+| RUM (Core Web Vitals 実測) | **未実装** |
+| Sentry / Better Stack / PagerDuty | **使わない** (GAP-182 で自前に置換) |
+
+## 5. 日々の確認手順
+
+1. 運営メニュー > 監査ログ > エラーログ を「24 時間」で開く
+2. 件数が 0 でなければ `kind` と `24h` 列を見る (同じものが増えていないか)
+3. `./scripts/check-monitoring.sh` で主要エンドポイントが 200 を返すことを確認

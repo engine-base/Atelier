@@ -843,6 +843,22 @@ components:
         recent: { type: array, items: { $ref: '#/components/schemas/AcquisitionRecord' } }
         total: { type: integer }
 
+    ErrorLogEntry:
+      type: object
+      required: [id, occurred_at, source, level, kind, message, fingerprint, count_24h]
+      properties:
+        id: { type: string, format: uuid }
+        occurred_at: { type: string, format: date-time }
+        source: { type: string, enum: [api, web, worker] }
+        level: { type: string, enum: [error, warning] }
+        kind: { type: string, description: 例外クラス名 / エラー種別 }
+        message: { type: string, description: 秘匿値はマスク済み }
+        path: { type: string, nullable: true }
+        method: { type: string, nullable: true }
+        status_code: { type: integer, nullable: true }
+        fingerprint: { type: string, description: 同種エラーをまとめる key }
+        count_24h: { type: integer, description: 同じ fingerprint の直近 24h 件数 }
+
     HealthCheckRow:
       type: object
       description: プラットフォーム健全性 1 行 (GAP-019 — 実計測/実設定状態のみ)
@@ -8702,6 +8718,61 @@ paths:
         '204': { description: 削除 (audit admin.acquisition.delete) }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/errors:
+    get:
+      tags: [admin]
+      summary: "運営 admin: エラーログ (GAP-182 — 外部 SaaS に送らない自前記録)"
+      description: >
+        Sentry (外部 SaaS) を使わない選択にしたため、これが「本番で何が壊れたか」を
+        知る唯一の手段。秘匿値 (token / key / JWT / DB URL) はサーバー側でマスク済み。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::list_admin_errors
+      x-screen-ids: [S-T05]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: hours, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 720, default: 168 } }
+      responses:
+        '200':
+          description: 新しい順のエラー一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ErrorLogEntry' }
+        '403': { description: 運営 admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /client-errors:
+    post:
+      tags: [admin]
+      summary: 画面側エラーの報告 (GAP-182 — 認証ユーザー)
+      description: Next.js 側で起きたエラーを自前のログに残す。外部には送らない。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::report_client_error
+      x-screen-ids: [S-T05]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, message]
+              properties:
+                kind: { type: string, maxLength: 200 }
+                message: { type: string, maxLength: 1000 }
+                path: { type: string, nullable: true, maxLength: 500 }
+                stack: { type: string, nullable: true, maxLength: 8000 }
+      responses:
+        '202':
+          description: 受理 (記録は best-effort)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/health:
     get:

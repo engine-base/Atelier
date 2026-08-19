@@ -1,15 +1,20 @@
-"""Atelier 観測基盤 (T-F-08)。
+"""Atelier 観測基盤。
 
-selected-stack.json#observability = "Sentry (errors) + Langfuse (LLM) + Better Stack (logs)"
+GAP-182 (経営者判断 2026-08-19「B で進めて」):
+**外部の監視 SaaS は使わない。** 以前はここに Sentry の初期化コードだけがあり、
+(a) main.py から一度も呼ばれず (b) SDK も依存に入っていなかったため、
+本番でエラーが起きても誰も気づけない状態だった (docs には「Sentry EU 接続済」と
+書かれていたが事実ではない)。
 
-本パッケージは観測関連の foundation。本 PR では Sentry のみ実装し、Langfuse /
-Better Stack は別 task で追加する (files_changed_predicted で scope 限定)。
+現在: `errors.py` が例外を自分たちの DB (`public.error_log`) に記録し、
+運営メニュー > 監査ログ画面の「エラーログ」で確認する。スタックトレース・URL・
+ユーザー ID を外部に出さず、追加費用もゼロ。
 """
 
-from .sentry import SentryConfig, init_sentry, is_sentry_initialized
+from .errors import list_errors, record_error, record_exception
 
 __all__ = [
-    "SentryConfig",
-    "init_sentry",
-    "is_sentry_initialized",
+    "list_errors",
+    "record_error",
+    "record_exception",
 ]

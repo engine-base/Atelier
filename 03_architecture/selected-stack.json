@@ -23,7 +23,7 @@
     "queue": {"chosen": "Inngest (Phase 4+) + pg_cron (Phase 0-3)", "alternatives": ["Trigger.dev", "Temporal"], "reason": "Phase 0-3 は pg_cron 軽量、本格運用で Inngest", "review": "Inngest Free 25,000 executions/月"},
     "realtime": {"chosen": "Supabase Realtime", "alternatives": ["Pusher", "Ably"], "reason": "Supabase 内蔵、Postgres Changes + Broadcast", "review": ""},
     "analytics": {"chosen": "Vercel Analytics (Free) + PostHog Cloud Free (Phase 4+)", "alternatives": ["Mixpanel", "Amplitude"], "reason": "売却視野でプロダクト分析必須、コスト 0 で開始", "review": ""},
-    "error_tracking": {"chosen": "Sentry Free", "alternatives": ["Bugsnag", "Rollbar"], "reason": "業界標準、Next.js / FastAPI 統一", "review": "Free 5k events/月、超過時に有料化検討"},
+    "error_tracking": {"chosen": "自前 (public.error_log + 運営画面)", "alternatives": ["Sentry Free", "Bugsnag", "Rollbar"], "reason": "GAP-182 / 経営者判断 2026-08-19「B で進めて」。スタックトレース・URL・ユーザー ID を外部 SaaS に送らない。追加費用ゼロ。Sentry は初期化コードだけがあり一度も配線されていなかった (本番で落ちても気づけない状態) ため、実体のある自前実装に置換。", "review": "通知 (メール/Slack) は未実装。件数が増えたら閾値通知を追加する"},
     "llm_observability": {"chosen": "Langfuse OSS (セルフホスト or Cloud Free)", "alternatives": ["Helicone", "LangSmith"], "reason": "OSS でコスト 0 可、Fly.io に同居も可", "review": "ベータ期間は Cloud Free 50k observations/月"},
     "prompt_compression": {"chosen": "LLMLingua", "alternatives": ["自前要約"], "reason": "プロンプト最大 20 倍圧縮、コスト削減", "review": "コンテキスト 80% 超過時に発動"},
     "rag": {"chosen": "LlamaIndex + Cognee", "alternatives": ["LangChain", "Haystack"], "reason": "LlamaIndex=RAG基盤+CondensePlusContextChatEngine、Cognee=ナレッジグラフ。組合せで Obsidian 的体験", "review": ""},

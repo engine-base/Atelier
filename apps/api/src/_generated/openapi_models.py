@@ -920,6 +920,43 @@ class Acquisitions(BaseModel):
     total: int | None = None
 
 
+class Source(StrEnum):
+    api = "api"
+    web = "web"
+    worker = "worker"
+
+
+class Level(StrEnum):
+    error = "error"
+    warning = "warning"
+
+
+class ErrorLogEntry(BaseModel):
+    id: UUID
+    occurred_at: AwareDatetime
+    source: Source
+    level: Level
+    kind: str
+    """
+    例外クラス名 / エラー種別
+    """
+    message: str
+    """
+    秘匿値はマスク済み
+    """
+    path: str | None = None
+    method: str | None = None
+    status_code: int | None = None
+    fingerprint: str
+    """
+    同種エラーをまとめる key
+    """
+    count_24h: int
+    """
+    同じ fingerprint の直近 24h 件数
+    """
+
+
 class Status3(StrEnum):
     ok = "ok"
     warn = "warn"
@@ -1323,7 +1360,7 @@ class ReferenceFile(BaseModel):
     mime_type: str | None = None
 
 
-class Source(StrEnum):
+class Source1(StrEnum):
     """
     workspace=この WS の版 / platform=運営既定を継承中
     """
@@ -1346,7 +1383,7 @@ class OutputDesignTemplate(BaseModel):
     stage_label: str | None = None
     version: Annotated[int | None, Field(ge=1)] = None
     note: str | None = None
-    source: Source | None = None
+    source: Source1 | None = None
     """
     workspace=この WS の版 / platform=運営既定を継承中
     """
