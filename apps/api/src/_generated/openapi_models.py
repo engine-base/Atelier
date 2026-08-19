@@ -580,8 +580,29 @@ class Mock(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Kind4(StrEnum):
+    """
+    表示方法の決定に使う中身の種別。html=iframe / pdf=PDF ビューア / image=<img> / sheet=表 (プレビュー枠は出さない) / binary=DL のみ
+    """
+
+    html = "html"
+    pdf = "pdf"
+    image = "image"
+    sheet = "sheet"
+    binary = "binary"
+
+
 class ContentUrl(BaseModel):
     url: str
+    kind: Kind4 | None = None
+    """
+    表示方法の決定に使う中身の種別。html=iframe / pdf=PDF ビューア / image=<img> / sheet=表 (プレビュー枠は出さない) / binary=DL のみ
+    """
+    file_name: str | None = None
+    """
+    元のファイル名 (バイナリ成果物のみ)
+    """
+    mime: str | None = None
 
 
 class Role1(StrEnum):
@@ -1876,7 +1897,7 @@ class KnowledgeGraphNode(BaseModel):
     usage_count: Annotated[int, Field(ge=0)]
 
 
-class Kind4(StrEnum):
+class Kind5(StrEnum):
     parent = "parent"
     tag = "tag"
 
@@ -1888,7 +1909,7 @@ class KnowledgeGraphEdge(BaseModel):
 
     source: UUID
     target: UUID
-    kind: Kind4
+    kind: Kind5
     tag: str | None = None
 
 
@@ -2207,12 +2228,12 @@ class ExecutionTestResult(BaseModel):
     created_at: AwareDatetime
 
 
-class Kind5(StrEnum):
+class Kind6(StrEnum):
     mock_updated = "mock_updated"
 
 
 class SpecChange(BaseModel):
-    kind: Kind5
+    kind: Kind6
     mock_id: UUID
     screen_name: str
     current_version: int
@@ -2245,7 +2266,7 @@ class SpecChangeResolveResponse(BaseModel):
     follow_up_task_id: UUID | None = None
 
 
-class Kind6(StrEnum):
+class Kind7(StrEnum):
     mock = "mock"
     spec = "spec"
     acceptance_criteria = "acceptance_criteria"
@@ -2254,7 +2275,7 @@ class Kind6(StrEnum):
 
 
 class RelatedResource(BaseModel):
-    kind: Kind6
+    kind: Kind7
     name: str
     meta: str
     href: str | None = None
@@ -2285,7 +2306,7 @@ class ChatRelayPickResponse(BaseModel):
     no_available_job: bool
 
 
-class Kind7(StrEnum):
+class Kind8(StrEnum):
     delta = "delta"
     tool = "tool"
 
@@ -2293,7 +2314,7 @@ class Kind7(StrEnum):
 class ChatRelayChunksRequest(BaseModel):
     seq_start: Annotated[int, Field(ge=0)]
     texts: Annotated[list[str], Field(max_length=200, min_length=1)]
-    kinds: Annotated[list[Kind7] | None, Field(max_length=200)] = None
+    kinds: Annotated[list[Kind8] | None, Field(max_length=200)] = None
     """
     GAP-134: texts と同長の種別 (delta=本文 / tool=実況)。省略時は全て delta
     """

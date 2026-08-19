@@ -527,3 +527,76 @@ describe("S-G01 差分と復元 (GAP-155)", () => {
     );
   });
 });
+
+describe("成果物の中身に応じた表示 (GAP-176)", () => {
+  /** content-url が kind を返す標準系 (Excel/PDF/画像/その他)。 */
+  function getWithKind(kind: string, fileName: string, title = "御見積明細.xlsx") {
+    return vi.fn(async (path: string) => {
+      if (path.includes("content-url"))
+        return {
+          data: {
+            url: "http://api.test/outputs/o1/content?token=x",
+            kind,
+            file_name: fileName,
+          },
+        };
+      if (path.includes("versions")) return { data: [{ ...META, summary: title }] };
+      if (path.includes("anchors")) return { data: [] };
+      if (path.includes("fix-proposals")) return { data: [] };
+      if (path === "/comments") return { data: [] };
+      return { data: { ...META, summary: title } };
+    });
+  }
+
+  it("Excel は HTML の iframe に流し込まず、表で見る旨を出す", async () => {
+    renderWithQuery(
+      <OutputViewerContainer
+        outputId="o1"
+        client={clientOf(getWithKind("sheet", "御見積明細.xlsx"))}
+      />,
+    );
+    expect(await screen.findByText(/表計算ファイルです/)).toBeInTheDocument();
+    // 空の白枠 (iframe) を出さないことが本丸
+    expect(screen.queryByTitle("御見積明細.xlsx")).not.toBeInTheDocument();
+  });
+
+  it("画像は img で出す (iframe ではない)", async () => {
+    renderWithQuery(
+      <OutputViewerContainer
+        outputId="o1"
+        client={clientOf(getWithKind("image", "ロゴ.png", "ロゴ.png"))}
+      />,
+    );
+    expect(await screen.findByRole("img", { name: "ロゴ.png" })).toBeInTheDocument();
+    expect(screen.queryByTitle("ロゴ.png")).not.toBeInTheDocument();
+  });
+
+  it("PDF は iframe のまま (ブラウザ内蔵ビューアで読める) だが PDF と分かる題", async () => {
+    renderWithQuery(
+      <OutputViewerContainer
+        outputId="o1"
+        client={clientOf(getWithKind("pdf", "契約書.pdf", "契約書"))}
+      />,
+    );
+    expect(await screen.findByTitle("契約書（PDF）")).toBeInTheDocument();
+  });
+
+  it("表示できない形式 (PPTX 等) は原本/DL へ誘導する", async () => {
+    renderWithQuery(
+      <OutputViewerContainer
+        outputId="o1"
+        client={clientOf(getWithKind("binary", "提案.pptx", "提案.pptx"))}
+      />,
+    );
+    expect(
+      await screen.findByText(/この画面で表示できない形式です/),
+    ).toBeInTheDocument();
+  });
+
+  it("kind の無い応答 (HTML 成果物) は従来どおり iframe", async () => {
+    renderWithQuery(
+      <OutputViewerContainer outputId="o1" client={clientOf(standardGet())} />,
+    );
+    expect(await screen.findByTitle("要件定義書")).toBeInTheDocument();
+  });
+});

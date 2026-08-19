@@ -596,6 +596,15 @@ components:
       required: [url]
       properties:
         url: { type: string }
+        # GAP-176: 中身が何かを URL の受け手 (S-G01 ビューア) に伝える。
+        # これが無いと Excel/PDF まで HTML の iframe に流し込んでしまい、
+        # 空の白い枠が出る (経営者指摘)。
+        kind:
+          type: string
+          enum: [html, pdf, image, sheet, binary]
+          description: "表示方法の決定に使う中身の種別。html=iframe / pdf=PDF ビューア / image=<img> / sheet=表 (プレビュー枠は出さない) / binary=DL のみ"
+        file_name: { type: string, nullable: true, description: "元のファイル名 (バイナリ成果物のみ)" }
+        mime: { type: string, nullable: true }
 
     AiEmployee:
       type: object

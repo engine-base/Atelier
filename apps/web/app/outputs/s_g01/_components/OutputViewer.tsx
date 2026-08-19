@@ -38,6 +38,15 @@ const FORMAT_LABEL: Record<OutputFormat, string> = {
   md: "MD",
 };
 
+/** GAP-176: 中身の種別に応じた表示ラベル。Excel を「HTML」と呼ばない。 */
+const CONTENT_KIND_LABEL: Record<string, string> = {
+  html: "HTML",
+  pdf: "PDF",
+  image: "画像",
+  sheet: "表計算",
+  binary: "ファイル",
+};
+
 export interface OutputComment {
   readonly id: string;
   readonly author: string;
@@ -90,6 +99,10 @@ export interface OutputViewerProps {
    *  null = 本文ファイルを持たない成果物 (営業ドラフト等 — journey v2 検出の
    *  是正: プレビューは無くてもコメント/バージョンは扱えるようにする)。 */
   readonly contentUrl: string | null;
+  /** GAP-176: 中身の種別。Excel/PDF/画像 を HTML の iframe に流し込まない。 */
+  readonly contentKind?: "html" | "pdf" | "image" | "sheet" | "binary";
+  /** GAP-176: バイナリ成果物の元ファイル名 (表示・DL 名に使う)。 */
+  readonly contentFileName?: string | null;
   /** 実在する format のみ (存在しないタブは出さない — Rule 10)。 */
   readonly formats?: readonly OutputFormat[];
   readonly activeFormat?: OutputFormat;
@@ -144,6 +157,8 @@ export interface OutputViewerProps {
 export function OutputViewer({
   title,
   contentUrl,
+  contentKind = "html",
+  contentFileName = null,
   formats = ["html"],
   activeFormat = "html",
   onSelectFormat,
@@ -240,7 +255,9 @@ export function OutputViewer({
                         : "text-on-surface-variant hover:text-on-surface",
                     )}
                   >
-                    {FORMAT_LABEL[f]}
+                    {f === "html"
+                      ? (CONTENT_KIND_LABEL[contentKind] ?? "HTML")
+                      : FORMAT_LABEL[f]}
                   </button>
                 ))}
               </div>
@@ -430,18 +447,42 @@ export function OutputViewer({
                   {current?.author ? ` · ${current.author}` : ""} ·{" "}
                   {contentUrl === null
                     ? "本文プレビューなし"
-                    : `${FORMAT_LABEL[activeFormat]} プレビュー`}
+                    : activeFormat === "html"
+                      ? `${CONTENT_KIND_LABEL[contentKind] ?? "HTML"} プレビュー`
+                      : `${FORMAT_LABEL[activeFormat]} プレビュー`}
                 </div>
                 {contentUrl === null ? (
                   <p className="rounded-md border border-border bg-surface-variant/40 p-4 text-body-sm text-on-surface-variant">
                     この成果物は本文ファイルを持ちません（営業ドラフト等の本文は生成元の画面で管理されます）。
                     コメントへの返信・バージョンの確認はこの画面で行えます。
                   </p>
+                ) : activeFormat === "html" && contentKind === "sheet" ? (
+                  // GAP-176: Excel/CSV は HTML ではない。iframe に流すと空の白枠に
+                  // なるだけなので出さない (実体の表はこの下の SheetEditor が描く)。
+                  <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-body-sm text-on-surface-variant">
+                    {contentFileName ?? "この成果物"}{" "}
+                    は表計算ファイルです。下の表で内容を確認・編集できます（「原本」で元のファイルを開けます）。
+                  </p>
+                ) : activeFormat === "html" && contentKind === "image" ? (
+                  <div className="overflow-hidden rounded-md border border-border bg-white p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={frameSrc ?? undefined}
+                      alt={contentFileName ?? title}
+                      className="mx-auto max-h-[600px] w-auto max-w-full object-contain"
+                    />
+                  </div>
+                ) : activeFormat === "html" && contentKind === "binary" ? (
+                  <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-body-sm text-on-surface-variant">
+                    {contentFileName ?? "この成果物"}{" "}
+                    はこの画面で表示できない形式です。「原本」または「DL」で開いてください。
+                  </p>
                 ) : activeFormat === "html" ? (
+                  // html / pdf — PDF はブラウザ内蔵ビューアが iframe で描画できる
                   <div className="overflow-hidden rounded-md border border-border">
                     <iframe
                       key={frameSrc}
-                      title={title}
+                      title={contentKind === "pdf" ? `${title}（PDF）` : title}
                       src={frameSrc ?? undefined}
                       className="h-[600px] w-full border-0 bg-white"
                     />

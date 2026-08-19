@@ -101,6 +101,34 @@ async def get_output(
     return {"data": out}
 
 
+async def _filedb_kind(
+    html_path: str,
+) -> tuple[Literal["html", "pdf", "image", "sheet", "binary"], str | None, str | None]:
+    """filedb 成果物の (表示種別, ファイル名, MIME) を実体から引く (GAP-176)。
+
+    表示種別は ContentUrl.kind の値域に写す:
+      image → image / pdf → pdf / sheet → sheet / それ以外 (slides, doc,
+      video 等) → binary (プレビュー枠を出さず DL 導線にする)。
+    """
+    from src.services.mocks.artifacts import file_type_for, service_session_factory
+
+    factory = service_session_factory()
+    async with factory() as service_session:
+        found = await fetch_file_content(service_session, file_id=html_path[len(FILEDB_PREFIX) :])
+    if found is None:
+        return "binary", None, None
+    _data, mime, file_name = found
+    pair = file_type_for(file_name)
+    file_kind = pair[0] if pair else ""
+    if file_kind == "image":
+        return "image", file_name, mime
+    if file_kind == "pdf":
+        return "pdf", file_name, mime
+    if file_kind == "sheet":
+        return "sheet", file_name, mime
+    return "binary", file_name, mime
+
+
 @router.get(
     "/outputs/{output_id}/content-url",
     summary="成果物の署名付き閲覧 URL (format=html/json/md)",
@@ -129,11 +157,13 @@ async def get_output_content_url(
         )
     if path.startswith(MOCKDB_PREFIX) or path.startswith(FILEDB_PREFIX):
         # GAP-139/145: DB 内蔵ストア (HTML / バイナリ) は自己署名 URL で配信
-        return {
-            "data": ContentUrlResponse(
-                url=build_content_url(str(request.base_url), output_id, resource="outputs")
-            )
-        }
+        url = build_content_url(str(request.base_url), output_id, resource="outputs")
+        if not path.startswith(FILEDB_PREFIX):
+            return {"data": ContentUrlResponse(url=url, kind="html")}
+        # GAP-176: バイナリ成果物は「中身が何か」を返す。これが無いと画面が
+        # Excel/PDF まで HTML の iframe に流し込み、空の白い枠が出ていた。
+        kind, file_name, mime = await _filedb_kind(path)
+        return {"data": ContentUrlResponse(url=url, kind=kind, file_name=file_name, mime=mime)}
     try:
         url = await create_signed_download_url(path)
     except StorageSigningError as exc:

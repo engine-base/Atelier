@@ -17588,6 +17588,14 @@ export interface components {
         };
         ContentUrl: {
             url: string;
+            /**
+             * @description 表示方法の決定に使う中身の種別。html=iframe / pdf=PDF ビューア / image=<img> / sheet=表 (プレビュー枠は出さない) / binary=DL のみ
+             * @enum {string}
+             */
+            kind?: "html" | "pdf" | "image" | "sheet" | "binary";
+            /** @description 元のファイル名 (バイナリ成果物のみ) */
+            file_name?: string | null;
+            mime?: string | null;
         };
         AiEmployee: {
             /** Format: uuid */

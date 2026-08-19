@@ -135,7 +135,19 @@ export function OutputViewerContainer({
       const res = await client.get("/outputs/{output_id}/content-url", {
         params: { path: { output_id: outputId } },
       });
-      return (res as { data?: { url: string } }).data ?? null;
+      // GAP-176: kind = 中身の種別 (html/pdf/image/sheet/binary)。
+      // Excel/PDF を HTML の iframe に流し込まないために使う。
+      return (
+        (
+          res as {
+            data?: {
+              url: string;
+              kind?: "html" | "pdf" | "image" | "sheet" | "binary";
+              file_name?: string | null;
+            };
+          }
+        ).data ?? null
+      );
     },
     retry: false,
   });
@@ -618,6 +630,8 @@ export function OutputViewerContainer({
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
       bridgeOffline={bridgeOffline}
+      contentKind={content.data?.kind ?? "html"}
+      contentFileName={content.data?.file_name ?? null}
       comments={outputComments}
       onAddComment={(text_, targetElementId) =>
         addMut.mutate({ text: text_, targetElementId })
