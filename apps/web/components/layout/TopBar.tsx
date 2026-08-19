@@ -43,6 +43,8 @@ export interface TopBarProps {
   readonly breadcrumb?: string;
   /** GAP-117: プロジェクト文脈時に表示するプロジェクト名ピル */
   readonly projectName?: string;
+  /** GAP-157: プロジェクトピル直後の slot (フェーズスイッチャー等) */
+  readonly projectExtra?: ReactNode;
   /** 右端 slot (ユーザーメニュー等) */
   readonly trailing?: ReactNode;
   readonly className?: string;
@@ -159,6 +161,7 @@ export function TopBar({
   onSelectWorkspace,
   breadcrumb,
   projectName,
+  projectExtra,
   trailing,
   className,
 }: TopBarProps) {
@@ -210,6 +213,9 @@ export function TopBar({
             <span className="truncate">{projectName}</span>
           </div>
         ) : null}
+
+        {/* GAP-157: フェーズスイッチャー等 (プロジェクト文脈の全体切替) */}
+        {projectExtra}
 
         {/* パンくず */}
         {breadcrumb ? (

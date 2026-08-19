@@ -20,6 +20,7 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { Loading } from "../../../../components/Loading";
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { useSelectedPhase } from "../../../../lib/currentPhase";
 import {
   employeeColor,
   employeeName,
@@ -106,11 +107,37 @@ export function TaskBoardContainer({
     return () => window.removeEventListener("keydown", onKey);
   }, [adding]);
 
+  // GAP-157: フェーズはヘッダーで全体切替 — 確定フェーズ選択時はそのフェーズの
+  // タスクだけを表示 (追加分の依存・タスクをフェーズ別に見る)
+  const selectedPhaseId = useSelectedPhase(projectId);
+  const phasesQuery = useQuery({
+    queryKey: ["delivery-phases", projectId],
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}/delivery-phases", {
+        params: { path: { project_id: projectId } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d)
+        ? (d as { id: string; name: string; status: string }[])
+        : [];
+    },
+    retry: false,
+  });
+  const viewingFrozen = (phasesQuery.data ?? []).find(
+    (p) => p.id === selectedPhaseId && p.status === "frozen",
+  );
+
   const list = useQuery({
-    queryKey: KEY(projectId),
+    queryKey: [...KEY(projectId), viewingFrozen?.id ?? "current"],
     queryFn: async () => {
       const res = await client.get("/tasks", {
-        params: { query: { project_id: projectId, limit: 200 } },
+        params: {
+          query: {
+            project_id: projectId,
+            ...(viewingFrozen ? { delivery_phase_id: viewingFrozen.id } : {}),
+            limit: 200,
+          },
+        },
       });
       return asArray<ApiTask>((res as { data?: unknown }).data);
     },

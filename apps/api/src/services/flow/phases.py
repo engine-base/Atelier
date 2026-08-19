@@ -241,3 +241,76 @@ async def frozen_phase_of(session: AsyncSession, *, delivery_phase_id: str | Non
         )
     ).first()
     return None if row is None else str(row.name)
+
+
+async def phase_history_block(session: AsyncSession, *, project_id: str) -> str:
+    """チャット注入用: 確定済みフェーズの中身サマリー (GAP-157)。
+
+    経営者指示「切り替えても前フェーズを把握して、依存もタスク分解も徹底できる
+    状態で」— 画面の表示はヘッダーで切り替えるが、AI は常に全フェーズを把握して
+    依存関係・追加分のタスク分解を前フェーズの実物 (成果物/モック/工程) を
+    踏まえて行う。確定フェーズが無ければ空文字。
+    """
+    frozen = (
+        await session.execute(
+            text(
+                "select id, seq, name, frozen_at from public.delivery_phases "
+                "where project_id = cast(:p as uuid) and status = 'frozen' order by seq"
+            ),
+            {"p": project_id},
+        )
+    ).all()
+    if not frozen:
+        return ""
+    lines = ["# 確定済みフェーズの内容 (凍結スナップショット — 依存・追加タスク分解の前提)"]
+    for ph in frozen:
+        outs = (
+            await session.execute(
+                text(
+                    "select stage::text as stage, coalesce(summary, '') as title, "
+                    "max(version) as ver from public.workflow_outputs "
+                    "where delivery_phase_id = cast(:d as uuid) and deleted_at is null "
+                    "group by stage, summary order by stage limit 15"
+                ),
+                {"d": str(ph.id)},
+            )
+        ).all()
+        mocks = (
+            await session.execute(
+                text(
+                    "select screen_name, max(version) as ver from public.mocks "
+                    "where delivery_phase_id = cast(:d as uuid) and deleted_at is null "
+                    "group by screen_name order by screen_name limit 12"
+                ),
+                {"d": str(ph.id)},
+            )
+        ).all()
+        stages = (
+            await session.execute(
+                text(
+                    "select title, status from public.project_flow_stages "
+                    "where delivery_phase_id = cast(:d as uuid) "
+                    "and status in ('done', 'skipped') order by seq"
+                ),
+                {"d": str(ph.id)},
+            )
+        ).all()
+        frozen_date = "" if ph.frozen_at is None else str(ph.frozen_at)[:10]
+        lines.append(f"## {ph.name}（{frozen_date} 確定）")
+        if stages:
+            lines.append(
+                "完了工程: " + " / ".join(str(s.title) for s in stages if s.status == "done")
+            )
+        if outs:
+            lines.append(
+                "成果物: " + " / ".join(f"{o.title}(v{o.ver}, {o.stage})" for o in outs if o.title)
+            )
+        if mocks:
+            lines.append("画面モック: " + " / ".join(f"{m.screen_name}(v{m.ver})" for m in mocks))
+    lines.append(
+        "これらは凍結済み — 変更・追加はすべて現在フェーズの作業として扱い、"
+        "新しいタスク・依存は上記の確定内容 (既存画面・既存成果物・既存実装) を"
+        "前提に分解すること。"
+    )
+    block = "\n".join(lines)
+    return block[:3000]

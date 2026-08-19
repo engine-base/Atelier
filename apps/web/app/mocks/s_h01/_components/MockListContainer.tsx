@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { useSelectedPhase } from "../../../../lib/currentPhase";
 import { Loading } from "../../../../components/Loading";
 import { useProjectId } from "../../../../lib/useProjectId";
 import { MockCanvas } from "./MockCanvas";
@@ -107,8 +108,9 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
     },
   });
 
-  // GAP-152: フェーズ切替 — 確定フェーズのスナップショットを絞り込んで見る
-  const [phaseFilter, setPhaseFilter] = useState<string>("");
+  // GAP-157: フェーズはヘッダーのスイッチャーで全体切替 — 一覧はそれに追従し、
+  // 確定フェーズ選択時はそのスナップショットだけを表示する
+  const selectedPhaseId = useSelectedPhase(projectId ?? null);
   const phasesQuery = useQuery({
     queryKey: ["delivery-phases", projectId],
     enabled: Boolean(projectId),
@@ -129,6 +131,10 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
     retry: false,
   });
   const phases = phasesQuery.data ?? [];
+  const viewingFrozen = phases.find(
+    (p) => p.id === selectedPhaseId && p.status === "frozen",
+  );
+  const phaseFilter = viewingFrozen?.id ?? "";
 
   const mocks = useQuery({
     queryKey: ["mocks", projectId, phaseFilter],
@@ -189,25 +195,11 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
         <h1 className="text-headline-md font-bold tracking-tight text-on-surface">
           モック
         </h1>
-        {/* GAP-152: フェーズ切替 (確定フェーズのスナップショット閲覧) */}
-        {phases.length > 1 ? (
-          <label className="ml-2 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[12px]">
-            <span className="font-semibold text-on-surface-variant">フェーズ</span>
-            <select
-              aria-label="フェーズで絞り込み"
-              value={phaseFilter}
-              onChange={(e) => setPhaseFilter(e.target.value)}
-              className="bg-transparent text-[12px] text-on-surface outline-none"
-            >
-              <option value="">すべて</option>
-              {phases.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.status === "frozen" ? "（確定済み）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+        {/* GAP-157: 確定フェーズ閲覧中の明示 (切替はヘッダーのフェーズスイッチャー) */}
+        {viewingFrozen ? (
+          <span className="ml-2 inline-flex items-center rounded-full bg-surface-variant px-2.5 py-1 text-[11.5px] font-semibold text-on-surface-variant">
+            {viewingFrozen.name} ✓確定 のスナップショットを表示中
+          </span>
         ) : null}
         {/* GAP-138: 一覧/キャンバス切替 (キャンバス = 全画面を俯瞰 + その場で編集) */}
         <div role="group" aria-label="表示切替" className="ml-auto flex rounded-md border border-border">

@@ -11,7 +11,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -227,9 +227,11 @@ describe("FlowRail (GAP-150)", () => {
   });
 });
 
-// ── GAP-152: 段階的フェーズ (フェーズバー / 確定 / 過去フェーズ閲覧) ──────
+// ── GAP-152/157: フェーズはヘッダーで全体切替 — FlowRail は追従して
+// 凍結スナップショットを読み取り専用表示する ──────────────────────────
 
 import type { DeliveryPhase } from "../../app/chat/s_e01/_components/FlowRail";
+import { writeSelectedPhase } from "../../lib/currentPhase";
 
 function phase(
   over: Partial<DeliveryPhase> & { id: string; seq: number },
@@ -246,7 +248,6 @@ function phase(
   } as DeliveryPhase;
 }
 
-const PHASES_ONE: DeliveryPhase[] = [phase({ id: "ph1", seq: 1 })];
 const PHASES_TWO: DeliveryPhase[] = [
   phase({
     id: "ph1",
@@ -260,38 +261,9 @@ const PHASES_TWO: DeliveryPhase[] = [
   phase({ id: "ph2", seq: 2 }),
 ];
 
-describe("FlowRail フェーズ (GAP-152)", () => {
-  it("「フェーズを確定…」→ 明示承認 → freeze API → 次フェーズ開始の通知", async () => {
-    const freezePhaseFn = vi.fn(async () => PHASES_TWO);
-    renderWithQuery(
-      <FlowRail
-        projectId="p1"
-        onSelectThread={vi.fn()}
-        getFlowFn={async () => FLOW}
-        getPhasesFn={async () => PHASES_ONE}
-        freezePhaseFn={freezePhaseFn}
-      />,
-    );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "フェーズを確定…" }),
-    );
-    // 明示承認パネル — 承認するまで API は呼ばれない
-    expect(freezePhaseFn).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(/「フェーズ1」を確定すると成果物/),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "確定して次フェーズへ" }));
-    await waitFor(() => expect(freezePhaseFn).toHaveBeenCalledWith("p1", "ph1"));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "ここからは「フェーズ2」です",
-    );
-    // フェーズバーが凍結+新フェーズに更新される
-    expect(
-      screen.getByRole("button", { name: "フェーズ1を表示" }),
-    ).toHaveTextContent("✓確定");
-  });
-
-  it("確定フェーズを選ぶと読み取り専用スナップショット (完了/スキップ/確定を出さない)", async () => {
+describe("FlowRail フェーズ追従 (GAP-157)", () => {
+  it("ヘッダーで確定フェーズを選ぶと読み取り専用スナップショット (完了/スキップを出さない)", async () => {
+    window.localStorage.clear();
     const getFlowFn = vi.fn(async (_p: string, phaseId?: string | null) =>
       phaseId === "ph1"
         ? FLOW.map((s) => ({ ...s, status: "done" as const, current: false }))
@@ -305,29 +277,24 @@ describe("FlowRail フェーズ (GAP-152)", () => {
         getPhasesFn={async () => PHASES_TWO}
       />,
     );
-    // active (フェーズ2) 表示: 完了ボタンあり
+    // 既定 = 現在フェーズ: 操作可能
     expect(
       await screen.findByRole("button", { name: "提案 を完了" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "フェーズ1を表示" }));
-    // 凍結バナー + 実数 + 読み取り専用 (完了/確定ボタンなし)
+    // ヘッダー (スイッチャー) がフェーズ1 を選択 → 全タブ同期イベント
+    act(() => writeSelectedPhase("p1", "ph1"));
     expect(
       await screen.findByText(/「フェーズ1」は確定済みです/),
     ).toBeInTheDocument();
     expect(screen.getByText(/成果物 3/)).toBeInTheDocument();
-    await waitFor(() =>
-      expect(getFlowFn).toHaveBeenCalledWith("p1", "ph1"),
-    );
+    await waitFor(() => expect(getFlowFn).toHaveBeenCalledWith("p1", "ph1"));
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "提案 を完了" }),
       ).not.toBeInTheDocument(),
     );
-    expect(
-      screen.queryByRole("button", { name: "フェーズを確定…" }),
-    ).not.toBeInTheDocument();
-    // フェーズ2 に戻ると操作可能
-    fireEvent.click(screen.getByRole("button", { name: "フェーズ2を表示" }));
+    // 現在フェーズへ戻すと操作可能に戻る
+    act(() => writeSelectedPhase("p1", null));
     expect(
       await screen.findByRole("button", { name: "提案 を完了" }),
     ).toBeInTheDocument();

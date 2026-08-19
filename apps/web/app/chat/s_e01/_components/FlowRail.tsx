@@ -19,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import * as api from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
+import { useSelectedPhase } from "../../../../lib/currentPhase";
 
 export interface FlowStage {
   readonly id: string;
@@ -69,12 +70,8 @@ export interface FlowRailProps {
     projectId: string,
     stageKey: string,
   ) => Promise<{ thread_id: string }>;
-  /** GAP-152: フェーズ一覧/確定 (テスト注入用)。 */
+  /** GAP-152/157: フェーズ一覧 (テスト注入用)。確定はヘッダーのスイッチャーへ移設。 */
   readonly getPhasesFn?: (projectId: string) => Promise<readonly DeliveryPhase[]>;
-  readonly freezePhaseFn?: (
-    projectId: string,
-    phaseId: string,
-  ) => Promise<readonly DeliveryPhase[]>;
   /** GAP-151: 選択スレッド未指定なら現在工程の会話を自動で開く。 */
   readonly autoOpenCurrent?: boolean;
 }
@@ -93,19 +90,6 @@ async function defaultGetPhases(
   return (
     await api.getJson<DeliveryPhase[]>(`/projects/${projectId}/delivery-phases`)
   ).data;
-}
-
-async function defaultFreezePhase(
-  projectId: string,
-  phaseId: string,
-): Promise<readonly DeliveryPhase[]> {
-  // connector.sendJson は API の {data} envelope を剥がして返す
-  const res = await api.sendJson<DeliveryPhase[]>(
-    "POST",
-    `/projects/${projectId}/delivery-phases/${phaseId}/freeze`,
-    { confirm: true },
-  );
-  return res ?? [];
 }
 
 async function defaultPostFlow(
@@ -150,7 +134,6 @@ export function FlowRail({
   postFlowFn = defaultPostFlow,
   ensureThreadFn = defaultEnsureThread,
   getPhasesFn = defaultGetPhases,
-  freezePhaseFn = defaultFreezePhase,
   autoOpenCurrent = false,
 }: FlowRailProps) {
   const queryClient = useQueryClient();
@@ -162,10 +145,8 @@ export function FlowRail({
   const [skipReason, setSkipReason] = useState("");
   // 引き継ぎバナー (完了直後の COO 案内)
   const [handoff, setHandoff] = useState<FlowStage | null>(null);
-  // GAP-152: 表示中フェーズ (null = 現在の active フェーズ) + 確定の明示承認
-  const [viewPhaseId, setViewPhaseId] = useState<string | null>(null);
-  const [freezeConfirm, setFreezeConfirm] = useState(false);
-  const [freezeNotice, setFreezeNotice] = useState<string | null>(null);
+  // GAP-157: 表示フェーズはヘッダーのスイッチャーが正本 (全タブ同期)
+  const viewPhaseId = useSelectedPhase(projectId);
 
   const phasesQuery = useQuery({
     queryKey: ["delivery-phases", projectId],
@@ -185,34 +166,6 @@ export function FlowRail({
     retry: false,
   });
 
-  const freeze = useMutation({
-    retry: false,
-    mutationFn: async () => {
-      if (!activePhase) throw new Error("no active phase");
-      return freezePhaseFn(projectId, activePhase.id);
-    },
-    onSuccess: (next) => {
-      queryClient.setQueryData(["delivery-phases", projectId], next);
-      void queryClient.invalidateQueries({ queryKey: ["project-flow", projectId] });
-      setFreezeConfirm(false);
-      setViewPhaseId(null);
-      const newActive = next.find((p) => p.status === "active");
-      setFreezeNotice(
-        newActive
-          ? `フェーズを確定しました。ここからは「${newActive.name}」です — 追加の要望・見積・タスクは${newActive.name}として扱われます。`
-          : "フェーズを確定しました。",
-      );
-      setError(null);
-    },
-    onError: (e) => {
-      setFreezeConfirm(false);
-      setError(
-        e instanceof api.ApiError && (e.status === 403 || e.status === 409)
-          ? e.message
-          : "フェーズの確定に失敗しました。",
-      );
-    },
-  });
 
   const openStage = async (s: FlowStage): Promise<void> => {
     setError(null);
@@ -296,94 +249,7 @@ export function FlowRail({
         進行フロー
       </p>
 
-      {/* ── GAP-152: フェーズバー (切替 + 確定) ── */}
-      {phases.length > 0 ? (
-        <div
-          aria-label="フェーズ"
-          className="mb-1.5 flex flex-wrap items-center gap-1 px-1"
-        >
-          {phases.map((p) => {
-            const selected = viewingPhase?.id === p.id;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setViewPhaseId(p.status === "active" ? null : p.id);
-                  setFreezeConfirm(false);
-                }}
-                aria-pressed={selected}
-                aria-label={`${p.name}を表示`}
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[10.5px] font-semibold transition-colors",
-                  selected
-                    ? "bg-primary text-on-primary"
-                    : "bg-surface-variant text-on-surface-variant hover:text-on-surface",
-                )}
-              >
-                {p.name}
-                {p.status === "frozen" ? " ✓確定" : ""}
-              </button>
-            );
-          })}
-          {activePhase && !isFrozenView ? (
-            <button
-              type="button"
-              onClick={() => setFreezeConfirm(true)}
-              className="ml-auto rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
-            >
-              フェーズを確定…
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* フェーズ確定の明示承認 (成果物凍結 — hard gate と同格) */}
-      {freezeConfirm && activePhase ? (
-        <div className="mx-1 mb-1.5 rounded-md border-l-[3px] border-error bg-error/10 px-2 py-1.5 text-[11px] text-on-surface">
-          「{activePhase.name}」を確定すると成果物
-          {activePhase.output_count + activePhase.mock_count > 0
-            ? `（${activePhase.output_count + activePhase.mock_count} 件）`
-            : ""}
-          が凍結され、以後の追加・変更は次フェーズの作業になります。よろしいですか？
-          <div className="mt-1 flex justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => setFreezeConfirm(false)}
-              className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant"
-            >
-              やめる
-            </button>
-            <button
-              type="button"
-              disabled={freeze.isPending}
-              onClick={() => freeze.mutate()}
-              className="rounded-sm bg-error px-2 py-0.5 text-[10.5px] font-semibold text-on-error disabled:opacity-50"
-            >
-              {freeze.isPending ? "確定中…" : "確定して次フェーズへ"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {freezeNotice ? (
-        <div
-          role="status"
-          className="mx-1 mb-1.5 rounded-md bg-tertiary-container px-2 py-1.5 text-[11.5px] text-tertiary-container-fg"
-        >
-          {freezeNotice}
-          <button
-            type="button"
-            onClick={() => setFreezeNotice(null)}
-            aria-label="通知を閉じる"
-            className="ml-1.5 font-semibold underline"
-          >
-            OK
-          </button>
-        </div>
-      ) : null}
-
-      {/* 確定フェーズの閲覧バナー (スナップショット — 読み取り専用) */}
+      {/* GAP-157: 確定フェーズの閲覧バナー (ヘッダーで切替 — 読み取り専用スナップショット) */}
       {isFrozenView && viewingPhase ? (
         <div
           role="note"

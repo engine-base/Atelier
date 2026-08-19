@@ -44,6 +44,7 @@ import {
 } from '../../lib/currentWorkspace';
 import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
 import { AppShell } from './AppShell';
+import { PhaseSwitcher } from './PhaseSwitcher';
 import type { NavItem, NavSection } from './Sidebar';
 
 const ICON = 'h-4 w-4';
@@ -310,6 +311,9 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
         setCurrentWsId(id);
       }}
       projectName={inProject ? project!.name : undefined}
+      projectExtra={
+        inProject ? <PhaseSwitcher key={project!.id} projectId={project!.id} /> : undefined
+      }
       breadcrumb={activeNav?.labelKey}
       topBarTrailing={<TopBarTrailing me={me} pendingCount={pendingCount} />}
       fullBleed={fullBleed}

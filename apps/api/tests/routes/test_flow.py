@@ -537,3 +537,9 @@ def test_gap152_stamping_filters_and_frozen_guard(
             json={"user_message": "追加お願い", "include_history": 5},
         ).json()["data"]["system_prompt"]
         assert "フェーズ2" in ctx and "確定済み" in ctx
+        # GAP-157: 前フェーズの中身 (成果物/モック) が AI 文脈に入る — 表示を
+        # 切り替えても依存・タスク分解が前フェーズを踏まえられる状態
+        assert "確定済みフェーズの内容" in ctx
+        assert "S-152(v1)" in ctx  # フェーズ1 の画面モック
+        assert "見積(v2, estimate)" in ctx  # フェーズ1 の成果物 (最新版)
+        assert "現在フェーズの作業として扱い" in ctx

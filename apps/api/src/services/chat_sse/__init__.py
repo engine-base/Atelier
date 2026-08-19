@@ -284,6 +284,13 @@ async def build_context(
         flow_block = await flow_context_block(session, project_id=project_id)
         if flow_block:
             parts.append(flow_block)
+        # GAP-157: 確定済みフェーズの中身 (成果物/モック/完了工程) — 画面表示は
+        # ヘッダーで切り替えても、AI は常に前フェーズを踏まえて依存・タスク分解する
+        from src.services.flow.phases import phase_history_block
+
+        history_block = await phase_history_block(session, project_id=project_id)
+        if history_block:
+            parts.append(history_block)
         # GAP-154: 現在工程の出力テンプレート (workspace 定義) — 「基本的に
         # それを使う」を構造で保証する
         from src.services.outputs.templates import templates_context_block
