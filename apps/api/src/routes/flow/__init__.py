@@ -12,12 +12,19 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
-from src.schemas.flow import FlowCompleteRequest, FlowSkipRequest, FlowStageResponse
+from src.schemas.flow import (
+    DeliveryPhaseResponse,
+    FlowCompleteRequest,
+    FlowSkipRequest,
+    FlowStageResponse,
+    PhaseFreezeRequest,
+)
 from src.services import flow as svc
+from src.services.flow import phases as phases_svc
 
 router = APIRouter(tags=["flow"])
 
@@ -35,12 +42,65 @@ def _raise(exc: svc.FlowError) -> None:
 
 @router.get("/projects/{project_id}/flow", summary="プロジェクトフロー取得 (GAP-150)")
 async def get_flow(
-    project_id: str, session: SessionDep, user: UserDep
+    project_id: str,
+    session: SessionDep,
+    user: UserDep,
+    phase: Annotated[str | None, Query(description="GAP-152: 過去フェーズの周回を閲覧")] = None,
 ) -> dict[str, list[FlowStageResponse]]:
-    flow = await svc.get_flow(session, actor_id=user.id, project_id=project_id)
+    try:
+        flow = await svc.get_flow(session, actor_id=user.id, project_id=project_id, phase_id=phase)
+    except svc.FlowError as exc:
+        _raise(exc)
+        raise  # unreachable — 型のため
     if flow is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     return {"data": flow}
+
+
+@router.get(
+    "/projects/{project_id}/delivery-phases",
+    summary="フェーズ一覧 (GAP-152 — 未初期化ならフェーズ1 を自動作成)",
+)
+async def list_delivery_phases(
+    project_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[DeliveryPhaseResponse]]:
+    phases = await phases_svc.list_phases(session, project_id=project_id)
+    if phases is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    return {"data": phases}
+
+
+@router.post(
+    "/projects/{project_id}/delivery-phases/{phase_id}/freeze",
+    summary="フェーズ確定 = 成果物凍結 + 次フェーズ開始 (GAP-152 — confirm 必須)",
+    responses={
+        403: {"description": "confirm 未指定 (明示承認が必要)"},
+        409: {"description": "すでに確定済み"},
+    },
+)
+async def freeze_delivery_phase(
+    project_id: str,
+    phase_id: str,
+    body: PhaseFreezeRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, list[DeliveryPhaseResponse]]:
+    try:
+        phases = await phases_svc.freeze_phase(
+            session,
+            actor_id=user.id,
+            project_id=project_id,
+            phase_id=phase_id,
+            confirm=body.confirm,
+            note=body.note,
+        )
+    except phases_svc.PhaseError as exc:
+        if exc.code == "not_found":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        if exc.code == "confirm_required":
+            raise HTTPException(status.HTTP_403_FORBIDDEN, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    return {"data": phases}
 
 
 @router.post(

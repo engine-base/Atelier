@@ -160,6 +160,10 @@ async def ingest_html_artifact(
     parent_id = None if latest is None else str(latest.id)
 
     new_id = str(uuid.uuid4())
+    # GAP-152: 取り込みは常に active フェーズへ (確定フェーズには何も足せない)
+    from src.services.flow.phases import ensure_active_phase
+
+    phase = await ensure_active_phase(session, project_id=project_id)
     # GAP-155: (project, 画面, version) 一意。Bridge 取り込みは新規ファイル由来で
     # lost update の意味論が無いため、衝突時は version を採り直してリトライする
     # (人間の改訂と違い 409 で止める相手がいない)。
@@ -170,9 +174,9 @@ async def ingest_html_artifact(
                     text(
                         "insert into public.mocks "
                         "(id, project_id, screen_name, html_storage_path, version, "
-                        " parent_mock_id, meta_tags) "
+                        " parent_mock_id, delivery_phase_id, meta_tags) "
                         "values (cast(:id as uuid), cast(:pid as uuid), :sn, :path, :ver, "
-                        "        cast(:parent as uuid), cast(:meta as jsonb))"
+                        "        cast(:parent as uuid), cast(:dph as uuid), cast(:meta as jsonb))"
                     ),
                     {
                         "id": new_id,
@@ -181,6 +185,7 @@ async def ingest_html_artifact(
                         "path": f"{MOCKDB_PREFIX}{content_id}",
                         "ver": version,
                         "parent": parent_id,
+                        "dph": phase.id,
                         "meta": json.dumps(
                             {"author": actor_label, "source": source, "file_name": file_name}
                         ),
@@ -327,6 +332,10 @@ async def ingest_html_output(
         ).scalar_one()
     )
     new_id = str(uuid.uuid4())
+    # GAP-152: 取り込みは常に active フェーズへ
+    from src.services.flow.phases import ensure_active_phase
+
+    phase = await ensure_active_phase(session, project_id=project_id)
     # GAP-155: (project, stage, file_name, version) 一意。Bridge 取り込みは
     # 新規ファイル由来で lost update の意味論が無いため、衝突時は version を
     # 採り直してリトライする (人間の改訂と違い 409 で止める相手がいない)。
@@ -336,10 +345,12 @@ async def ingest_html_output(
                 await session.execute(
                     text(
                         "insert into public.workflow_outputs "
-                        "(id, project_id, stage, html_path, summary, version, meta) "
+                        "(id, project_id, stage, html_path, summary, version, "
+                        " delivery_phase_id, meta) "
                         "values (cast(:id as uuid), cast(:pid as uuid), "
                         "        cast(:st as workflow_stage_enum), "
-                        "        :path, :summary, :ver, cast(:meta as jsonb))"
+                        "        :path, :summary, :ver, cast(:dph as uuid), "
+                        "        cast(:meta as jsonb))"
                     ),
                     {
                         "id": new_id,
@@ -348,6 +359,7 @@ async def ingest_html_output(
                         "path": f"{MOCKDB_PREFIX}{content_id}",
                         "summary": title,
                         "ver": version,
+                        "dph": phase.id,
                         "meta": json.dumps(
                             {"author": actor_label, "source": source, "file_name": file_name}
                         ),
@@ -530,6 +542,10 @@ async def ingest_file_artifact(
         ).scalar_one()
     )
     new_id = str(uuid.uuid4())
+    # GAP-152: 取り込みは常に active フェーズへ
+    from src.services.flow.phases import ensure_active_phase
+
+    phase = await ensure_active_phase(session, project_id=project_id)
     # GAP-155: 一意制約下の Bridge 取り込みは衝突時 version 採り直しでリトライ
     for _attempt in range(3):
         try:
@@ -537,10 +553,12 @@ async def ingest_file_artifact(
                 await session.execute(
                     text(
                         "insert into public.workflow_outputs "
-                        "(id, project_id, stage, html_path, summary, version, meta) "
+                        "(id, project_id, stage, html_path, summary, version, "
+                        " delivery_phase_id, meta) "
                         "values (cast(:id as uuid), cast(:pid as uuid), "
                         "        cast(:st as workflow_stage_enum), "
-                        "        :path, :summary, :ver, cast(:meta as jsonb))"
+                        "        :path, :summary, :ver, cast(:dph as uuid), "
+                        "        cast(:meta as jsonb))"
                     ),
                     {
                         "id": new_id,
@@ -549,6 +567,7 @@ async def ingest_file_artifact(
                         "path": f"{FILEDB_PREFIX}{file_id}",
                         "summary": base_name,
                         "ver": version,
+                        "dph": phase.id,
                         "meta": json.dumps(
                             {
                                 "author": actor_label,

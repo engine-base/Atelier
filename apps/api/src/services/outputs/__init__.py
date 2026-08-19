@@ -38,7 +38,7 @@ def is_uuid(value: str) -> bool:
 
 _COLS = (
     "id, project_id, phase_id, stage, html_path, json_path, md_path, "
-    "summary, version, meta, created_at, updated_at, deleted_at"
+    "summary, version, delivery_phase_id, meta, created_at, updated_at, deleted_at"
 )
 
 
@@ -66,6 +66,7 @@ def _row_to_response(row: Any) -> OutputResponse:
         md_path=(None if row.md_path is None else str(row.md_path)),
         summary=(None if row.summary is None else str(row.summary)),
         version=int(row.version),
+        delivery_phase_id=(None if row.delivery_phase_id is None else str(row.delivery_phase_id)),
         meta=_meta(row),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
@@ -79,6 +80,7 @@ async def list_outputs(
     project_id: str | None = None,
     phase_id: str | None = None,
     stage: str | None = None,
+    delivery_phase_id: str | None = None,
 ) -> list[OutputResponse]:
     where = ["deleted_at is null"]
     params: dict[str, object] = {}
@@ -91,6 +93,10 @@ async def list_outputs(
     if stage is not None:
         where.append("stage = cast(:st as workflow_stage_enum)")
         params["st"] = stage
+    if delivery_phase_id is not None:
+        # GAP-152: フェーズ切替 (確定フェーズのスナップショット閲覧 / 追加見積の分離)
+        where.append("delivery_phase_id = cast(:dph as uuid)")
+        params["dph"] = delivery_phase_id
     res = await session.execute(
         text(
             f"select {_COLS} from public.workflow_outputs "
@@ -150,20 +156,26 @@ async def insert_version(
     (旧版の json/md を新版の内容として見せない)。
     GAP-155: (project, stage, file_name, version) 一意 — 同時改訂の衝突は
     savepoint で受けて OutputVersionConflict (→ 409) にする (黙って積み直さない)。
+    GAP-152: 新バージョンは常に active フェーズに帰属 — 確定フェーズの成果物への
+    改訂・復元は「現在フェーズの追加作業」として積まれる (凍結スナップショット不変)。
     """
+    from src.services.flow.phases import ensure_active_phase
+
+    active = await ensure_active_phase(session, project_id=src.project_id)
     try:
         async with session.begin_nested():
             res = await session.execute(
                 text(
                     "insert into public.workflow_outputs "
-                    "(project_id, phase_id, stage, html_path, summary, version, meta) "
+                    "(project_id, phase_id, stage, html_path, summary, version, "
+                    " delivery_phase_id, meta) "
                     "select project_id, phase_id, stage, :hp, summary, "
                     "(select max(version) + 1 from public.workflow_outputs "
                     " where project_id = cast(:pid as uuid) "
                     " and stage = cast(:st as workflow_stage_enum) "
                     " and (phase_id is not distinct from cast(:ph as uuid)) "
                     " and deleted_at is null), "
-                    "cast(:meta as jsonb) "
+                    "cast(:dph as uuid), cast(:meta as jsonb) "
                     "from public.workflow_outputs where id = cast(:id as uuid) "
                     f"returning {_COLS}"
                 ),
@@ -172,6 +184,7 @@ async def insert_version(
                     "pid": src.project_id,
                     "st": src.stage,
                     "ph": src.phase_id,
+                    "dph": active.id,
                     "meta": json.dumps(meta, ensure_ascii=False),
                     "id": src.id,
                 },

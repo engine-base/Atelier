@@ -43,10 +43,15 @@ async def list_tasks(
     _user: UserDep,
     project_id: Annotated[str | None, Query()] = None,
     lifecycle_stage: Annotated[str | None, Query()] = None,
+    delivery_phase_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> dict[str, list[TaskResponse]]:
     items = await svc.list_tasks(
-        session, project_id=project_id, lifecycle_stage=lifecycle_stage, limit=limit
+        session,
+        project_id=project_id,
+        lifecycle_stage=lifecycle_stage,
+        delivery_phase_id=delivery_phase_id,
+        limit=limit,
     )
     return {"data": items}
 

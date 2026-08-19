@@ -447,6 +447,7 @@ class Task(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
     phase: str | None = None
+    delivery_phase_id: UUID | None = None
     category: str | None = None
     title: str | None = None
     description: str | None = None
@@ -511,6 +512,30 @@ class TaskExecution(BaseModel):
 
 
 class Status1(StrEnum):
+    active = "active"
+    frozen = "frozen"
+
+
+class DeliveryPhase(BaseModel):
+    """
+    GAP-152 — 納品単位のフェーズ (フェーズ1..N)。frozen = 確定済み (成果物凍結)。
+    """
+
+    id: UUID | None = None
+    project_id: UUID | None = None
+    seq: Annotated[int | None, Field(ge=1)] = None
+    name: str | None = None
+    status: Status1 | None = None
+    note: str | None = None
+    frozen_at: AwareDatetime | None = None
+    mock_count: int | None = None
+    output_count: int | None = None
+    task_count: int | None = None
+    stages_done: int | None = None
+    stages_total: int | None = None
+
+
+class Status2(StrEnum):
     pending = "pending"
     done = "done"
     skipped = "skipped"
@@ -526,7 +551,7 @@ class FlowStage(BaseModel):
     seq: int
     title: str
     department: str
-    status: Status1
+    status: Status2
     skippable: bool
     hard_gate: bool
     """
@@ -548,6 +573,7 @@ class Mock(BaseModel):
     html_storage_path: str | None = None
     version: int | None = None
     parent_mock_id: UUID | None = None
+    delivery_phase_id: UUID | None = None
     meta_tags: dict[str, Any] | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
@@ -873,7 +899,7 @@ class Acquisitions(BaseModel):
     total: int | None = None
 
 
-class Status2(StrEnum):
+class Status3(StrEnum):
     ok = "ok"
     warn = "warn"
     err = "err"
@@ -885,7 +911,7 @@ class HealthCheckRow(BaseModel):
     """
 
     name: str | None = None
-    status: Status2 | None = None
+    status: Status3 | None = None
     detail: str | None = None
     meta: str | None = None
 
@@ -897,7 +923,7 @@ class Category(StrEnum):
     other = "other"
 
 
-class Status3(StrEnum):
+class Status4(StrEnum):
     open = "open"
     resolved = "resolved"
 
@@ -911,7 +937,7 @@ class BetaFeedback(BaseModel):
     email: str | None = None
     category: Category | None = None
     content: str | None = None
-    status: Status3 | None = None
+    status: Status4 | None = None
     created_at: AwareDatetime | None = None
     resolved_at: AwareDatetime | None = None
 
@@ -1114,7 +1140,7 @@ class MessageFeedback(BaseModel):
     recorded_at: AwareDatetime | None = None
 
 
-class Status4(StrEnum):
+class Status5(StrEnum):
     pending = "pending"
     in_progress = "in_progress"
     completed = "completed"
@@ -1127,14 +1153,14 @@ class Phase(BaseModel):
     order: int | None = None
     name: str | None = None
     description: str | None = None
-    status: Status4 | None = None
+    status: Status5 | None = None
     assigned_employee_ids: list[UUID] | None = None
     started_at: AwareDatetime | None = None
     completed_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
 
 
-class Status5(StrEnum):
+class Status6(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1155,7 +1181,7 @@ class PhaseProposal(BaseModel):
     """
     proposed_order: int | None = None
     proposed_by: str | None = None
-    status: Status5 | None = None
+    status: Status6 | None = None
     approved_phase_id: UUID | None = None
     created_at: AwareDatetime | None = None
     resolved_at: AwareDatetime | None = None
@@ -1207,6 +1233,7 @@ class WorkflowOutput(BaseModel):
     md_path: str | None = None
     summary: str | None = None
     version: int | None = None
+    delivery_phase_id: UUID | None = None
     meta: dict[str, Any] | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
@@ -1258,13 +1285,13 @@ class OutputFixProposal(BaseModel):
     comment_id: UUID | None = None
     output_id: UUID | None = None
     proposal: str | None = None
-    status: Status5 | None = None
+    status: Status6 | None = None
     applied_output_id: UUID | None = None
     created_at: AwareDatetime | None = None
     resolved_at: AwareDatetime | None = None
 
 
-class Status7(StrEnum):
+class Status8(StrEnum):
     decided = "decided"
     unresolved = "unresolved"
 
@@ -1273,7 +1300,7 @@ class Decision(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
     phase_id: UUID | None = None
-    status: Status7 | None = None
+    status: Status8 | None = None
     body: str | None = None
     reflected_to: str | None = None
     resolve_note: str | None = None
@@ -1288,7 +1315,7 @@ class Decision(BaseModel):
 class DecisionCreate(BaseModel):
     project_id: UUID
     phase_id: UUID | None = None
-    status: Status7 | None = "decided"
+    status: Status8 | None = "decided"
     body: Annotated[str, Field(max_length=2000, min_length=1)]
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -1297,7 +1324,7 @@ class DecisionCreate(BaseModel):
 
 
 class DecisionUpdate(BaseModel):
-    status: Status7 | None = None
+    status: Status8 | None = None
     body: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -1311,7 +1338,7 @@ class TargetType(StrEnum):
     acceptance_criteria = "acceptance_criteria"
 
 
-class Status10(StrEnum):
+class Status11(StrEnum):
     open = "open"
     resolved = "resolved"
     deleted = "deleted"
@@ -1325,7 +1352,7 @@ class Comment(BaseModel):
     author_user_id: UUID | None = None
     author_invitation_id: UUID | None = None
     content: str | None = None
-    status: Status10 | None = None
+    status: Status11 | None = None
     parent_comment_id: UUID | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
@@ -1522,14 +1549,14 @@ class MeetingTranscribeRequest(PlayTaskRequest):
     pass
 
 
-class Status11(StrEnum):
+class Status12(StrEnum):
     queued = "queued"
     already_parsed = "already_parsed"
 
 
 class MeetingTranscribeResponse(BaseModel):
     id: UUID
-    status: Status11
+    status: Status12
     queued_at: AwareDatetime
 
 
@@ -1774,7 +1801,7 @@ class KnowledgeReferencesResponse(BaseModel):
     total: Annotated[int, Field(ge=0)]
 
 
-class Status12(StrEnum):
+class Status13(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
@@ -1790,7 +1817,7 @@ class Execution(BaseModel):
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     duration_seconds: float | None = None
-    status: Status12
+    status: Status13
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1851,7 +1878,7 @@ class ExecutionEvent(BaseModel):
 class ExecLogMeta(BaseModel):
     execution_id: UUID
     task_id: UUID
-    status: Status12
+    status: Status13
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     logs_storage_path: str | None = None
@@ -2021,7 +2048,7 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Status14(StrEnum):
+class Status15(StrEnum):
     pass_ = "pass"
     fail = "fail"
     skip = "skip"
@@ -2030,7 +2057,7 @@ class Status14(StrEnum):
 class ExecutionTestResultIn(BaseModel):
     name: Annotated[str, Field(max_length=300, min_length=1)]
     file: Annotated[str | None, Field(max_length=300)] = None
-    status: Status14
+    status: Status15
     duration_ms: Annotated[int | None, Field(ge=0)] = None
     detail: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -2040,7 +2067,7 @@ class ExecutionTestResult(BaseModel):
     execution_id: UUID
     name: str
     file: str | None = None
-    status: Status14
+    status: Status15
     duration_ms: int | None = None
     detail: str | None = None
     created_at: AwareDatetime
@@ -2193,7 +2220,7 @@ class BridgeTokenRow(BaseModel):
     revoked_at: AwareDatetime | None = None
 
 
-class Status16(StrEnum):
+class Status17(StrEnum):
     allowed = "allowed"
     allowed_warning = "allowed_warning"
     rejected = "rejected"
@@ -2204,7 +2231,7 @@ class ChatRelayRateLimitObservation(BaseModel):
     GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
     """
 
-    status: Status16
+    status: Status17
     rate_limit_type: Annotated[str | None, Field(max_length=40)] = None
     utilization: Annotated[float | None, Field(ge=0.0, le=2.0)] = None
     resets_at: float | None = None
@@ -2281,7 +2308,7 @@ class ChatConnectionPlan(BaseModel):
     GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない）
     """
 
-    status: Status16
+    status: Status17
     five_hour_utilization: float | None = None
     five_hour_resets_at: AwareDatetime | None = None
     seven_day_utilization: float | None = None
@@ -2431,7 +2458,7 @@ class ApprovalInboxEntry(BaseModel):
     target_id: UUID | None = None
     title: str | None = None
     payload: dict[str, Any] | None = None
-    status: Status5 | None = None
+    status: Status6 | None = None
     resolved_at: AwareDatetime | None = None
     resolution_note: str | None = None
     created_at: AwareDatetime | None = None
@@ -2508,7 +2535,7 @@ class ClientPhaseItem(BaseModel):
 
     name: str
     order: int
-    status: Status4
+    status: Status5
 
 
 class ClientProjectOverview(BaseModel):

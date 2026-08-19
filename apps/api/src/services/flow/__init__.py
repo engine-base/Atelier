@@ -178,38 +178,64 @@ def _to_response(
 
 
 async def get_flow(
-    session: AsyncSession, *, actor_id: str, project_id: str
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    project_id: str,
+    phase_id: str | None = None,
 ) -> list[FlowStageResponse] | None:
     """フローを返す (未初期化ならテンプレから自動生成)。不可視 project は None。
 
     自動初期化は「フローが背骨」を既定にするため — 既存プロジェクトも
     次に開いた瞬間からフローで進められる。
+    GAP-152: フローはフェーズごとに 1 周。phase_id 省略時は active フェーズ。
+    凍結済みフェーズを指定すると、そのフェーズ当時の周回を読み取り専用で返す。
     """
+    from .phases import ensure_active_phase
+
     ptype = await _project_type(session, project_id)
     if ptype is None:
         return None
+    active = await ensure_active_phase(session, project_id=project_id)
+    target_phase = active.id
+    if phase_id is not None and phase_id != active.id:
+        owned = (
+            await session.execute(
+                text(
+                    "select 1 from public.delivery_phases "
+                    "where id = cast(:i as uuid) and project_id = cast(:p as uuid)"
+                ),
+                {"i": phase_id, "p": project_id},
+            )
+        ).first()
+        if owned is None:
+            raise FlowError("not_found", "phase not found")
+        target_phase = phase_id
     rows = (
         await session.execute(
             text(
                 f"select {_COLS} from public.project_flow_stages "
-                "where project_id = cast(:p as uuid) order by seq"
+                "where project_id = cast(:p as uuid) "
+                "and delivery_phase_id = cast(:ph as uuid) order by seq"
             ),
-            {"p": project_id},
+            {"p": project_id, "ph": target_phase},
         )
     ).all()
-    if not rows:
+    if not rows and target_phase == active.id:
         template = FLOW_TEMPLATES.get(ptype, _INTERNAL)
         for i, t in enumerate(template, start=1):
             await session.execute(
                 text(
                     "insert into public.project_flow_stages "
-                    "(project_id, stage_key, seq, title, department, skippable, hard_gate) "
-                    "values (cast(:p as uuid), :k, :s, :t, "
+                    "(project_id, delivery_phase_id, stage_key, seq, title, department, "
+                    " skippable, hard_gate) "
+                    "values (cast(:p as uuid), cast(:ph as uuid), :k, :s, :t, "
                     "cast(:d as ai_employee_department_enum), :sk, :hg) "
-                    "on conflict (project_id, stage_key) do nothing"
+                    "on conflict (project_id, delivery_phase_id, stage_key) do nothing"
                 ),
                 {
                     "p": project_id,
+                    "ph": active.id,
                     "k": t.stage_key,
                     "s": i,
                     "t": t.title,
@@ -225,16 +251,17 @@ async def get_flow(
                 actor_type="user",
                 actor_id=actor_id,
                 target_id=project_id,
-                after={"template": ptype, "stages": len(template)},
+                after={"template": ptype, "stages": len(template), "phase": active.name},
             )
         )
         rows = (
             await session.execute(
                 text(
                     f"select {_COLS} from public.project_flow_stages "
-                    "where project_id = cast(:p as uuid) order by seq"
+                    "where project_id = cast(:p as uuid) "
+                    "and delivery_phase_id = cast(:ph as uuid) order by seq"
                 ),
-                {"p": project_id},
+                {"p": project_id, "ph": active.id},
             )
         ).all()
     current_key = next((str(r.stage_key) for r in rows if str(r.status) == "pending"), None)
@@ -246,13 +273,18 @@ async def get_flow(
 
 
 async def _get_stage(session: AsyncSession, *, project_id: str, stage_key: str) -> Any:
+    """active フェーズの工程行を返す (GAP-152: 操作は常に現在フェーズの周回に対して)。"""
+    from .phases import ensure_active_phase
+
+    active = await ensure_active_phase(session, project_id=project_id)
     row = (
         await session.execute(
             text(
                 f"select {_COLS} from public.project_flow_stages "
-                "where project_id = cast(:p as uuid) and stage_key = :k"
+                "where project_id = cast(:p as uuid) and stage_key = :k "
+                "and delivery_phase_id = cast(:ph as uuid)"
             ),
-            {"p": project_id, "k": stage_key},
+            {"p": project_id, "k": stage_key, "ph": active.id},
         )
     ).first()
     if row is None:
@@ -380,15 +412,28 @@ async def flow_context_block(session: AsyncSession, *, project_id: str) -> str:
     全社員が「今どの工程で、担当は誰か」を知った状態で応答する。
     COO 運用の中核 — 担当外の依頼が来たら担当社員への切替を案内させる。
     未初期化 (行なし) なら空文字 (勝手に初期化しない — 書込は API 経由のみ)。
+    GAP-152: 現在フェーズの周回のみを注入し、フェーズの立ち位置も伝える。
     """
+    phase = (
+        await session.execute(
+            text(
+                "select id, seq, name from public.delivery_phases "
+                "where project_id = cast(:p as uuid) and status = 'active'"
+            ),
+            {"p": project_id},
+        )
+    ).first()
+    if phase is None:
+        return ""
     rows = (
         await session.execute(
             text(
                 "select stage_key, seq, title, department::text as dept, status "
                 "from public.project_flow_stages "
-                "where project_id = cast(:p as uuid) order by seq"
+                "where project_id = cast(:p as uuid) "
+                "and delivery_phase_id = cast(:ph as uuid) order by seq"
             ),
-            {"p": project_id},
+            {"p": project_id, "ph": str(phase.id)},
         )
     ).all()
     if not rows:
@@ -396,6 +441,13 @@ async def flow_context_block(session: AsyncSession, *, project_id: str) -> str:
     current = next((r for r in rows if str(r.status) == "pending"), None)
     employees = await _resolve_employees(session, project_id=project_id)
     lines = ["# プロジェクト進行フロー (この順で進める — COO 窓口運用)"]
+    if int(phase.seq) > 1:
+        lines.append(
+            f"現在は「{phase.name}」(第 {phase.seq} フェーズ)。それ以前のフェーズは"
+            "確定済みで成果物は凍結されている — 過去フェーズの成果物への追加・変更の"
+            "依頼は、現在フェーズの追加要望として扱うこと (見積・タスクも現在フェーズ"
+            "に分けて起こす)。"
+        )
     for r in rows:
         mark = {"done": "✓", "skipped": "⤼"}.get(str(r.status), "○")
         cur = " ← 現在のステージ" if current is not None and r.seq == current.seq else ""
@@ -445,13 +497,18 @@ async def ensure_stage_thread(
     if adopt is not None:
         thread_id = str(adopt.id)
     else:
+        # GAP-152: フェーズ2 以降はスレッド名にフェーズを付けて周回を区別する
+        from .phases import ensure_active_phase
+
+        active = await ensure_active_phase(session, project_id=project_id)
+        title = str(row.title) if active.seq <= 1 else f"{row.title}（{active.name}）"
         thread_id = str(uuid.uuid4())
         await session.execute(
             text(
                 "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
                 "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), :t)"
             ),
-            {"i": thread_id, "p": project_id, "e": emp["id"], "t": str(row.title)},
+            {"i": thread_id, "p": project_id, "e": emp["id"], "t": title},
         )
     await session.execute(
         text(

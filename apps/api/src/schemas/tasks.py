@@ -78,6 +78,8 @@ class TaskResponse(BaseModel):
     # GAP-140: 紐づく画面モック (プレースホルダー含む)
     mock_id: str | None = None
     mock_screen_name: str | None = None
+    # GAP-152: 帰属フェーズ (追加分のタスク・依存を分けて扱う)
+    delivery_phase_id: str | None = None
     deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime

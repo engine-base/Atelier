@@ -325,3 +325,215 @@ def test_gap151_stage_thread_ensure_adopt_and_fixed_employee(
         ).one()
         assert row.eid == seeded["coo"]
         assert row.title in ("納品・請求", "リリース判定")
+
+
+# ── GAP-152: 段階的フェーズ (確定=凍結・追加は次フェーズ・フェーズ切替) ──────
+
+
+@pytest.mark.integration
+def test_gap152_phase_lifecycle_freeze_and_new_round(app: FastAPI, seeded: dict[str, str]) -> None:
+    """フェーズ1 自動作成 → 確定 (confirm 必須) → フェーズ2 でフロー新周回。
+    確定フェーズの周回は ?phase= で閲覧でき、当時の状態が保存されている。"""
+    h = _h(seeded["u"])
+    proj = seeded["proj"]
+    with TestClient(app) as client:
+        # 初回: フェーズ1 (active) が自動作成される
+        r = client.get(f"/projects/{proj}/delivery-phases", headers=h)
+        assert r.status_code == 200
+        phases = r.json()["data"]
+        assert [p["name"] for p in phases] == ["フェーズ1"]
+        assert phases[0]["status"] == "active"
+        p1 = phases[0]["id"]
+
+        # フロー初期化 + hearing 完了 (フェーズ1 の周回)
+        client.get(f"/projects/{proj}/flow", headers=h)
+        client.post(f"/projects/{proj}/flow/hearing/complete", json={}, headers=h)
+
+        # confirm 無しの確定は 403 (成果物凍結 — 明示承認必須)
+        r403 = client.post(f"/projects/{proj}/delivery-phases/{p1}/freeze", json={}, headers=h)
+        assert r403.status_code == 403
+        assert "明示的に承認" in r403.json()["detail"]
+
+        # 確定 → フェーズ1 frozen + フェーズ2 active (フロー新周回も即初期化)
+        r2 = client.post(
+            f"/projects/{proj}/delivery-phases/{p1}/freeze",
+            json={"confirm": True},
+            headers=h,
+        )
+        assert r2.status_code == 200
+        phases2 = r2.json()["data"]
+        assert [(p["name"], p["status"]) for p in phases2] == [
+            ("フェーズ1", "frozen"),
+            ("フェーズ2", "active"),
+        ]
+        assert phases2[0]["frozen_at"] is not None
+        assert phases2[1]["stages_total"] > 0  # 新周回が即初期化済み
+        p2 = phases2[1]["id"]
+
+        # 現在のフロー = フェーズ2 の新周回 (hearing は pending に戻っている)
+        flow2 = client.get(f"/projects/{proj}/flow", headers=h).json()["data"]
+        hearing2 = next(s for s in flow2 if s["stage_key"] == "hearing")
+        assert hearing2["status"] == "pending" and hearing2["current"] is True
+
+        # フェーズ1 の周回は ?phase= で閲覧でき、当時の完了状態が残っている
+        flow1 = client.get(f"/projects/{proj}/flow", params={"phase": p1}, headers=h).json()["data"]
+        hearing1 = next(s for s in flow1 if s["stage_key"] == "hearing")
+        assert hearing1["status"] == "done"
+
+        # フェーズ2 の周回で hearing を完了できる (操作は常に active フェーズ)
+        r3 = client.post(f"/projects/{proj}/flow/hearing/complete", json={}, headers=h)
+        assert r3.status_code == 200
+
+        # 確定済みフェーズの再確定は 409
+        r409 = client.post(
+            f"/projects/{proj}/delivery-phases/{p1}/freeze",
+            json={"confirm": True},
+            headers=h,
+        )
+        assert r409.status_code == 409
+        assert "確定済み" in r409.json()["detail"]
+
+        # 別プロジェクトのフェーズ id は 404
+        assert (
+            client.post(
+                f"/projects/{proj}/delivery-phases/{uuid.uuid4()}/freeze",
+                json={"confirm": True},
+                headers=h,
+            ).status_code
+            == 404
+        )
+        assert p2 != p1
+
+
+@pytest.mark.integration
+def test_gap152_stamping_filters_and_frozen_guard(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """成果物/モック/タスクは active フェーズにスタンプされ、確定フェーズの行は
+    破壊操作 409。追加 (新版・新タスク) は自動的に次フェーズへ入り、
+    delivery_phase_id フィルタで「フェーズ2 の追加分」を分けて見られる。"""
+    h = _h(seeded["u"])
+    proj = seeded["proj"]
+    with TestClient(app) as client:
+        phases = client.get(f"/projects/{proj}/delivery-phases", headers=h).json()["data"]
+        p1 = phases[0]["id"]
+
+        # フェーズ1 でモック + タスクを作成 → active フェーズにスタンプ
+        mock1 = client.post(
+            "/mocks",
+            json={
+                "project_id": proj,
+                "screen_name": "S-152",
+                "html_storage_path": "s152-v1.html",
+            },
+            headers=h,
+        ).json()["data"]
+        assert mock1["delivery_phase_id"] == p1
+        task1 = client.post(
+            "/tasks",
+            json={
+                "project_id": proj,
+                "category": "実装",
+                "title": "フェーズ1 のタスク",
+                "type": "feature",
+                "estimated_hours": 2,
+            },
+            headers=h,
+        ).json()["data"]
+        assert task1["delivery_phase_id"] == p1
+
+        # フェーズ1 の成果物チェーン (v1, v2) を seed (mockdb 実コンテンツ)
+        o1, o2 = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            for oid, ver, html in ((o1, 1, "<p>旧見積</p>"), (o2, 2, "<p>新見積</p>")):
+                cid = c.execute(
+                    text("insert into public.mock_contents (html) values (:h) returning id"),
+                    {"h": html},
+                ).scalar_one()
+                c.execute(
+                    text(
+                        "insert into public.workflow_outputs "
+                        "(id, project_id, stage, html_path, summary, version, "
+                        " delivery_phase_id, meta) "
+                        "values (cast(:i as uuid), cast(:p as uuid), 'estimate', :path, "
+                        "'見積', :v, cast(:dph as uuid), '{}'::jsonb)"
+                    ),
+                    {"i": oid, "p": proj, "path": f"mockdb://{cid}", "v": ver, "dph": p1},
+                )
+
+        # フェーズ1 を確定
+        r = client.post(
+            f"/projects/{proj}/delivery-phases/{p1}/freeze",
+            json={"confirm": True},
+            headers=h,
+        )
+        assert r.status_code == 200
+        p2 = next(p["id"] for p in r.json()["data"] if p["status"] == "active")
+
+        # 確定フェーズの行への破壊操作は 409 (凍結スナップショット)
+        r_discard = client.post(f"/mocks/{mock1['id']}/discard", headers=h)
+        assert r_discard.status_code == 409
+        assert "確定済み" in r_discard.json()["detail"]
+        r_patch = client.patch(
+            f"/mocks/{mock1['id']}",
+            json={"meta_tags": {"note": "書き換え"}},
+            headers=h,
+        )
+        assert r_patch.status_code == 409
+        assert client.delete(f"/mocks/{mock1['id']}", headers=h).status_code == 409
+
+        # 追加 (新版) は自動的にフェーズ2 へ入る — フェーズ1 は不変
+        mock2 = client.post(
+            f"/mocks/{mock1['id']}/versions",
+            json={"html_storage_path": "s152-v2.html"},
+            headers=h,
+        ).json()["data"]
+        assert mock2["delivery_phase_id"] == p2
+
+        # 旧版の復元も「フェーズ2 の新版」として積まれる (見積の追加分の分離)
+        restored = client.post(f"/outputs/{o1}/restore", headers=h)
+        assert restored.status_code == 201
+        assert restored.json()["data"]["delivery_phase_id"] == p2
+
+        # フィルタ: フェーズ1 のスナップショット / フェーズ2 の追加分
+        m_p1 = client.get(
+            "/mocks",
+            params={"project_id": proj, "delivery_phase_id": p1},
+            headers=h,
+        ).json()["data"]
+        assert [m["id"] for m in m_p1] == [mock1["id"]]
+        m_p2 = client.get(
+            "/mocks",
+            params={"project_id": proj, "delivery_phase_id": p2},
+            headers=h,
+        ).json()["data"]
+        assert [m["id"] for m in m_p2] == [mock2["id"]]
+        o_p2 = client.get(
+            "/outputs",
+            params={"project_id": proj, "delivery_phase_id": p2},
+            headers=h,
+        ).json()["data"]
+        assert [o["id"] for o in o_p2] == [restored.json()["data"]["id"]]
+        t_p1 = client.get(
+            "/tasks",
+            params={"project_id": proj, "delivery_phase_id": p1},
+            headers=h,
+        ).json()["data"]
+        assert [t["id"] for t in t_p1] == [task1["id"]]
+
+        # チャット文脈にフェーズの立ち位置が注入される
+        thread = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'coo-p2')"
+                ),
+                {"i": thread, "p": proj, "e": seeded["coo"]},
+            )
+        ctx = client.post(
+            f"/chat/threads/{thread}/context-preview",
+            headers=h,
+            json={"user_message": "追加お願い", "include_history": 5},
+        ).json()["data"]["system_prompt"]
+        assert "フェーズ2" in ctx and "確定済み" in ctx

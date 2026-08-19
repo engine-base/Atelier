@@ -24,8 +24,22 @@ from src.schemas.mocks import (
 
 _COLS = (
     "id, project_id, screen_name, html_storage_path, version, parent_mock_id, "
-    "meta_tags, created_at, updated_at, deleted_at"
+    "delivery_phase_id, meta_tags, created_at, updated_at, deleted_at"
 )
+
+
+class MockPhaseFrozen(Exception):
+    """GAP-152: 確定済みフェーズに帰属する行への破壊的操作 (→ 409)。"""
+
+
+async def _guard_frozen(session: AsyncSession, mock: MockResponse) -> None:
+    from src.services.flow.phases import frozen_phase_of
+
+    name = await frozen_phase_of(session, delivery_phase_id=mock.delivery_phase_id)
+    if name is not None:
+        raise MockPhaseFrozen(
+            f"「{name}」は確定済みのため変更できません。追加・修正は現在のフェーズで行ってください"
+        )
 
 
 def _meta(value: object) -> dict[str, object] | None:
@@ -47,6 +61,7 @@ def _row_to_response(row: Any) -> MockResponse:
         html_storage_path=str(row.html_storage_path),
         version=int(row.version),
         parent_mock_id=(None if row.parent_mock_id is None else str(row.parent_mock_id)),
+        delivery_phase_id=(None if row.delivery_phase_id is None else str(row.delivery_phase_id)),
         meta_tags=_meta(row.meta_tags),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
@@ -59,6 +74,7 @@ async def list_mocks(
     *,
     project_id: str | None = None,
     screen_name: str | None = None,
+    delivery_phase_id: str | None = None,
     limit: int = 50,
 ) -> list[MockResponse]:
     limit = max(1, min(limit, 200))
@@ -70,6 +86,10 @@ async def list_mocks(
     if screen_name is not None:
         where.append("screen_name = :sn")
         params["sn"] = screen_name
+    if delivery_phase_id is not None:
+        # GAP-152: フェーズ切替 (確定フェーズのスナップショット閲覧)
+        where.append("delivery_phase_id = cast(:dph as uuid)")
+        params["dph"] = delivery_phase_id
     res = await session.execute(
         text(
             f"select {_COLS} from public.mocks "
@@ -123,12 +143,17 @@ async def _insert_mock(
     parent_mock_id: str | None,
     meta_tags: dict[str, object] | None,
 ) -> None:
+    # GAP-152: 新規行は常に active フェーズに帰属 — 確定フェーズには何も足せない
+    from src.services.flow.phases import ensure_active_phase
+
+    phase = await ensure_active_phase(session, project_id=project_id)
     await session.execute(
         text(
             "insert into public.mocks "
-            "(id, project_id, screen_name, html_storage_path, version, parent_mock_id, meta_tags) "
+            "(id, project_id, screen_name, html_storage_path, version, parent_mock_id, "
+            " delivery_phase_id, meta_tags) "
             "values (cast(:id as uuid), cast(:pid as uuid), :sn, :path, :ver, "
-            "        cast(:parent as uuid), cast(:meta as jsonb))"
+            "        cast(:parent as uuid), cast(:dph as uuid), cast(:meta as jsonb))"
         ),
         {
             "id": mock_id,
@@ -137,6 +162,7 @@ async def _insert_mock(
             "path": html_storage_path,
             "ver": version,
             "parent": parent_mock_id,
+            "dph": phase.id,
             "meta": None if meta_tags is None else json.dumps(meta_tags),
         },
     )
@@ -222,6 +248,10 @@ async def create_version(
 async def update_mock(
     session: AsyncSession, *, actor_id: str, mock_id: str, data: MockUpdate
 ) -> MockResponse | None:
+    src = await get_mock(session, mock_id)
+    if src is None:
+        return None
+    await _guard_frozen(session, src)  # GAP-152: 確定フェーズの行は不変
     sets: list[str] = []
     params: dict[str, object] = {"id": mock_id}
     if data.html_storage_path is not None:
@@ -254,6 +284,10 @@ async def update_mock(
 
 
 async def delete_mock(session: AsyncSession, *, actor_id: str, mock_id: str) -> bool:
+    src = await get_mock(session, mock_id)
+    if src is None:
+        return False
+    await _guard_frozen(session, src)  # GAP-152
     res = await session.execute(
         text(
             "update public.mocks set deleted_at = now() "
@@ -318,6 +352,7 @@ async def discard_version(session: AsyncSession, *, actor_id: str, mock_id: str)
     src = await get_mock(session, mock_id)
     if src is None:
         return False
+    await _guard_frozen(session, src)  # GAP-152: 確定フェーズの版は破棄できない
     res = await session.execute(
         text(
             "select count(*) from public.mocks "

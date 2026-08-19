@@ -36,12 +36,29 @@ export interface FlowStage {
   readonly thread_id?: string | null;
 }
 
+/** GAP-152: 納品単位のフェーズ (フェーズ1..N)。frozen = 確定済み (成果物凍結)。 */
+export interface DeliveryPhase {
+  readonly id: string;
+  readonly seq: number;
+  readonly name: string;
+  readonly status: "active" | "frozen";
+  readonly frozen_at?: string | null;
+  readonly mock_count: number;
+  readonly output_count: number;
+  readonly task_count: number;
+  readonly stages_done: number;
+  readonly stages_total: number;
+}
+
 export interface FlowRailProps {
   readonly projectId: string;
   readonly selectedThreadId?: string | null;
   readonly onSelectThread: (threadId: string) => void;
   /** テスト注入用 (省略時は実 API)。 */
-  readonly getFlowFn?: (projectId: string) => Promise<readonly FlowStage[]>;
+  readonly getFlowFn?: (
+    projectId: string,
+    phaseId?: string | null,
+  ) => Promise<readonly FlowStage[]>;
   readonly postFlowFn?: (
     projectId: string,
     stageKey: string,
@@ -52,12 +69,43 @@ export interface FlowRailProps {
     projectId: string,
     stageKey: string,
   ) => Promise<{ thread_id: string }>;
+  /** GAP-152: フェーズ一覧/確定 (テスト注入用)。 */
+  readonly getPhasesFn?: (projectId: string) => Promise<readonly DeliveryPhase[]>;
+  readonly freezePhaseFn?: (
+    projectId: string,
+    phaseId: string,
+  ) => Promise<readonly DeliveryPhase[]>;
   /** GAP-151: 選択スレッド未指定なら現在工程の会話を自動で開く。 */
   readonly autoOpenCurrent?: boolean;
 }
 
-async function defaultGetFlow(projectId: string): Promise<readonly FlowStage[]> {
-  return (await api.getJson<FlowStage[]>(`/projects/${projectId}/flow`)).data;
+async function defaultGetFlow(
+  projectId: string,
+  phaseId?: string | null,
+): Promise<readonly FlowStage[]> {
+  const q = phaseId ? `?phase=${phaseId}` : "";
+  return (await api.getJson<FlowStage[]>(`/projects/${projectId}/flow${q}`)).data;
+}
+
+async function defaultGetPhases(
+  projectId: string,
+): Promise<readonly DeliveryPhase[]> {
+  return (
+    await api.getJson<DeliveryPhase[]>(`/projects/${projectId}/delivery-phases`)
+  ).data;
+}
+
+async function defaultFreezePhase(
+  projectId: string,
+  phaseId: string,
+): Promise<readonly DeliveryPhase[]> {
+  // connector.sendJson は API の {data} envelope を剥がして返す
+  const res = await api.sendJson<DeliveryPhase[]>(
+    "POST",
+    `/projects/${projectId}/delivery-phases/${phaseId}/freeze`,
+    { confirm: true },
+  );
+  return res ?? [];
 }
 
 async function defaultPostFlow(
@@ -101,6 +149,8 @@ export function FlowRail({
   getFlowFn = defaultGetFlow,
   postFlowFn = defaultPostFlow,
   ensureThreadFn = defaultEnsureThread,
+  getPhasesFn = defaultGetPhases,
+  freezePhaseFn = defaultFreezePhase,
   autoOpenCurrent = false,
 }: FlowRailProps) {
   const queryClient = useQueryClient();
@@ -112,17 +162,66 @@ export function FlowRail({
   const [skipReason, setSkipReason] = useState("");
   // 引き継ぎバナー (完了直後の COO 案内)
   const [handoff, setHandoff] = useState<FlowStage | null>(null);
+  // GAP-152: 表示中フェーズ (null = 現在の active フェーズ) + 確定の明示承認
+  const [viewPhaseId, setViewPhaseId] = useState<string | null>(null);
+  const [freezeConfirm, setFreezeConfirm] = useState(false);
+  const [freezeNotice, setFreezeNotice] = useState<string | null>(null);
+
+  const phasesQuery = useQuery({
+    queryKey: ["delivery-phases", projectId],
+    queryFn: () => getPhasesFn(projectId),
+    retry: false,
+  });
+  const phases = useMemo(() => phasesQuery.data ?? [], [phasesQuery.data]);
+  const activePhase = phases.find((p) => p.status === "active") ?? null;
+  const viewingPhase =
+    (viewPhaseId ? phases.find((p) => p.id === viewPhaseId) : null) ??
+    activePhase;
+  const isFrozenView = viewingPhase?.status === "frozen";
 
   const flow = useQuery({
-    queryKey: ["project-flow", projectId],
-    queryFn: () => getFlowFn(projectId),
+    queryKey: ["project-flow", projectId, viewingPhase?.id ?? "active"],
+    queryFn: () => getFlowFn(projectId, isFrozenView ? viewingPhase?.id : null),
     retry: false,
+  });
+
+  const freeze = useMutation({
+    retry: false,
+    mutationFn: async () => {
+      if (!activePhase) throw new Error("no active phase");
+      return freezePhaseFn(projectId, activePhase.id);
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(["delivery-phases", projectId], next);
+      void queryClient.invalidateQueries({ queryKey: ["project-flow", projectId] });
+      setFreezeConfirm(false);
+      setViewPhaseId(null);
+      const newActive = next.find((p) => p.status === "active");
+      setFreezeNotice(
+        newActive
+          ? `フェーズを確定しました。ここからは「${newActive.name}」です — 追加の要望・見積・タスクは${newActive.name}として扱われます。`
+          : "フェーズを確定しました。",
+      );
+      setError(null);
+    },
+    onError: (e) => {
+      setFreezeConfirm(false);
+      setError(
+        e instanceof api.ApiError && (e.status === 403 || e.status === 409)
+          ? e.message
+          : "フェーズの確定に失敗しました。",
+      );
+    },
   });
 
   const openStage = async (s: FlowStage): Promise<void> => {
     setError(null);
     if (s.thread_id) {
       onSelectThread(s.thread_id);
+      return;
+    }
+    if (isFrozenView) {
+      // GAP-152: 確定フェーズはスナップショット — 新しい会話は作らない
       return;
     }
     try {
@@ -170,7 +269,7 @@ export function FlowRail({
   // GAP-151: 「開くと現在工程の会話が自動で開く」— 未選択時に一度だけ
   const autoOpenedRef = React.useRef(false);
   React.useEffect(() => {
-    if (!autoOpenCurrent || autoOpenedRef.current) return;
+    if (!autoOpenCurrent || autoOpenedRef.current || isFrozenView) return;
     if (selectedThreadId) {
       autoOpenedRef.current = true;
       return;
@@ -182,7 +281,11 @@ export function FlowRail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenCurrent, selectedThreadId, current]);
 
-  if (flow.isLoading || flow.error || stages.length === 0) return null;
+  if (
+    (flow.isLoading || flow.error || stages.length === 0) &&
+    phases.length === 0
+  )
+    return null;
 
   return (
     <section
@@ -192,6 +295,107 @@ export function FlowRail({
       <p className="mb-1 px-1 text-[10.5px] font-bold uppercase tracking-[0.12em] text-on-surface-variant">
         進行フロー
       </p>
+
+      {/* ── GAP-152: フェーズバー (切替 + 確定) ── */}
+      {phases.length > 0 ? (
+        <div
+          aria-label="フェーズ"
+          className="mb-1.5 flex flex-wrap items-center gap-1 px-1"
+        >
+          {phases.map((p) => {
+            const selected = viewingPhase?.id === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setViewPhaseId(p.status === "active" ? null : p.id);
+                  setFreezeConfirm(false);
+                }}
+                aria-pressed={selected}
+                aria-label={`${p.name}を表示`}
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10.5px] font-semibold transition-colors",
+                  selected
+                    ? "bg-primary text-on-primary"
+                    : "bg-surface-variant text-on-surface-variant hover:text-on-surface",
+                )}
+              >
+                {p.name}
+                {p.status === "frozen" ? " ✓確定" : ""}
+              </button>
+            );
+          })}
+          {activePhase && !isFrozenView ? (
+            <button
+              type="button"
+              onClick={() => setFreezeConfirm(true)}
+              className="ml-auto rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+            >
+              フェーズを確定…
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* フェーズ確定の明示承認 (成果物凍結 — hard gate と同格) */}
+      {freezeConfirm && activePhase ? (
+        <div className="mx-1 mb-1.5 rounded-md border-l-[3px] border-error bg-error/10 px-2 py-1.5 text-[11px] text-on-surface">
+          「{activePhase.name}」を確定すると成果物
+          {activePhase.output_count + activePhase.mock_count > 0
+            ? `（${activePhase.output_count + activePhase.mock_count} 件）`
+            : ""}
+          が凍結され、以後の追加・変更は次フェーズの作業になります。よろしいですか？
+          <div className="mt-1 flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFreezeConfirm(false)}
+              className="rounded-sm px-1.5 py-0.5 text-[10.5px] font-semibold text-on-surface-variant"
+            >
+              やめる
+            </button>
+            <button
+              type="button"
+              disabled={freeze.isPending}
+              onClick={() => freeze.mutate()}
+              className="rounded-sm bg-error px-2 py-0.5 text-[10.5px] font-semibold text-on-error disabled:opacity-50"
+            >
+              {freeze.isPending ? "確定中…" : "確定して次フェーズへ"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {freezeNotice ? (
+        <div
+          role="status"
+          className="mx-1 mb-1.5 rounded-md bg-tertiary-container px-2 py-1.5 text-[11.5px] text-tertiary-container-fg"
+        >
+          {freezeNotice}
+          <button
+            type="button"
+            onClick={() => setFreezeNotice(null)}
+            aria-label="通知を閉じる"
+            className="ml-1.5 font-semibold underline"
+          >
+            OK
+          </button>
+        </div>
+      ) : null}
+
+      {/* 確定フェーズの閲覧バナー (スナップショット — 読み取り専用) */}
+      {isFrozenView && viewingPhase ? (
+        <div
+          role="note"
+          className="mx-1 mb-1.5 rounded-md bg-surface-variant px-2 py-1.5 text-[11px] text-on-surface"
+        >
+          「{viewingPhase.name}」は確定済みです（成果物 {viewingPhase.output_count} ·
+          モック {viewingPhase.mock_count} · タスク {viewingPhase.task_count}
+          は凍結）。追加・変更は
+          {activePhase ? `「${activePhase.name}」` : "現在のフェーズ"}で行います。
+        </div>
+      ) : null}
+
       {handoff ? (
         <div
           role="status"
@@ -232,7 +436,7 @@ export function FlowRail({
                 <button
                   type="button"
                   onClick={() => {
-                    if (isLockedAhead) {
+                    if (isLockedAhead && !isFrozenView) {
                       setConfirmOpen(s.stage_key);
                       return;
                     }
@@ -268,7 +472,7 @@ export function FlowRail({
                     </span>
                   ) : null}
                 </button>
-                {s.current ? (
+                {s.current && !isFrozenView ? (
                   <>
                     <button
                       type="button"
@@ -300,7 +504,7 @@ export function FlowRail({
                       </button>
                     ) : null}
                   </>
-                ) : s.status !== "pending" ? (
+                ) : s.status !== "pending" && !isFrozenView ? (
                   <button
                     type="button"
                     aria-label={`${s.title} を差し戻す`}

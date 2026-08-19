@@ -60,10 +60,15 @@ async def list_outputs(
     project_id: Annotated[str | None, Query()] = None,
     phase_id: Annotated[str | None, Query()] = None,
     stage: Annotated[str | None, Query()] = None,
+    delivery_phase_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, list[OutputResponse]]:
     return {
         "data": await svc.list_outputs(
-            session, project_id=project_id, phase_id=phase_id, stage=stage
+            session,
+            project_id=project_id,
+            phase_id=phase_id,
+            stage=stage,
+            delivery_phase_id=delivery_phase_id,
         )
     }
 

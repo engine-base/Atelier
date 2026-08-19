@@ -55,7 +55,7 @@ _SELECT_COLS = (
     "t.blocked_reason, t.retry_count, t.worktree_path, t.worker_pid, "
     "t.dependencies, t.prerequisites, t.blocks, "
     "t.acceptance_criteria_id, t.verifier_employee_id, t.files_changed, "
-    "t.mock_id, "
+    "t.mock_id, t.delivery_phase_id, "
     "(select m.screen_name from public.mocks m where m.id = t.mock_id) AS mock_screen_name, "
     "t.created_at, t.updated_at, t.deleted_at, "
     "(select ph.name from public.phases ph where ph.id = t.phase_id) AS phase_name, "
@@ -102,9 +102,8 @@ def _row_to_response(row: Any) -> TaskResponse:
         ),
         files_changed=[str(x) for x in list(row.files_changed or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
         mock_id=(None if row.mock_id is None else str(row.mock_id)),
-        mock_screen_name=(
-            None if row.mock_screen_name is None else str(row.mock_screen_name)
-        ),
+        delivery_phase_id=(None if row.delivery_phase_id is None else str(row.delivery_phase_id)),
+        mock_screen_name=(None if row.mock_screen_name is None else str(row.mock_screen_name)),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
         updated_at=row.updated_at,
@@ -116,6 +115,7 @@ async def list_tasks(
     *,
     project_id: str | None = None,
     lifecycle_stage: str | None = None,
+    delivery_phase_id: str | None = None,
     limit: int = 50,
 ) -> list[TaskResponse]:
     limit = max(1, min(limit, 200))
@@ -124,6 +124,10 @@ async def list_tasks(
     if project_id is not None:
         where.append("t.project_id = cast(:pid as uuid)")
         params["pid"] = project_id
+    if delivery_phase_id is not None:
+        # GAP-152: フェーズ切替 — 追加分のタスク・依存を分けて見る
+        where.append("t.delivery_phase_id = cast(:dph as uuid)")
+        params["dph"] = delivery_phase_id
     if lifecycle_stage is not None:
         where.append("t.lifecycle_stage = cast(:ls as task_lifecycle_enum)")
         params["ls"] = lifecycle_stage
@@ -158,7 +162,7 @@ def _placeholder_mock_html(screen_name: str) -> str:
 
     safe = html_mod.escape(screen_name)
     return (
-        "<!doctype html><html lang=\"ja\"><head><meta charset=\"utf-8\">"
+        '<!doctype html><html lang="ja"><head><meta charset="utf-8">'
         f"<title>{safe}</title>"
         "<style>body{margin:0;font-family:sans-serif;background:#f8fafc;color:#0f172a;"
         "display:grid;place-items:center;min-height:100vh}"
@@ -235,17 +239,22 @@ async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate)
             project_id=data.project_id,
             screen_name=data.screen_name.strip(),
         )
+    # GAP-152: タスクも常に active フェーズへ (追加分の依存・タスクを分けて扱う)
+    from src.services.flow.phases import ensure_active_phase
+
+    phase = await ensure_active_phase(session, project_id=data.project_id)
     await session.execute(
         text(
             "insert into public.tasks "
             "(id, project_id, category, title, description, type, estimated_hours, priority, "
-            " mock_id) "
+            " mock_id, delivery_phase_id) "
             "values (cast(:id as uuid), cast(:pid as uuid), :cat, :title, :desc, "
             "        cast(:ttype as task_type_enum), :est, cast(:prio as task_priority_enum), "
-            "        cast(:mock as uuid))"
+            "        cast(:mock as uuid), cast(:dph as uuid))"
         ),
         {
             "id": new_id,
+            "dph": phase.id,
             "pid": data.project_id,
             "cat": data.category,
             "title": data.title,

@@ -461,6 +461,8 @@ components:
         id: { type: string, format: uuid }
         project_id: { type: string, format: uuid }
         phase: { type: string }
+        # GAP-152: 帰属フェーズ (追加分のタスク・依存を分けて扱う)
+        delivery_phase_id: { type: string, format: uuid, nullable: true }
         category: { type: string }
         title: { type: string }
         description: { type: string, nullable: true }
@@ -535,6 +537,23 @@ components:
         error_summary: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
 
+    DeliveryPhase:
+      type: object
+      description: GAP-152 — 納品単位のフェーズ (フェーズ1..N)。frozen = 確定済み (成果物凍結)。
+      properties:
+        id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid }
+        seq: { type: integer, minimum: 1 }
+        name: { type: string }
+        status: { type: string, enum: [active, frozen] }
+        note: { type: string, nullable: true }
+        frozen_at: { type: string, format: date-time, nullable: true }
+        mock_count: { type: integer }
+        output_count: { type: integer }
+        task_count: { type: integer }
+        stages_done: { type: integer }
+        stages_total: { type: integer }
+
     FlowStage:
       type: object
       description: GAP-150 — プロジェクト進行フローの 1 ステージ (現在ステージは最小 seq の pending)
@@ -565,6 +584,8 @@ components:
         html_storage_path: { type: string }
         version: { type: integer }
         parent_mock_id: { type: string, format: uuid, nullable: true }
+        # GAP-152: 帰属フェーズ (作成時の active フェーズ)
+        delivery_phase_id: { type: string, format: uuid, nullable: true }
         meta_tags: { type: object, nullable: true }
         deleted_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
@@ -1061,6 +1082,8 @@ components:
         md_path: { type: string, nullable: true }
         summary: { type: string, nullable: true }
         version: { type: integer }
+        # GAP-152: 帰属フェーズ (作成時の active フェーズ) — phase_id (工程) とは別
+        delivery_phase_id: { type: string, format: uuid, nullable: true }
         # GAP-023: 改訂メタ (author=steve / revision_instruction / revised_from_version / model)
         meta: { type: object, additionalProperties: true }
         deleted_at: { type: string, format: date-time, nullable: true }
@@ -3701,6 +3724,7 @@ paths:
       parameters:
         - { name: project_id, in: query, schema: { type: string, format: uuid } }
         - { name: lifecycle_stage, in: query, schema: { type: string } }
+        - { name: delivery_phase_id, in: query, schema: { type: string, format: uuid } }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
       responses:
         '200':
@@ -4285,6 +4309,7 @@ paths:
       parameters:
         - { name: project_id, in: query, schema: { type: string, format: uuid } }
         - { name: screen_name, in: query, schema: { type: string } }
+        - { name: delivery_phase_id, in: query, schema: { type: string, format: uuid } }
         - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
       responses:
         '200':
@@ -4397,6 +4422,57 @@ paths:
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /projects/{project_id}/delivery-phases:
+    get:
+      tags: [flow]
+      summary: フェーズ一覧（GAP-152 — 未初期化ならフェーズ1 を自動作成）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::list_delivery_phases
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: seq 昇順のフェーズ一覧 (フェーズ別の成果物/モック/タスク/工程 実数つき)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/DeliveryPhase' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /projects/{project_id}/delivery-phases/{phase_id}/freeze:
+    post:
+      tags: [flow]
+      summary: フェーズ確定 = 成果物凍結 + 次フェーズ開始（GAP-152 — confirm 必須）
+      x-implementation-path: apps/api/src/routes/flow/__init__.py::freeze_delivery_phase
+      x-screen-ids: [S-E01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: phase_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirm: { type: boolean, default: false }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: 確定後のフェーズ一覧 (凍結 + 次フェーズが active で開始・フロー新周回)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/DeliveryPhase' } }
+        '403': { description: confirm 未指定 (明示承認が必要), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: すでに確定済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /projects/{project_id}/flow:
     get:
       tags: [flow]
@@ -4405,6 +4481,7 @@ paths:
       x-screen-ids: [S-E01]
       parameters:
         - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: phase, in: query, schema: { type: string, format: uuid }, description: GAP-152 — 過去フェーズの周回を閲覧 }
       responses:
         '200':
           description: seq 昇順のステージ一覧 (current=現在のステージ / 担当社員・既存スレッド解決済み)
@@ -5401,6 +5478,7 @@ paths:
         - { name: project_id, in: query, schema: { type: string, format: uuid } }
         - { name: phase_id, in: query, schema: { type: string, format: uuid } }
         - { name: stage, in: query, schema: { type: string } }
+        - { name: delivery_phase_id, in: query, schema: { type: string, format: uuid } }
       responses:
         '200':
           description: 一覧

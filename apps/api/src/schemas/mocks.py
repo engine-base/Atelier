@@ -60,6 +60,8 @@ class MockResponse(BaseModel):
     html_storage_path: str
     version: int
     parent_mock_id: str | None
+    # GAP-152: 帰属フェーズ (作成時の active フェーズ)。凍結フェーズの行は破壊操作不可
+    delivery_phase_id: str | None = None
     meta_tags: dict[str, object] | None
     deleted_at: datetime | None
     created_at: datetime

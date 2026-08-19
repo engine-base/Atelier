@@ -729,17 +729,27 @@ class TestSpecChangesAndRelated:
     """GAP-025: 仕様変更検知 3 択 + 関連資料 + 検証担当。"""
 
     def _mk_task_with_mock(self, sync_engine: sqlalchemy.Engine, proj: str) -> tuple[str, str, str]:
-        """task + mock v1 (紐付け) + mock v2 (新版) を seed。"""
+        """task + mock v1 (紐付け) + mock v2 (新版) を seed。
+
+        GAP-155 の (project, 画面, version) 一意制約下で複数回呼べるよう
+        画面名は呼び出しごとに一意にする。"""
         task_id, mock_v1, mock_v2 = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        screen = f"S-A01-{task_id[:8]}"
         with sync_engine.begin() as c:
             for mid, ver in ((mock_v1, 1), (mock_v2, 2)):
                 c.execute(
                     text(
                         "insert into public.mocks (id, project_id, screen_name, "
                         "html_storage_path, version) values (cast(:i as uuid), "
-                        "cast(:p as uuid), 'S-A01', :path, :v)"
+                        "cast(:p as uuid), :sn, :path, :v)"
                     ),
-                    {"i": mid, "p": proj, "path": f"mocks/s-a01-v{ver}.html", "v": ver},
+                    {
+                        "i": mid,
+                        "p": proj,
+                        "sn": screen,
+                        "path": f"mocks/s-a01-v{ver}.html",
+                        "v": ver,
+                    },
                 )
             c.execute(
                 text(

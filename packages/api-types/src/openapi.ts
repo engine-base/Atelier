@@ -2753,6 +2753,7 @@ export interface paths {
                 query?: {
                     project_id?: string;
                     lifecycle_stage?: string;
+                    delivery_phase_id?: string;
                     limit?: number;
                 };
                 header?: never;
@@ -4125,6 +4126,7 @@ export interface paths {
                 query?: {
                     project_id?: string;
                     screen_name?: string;
+                    delivery_phase_id?: string;
                     limit?: number;
                 };
                 header?: never;
@@ -4402,6 +4404,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/delivery-phases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** フェーズ一覧（GAP-152 — 未初期化ならフェーズ1 を自動作成） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description seq 昇順のフェーズ一覧 (フェーズ別の成果物/モック/タスク/工程 実数つき) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["DeliveryPhase"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/delivery-phases/{phase_id}/freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** フェーズ確定 = 成果物凍結 + 次フェーズ開始（GAP-152 — confirm 必須） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                    phase_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @default false */
+                        confirm?: boolean;
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 確定後のフェーズ一覧 (凍結 + 次フェーズが active で開始・フロー新周回) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["DeliveryPhase"][];
+                        };
+                    };
+                };
+                /** @description confirm 未指定 (明示承認が必要) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description すでに確定済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/flow": {
         parameters: {
             query?: never;
@@ -4412,7 +4548,10 @@ export interface paths {
         /** プロジェクトフロー取得（GAP-150 — 未初期化ならテンプレから自動生成） */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    /** @description GAP-152 — 過去フェーズの周回を閲覧 */
+                    phase?: string;
+                };
                 header?: never;
                 path: {
                     project_id: string;
@@ -6790,6 +6929,7 @@ export interface paths {
                     project_id?: string;
                     phase_id?: string;
                     stage?: string;
+                    delivery_phase_id?: string;
                 };
                 header?: never;
                 path?: never;
@@ -15760,6 +15900,8 @@ export interface components {
             /** Format: uuid */
             project_id?: string;
             phase?: string;
+            /** Format: uuid */
+            delivery_phase_id?: string | null;
             category?: string;
             title?: string;
             description?: string | null;
@@ -15839,6 +15981,25 @@ export interface components {
             /** Format: date-time */
             created_at?: string;
         };
+        /** @description GAP-152 — 納品単位のフェーズ (フェーズ1..N)。frozen = 確定済み (成果物凍結)。 */
+        DeliveryPhase: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            project_id?: string;
+            seq?: number;
+            name?: string;
+            /** @enum {string} */
+            status?: "active" | "frozen";
+            note?: string | null;
+            /** Format: date-time */
+            frozen_at?: string | null;
+            mock_count?: number;
+            output_count?: number;
+            task_count?: number;
+            stages_done?: number;
+            stages_total?: number;
+        };
         /** @description GAP-150 — プロジェクト進行フローの 1 ステージ (現在ステージは最小 seq の pending) */
         FlowStage: {
             /** Format: uuid */
@@ -15873,6 +16034,8 @@ export interface components {
             version?: number;
             /** Format: uuid */
             parent_mock_id?: string | null;
+            /** Format: uuid */
+            delivery_phase_id?: string | null;
             meta_tags?: Record<string, never>;
             /** Format: date-time */
             deleted_at?: string | null;
@@ -16399,6 +16562,8 @@ export interface components {
             md_path?: string | null;
             summary?: string | null;
             version?: number;
+            /** Format: uuid */
+            delivery_phase_id?: string | null;
             meta?: {
                 [key: string]: unknown;
             };

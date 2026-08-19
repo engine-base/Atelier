@@ -22,6 +22,8 @@ class OutputResponse(BaseModel):
     md_path: str | None
     summary: str | None
     version: int
+    # GAP-152: 帰属フェーズ (作成時の active フェーズ) — phase_id (工程) とは別
+    delivery_phase_id: str | None = None
     # GAP-023: 改訂メタ (author / revision_instruction / revised_from_version / model)
     meta: dict[str, object] = Field(default_factory=lambda: dict[str, object]())
     deleted_at: datetime | None

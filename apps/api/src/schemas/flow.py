@@ -42,6 +42,31 @@ class FlowStageResponse(BaseModel):
     thread_id: str | None = None
 
 
+class DeliveryPhaseResponse(BaseModel):
+    """GAP-152: 納品単位のフェーズ (フェーズ1..N)。frozen = 確定済み (成果物凍結)。"""
+
+    id: str
+    project_id: str
+    seq: int
+    name: str
+    status: Literal["active", "frozen"]
+    note: str | None = None
+    frozen_at: datetime | None = None
+    # フェーズ別の実数 (UI のフェーズバー/切替に使う)
+    mock_count: int = 0
+    output_count: int = 0
+    task_count: int = 0
+    stages_done: int = 0
+    stages_total: int = 0
+
+
+class PhaseFreezeRequest(BaseModel):
+    """フェーズ確定は confirm=true (明示承認) 必須 — 成果物が凍結されるため。"""
+
+    confirm: bool = False
+    note: str | None = Field(default=None, max_length=500)
+
+
 class FlowSkipRequest(BaseModel):
     """スキップは理由必須 (黙って消さない)。"""
 

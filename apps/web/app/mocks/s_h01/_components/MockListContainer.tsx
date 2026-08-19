@@ -107,12 +107,43 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
     },
   });
 
+  // GAP-152: フェーズ切替 — 確定フェーズのスナップショットを絞り込んで見る
+  const [phaseFilter, setPhaseFilter] = useState<string>("");
+  const phasesQuery = useQuery({
+    queryKey: ["delivery-phases", projectId],
+    enabled: Boolean(projectId),
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}/delivery-phases", {
+        params: { path: { project_id: projectId ?? "" } },
+      });
+      const d = (res as { data?: unknown }).data;
+      return Array.isArray(d)
+        ? (d as {
+            id: string;
+            name: string;
+            status: string;
+            mock_count: number;
+          }[])
+        : [];
+    },
+    retry: false,
+  });
+  const phases = phasesQuery.data ?? [];
+
   const mocks = useQuery({
-    queryKey: ["mocks", projectId],
+    queryKey: ["mocks", projectId, phaseFilter],
     enabled: Boolean(projectId),
     queryFn: async () => {
       const res = await client.get("/mocks", {
-        params: { query: { project_id: projectId ?? undefined, limit: 200 } },
+        params: {
+          query: {
+            project_id: projectId ?? undefined,
+            ...(phaseFilter !== ""
+              ? { delivery_phase_id: phaseFilter }
+              : {}),
+            limit: 200,
+          },
+        },
       });
       const d = (res as { data?: unknown }).data;
       return Array.isArray(d) ? (d as ApiMock[]) : [];
@@ -158,6 +189,26 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
         <h1 className="text-headline-md font-bold tracking-tight text-on-surface">
           モック
         </h1>
+        {/* GAP-152: フェーズ切替 (確定フェーズのスナップショット閲覧) */}
+        {phases.length > 1 ? (
+          <label className="ml-2 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[12px]">
+            <span className="font-semibold text-on-surface-variant">フェーズ</span>
+            <select
+              aria-label="フェーズで絞り込み"
+              value={phaseFilter}
+              onChange={(e) => setPhaseFilter(e.target.value)}
+              className="bg-transparent text-[12px] text-on-surface outline-none"
+            >
+              <option value="">すべて</option>
+              {phases.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.status === "frozen" ? "（確定済み）" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         {/* GAP-138: 一覧/キャンバス切替 (キャンバス = 全画面を俯瞰 + その場で編集) */}
         <div role="group" aria-label="表示切替" className="ml-auto flex rounded-md border border-border">
           <button

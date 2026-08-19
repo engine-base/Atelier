@@ -62,11 +62,16 @@ async def list_mocks(
     _user: UserDep,
     project_id: Annotated[str | None, Query()] = None,
     screen_name: Annotated[str | None, Query()] = None,
+    delivery_phase_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> dict[str, list[MockResponse]]:
     return {
         "data": await svc.list_mocks(
-            session, project_id=project_id, screen_name=screen_name, limit=limit
+            session,
+            project_id=project_id,
+            screen_name=screen_name,
+            delivery_phase_id=delivery_phase_id,
+            limit=limit,
         )
     }
 
@@ -169,7 +174,11 @@ async def update_mock(
 ) -> dict[str, MockResponse]:
     if await svc.get_mock(session, mock_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
-    updated = await svc.update_mock(session, actor_id=user.id, mock_id=mock_id, data=body)
+    try:
+        updated = await svc.update_mock(session, actor_id=user.id, mock_id=mock_id, data=body)
+    except svc.MockPhaseFrozen as exc:
+        # GAP-152: 確定フェーズの成果物は不変
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update mock")
     return {"data": updated}
@@ -181,7 +190,11 @@ async def update_mock(
 async def delete_mock(mock_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_mock(session, mock_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
-    if not await svc.delete_mock(session, actor_id=user.id, mock_id=mock_id):
+    try:
+        ok = await svc.delete_mock(session, actor_id=user.id, mock_id=mock_id)
+    except svc.MockPhaseFrozen as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    if not ok:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete mock")
 
 
@@ -427,7 +440,7 @@ async def discard_mock_version(
 ) -> dict[str, dict[str, str]]:
     try:
         ok = await svc.discard_version(session, actor_id=user.id, mock_id=mock_id)
-    except ValueError as exc:
+    except (ValueError, svc.MockPhaseFrozen) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
