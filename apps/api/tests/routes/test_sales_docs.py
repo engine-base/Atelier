@@ -401,7 +401,9 @@ class TestSalesDocsGap018:
             assert r.status_code == 201, r.text
             doc = r.json()["data"]
             assert doc["meta"]["generated_by"] == "tony"
-            assert doc["meta"]["model"] == "fake-llm"
+            # GAP-171: meta には「どの実行経路 = 誰の費用で作られたか」を記録する
+            # (relay = 本人の Claude サブスク / agent_sdk / api / fake)。
+            assert doc["meta"]["model"] == "fake"
             refs = doc["meta"]["knowledge_refs"]
             assert any(x["id"] == kn for x in refs)
             assert "受託案件の提案書テンプレ v3" in (doc["summary"] or "")

@@ -1,0 +1,19 @@
+import: 200 output 30d4772c-eefa-4a6f-962d-80750180ac28
+PASS  改訂が受理される (運営キー無しでも成立)
+PASS  新しい版が作られた
+PASS  実行経路が relay (= 本人の Claude サブスク) と記録される
+PASS  作成者はスティーブ
+PASS  本人の PC が返した内容が実体に入っている
+body: <html><body><h1>GAP-171</h1><section id="added-by-bridge">本人の PC の Claude が追記したセクション</section></body></html>
+
+5 PASS / 0 FAIL
+
+PASS  営業ドラフトが生成される (運営キー無し)
+PASS  トニーの実行経路が relay (本人サブスク)
+PASS  生成者はトニー
+SKIP  フェーズ提案: 承認待ちの提案が既にある (409)
+
+3 PASS / 0 FAIL
+
+--- DB 実測 (phase_proposals.model) ---
+次フェーズ: 結合テスト | model=relay

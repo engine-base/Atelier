@@ -20,7 +20,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
-from src.llm.client import LLMMessage
 from src.schemas.workflow import PhaseProposalResponse, PhaseResponse
 
 from . import is_uuid
@@ -84,45 +83,51 @@ async def _generate(
     project_name: str,
     phases_summary: str,
     client: Any | None,
+    *,
+    actor_id: str = "",
 ) -> tuple[str, str | None, str, str]:
-    """提案を生成する。返り値 (name, description, reason, model)。"""
-    if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
-        if os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
-            return (
-                "次フェーズ提案（検証強化）",
-                "[fake LLM] 既存フェーズの完了状況を踏まえた次工程",
-                f"[fake LLM] 既存フェーズ構成（{phases_summary[:120]}）を踏まえ、"
-                "次に確定すべき工程として提案します。",
-                "fake-llm",
-            )
-        raise PhaseProposalError(
-            "llm_unconfigured",
-            "ANTHROPIC_API_KEY が未設定のため COO AI による提案を生成できません",
-        )
-    if client is None:
-        from src.llm.anthropic import AnthropicClient
+    """提案を生成する。返り値 (name, description, reason, 使用経路)。
 
-        client = AnthropicClient()
+    GAP-171: 運営の ANTHROPIC_API_KEY 直叩きをやめ、費用順チェーン
+    (relay = 本人の Claude サブスク → agent_sdk → API キー → fake) に統一。
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
+
+    def _fake() -> str:
+        return json.dumps(
+            {
+                "name": "次フェーズ提案（検証強化）",
+                "description": "[fake LLM] 既存フェーズの完了状況を踏まえた次工程",
+                "reason": (
+                    f"[fake LLM] 既存フェーズ構成（{phases_summary[:120]}）を踏まえ、"
+                    "次に確定すべき工程として提案します。"
+                ),
+            },
+            ensure_ascii=False,
+        )
+
     try:
-        res = await client.complete(
-            model=PROPOSE_MODEL,
-            messages=[
-                LLMMessage(
-                    role="user",
-                    content=(
-                        f"プロジェクト名: {project_name}\n\n"
-                        f"既存フェーズとタスク状況:\n{phases_summary}"
-                    ),
-                )
-            ],
-            system=_SYSTEM,
+        out, provider = await llm_complete_or_injected(
+            system_prompt=_SYSTEM,
+            user_text=(
+                f"プロジェクト名: {project_name}\n\n既存フェーズとタスク状況:\n{phases_summary}"
+            ),
+            actor_id=actor_id,
             max_tokens=1024,
+            fake=_fake,
+            client=client,
+            model=PROPOSE_MODEL,
             temperature=0.3,
         )
-    except Exception as e:
-        raise PhaseProposalError("llm_failed", f"LLM 呼出に失敗: {e}") from e
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise PhaseProposalError(
+                "bridge_offline" if exc.code == "bridge_offline" else "llm_unconfigured",
+                exc.message,
+            ) from exc
+        raise PhaseProposalError("llm_failed", exc.message) from exc
     try:
-        parsed = json.loads(_strip_fence(str(res.text)))
+        parsed = json.loads(_strip_fence(out))
         name = str(parsed["name"]).strip()[:200]
         reason = str(parsed["reason"]).strip()
         description = str(parsed.get("description") or "").strip() or None
@@ -130,7 +135,7 @@ async def _generate(
         raise PhaseProposalError("llm_failed", f"LLM 応答の JSON 解析に失敗: {e}") from e
     if not name or not reason:
         raise PhaseProposalError("llm_failed", "LLM が空の提案を返しました")
-    return name, description, reason, PROPOSE_MODEL
+    return name, description, reason, (PROPOSE_MODEL if provider == "injected" else provider)
 
 
 async def propose(
@@ -181,7 +186,9 @@ async def propose(
     )
     next_order = max((int(r.order) for r in rows), default=0) + 1
 
-    name, description, reason, model = await _generate(str(project.name), summary, client)
+    name, description, reason, model = await _generate(
+        str(project.name), summary, client, actor_id=actor_id
+    )
 
     row = await session.execute(
         text(

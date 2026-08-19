@@ -124,7 +124,8 @@ async def create_phase_proposal(
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except proposals_svc.PhaseProposalError as exc:
-        if exc.code == "llm_unconfigured":
+        # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
+        if exc.code in ("llm_unconfigured", "bridge_offline"):
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:

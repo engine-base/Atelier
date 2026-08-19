@@ -106,6 +106,9 @@ export function PhaseListContainer({
     kind: "notice" | "error";
     text: string;
   } | null>(null);
+  // GAP-171: ジャービスの提案も本人の Claude サブスク経由になったため、
+  // 未接続 (503) はその場に接続フローを出す (GAP-168 と同じ扱い)。
+  const [bridgeOffline, setBridgeOffline] = useState(false);
   const [impactResult, setImpactResult] = useState<ImpactResult | null>(null);
 
   const list = useQuery({
@@ -285,16 +288,18 @@ export function PhaseListContainer({
       invalidateGap022();
       setAction({ kind: "notice", text: "ジャービスが次フェーズを提案しました。" });
     },
-    onError: (e) =>
+    onError: (e) => {
+      setBridgeOffline(statusOf(e) === 503);
       setAction({
         kind: "error",
         text:
           statusOf(e) === 503
-            ? "COO AI（ジャービス）が未設定のため提案を生成できません。"
+            ? "お使いのパソコン (Bridge) が未接続のため提案を生成できません。"
             : statusOf(e) === 409
               ? "承認待ちの提案が既にあります。"
               : "提案の生成に失敗しました。",
-      }),
+      });
+    },
   });
 
   const approveProposalMut = useMutation({
@@ -513,6 +518,7 @@ export function PhaseListContainer({
       stats={stats}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
+      bridgeOffline={bridgeOffline}
     />
   );
 }

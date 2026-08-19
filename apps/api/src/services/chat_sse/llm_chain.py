@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from typing import Any, Protocol
 
 DEFAULT_API_MODEL = os.environ.get("ATELIER_DESIGN_MODEL", "claude-sonnet-4-6")
 
@@ -196,4 +197,62 @@ async def llm_complete(
     raise LLMUnavailable(
         "unconfigured",
         "利用できる LLM 実行経路がありません (Bridge / サブスク / API キーのいずれも未設定)",
+    )
+
+
+class InjectedCompletionClient(Protocol):
+    """テストが注入する 1 往復クライアント (実 LLM の代わり)。"""
+
+    async def complete(
+        self,
+        *,
+        model: str,
+        messages: list[Any],
+        system: str | None = ...,
+        max_tokens: int = ...,
+        temperature: float = ...,
+    ) -> Any: ...
+
+
+async def llm_complete_or_injected(
+    *,
+    system_prompt: str,
+    user_text: str,
+    actor_id: str,
+    max_tokens: int = 4096,
+    fake: Callable[[], str] | None = None,
+    client: InjectedCompletionClient | None = None,
+    model: str = DEFAULT_API_MODEL,
+    temperature: float = 0.2,
+) -> tuple[str, str]:
+    """GAP-171: 明示注入 client があればそれを、無ければ費用順チェーンを使う。
+
+    成果物改訂・営業ドラフト・フェーズ提案・議事録解析は、もともと
+    `ANTHROPIC_API_KEY` (= 運営の従量課金) を直接叩いていた。確定アーキテクチャは
+    「**全ユーザーが自分の PC・自分の Claude サブスクで実行する**」なので、
+    これらも relay → agent_sdk → API キー → fake の費用順チェーンに乗せる。
+
+    `client` はテストの差し替え口としてのみ残す (本番経路では None)。
+    """
+    if client is not None:
+        from src.llm.client import LLMMessage
+
+        res = await client.complete(
+            model=model,
+            messages=[LLMMessage(role="user", content=user_text)],
+            system=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        out = str(getattr(res, "text", "")).strip()
+        if out == "":
+            raise LLMUnavailable("failed", "注入クライアントが空の応答を返しました")
+        return out, "injected"
+
+    return await llm_complete(
+        system_prompt=system_prompt,
+        user_text=user_text,
+        actor_id=actor_id,
+        max_tokens=max_tokens,
+        fake=fake,
     )

@@ -112,6 +112,9 @@ export function OutputViewerContainer({
     kind: "notice" | "error";
     text: string;
   } | null>(null);
+  // GAP-171: スティーブの実行も本人の Claude サブスク経由になったため、
+  // 未接続 (503) はその場に接続フローを出す (GAP-168 と同じ扱い)。
+  const [bridgeOffline, setBridgeOffline] = useState(false);
 
   const meta = useQuery({
     queryKey: ["output", outputId],
@@ -286,11 +289,12 @@ export function OutputViewerContainer({
     },
     onError: (e) => {
       const s = statusOf(e);
+      setBridgeOffline(s === 503);
       setAction({
         kind: "error",
         text:
           s === 503
-            ? "ドキュメント AI（スティーブ）または保存先が未設定のため、修正を実行できません。"
+            ? "お使いのパソコン (Bridge) が未接続、または保存先が未設定のため修正を実行できません。"
             : s === 413
               ? "本文が大きすぎるため自動改訂できません。分割を検討してください。"
               : s === 409
@@ -373,16 +377,18 @@ export function OutputViewerContainer({
       void queryClient.invalidateQueries({
         queryKey: ["output", outputId, "fix-proposals"],
       }),
-    onError: (e) =>
+    onError: (e) => {
+      setBridgeOffline(statusOf(e) === 503);
       setAction({
         kind: "error",
         text:
           statusOf(e) === 503
-            ? "ドキュメント AI（スティーブ）が未設定のため提案を生成できません。"
+            ? "お使いのパソコン (Bridge) が未接続のため提案を生成できません。"
             : statusOf(e) === 409
               ? "このコメントには既に未処理の提案があります。"
               : "修正提案の生成に失敗しました。",
-      }),
+      });
+    },
   });
 
   const approveMut = useMutation({
@@ -405,16 +411,18 @@ export function OutputViewerContainer({
         router.push(`/outputs?output=${newOutput.id}`);
       }
     },
-    onError: (e) =>
+    onError: (e) => {
+      setBridgeOffline(statusOf(e) === 503);
       setAction({
         kind: "error",
         text:
           statusOf(e) === 409
             ? "この提案は既に処理済みです。"
             : statusOf(e) === 503
-              ? "ドキュメント AI（スティーブ）または保存先が未設定のため適用できません。"
+              ? "お使いのパソコン (Bridge) が未接続、または保存先が未設定のため適用できません。"
               : "提案の承認に失敗しました。",
-      }),
+      });
+    },
   });
 
   const rejectMut = useMutation({
@@ -601,6 +609,7 @@ export function OutputViewerContainer({
       restoring={restoreMut.isPending}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
+      bridgeOffline={bridgeOffline}
       comments={outputComments}
       onAddComment={(text_, targetElementId) =>
         addMut.mutate({ text: text_, targetElementId })

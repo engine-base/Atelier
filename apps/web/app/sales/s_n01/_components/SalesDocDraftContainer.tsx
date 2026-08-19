@@ -102,6 +102,9 @@ export function SalesDocDraftContainer({
     kind: "notice" | "error";
     text: string;
   } | null>(null);
+  // GAP-171: トニーの生成も本人の Claude サブスク経由になったため、
+  // 未接続 (503) はその場に接続フローを出す (GAP-168 と同じ扱い)。
+  const [bridgeOffline, setBridgeOffline] = useState(false);
 
   // 全 doc_type を一括取得し client 側で振り分け (5 タブの件数バッジ実データ)
   const list = useQuery({
@@ -165,11 +168,12 @@ export function SalesDocDraftContainer({
       });
     },
     onError: (e) => {
+      setBridgeOffline(statusOf(e) === 503);
       setAction({
         kind: "error",
         text:
           statusOf(e) === 503
-            ? "営業 AI（トニー）が未設定のため生成できません。「AI を使わず保存」をご利用ください。"
+            ? "お使いのパソコン (Bridge) が未接続のため生成できません。「AI を使わず保存」でも進められます。"
             : "ドラフトの生成に失敗しました。",
       });
     },
@@ -298,6 +302,7 @@ export function SalesDocDraftContainer({
       sendsLoading={!!selected && sends.isLoading}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
+      bridgeOffline={bridgeOffline}
     />
   );
 }

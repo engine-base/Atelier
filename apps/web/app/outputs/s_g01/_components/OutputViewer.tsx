@@ -28,6 +28,7 @@ import {
   DiffModal,
   type VersionDiffView,
 } from "../../../../components/VersionDiff";
+import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOfflineNotice";
 
 export type OutputFormat = "html" | "json" | "md";
 
@@ -117,6 +118,8 @@ export interface OutputViewerProps {
   readonly restoring?: boolean;
   readonly actionNotice?: string;
   readonly actionError?: string;
+  /** GAP-171: 直近の操作が「Bridge 未接続」で止まった (接続フローを出す)。 */
+  readonly bridgeOffline?: boolean;
   readonly comments: readonly OutputComment[];
   /** コメント追加 (対象位置は anchors から任意選択)。 */
   readonly onAddComment?: (content: string, targetElementId?: string) => void;
@@ -160,6 +163,7 @@ export function OutputViewer({
   restoring = false,
   actionNotice,
   actionError,
+  bridgeOffline = false,
   comments,
   onAddComment,
   anchors,
@@ -385,6 +389,13 @@ export function OutputViewer({
                     </button>
                   </div>
                 </form>
+              </div>
+            ) : null}
+
+            {/* GAP-171: 未接続はその場に接続フローを出す (文字だけで終わらせない) */}
+            {bridgeOffline ? (
+              <div className="border-b border-border px-lg py-2">
+                <BridgeOfflineNotice action="スティーブへの依頼" />
               </div>
             ) : null}
 

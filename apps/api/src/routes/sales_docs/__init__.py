@@ -102,7 +102,8 @@ async def generate_sales_doc(
     try:
         created = await gen_svc.generate(session, actor_id=user.id, data=body)
     except gen_svc.SalesDocGenerateError as exc:
-        if exc.code == "llm_unconfigured":
+        # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
+        if exc.code in ("llm_unconfigured", "bridge_offline"):
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:

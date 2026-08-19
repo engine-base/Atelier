@@ -465,7 +465,8 @@ async def list_output_anchors(
 
 
 def _raise_revise_error(exc: revise_svc.OutputReviseError) -> None:
-    if exc.code == "llm_unconfigured":
+    # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
+    if exc.code in ("llm_unconfigured", "bridge_offline"):
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
     if exc.code == "too_large":
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc

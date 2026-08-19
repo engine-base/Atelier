@@ -177,43 +177,38 @@ async def run_revision(
     client: CompletionClient | None,
     *,
     system_extra: str | None = None,
+    actor_id: str = "",
 ) -> tuple[str, str]:
     """LLM (または fake スタブ) で HTML を改訂する。返り値 (改訂 HTML, 使用モデル)。
 
     GAP-154: system_extra に workspace の出力テンプレートを渡すと、改訂も
     その型に従う (契約 → 参考資料の順は mocks revise と同じ設計)。
     """
-    allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
-    if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
-        if allow_fake:
-            return _fake_revision(html, instruction), "fake-llm"
-        raise OutputReviseError(
-            "llm_unconfigured",
-            "ANTHROPIC_API_KEY が未設定のためドキュメント AI による改訂を実行できません",
-        )
-    if client is None:
-        from src.llm.anthropic import AnthropicClient
+    # GAP-171: 運営の ANTHROPIC_API_KEY 直叩きをやめ、費用順チェーン
+    # (relay = 本人の Claude サブスク → agent_sdk → API キー → fake) に統一する。
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
 
-        client = AnthropicClient()
     try:
-        res = await client.complete(
-            model=REVISE_MODEL,
-            messages=[
-                LLMMessage(
-                    role="user",
-                    content=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
-                )
-            ],
-            system=(_SYSTEM if not system_extra else f"{_SYSTEM}\n\n{system_extra}"),
+        out, provider = await llm_complete_or_injected(
+            system_prompt=(_SYSTEM if not system_extra else f"{_SYSTEM}\n\n{system_extra}"),
+            user_text=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
+            actor_id=actor_id,
             max_tokens=16384,
-            temperature=0.2,
+            fake=lambda: _fake_revision(html, instruction),
+            client=client,
+            model=REVISE_MODEL,
         )
-    except Exception as e:
-        raise OutputReviseError("llm_failed", f"LLM 呼出に失敗: {e}") from e
-    revised = _strip_fence(str(res.text))
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise OutputReviseError(
+                "bridge_offline" if exc.code == "bridge_offline" else "llm_unconfigured",
+                exc.message,
+            ) from exc
+        raise OutputReviseError("llm_failed", exc.message) from exc
+    revised = _strip_fence(out)
     if not revised:
         raise OutputReviseError("llm_failed", "LLM が空の改訂を返しました")
-    return revised, REVISE_MODEL
+    return revised, (REVISE_MODEL if provider == "injected" else provider)
 
 
 async def revise_output(
@@ -251,7 +246,9 @@ async def revise_output(
         else render_design_block(stage=current.stage, version=tmpl[0], html=tmpl[1])
     )
 
-    revised, used_model = await run_revision(html, instruction, client, system_extra=system_extra)
+    revised, used_model = await run_revision(
+        html, instruction, client, system_extra=system_extra, actor_id=actor_id
+    )
 
     # GAP-155: mockdb 由来は mockdb へ保存 (storage 未設定でも編集ループが回る —
     # GAP-138 の mocks revise と同じ設計)。storage 由来は従来どおり storage へ。

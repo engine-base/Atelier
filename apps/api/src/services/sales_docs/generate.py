@@ -22,7 +22,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
-from src.llm.client import LLMMessage
 from src.schemas.sales_docs import SalesDocGenerateRequest, SalesDocResponse
 from src.services.knowledge import search_knowledge
 
@@ -60,54 +59,58 @@ async def _generate_body(
     data: SalesDocGenerateRequest,
     knowledge_excerpts: list[dict[str, str]],
     client: Any | None,
+    *,
+    actor_id: str = "",
 ) -> tuple[str, str]:
-    """本文を生成する。返り値 (markdown, 使用モデル)。"""
-    label = DOC_TYPE_LABEL[data.doc_type]
-    if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
-        if os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
-            refs = "\n".join(f"- {k['title']}" for k in knowledge_excerpts) or "- (参照なし)"
-            return (
-                f"# {data.opportunity} {label}\n\n"
-                f"顧客: {data.customer}\n\n"
-                f"[fake LLM] 商談概要「{data.notes[:120]}」をもとに生成した{label}ドラフト。\n\n"
-                f"## 参照ナレッジ\n{refs}\n\n"
-                "※ 本ドラフトは AI 補助で作成されています。最終版は人間レビュー後に確定されます。"
-            ), "fake-llm"
-        raise SalesDocGenerateError(
-            "llm_unconfigured",
-            "ANTHROPIC_API_KEY が未設定のため営業 AI によるドラフト生成を実行できません",
-        )
-    if client is None:
-        from src.llm.anthropic import AnthropicClient
+    """本文を生成する。返り値 (markdown, 使用経路)。
 
-        client = AnthropicClient()
+    GAP-171: 運営の ANTHROPIC_API_KEY 直叩きをやめ、費用順チェーン
+    (relay = 本人の Claude サブスク → agent_sdk → API キー → fake) に統一。
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
+
+    label = DOC_TYPE_LABEL[data.doc_type]
     knowledge_block = (
         "\n\n".join(f"### {k['title']}\n{k['content'][:2000]}" for k in knowledge_excerpts)
         or "(参照ナレッジなし)"
     )
+
+    def _fake() -> str:
+        refs = "\n".join(f"- {k['title']}" for k in knowledge_excerpts) or "- (参照なし)"
+        return (
+            f"# {data.opportunity} {label}\n\n"
+            f"顧客: {data.customer}\n\n"
+            f"[fake LLM] 商談概要「{data.notes[:120]}」をもとに生成した{label}ドラフト。\n\n"
+            f"## 参照ナレッジ\n{refs}\n\n"
+            "※ 本ドラフトは AI 補助で作成されています。最終版は人間レビュー後に確定されます。"
+        )
+
     try:
-        res = await client.complete(
-            model=GENERATE_MODEL,
-            messages=[
-                LLMMessage(
-                    role="user",
-                    content=(
-                        f"顧客名: {data.customer}\n案件: {data.opportunity}\n\n"
-                        f"商談概要・要望:\n{data.notes}\n\n"
-                        f"参照ナレッジ:\n{knowledge_block}"
-                    ),
-                )
-            ],
-            system=_SYSTEM_BASE.format(label=label),
+        out, provider = await llm_complete_or_injected(
+            system_prompt=_SYSTEM_BASE.format(label=label),
+            user_text=(
+                f"顧客名: {data.customer}\n案件: {data.opportunity}\n\n"
+                f"商談概要・要望:\n{data.notes}\n\n"
+                f"参照ナレッジ:\n{knowledge_block}"
+            ),
+            actor_id=actor_id,
             max_tokens=4096,
+            fake=_fake,
+            client=client,
+            model=GENERATE_MODEL,
             temperature=0.3,
         )
-    except Exception as e:
-        raise SalesDocGenerateError("llm_failed", f"LLM 呼出に失敗: {e}") from e
-    body = str(res.text).strip()
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise SalesDocGenerateError(
+                "bridge_offline" if exc.code == "bridge_offline" else "llm_unconfigured",
+                exc.message,
+            ) from exc
+        raise SalesDocGenerateError("llm_failed", exc.message) from exc
+    body = out.strip()
     if not body:
         raise SalesDocGenerateError("llm_failed", "LLM が空のドラフトを返しました")
-    return body, GENERATE_MODEL
+    return body, (GENERATE_MODEL if provider == "injected" else provider)
 
 
 async def generate(
@@ -168,7 +171,7 @@ async def generate(
     ]
     excerpts = [{"title": h.knowledge.title, "content": h.knowledge.content_md} for h in hits]
 
-    body, used_model = await _generate_body(data, excerpts, client)
+    body, used_model = await _generate_body(data, excerpts, client, actor_id=actor_id)
 
     version = await next_version(session, project_id=data.project_id, doc_type=data.doc_type)
     meta: dict[str, object] = {

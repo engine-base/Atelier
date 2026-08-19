@@ -25,6 +25,7 @@ import { z } from "zod";
 import { Field } from "../../../../components/forms/Field";
 import { Form, useAtelierForm } from "../../../../components/forms/Form";
 import { Loading } from "../../../../components/Loading";
+import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOfflineNotice";
 import { cn } from "../../../../lib/cn";
 
 const Schema = z.object({
@@ -125,6 +126,8 @@ export interface SalesDocDraftProps {
   readonly sendsLoading?: boolean;
   readonly actionNotice?: string;
   readonly actionError?: string;
+  /** GAP-171: 直近の生成が「Bridge 未接続」で止まった (接続フローを出す)。 */
+  readonly bridgeOffline?: boolean;
 }
 
 function DocTabs({
@@ -654,6 +657,7 @@ export function SalesDocDraft({
   sendsLoading,
   actionNotice,
   actionError,
+  bridgeOffline = false,
 }: SalesDocDraftProps) {
   const form = useAtelierForm({
     schema: Schema,
@@ -705,6 +709,11 @@ export function SalesDocDraft({
 
       <div>
         <DocTabs active={docType} counts={counts} onChange={onDocTypeChange} />
+
+        {/* GAP-171: 未接続はその場に接続フローを出す */}
+        {bridgeOffline ? (
+          <BridgeOfflineNotice action="トニーへのドラフト作成依頼" className="mb-4" />
+        ) : null}
 
         {actionError ? (
           <p

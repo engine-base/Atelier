@@ -18,6 +18,8 @@ import { colors } from "@atelier/design-tokens";
 import * as React from "react";
 import { useState } from "react";
 
+import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOfflineNotice";
+
 export type PhaseStatus = "pending" | "in_progress" | "done" | "blocked";
 
 export interface PhaseRow {
@@ -135,6 +137,8 @@ export interface PhaseListProps {
   readonly stats?: WorkflowStats;
   readonly actionNotice?: string;
   readonly actionError?: string;
+  /** GAP-171: 直近の提案生成が「Bridge 未接続」で止まった (接続フローを出す)。 */
+  readonly bridgeOffline?: boolean;
 }
 
 const STATUS_LABEL: Record<PhaseStatus, string> = {
@@ -366,6 +370,7 @@ export function PhaseList({
   stats,
   actionNotice,
   actionError,
+  bridgeOffline = false,
 }: PhaseListProps) {
   const total = rows.length;
   const done = rows.filter((r) => r.status === "done").length;
@@ -405,6 +410,11 @@ export function PhaseList({
             )
           ) : null}
         </div>
+
+        {/* GAP-171: 未接続はその場に接続フローを出す */}
+        {bridgeOffline ? (
+          <BridgeOfflineNotice action="ジャービスへの提案依頼" className="mb-3" />
+        ) : null}
 
         {actionError ? (
           <p

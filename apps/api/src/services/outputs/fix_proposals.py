@@ -14,14 +14,12 @@ ANTHROPIC_API_KEY 未設定は 503 (偽の提案を出さない)。
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
-from src.llm.client import LLMMessage
 from src.schemas.outputs import FixProposalResponse, OutputResponse
 
 from . import get_output, is_uuid
@@ -70,46 +68,49 @@ async def list_for_output(session: AsyncSession, output_id: str) -> list[FixProp
 
 
 async def _generate_proposal(
-    doc_html: str, comment_content: str, client: CompletionClient | None
+    doc_html: str,
+    comment_content: str,
+    client: CompletionClient | None,
+    *,
+    actor_id: str = "",
 ) -> tuple[str, str]:
-    """提案文を生成する。返り値 (提案文, 使用モデル)。"""
-    if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
-        if os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
-            return (
-                f"[fake LLM] コメント「{comment_content[:120]}」への対応として、"
-                "該当箇所に説明サブセクションを追記します。",
-                "fake-llm",
-            )
-        raise OutputReviseError(
-            "llm_unconfigured",
-            "ANTHROPIC_API_KEY が未設定のためドキュメント AI による提案を生成できません",
-        )
-    if client is None:
-        from src.llm.anthropic import AnthropicClient
+    """提案文を生成する。返り値 (提案文, 使用経路)。
 
-        client = AnthropicClient()
-    try:
-        res = await client.complete(
-            model=REVISE_MODEL,
-            messages=[
-                LLMMessage(
-                    role="user",
-                    content=(
-                        f"コメント (修正要望):\n{comment_content}\n\n"
-                        f"成果物ドキュメント (HTML 抜粋):\n{doc_html[:_MAX_DOC_CONTEXT]}"
-                    ),
-                )
-            ],
-            system=_PROPOSE_SYSTEM,
-            max_tokens=1024,
-            temperature=0.2,
+    GAP-171: 運営の ANTHROPIC_API_KEY 直叩きをやめ、費用順チェーン
+    (relay = 本人の Claude サブスク → agent_sdk → API キー → fake) に統一。
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
+
+    def _fake() -> str:
+        return (
+            f"[fake LLM] コメント「{comment_content[:120]}」への対応として、"
+            "該当箇所に説明サブセクションを追記します。"
         )
-    except Exception as e:
-        raise OutputReviseError("llm_failed", f"LLM 呼出に失敗: {e}") from e
-    proposal = str(res.text).strip()
+
+    try:
+        out, provider = await llm_complete_or_injected(
+            system_prompt=_PROPOSE_SYSTEM,
+            user_text=(
+                f"コメント (修正要望):\n{comment_content}\n\n"
+                f"成果物ドキュメント (HTML 抜粋):\n{doc_html[:_MAX_DOC_CONTEXT]}"
+            ),
+            actor_id=actor_id,
+            max_tokens=1024,
+            fake=_fake,
+            client=client,
+            model=REVISE_MODEL,
+        )
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise OutputReviseError(
+                "bridge_offline" if exc.code == "bridge_offline" else "llm_unconfigured",
+                exc.message,
+            ) from exc
+        raise OutputReviseError("llm_failed", exc.message) from exc
+    proposal = out.strip()
     if not proposal:
         raise OutputReviseError("llm_failed", "LLM が空の提案を返しました")
-    return proposal, REVISE_MODEL
+    return proposal, (REVISE_MODEL if provider == "injected" else provider)
 
 
 async def propose(
@@ -152,7 +153,9 @@ async def propose(
         raise ValueError("a pending fix proposal already exists for this comment")
 
     doc_html = "" if output.html_path is None else await load_source_html(output.html_path)
-    proposal_text, _model = await _generate_proposal(doc_html, str(comment.content), client)
+    proposal_text, _model = await _generate_proposal(
+        doc_html, str(comment.content), client, actor_id=actor_id
+    )
 
     row = await session.execute(
         text(

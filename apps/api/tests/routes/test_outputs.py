@@ -351,7 +351,9 @@ class TestOutputViewerOps:
             assert v2["version"] == 2
             assert v2["meta"]["author"] == "steve"
             assert v2["meta"]["revision_instruction"] == "2.5 項に可視範囲サブセクションを追加"
-            assert v2["meta"]["model"] == "fake-llm"
+            # GAP-171: meta には「どの実行経路 = 誰の費用で作られたか」を記録する
+            # (relay = 本人の Claude サブスク / agent_sdk / api / fake)。
+            assert v2["meta"]["model"] == "fake"
             assert v2["html_path"].endswith("-rev.html")
             # 改訂は HTML に対して行われるため json/md は未生成 (旧版を偽装しない)
             assert v2["json_path"] is None and v2["md_path"] is None
@@ -1795,6 +1797,117 @@ class TestGap166AiFileEdit:
                     text("delete from public.chat_relay_jobs where id = cast(:i as uuid)"),
                     {"i": job},
                 )
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+
+@pytest.mark.integration
+class TestGap171SubscriptionRouting:
+    """GAP-171: スティーブ (成果物の改訂・修正提案) も本人の Claude サブスクで動く。
+
+    以前は `ANTHROPIC_API_KEY` (= 運営の従量課金) を直接叩いており、
+    「全ユーザーが自分の PC・自分のサブスクで実行する」という確定アーキテクチャと
+    食い違っていた。ここでは **運営のキーを一切設定しない**状態で:
+      - relay 指定 + Bridge オフライン → 503 (bridge_offline) で正直に断り、版は積まない
+      - 経路がまったく無い → 503 (unconfigured)
+    を実測する。偽の改訂を運営費用で作らないことの担保。
+    """
+
+    def _seed_output(self, sync_engine: sqlalchemy.Engine, project_id: str) -> str:
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": "<html><body><h1>GAP-171</h1></body></html>"},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) values "
+                    "(cast(:i as uuid), cast(:p as uuid), 'requirements', "
+                    ":path, 'GAP-171 検証', 1)"
+                ),
+                {"i": oid, "p": project_id, "path": f"mockdb://{cid}"},
+            )
+        return oid
+
+    def _versions(self, sync_engine: sqlalchemy.Engine, project_id: str) -> int:
+        with sync_engine.begin() as c:
+            return int(
+                c.execute(
+                    text(
+                        "select count(*) from public.workflow_outputs "
+                        "where project_id = cast(:p as uuid) and deleted_at is null"
+                    ),
+                    {"p": project_id},
+                ).scalar_one()
+            )
+
+    def test_revise_uses_bridge_and_refuses_honestly_when_offline(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """relay 指定 + Bridge オフライン → 503。運営キーへ黙って落ちない。"""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.setenv("ATELIER_LLM_PROVIDER", "relay")
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_output(sync_engine, seeded["proj_a"])
+        before = self._versions(sync_engine, seeded["proj_a"])
+        with sync_engine.begin() as c:
+            c.execute(text("delete from public.bridge_workers"))
+        try:
+            with TestClient(app) as client:
+                r = client.post(
+                    f"/outputs/{oid}/revise",
+                    headers=_h(seeded["u_a"]),
+                    json={"instruction": "2 章を詳しく"},
+                )
+            assert r.status_code == 503, r.text
+            assert "Bridge" in r.json()["detail"]
+            # 偽の新版を積まない
+            assert self._versions(sync_engine, seeded["proj_a"]) == before
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+    def test_revise_without_any_route_is_503_not_owner_billed(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """経路ゼロ (運営キーも無い) → 503。運営費用で勝手に生成しない。"""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_output(sync_engine, seeded["proj_a"])
+        before = self._versions(sync_engine, seeded["proj_a"])
+        try:
+            with TestClient(app) as client:
+                r = client.post(
+                    f"/outputs/{oid}/revise",
+                    headers=_h(seeded["u_a"]),
+                    json={"instruction": "2 章を詳しく"},
+                )
+            assert r.status_code == 503, r.text
+            assert self._versions(sync_engine, seeded["proj_a"]) == before
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
                 c.execute(
                     text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
                     {"i": oid},
