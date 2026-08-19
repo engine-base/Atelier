@@ -238,14 +238,17 @@ async def revise_output(
             "too_large", f"output html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
         )
 
-    # GAP-154: workspace の出力テンプレート (この成果物の種類 = stage) を必ず注入
-    from .templates import render_template_block, template_for_stage
+    # GAP-158: workspace の出力デザインテンプレ (この成果物の種類 = stage) を注入 —
+    # 「内容はスキル・指示、見た目はこのテンプレ」の分離を prompt で強制する
+    from .templates import design_template_for_stage, render_design_block
 
-    tmpl = await template_for_stage(session, project_id=current.project_id, stage=current.stage)
+    tmpl = await design_template_for_stage(
+        session, project_id=current.project_id, stage=current.stage
+    )
     system_extra = (
         None
         if tmpl is None
-        else render_template_block(stage=current.stage, title=tmpl[0], content_md=tmpl[1])
+        else render_design_block(stage=current.stage, version=tmpl[0], html=tmpl[1])
     )
 
     revised, used_model = await run_revision(html, instruction, client, system_extra=system_extra)

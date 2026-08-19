@@ -1090,18 +1090,17 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
-    OutputTemplate:
+    OutputDesignTemplate:
       type: object
-      description: GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。
+      description: GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。
       properties:
         id: { type: string, format: uuid }
         workspace_id: { type: string, format: uuid }
         stage: { type: string }
         stage_label: { type: string }
-        title: { type: string }
-        content_md: { type: string }
+        version: { type: integer, minimum: 1 }
+        note: { type: string }
         created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
 
     VersionDiff:
       type: object
@@ -5567,64 +5566,111 @@ paths:
                       dangling_count: { type: integer }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
-  /workspaces/{workspace_id}/output-templates:
+  /workspaces/{workspace_id}/design-templates:
     get:
       tags: [outputs]
-      summary: 出力テンプレート一覧（GAP-154 — workspace 単位）
-      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_output_templates
-      x-screen-ids: [S-D01]
+      summary: 出力デザインテンプレ一覧（GAP-158 — 種類ごとの最新版）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_design_templates
+      x-screen-ids: [S-D02]
       parameters:
         - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
-          description: stage 順のテンプレ一覧
+          description: 種類ごとの最新版
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { $ref: '#/components/schemas/OutputTemplate' } }
+                  data: { type: array, items: { $ref: '#/components/schemas/OutputDesignTemplate' } }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: workspace 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
-  /workspaces/{workspace_id}/output-templates/{stage}:
-    parameters:
-      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
-      - { name: stage, in: path, required: true, schema: { type: string } }
-    put:
+  /workspaces/{workspace_id}/design-templates/{stage}:
+    post:
       tags: [outputs]
-      summary: 出力テンプレート保存（GAP-154 — 種類ごとに upsert・生成時に必ず注入）
-      x-implementation-path: apps/api/src/routes/outputs/__init__.py::put_output_template
-      x-screen-ids: [S-D01]
+      summary: ワンダにデザインテンプレを作成/改訂させる（GAP-158 — Open Design 型・新版が積まれる）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::create_design_template_version
+      x-screen-ids: [S-D02]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage, in: path, required: true, schema: { type: string } }
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [content_md]
+              required: [instruction]
               properties:
-                title: { type: string, maxLength: 120 }
-                content_md: { type: string, minLength: 1, maxLength: 20000 }
+                instruction: { type: string, minLength: 1, maxLength: 4000 }
       responses:
-        '200':
-          description: 保存後のテンプレ
+        '201':
+          description: ワンダが作成/改訂した新版 (note = 変更概要)
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  data: { $ref: '#/components/schemas/OutputTemplate' }
+                  data: { $ref: '#/components/schemas/OutputDesignTemplate' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: workspace 不在 or 未知の種類, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-    delete:
+        '503': { description: LLM 実行経路が使えない (Bridge オフライン等), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/design-templates/{stage}/versions:
+    get:
       tags: [outputs]
-      summary: 出力テンプレート削除（GAP-154 — 以後はテンプレ無し生成に戻る）
-      x-implementation-path: apps/api/src/routes/outputs/__init__.py::delete_output_template
-      x-screen-ids: [S-D01]
+      summary: 出力デザインテンプレの版履歴（GAP-158）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_design_template_versions
+      x-screen-ids: [S-D02]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage, in: path, required: true, schema: { type: string } }
       responses:
-        '204': { description: 削除済み }
+        '200':
+          description: version 降順の履歴
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/OutputDesignTemplate' } }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: workspace 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /design-templates/{template_id}/content-url:
+    get:
+      tags: [outputs]
+      summary: デザインテンプレ HTML の自己署名閲覧 URL（GAP-158 — プレビュー iframe 用）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_design_template_content_url
+      x-screen-ids: [S-D02]
+      parameters:
+        - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 期限付き自己署名 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ContentUrl' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /design-templates/{template_id}/content:
+    get:
+      tags: [outputs]
+      summary: デザインテンプレ HTML の配信（自己署名トークン / GAP-158）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::get_design_template_content
+      x-screen-ids: [S-D02]
+      parameters:
+        - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: exp, in: query, required: true, schema: { type: integer } }
+        - { name: sig, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: テンプレ HTML, content: { text/html: { schema: { type: string } } } }
+        '403': { description: トークン不正/期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /outputs:

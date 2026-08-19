@@ -291,8 +291,8 @@ async def build_context(
         history_block = await phase_history_block(session, project_id=project_id)
         if history_block:
             parts.append(history_block)
-        # GAP-154: 現在工程の出力テンプレート (workspace 定義) — 「基本的に
-        # それを使う」を構造で保証する
+        # GAP-158: 現在工程の出力デザインテンプレ (workspace 定義) — 「内容は
+        # スキル・指示、見た目はこのテンプレ」の分離を prompt で保証する
         from src.services.outputs.templates import templates_context_block
 
         tmpl_block = await templates_context_block(session, project_id=project_id)

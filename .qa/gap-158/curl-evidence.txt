@@ -1,0 +1,33 @@
+=== GAP-158 curl evidence (2026-08-19T02:57:39Z) ===
+※ LLM は ATELIER_ALLOW_FAKE_LLM=1 の決定的スタブで配線検証 (relay/API キー無し環境)。
+   実行経路ゼロで relay 有効時は 503 (下記 8) — 偽成功を出さないことも実測済。
+
+--- 1) 一覧 (初期状態) GET /workspaces/{ws}/design-templates ---
+{"data":[]}
+--- 2) 見積書テンプレ v1 作成 POST .../design-templates/estimate ---
+{"data":{"id":"dd1eb2e8-2f7b-4f70-9902-ab0943d65105","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: 白基調でロゴ右上、明細は罫線ありの表、判子欄つき","created_at":"2026-08-19T02:57:39.352596Z"}}
+--- 3) 改訂 = v2 が積まれる (履歴不滅) ---
+{"data":{"id":"5ce23041-49a5-416f-88e0-c061082c6ad1","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":2,"note":"[fake] デザインテンプレを更新: ヘッダーを紺の帯にして罫線を細く","created_at":"2026-08-19T02:57:39.392553Z"}}
+--- 4) 版履歴 GET .../estimate/versions ---
+{"data":[{"id":"5ce23041-49a5-416f-88e0-c061082c6ad1","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":2,"note":"[fake] デザインテンプレを更新: ヘッダーを紺の帯にして罫線を細く","created_at":"2026-08-19T02:57:39.392553Z"},{"id":"dd1eb2e8-2f7b-4f70-9902-ab0943d65105","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: 白基調でロゴ右上、明細は罫線ありの表、判子欄つき","created_at":"2026-08-19T02:57:39.352596Z"}]}
+--- 5) content-url → HTML 配信 (プレビュー iframe と同じ経路) ---
+{"data":{"url":"http://127.0.0.1:8123/design-templates/5ce23041-49a5-416f-88e0-c061082c6ad1/content?exp=1787108877&sig=d28212563b2c2031599cb782b4b3b8bb30808f2065622fd20a501dfdfbfb0fcc"}}
+GET http://127.0.0.1:8123/design-templates/5ce23041-49a5-416f-88e0-c061082c6ad1/content?exp=1787108877&sig=d28212563b2c2031599cb782b4b3b8bb30808f2065622fd20a501dfdfbfb0fcc
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>見積書テンプレート</title><style>body{font-family:serif;margin:40px}h1{border-bottom:2px solid #333}table{width:100%;border-collapse:collapse}td,th{border:1px solid #999;padding:8px}</style></head><body><h1>見積書</h1><p data-fake-template="1">[fake] ヘッダーを紺の帯にして罫線を細く</p><div data-fake-revi
+
+--- 6) 現在工程 (hearing) 用テンプレ作成 → チャット context-preview に自動注入 ---
+{"data":{"id":"dccf79a7-2c80-43f0-92c8-55eee62907b2","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"hearing","stage_label":"議事録・ヒアリングメモ","version":1,"note":"[fake] デザインテンプレを更新: 議事録はシンプルな白ベース、決定事項を枠で
+system_prompt 内の注入ブロック (該当部を抜粋):
+
+# 出力デザインテンプレート: 議事録・ヒアリングメモ（v1）
+このワークスペースで定めた「見た目の型」。最終的に人 (クライアント) に見せる HTML を作る・改訂するときは、このテンプレのレイアウト・CSS・表の様式・トーンを踏襲し、内容 (テキスト・数値・項目) だけを依頼内容とスキルの構成に従って差し替えること。デザインを勝手に変えないこと。
+---
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>議事録・ヒアリングメモテンプレート</title><style>body{font-family:serif;margin:40px}h1{border-bottom:2px solid #333}table{width:100%;border-collapse:collapse}td,th{border:
+
+--- 7) RLS: 他ユーザー u_b からは一切不可視 (404) ---
+GET /workspaces/{ws}/design-templates (他人) -> 404
+GET /design-templates/{id}/content-url (他人) -> 404
+--- 8) 実行経路が無い時は 503 で正直に断る (relay 有効 + Bridge 未接続の実測 — 偽成功なし) ---
+POST /workspaces/{ws}/design-templates/estimate
+-> {"detail":"お使いの PC の Bridge がオフラインのため AI 実行ができません。Bridge アプリを起動してから再実行してください。"}
+(この状態では versions も空のまま = 偽のテンプレ行は積まれない)

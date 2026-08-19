@@ -1240,19 +1240,18 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class OutputTemplate(BaseModel):
+class OutputDesignTemplate(BaseModel):
     """
-    GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。
+    GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。
     """
 
     id: UUID | None = None
     workspace_id: UUID | None = None
     stage: str | None = None
     stage_label: str | None = None
-    title: str | None = None
-    content_md: str | None = None
+    version: Annotated[int | None, Field(ge=1)] = None
+    note: str | None = None
     created_at: AwareDatetime | None = None
-    updated_at: AwareDatetime | None = None
 
 
 class VersionDiff(BaseModel):

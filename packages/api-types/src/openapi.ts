@@ -6997,14 +6997,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/output-templates": {
+    "/workspaces/{workspace_id}/design-templates": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 出力テンプレート一覧（GAP-154 — workspace 単位） */
+        /** 出力デザインテンプレ一覧（GAP-158 — 種類ごとの最新版） */
         get: {
             parameters: {
                 query?: never;
@@ -7016,14 +7016,14 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description stage 順のテンプレ一覧 */
+                /** @description 種類ごとの最新版 */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data?: components["schemas"]["OutputTemplate"][];
+                            data?: components["schemas"]["OutputDesignTemplate"][];
                         };
                     };
                 };
@@ -7055,19 +7055,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspaces/{workspace_id}/output-templates/{stage}": {
+    "/workspaces/{workspace_id}/design-templates/{stage}": {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                workspace_id: string;
-                stage: string;
-            };
+            path?: never;
             cookie?: never;
         };
         get?: never;
-        /** 出力テンプレート保存（GAP-154 — 種類ごとに upsert・生成時に必ず注入） */
-        put: {
+        put?: never;
+        /** ワンダにデザインテンプレを作成/改訂させる（GAP-158 — Open Design 型・新版が積まれる） */
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -7080,20 +7078,19 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        title?: string;
-                        content_md: string;
+                        instruction: string;
                     };
                 };
             };
             responses: {
-                /** @description 保存後のテンプレ */
-                200: {
+                /** @description ワンダが作成/改訂した新版 (note = 変更概要) */
+                201: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
                         "application/json": {
-                            data?: components["schemas"]["OutputTemplate"];
+                            data?: components["schemas"]["OutputDesignTemplate"];
                         };
                     };
                 };
@@ -7115,11 +7112,32 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
+                /** @description LLM 実行経路が使えない (Bridge オフライン等) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
             };
         };
-        post?: never;
-        /** 出力テンプレート削除（GAP-154 — 以後はテンプレ無し生成に戻る） */
-        delete: {
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/design-templates/{stage}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 出力デザインテンプレの版履歴（GAP-158） */
+        get: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -7131,15 +7149,136 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description 削除済み */
-                204: {
+                /** @description version 降順の履歴 */
+                200: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputDesignTemplate"][];
+                        };
+                    };
                 };
                 /** @description 未認証 */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description workspace 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/design-templates/{template_id}/content-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** デザインテンプレ HTML の自己署名閲覧 URL（GAP-158 — プレビュー iframe 用） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    template_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 期限付き自己署名 URL */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ContentUrl"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/design-templates/{template_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** デザインテンプレ HTML の配信（自己署名トークン / GAP-158） */
+        get: {
+            parameters: {
+                query: {
+                    exp: number;
+                    sig: string;
+                };
+                header?: never;
+                path: {
+                    template_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description テンプレ HTML */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/html": string;
+                    };
+                };
+                /** @description トークン不正/期限切れ */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -7158,6 +7297,9 @@ export interface paths {
                 };
             };
         };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -17072,20 +17214,18 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        /** @description GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。 */
-        OutputTemplate: {
+        /** @description GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。 */
+        OutputDesignTemplate: {
             /** Format: uuid */
             id?: string;
             /** Format: uuid */
             workspace_id?: string;
             stage?: string;
             stage_label?: string;
-            title?: string;
-            content_md?: string;
+            version?: number;
+            note?: string;
             /** Format: date-time */
             created_at?: string;
-            /** Format: date-time */
-            updated_at?: string;
         };
         /** @description バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通) */
         VersionDiff: {

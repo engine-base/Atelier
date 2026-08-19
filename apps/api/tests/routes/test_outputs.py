@@ -688,94 +688,159 @@ class TestGap155OutputsDiffRestore:
                 )
 
 
-# ── GAP-154: 出力テンプレート (workspace 単位・種類ごと・生成時必ず注入) ────
+# ── GAP-158: 出力デザインテンプレート (見た目の型・ワンダ生成・版連鎖) ────
+
+
+def _patch_service_factory(monkeypatch: pytest.MonkeyPatch, engine: AsyncEngine) -> None:
+    """mockdb (mock_contents) の service 経路をテスト PG に向ける。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    from src.services.mocks import artifacts as artifacts_svc
+
+    monkeypatch.setattr(
+        artifacts_svc,
+        "service_session_factory",
+        lambda: async_sessionmaker(engine, class_=AsyncSession),
+    )
+
+
+def _seed_design_template(
+    sync_engine: sqlalchemy.Engine, *, ws: str, stage: str, html: str, version: int = 1
+) -> str:
+    """デザインテンプレ 1 版を直接 seed (mockdb 実体つき)。返り値 template id。"""
+    with sync_engine.begin() as c:
+        cid = c.execute(
+            text("insert into public.mock_contents (html) values (:h) returning id"),
+            {"h": html},
+        ).scalar_one()
+        return str(
+            c.execute(
+                text(
+                    "insert into public.output_design_templates "
+                    "(workspace_id, stage, version, html_storage_path, note) "
+                    "values (cast(:w as uuid), cast(:s as workflow_stage_enum), :v, :p, 'seed') "
+                    "returning id"
+                ),
+                {"w": ws, "s": stage, "v": version, "p": f"mockdb://{cid}"},
+            ).scalar_one()
+        )
 
 
 @pytest.mark.integration
-class TestGap154OutputTemplates:
-    def test_crud_and_rls(self, app: FastAPI, seeded: dict[str, str]) -> None:
-        ws = seeded["ws_a"]
-        h = _h(seeded["u_a"])
-        with TestClient(app) as client:
-            # 保存 (upsert)
-            r = client.put(
-                f"/workspaces/{ws}/output-templates/estimate",
-                json={"title": "標準見積 v1", "content_md": "# 御見積書\n- 宛名\n- 有効期限30日"},
-                headers=h,
-            )
-            assert r.status_code == 200
-            saved = r.json()["data"]
-            assert saved["stage_label"] == "見積書"
-            # 一覧に出る
-            listed = client.get(f"/workspaces/{ws}/output-templates", headers=h).json()["data"]
-            assert [t["stage"] for t in listed] == ["estimate"]
-            # 上書き (同 stage は 1 件)
-            r2 = client.put(
-                f"/workspaces/{ws}/output-templates/estimate",
-                json={"title": "標準見積 v2", "content_md": "# 御見積書 v2"},
-                headers=h,
-            )
-            assert r2.status_code == 200
-            listed2 = client.get(f"/workspaces/{ws}/output-templates", headers=h).json()["data"]
-            assert len(listed2) == 1 and listed2[0]["title"] == "標準見積 v2"
-            # 未知の種類は 404 (偽の種類を作らない)
-            assert (
-                client.put(
-                    f"/workspaces/{ws}/output-templates/nonsense",
-                    json={"content_md": "x"},
-                    headers=h,
-                ).status_code
-                == 404
-            )
-            # 他人の workspace は RLS で不可視 (404)
-            assert (
-                client.get(
-                    f"/workspaces/{ws}/output-templates", headers=_h(seeded["u_b"])
-                ).status_code
-                == 404
-            )
-            # 削除 → 以後テンプレ無し
-            assert (
-                client.delete(f"/workspaces/{ws}/output-templates/estimate", headers=h).status_code
-                == 204
-            )
-            assert (
-                client.delete(f"/workspaces/{ws}/output-templates/estimate", headers=h).status_code
-                == 404
-            )
+class TestGap158DesignTemplates:
+    def test_wanda_creates_versions_preview_and_rls(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """作成 → 改訂 = 新版 → 版履歴 → 署名 URL プレビュー → RLS 越境 404。
 
-    def test_template_injected_into_revise_system_prompt(
+        LLM は fake 経路 (ATELIER_ALLOW_FAKE_LLM=1) — relay/API 未設定の CI で
+        「指示 → HTML 版が積まれる → プレビュー配信」の配線全体を検証する。
+        """
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        ws, h = seeded["ws_a"], _h(seeded["u_a"])
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        try:
+            with TestClient(app) as client:
+                # v1 作成 (ワンダ生成 — fake) — note にサマリーが入る
+                r = client.post(
+                    f"/workspaces/{ws}/design-templates/estimate",
+                    json={"instruction": "白基調でロゴ右上、明細は罫線ありの表"},
+                    headers=h,
+                )
+                assert r.status_code == 201
+                v1 = r.json()["data"]
+                assert v1["version"] == 1 and v1["stage_label"] == "見積書"
+                assert "デザインテンプレを更新" in v1["note"]
+                # 改訂 = 新版 (履歴は消えない)
+                r2 = client.post(
+                    f"/workspaces/{ws}/design-templates/estimate",
+                    json={"instruction": "ヘッダーを紺の帯に"},
+                    headers=h,
+                )
+                assert r2.status_code == 201 and r2.json()["data"]["version"] == 2
+                versions = client.get(
+                    f"/workspaces/{ws}/design-templates/estimate/versions", headers=h
+                ).json()["data"]
+                assert [v["version"] for v in versions] == [2, 1]
+                # 一覧は種類ごとの最新のみ
+                listed = client.get(f"/workspaces/{ws}/design-templates", headers=h).json()["data"]
+                assert [(t["stage"], t["version"]) for t in listed] == [("estimate", 2)]
+                # 署名 URL → HTML 配信 (プレビュー iframe と同じ経路)。
+                # v2 は改訂 (base_html あり) なので data-fake-revision を含む
+                url = client.get(
+                    f"/design-templates/{versions[0]['id']}/content-url", headers=h
+                ).json()["data"]["url"]
+                body = client.get(url)
+                assert body.status_code == 200
+                assert 'data-fake-template="1"' in body.text
+                assert 'data-fake-revision="1"' in body.text
+                # 未知の種類は 404 (偽の種類を作らない)
+                assert (
+                    client.post(
+                        f"/workspaces/{ws}/design-templates/nonsense",
+                        json={"instruction": "x"},
+                        headers=h,
+                    ).status_code
+                    == 404
+                )
+                # RLS: 他人の workspace は不可視 (404)、テンプレ実体も 404
+                hb = _h(seeded["u_b"])
+                assert (
+                    client.get(f"/workspaces/{ws}/design-templates", headers=hb).status_code == 404
+                )
+                assert (
+                    client.get(
+                        f"/design-templates/{versions[0]['id']}/content-url", headers=hb
+                    ).status_code
+                    == 404
+                )
+        finally:
+            asyncio.run(test_engine.dispose())
+
+    def test_llm_unavailable_503_no_fake_success(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """実行経路ゼロ (relay/サブスク/API 全て無し) は 503 — 偽テンプレを作らない。"""
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        with TestClient(app) as client:
+            r = client.post(
+                f"/workspaces/{seeded['ws_a']}/design-templates/estimate",
+                json={"instruction": "紺基調で"},
+                headers=_h(seeded["u_a"]),
+            )
+            assert r.status_code == 503
+            versions = client.get(
+                f"/workspaces/{seeded['ws_a']}/design-templates/estimate/versions",
+                headers=_h(seeded["u_a"]),
+            ).json()["data"]
+            assert versions == []
+
+    def test_design_injected_into_revise_system_prompt(
         self,
         app: FastAPI,
         seeded: dict[str, str],
         sync_engine: sqlalchemy.Engine,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """スティーブ改訂の system prompt に該当種類のテンプレが必ず入る。"""
+        """スティーブ改訂の system prompt に該当種類のデザインテンプレが入る —
+        「内容はスキル・指示、見た目はこのテンプレ」の分離が prompt で強制される。"""
         from typing import Any
 
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
-        from src.services.mocks import artifacts as artifacts_svc
-        from src.services.outputs import revise as revise_svc
-
         test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
-        monkeypatch.setattr(
-            artifacts_svc,
-            "service_session_factory",
-            lambda: async_sessionmaker(test_engine, class_=AsyncSession),
+        _patch_service_factory(monkeypatch, test_engine)
+        _seed_design_template(
+            sync_engine,
+            ws=seeded["ws_a"],
+            stage="estimate",
+            html="<html><body><h1>御見積書</h1><table class=meisai></table></body></html>",
         )
-        # estimate テンプレ + mockdb 実体の estimate 成果物を seed
         oid = str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.output_templates (workspace_id, stage, title, content_md) "
-                    "values (cast(:w as uuid), 'estimate', '標準見積', "
-                    "'# 御見積書\n## お支払い条件: 月末締め翌月末払い')"
-                ),
-                {"w": seeded["ws_a"]},
-            )
             cid = c.execute(
                 text("insert into public.mock_contents (html) values (:h) returning id"),
                 {"h": "<html><body><p>見積本文</p></body></html>"},
@@ -788,6 +853,8 @@ class TestGap154OutputTemplates:
                 ),
                 {"i": oid, "p": seeded["proj_a"], "path": f"mockdb://{cid}"},
             )
+
+        from src.services.outputs import revise as revise_svc
 
         captured: list[str] = []
 
@@ -825,14 +892,27 @@ class TestGap154OutputTemplates:
                     {"p": seeded["proj_a"]},
                 )
         assert len(captured) == 1
-        assert "出力テンプレート: 見積書" in captured[0]
-        assert "月末締め翌月末払い" in captured[0]
-        assert "必ずこの構成・項目・書式に従う" in captured[0]
+        assert "出力デザインテンプレート: 見積書（v1）" in captured[0]
+        assert "内容 (テキスト・数値・項目) だけを依頼内容と" in captured[0]
+        assert "デザインを勝手に変えないこと" in captured[0]
+        assert "table class=meisai" in captured[0]
 
-    def test_template_injected_into_chat_context_for_current_stage(
-        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    def test_design_injected_into_chat_context_for_current_stage(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """チャット生成: 現在工程 (hearing) のテンプレが system prompt に入る。"""
+        """チャット生成: 現在工程 (hearing) のデザインテンプレが system prompt に入る。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        _seed_design_template(
+            sync_engine,
+            ws=seeded["ws_a"],
+            stage="hearing",
+            html="<html><body><h1>議事録</h1><ul class=agenda></ul></body></html>",
+        )
         h = _h(seeded["u_a"])
         thread = str(uuid.uuid4())
         emp = str(uuid.uuid4())
@@ -852,20 +932,18 @@ class TestGap154OutputTemplates:
                 ),
                 {"i": thread, "p": seeded["proj_a"], "e": emp},
             )
-        with TestClient(app) as client:
-            client.put(
-                f"/workspaces/{seeded['ws_a']}/output-templates/hearing",
-                json={"title": "議事録型", "content_md": "## 決定事項\n## 宿題 (担当/期限)"},
-                headers=h,
-            )
-            # フロー初期化 (internal テンプレ → 現在工程 = hearing)
-            client.get(f"/projects/{seeded['proj_a']}/flow", headers=h)
-            r = client.post(
-                f"/chat/threads/{thread}/context-preview",
-                headers=h,
-                json={"user_message": "議事録まとめて", "include_history": 5},
-            )
-            assert r.status_code == 200
-            sys_p = r.json()["data"]["system_prompt"]
-            assert "出力テンプレート: 議事録・ヒアリングメモ" in sys_p
-            assert "宿題 (担当/期限)" in sys_p
+        try:
+            with TestClient(app) as client:
+                # フロー初期化 (internal テンプレ → 現在工程 = hearing)
+                client.get(f"/projects/{seeded['proj_a']}/flow", headers=h)
+                r = client.post(
+                    f"/chat/threads/{thread}/context-preview",
+                    headers=h,
+                    json={"user_message": "議事録まとめて", "include_history": 5},
+                )
+                assert r.status_code == 200
+                sys_p = r.json()["data"]["system_prompt"]
+                assert "出力デザインテンプレート: 議事録・ヒアリングメモ（v1）" in sys_p
+                assert "ul class=agenda" in sys_p
+        finally:
+            asyncio.run(test_engine.dispose())

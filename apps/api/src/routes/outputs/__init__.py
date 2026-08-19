@@ -21,13 +21,13 @@ from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.outputs import (
+    DesignTemplateCreateRequest,
     FixProposalApproveResponse,
     FixProposalResponse,
     OutputAnchorResponse,
+    OutputDesignTemplateResponse,
     OutputResponse,
     OutputReviseRequest,
-    OutputTemplateResponse,
-    OutputTemplateUpsert,
 )
 from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
@@ -190,12 +190,12 @@ async def get_output_content(
 
 
 @router.get(
-    "/workspaces/{workspace_id}/output-templates",
-    summary="出力テンプレート一覧 (GAP-154 — workspace 単位)",
+    "/workspaces/{workspace_id}/design-templates",
+    summary="出力デザインテンプレ一覧 (GAP-158 — 種類ごとの最新版)",
 )
-async def list_output_templates(
+async def list_design_templates(
     workspace_id: str, session: SessionDep, _user: UserDep
-) -> dict[str, list[OutputTemplateResponse]]:
+) -> dict[str, list[OutputDesignTemplateResponse]]:
     from src.services.outputs import templates as tmpl_svc
 
     items = await tmpl_svc.list_templates(session, workspace_id=workspace_id)
@@ -204,50 +204,103 @@ async def list_output_templates(
     return {"data": items}
 
 
-@router.put(
-    "/workspaces/{workspace_id}/output-templates/{stage}",
-    summary="出力テンプレート保存 (GAP-154 — 種類ごとに upsert・生成時に必ず注入)",
+@router.get(
+    "/workspaces/{workspace_id}/design-templates/{stage}/versions",
+    summary="出力デザインテンプレの版履歴 (GAP-158)",
 )
-async def put_output_template(
+async def list_design_template_versions(
+    workspace_id: str, stage: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[OutputDesignTemplateResponse]]:
+    from src.services.outputs import templates as tmpl_svc
+
+    items = await tmpl_svc.list_versions(session, workspace_id=workspace_id, stage=stage)
+    if items is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+    return {"data": items}
+
+
+@router.post(
+    "/workspaces/{workspace_id}/design-templates/{stage}",
+    status_code=status.HTTP_201_CREATED,
+    summary="ワンダにデザインテンプレを作成/改訂させる (GAP-158 — Open Design 型・新版が積まれる)",
+    responses={503: {"description": "LLM 実行経路が使えない (Bridge オフライン等)"}},
+)
+async def create_design_template_version(
     workspace_id: str,
     stage: str,
-    body: OutputTemplateUpsert,
+    body: DesignTemplateCreateRequest,
     session: SessionDep,
     user: UserDep,
-) -> dict[str, OutputTemplateResponse]:
+) -> dict[str, OutputDesignTemplateResponse]:
     from src.services.outputs import templates as tmpl_svc
 
     try:
-        saved = await tmpl_svc.upsert_template(
+        created = await tmpl_svc.create_version(
             session,
             actor_id=user.id,
             workspace_id=workspace_id,
             stage=stage,
-            title=body.title,
-            content_md=body.content_md,
+            instruction=body.instruction,
         )
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    if saved is None:
+    except tmpl_svc.DesignTemplateError as exc:
+        if exc.code in ("llm_unconfigured", "bridge_offline"):
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        if exc.code == "not_found":
+            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
-    return {"data": saved}
+    return {"data": created}
 
 
-@router.delete(
-    "/workspaces/{workspace_id}/output-templates/{stage}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="出力テンプレート削除 (GAP-154 — 以後はテンプレ無し生成に戻る)",
+@router.get(
+    "/design-templates/{template_id}/content-url",
+    summary="デザインテンプレ HTML の自己署名閲覧 URL (GAP-158 — プレビュー iframe 用)",
 )
-async def delete_output_template(
-    workspace_id: str, stage: str, session: SessionDep, user: UserDep
-) -> None:
+async def get_design_template_content_url(
+    template_id: str, session: SessionDep, _user: UserDep, request: Request
+) -> dict[str, ContentUrlResponse]:
     from src.services.outputs import templates as tmpl_svc
 
-    ok = await tmpl_svc.delete_template(
-        session, actor_id=user.id, workspace_id=workspace_id, stage=stage
+    tmpl = await tmpl_svc.get_template(session, template_id=template_id)
+    if tmpl is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "design template not found")
+    return {
+        "data": ContentUrlResponse(
+            url=build_content_url(str(request.base_url), template_id, resource="design-templates")
+        )
+    }
+
+
+@router.get(
+    "/design-templates/{template_id}/content",
+    summary="デザインテンプレ HTML の配信 (自己署名トークン / GAP-158)",
+)
+async def get_design_template_content(
+    template_id: str,
+    exp: Annotated[int, Query(ge=0)],
+    sig: Annotated[str, Query(min_length=32, max_length=128)],
+) -> HTMLResponse:
+    if not verify_content_token(template_id, exp, sig):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
+    try:
+        uuid_mod.UUID(template_id)
+    except ValueError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found") from None
+    from src.services.outputs import templates as tmpl_svc
+
+    factory = _content_session_factory()
+    async with factory() as session:
+        path = await tmpl_svc.template_html_path(session, template_id=template_id)
+        if path is None or not path.startswith(MOCKDB_PREFIX):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found")
+        html = await fetch_mock_content(session, content_id=path[len(MOCKDB_PREFIX) :])
+    if html is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found")
+    return HTMLResponse(
+        content=html,
+        headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},
     )
-    if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
 
 
 @router.get("/outputs/{output_id}/versions", summary="成果物のバージョン履歴")

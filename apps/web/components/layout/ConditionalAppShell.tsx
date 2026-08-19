@@ -54,6 +54,8 @@ const WS_NAV: readonly NavItem[] = [
   { id: 'projects', labelKey: 'プロジェクト', href: '/projects', match: '/projects', icon: <Folder className={ICON} /> },
   { id: 'employees', labelKey: 'AI社員', href: '/employees', match: '/employees', icon: <Users className={ICON} /> },
   { id: 'knowledge', labelKey: 'ナレッジ', href: '/knowledge', match: '/knowledge', icon: <Brain className={ICON} /> },
+  // GAP-158: 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型) の専用タブ
+  { id: 'templates', labelKey: 'テンプレート', href: '/templates', match: '/templates', icon: <FileText className={ICON} /> },
   { id: 'approvals', labelKey: '承認待ち', href: '/approvals', match: '/approvals', icon: <Inbox className={ICON} /> },
   { id: 'ws-settings', labelKey: 'WS設定', href: '/workspace-settings', match: '/workspace-settings', icon: <Settings className={ICON} /> },
 ];

@@ -31,24 +31,22 @@ class OutputResponse(BaseModel):
     updated_at: datetime
 
 
-class OutputTemplateResponse(BaseModel):
-    """GAP-154: workspace 単位の出力テンプレート (種類 = workflow stage)。"""
+class OutputDesignTemplateResponse(BaseModel):
+    """GAP-158: workspace 単位の出力デザインテンプレ (クライアント提出 HTML の見た目の型)。"""
 
     id: str
     workspace_id: str
     stage: str
     stage_label: str
-    title: str
-    content_md: str
+    version: int
+    note: str
     created_at: datetime
-    updated_at: datetime
 
 
-class OutputTemplateUpsert(BaseModel):
-    """テンプレ保存 (title は任意の呼び名、content_md が型の本体)。"""
+class DesignTemplateCreateRequest(BaseModel):
+    """ワンダへの作成/改訂指示 (Open Design 型 — 新版が積まれる)。"""
 
-    title: str = Field(default="", max_length=120)
-    content_md: str = Field(min_length=1, max_length=20000)
+    instruction: str = Field(min_length=1, max_length=4000)
 
 
 class OutputReviseRequest(BaseModel):
