@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
+from tests.routes._fixtures import ensure_ai_employee  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -1039,14 +1040,14 @@ class TestGap167KnowledgeCandidates:
                 )
 
             with sync_engine.begin() as c:
-                emp = c.execute(
-                    text(
-                        "insert into public.ai_employees (workspace_id, name, display_name, "
-                        "role, department, is_default) values (cast(:w as uuid), 'steve', "
-                        "'スティーブ', 'lead', 'product', true) returning id"
-                    ),
-                    {"w": seeded["ws_a"]},
-                ).scalar_one()
+                # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+                emp = ensure_ai_employee(
+                    c,
+                    workspace_id=seeded["ws_a"],
+                    name="steve",
+                    display_name="スティーブ",
+                    is_default=True,
+                )
                 proj = c.execute(
                     text(
                         "insert into public.projects (workspace_id, name, project_type) "

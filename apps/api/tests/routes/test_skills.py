@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
+from tests.routes._fixtures import ensure_ai_employee  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -152,13 +153,17 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
             text("delete from public.ai_employees where workspace_id = cast(:w as uuid)"),
             {"w": ws},
         )
-        c.execute(
-            text(
-                "insert into public.ai_employees (id,workspace_id,name,display_name,role,department,"
-                "attached_skills,is_default) values (cast(:i as uuid),cast(:w as uuid),'tony','トニー',"
-                "'lead','sales',array[]::uuid[],true)"
-            ),
-            {"i": emp, "w": ws},
+        # GAP-173: 運営シードが入った DB ではトリガが既に tony を作っている
+        emp = ensure_ai_employee(
+            c,
+            workspace_id=ws,
+            name="tony",
+            display_name="トニー",
+            role="lead",
+            department="sales",
+            is_default=True,
+            employee_id=emp,
+            attached_skills=[],
         )
     yield {"admin": admin_u, "member": member_u, "ws": ws, "emp": emp}
     with sync_engine.begin() as c:

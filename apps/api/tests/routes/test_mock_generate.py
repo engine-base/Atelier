@@ -40,6 +40,7 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
 from src.services.mocks import artifacts as artifacts_svc  # noqa: E402
+from tests.routes._fixtures import ensure_ai_employee  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -466,14 +467,17 @@ def test_gap147_contract_first_and_skills_reference_capped(
             text("delete from public.ai_employees where workspace_id = cast(:w as uuid)"),
             {"w": seeded["ws"]},
         )
-        c.execute(
-            text(
-                "insert into public.ai_employees (id,workspace_id,name,display_name,role,"
-                "department,attached_skills,is_default) values (cast(:i as uuid),"
-                "cast(:w as uuid),'wanda','ワンダ','lead','design',"
-                "array[cast(:s as uuid)],true)"
-            ),
-            {"i": emp, "w": seeded["ws"], "s": skill},
+        # GAP-173: 運営シードが入った DB ではトリガが既に wanda を作っている
+        emp = ensure_ai_employee(
+            c,
+            workspace_id=seeded["ws"],
+            name="wanda",
+            display_name="ワンダ",
+            role="lead",
+            department="design",
+            is_default=True,
+            employee_id=emp,
+            attached_skills=[skill],
         )
     try:
         h = {"Authorization": f"Bearer {_mint_jwt(seeded['u'])}"}

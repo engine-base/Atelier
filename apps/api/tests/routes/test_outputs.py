@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
+from tests.routes._fixtures import ensure_ai_employee  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -926,13 +927,14 @@ class TestGap158DesignTemplates:
         thread = str(uuid.uuid4())
         emp = str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
-                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
-                    "'steve', 'スティーブ', 'lead', 'product', true)"
-                ),
-                {"i": emp, "w": seeded["ws_a"]},
+            # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+            emp = ensure_ai_employee(
+                c,
+                workspace_id=seeded["ws_a"],
+                name="steve",
+                display_name="スティーブ",
+                is_default=True,
+                employee_id=emp,
             )
             c.execute(
                 text(
@@ -1102,13 +1104,14 @@ class TestGap159PlatformDefaults:
         h = _h(seeded["u_a"])
         thread, emp = str(uuid.uuid4()), str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
-                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
-                    "'steve', 'スティーブ', 'lead', 'product', true)"
-                ),
-                {"i": emp, "w": seeded["ws_a"]},
+            # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+            emp = ensure_ai_employee(
+                c,
+                workspace_id=seeded["ws_a"],
+                name="steve",
+                display_name="スティーブ",
+                is_default=True,
+                employee_id=emp,
             )
             c.execute(
                 text(
@@ -1609,13 +1612,14 @@ class TestGap166AiFileEdit:
         )
         emp, thread = str(uuid.uuid4()), str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
-                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
-                    "'steve', 'スティーブ', 'lead', 'product', true)"
-                ),
-                {"i": emp, "w": seeded["ws_a"]},
+            # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+            emp = ensure_ai_employee(
+                c,
+                workspace_id=seeded["ws_a"],
+                name="steve",
+                display_name="スティーブ",
+                is_default=True,
+                employee_id=emp,
             )
             c.execute(
                 text(
@@ -1667,13 +1671,14 @@ class TestGap166AiFileEdit:
         )
         emp, thread, worker = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
-                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
-                    "'steve', 'スティーブ', 'lead', 'product', true)"
-                ),
-                {"i": emp, "w": seeded["ws_a"]},
+            # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+            emp = ensure_ai_employee(
+                c,
+                workspace_id=seeded["ws_a"],
+                name="steve",
+                display_name="スティーブ",
+                is_default=True,
+                employee_id=emp,
             )
             c.execute(
                 text(
@@ -1750,13 +1755,14 @@ class TestGap166AiFileEdit:
         )
         emp, thread, job = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
-                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
-                    "'steve', 'スティーブ', 'lead', 'product', true)"
-                ),
-                {"i": emp, "w": seeded["ws_a"]},
+            # GAP-173: 運営シードが入った DB ではトリガが既に steve を作っている
+            emp = ensure_ai_employee(
+                c,
+                workspace_id=seeded["ws_a"],
+                name="steve",
+                display_name="スティーブ",
+                is_default=True,
+                employee_id=emp,
             )
             c.execute(
                 text(

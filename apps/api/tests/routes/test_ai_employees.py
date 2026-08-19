@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
+from tests.routes._fixtures import ensure_ai_employee  # noqa: E402
 
 
 def _b64url(data: bytes) -> str:
@@ -140,13 +141,15 @@ def seeded(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
             ),
             {"a": ws_a, "b": ws_b},
         )
-        c.execute(
-            text(
-                "insert into public.ai_employees "
-                "(id, workspace_id, name, display_name, role, department) "
-                "values (cast(:i as uuid), cast(:w as uuid), 'tony', 'トニー', 'lead', 'sales')"
-            ),
-            {"i": emp_a, "w": ws_a},
+        # GAP-173: 運営シードが入った DB ではトリガが既に tony を作っている
+        emp_a = ensure_ai_employee(
+            c,
+            workspace_id=ws_a,
+            name="tony",
+            display_name="トニー",
+            role="lead",
+            department="sales",
+            employee_id=emp_a,
         )
         # ai_employee_templates は運営側固定 (RLS で authenticated は書込不可)。
         # superuser 接続でのみ seed 可能。一意な version で衝突回避。

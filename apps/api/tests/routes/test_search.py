@@ -25,8 +25,8 @@ from src.schemas.search import SearchHit
 from src.services import search as search_svc
 
 pytest.importorskip("fastapi")
-from fastapi import FastAPI  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 PG_ASYNC = os.environ.get(
     "ATELIER_TEST_PG_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
