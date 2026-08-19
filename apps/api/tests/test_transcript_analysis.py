@@ -76,11 +76,28 @@ class TestAnalyzeTranscript:
             _run(analysis.analyze_transcript("t", client=client))
         assert ei.value.code == "llm_failed"
 
-    def test_unconfigured_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_route_reports_bridge_offline_and_is_retryable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-177: 解析も本人の Claude サブスク経由。未接続は「後で再試行できる」。
+
+        以前は運営の ANTHROPIC_API_KEY 直叩きで、未設定なら llm_unconfigured。
+        今は本人の PC の Bridge で走るので、未接続は bridge_offline として返し
+        呼び出し側 (worker) が行を保留にして後から解析だけやり直す。
+        """
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+        from src.services.chat_sse import relay as relay_mod
+
+        async def _offline(*_a: object, **_k: object):  # pragma: no cover
+            raise relay_mod.RelayUnavailable
+            yield ""
+
+        monkeypatch.setattr(relay_mod, "relay_stream_chunks", _offline)
         with pytest.raises(analysis.AnalysisError) as ei:
             _run(analysis.analyze_transcript("t"))
-        assert ei.value.code == "llm_unconfigured"
+        assert ei.value.code == "bridge_offline"
+        assert ei.value.code in analysis.RETRYABLE_CODES
 
     def test_long_transcript_truncated_flag(self) -> None:
         client = _FakeClient(_GOOD_JSON)

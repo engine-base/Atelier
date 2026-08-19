@@ -103,7 +103,9 @@ class TestRunOnceOrchestration:
 
         result = _run(worker.run_once(session))  # type: ignore[arg-type]
 
-        assert result == {"queued": 1, "processed": 1, "failed": 0}
+        # GAP-177: 解析保留の再試行カウンタが増えた
+        assert result["queued"] == 1 and result["processed"] == 1 and result["failed"] == 0
+        assert result["analysis_retried"] == 0 and result["analysis_pending"] == 0
         assert uploaded["path"] == f"transcripts/results/{mid}.json"
         assert uploaded["payload"]["text"] == "こんにちは"
         update_sql, update_params = next(
@@ -141,7 +143,7 @@ class TestRunOnceOrchestration:
         result = _run(worker.run_once(session))  # type: ignore[arg-type]
 
         # 1 件目の失敗で巡回が止まらず 2 件目は成功する
-        assert result == {"queued": 2, "processed": 1, "failed": 1}
+        assert result["queued"] == 2 and result["processed"] == 1 and result["failed"] == 1
         _err_sql, err_params = next(
             (s, p) for s, p in session.executed if "set parse_error = :err" in s
         )
@@ -155,7 +157,7 @@ class TestRunOnceOrchestration:
     def test_empty_queue_is_noop(self) -> None:
         session = _StubSession(queued_rows=[])
         result = _run(worker.run_once(session))  # type: ignore[arg-type]
-        assert result == {"queued": 0, "processed": 0, "failed": 0}
+        assert result["queued"] == 0 and result["processed"] == 0 and result["failed"] == 0
         assert session.commits == 0
         assert _AuditSpy.events == []
 
@@ -308,3 +310,149 @@ class TestHttpHelpers:
         with pytest.raises(worker.TranscribeWorkerError) as ei:
             _run(worker._call_whisper(media=b"x", file_name="a.mp3", mime_type="audio/mpeg"))
         assert ei.value.code == "whisper_failed"
+
+
+class TestGap177AnalysisRetry:
+    """GAP-177: 解析だけ本人の PC (Bridge) で走る → 未接続なら保留 → 後で解析のみ再実行。
+
+    運営 API キーをやめた代償として「PC が落ちていたら解析が永久に欠ける」劣化を
+    作らないことを保証する。
+    """
+
+    def test_offline_defers_instead_of_losing_the_analysis(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        mid = str(uuid.uuid4())
+        session = _StubSession(queued_rows=[_Row(id=mid)])
+
+        async def fake_download(storage_path: str) -> bytes:
+            return b"audio"
+
+        async def fake_whisper(*, media: bytes, file_name: str, mime_type: str) -> dict[str, Any]:
+            return {"text": "こんにちは", "segments": []}
+
+        uploaded: dict[str, Any] = {}
+
+        async def fake_upload(result_path: str, payload: dict[str, Any]) -> None:
+            uploaded["payload"] = payload
+
+        async def offline_analyze(_t: str, *, actor_id: str = "") -> dict[str, Any]:
+            from src.services.meetings.analysis import AnalysisError
+
+            raise AnalysisError("bridge_offline", "Bridge がオフラインです")
+
+        monkeypatch.setattr(worker, "_download_media", fake_download)
+        monkeypatch.setattr(worker, "_call_whisper", fake_whisper)
+        monkeypatch.setattr(worker, "_upload_result", fake_upload)
+        monkeypatch.setattr("src.services.meetings.analysis.analyze_transcript", offline_analyze)
+
+        result = _run(worker.run_once(session))  # type: ignore[arg-type]
+
+        # 文字起こしは成功扱い (再実行して二重に Whisper を叩かない)
+        assert result["processed"] == 1
+        assert uploaded["payload"]["text"] == "こんにちは"
+        assert uploaded["payload"]["analysis_error"] == "bridge_offline"
+        # 「解析だけ保留」が DB に記録されている = 永久に欠けない
+        upd = [p for sql, p in session.executed if "analysis_pending_since" in sql]
+        assert upd and upd[0]["pending"] is True
+
+    def test_retry_fills_the_analysis_when_the_pc_comes_back(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """後から PC が繋がったら、解析だけやり直して保留を解除する。"""
+        mid = str(uuid.uuid4())
+
+        @dataclass
+        class _PendingRow:
+            id: str
+            parse_result_path: str
+            uploaded_by_user_id: str | None = "u-1"
+
+        class _PendingSession(_StubSession):
+            async def execute(self, statement: Any, params: dict[str, Any] | None = None):
+                sql = " ".join(str(statement).split())
+                self.executed.append((sql, params or {}))
+                if "analysis_pending_since is not null" in sql:
+                    return _StubResult(
+                        rows=[
+                            _PendingRow(id=mid, parse_result_path=f"transcripts/results/{mid}.json")
+                        ]
+                    )
+                if "select id, storage_path" in sql:
+                    return _StubResult(rows=[])
+                return _StubResult()
+
+        session = _PendingSession()
+        saved: dict[str, Any] = {}
+
+        async def fake_download_result(path: str) -> dict[str, Any]:
+            # 前回の保存結果 (解析だけ欠けている)
+            return {"text": "こんにちは", "analysis_error": "bridge_offline"}
+
+        async def fake_upload(result_path: str, payload: dict[str, Any]) -> None:
+            saved["payload"] = payload
+
+        async def ok_analyze(_t: str, *, actor_id: str = "") -> dict[str, Any]:
+            assert actor_id == "u-1"  # アップロードした本人の費用で走る
+            return {"summary": "要約", "speakers": [], "requirements": [], "action_items": []}
+
+        monkeypatch.setattr(worker, "_download_result", fake_download_result)
+        monkeypatch.setattr(worker, "_upload_result", fake_upload)
+        monkeypatch.setattr("src.services.meetings.analysis.analyze_transcript", ok_analyze)
+
+        result = _run(worker.run_once(session))  # type: ignore[arg-type]
+
+        assert result["analysis_retried"] == 1
+        assert result["analysis_pending"] == 0
+        # 解析が埋まり、保留マークが消えている
+        assert saved["payload"]["analysis"]["summary"] == "要約"
+        assert "analysis_error" not in saved["payload"]
+        cleared = [p for sql, p in session.executed if "set analysis_pending_since = null" in sql]
+        assert cleared and cleared[0]["id"] == mid
+
+    def test_retry_keeps_pending_while_still_offline(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """まだ繋がっていなければ保留のまま残す (取りこぼさない)。"""
+        mid = str(uuid.uuid4())
+
+        @dataclass
+        class _PendingRow:
+            id: str
+            parse_result_path: str
+            uploaded_by_user_id: str | None = None
+
+        class _PendingSession(_StubSession):
+            async def execute(self, statement: Any, params: dict[str, Any] | None = None):
+                sql = " ".join(str(statement).split())
+                self.executed.append((sql, params or {}))
+                if "analysis_pending_since is not null" in sql:
+                    return _StubResult(
+                        rows=[
+                            _PendingRow(id=mid, parse_result_path=f"transcripts/results/{mid}.json")
+                        ]
+                    )
+                if "select id, storage_path" in sql:
+                    return _StubResult(rows=[])
+                return _StubResult()
+
+        session = _PendingSession()
+
+        async def fake_download_result(path: str) -> dict[str, Any]:
+            return {"text": "こんにちは", "analysis_error": "bridge_offline"}
+
+        async def fake_upload(result_path: str, payload: dict[str, Any]) -> None:
+            return None
+
+        async def offline_analyze(_t: str, *, actor_id: str = "") -> dict[str, Any]:
+            from src.services.meetings.analysis import AnalysisError
+
+            raise AnalysisError("bridge_offline", "まだオフライン")
+
+        monkeypatch.setattr(worker, "_download_result", fake_download_result)
+        monkeypatch.setattr(worker, "_upload_result", fake_upload)
+        monkeypatch.setattr("src.services.meetings.analysis.analyze_transcript", offline_analyze)
+
+        result = _run(worker.run_once(session))  # type: ignore[arg-type]
+
+        assert result["analysis_retried"] == 0
+        assert result["analysis_pending"] == 1
+        assert not [p for sql, p in session.executed if "set analysis_pending_since = null" in sql]

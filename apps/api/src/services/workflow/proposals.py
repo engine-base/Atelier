@@ -6,7 +6,7 @@
   1. 「ジャービスに次フェーズを提案してもらう」(明示操作) → LLM がプロジェクトの
      既存フェーズ・タスク状況を読み、次フェーズ (name/description/reason) を提案
   2. 承認 → 実 phases 行を確定 (approved_phase_id) / 却下 → rejected (不変)
-ANTHROPIC_API_KEY 未設定は 503 (偽の提案を出さない)。テストのみ
+GAP-171/175: 実行は本人の Claude サブスク (Bridge)。経路なしは 503 (偽の提案を出さない)。テストのみ
 ATELIER_ALLOW_FAKE_LLM=1 で決定的スタブ。1 プロジェクトにつき pending は 1 件。
 """
 

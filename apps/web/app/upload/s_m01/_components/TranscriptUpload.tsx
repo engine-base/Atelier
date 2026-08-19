@@ -537,8 +537,11 @@ export function TranscriptUpload({
                 ) : analysisError ? (
                   <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-[12.5px] text-on-surface-variant">
                     構造化解析は未実行です（
-                    {analysisError === "llm_unconfigured"
-                      ? "解析用 LLM が未設定の環境です"
+                    {analysisError === "bridge_offline" ||
+                    analysisError === "llm_unconfigured"
+                      ? // GAP-177: 解析は本人の PC の Claude で走る。未接続なら
+                        // 保留しておき、繋がったときに自動で解析される。
+                        "お使いのパソコン (Bridge) が未接続でした。接続すると自動で解析されます"
                       : analysisError === "empty_transcript"
                         ? "本文が空のため解析できませんでした"
                         : `解析に失敗しました: ${analysisError}`}

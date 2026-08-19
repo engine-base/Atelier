@@ -129,7 +129,8 @@ async def list_queued(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> lis
     """
     res = await session.execute(
         text(
-            "select id, storage_path, file_name, mime_type, parse_result_path "
+            "select id, storage_path, file_name, mime_type, parse_result_path, "
+            "uploaded_by_user_id "
             "from public.external_uploads "
             "where parsed_at is null and parse_error is null and deleted_at is null "
             "and parse_result_path like :prefix "
@@ -140,11 +141,16 @@ async def list_queued(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> lis
     return list(res.all())
 
 
-async def _analyze_result(result: dict[str, Any]) -> dict[str, Any]:
+async def _analyze_result(result: dict[str, Any], *, actor_id: str = "") -> dict[str, Any]:
     """GAP-015: 文字起こしに構造化解析を追記する。
 
     解析は additive — 失敗しても transcription 自体は成功のまま、
     analysis_error に分類コードを残す (UI は誠実に「解析未実行」を出す)。
+
+    GAP-177: 解析はアップロードした本人の Claude サブスク (Bridge) で走る。
+    バッチが回った時に本人の PC が落ちていることは普通にあるので、その場合は
+    `analysis_error` に再試行可能なコードを残し、呼び出し側が行を保留にして
+    後で解析だけやり直す。**解析が永久に欠ける状態を作らない。**
     """
     from src.services.meetings.analysis import AnalysisError, analyze_transcript
 
@@ -152,7 +158,7 @@ async def _analyze_result(result: dict[str, Any]) -> dict[str, Any]:
     if not transcript.strip():
         return {**result, "analysis_error": "empty_transcript"}
     try:
-        analysis = await analyze_transcript(transcript)
+        analysis = await analyze_transcript(transcript, actor_id=actor_id)
     except AnalysisError as e:
         logger.info("transcript analysis skipped: %s", e.code)
         return {**result, "analysis_error": e.code}
@@ -162,6 +168,79 @@ async def _analyze_result(result: dict[str, Any]) -> dict[str, Any]:
     return {**result, "analysis": analysis}
 
 
+def _analysis_retryable(result: dict[str, Any]) -> bool:
+    """この結果は「後でやり直せば解析できる」状態か (GAP-177)。"""
+    from src.services.meetings.analysis import RETRYABLE_CODES
+
+    return str(result.get("analysis_error") or "") in RETRYABLE_CODES
+
+
+async def _download_result(result_path: str) -> dict[str, Any]:
+    """保存済みの結果 JSON を取り出す (解析だけの再実行に使う — GAP-177)。"""
+    api_url = _require_env("ATELIER_SUPABASE_ADMIN_API_URL").rstrip("/")
+    service_key = _require_env("ATELIER_SUPABASE_SERVICE_ROLE_KEY")
+    bucket, obj = result_path.split("/", 1)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        r = await client.get(
+            f"{api_url}/storage/v1/object/{bucket}/{obj}",
+            headers={"Authorization": f"Bearer {service_key}", "apikey": service_key},
+        )
+    if r.status_code >= 400:
+        raise TranscribeWorkerError(
+            "storage_download_failed", f"result download failed: {r.status_code}"
+        )
+    parsed: dict[str, Any] = json.loads(r.content.decode("utf-8"))
+    return parsed
+
+
+async def list_analysis_pending(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> list[Any]:
+    """解析だけ保留になっている行 (GAP-177)。文字起こしは終わっている。"""
+    res = await session.execute(
+        text(
+            "select id, parse_result_path, uploaded_by_user_id "
+            "from public.external_uploads "
+            "where analysis_pending_since is not null and deleted_at is null "
+            "order by analysis_pending_since asc limit :lim"
+        ),
+        {"lim": limit},
+    )
+    return list(res.all())
+
+
+async def retry_analysis_one(session: AsyncSession, row: Any) -> bool:
+    """保留中の 1 件について**解析だけ**やり直す (文字起こしは再実行しない)。
+
+    成功したら保留を解除する。まだ Bridge が繋がっていなければ保留のまま残す。
+    """
+    meeting_id = str(row.id)
+    result_path = str(row.parse_result_path)
+    result = await _download_result(result_path)
+    result.pop("analysis_error", None)
+    actor_id = "" if row.uploaded_by_user_id is None else str(row.uploaded_by_user_id)
+    result = await _analyze_result(result, actor_id=actor_id)
+    await _upload_result(result_path, result)
+    if _analysis_retryable(result):
+        return False  # まだ繋がっていない — 保留のまま次回へ
+    await session.execute(
+        text(
+            "update public.external_uploads set analysis_pending_since = null "
+            "where id = cast(:id as uuid)"
+        ),
+        {"id": meeting_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="meeting.analysis.retry_complete",
+            target_type="external_upload",
+            actor_type="system",
+            actor_id="transcribe-worker",
+            target_id=meeting_id,
+            after={"analysis": "analysis" in result},
+        )
+    )
+    return True
+
+
 async def transcribe_one(session: AsyncSession, row: Any) -> str:
     """キュー 1 件を処理して結果 path を返す。失敗時は例外を投げる。"""
     meeting_id = str(row.id)
@@ -169,16 +248,23 @@ async def transcribe_one(session: AsyncSession, row: Any) -> str:
     result = await _call_whisper(
         media=media, file_name=str(row.file_name), mime_type=str(row.mime_type)
     )
-    result = await _analyze_result(result)
+    actor_id = (
+        "" if getattr(row, "uploaded_by_user_id", None) is None else str(row.uploaded_by_user_id)
+    )
+    result = await _analyze_result(result, actor_id=actor_id)
     result_path = f"{_RESULT_PREFIX}{meeting_id}.json"
     await _upload_result(result_path, result)
+    # GAP-177: 解析だけが「今は無理」なら保留として記録し、後で解析のみ再実行する
+    # (文字起こしは完了しているので parsed_at は入れる = 二重課金・二重実行を防ぐ)。
+    pending = _analysis_retryable(result)
     await session.execute(
         text(
             "update public.external_uploads "
-            "set parse_result_path = :pp, parsed_at = now(), parse_error = null "
+            "set parse_result_path = :pp, parsed_at = now(), parse_error = null, "
+            "analysis_pending_since = case when :pending then now() else null end "
             "where id = cast(:id as uuid)"
         ),
-        {"id": meeting_id, "pp": result_path},
+        {"id": meeting_id, "pp": result_path, "pending": pending},
     )
     await AuditWriter(session).write(
         AuditEvent(
@@ -230,7 +316,29 @@ async def run_once(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> dict[s
             await _mark_failed(session, str(row.id), exc)
             failed += 1
         await session.commit()
-    return {"queued": len(rows), "processed": processed, "failed": failed}
+
+    # GAP-177: 解析だけ保留になっている行を拾って、解析のみやり直す。
+    # 本人の PC が後から繋がったときに自動で埋まる (永久に欠けない)。
+    retried = 0
+    still_pending = 0
+    for prow in await list_analysis_pending(session, limit=limit):
+        try:
+            if await retry_analysis_one(session, prow):
+                retried += 1
+            else:
+                still_pending += 1
+        except Exception:
+            logger.exception("analysis retry failed for %s", prow.id)
+            still_pending += 1
+        await session.commit()
+
+    return {
+        "queued": len(rows),
+        "processed": processed,
+        "failed": failed,
+        "analysis_retried": retried,
+        "analysis_pending": still_pending,
+    }
 
 
 async def run_loop(*, poll_interval_s: float, once: bool) -> None:

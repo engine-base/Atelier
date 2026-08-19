@@ -9,7 +9,7 @@ Atelier では担当 = デザイナー AI 社員ワンダで、S-H01 のバー�
 フロー:
   1. 現行バージョンの HTML を storage から取得 (署名付き URL)
   2. LLM (selected-stack v1 = AnthropicClient) が指示に従って全文 HTML を改訂
-     - ANTHROPIC_API_KEY 未設定は llm_unconfigured (503 — 偽の改訂を出さない)
+     - GAP-138/175: 経路は本人の Claude サブスク (Bridge)。経路なしは 503 (偽の改訂を出さない)
      - テストのみ ATELIER_ALLOW_FAKE_LLM=1 で決定的スタブ改訂 (配線検証用)
   3. 改訂 HTML を storage へアップロード (新オブジェクト)
   4. mocks に新バージョン行 (parent_mock_id 連鎖、meta に指示文 + author=wanda)

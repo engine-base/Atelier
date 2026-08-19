@@ -9,7 +9,8 @@ Whisper (GAP-016 worker) が生成した文字起こしテキストから、S-M0
   - action_items: アクションアイテム (内容 + 担当)
 
 LLM は selected-stack (v1 = Anthropic) の AnthropicClient を使う。
-ANTHROPIC_API_KEY 未設定なら AnalysisError("llm_unconfigured") — 呼び出し側
+GAP-177: 実行は本人の Claude サブスク (Bridge)。未接続なら
+AnalysisError("bridge_offline") — 呼び出し側
 (worker) は transcription 自体は成功のまま analysis_error として保存し、
 UI は誠実に「解析未実行」を表示する (偽の解析結果を出さない)。
 """
@@ -102,16 +103,25 @@ def _normalize(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def analyze_transcript(
-    transcript_text: str, *, client: _CompletionClient | None = None
-) -> dict[str, Any]:
-    """文字起こし本文を構造化解析する。失敗は AnalysisError。"""
-    if client is None:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise AnalysisError("llm_unconfigured", "ANTHROPIC_API_KEY is not configured")
-        from src.llm.anthropic import AnthropicClient
+#: GAP-177: 「今は無理だが後でやれば成功しうる」失敗。行を保留にして再試行する。
+RETRYABLE_CODES = frozenset({"bridge_offline", "llm_unconfigured"})
 
-        client = AnthropicClient()
+
+async def analyze_transcript(
+    transcript_text: str,
+    *,
+    client: _CompletionClient | None = None,
+    actor_id: str = "",
+) -> dict[str, Any]:
+    """文字起こし本文を構造化解析する。失敗は AnalysisError。
+
+    GAP-177: 運営の `ANTHROPIC_API_KEY` 直叩きをやめ、費用順チェーン
+    (relay = アップロードした本人の Claude サブスク → agent_sdk → API キー →
+    fake) に統一。バッチ実行時に本人の PC が繋がっていない場合は
+    `bridge_offline` を上げ、呼び出し側が**行を保留にして後で再試行**する
+    (解析が永久に欠ける劣化を作らない)。
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
 
     body = transcript_text
     truncated = False
@@ -120,19 +130,40 @@ async def analyze_transcript(
         truncated = True
 
     try:
-        res = await client.complete(
-            model=ANALYSIS_MODEL,
-            messages=[LLMMessage(role="user", content=f"文字起こし:\n{body}")],
-            system=_SYSTEM,
+        out, _provider = await llm_complete_or_injected(
+            system_prompt=_SYSTEM,
+            user_text=f"文字起こし:\n{body}",
+            actor_id=actor_id,
             max_tokens=2048,
-            temperature=0.2,
+            fake=lambda: _fake_analysis(body),
+            client=client,
+            model=ANALYSIS_MODEL,
         )
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise AnalysisError("bridge_offline", exc.message) from exc
+        raise AnalysisError("llm_failed", f"LLM 呼出に失敗: {exc}") from exc
     except AnalysisError:
         raise
     except Exception as e:
         raise AnalysisError("llm_failed", f"LLM 呼出に失敗: {e}") from e
 
-    result = _normalize(_extract_json(str(res.text)))
+    result = _normalize(_extract_json(out))
     if truncated:
         result["truncated"] = True
     return result
+
+
+def _fake_analysis(body: str) -> str:
+    """ATELIER_ALLOW_FAKE_LLM=1 のみの決定的スタブ (配線検証用)。"""
+    import json as _json
+
+    return _json.dumps(
+        {
+            "summary": f"[fake LLM] 文字起こし {len(body)} 文字の要約",
+            "speakers": [],
+            "requirements": [],
+            "action_items": [],
+        },
+        ensure_ascii=False,
+    )

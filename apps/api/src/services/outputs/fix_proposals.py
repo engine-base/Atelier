@@ -9,7 +9,7 @@
 
 自動生成はしない — 提案の生成・適用は必ず人間の明示操作を起点にする
 (S-E01 tool 承認ゲートと同じ「無承認自動実行の廃止」原則)。
-ANTHROPIC_API_KEY 未設定は 503 (偽の提案を出さない)。
+GAP-171/175: 実行は本人の Claude サブスク (Bridge)。経路なしは 503 (偽の提案を出さない)。
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@
 フロー:
   1. 現行バージョンの HTML を storage から取得 (署名付き URL)
   2. LLM (AnthropicClient) が指示に従って全文 HTML を改訂
-     - ANTHROPIC_API_KEY 未設定は llm_unconfigured (503 — 偽の改訂を出さない)
+     - GAP-171/175: 経路は本人の Claude サブスク (Bridge)。経路なしは 503 (偽の改訂を出さない)
      - テストのみ ATELIER_ALLOW_FAKE_LLM=1 で決定的スタブ改訂 (配線検証用)
   3. 改訂 HTML を storage へアップロード (新オブジェクト)
   4. workflow_outputs に新バージョン行 (version+1、meta に指示文 + author=steve)

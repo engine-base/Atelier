@@ -9,7 +9,7 @@
   3. sales doc 行を作成し、生成トレース (generated_by / model / inputs /
      knowledge_refs / steps) を meta に、参照ナレッジを knowledge_references
      (referrer_type='sales_doc') に記録
-ANTHROPIC_API_KEY 未設定は 503 (偽の文面を出さない)。テストのみ
+GAP-171/175: 実行は本人の Claude サブスク (Bridge)。経路なしは 503 (偽の文面を出さない)。テストのみ
 ATELIER_ALLOW_FAKE_LLM=1 で決定的スタブ。
 """
 

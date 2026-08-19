@@ -4,7 +4,7 @@ F-CTX01 (完全版): ペルソナ + 装着スキル(content_md) + プロジェ�
 + これまでの経緯(要約) + ナレッジRAG(本物の Voyage/pgvector 意味検索, 運営デフォルト
 platform を横断参照) + 直近履歴 を system prompt に組み立てる。LLM 呼出は Anthropic SDK。
 
-LLM 未接続時 (ANTHROPIC_API_KEY 未設定) は本番では **fake/stub を黙って返さず error** を
+LLM 未接続時 (GAP-175: 既定は本人の Bridge。未接続) は本番では **fake/stub を黙って返さず error** を
 返す (鉄則: stub 排除)。テストのみ ATELIER_ALLOW_FAKE_LLM=1 で echo fallback を許可する。
 
 state-changing 操作 (user/assistant message の chat_messages 挿入) は
