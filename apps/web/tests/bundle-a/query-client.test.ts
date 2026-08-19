@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@atelier/api-client';
 
-import { _internal, createQueryClient } from '../../lib/query-client';
+import { _internal, createQueryClient, reportQueryError } from '../../lib/query-client';
+import { getToastsSnapshot } from '../../lib/toast/store';
+
+const toastCount = (): number => getToastsSnapshot().length;
 
 describe('createQueryClient (T-US-05)', () => {
   const c = createQueryClient();
@@ -54,5 +57,38 @@ describe('_internal.shouldRetry (T-US-05 retry policy)', () => {
   it('retries generic errors up to 2 times', () => {
     expect(_internal.shouldRetry(0, generic)).toBe(true);
     expect(_internal.shouldRetry(2, generic)).toBe(false);
+  });
+});
+
+describe("想定内の状態は赤 toast を出さない (GAP-174)", () => {
+  it("expectedErrors を宣言したクエリの失敗は toast しない", () => {
+    const err = new ApiError({
+      status: 409,
+      statusText: "conflict",
+      payload: undefined,
+      path: "/outputs/{output_id}/anchors",
+      method: "get",
+    });
+    const before = toastCount();
+    // Excel/PDF 成果物の /anchors は 409 が正常応答 — 画面は位置指定 UI を
+    // 出さないだけで正しく描けている。ここで赤 toast を出すと「画面は正しいのに
+    // エラーが出ている」状態になる (経営者が実画面で指摘したもの)。
+    reportQueryError(err, { meta: { expectedErrors: true } });
+    expect(toastCount()).toBe(before);
+  });
+
+  it("宣言していないクエリの失敗は従来どおり toast する", () => {
+    const err = new ApiError({
+      status: 409,
+      statusText: "conflict",
+      payload: undefined,
+      path: "/outputs/{output_id}/anchors",
+      method: "get",
+    });
+    const before = toastCount();
+    reportQueryError(err, { meta: {} });
+    expect(toastCount()).toBe(before + 1);
+    reportQueryError(err);
+    expect(toastCount()).toBe(before + 2);
   });
 });

@@ -47,17 +47,30 @@ function toastMessage(error: unknown): string {
 /**
  * 4xx/5xx 時にグローバル toast を出す（AC「inline error + toast」の toast 部分を横断で担保）。
  * 401 は middleware の再ログイン誘導の領分なので toast しない。
+ *
+ * GAP-174: 画面がその状態を**正しく描き分けている**問い合わせ (例: Excel/PDF 成果物に
+ * 対する /anchors は「テキストではないので位置指定できません」= 409 が正常応答) まで
+ * 赤 toast を出すと、画面は正しく出ているのにエラーが出ているように見える。
+ * `meta: { expectedErrors: true }` を付けたクエリはグローバル toast の対象外にする
+ * (画面側で必ずその状態を表示していることが条件)。
  */
-export function reportQueryError(error: unknown): void {
+export function reportQueryError(error: unknown, source?: unknown): void {
   if (error instanceof ApiError && error.status === 401) return;
+  const meta = (source as { meta?: { expectedErrors?: boolean } } | undefined)?.meta;
+  if (meta?.expectedErrors === true) return;
   pushToast(toastMessage(error), "error");
 }
 
 /** Atelier 既定の QueryClient を生成。テストや SSR で個別 instance を作る場合も同じ defaults */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
-    queryCache: new QueryCache({ onError: reportQueryError }),
-    mutationCache: new MutationCache({ onError: reportQueryError }),
+    // GAP-174: onError の第 2 引数 (query / mutation) から meta を読むため素通しにする
+    queryCache: new QueryCache({
+      onError: (error, query) => reportQueryError(error, query),
+    }),
+    mutationCache: new MutationCache({
+      onError: (error, _vars, _ctx, mutation) => reportQueryError(error, mutation),
+    }),
     defaultOptions: {
       queries: {
         staleTime: 30 * 1000,

@@ -128,6 +128,8 @@ export function OutputViewerContainer({
   });
 
   const content = useQuery({
+    // GAP-174: storage 未設定 (503) / HTML 未生成 (409) は画面が専用の文言を出す
+    meta: { expectedErrors: true },
     queryKey: ["output", outputId, "content-url"],
     queryFn: async () => {
       const res = await client.get("/outputs/{output_id}/content-url", {
@@ -140,6 +142,8 @@ export function OutputViewerContainer({
 
   // JSON/MD タブの実テキスト (署名 URL → fetch)。html は iframe 直表示。
   const text = useQuery({
+    // GAP-174: その形式が未生成なら 409 — 画面が「この形式はまだありません」を出す
+    meta: { expectedErrors: true },
     queryKey: ["output", outputId, "text", format],
     enabled: format !== "html",
     queryFn: async () => {
@@ -171,6 +175,10 @@ export function OutputViewerContainer({
   });
 
   const anchors = useQuery({
+    // GAP-174: Excel/PDF (filedb) の成果物では「テキストではないので位置指定
+    // できません」= 409 が**正常応答**。画面は位置指定 UI を出さないだけで
+    // 正しく描けているので、赤 toast は出さない。
+    meta: { expectedErrors: true },
     queryKey: ["output", outputId, "anchors"],
     queryFn: async () => {
       const res = await client.get("/outputs/{output_id}/anchors", {

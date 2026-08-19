@@ -148,6 +148,8 @@ export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const sheet = useQuery({
+    // GAP-174: PDF や表に落とせない形式は 409 が正常応答 — 画面が理由を出す
+    meta: { expectedErrors: true },
     queryKey: ["output-sheet", outputId],
     retry: false,
     queryFn: async () => {
