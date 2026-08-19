@@ -21,6 +21,7 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { ShareExportPanel } from "./ShareExportPanel";
+import { SheetEditor } from "./SheetEditor";
 import { Loading } from "../../../../components/Loading";
 import {
   OutputViewer,
@@ -577,9 +578,16 @@ export function OutputViewerContainer({
       }}
       onDownload={noPreview ? undefined : () => void download()}
       shareSlot={
-        noPreview ? undefined : (
-          <ShareExportPanel outputId={outputId} client={client} />
-        )
+        <>
+          {/* GAP-163: Excel / CSV はツール内で表として表示・編集できる
+              (PDF 等は API が 409 で理由を返し、その文言をそのまま出す) */}
+          <SheetEditor
+            outputId={outputId}
+            client={client}
+            onSaved={(id) => router.push(`/outputs?output=${id}`)}
+          />
+          {noPreview ? null : <ShareExportPanel outputId={outputId} client={client} />}
+        </>
       }
       onRevise={
         noPreview ? undefined : (instruction) => reviseMut.mutate(instruction)

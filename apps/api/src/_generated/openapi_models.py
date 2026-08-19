@@ -1240,6 +1240,23 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Sheet(BaseModel):
+    name: str | None = None
+    rows: list[list[str]] | None = None
+
+
+class OutputSheet(BaseModel):
+    """
+    GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない)
+    """
+
+    file_name: str | None = None
+    mime: str | None = None
+    editable: bool | None = None
+    note: str | None = None
+    sheets: list[Sheet] | None = None
+
+
 class ShareLink(BaseModel):
     """
     GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)

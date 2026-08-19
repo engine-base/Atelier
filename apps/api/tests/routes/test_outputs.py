@@ -1409,3 +1409,154 @@ class TestGap162ShareAndExport:
                     ),
                     {"a": with_table, "b": no_table},
                 )
+
+
+# ── GAP-163: Excel / CSV の表表示と編集 ────────────────────────────
+
+
+@pytest.mark.integration
+class TestGap163SheetViewAndEdit:
+    def _seed_xlsx_output(self, sync_engine: sqlalchemy.Engine, project_id: str) -> str:
+        import io
+
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.title = "明細"
+        ws.append(["項目", "金額"])
+        ws.append(["設計", "300000"])
+        buf = io.BytesIO()
+        wb.save(buf)
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            fid = c.execute(
+                text(
+                    "insert into public.artifact_files (data, mime, file_name, byte_size) "
+                    "values (:d, :m, :n, :s) returning id"
+                ),
+                {
+                    "d": buf.getvalue(),
+                    "m": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "n": "見積明細.xlsx",
+                    "s": len(buf.getvalue()),
+                },
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) values "
+                    "(cast(:i as uuid), cast(:p as uuid), 'estimate', :path, '見積明細', 1)"
+                ),
+                {"i": oid, "p": project_id, "path": f"filedb://{fid}"},
+            )
+        return oid
+
+    def test_excel_is_shown_as_table_and_edit_creates_new_version(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_xlsx_output(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                got = client.get(f"/outputs/{oid}/sheet", headers=h)
+                assert got.status_code == 200, got.text
+                data = got.json()["data"]
+                assert data["editable"] is True
+                assert data["file_name"] == "見積明細.xlsx"
+                assert data["sheets"][0]["name"] == "明細"
+                assert data["sheets"][0]["rows"][0] == ["項目", "金額"]
+                assert data["sheets"][0]["rows"][1] == ["設計", "300000"]
+                # 保持しないもの (数式・書式) を正直に伝えている
+                assert "数式・書式" in data["note"]
+
+                # セルを編集して保存 → 新バージョン (元の版は残る)
+                saved = client.post(
+                    f"/outputs/{oid}/sheet",
+                    headers=h,
+                    json={
+                        "sheets": [
+                            {
+                                "name": "明細",
+                                "rows": [["項目", "金額"], ["設計", "450000"], ["実装", "800000"]],
+                            }
+                        ]
+                    },
+                )
+                assert saved.status_code == 201, saved.text
+                new_id = saved.json()["data"]["id"]
+                assert saved.json()["data"]["version"] == 2
+
+                # 新版を読み直すと編集が反映されている
+                after = client.get(f"/outputs/{new_id}/sheet", headers=h).json()["data"]
+                assert after["sheets"][0]["rows"][1] == ["設計", "450000"]
+                assert after["sheets"][0]["rows"][2] == ["実装", "800000"]
+                # 元の版は変わらない (履歴不滅)
+                before = client.get(f"/outputs/{oid}/sheet", headers=h).json()["data"]
+                assert before["sheets"][0]["rows"][1] == ["設計", "300000"]
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs where project_id = cast(:p as uuid) "
+                        "and summary = '見積明細'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )
+
+    def test_pdf_is_viewable_but_edit_is_honestly_refused(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """PDF は表示できるが編集はできない — できないことを正直に言う。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            fid = c.execute(
+                text(
+                    "insert into public.artifact_files (data, mime, file_name, byte_size) "
+                    "values (:d, :m, :n, :s) returning id"
+                ),
+                {"d": b"%PDF-1.4 fake", "m": "application/pdf", "n": "契約書.pdf", "s": 13},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) values "
+                    "(cast(:i as uuid), cast(:p as uuid), 'contract', :path, '契約書', 1)"
+                ),
+                {"i": oid, "p": seeded["proj_a"], "path": f"filedb://{fid}"},
+            )
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                r = client.get(f"/outputs/{oid}/sheet", headers=h)
+                assert r.status_code == 409
+                detail = r.json()["detail"]
+                assert "PDF はこの画面で表示できます" in detail
+                assert "直接の編集はできません" in detail
+                # 表示自体は inline 配信で可能 (content-url → content)
+                url = client.get(f"/outputs/{oid}/content-url", headers=h).json()["data"]["url"]
+                served = client.get(url)
+                assert served.status_code == 200
+                assert served.headers["content-type"].startswith("application/pdf")
+                assert served.headers["content-disposition"].startswith("inline")
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )

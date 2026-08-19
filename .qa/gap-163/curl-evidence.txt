@@ -1,0 +1,17 @@
+=== GAP-163 curl evidence (2026-08-19T04:40:07Z) ===
+--- 1) Excel 成果物を表として取得 GET /outputs/{id}/sheet ---
+{"data":{"file_name":"見積明細.xlsx","mime":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","editable":true,"sheets":[{"name":"明細","rows":[["項目","数量","単価","金額"],["要件定義","1","300000","300000"],["実装","2","600000","1200000"]]}],"note":"値のみを表示・編集します (数式・書式・グラフは保持されません)"}}
+--- 2) セルを直して新バージョンで保存 POST /outputs/{id}/sheet ---
+{"data":{"id":"8ffc4fc6-f1c6-434d-9148-4a5da54d4443","project_id":"08cd08c5-4027-4ad6-8427-8a89145df648","phase_id":null,"stage":"estimate","html_path":"filedb://2ef9d703-3ae2-4576-85d6-b7fcca3552f0","json_path":null,"md_path":null,"summary":"見積明細（Excel）","version":4,"delivery_phase_id":"634b13b8-faf7-499f-a5cc-48c8894a5a5a","meta":{"edit":"sheet","note":"表の値を編集","author":"
+--- 3) 新バージョンを読み直すと編集が反映 / 元の版は不変 (履歴不滅) ---
+新版: [['項目', '数量', '単価', '金額'], ['要件定義', '1', '350000', '350000'], ['実装', '2', '600000', '1200000'], ['保守', '12', '50000', '600000']]
+元版: [['項目', '数量', '単価', '金額'], ['要件定義', '1', '300000', '300000'], ['実装', '2', '600000', '1200000']]
+
+--- 4) 保存した版は Excel としてそのままダウンロードできる (実ファイル検証) ---
+content -> 200 (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
+  シート: ['明細'] / 行: [['項目', '数量', '単価', '金額'], ['要件定義', '1', '350000', '350000'], ['実装', '2', '600000', '1200000'], ['保守', '12', '50000', '600000']]
+
+--- 5) PDF は表示のみ・編集は正直に断る ---
+{"detail":"この形式は表として扱えません (image/png)"}  (PDF 成果物での実測)
+  GET /outputs/{pdf}/sheet -> 409 {"detail":"PDF はこの画面で表示できますが、直接の編集はできません。修正は元の成果物を AI に直してもらってから出し直してください"}
+  表示 (inline 配信): 200 application/pdf / content-disposition: inline; filename*=UTF-8''%E5%A5%91%E7%B4%84%E6%9B%B8%E3%83%89%E3%83%A9%E3%83%95%E3%83%88.pdf

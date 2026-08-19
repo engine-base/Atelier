@@ -7711,6 +7711,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/outputs/{output_id}/sheet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Excel / CSV 成果物を表として取得 (GAP-163 — ツール内表示) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description シートデータ */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputSheet"];
+                        };
+                    };
+                };
+                /** @description 成果物が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 表として扱えない形式 (PDF 等 — 理由を detail に返す) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** 表の編集を新バージョンとして保存 (GAP-163 — 元の版は残る) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        sheets: {
+                            name?: string;
+                            rows?: string[][];
+                        }[];
+                    };
+                };
+            };
+            responses: {
+                /** @description 保存された新バージョン */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkflowOutput"];
+                        };
+                    };
+                };
+                /** @description 成果物が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 編集できない形式 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;
@@ -17736,6 +17837,17 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない) */
+        OutputSheet: {
+            file_name?: string;
+            mime?: string;
+            editable?: boolean;
+            note?: string;
+            sheets?: {
+                name?: string;
+                rows?: string[][];
+            }[];
         };
         /** @description GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可) */
         ShareLink: {

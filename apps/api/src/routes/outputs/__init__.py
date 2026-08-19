@@ -29,6 +29,8 @@ from src.schemas.outputs import (
     OutputDesignTemplateResponse,
     OutputResponse,
     OutputReviseRequest,
+    SheetResponse,
+    SheetSaveRequest,
 )
 from src.schemas.shares import ShareLinkCreateRequest, ShareLinkResponse
 from src.schemas.storage import ContentUrlResponse
@@ -734,3 +736,58 @@ async def export_output(
             "Content-Disposition": (f"attachment; filename*=UTF-8''{urllib.parse.quote(name)}.xlsx")
         },
     )
+
+
+# ── GAP-163: Excel / CSV 成果物の表表示と編集 ────────────────────────
+
+
+@router.get(
+    "/outputs/{output_id}/sheet",
+    summary="Excel / CSV 成果物を表として取得 (GAP-163 — ツール内表示)",
+    responses={409: {"description": "表として扱えない形式 (PDF 等)"}},
+)
+async def get_output_sheet(
+    output_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, SheetResponse]:
+    from src.services.outputs import sheets as sheets_svc
+
+    try:
+        data = await sheets_svc.load_sheet(session, output_id=output_id)
+    except sheets_svc.SheetError as exc:
+        code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(code, exc.message) from exc
+    return {
+        "data": SheetResponse(
+            file_name=data.file_name,
+            mime=data.mime,
+            editable=data.editable,
+            sheets=data.sheets,
+            note=data.note,
+        )
+    }
+
+
+@router.post(
+    "/outputs/{output_id}/sheet",
+    status_code=status.HTTP_201_CREATED,
+    summary="表の編集を新バージョンとして保存 (GAP-163 — 元の版は残る)",
+    responses={409: {"description": "編集できない形式"}},
+)
+async def save_output_sheet(
+    output_id: str, body: SheetSaveRequest, session: SessionDep, user: UserDep
+) -> dict[str, OutputResponse]:
+    from src.services.outputs import sheets as sheets_svc
+
+    try:
+        new_id = await sheets_svc.save_sheet(
+            session, actor_id=user.id, output_id=output_id, sheets=body.sheets
+        )
+    except sheets_svc.SheetError as exc:
+        code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(code, exc.message) from exc
+    if new_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    created = await svc.get_output(session, new_id)
+    if created is None:  # pragma: no cover - 直前に作成済
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    return {"data": created}

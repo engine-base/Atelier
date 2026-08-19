@@ -100,6 +100,26 @@ async def fetch_content_service(content_id: str) -> str | None:
         return await fetch_mock_content(session, content_id=content_id)
 
 
+async def fetch_file_service(file_id: str) -> tuple[bytes, str, str] | None:
+    """service session で filedb (artifact_files) を読む (GAP-163)。
+
+    artifact_files も authenticated からは revoke 済のため、行の認可は RLS 側で
+    済ませたうえで実体だけこの経路で扱う (mock_contents と同じ方式)。
+    """
+    factory = service_session_factory()
+    async with factory() as session:
+        return await fetch_file_content(session, file_id=file_id)
+
+
+async def store_file_service(*, data: bytes, mime: str, file_name: str) -> str:
+    """service session で filedb にバイナリを保存する (GAP-163)。"""
+    factory = service_session_factory()
+    async with factory() as session:
+        file_id = await store_file_content(session, data=data, mime=mime, file_name=file_name)
+        await session.commit()
+    return file_id
+
+
 async def store_mock_content(session: AsyncSession, *, html: str) -> str:
     """HTML を mock_contents へ保存し content_id を返す。"""
     res = await session.execute(

@@ -8,7 +8,7 @@ E-006 workflow_outputs (project_scoped)。各工程の生成物。read 中心 (�
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -93,3 +93,19 @@ class FixProposalApproveResponse(BaseModel):
 
     proposal: FixProposalResponse
     new_output: OutputResponse
+
+
+class SheetResponse(BaseModel):
+    """GAP-163: Excel / CSV 成果物を表として表示・編集するためのデータ。"""
+
+    file_name: str
+    mime: str
+    editable: bool
+    sheets: list[dict[str, Any]]
+    note: str = ""
+
+
+class SheetSaveRequest(BaseModel):
+    """編集後の表 (新バージョンとして保存する)。"""
+
+    sheets: list[dict[str, Any]] = Field(min_length=1, max_length=20)

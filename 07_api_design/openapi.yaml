@@ -1090,6 +1090,26 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    OutputSheet:
+      type: object
+      description: GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない)
+      properties:
+        file_name: { type: string }
+        mime: { type: string }
+        editable: { type: boolean }
+        note: { type: string }
+        sheets:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              rows:
+                type: array
+                items:
+                  type: array
+                  items: { type: string }
+
     ShareLink:
       type: object
       description: GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)
@@ -5887,6 +5907,61 @@ paths:
               schema: { type: string, format: binary }
         '404': { description: 成果物が見つからない }
         '409': { description: この形式では出力できない (表が無い等) }
+
+  /outputs/{output_id}/sheet:
+    get:
+      tags: [outputs]
+      summary: Excel / CSV 成果物を表として取得 (GAP-163 — ツール内表示)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: シートデータ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OutputSheet' }
+        '404': { description: 成果物が見つからない }
+        '409': { description: 表として扱えない形式 (PDF 等 — 理由を detail に返す) }
+    post:
+      tags: [outputs]
+      summary: 表の編集を新バージョンとして保存 (GAP-163 — 元の版は残る)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sheets]
+              properties:
+                sheets:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    type: object
+                    properties:
+                      name: { type: string }
+                      rows:
+                        type: array
+                        items:
+                          type: array
+                          items: { type: string }
+      responses:
+        '201':
+          description: 保存された新バージョン
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkflowOutput' }
+        '404': { description: 成果物が見つからない }
+        '409': { description: 編集できない形式 }
 
   /design-templates/{template_id}/content-url:
     get:
