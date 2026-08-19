@@ -72,14 +72,13 @@ describe("S-I01 TaskBoardContainer (T-UC-14)", () => {
     // triage タスクはバックログ列に出る
     const backlog = await screen.findByRole("region", { name: "準備中" });
     expect(within(backlog).getByText("要件 hearing")).toBeInTheDocument();
-    // GET は project_id 付きで呼ばれる
-    const init = (
-      get.mock.calls[0] as unknown as [
-        string,
-        { params: { query: { project_id: string } } },
-      ]
-    )[1];
-    expect(init.params.query.project_id).toBe("p1");
+    // GET /tasks は project_id 付きで呼ばれる
+    // (GAP-157 でフェーズ一覧の GET も走るため、呼び出し順ではなくパスで特定する)
+    const call = (
+      get.mock.calls as unknown as [string, { params?: { query?: { project_id?: string } } }][]
+    ).find(([path]) => path === "/tasks");
+    expect(call).toBeDefined();
+    expect(call?.[1]?.params?.query?.project_id).toBe("p1");
   });
 
   it("plays a ready task via POST /tasks/{id}/play", async () => {
