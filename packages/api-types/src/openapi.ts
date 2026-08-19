@@ -7478,6 +7478,239 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/outputs/{output_id}/share-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 成果物の共有リンク一覧 (GAP-162 — URL 自体は再取得できない) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 共有リンク一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ShareLink"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 成果物のクライアント共有リンクを発行 (GAP-162 — 期限つき・失効可・トークンはハッシュ保存) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        label?: string;
+                        /** @default 14 */
+                        expires_days?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description 発行された共有リンク (share_url はこの時だけ返る) */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ShareLink"];
+                        };
+                    };
+                };
+                /** @description 成果物が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/share-links/{link_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 共有リンクを無効化 (GAP-162) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    link_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 無効化された共有リンク */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ShareLink"];
+                        };
+                    };
+                };
+                /** @description 見つからない / すでに無効 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/share/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 共有リンクの閲覧 (GAP-162 — 認証不要。クライアントにそのまま渡せる) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 成果物 HTML (印刷で PDF 化できる導線つき) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/html": string;
+                    };
+                };
+                /** @description 見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 失効済み / 期限切れ */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/outputs/{output_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 成果物の書き出し (GAP-162 — html / xlsx。PDF は共有ページの印刷から) */
+        get: {
+            parameters: {
+                query: {
+                    format: "html" | "xlsx";
+                };
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ファイル (Content-Disposition attachment) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/html": string;
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    };
+                };
+                /** @description 成果物が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description この形式では出力できない (表が無い等) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;
@@ -17503,6 +17736,25 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可) */
+        ShareLink: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            output_id?: string;
+            label?: string;
+            /** Format: date-time */
+            expires_at?: string;
+            /** Format: date-time */
+            revoked_at?: string | null;
+            view_count?: number;
+            /** Format: date-time */
+            last_viewed_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** @description 発行直後のみ返る (ハッシュ保存のため再取得不可) */
+            share_url?: string | null;
         };
         /** @description GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの) */
         ReferenceFile: {

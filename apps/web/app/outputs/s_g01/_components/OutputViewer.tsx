@@ -101,6 +101,8 @@ export interface OutputViewerProps {
   readonly onSelectVersion?: (outputId: string) => void;
   /** 現在の format をダウンロード。 */
   readonly onDownload?: () => void;
+  /** GAP-162: 共有リンク + 書き出しパネル (クライアントに渡す)。 */
+  readonly shareSlot?: React.ReactNode;
   /** 「編集」= ドキュメント AI (スティーブ) への修正依頼。 */
   readonly onRevise?: (instruction: string) => void;
   readonly revising?: boolean;
@@ -147,6 +149,7 @@ export function OutputViewer({
   versions,
   onSelectVersion,
   onDownload,
+  shareSlot,
   onRevise,
   revising = false,
   onShowDiff,
@@ -443,6 +446,8 @@ export function OutputViewer({
                 )}
               </div>
             </div>
+            {/* GAP-162: クライアントに渡す (共有リンク + 書き出し) */}
+            {shareSlot}
           </div>
 
           {/* ── comment-panel ──────────────────────────── */}

@@ -1240,6 +1240,25 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class ShareLink(BaseModel):
+    """
+    GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)
+    """
+
+    id: UUID | None = None
+    output_id: UUID | None = None
+    label: str | None = None
+    expires_at: AwareDatetime | None = None
+    revoked_at: AwareDatetime | None = None
+    view_count: int | None = None
+    last_viewed_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+    share_url: str | None = None
+    """
+    発行直後のみ返る (ハッシュ保存のため再取得不可)
+    """
+
+
 class ReferenceFile(BaseModel):
     """
     GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの)

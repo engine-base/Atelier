@@ -1252,3 +1252,160 @@ class TestGap159PlatformDefaults:
         assert "# 参考資料" in captured[0]
         assert "請求例.xlsx" in captured[0]
         assert "月額保守 | 120000" in captured[0]
+
+
+# ── GAP-162: クライアント共有リンク + 書き出し (HTML / Excel) ────
+
+
+@pytest.mark.integration
+class TestGap162ShareAndExport:
+    def test_share_link_roundtrip_and_revoke(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """発行 → 認証なしで閲覧できる → 失効すると 410。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {
+                    "h": "<html><body><h1>御見積書</h1>"
+                    "<table><tr><th>項目</th><th>金額</th></tr>"
+                    "<tr><td>設計</td><td>400000</td></tr></table></body></html>"
+                },
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) "
+                    "values (cast(:i as uuid), cast(:p as uuid), 'estimate', :path, '御見積書', 1)"
+                ),
+                {"i": oid, "p": seeded["proj_a"], "path": f"mockdb://{cid}"},
+            )
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                created = client.post(
+                    f"/outputs/{oid}/share-links",
+                    headers=h,
+                    json={"label": "田中様へ", "expires_days": 7},
+                )
+                assert created.status_code == 201, created.text
+                link = created.json()["data"]
+                assert link["label"] == "田中様へ"
+                url = link["share_url"]
+                assert "/share/" in url
+                token = url.rsplit("/share/", 1)[1]
+
+                # 認証なしで閲覧できる (クライアントに渡すため)
+                viewed = client.get(f"/share/{token}")
+                assert viewed.status_code == 200
+                assert "御見積書" in viewed.text
+                assert "PDF で保存 / 印刷" in viewed.text  # PDF 化の導線
+
+                # 一覧では URL 自体は返らない (ハッシュしか保存していない)
+                listed = client.get(f"/outputs/{oid}/share-links", headers=h).json()["data"]
+                assert len(listed) == 1 and listed[0]["share_url"] is None
+                assert listed[0]["view_count"] >= 1
+
+                # 失効 → 以後は 410
+                rev = client.post(f"/share-links/{link['id']}/revoke", headers=h)
+                assert rev.status_code == 200
+                assert client.get(f"/share/{token}").status_code == 410
+                # 二重失効は 404
+                assert (
+                    client.post(f"/share-links/{link['id']}/revoke", headers=h).status_code == 404
+                )
+                # 存在しないトークンは 404
+                assert client.get("/share/nonexistent-token").status_code == 404
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+    def test_export_html_and_xlsx_and_honest_refusal(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """HTML はそのまま、表つきは Excel、表が無ければ正直に 409。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        with_table, no_table = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c1 = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {
+                    "h": "<html><body><table><tr><th>項目</th><th>金額</th></tr>"
+                    "<tr><td>実装</td><td>1200000</td></tr></table></body></html>"
+                },
+            ).scalar_one()
+            c2 = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": "<html><body><p>表のない提案書です</p></body></html>"},
+            ).scalar_one()
+            for oid, cid, stage, summary in (
+                (with_table, c1, "estimate", "見積書"),
+                (no_table, c2, "proposal", "提案書"),
+            ):
+                c.execute(
+                    text(
+                        "insert into public.workflow_outputs "
+                        "(id, project_id, stage, html_path, summary, version) values "
+                        "(cast(:i as uuid), cast(:p as uuid), cast(:s as workflow_stage_enum), "
+                        " :path, :sm, 1)"
+                    ),
+                    {
+                        "i": oid,
+                        "p": seeded["proj_a"],
+                        "s": stage,
+                        "path": f"mockdb://{cid}",
+                        "sm": summary,
+                    },
+                )
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                r_html = client.get(f"/outputs/{with_table}/export?format=html", headers=h)
+                assert r_html.status_code == 200
+                assert "attachment" in r_html.headers["content-disposition"]
+                assert "1200000" in r_html.text
+
+                r_xlsx = client.get(f"/outputs/{with_table}/export?format=xlsx", headers=h)
+                assert r_xlsx.status_code == 200
+                assert r_xlsx.headers["content-type"].startswith(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+                # 実 xlsx として開けて、中身が入っていること
+                import io
+
+                from openpyxl import load_workbook
+
+                wb = load_workbook(io.BytesIO(r_xlsx.content))
+                rows = [list(r) for r in wb.worksheets[0].iter_rows(values_only=True)]
+                assert list(rows[0]) == ["項目", "金額"]
+                assert list(rows[1]) == ["実装", "1200000"]
+
+                # 表が無い成果物は「できない」と正直に断る (空ファイルを出さない)
+                bad = client.get(f"/outputs/{no_table}/export?format=xlsx", headers=h)
+                assert bad.status_code == 409
+                assert "表が無い" in bad.json()["detail"]
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs where id in (cast(:a as uuid), cast(:b as uuid))"
+                    ),
+                    {"a": with_table, "b": no_table},
+                )

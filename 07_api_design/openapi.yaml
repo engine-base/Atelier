@@ -1090,6 +1090,20 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    ShareLink:
+      type: object
+      description: GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)
+      properties:
+        id: { type: string, format: uuid }
+        output_id: { type: string, format: uuid }
+        label: { type: string }
+        expires_at: { type: string, format: date-time }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        view_count: { type: integer }
+        last_viewed_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        share_url: { type: string, nullable: true, description: 発行直後のみ返る (ハッシュ保存のため再取得不可) }
+
     ReferenceFile:
       type: object
       description: GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの)
@@ -5780,6 +5794,99 @@ paths:
         '413': { description: サイズ超過 }
         '415': { description: 未対応の形式 }
         '503': { description: storage 未設定 }
+
+  /outputs/{output_id}/share-links:
+    post:
+      tags: [outputs]
+      summary: 成果物のクライアント共有リンクを発行 (GAP-162 — 期限つき・失効可・トークンはハッシュ保存)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string, maxLength: 120 }
+                expires_days: { type: integer, minimum: 1, maximum: 180, default: 14 }
+      responses:
+        '201':
+          description: 発行された共有リンク (share_url はこの時だけ返る)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ShareLink' }
+        '404': { description: 成果物が見つからない }
+    get:
+      tags: [outputs]
+      summary: 成果物の共有リンク一覧 (GAP-162 — URL 自体は再取得できない)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 共有リンク一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ShareLink' }
+
+  /share-links/{link_id}/revoke:
+    post:
+      tags: [outputs]
+      summary: 共有リンクを無効化 (GAP-162)
+      parameters:
+        - { name: link_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 無効化された共有リンク
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ShareLink' }
+        '404': { description: 見つからない / すでに無効 }
+
+  /share/{token}:
+    get:
+      tags: [outputs]
+      summary: 共有リンクの閲覧 (GAP-162 — 認証不要。クライアントにそのまま渡せる)
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 成果物 HTML (印刷で PDF 化できる導線つき)
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { description: 見つからない }
+        '410': { description: 失効済み / 期限切れ }
+
+  /outputs/{output_id}/export:
+    get:
+      tags: [outputs]
+      summary: 成果物の書き出し (GAP-162 — html / xlsx。PDF は共有ページの印刷から)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: format, in: query, required: true, schema: { type: string, enum: [html, xlsx] } }
+      responses:
+        '200':
+          description: ファイル (Content-Disposition attachment)
+          content:
+            text/html:
+              schema: { type: string }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        '404': { description: 成果物が見つからない }
+        '409': { description: この形式では出力できない (表が無い等) }
 
   /design-templates/{template_id}/content-url:
     get:

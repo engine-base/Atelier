@@ -11,7 +11,7 @@ import asyncio
 import urllib.parse
 import uuid as uuid_mod
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
@@ -30,6 +30,7 @@ from src.schemas.outputs import (
     OutputResponse,
     OutputReviseRequest,
 )
+from src.schemas.shares import ShareLinkCreateRequest, ShareLinkResponse
 from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
 from src.services.mocks.artifacts import (
@@ -573,3 +574,163 @@ async def reject_fix_proposal(
     if rejected is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "fix proposal not found")
     return {"data": rejected}
+
+
+# ── GAP-162: 共有リンク + 出力形式 (HTML / PDF / Excel) ────────────────
+
+
+def _share_url(base_url: str, token: str) -> str:
+    return f"{base_url.rstrip('/')}/share/{token}"
+
+
+def _to_share_response(link: Any, *, share_url: str | None = None) -> ShareLinkResponse:
+    return ShareLinkResponse(
+        id=link.id,
+        output_id=link.output_id,
+        label=link.label,
+        expires_at=link.expires_at,
+        revoked_at=link.revoked_at,
+        view_count=link.view_count,
+        last_viewed_at=link.last_viewed_at,
+        created_at=link.created_at,
+        share_url=share_url,
+    )
+
+
+@router.post(
+    "/outputs/{output_id}/share-links",
+    status_code=status.HTTP_201_CREATED,
+    summary="成果物のクライアント共有リンクを発行 (GAP-162 — 期限つき・失効可)",
+)
+async def create_output_share_link(
+    output_id: str,
+    body: ShareLinkCreateRequest,
+    session: SessionDep,
+    user: UserDep,
+    request: Request,
+) -> dict[str, ShareLinkResponse]:
+    from src.services.outputs import sharing
+
+    link = await sharing.create_share_link(
+        session,
+        actor_id=user.id,
+        output_id=output_id,
+        label=body.label,
+        expires_days=body.expires_days,
+    )
+    if link is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    return {
+        "data": _to_share_response(
+            link, share_url=_share_url(str(request.base_url), link.token or "")
+        )
+    }
+
+
+@router.get(
+    "/outputs/{output_id}/share-links",
+    summary="成果物の共有リンク一覧 (GAP-162 — URL 自体は再取得不可)",
+)
+async def list_output_share_links(
+    output_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[ShareLinkResponse]]:
+    from src.services.outputs import sharing
+
+    links = await sharing.list_share_links(session, output_id=output_id)
+    return {"data": [_to_share_response(x) for x in links]}
+
+
+@router.post(
+    "/share-links/{link_id}/revoke",
+    summary="共有リンクを無効化 (GAP-162 — 以後の閲覧は 410)",
+)
+async def revoke_output_share_link(
+    link_id: str, session: SessionDep, user: UserDep
+) -> dict[str, ShareLinkResponse]:
+    from src.services.outputs import sharing
+
+    link = await sharing.revoke_share_link(session, actor_id=user.id, link_id=link_id)
+    if link is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "share link not found or already revoked")
+    return {"data": _to_share_response(link)}
+
+
+@router.get(
+    "/share/{token}",
+    summary="共有リンクの閲覧 (GAP-162 — 認証不要・クライアントに渡す用)",
+    responses={410: {"description": "失効済み / 期限切れ"}},
+)
+async def view_shared_output(token: str) -> HTMLResponse:
+    from src.services.outputs import sharing
+
+    factory = _content_session_factory()
+    async with factory() as session:
+        try:
+            output_id, html = await sharing.resolve_share_token(session, token=token)
+        except sharing.ShareError as exc:
+            code = {
+                "not_found": status.HTTP_404_NOT_FOUND,
+                "gone": status.HTTP_410_GONE,
+                "no_html": status.HTTP_404_NOT_FOUND,
+            }.get(exc.code, status.HTTP_404_NOT_FOUND)
+            raise HTTPException(code, exc.message) from exc
+        row = (
+            await session.execute(
+                text(
+                    "select summary, stage::text as stage from public.workflow_outputs where id = :i"
+                ),
+                {"i": output_id},
+            )
+        ).first()
+        await session.commit()
+    title = str(row.summary or row.stage) if row is not None else "成果物"
+    return HTMLResponse(
+        content=sharing.share_page_html(html, title=title),
+        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"},
+    )
+
+
+@router.get(
+    "/outputs/{output_id}/export",
+    summary="成果物の書き出し (GAP-162 — html / xlsx。PDF は共有ページの印刷から)",
+    responses={409: {"description": "この形式では出力できない (表が無い等)"}},
+)
+async def export_output(
+    output_id: str,
+    fmt: Annotated[Literal["html", "xlsx"], Query(alias="format")],
+    session: SessionDep,
+    _user: UserDep,
+) -> Response:
+    from src.services.outputs import sharing
+
+    current = await svc.get_output(session, output_id)
+    if current is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+    if current.html_path is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "この成果物には書き出せる内容がありません")
+    try:
+        html = await sharing.load_output_html(current.html_path)
+    except sharing.ShareError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    name = (current.summary or current.stage or "output").replace("/", "_")[:60]
+    if fmt == "html":
+        return Response(
+            content=html.encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={
+                "Content-Disposition": (
+                    f"attachment; filename*=UTF-8''{urllib.parse.quote(name)}.html"
+                )
+            },
+        )
+    try:
+        data = sharing.html_tables_to_xlsx(html, title=name)
+    except sharing.ShareError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": (f"attachment; filename*=UTF-8''{urllib.parse.quote(name)}.xlsx")
+        },
+    )

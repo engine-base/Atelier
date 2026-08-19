@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { ShareExportPanel } from "./ShareExportPanel";
 import { Loading } from "../../../../components/Loading";
 import {
   OutputViewer,
@@ -575,6 +576,11 @@ export function OutputViewerContainer({
         if (id !== outputId) router.push(`/outputs?output=${id}`);
       }}
       onDownload={noPreview ? undefined : () => void download()}
+      shareSlot={
+        noPreview ? undefined : (
+          <ShareExportPanel outputId={outputId} client={client} />
+        )
+      }
       onRevise={
         noPreview ? undefined : (instruction) => reviseMut.mutate(instruction)
       }

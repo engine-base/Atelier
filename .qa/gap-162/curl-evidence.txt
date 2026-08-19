@@ -1,0 +1,29 @@
+=== GAP-162 curl evidence (2026-08-19T04:30:34Z) ===
+--- 1) 共有リンク発行 POST /outputs/{id}/share-links ---
+{"data":{"id":"28c405a4-40e9-499b-b66b-c638f51f25af","output_id":"a3c69490-486c-49e7-9177-4e70c7de2d4d","label":"田中様へ","expires_at":"2026-08-26T04:30:34.083540Z","revoked_at":null,"view_count":0,"last_viewed_at":null,"created_at":"2026-08-19T04:30:34.083540Z","share_url":"http://127.0.0.1:8123/share/zYbXP7kIo83Khwcy8BolQ6_buPpY0IYYFw4_dRNdWeo"}}
+
+--- 2) 認証ヘッダ無しでその URL を開く (クライアント視点) ---
+GET (no auth) -> 200
+  先頭 300 文字:
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>お見積書</title>
+<style>
+  body { font-family: "Hiragino Sans", "Meiryo", sans-serif; margin: 40px; color: #222; }
+  h1 { text-align: center; letter-spacing: 0.2em; }
+  .meta { display: flex; justify-content: space-between; ma
+  「PDF で保存 / 印刷」ボタンの有無: 1
+
+--- 3) 一覧では URL は返らない (ハッシュしか保存していない) + 閲覧回数が増える ---
+{'id': '28c405a4', 'share_url': None, 'view_count': 1, 'expires_at': '2026-08-26', 'revoked': False}
+
+--- 4) 書き出し: HTML / Excel ---
+export html -> 200 (1847 bytes)
+export xlsx -> 200 (5172 bytes)
+  xlsx は実ファイルとして開ける。先頭行: [['項目', '数量', '単価（円）', '金額（円）'], ['要件定義・基本設計', '1式', '300,000', '300,000'], ['タスク管理システム開発（画面・機能実装）', '1式', '800,000', '800,000'], ['テスト・納品対応', '1式', '200,000', '200,000']]
+
+--- 5) 失効 → 以後は 410 (クライアントの手元のリンクが無効になる) ---
+revoke -> 200
+GET (revoked) -> 410
