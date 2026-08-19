@@ -82,7 +82,14 @@ export interface BridgeApi {
   /** GAP-141: 作業場シードの取得。 */
   chatRelayWorkspaceSeed(
     jobId: string,
-  ): Promise<readonly { readonly fileName: string; readonly html: string }[]>;
+  ): Promise<
+    readonly {
+      readonly fileName: string;
+      readonly html?: string;
+      /** GAP-161: 添付資料 (画像/PDF/Excel 等) の実体 (base64)。 */
+      readonly contentB64?: string;
+    }[]
+  >;
   /** GAP-114: job を done / error で確定 (GAP-119: プラン枠観測値も同送可)。 */
   chatRelayComplete(
     jobId: string,
@@ -309,12 +316,23 @@ export class ApiClient implements BridgeApi {
 
   async chatRelayWorkspaceSeed(
     jobId: string,
-  ): Promise<readonly { readonly fileName: string; readonly html: string }[]> {
+  ): Promise<
+    readonly {
+      readonly fileName: string;
+      readonly html?: string;
+      readonly contentB64?: string;
+    }[]
+  > {
     // GAP-141: プロジェクト最新版をローカル作業場へ展開するための seed
+    // GAP-161: 併せてこのスレッドの添付資料 (base64) も配られる
     const json = (await this.get(`/chat-relay/${jobId}/workspace`)) as {
-      data: readonly { file_name: string; html: string }[];
+      data: readonly { file_name: string; html?: string; content_b64?: string }[];
     };
-    return json.data.map((f) => ({ fileName: f.file_name, html: f.html }));
+    return json.data.map((f) => ({
+      fileName: f.file_name,
+      html: f.html,
+      contentB64: f.content_b64,
+    }));
   }
 
   async chatRelayComplete(

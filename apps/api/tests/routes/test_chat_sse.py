@@ -533,3 +533,148 @@ def test_gap149_peer_thread_summaries_injected(
                 text("delete from public.ai_employees where id = cast(:i as uuid)"),
                 {"i": emp_b},
             )
+
+
+# ── GAP-161: 添付資料が本当に AI へ渡るか ───────────────────────────
+
+
+@pytest.mark.integration
+class TestGap161AttachmentsReachTheAI:
+    """従来は保存・表示のみで LLM に渡っていなかった実バグの回帰テスト。"""
+
+    def _install_storage_fake(self, monkeypatch: pytest.MonkeyPatch, payload: bytes) -> None:
+        from typing import Any
+
+        from src import storage_signing
+
+        monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://stor.invalid")
+        monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+
+        class _Res:
+            def __init__(self, payload_json: dict[str, Any] | None = None) -> None:
+                self.status_code = 200
+                self._payload = payload_json or {}
+                self.content = payload
+
+            def json(self) -> dict[str, Any]:
+                return self._payload
+
+        class _Client:
+            def __init__(self, *_a: Any, **_k: Any) -> None: ...
+
+            async def __aenter__(self) -> _Client:
+                return self
+
+            async def __aexit__(self, *_a: Any) -> bool:
+                return False
+
+            async def post(self, _url: str, **_k: Any) -> _Res:
+                return _Res({"signedURL": "/object/sign/chat/x?token=d"})
+
+            async def get(self, _url: str, **_k: Any) -> _Res:
+                return _Res()
+
+        monkeypatch.setattr(storage_signing.httpx, "AsyncClient", _Client)
+        import httpx as _httpx
+
+        monkeypatch.setattr(_httpx, "AsyncClient", _Client)
+
+    def test_excel_attachment_content_is_injected_into_system_prompt(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import io
+
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.title = "見積内訳"
+        ws.append(["項目", "金額"])
+        ws.append(["初期設計", 480000])
+        buf = io.BytesIO()
+        wb.save(buf)
+        self._install_storage_fake(monkeypatch, buf.getvalue())
+
+        # 添付つきメッセージを直接 seed (アップロード自体は GAP-001 の別テスト)
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.chat_messages (thread_id, role, content, attachments) "
+                    "values (cast(:t as uuid), 'user', 'この見積を参考にして', cast(:a as jsonb))"
+                ),
+                {
+                    "t": seeded["thread_a"],
+                    "a": json.dumps(
+                        [
+                            {
+                                "storage_path": "chat-attachments/x/見積.xlsx",
+                                "file_name": "見積.xlsx",
+                                "mime_type": (
+                                    "application/vnd.openxmlformats-officedocument"
+                                    ".spreadsheetml.sheet"
+                                ),
+                            }
+                        ]
+                    ),
+                },
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                f"/chat/threads/{seeded['thread_a']}/context-preview",
+                headers=_h(seeded["u_a"]),
+                json={"user_message": "この資料を踏まえて見積を出して", "include_history": 5},
+            )
+            assert r.status_code == 200
+            sys_p = r.json()["data"]["system_prompt"]
+        assert "# 添付資料" in sys_p
+        assert "見積.xlsx" in sys_p
+        # 実データが入っていること (ファイル名だけでなく中身)
+        assert "初期設計 | 480000" in sys_p
+        assert "推測で補わず" in sys_p
+
+    def test_unfetchable_attachment_is_reported_honestly(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """storage 未設定などで取得できない添付は「取り込めなかった」と明示する。"""
+        monkeypatch.delenv("ATELIER_SUPABASE_ADMIN_API_URL", raising=False)
+        monkeypatch.delenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", raising=False)
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.chat_messages (thread_id, role, content, attachments) "
+                    "values (cast(:t as uuid), 'user', '資料です', cast(:a as jsonb))"
+                ),
+                {
+                    "t": seeded["thread_a"],
+                    "a": json.dumps(
+                        [
+                            {
+                                "storage_path": "chat-attachments/x/design.png",
+                                "file_name": "design.png",
+                                "mime_type": "image/png",
+                            }
+                        ]
+                    ),
+                },
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                f"/chat/threads/{seeded['thread_a']}/context-preview",
+                headers=_h(seeded["u_a"]),
+                json={"user_message": "これ見て", "include_history": 5},
+            )
+            assert r.status_code == 200
+            sys_p = r.json()["data"]["system_prompt"]
+        assert "design.png" in sys_p
+        assert "取り込めませんでした" in sys_p
+        # 偽の中身を作らない
+        assert "推測" in sys_p

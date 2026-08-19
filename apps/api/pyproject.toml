@@ -20,6 +20,12 @@ dependencies = [
   "cryptography>=48.0.0",
   # GAP-018: 商談ドラフトの PDF 出力 (S-N01 — 日本語 CID フォント内蔵)
   "reportlab>=4.2.0",
+  # GAP-161: 添付資料 (PDF/Excel/Word/PowerPoint) をテキスト化して AI に渡す。
+  # 全実行経路 (Bridge/サブスク/API) で効かせるためサーバー側で決定的に抽出する。
+  "pypdf>=5.1.0",
+  "openpyxl>=3.1.5",
+  "python-docx>=1.1.2",
+  "python-pptx>=1.0.2",
 ]
 
 [project.optional-dependencies]

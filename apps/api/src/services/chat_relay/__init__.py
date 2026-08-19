@@ -371,15 +371,19 @@ def _jsonb_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
-def _sanitize_seed_name(name: str, fallback: str) -> str:
-    """seed ファイル名の安全化 (パス区切り・ .. を除去、拡張子 .html 保証)。"""
+def _sanitize_seed_name(name: str, fallback: str, *, keep_ext: bool = False) -> str:
+    """seed ファイル名の安全化 (パス区切り・ .. を除去)。
+
+    keep_ext=False は HTML 正本用 (.html を保証)。GAP-161 の添付配布は
+    keep_ext=True で元の拡張子 (.png/.pdf/.xlsx 等) をそのまま残す。
+    """
     import re as _re
 
     base = name.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip()
     base = _re.sub(r"[^\w\-. ぁ-んァ-ヶ一-龠ー]", "_", base)
     if base in ("", ".", ".."):
         base = fallback
-    if not base.lower().endswith((".html", ".htm")):
+    if not keep_ext and not base.lower().endswith((".html", ".htm")):
         base += ".html"
     return base[:120]
 
@@ -404,7 +408,7 @@ async def get_job_workspace_seed(
     row = (
         await session.execute(
             text(
-                "select j.status, j.requested_by, t.project_id "
+                "select j.status, j.requested_by, j.thread_id, t.project_id "
                 "from public.chat_relay_jobs j "
                 "join public.chat_threads t on t.id = j.thread_id "
                 "where j.id = cast(:i as uuid)"
@@ -464,7 +468,68 @@ async def get_job_workspace_seed(
         name_hint = str(meta.get("file_name") or f"{o.summary or o.stage}.html")
         await _append(str(o.html_path), name_hint, f"{o.stage}.html")
 
+    # GAP-161: このスレッドの添付資料 (画像/PDF/Excel 等) も作業場へ配る。
+    # 本人の PC で走る Claude Code が実物を直接開けるようにするため
+    # (サーバー側のテキスト抽出だけでは画像を見られない)。
+    files.extend(await _thread_attachment_seed(session, thread_id=str(row.thread_id)))
     return files
+
+
+_ATTACHMENT_SEED_MAX_FILES = 5
+_ATTACHMENT_SEED_MAX_BYTES = 8 * 1024 * 1024
+
+
+async def _thread_attachment_seed(session: AsyncSession, *, thread_id: str) -> list[dict[str, str]]:
+    """直近メッセージの添付を base64 で返す (Bridge が作業場へ書き出す)。
+
+    取得できなかったものは黙って落とす (実行自体は止めない — seed 全体と同じ方針)。
+    """
+    import base64
+
+    import httpx
+
+    from src.storage_signing import create_signed_download_url
+
+    rows = (
+        await session.execute(
+            text(
+                "select attachments from public.chat_messages "
+                "where thread_id = cast(:t as uuid) and deleted_at is null "
+                "and attachments is not null "
+                "order by created_at desc, id desc limit 6"
+            ),
+            {"t": thread_id},
+        )
+    ).all()
+    records: list[dict[str, Any]] = []
+    for r in rows:
+        raw = r.attachments
+        items = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(items, list):
+            records.extend([i for i in items if isinstance(i, dict)])
+
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for rec in records:
+        path = str(rec.get("storage_path") or "")
+        if not path or path in seen:
+            continue
+        seen.add(path)
+        try:
+            url = await create_signed_download_url(path)
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                res = await client.get(url)
+            if res.status_code >= 400 or len(res.content) > _ATTACHMENT_SEED_MAX_BYTES:
+                continue
+            name = _sanitize_seed_name(
+                str(rec.get("file_name") or "attachment"), "attachment", keep_ext=True
+            )
+            out.append({"file_name": name, "content_b64": base64.b64encode(res.content).decode()})
+        except Exception:
+            continue
+        if len(out) >= _ATTACHMENT_SEED_MAX_FILES:
+            break
+    return out
 
 
 async def complete_job(

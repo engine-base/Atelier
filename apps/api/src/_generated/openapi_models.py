@@ -1240,6 +1240,16 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class ReferenceFile(BaseModel):
+    """
+    GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの)
+    """
+
+    storage_path: str
+    file_name: str
+    mime_type: str | None = None
+
+
 class Source(StrEnum):
     """
     workspace=この WS の版 / platform=運営既定を継承中

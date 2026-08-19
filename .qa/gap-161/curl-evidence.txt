@@ -1,0 +1,34 @@
+=== GAP-161 curl evidence (2026-08-19T04:19:12Z) ===
+--- 1) 参考資料アップロード URL: 未対応形式は 415 で断る ---
+mp4 -> 415
+--- 2) サイズ超過は 413 ---
+20MB xlsx -> 413
+--- 3) 対応形式 (xlsx): storage 未設定のこの環境では 503 で正直に断る ---
+{"detail":"storage backend is not configured"}
+--- 4) チャット添付が Excel/Word/PPTX を受け付けるようになった (415 が消えた) ---
+sheet -> 503 (415 でなければ形式は受理・503 は storage 未設定)
+document -> 503 (415 でなければ形式は受理・503 は storage 未設定)
+presentation -> 503 (415 でなければ形式は受理・503 は storage 未設定)
+
+--- 5) 実アップロード → 実 storage → 抽出 → prompt 注入 の全経路 (実 HTTP) ---
+  POST /chat/attachments/upload-url → 署名 URL → PUT 200 (実ファイル: 見積内訳.xlsx)
+  storage_path: chat-attachments/98554ae3-4e69-4707-8669-5fc7c9081aee/7b36a7fc-8723-45bb-9e5e-993f6b3a3b80/xlsx
+  POST /chat/threads/{id}/context-preview の system_prompt 抜粋:
+# 添付資料 (ユーザーがこの会話にアップロードしたファイルの中身)
+以下はユーザーが参考として渡した資料の実際の内容です。依頼に関係する部分は必ず踏まえて回答・作成すること。内容が取り出せなかったものは、推測で補わずその旨を伝えること。
+
+## 見積内訳.xlsx（application/vnd.openxmlformats-officedocument.spreadsheetml.sheet / 1 シート）
+## シート: 見積内訳
+項目 | 数量 | 単価 | 金額
+要件定義 | 1 | 400000 | 400000
+デザイン | 1 | 350000 | 350000
+実装 | 2 | 600000 | 1200000
+
+以下は関連ナレッジ (意味検索 / RAG):
+- [見積レビューの観点] # 見積レビューの観点
+工数は不確実性で幅を持たせ、前提条件を必ず明記する。検収条件と支払サイトを見積段階で合意しておくと後工程の揉め事が減る。スコープ外の要望はバックログに分離して追加見積として扱う。
+- [定例の進め方] # 定例の進め方
+e2e137-ws の田中様との定例は毎週火曜。E2E137 の課題一覧は tanaka@example.co.jp へ送付し、詳細は https://internal.example/wiki を参照。この運用でリードタイムが 30% 減った。
+
+  ※ この環境には Supabase Storage が無いため、storage は Supabase 署名 API 互換の
+     ローカルスタブ (127.0.0.1:8199) を立てて実 HTTP で往復させた。抽出・注入は本番と同一コード。

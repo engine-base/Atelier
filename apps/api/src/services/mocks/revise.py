@@ -173,6 +173,7 @@ async def revise_mock(
     mock_id: str,
     instruction: str,
     client: _CompletionClient | None = None,
+    reference_files: list[dict[str, object]] | None = None,
 ) -> MockResponse | None:
     """修正指示から新バージョンを生成する。返り値 None = mock 不可視/不在。"""
     current = await get_mock(session, mock_id)
@@ -205,7 +206,11 @@ async def revise_mock(
         from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
 
         system_prompt, user_text = await _build_prompts(
-            session, current=current, html=html, instruction=instruction
+            session,
+            current=current,
+            html=html,
+            instruction=instruction,
+            reference_files=reference_files,
         )
         try:
             out, provider = await llm_complete(
@@ -250,13 +255,28 @@ async def _load_current_html(current: MockResponse) -> str:
 
 
 async def _build_prompts(
-    session: AsyncSession, *, current: MockResponse, html: str, instruction: str
+    session: AsyncSession,
+    *,
+    current: MockResponse,
+    html: str,
+    instruction: str,
+    reference_files: list[dict[str, object]] | None = None,
 ) -> tuple[str, str]:
     """GAP-147: 契約が先頭・参考資料は後段の system prompt + 履歴つき user prompt。"""
     from .design_note import build_design_context
 
     design_ctx = await build_design_context(session, project_id=current.project_id)
     system_prompt = f"{_SYSTEM}\n\n{design_ctx}" if design_ctx else _SYSTEM
+    # GAP-161: ユーザーがこの作業のために上げた資料 (画像/PDF/Excel 等) を渡す
+    if reference_files:
+        from src.services.attachments import (
+            extract_stored_attachments,
+            render_reference_block,
+        )
+
+        ref_block = render_reference_block(await extract_stored_attachments(reference_files))
+        if ref_block:
+            system_prompt = f"{system_prompt}\n\n{ref_block}"
     history = await _instruction_history(
         session,
         project_id=current.project_id,
@@ -327,6 +347,7 @@ async def revise_mock_stream(
     actor_id: str,
     mock_id: str,
     instruction: str,
+    reference_files: list[dict[str, object]] | None = None,
 ):
     """GAP-147: 改訂の進行状況を逐次 yield する (「何をしているか」の可視化)。
 
@@ -348,7 +369,11 @@ async def revise_mock_stream(
         yield {"stage": "loading"}
         html = await _load_current_html(current)
         system_prompt, user_text = await _build_prompts(
-            session, current=current, html=html, instruction=instruction
+            session,
+            current=current,
+            html=html,
+            instruction=instruction,
+            reference_files=reference_files,
         )
         parts: list[str] = []
         chars = 0

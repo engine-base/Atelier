@@ -38,6 +38,7 @@ from src.routes.outputs import router as outputs_router
 from src.routes.project_credentials import router as project_credentials_router
 from src.routes.projects import router as projects_router
 from src.routes.public import router as public_router
+from src.routes.references import router as references_router
 from src.routes.sales_docs import router as sales_docs_router
 from src.routes.search import router as search_router
 from src.routes.skills import router as skills_router
@@ -59,6 +60,7 @@ api_router.include_router(ai_employees_router)
 api_router.include_router(admin_router)
 api_router.include_router(admin_design_templates_router)
 api_router.include_router(admin_knowledge_router)
+api_router.include_router(references_router)
 api_router.include_router(client_invitations_router)
 api_router.include_router(chat_router)
 api_router.include_router(workflow_router)

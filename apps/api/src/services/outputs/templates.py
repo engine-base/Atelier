@@ -246,6 +246,7 @@ async def create_version(
     workspace_id: str | None,
     stage: str,
     instruction: str,
+    reference_files: list[dict[str, object]] | None = None,
 ) -> OutputDesignTemplateResponse | None:
     """ワンダがデザインテンプレを作成/改訂して新版を積む (Open Design 型)。
 
@@ -307,9 +308,17 @@ async def create_version(
             f"種類: {label} の現行デザインテンプレートを改訂してください。\n"
             f"修正指示: {instruction}\n\n現行 HTML:\n{base_html[:_MAX_TEMPLATE_CHARS]}"
         )
+    system_prompt = _DESIGN_SYSTEM
+    if reference_files:
+        # GAP-161: 既存の請求書 PDF・ロゴ画像・Excel など「これに寄せて」の資料
+        from src.services.attachments import extract_stored_attachments, render_reference_block
+
+        ref_block = render_reference_block(await extract_stored_attachments(reference_files))
+        if ref_block:
+            system_prompt = f"{_DESIGN_SYSTEM}\n\n{ref_block}"
     try:
         out, provider = await llm_complete(
-            system_prompt=_DESIGN_SYSTEM,
+            system_prompt=system_prompt,
             user_text=user_text,
             actor_id=actor_id,
             max_tokens=16384,

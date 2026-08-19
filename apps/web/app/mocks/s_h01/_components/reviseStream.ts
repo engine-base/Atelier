@@ -26,6 +26,12 @@ export interface ReviseStreamEvent {
 export interface StreamReviseArgs {
   readonly mockId: string;
   readonly instruction: string;
+  /** GAP-161: ワンダに参考にさせる資料 (先に /reference-uploads で上げたもの)。 */
+  readonly referenceFiles?: readonly {
+    readonly storage_path: string;
+    readonly file_name: string;
+    readonly mime_type: string;
+  }[];
   readonly onEvent: (ev: ReviseStreamEvent) => void;
   readonly signal?: AbortSignal;
   readonly baseURL?: string;
@@ -65,7 +71,11 @@ export async function streamReviseMock(args: StreamReviseArgs): Promise<void> {
     headers,
     credentials: "include",
     signal: args.signal,
-    body: JSON.stringify({ instruction: args.instruction }),
+    body: JSON.stringify({
+      instruction: args.instruction,
+      // GAP-161: ワンダに参考にさせる資料 (画像/PDF/Excel 等)
+      reference_files: args.referenceFiles ?? [],
+    }),
   });
   if (!res.ok || !res.body) {
     throw new Error(`revise stream failed: HTTP ${res.status}`);

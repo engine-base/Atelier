@@ -5233,6 +5233,8 @@ export interface paths {
                     "application/json": {
                         /** @description デザイナー AI ワンダへの修正指示 (自然言語) */
                         instruction: string;
+                        /** @description GAP-161 — ワンダに参考にさせる資料 (/reference-uploads で先に上げたもの) */
+                        reference_files?: components["schemas"]["ReferenceFile"][];
                     };
                 };
             };
@@ -5307,6 +5309,8 @@ export interface paths {
                     "application/json": {
                         /** @description デザイナー AI ワンダへの修正指示 (自然言語) */
                         instruction: string;
+                        /** @description GAP-161 — ワンダに参考にさせる資料 (/reference-uploads で先に上げたもの) */
+                        reference_files?: components["schemas"]["ReferenceFile"][];
                     };
                 };
             };
@@ -7079,6 +7083,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         instruction: string;
+                        reference_files?: components["schemas"]["ReferenceFile"][];
                     };
                 };
             };
@@ -7358,6 +7363,7 @@ export interface paths {
                 content: {
                     "application/json": {
                         instruction: string;
+                        reference_files?: components["schemas"]["ReferenceFile"][];
                     };
                 };
             };
@@ -7388,6 +7394,76 @@ export interface paths {
                     content?: never;
                 };
                 /** @description LLM 実行経路が使えない (Bridge オフライン等) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reference-uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 参考資料の署名付きアップロード URL (GAP-161 — スタジオが資料を参照するため) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        file_name: string;
+                        mime_type: string;
+                        file_size_bytes: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description アップロード URL */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                upload_url?: string;
+                                storage_path?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description サイズ超過 */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未対応の形式 */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description storage 未設定 */
                 503: {
                     headers: {
                         [name: string]: unknown;
@@ -17427,6 +17503,12 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             updated_at?: string;
+        };
+        /** @description GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの) */
+        ReferenceFile: {
+            storage_path: string;
+            file_name: string;
+            mime_type?: string;
         };
         /** @description GAP-158/159 — 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。source=platform は運営既定を継承中。 */
         OutputDesignTemplate: {

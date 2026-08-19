@@ -362,7 +362,11 @@ async def revise_mock(
 
     try:
         created = await revise_svc.revise_mock(
-            session, actor_id=user.id, mock_id=mock_id, instruction=body.instruction
+            session,
+            actor_id=user.id,
+            mock_id=mock_id,
+            instruction=body.instruction,
+            reference_files=[r.model_dump() for r in body.reference_files],
         )
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
@@ -403,7 +407,11 @@ async def revise_mock_stream(
 
     async def _events():
         async for ev in revise_svc.revise_mock_stream(
-            session, actor_id=user.id, mock_id=mock_id, instruction=body.instruction
+            session,
+            actor_id=user.id,
+            mock_id=mock_id,
+            instruction=body.instruction,
+            reference_files=[r.model_dump() for r in body.reference_files],
         ):
             yield f"data: {_json.dumps(ev, ensure_ascii=False)}\n\n".encode()
 

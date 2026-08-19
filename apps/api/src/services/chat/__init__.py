@@ -47,6 +47,12 @@ ATTACHMENT_ALLOWED_MIME = frozenset(
         "text/markdown",
         "text/csv",
         "application/zip",
+        # GAP-161: 参考資料として実務で渡される形式 (中身はサーバー側で
+        # テキスト抽出して AI に渡す — services/attachments)
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # xlsx
+        "application/vnd.ms-excel",  # xls (旧形式 — 抽出は非対応だが受け取りは許す)
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # docx
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # pptx
     }
 )
 ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024

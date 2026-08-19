@@ -248,6 +248,57 @@ async def _summary_context_block(
     return compose_context_block(stored, unfolded)
 
 
+_ATTACHMENT_HISTORY_MESSAGES = 6
+_ATTACHMENT_MAX_FILES = 5
+
+
+async def _recent_attachment_records(
+    session: AsyncSession, *, thread_id: str
+) -> list[dict[str, Any]]:
+    """直近メッセージに添付された資料 (新しい順) を返す。"""
+    rows = (
+        await session.execute(
+            text(
+                "select attachments from public.chat_messages "
+                "where thread_id = cast(:t as uuid) and deleted_at is null "
+                "and attachments is not null "
+                "order by created_at desc, id desc limit :n"
+            ),
+            {"t": thread_id, "n": _ATTACHMENT_HISTORY_MESSAGES},
+        )
+    ).all()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        raw = r.attachments
+        items = json.loads(raw) if isinstance(raw, str) else raw
+        if isinstance(items, list):
+            out.extend([i for i in items if isinstance(i, dict)])
+    return out
+
+
+async def _attachments_context_block(
+    session: AsyncSession,
+    *,
+    thread_id: str,
+    current: list[dict[str, Any]] | None,
+) -> str:
+    """添付資料をテキスト化して system prompt 用ブロックにする (GAP-161)。
+
+    storage 未設定・取得失敗・未対応形式は「取り込めなかった」と正直に書き、
+    推測で埋めない。抽出そのものは LLM を使わない (追加費用ゼロ)。
+    """
+    from src.services.attachments import extract_stored_attachments, render_attachments_block
+
+    records: list[dict[str, Any]] = list(current or [])
+    records.extend(await _recent_attachment_records(session, thread_id=thread_id))
+    if not records:
+        return ""
+    extracted = await extract_stored_attachments(
+        cast("list[dict[str, object]]", records), max_files=_ATTACHMENT_MAX_FILES
+    )
+    return render_attachments_block(extracted)
+
+
 async def build_context(
     session: AsyncSession,
     *,
@@ -256,6 +307,7 @@ async def build_context(
     include_history: int,
     rag_account_id: str | None,
     use_rag: bool = True,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> tuple[str, list[tuple[str, str]], list[str]]:
     """(system_prompt, history, rag_hit_ids) を返す F-CTX01 構築。
 
@@ -308,6 +360,13 @@ async def build_context(
     )
     if summary:
         parts.append(summary)
+
+    # GAP-161: 添付資料の中身を実際に AI へ渡す (従来は保存・表示のみで
+    # プロンプトに一切入っていなかった実バグ)。直近のやり取りで渡された資料も
+    # 対象にする — 「さっき送った資料を見て」が成立するように。
+    att_block = await _attachments_context_block(session, thread_id=thread_id, current=attachments)
+    if att_block:
+        parts.append(att_block)
 
     rag_ids: list[str] = []
     if use_rag:
@@ -572,6 +631,7 @@ async def stream_chat(
         include_history=include_history,
         rag_account_id=rag_account_id,
         use_rag=use_rag,
+        attachments=attachments,
     )
 
     user_msg_id = await _insert_message(

@@ -19,6 +19,10 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 import { createAuthedApiClient } from "../../../lib/auth/connector";
 import { readCurrentWorkspace } from "../../../lib/currentWorkspace";
 import { Loading } from "../../../components/Loading";
+import {
+  ReferenceFilePicker,
+  type ReferenceFileRef,
+} from "../../../components/ReferenceFilePicker";
 import { cn } from "../../../lib/cn";
 
 /** 種類 = 成果物の stage 体系 (API の STAGE_LABELS と同一)。 */
@@ -76,6 +80,8 @@ export function DesignTemplateStudio({
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<string>("estimate");
   const [instruction, setInstruction] = useState("");
+  // GAP-161: 「この請求書に寄せて」等、参考資料を渡して作らせる
+  const [refs, setRefs] = useState<readonly ReferenceFileRef[]>([]);
   const [viewVersionId, setViewVersionId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
@@ -184,17 +190,18 @@ export function DesignTemplateStudio({
       const res = isPlatform
         ? await client.post("/admin/design-templates/{stage}", {
             params: { path: { stage: kind } },
-            body: { instruction: instruction.trim() },
+            body: { instruction: instruction.trim(), reference_files: [...refs] },
           })
         : await client.post("/workspaces/{workspace_id}/design-templates/{stage}", {
             params: { path: { workspace_id: wsId ?? "", stage: kind } },
-            body: { instruction: instruction.trim() },
+            body: { instruction: instruction.trim(), reference_files: [...refs] },
           });
       return (res as { data?: ApiTemplate }).data ?? null;
     },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["design-templates", wsId] });
       setInstruction("");
+      setRefs([]);
       setViewVersionId(null);
       setNotice({
         kind: "ok",
@@ -426,6 +433,13 @@ export function DesignTemplateStudio({
               className="mt-1 w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[12.5px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
             />
           </label>
+          <ReferenceFilePicker
+            client={client}
+            files={refs}
+            onChange={setRefs}
+            disabled={create.isPending}
+            className="mt-2"
+          />
           {notice ? (
             <p
               role={notice.kind === "error" ? "alert" : "status"}

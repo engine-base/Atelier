@@ -968,6 +968,15 @@ def _seed_platform_default(
     sync_engine: sqlalchemy.Engine, *, stage: str, html: str, version: int = 1
 ) -> str:
     with sync_engine.begin() as c:
+        # 運営既定は全テナント共通のグローバル行 — 他テスト/実 e2e の残骸があると
+        # 「継承しているのはこの既定」の検証が揺れるため、対象種類を掃除してから積む
+        c.execute(
+            text(
+                "delete from public.output_design_templates "
+                "where is_platform_default and stage = cast(:s as workflow_stage_enum)"
+            ),
+            {"s": stage},
+        )
         cid = c.execute(
             text("insert into public.mock_contents (html) values (:h) returning id"),
             {"h": html},
@@ -1148,3 +1157,98 @@ class TestGap159PlatformDefaults:
             assert (
                 client.get("/admin/design-templates", headers=_h(seeded["u_a"])).status_code == 403
             )
+
+    def test_reference_files_are_injected_into_wanda_prompt(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-161: アップロードした参考資料の中身がテンプレ生成の prompt に入る。"""
+        import io
+        from typing import Any
+
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.append(["区分", "金額"])
+        ws.append(["月額保守", 120000])
+        buf = io.BytesIO()
+        wb.save(buf)
+        payload = buf.getvalue()
+
+        from src import storage_signing
+
+        monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://stor.invalid")
+        monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+
+        class _Res:
+            def __init__(self) -> None:
+                self.status_code = 200
+                self.content = payload
+
+            def json(self) -> dict[str, Any]:
+                return {"signedURL": "/object/sign/ref/x?token=d"}
+
+        class _Client:
+            def __init__(self, *_a: Any, **_k: Any) -> None: ...
+
+            async def __aenter__(self) -> _Client:
+                return self
+
+            async def __aexit__(self, *_a: Any) -> bool:
+                return False
+
+            async def post(self, _url: str, **_k: Any) -> _Res:
+                return _Res()
+
+            async def get(self, _url: str, **_k: Any) -> _Res:
+                return _Res()
+
+        monkeypatch.setattr(storage_signing.httpx, "AsyncClient", _Client)
+        import httpx as _httpx
+
+        monkeypatch.setattr(_httpx, "AsyncClient", _Client)
+
+        captured: list[str] = []
+        from src.services.chat_sse import llm_chain
+
+        async def _fake_complete(
+            *, system_prompt: str, user_text: str, actor_id: str, **_k: Any
+        ) -> tuple[str, str]:
+            del user_text, actor_id
+            captured.append(system_prompt)
+            return "<!doctype html><html><body>ok</body></html>\n---SUMMARY---\nテスト", "fake"
+
+        monkeypatch.setattr(llm_chain, "llm_complete", _fake_complete)
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        try:
+            with TestClient(app) as client:
+                r = client.post(
+                    f"/workspaces/{seeded['ws_a']}/design-templates/invoice",
+                    headers=_h(seeded["u_a"]),
+                    json={
+                        "instruction": "この請求書の様式に寄せて",
+                        "reference_files": [
+                            {
+                                "storage_path": "reference-uploads/u/請求例.xlsx",
+                                "file_name": "請求例.xlsx",
+                                "mime_type": (
+                                    "application/vnd.openxmlformats-officedocument"
+                                    ".spreadsheetml.sheet"
+                                ),
+                            }
+                        ],
+                    },
+                )
+                assert r.status_code == 201, r.text
+        finally:
+            asyncio.run(test_engine.dispose())
+        assert len(captured) == 1
+        assert "# 参考資料" in captured[0]
+        assert "請求例.xlsx" in captured[0]
+        assert "月額保守 | 120000" in captured[0]

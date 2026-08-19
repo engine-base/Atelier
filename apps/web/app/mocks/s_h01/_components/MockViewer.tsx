@@ -21,7 +21,14 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
+import type { ApiClient } from "@atelier/api-client";
+
 import { cn } from "../../../../lib/cn";
+import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import {
+  ReferenceFilePicker,
+  type ReferenceFileRef,
+} from "../../../../components/ReferenceFilePicker";
 import {
   DiffModal,
   type VersionDiffView,
@@ -223,6 +230,13 @@ function authorInitial(author: string): string {
   return trimmed ? Array.from(trimmed)[0]! : "?";
 }
 
+/** GAP-161: 参考資料アップロード用の既定クライアント (テストは props で注入)。 */
+let _defaultClient: ApiClient | null = null;
+function defaultApiClientLazy(): ApiClient {
+  _defaultClient ??= createAuthedApiClient();
+  return _defaultClient;
+}
+
 export interface MockViewerProps {
   /** 署名付き閲覧 URL。null なら frame 領域に srcError を表示する。 */
   readonly src: string | null;
@@ -245,7 +259,12 @@ export interface MockViewerProps {
   /** コメントを解決済みにする (PATCH status=resolved)。 */
   readonly onResolve?: (id: string) => void;
   /** 「編集」= ワンダ (AI) への修正依頼。未指定ならボタンを出さない。 */
-  readonly onRevise?: (instruction: string) => void;
+  readonly onRevise?: (
+    instruction: string,
+    referenceFiles?: readonly ReferenceFileRef[],
+  ) => void;
+  /** GAP-161: 参考資料アップロード用 (省略時は実 API)。 */
+  readonly apiClient?: ApiClient;
   /** 修正依頼の実行中 (ワンダが改訂中)。 */
   readonly revising?: boolean;
   /** GAP-147: 実行中の進行状況 (stage + 生成済み文字数 — SSE の実値)。 */
@@ -281,6 +300,7 @@ export function MockViewer({
   onAddComment,
   onResolve,
   onRevise,
+  apiClient,
   revising = false,
   reviseStatus = null,
   onDuplicate,
@@ -295,6 +315,8 @@ export function MockViewer({
   const [preset, setPreset] = useState<ViewportPreset>(initialPreset);
   const [draft, setDraft] = useState("");
   const [instructionDraft, setInstructionDraft] = useState("");
+  // GAP-161: ワンダに参考にさせる資料 (画像/PDF/Excel 等)
+  const [refs, setRefs] = useState<readonly ReferenceFileRef[]>([]);
   // 破棄の 2 段階確認: 対象バージョン id (null = 確認中なし)
   const [discardTarget, setDiscardTarget] = useState<string | null>(null);
   // GAP-142 (Open Design / Studio 型): 要素選択モード + 選択中要素
@@ -561,8 +583,9 @@ export function MockViewer({
                   const text = instructionDraft.trim();
                   if (!text || revising) return;
                   setPendingText(text);
-                  onRevise(composeInstruction(text, selected));
+                  onRevise(composeInstruction(text, selected), refs);
                   setInstructionDraft("");
+                  setRefs([]);
                 }}
               >
                 <label className="block">
@@ -588,6 +611,13 @@ export function MockViewer({
                     className="w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[12.5px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
                   />
                 </label>
+                <ReferenceFilePicker
+                  client={apiClient ?? defaultApiClientLazy()}
+                  files={refs}
+                  onChange={setRefs}
+                  disabled={revising}
+                  className="mt-1.5"
+                />
                 <div className="mt-1.5 flex items-center justify-between gap-xs">
                   <span className="text-[10.5px] text-on-surface-variant">
                     Enter で送信 · あなたの Claude プランで実行

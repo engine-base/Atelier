@@ -201,7 +201,14 @@ export function MockViewerContainer({
       );
     return "修正依頼に失敗しました。時間をおいて再度お試しください。";
   };
-  const startRevise = (instruction: string): void => {
+  const startRevise = (
+    instruction: string,
+    referenceFiles?: readonly {
+      readonly storage_path: string;
+      readonly file_name: string;
+      readonly mime_type: string;
+    }[],
+  ): void => {
     if (revising) return;
     setRevising(true);
     setReviseStatus({ stage: "loading", chars: 0 });
@@ -210,6 +217,8 @@ export function MockViewerContainer({
     void run({
       mockId,
       instruction,
+      // GAP-161: ユーザーが上げた参考資料をワンダへ渡す
+      referenceFiles,
       onEvent: (ev) => {
         if (ev.stage) {
           setReviseStatus((p) => ({

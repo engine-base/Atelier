@@ -1090,6 +1090,15 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    ReferenceFile:
+      type: object
+      description: GAP-161 — スタジオに渡す参考資料 (/reference-uploads で先にアップロード済のもの)
+      required: [storage_path, file_name]
+      properties:
+        storage_path: { type: string }
+        file_name: { type: string }
+        mime_type: { type: string }
+
     OutputDesignTemplate:
       type: object
       description: GAP-158/159 — 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。source=platform は運営既定を継承中。
@@ -4820,6 +4829,11 @@ paths:
               required: [instruction]
               properties:
                 instruction: { type: string, minLength: 1, maxLength: 4000, description: "デザイナー AI ワンダへの修正指示 (自然言語)" }
+                reference_files:
+                  type: array
+                  maxItems: 5
+                  description: GAP-161 — ワンダに参考にさせる資料 (/reference-uploads で先に上げたもの)
+                  items: { $ref: '#/components/schemas/ReferenceFile' }
       responses:
         '201':
           description: 改訂 HTML を storage へ保存し新バージョン (parent 連鎖、meta に指示文+author=wanda+model)
@@ -4850,6 +4864,11 @@ paths:
               required: [instruction]
               properties:
                 instruction: { type: string, minLength: 1, maxLength: 4000, description: "デザイナー AI ワンダへの修正指示 (自然言語)" }
+                reference_files:
+                  type: array
+                  maxItems: 5
+                  description: GAP-161 — ワンダに参考にさせる資料 (/reference-uploads で先に上げたもの)
+                  items: { $ref: '#/components/schemas/ReferenceFile' }
       responses:
         '200':
           description: |
@@ -5605,6 +5624,10 @@ paths:
               required: [instruction]
               properties:
                 instruction: { type: string, minLength: 1, maxLength: 4000 }
+                reference_files:
+                  type: array
+                  maxItems: 5
+                  items: { $ref: '#/components/schemas/ReferenceFile' }
       responses:
         '201':
           description: ワンダが作成/改訂した新版 (note = 変更概要)
@@ -5709,6 +5732,10 @@ paths:
               required: [instruction]
               properties:
                 instruction: { type: string, minLength: 1, maxLength: 4000 }
+                reference_files:
+                  type: array
+                  maxItems: 5
+                  items: { $ref: '#/components/schemas/ReferenceFile' }
       responses:
         '201':
           description: 作成された版
@@ -5721,6 +5748,38 @@ paths:
         '403': { description: admin 権限が必要 }
         '404': { description: 未知の種類 }
         '503': { description: LLM 実行経路が使えない (Bridge オフライン等) }
+
+  /reference-uploads:
+    post:
+      tags: [references]
+      summary: 参考資料の署名付きアップロード URL (GAP-161 — スタジオが資料を参照するため)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_name, mime_type, file_size_bytes]
+              properties:
+                file_name: { type: string, minLength: 1, maxLength: 255 }
+                mime_type: { type: string, minLength: 1, maxLength: 255 }
+                file_size_bytes: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: アップロード URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      upload_url: { type: string }
+                      storage_path: { type: string }
+        '413': { description: サイズ超過 }
+        '415': { description: 未対応の形式 }
+        '503': { description: storage 未設定 }
 
   /design-templates/{template_id}/content-url:
     get:

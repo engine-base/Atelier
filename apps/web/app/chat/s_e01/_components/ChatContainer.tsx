@@ -85,6 +85,11 @@ const ATTACH_ALLOWED_MIME = new Set([
   "text/markdown",
   "text/csv",
   "application/zip",
+  // GAP-161: 参考資料として渡される実務形式 (中身は AI に読ませる)
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
 const ATTACH_MAX_COUNT = 10;

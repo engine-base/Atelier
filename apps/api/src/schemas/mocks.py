@@ -10,6 +10,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from src.schemas.references import ReferenceFile
+
 
 class MockCreate(BaseModel):
     project_id: str
@@ -27,6 +29,8 @@ class MockReviseRequest(BaseModel):
     """S-H01「編集」= ワンダ (AI デザイナー) への修正指示 (GAP-024)。"""
 
     instruction: str = Field(min_length=1, max_length=4000)
+    # GAP-161: ワンダに参考にさせる資料 (事前に /reference-uploads で上げたもの)
+    reference_files: list[ReferenceFile] = Field(default_factory=list, max_length=5)
 
 
 class DesignNoteUpdate(BaseModel):
@@ -43,6 +47,8 @@ class MockGenerateRequest(BaseModel):
 
     project_id: str
     instruction: str = Field(min_length=1, max_length=4000)
+    # GAP-161: ワンダに参考にさせる資料 (事前に /reference-uploads で上げたもの)
+    reference_files: list[ReferenceFile] = Field(default_factory=list, max_length=5)
     screen_name: str | None = Field(default=None, max_length=80)
 
 

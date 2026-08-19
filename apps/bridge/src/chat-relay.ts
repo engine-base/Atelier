@@ -542,12 +542,17 @@ export class ChatRelayWorker {
         mkdirSync(workspace, { recursive: true });
         const seed = await this.api.chatRelayWorkspaceSeed(jobId);
         for (const f of seed) {
-          if (f.html === undefined) continue; // seed は HTML 正本のみ (GAP-141)
           const safe = f.fileName.replaceAll('\\', '/').split('/').pop() ?? '';
           if (safe === '' || safe === '.' || safe === '..') continue;
           const target = join(workspace, safe);
           try {
-            writeFileSync(target, f.html);
+            if (f.html !== undefined) {
+              writeFileSync(target, f.html); // HTML 正本 (GAP-141)
+            } else if (f.contentB64 !== undefined) {
+              // GAP-161: ユーザーが会話に添付した資料 (画像/PDF/Excel 等) の実体。
+              // これがあることで、この PC で走る Claude Code が実物を直接読める。
+              writeFileSync(target, Buffer.from(f.contentB64, 'base64'));
+            }
           } catch {
             /* 個別の書込失敗は seed 全体を止めない */
           }

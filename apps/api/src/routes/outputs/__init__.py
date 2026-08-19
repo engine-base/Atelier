@@ -253,6 +253,7 @@ async def create_design_template_version(
             workspace_id=workspace_id,
             stage=stage,
             instruction=body.instruction,
+            reference_files=[f.model_dump() for f in body.reference_files],
         )
     except tmpl_svc.DesignTemplateError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):

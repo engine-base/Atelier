@@ -12,6 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.schemas.references import ReferenceFile
+
 
 class OutputResponse(BaseModel):
     id: str
@@ -51,6 +53,8 @@ class DesignTemplateCreateRequest(BaseModel):
     """ワンダへの作成/改訂指示 (Open Design 型 — 新版が積まれる)。"""
 
     instruction: str = Field(min_length=1, max_length=4000)
+    # GAP-161: 参考にさせる資料 (既存の請求書 PDF・ロゴ画像・Excel 等)
+    reference_files: list[ReferenceFile] = Field(default_factory=list, max_length=5)
 
 
 class OutputReviseRequest(BaseModel):
