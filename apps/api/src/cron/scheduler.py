@@ -38,10 +38,13 @@ class CronSchedule:
 CRON_SCHEDULES: tuple[CronSchedule, ...] = (
     CronSchedule(
         name="user-schedules",
-        # 毎分: 利用者が画面で作った自動実行を「利用者が指定した時刻」に発火させる。
-        # これが無かったため cron_expression は保存されるだけで使われていなかった (GAP-179)。
-        cron="* * * * *",
-        description="利用者スケジュール発火: next_run_at を過ぎた cron_schedules を実行",
+        # GAP-183: **滑り止め**。主の見張り役は利用者の PC (Bridge) で、そちらは
+        # 運営コスト 0 円。ここを毎分にすると Fly.io のアイドル停止が効かなくなり
+        # 使っていなくても固定費 (実測 $2.02/月) が発生するため 15 分間隔にする
+        # (稼働率 約 1/3 = 月 $0.7 程度)。PC が長期間落ちていても集計系の配信が
+        # 止まらないための保険。二重実行は行ロック (for update skip locked) で防ぐ。
+        cron="*/15 * * * *",
+        description="利用者スケジュール発火 (滑り止め): next_run_at を過ぎた行を実行",
     ),
     CronSchedule(
         name="transcribe-queue",

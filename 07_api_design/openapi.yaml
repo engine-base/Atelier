@@ -4318,6 +4318,39 @@ paths:
   # ==========================================================================
   # Hermes 互換 kanban tools (Bridge worker 専用)
   # ==========================================================================
+  /bridge/run-due-schedules:
+    post:
+      tags: [dispatcher]
+      summary: 自動実行の見張り (GAP-183 — 利用者の PC から呼ぶ)
+      description: >
+        発火時刻を過ぎた自動実行を、利用者の PC (Bridge) からの合図で実行する。
+        クラウドに毎分の cron を置くと Fly.io のアイドル停止が効かず運営に固定費が
+        出るため、主の見張り役は PC 側 (運営コスト 0 円)。PC がスリープしていた間に
+        過ぎた分は起動時にまとめて実行される。ユーザートークンなら本人が所属する
+        workspace の分だけを対象にする。二重実行は行ロックで防ぐ。
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::run_due_schedules_from_bridge
+      x-screen-ids: [S-O01]
+      security:
+        - bridgeToken: []
+      responses:
+        '200':
+          description: 実行結果の内訳
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [due, ran, deferred, failed, scheduled]
+                    properties:
+                      due: { type: integer, description: 発火時刻を過ぎていた件数 }
+                      ran: { type: integer, description: 実行できた件数 }
+                      deferred: { type: integer, description: PC 未接続等で保留した件数 }
+                      failed: { type: integer, description: 失敗した件数 }
+                      scheduled: { type: integer, description: 次回時刻を確定しただけの件数 }
+        '401': { description: bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /kanban/pick:
     post:
       tags: [kanban-tools]

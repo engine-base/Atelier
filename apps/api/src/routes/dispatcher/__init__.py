@@ -145,6 +145,31 @@ def _raise_for(code: str, message: str) -> NoReturn:
     raise HTTPException(status.HTTP_400_BAD_REQUEST, message)
 
 
+@router.post(
+    "/bridge/run-due-schedules",
+    summary="自動実行の見張り (GAP-183 — 利用者の PC から呼ぶ)",
+)
+async def run_due_schedules_from_bridge(
+    session: BridgeSession, token: BridgeAuth
+) -> dict[str, dict[str, int]]:
+    """発火時刻を過ぎた自動実行を、**利用者の PC からの合図で**実行する。
+
+    クラウド側に毎分起きる cron を置くと Fly.io のアイドル停止が効かなくなり、
+    使っていなくても運営に固定費が出る。Bridge が動いている間はこちらを叩いて
+    もらえば運営負担ゼロで済み、PC がスリープしていた間に過ぎた分は起動時に
+    まとめて実行される。
+
+    スコープ: ユーザートークンなら **その人が所属する workspace の分だけ**。
+    インスタンストークン (セルフホスト / 運営) なら全件。
+    """
+    from src.services.cron.dispatcher import run_due_schedules
+
+    stats = await run_due_schedules(
+        session, user_id=token.user_id if token.kind == "user" else None
+    )
+    return {"data": stats}
+
+
 @router.post("/kanban/pick", summary="kanban_pick (Hermes 互換)")
 async def kanban_pick(
     body: KanbanPickRequest, session: BridgeSession, _token: BridgeAuth

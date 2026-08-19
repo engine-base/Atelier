@@ -113,6 +113,23 @@ export interface BridgeApi {
     version: string;
     workerPid?: number;
   }): Promise<void>;
+  /**
+   * GAP-183: 自動実行の「見張り役」。発火時刻を過ぎたスケジュールを実行させる。
+   *
+   * クラウドに毎分の cron を置くと Fly.io のアイドル停止が効かず運営に固定費が
+   * 出るため、PC が動いている間はこちらが時計を務める (運営コスト 0 円)。
+   * スリープしていた間に過ぎた分は、起動して最初の呼び出しでまとめて実行される。
+   */
+  runDueSchedules(): Promise<ScheduleTickResult>;
+}
+
+/** GAP-183: 見張り 1 回分の結果。 */
+export interface ScheduleTickResult {
+  readonly due: number;
+  readonly ran: number;
+  readonly deferred: number;
+  readonly failed: number;
+  readonly scheduled: number;
 }
 
 export interface ApiClientConfig {
@@ -239,6 +256,20 @@ export class ApiClient implements BridgeApi {
       version: info.version,
       worker_pid: info.workerPid ?? null,
     });
+  }
+
+  async runDueSchedules(): Promise<ScheduleTickResult> {
+    const json = (await this.post('/bridge/run-due-schedules', {})) as {
+      data?: Partial<ScheduleTickResult>;
+    };
+    const d = json.data ?? {};
+    return {
+      due: d.due ?? 0,
+      ran: d.ran ?? 0,
+      deferred: d.deferred ?? 0,
+      failed: d.failed ?? 0,
+      scheduled: d.scheduled ?? 0,
+    };
   }
 
   async chatRelayPick(workerId: string): Promise<ChatRelayPicked | null> {

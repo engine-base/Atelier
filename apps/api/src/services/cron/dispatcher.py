@@ -5,9 +5,19 @@ cron 式を見て何かを起動するコードが存在しなかった。唯一
 `daily_digest` も、発火のきっかけはプラットフォーム固定の 22:00 UTC であり、
 利用者が画面で指定した時刻は使われていなかった。
 
-本モジュールは 1 分ごとに呼ばれ、`next_run_at <= now()` の行だけを実行して
-次回時刻を再計算する。「今は実行できない」(PC 未接続など) 場合は失敗にせず
-`deferred` として記録し、短い間隔で再試行する (GAP-177 と同じ方針)。
+GAP-183 (経営者判断 2026-08-19): 発火の「見張り役」は **利用者の PC (Bridge) が主、
+クラウドの 15 分 cron が滑り止め**。クラウド側に毎分起きる cron を置くと Fly.io の
+アイドル停止が効かなくなり、使っていなくても運営に固定費が発生する。Bridge が
+動いている間はそちらが叩き、PC がスリープしていた間に過ぎた分は**起動した時点で
+まとめて実行**される (next_run_at <= now() を拾う設計なのでそのまま成立する)。
+
+**二重実行の防止**: 見張り役が 2 つある以上、PC と クラウドが同じ行を同時に
+拾いうる。AI を使う自動実行が二重に走ると利用者のプラン枠を無駄に消費するため、
+発火対象は `for update skip locked` で 1 行ずつロックして取り、next_run_at を
+先に進めてから実行する。ロックを取れなかった行は「他方が処理中」なので黙って飛ばす。
+
+「今は実行できない」(PC 未接続など) 場合は失敗にせず `deferred` として記録し、
+短い間隔で再試行する (GAP-177 と同じ方針)。
 """
 
 from __future__ import annotations
@@ -119,20 +129,36 @@ async def run_due_schedules(
     *,
     now: datetime | None = None,
     complete: Any = None,
+    user_id: str | None = None,
 ) -> dict[str, int]:
     """発火時刻を過ぎた利用者スケジュールを実行する。
+
+    user_id を渡すと **その人が所属する workspace のプロジェクト**のスケジュールだけを
+    対象にする (GAP-183: 各利用者の PC が自分の分だけを回す。他社の予定を
+    他人の PC が動かさない)。None なら全件 (セルフホスト / 運営バッチ用)。
 
     Returns: {"due": n, "ran": n, "deferred": n, "failed": n, "scheduled": n}
       scheduled = next_run_at が未計算だったので今回は計算だけした件数
     """
     current = now or datetime.now(tz=UTC)
+    where = ["enabled = true"]
+    params: dict[str, Any] = {}
+    if user_id is not None:
+        where.append(
+            "project_id in (select p.id from public.projects p "
+            "join public.workspace_memberships m on m.workspace_id = p.workspace_id "
+            "where m.user_id = cast(:uid as uuid))"
+        )
+        params["uid"] = user_id
+    # skip locked: もう一方の見張り役 (PC / クラウド) が処理中の行は飛ばす。
     rows = (
         await session.execute(
             text(
                 "select id, project_id, name, cron_expression, target_action, "
                 "target_payload, next_run_at from public.cron_schedules "
-                "where enabled = true order by created_at"
-            )
+                f"where {' and '.join(where)} order by created_at for update skip locked"
+            ),
+            params,
         )
     ).all()
 
@@ -158,6 +184,14 @@ async def run_due_schedules(
         stats["due"] += 1
         action = str(row.target_action)
         spec = get_action_spec(action)
+        # 実行**前**に次回時刻を進める。ここで確定させておかないと、実行中に
+        # もう一方の見張り役が同じ行を拾って二重実行になる。
+        await compute_next_run(
+            session,
+            schedule_id=schedule_id,
+            expression=str(row.cron_expression),
+            after=current,
+        )
         run_id = await _record_start(
             session, name=str(row.name), schedule_id=schedule_id, project_id=str(row.project_id)
         )

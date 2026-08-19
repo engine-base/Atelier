@@ -3748,6 +3748,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bridge/run-due-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 自動実行の見張り (GAP-183 — 利用者の PC から呼ぶ)
+         * @description 発火時刻を過ぎた自動実行を、利用者の PC (Bridge) からの合図で実行する。 クラウドに毎分の cron を置くと Fly.io のアイドル停止が効かず運営に固定費が 出るため、主の見張り役は PC 側 (運営コスト 0 円)。PC がスリープしていた間に 過ぎた分は起動時にまとめて実行される。ユーザートークンなら本人が所属する workspace の分だけを対象にする。二重実行は行ロックで防ぐ。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行結果の内訳 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @description 発火時刻を過ぎていた件数 */
+                                due: number;
+                                /** @description 実行できた件数 */
+                                ran: number;
+                                /** @description PC 未接続等で保留した件数 */
+                                deferred: number;
+                                /** @description 失敗した件数 */
+                                failed: number;
+                                /** @description 次回時刻を確定しただけの件数 */
+                                scheduled: number;
+                            };
+                        };
+                    };
+                };
+                /** @description bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/kanban/pick": {
         parameters: {
             query?: never;

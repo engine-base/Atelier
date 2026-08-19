@@ -582,6 +582,21 @@ export function CronSchedule({
 
   return (
     <section aria-label="自動スケジュール" className="flex flex-col gap-5">
+      {/* GAP-183: 誰が発火の見張りをしているかを隠さない。 主は利用者の PC、クラウドは 15 分ごとの滑り止め。 */}
+      <p className="rounded-lg border border-border bg-surface-variant px-4 py-3 text-[12px] leading-[1.7] text-on-surface-variant">
+        自動実行の時刻は、
+        <strong className="font-bold text-on-surface">
+          お使いのパソコン（Bridge）が起動している間
+        </strong>
+        に見張っています。 パソコンがスリープ・停止していた間に過ぎた分は、
+        <strong className="font-bold text-on-surface">
+          次に起動したときにまとめて実行
+        </strong>
+        されます。
+        パソコンが長期間落ちていても集計だけは止まらないよう、サーバー側でも 15
+        分ごとに確認しています。
+      </p>
+
       {/* 次に動くスケジュール (モック upcoming-card) */}
       {upcoming.length > 0 ? (
         <div className="overflow-hidden rounded-lg border border-border bg-white">

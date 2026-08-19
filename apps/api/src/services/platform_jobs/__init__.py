@@ -73,12 +73,13 @@ PLATFORM_JOB_META: tuple[PlatformJobMeta, ...] = (
         name="user-schedules",
         category="pipeline",
         required=False,
-        title="利用者スケジュールの発火",
+        title="利用者スケジュールの発火 (滑り止め)",
         description=(
-            "各プロジェクトの自動実行を、画面で指定された時刻に実行します "
-            "(GAP-179 — 以前は指定時刻が使われていませんでした)。"
+            "各プロジェクトの自動実行を、画面で指定された時刻に実行します。"
+            "主の見張り役は利用者の PC (Bridge) で運営コストは 0 円。これは PC が"
+            "長期間落ちていても配信が止まらないための保険です (GAP-183)。"
         ),
-        schedule_label="毎分",
+        schedule_label="15 分ごと",
     ),
     PlatformJobMeta(
         name="transcribe-queue",

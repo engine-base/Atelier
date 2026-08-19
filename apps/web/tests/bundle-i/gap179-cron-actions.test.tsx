@@ -121,6 +121,20 @@ describe("GAP-179 コスト表示は API 由来", () => {
   });
 });
 
+describe("GAP-183 発火の見張り役を隠さない", () => {
+  it("誰が時刻を見張っているかを画面に書く", () => {
+    render(<CronSchedule jobs={[]} onToggle={() => {}} />);
+    expect(
+      screen.getByText(/お使いのパソコン（Bridge）が起動している間/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/次に起動したときにまとめて実行/),
+    ).toBeInTheDocument();
+    // 滑り止めがあることも隠さない
+    expect(screen.getByText(/15 分ごとに確認/)).toBeInTheDocument();
+  });
+});
+
 describe("GAP-179 実行結果の表示", () => {
   it("labels deferred runs as 保留 (not 失敗)", () => {
     expect(runStatusLabel("deferred")).toBe("保留");

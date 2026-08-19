@@ -11,6 +11,8 @@
  *   ATELIER_BRIDGE_CMD        実行コマンド (既定 'claude')
  *   ATELIER_BRIDGE_TIMEOUT_MS child timeout (既定 600000)
  *   ATELIER_BRIDGE_CHAT_RELAY '0' でチャット中継 (GAP-114) を無効化 (既定 ON)
+ *   ATELIER_BRIDGE_SCHEDULE_TICKER    '0' で自動実行の見張り (GAP-183) を無効化 (既定 ON)
+ *   ATELIER_BRIDGE_SCHEDULE_INTERVAL_MS 見張り間隔 (既定 60000)
  */
 
 import { homedir, hostname } from 'node:os';
@@ -20,6 +22,12 @@ import { ChatRelayWorker, chatRelayEnabled, type ChatRelayOutcome } from './chat
 import { resolveClaudeSpawn } from './command.js';
 import { configFilePath, loadConnectConfig } from './deep-link.js';
 import { DEFAULT_DISPATCHER_CONFIG, Dispatcher, type CycleOutcome } from './dispatcher.js';
+import {
+  scheduleTickerEnabled,
+  tickIntervalMs,
+  tickOnce,
+  type ScheduleTickerApi,
+} from './schedule-ticker.js';
 import { BRIDGE_VERSION } from './updates.js';
 
 export interface HeadlessRunner {
@@ -46,6 +54,8 @@ export interface HeadlessOptions {
   readonly configPath?: string;
   /** GAP-122: チャット専用降格時の presence pinger (テスト注入用)。 */
   readonly makePinger?: (token: string) => PresencePinger;
+  /** GAP-183: 自動実行の見張り (テスト注入用。省略時は実 ApiClient)。 */
+  readonly makeScheduleTicker?: (token: string) => ScheduleTickerApi;
 }
 
 export function makeDefaultRunner(
@@ -99,6 +109,17 @@ export function makeDefaultChatRelay(
     timeoutMs: Number(env.ATELIER_BRIDGE_TIMEOUT_MS ?? 180_000),
     env: { ...env, ...spec.extraEnv },
     flushIntervalMs: 300,
+  });
+}
+
+/** GAP-183: 実 ApiClient で自動実行の見張りを行う。 */
+export function makeDefaultScheduleTicker(
+  token: string,
+  env: Readonly<Record<string, string | undefined>>,
+): ScheduleTickerApi {
+  return new ApiClient({
+    baseUrl: env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
+    token,
   });
 }
 
@@ -176,6 +197,25 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
     }
   }
 
+  // GAP-183: 自動実行の見張り (既定 ON)。クラウドに毎分 cron を置かずに済ませる
+  // ための時計。起動直後に 1 回動かすので、スリープ中に過ぎた分はここで走る。
+  let scheduleLoopStop = false;
+  let scheduleLoopDone: Promise<void> = Promise.resolve();
+  if (scheduleTickerEnabled(env)) {
+    const ticker = (opts.makeScheduleTicker ?? ((t) => makeDefaultScheduleTicker(t, env)))(token);
+    const interval = opts.sleepMs !== undefined ? opts.sleepMs : tickIntervalMs(env);
+    await tickOnce(ticker);
+    if (loop) {
+      scheduleLoopDone = (async () => {
+        while (!scheduleLoopStop) {
+          await new Promise((r) => setTimeout(r, interval));
+          if (scheduleLoopStop) break;
+          await tickOnce(ticker);
+        }
+      })();
+    }
+  }
+
   try {
     do {
       let outcome: CycleOutcome;
@@ -216,7 +256,9 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
     return 0;
   } finally {
     chatLoopStop = true;
+    scheduleLoopStop = true;
     await chatLoopDone;
+    await scheduleLoopDone;
   }
 }
 
