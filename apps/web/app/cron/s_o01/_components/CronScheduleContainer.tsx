@@ -6,6 +6,10 @@
  *
  * GAP-179: 説明・コスト・担当・PC 接続要否は GET /cron-actions から取る。
  * 画面側に文言を直書きしていたため「BYOK API 使用」という誤表示が残っていた。
+ *
+ * GAP-185: 「今すぐ実行」を配線 (POST /cron-schedules/{id}/run-now)。
+ * PC 未接続やプラン枠の上限で止まったものを、人の操作で進められるようにする
+ * (自動再開はしない = 勝手に利用者のプラン枠を使わない)。
  * api client は prop 注入可能 (テスト時に fake を渡す)。
  */
 
@@ -17,6 +21,8 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
+
+import { pushToast } from "../../../../lib/toast/store";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import {
@@ -86,6 +92,25 @@ export function CronScheduleContainer({
     },
     onSettled: () =>
       void queryClient.invalidateQueries({ queryKey: KEY(projectId) }),
+  });
+
+  // GAP-185: 止まっているものを人の操作で進める
+  const runNowMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await client.post("/cron-schedules/{schedule_id}/run-now", {
+        params: { path: { schedule_id: id } },
+      });
+      return (res as { data?: { status?: string; message?: string } }).data ?? {};
+    },
+    onSuccess: (data) => {
+      pushToast(
+        data.message ?? "実行しました。",
+        data.status === "done" ? "success" : "info",
+      );
+      void queryClient.invalidateQueries({ queryKey: KEY(projectId) });
+      void queryClient.invalidateQueries({ queryKey: ["cron-runs"] });
+    },
+    onError: () => pushToast("実行を開始できませんでした。", "error"),
   });
 
   const deleteMut = useMutation({
@@ -269,6 +294,7 @@ export function CronScheduleContainer({
       {...(actions.length > 0 ? { actions } : {})}
       {...(platformJobs ? { platformJobs } : {})}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
+      onRunNow={(id) => runNowMut.mutate(id)}
       onDelete={(id) => deleteMut.mutate(id)}
       onRefresh={() => void list.refetch()}
     />

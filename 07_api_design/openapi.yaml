@@ -6739,6 +6739,35 @@ paths:
                   data: { $ref: '#/components/schemas/CronSchedule' }
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /cron-schedules/{schedule_id}/run-now:
+    post:
+      tags: [cron-schedules]
+      summary: この自動実行を今すぐ実行 (GAP-185)
+      description: >
+        止まっているもの・待ちきれないものを人の操作で今すぐ動かす。next_run_at は
+        変えないので定期スケジュールはずれない。まだ実行できない (PC 未接続 /
+        プラン枠の上限) 場合は deferred を返す。
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::run_schedule_now
+      x-screen-ids: [S-O01]
+      parameters:
+        - { name: schedule_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 実行の結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [status, message]
+                    properties:
+                      status: { type: string, enum: [done, deferred, error] }
+                      message: { type: string }
+                      detail: { type: object }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /cron-schedules/{schedule_id}:
     parameters:
       - { name: schedule_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -7123,6 +7152,34 @@ paths:
         '409': { description: 文字起こし未完了, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/resume-analysis:
+    post:
+      tags: [meetings]
+      summary: 保留中の解析を今すぐ再開 (GAP-185)
+      description: >
+        PC 未接続・Claude プラン枠の上限で保留になった解析を、人の操作で再開する。
+        自動では再開しない (勝手に利用者のプラン枠を使わない)。文字起こしはやり直さないので
+        二重に PC を使わせることもない。まだ実行できない場合は still_pending を返す。
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::resume_meeting_analysis
+      x-screen-ids: [S-M01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 再開の結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [status, message]
+                    properties:
+                      status: { type: string, enum: [done, still_pending, not_pending] }
+                      message: { type: string, description: 画面にそのまま出す日本語 }
+        '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /meetings/{meeting_id}/transcribe:
     post:

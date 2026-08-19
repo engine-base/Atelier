@@ -140,6 +140,28 @@ async def update_schedule(
     return {"data": updated}
 
 
+@router.post(
+    "/cron-schedules/{schedule_id}/run-now",
+    summary="この自動実行を今すぐ実行 (GAP-185)",
+)
+async def run_schedule_now(
+    schedule_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, dict[str, object]]:
+    """止まっているもの・待ちきれないものを、人の操作で今すぐ動かす。
+
+    次回時刻 (next_run_at) は変えない — 手動実行で定期スケジュールをずらさない。
+    まだ実行できない (PC 未接続 / プラン枠の上限) 場合は deferred を返す。
+    """
+    from src.services.cron.dispatcher import run_one_now
+
+    if await svc.get_schedule(session, schedule_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+    result = await run_one_now(session, schedule_id=schedule_id)
+    if result.get("status") == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+    return {"data": result}
+
+
 @router.delete(
     "/cron-schedules/{schedule_id}",
     status_code=status.HTTP_204_NO_CONTENT,

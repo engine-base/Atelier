@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
+import { pushToast } from "../../../../lib/toast/store";
 import {
   TranscriptUpload,
   type MeetingAnalysis,
@@ -246,6 +247,25 @@ export function MeetingUploadContainer({
     errorText: m.parse_error ?? null,
   }));
 
+  // GAP-185: 止まった解析を人の操作で進める (自動再開はしない)
+  const resumeMut = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await client.post("/meetings/{meeting_id}/resume-analysis", {
+        params: { path: { meeting_id: id } },
+      });
+      return (res as { data?: { status?: string; message?: string } }).data ?? {};
+    },
+    onSuccess: (data, id) => {
+      pushToast(
+        data.message ?? "解析を実行しました。",
+        data.status === "done" ? "success" : "info",
+      );
+      void queryClient.invalidateQueries({ queryKey: listKey });
+      if (data.status === "done") void openMeeting(id);
+    },
+    onError: () => pushToast("解析を再開できませんでした。", "error"),
+  });
+
   return (
     <TranscriptUpload
       onUpload={async (file) => {
@@ -257,6 +277,8 @@ export function MeetingUploadContainer({
       onOpen={openMeeting}
       onDelete={(id) => deleteMut.mutate(id)}
       chatHref={`/chat?project=${projectId}`}
+      onResumeAnalysis={(id) => resumeMut.mutate(id)}
+      resuming={resumeMut.isPending}
     />
   );
 }

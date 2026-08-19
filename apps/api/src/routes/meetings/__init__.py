@@ -130,6 +130,29 @@ async def transcribe_meeting(
     return {"data": result}
 
 
+@router.post(
+    "/meetings/{meeting_id}/resume-analysis",
+    summary="保留中の解析を今すぐ再開 (GAP-185)",
+)
+async def resume_meeting_analysis(
+    meeting_id: str, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    """PC 未接続・プラン枠の上限で保留になった解析を、人の操作で再開する。
+
+    自動では再開しない (勝手に利用者のプラン枠を使わない)。文字起こしは
+    やり直さないので、二重に PC を使わせることもない。
+    """
+    del user  # 認証済みであることだけが要件 (RLS で可視性は担保)
+    from src.services.meetings.resume import resume_analysis
+
+    if await svc.get_meeting(session, meeting_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    result = await resume_analysis(session, meeting_id=meeting_id)
+    if result.status == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    return {"data": {"status": result.status, "message": result.message}}
+
+
 @router.delete(
     "/meetings/{meeting_id}",
     status_code=status.HTTP_204_NO_CONTENT,

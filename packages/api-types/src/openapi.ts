@@ -9564,6 +9564,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cron-schedules/{schedule_id}/run-now": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * この自動実行を今すぐ実行 (GAP-185)
+         * @description 止まっているもの・待ちきれないものを人の操作で今すぐ動かす。next_run_at は 変えないので定期スケジュールはずれない。まだ実行できない (PC 未接続 / プラン枠の上限) 場合は deferred を返す。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    schedule_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 実行の結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @enum {string} */
+                                status: "done" | "deferred" | "error";
+                                message: string;
+                                detail?: Record<string, never>;
+                            };
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cron-schedules/{schedule_id}": {
         parameters: {
             query?: never;
@@ -10560,6 +10618,64 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meetings/{meeting_id}/resume-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 保留中の解析を今すぐ再開 (GAP-185)
+         * @description PC 未接続・Claude プラン枠の上限で保留になった解析を、人の操作で再開する。 自動では再開しない (勝手に利用者のプラン枠を使わない)。文字起こしはやり直さないので 二重に PC を使わせることもない。まだ実行できない場合は still_pending を返す。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    meeting_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 再開の結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @enum {string} */
+                                status: "done" | "still_pending" | "not_pending";
+                                /** @description 画面にそのまま出す日本語 */
+                                message: string;
+                            };
+                        };
+                    };
+                };
+                /** @description 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;

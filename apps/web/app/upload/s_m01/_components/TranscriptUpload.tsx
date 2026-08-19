@@ -52,7 +52,21 @@ export interface TranscriptUploadProps {
   readonly onDelete?: (id: string) => void;
   /** 「スティーブで深掘り」の遷移先 (チャット)。 */
   readonly chatHref?: string;
+  /**
+   * GAP-185: 保留中の解析を今すぐ再開する。未指定ならボタンを出さない。
+   * 自動再開はしない (勝手に利用者のプラン枠を使わない) ので、
+   * 「進めて」と言える導線をここで用意する。
+   */
+  readonly onResumeAnalysis?: (id: string) => void;
+  /** 再開の実行中 (ボタンを二度押しさせない)。 */
+  readonly resuming?: boolean;
 }
+
+/**
+ * GAP-185: 「時間が経てば解消する」失敗だけ再開ボタンを出す。
+ * parse_failed 等の恒久的な失敗に「再開」を出すと嘘になる。
+ */
+const RESUMABLE = new Set(["bridge_offline", "llm_unconfigured", "rate_limited"]);
 
 const ACCEPTED_FORMATS = [
   ".mp3",
@@ -129,6 +143,8 @@ export function TranscriptUpload({
   onUpload,
   history = [],
   onOpen,
+  onResumeAnalysis,
+  resuming = false,
   onDelete,
   chatHref,
 }: TranscriptUploadProps) {
@@ -142,6 +158,8 @@ export function TranscriptUpload({
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** GAP-185: いま開いている議事録の id (解析の再開ボタンに使う)。 */
+  const [openedId, setOpenedId] = useState<string | null>(null);
 
   const runUpload = async (f: File) => {
     setStatus("uploading");
@@ -176,6 +194,7 @@ export function TranscriptUpload({
       setTranscript(result.text);
       setAnalysis(result.analysis ?? null);
       setAnalysisError(result.analysisError ?? null);
+      setOpenedId(row.id);
       setStatus("done");
     } catch (err) {
       setError((err as Error).message);
@@ -467,18 +486,33 @@ export function TranscriptUpload({
                 {analysis ? (
                   <MeetingAnalysisView analysis={analysis} />
                 ) : analysisError ? (
-                  <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-[12.5px] text-on-surface-variant">
-                    構造化解析は未実行です（
-                    {analysisError === "bridge_offline" ||
-                    analysisError === "llm_unconfigured"
-                      ? // GAP-177: 解析は本人の PC の Claude で走る。未接続なら
-                        // 保留しておき、繋がったときに自動で解析される。
-                        "お使いのパソコン (Bridge) が未接続でした。接続すると自動で解析されます"
-                      : analysisError === "empty_transcript"
-                        ? "本文が空のため解析できませんでした"
-                        : `解析に失敗しました: ${analysisError}`}
-                    ）。文字起こし本文は上記の通りです。
-                  </p>
+                  <div className="rounded-md border border-border bg-surface-variant/40 px-4 py-3">
+                    <p className="text-[12.5px] text-on-surface-variant">
+                      構造化解析は未実行です（
+                      {analysisError === "bridge_offline" ||
+                      analysisError === "llm_unconfigured"
+                        ? // GAP-177/185: 解析は本人の PC の Claude で走る。
+                          // 接続すれば自動で解析されるし、今すぐ実行もできる。
+                          "お使いのパソコン (Bridge) が未接続でした。接続すると自動で解析されます"
+                        : analysisError === "rate_limited"
+                          ? // GAP-184: 上限は必ずリセットされる。失敗ではない。
+                            "Claude プランの利用枠が上限に達していました。枠が戻ると自動で解析されます"
+                          : analysisError === "empty_transcript"
+                            ? "本文が空のため解析できませんでした"
+                            : `解析に失敗しました: ${analysisError}`}
+                      ）。文字起こし本文は上記の通りです。
+                    </p>
+                    {onResumeAnalysis && openedId && RESUMABLE.has(analysisError) ? (
+                      <button
+                        type="button"
+                        onClick={() => onResumeAnalysis(openedId)}
+                        disabled={resuming}
+                        className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
+                      >
+                        {resuming ? "解析中…" : "解析を今すぐ実行"}
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {/* アクション: 深掘り (チャット遷移) / MD 保存 (client 側 DL) */}

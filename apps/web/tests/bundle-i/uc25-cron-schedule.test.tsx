@@ -71,7 +71,11 @@ describe("S-O01 CronScheduleContainer (T-UC-25)", () => {
     );
     // v2: 次に動くスケジュール (upcoming) とグループ行の両方に出る
     expect((await screen.findAllByText("昇格レビュー集約")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: /今すぐ実行/ })).toBeNull();
+    // GAP-185: 止まったもの・待ちきれないものを人の操作で進められる
+    // (以前はバックエンドが無かったのでボタン自体を出していなかった)
+    expect(
+      screen.getByRole("button", { name: /今すぐ実行/ }),
+    ).toBeInTheDocument();
     const init = (
       get.mock.calls[0] as unknown as [
         string,

@@ -292,4 +292,85 @@ async def run_due_schedules(
     return stats
 
 
-__all__ = ["RETRY_AFTER_MINUTES", "compute_next_run", "run_due_schedules"]
+async def run_one_now(
+    session: AsyncSession,
+    *,
+    schedule_id: str,
+    complete: Any = None,
+) -> dict[str, Any]:
+    """GAP-185: 1 件のスケジュールを**今すぐ**実行する (人が押したときだけ)。
+
+    経営者判断「自動はしなくていいけど、止まった状態で進めてと言ったりしたら
+    再開はできる状態にしておかないとね」。上限や PC 未接続で保留になった行を、
+    次の定刻を待たずに動かすための入口。
+
+    無効化されている行でも動かす (「止まっているものを進める」用途なので、
+    一時停止中の行を手で 1 回だけ回したい場面がある)。next_run_at は変更しない
+    — 手動実行で定期スケジュールをずらさない。
+    """
+    row = (
+        await session.execute(
+            text(
+                "select id, project_id, name, cron_expression, target_action, target_payload "
+                "from public.cron_schedules where id = cast(:i as uuid) for update"
+            ),
+            {"i": schedule_id},
+        )
+    ).first()
+    if row is None:
+        return {"status": "not_found", "message": "スケジュールが見つかりません。"}
+
+    action = str(row.target_action)
+    spec = get_action_spec(action)
+    if spec is None:
+        return {"status": "error", "message": f"未知の自動実行です: {action}"}
+
+    run_id = await _record_start(
+        session, name=str(row.name), schedule_id=schedule_id, project_id=str(row.project_id)
+    )
+    payload_raw: Any = row.target_payload
+    payload: dict[str, Any] = (
+        json.loads(payload_raw) if isinstance(payload_raw, str) else (payload_raw or {})
+    )
+    try:
+        outcome: ActionOutcome = await spec.run(
+            session, project_id=str(row.project_id), payload=payload, complete=complete
+        )
+    except Exception as exc:
+        logger.exception("manual run failed for schedule %s (%s)", schedule_id, action)
+        await session.rollback()
+        await _record_failure(
+            session,
+            name=str(row.name),
+            schedule_id=schedule_id,
+            project_id=str(row.project_id),
+            error=str(exc)[:300],
+        )
+        await session.commit()
+        return {"status": "error", "message": f"実行に失敗しました: {exc}"[:300]}
+
+    detail: dict[str, Any] = dict(outcome.detail)
+    if outcome.reason:
+        detail["reason"] = outcome.reason
+    if outcome.status == "deferred":
+        await _record_finish(session, run_id=run_id, status="deferred", detail=detail)
+        await session.commit()
+        return {
+            "status": "deferred",
+            "message": (
+                "まだ実行できませんでした。お使いのパソコン (Bridge) の接続と、"
+                "Claude プランの利用枠の状態を確認してから、もう一度お試しください。"
+            ),
+            "detail": detail,
+        }
+    await _record_finish(session, run_id=run_id, status="success", detail=detail)
+    await session.commit()
+    return {"status": "done", "message": "実行しました。", "detail": detail}
+
+
+__all__ = [
+    "RETRY_AFTER_MINUTES",
+    "compute_next_run",
+    "run_due_schedules",
+    "run_one_now",
+]
