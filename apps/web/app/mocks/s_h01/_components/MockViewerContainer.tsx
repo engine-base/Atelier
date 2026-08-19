@@ -97,6 +97,8 @@ export function MockViewerContainer({
   } | null>(null);
   // GAP-147: 修正依頼の進行状況 (何をしているか — SSE の実値)
   const [revising, setRevising] = useState(false);
+  // GAP-168: Bridge 未接続は文言だけでなく接続フローを出す
+  const [bridgeOffline, setBridgeOffline] = useState(false);
   const [reviseStatus, setReviseStatus] = useState<ReviseProgressState | null>(
     null,
   );
@@ -188,9 +190,8 @@ export function MockViewerContainer({
 
   // GAP-147: 「編集」= ワンダへの修正依頼を SSE で実行 — 進行状況 (何をして
   // いるか) を実測で表示し、完了時は変更サマリーつきで新バージョンへ遷移。
+  // bridge_offline / llm_unconfigured はここには来ない (GAP-168 で接続フロー表示へ)
   const reviseErrorText = (code: string, message?: string): string => {
-    if (code === "bridge_offline" || code === "llm_unconfigured")
-      return "AI 実行経路が使えません (Bridge がオフラインの可能性)。Bridge を起動して再試行してください。";
     if (code === "too_large")
       return "モック HTML が大きすぎるため自動改訂できません。画面の分割を検討してください。";
     if (code === "conflict")
@@ -213,6 +214,7 @@ export function MockViewerContainer({
     setRevising(true);
     setReviseStatus({ stage: "loading", chars: 0 });
     setAction(null);
+    setBridgeOffline(false);
     const run = reviseStreamFn ?? streamReviseMock;
     void run({
       mockId,
@@ -242,10 +244,21 @@ export function MockViewerContainer({
           });
           router.push(`/mocks?mock=${ev.result.id}`);
         } else if (ev.error) {
-          setAction({
-            kind: "error",
-            text: reviseErrorText(ev.error.code, ev.error.message),
-          });
+          // GAP-168: 未接続が原因なら文言では終わらせず、指示欄の直前に接続
+          // フロー (トークン発行 → アプリで接続) をその場に出す。二重表示に
+          // ならないよう、そのときはエラー行は出さない。
+          const offline =
+            ev.error.code === "bridge_offline" ||
+            ev.error.code === "llm_unconfigured";
+          setBridgeOffline(offline);
+          setAction(
+            offline
+              ? null
+              : {
+                  kind: "error",
+                  text: reviseErrorText(ev.error.code, ev.error.message),
+                },
+          );
         }
       },
     })
@@ -453,6 +466,7 @@ export function MockViewerContainer({
       onCloseDiff={() => setDiffView(null)}
       actionNotice={action?.kind === "notice" ? action.text : undefined}
       actionError={action?.kind === "error" ? action.text : undefined}
+      bridgeOffline={bridgeOffline}
     />
   );
 }

@@ -19,6 +19,7 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 import { createAuthedApiClient } from "../../../lib/auth/connector";
 import { readCurrentWorkspace } from "../../../lib/currentWorkspace";
 import { Loading } from "../../../components/Loading";
+import { BridgeOfflineNotice } from "../../../components/bridge/BridgeOfflineNotice";
 import {
   ReferenceFilePicker,
   type ReferenceFileRef,
@@ -86,6 +87,8 @@ export function DesignTemplateStudio({
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
+  // GAP-168: Bridge 未接続で止まったら、その場に接続フローを出す
+  const [bridgeOffline, setBridgeOffline] = useState(false);
   const [elapsedS, setElapsedS] = useState(0);
   // プレビュー枠の実測 → A4 実寸を fit 縮小
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +203,7 @@ export function DesignTemplateStudio({
     },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["design-templates", wsId] });
+      setBridgeOffline(false);
       setInstruction("");
       setRefs([]);
       setViewVersionId(null);
@@ -210,14 +214,18 @@ export function DesignTemplateStudio({
           : "作成しました。",
       });
     },
-    onError: (e) =>
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 503) {
+        setBridgeOffline(true);
+        setNotice(null);
+        return;
+      }
+      setBridgeOffline(false);
       setNotice({
         kind: "error",
-        text:
-          e instanceof ApiError && e.status === 503
-            ? "AI 実行経路が使えません (Bridge がオフラインの可能性)。Bridge を起動して再試行してください。"
-            : "テンプレの作成に失敗しました。時間をおいて再度お試しください。",
-      }),
+        text: "テンプレの作成に失敗しました。時間をおいて再度お試しください。",
+      });
+    },
   });
 
   // GAP-159: このワークスペースの変更を捨てて運営既定に戻す (削除ではなく新版)
@@ -433,6 +441,14 @@ export function DesignTemplateStudio({
               className="mt-1 w-full resize-y rounded-md border border-border bg-surface px-sm py-2 text-[12.5px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
             />
           </label>
+          {bridgeOffline ? (
+            <BridgeOfflineNotice
+              action={
+                !inheritingDefault && latest ? "テンプレの改訂" : "テンプレの作成"
+              }
+              className="mt-2"
+            />
+          ) : null}
           <ReferenceFilePicker
             client={client}
             files={refs}

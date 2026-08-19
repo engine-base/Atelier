@@ -33,6 +33,7 @@ import {
   DiffModal,
   type VersionDiffView,
 } from "../../../../components/VersionDiff";
+import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOfflineNotice";
 
 /** GAP-147: 修正依頼の進行状況 (SSE の実値 — 「何をしているか」)。 */
 export interface ReviseProgressState {
@@ -285,6 +286,11 @@ export interface MockViewerProps {
   readonly actionNotice?: string;
   /** 直近のバージョン操作の結果通知 (失敗)。 */
   readonly actionError?: string;
+  /**
+   * GAP-168: 直近の改訂が「Bridge 未接続」で失敗した。true のとき指示欄の
+   * 直前に接続フロー (トークン発行 → Bridge 起動) をその場で出す。
+   */
+  readonly bridgeOffline?: boolean;
 }
 
 export function MockViewer({
@@ -311,6 +317,7 @@ export function MockViewer({
   onCloseDiff,
   actionNotice,
   actionError,
+  bridgeOffline = false,
 }: MockViewerProps) {
   const [preset, setPreset] = useState<ViewportPreset>(initialPreset);
   const [draft, setDraft] = useState("");
@@ -577,6 +584,13 @@ export function MockViewer({
                   </span>
                 ) : null}
               </div>
+              {/* GAP-168: Bridge 未接続で失敗したら、その場で接続フローを出す */}
+              {bridgeOffline ? (
+                <BridgeOfflineNotice
+                  action="モックの改訂"
+                  className="mb-1.5"
+                />
+              ) : null}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();

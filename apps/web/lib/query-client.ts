@@ -34,6 +34,10 @@ function toastMessage(error: unknown): string {
     if (error.status === 403) return "権限がありません。";
     if (error.status === 404) return "対象が見つかりませんでした。";
     if (error.status === 422) return "入力内容を確認してください。";
+    // GAP-168: 503 = AI 実行経路ゼロ (Bridge 未接続) が実態。「サーバーで
+    // エラー」は嘘になるので、画面の接続フローと同じ事実を言う。
+    if (error.status === 503)
+      return "お使いのパソコン (Bridge) が未接続です。画面の案内から接続してください。";
     if (error.status >= 500) return "サーバーでエラーが発生しました。";
     return `エラーが発生しました（HTTP ${error.status}）。`;
   }

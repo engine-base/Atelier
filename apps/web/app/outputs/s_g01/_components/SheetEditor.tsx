@@ -19,6 +19,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { Loading } from "../../../../components/Loading";
+import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOfflineNotice";
 import { cn } from "../../../../lib/cn";
 
 export interface SheetPayload {
@@ -51,6 +52,8 @@ function AiFileEdit({
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(
     null,
   );
+  // GAP-168: Bridge 未接続なら文言だけでなく接続フローを出す
+  const [bridgeOffline, setBridgeOffline] = useState(false);
   const ask = useMutation({
     retry: false,
     mutationFn: async () => {
@@ -61,6 +64,7 @@ function AiFileEdit({
       return (res as { data?: { job_id: string } }).data ?? null;
     },
     onSuccess: () => {
+      setBridgeOffline(false);
       setInstruction("");
       setNotice({
         kind: "ok",
@@ -69,17 +73,22 @@ function AiFileEdit({
           "この成果物に追加されます (進行タブで実行状況を確認できます)。",
       });
     },
-    onError: (e) =>
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 503) {
+        setBridgeOffline(true);
+        setNotice(null);
+        return;
+      }
+      setBridgeOffline(false);
       setNotice({
         kind: "error",
         text:
-          e instanceof ApiError && e.status === 503
-            ? "Bridge がオフラインのため実行できません。Bridge アプリを起動してから再実行してください。"
-            : e instanceof ApiError && e.status === 409
-              ? ((e.payload as { detail?: string } | undefined)?.detail ??
-                "この形式はファイル編集に対応していません。")
-              : "依頼に失敗しました。時間をおいて再度お試しください。",
-      }),
+          e instanceof ApiError && e.status === 409
+            ? ((e.payload as { detail?: string } | undefined)?.detail ??
+              "この形式はファイル編集に対応していません。")
+            : "依頼に失敗しました。時間をおいて再度お試しください。",
+      });
+    },
   });
 
   return (
@@ -100,6 +109,9 @@ function AiFileEdit({
         placeholder="例: 第 3 条の支払期日を月末締め翌月末に直して / 明細に保守費の行を追加して"
         className="mt-1.5 w-full resize-y rounded-md border border-border bg-surface px-sm py-1.5 text-[12px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
       />
+      {bridgeOffline ? (
+        <BridgeOfflineNotice action="ファイルの AI 修正依頼" className="mt-1.5" />
+      ) : null}
       {notice ? (
         <p
           role={notice.kind === "error" ? "alert" : "status"}

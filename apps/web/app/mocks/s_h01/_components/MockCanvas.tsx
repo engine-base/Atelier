@@ -17,6 +17,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+import {
+  BridgeOfflineNotice,
+  isBridgeOffline,
+} from "../../../../components/bridge/BridgeOfflineNotice";
+
 const PAGE_W = 1280;
 const PAGE_H = 800;
 
@@ -146,12 +151,20 @@ function CanvasCard({
               >
                 {revise.isPending ? "ワンダが改訂中…" : "修正を依頼"}
               </button>
-              {revise.error ? (
+              {revise.error && !isBridgeOffline(revise.error) ? (
                 <span role="alert" className="text-[11.5px] text-error">
                   {reviseErrorMessage(revise.error)}
                 </span>
               ) : null}
             </div>
+            {/* GAP-168: 未接続が原因ならその場に接続フローを出す */}
+            {revise.error && isBridgeOffline(revise.error) ? (
+              <BridgeOfflineNotice
+                action="モックの改訂"
+                defaultOpen={false}
+                className="mt-1.5"
+              />
+            ) : null}
           </div>
         ) : null}
       </figure>

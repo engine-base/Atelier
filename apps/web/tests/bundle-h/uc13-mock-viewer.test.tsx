@@ -321,9 +321,13 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
       { target: { value: "直して" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "送信" }));
+    // GAP-168: 文言だけでなく、その場に接続フロー (トークン発行) を出す
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "AI 実行経路が使えません",
+      "未接続のためモックの改訂を実行できません",
     );
+    expect(
+      screen.getByRole("button", { name: "接続トークンを発行" }),
+    ).toBeInTheDocument();
     expect(routerPush).not.toHaveBeenCalled();
   });
 
@@ -509,7 +513,7 @@ describe("S-H01 MockListContainer (一覧ピッカー)", () => {
     await waitFor(() => expect(routerPush).toHaveBeenCalledWith("/mocks?mock=new-1"));
   });
 
-  it("GAP-138: 生成 503 (Bridge オフライン) は誠実メッセージ", async () => {
+  it("GAP-138/168: 生成 503 (Bridge 未接続) は誠実メッセージ + その場に接続フロー", async () => {
     const get = vi.fn(async () => ({ data: [] }));
     const post = vi.fn(async () => {
       throw apiError(503);
@@ -521,8 +525,11 @@ describe("S-H01 MockListContainer (一覧ピッカー)", () => {
       target: { value: "x" },
     });
     fireEvent.click(screen.getByRole("button", { name: "生成する" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "未接続のためモックの生成を実行できません",
+    );
     expect(
-      await screen.findByText(/Bridge がオフラインの可能性/),
+      screen.getByRole("button", { name: "接続トークンを発行" }),
     ).toBeInTheDocument();
   });
 

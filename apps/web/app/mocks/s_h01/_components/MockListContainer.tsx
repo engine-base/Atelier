@@ -20,6 +20,10 @@ import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { useSelectedPhase } from "../../../../lib/currentPhase";
 import { Loading } from "../../../../components/Loading";
 import { useProjectId } from "../../../../lib/useProjectId";
+import {
+  BridgeOfflineNotice,
+  isBridgeOffline,
+} from "../../../../components/bridge/BridgeOfflineNotice";
 import { MockCanvas } from "./MockCanvas";
 
 interface ApiMock {
@@ -340,12 +344,16 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
             <span className="text-body-sm text-on-surface-variant">
               あなたの Claude プラン (Bridge) で生成されます
             </span>
-            {generate.error ? (
+            {generate.error && !isBridgeOffline(generate.error) ? (
               <span role="alert" className="text-body-sm text-error">
                 {generateErrorMessage(generate.error)}
               </span>
             ) : null}
           </div>
+          {/* GAP-168: 未接続が原因ならその場に接続フローを出す */}
+          {generate.error && isBridgeOffline(generate.error) ? (
+            <BridgeOfflineNotice action="モックの生成" className="mt-2" />
+          ) : null}
         </form>
       ) : null}
 

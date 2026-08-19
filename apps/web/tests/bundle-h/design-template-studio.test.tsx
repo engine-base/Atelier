@@ -137,7 +137,7 @@ describe("DesignTemplateStudio (GAP-158)", () => {
     expect(await screen.findByText(/過去版を表示中/)).toBeInTheDocument();
   });
 
-  it("503 (Bridge オフライン等) は正直なエラーを表示し、偽の成功を出さない", async () => {
+  it("503 (Bridge 未接続) は偽の成功を出さず、その場に接続フローを出す (GAP-168)", async () => {
     const post = vi.fn(async () => {
       throw new ApiError({
         status: 503,
@@ -154,9 +154,13 @@ describe("DesignTemplateStudio (GAP-158)", () => {
       target: { value: "紺基調で" },
     });
     fireEvent.click(screen.getByRole("button", { name: "テンプレを作成" }));
+    // GAP-168: 文言だけで終わらせず、接続手順 (トークン発行) までその場に出す
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "AI 実行経路が使えません",
+      "お使いのパソコン (Bridge) が未接続のためテンプレの作成を実行できません",
     );
+    expect(
+      screen.getByRole("button", { name: "接続トークンを発行" }),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/作成しました/)).not.toBeInTheDocument();
   });
 

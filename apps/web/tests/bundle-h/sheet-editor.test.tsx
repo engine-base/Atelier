@@ -137,7 +137,7 @@ describe("SheetEditor (GAP-163)", () => {
     ).toBeInTheDocument();
   });
 
-  it("Bridge オフラインは正直に断る (GAP-166)", async () => {
+  it("Bridge 未接続は正直に断り、その場に接続フローを出す (GAP-166 / GAP-168)", async () => {
     const post = vi.fn(async () => {
       throw new ApiError({
         status: 503,
@@ -161,7 +161,10 @@ describe("SheetEditor (GAP-163)", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "AI に修正を依頼" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Bridge がオフラインのため実行できません",
+      "未接続のためファイルの AI 修正依頼を実行できません",
     );
+    expect(
+      screen.getByRole("button", { name: "接続トークンを発行" }),
+    ).toBeInTheDocument();
   });
 });
