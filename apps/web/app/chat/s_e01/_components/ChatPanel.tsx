@@ -1090,9 +1090,14 @@ export function ChatPanel({
         </div>
 
         <div className="mt-2 flex items-center gap-3 px-1 text-[11px] text-on-surface-variant">
-          <span className="inline-flex items-center gap-1">
+          {/* GAP-164: 「学習に使われません」は外部のモデル学習の話。社内ナレッジには
+              貯まる (会話から一般化できるノウハウだけ自動で拾う) — 混同させない。 */}
+          <span
+            className="inline-flex items-center gap-1"
+            title="会話を外部の AI モデルの学習には渡しません。ただし、他の案件でも使える形に一般化できるノウハウは、このワークスペースのナレッジに自動で残ります (ナレッジ画面で確認・削除できます)。"
+          >
             <ShieldCheck size={11} aria-hidden="true" />
-            学習に使われません
+            外部の学習には使いません · 社内ナレッジには残ります
           </span>
           <span className="ml-auto tabular-nums">
             Enter で送信 · Shift + Enter で改行

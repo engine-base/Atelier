@@ -890,6 +890,13 @@ async def stream_chat(
 
     schedule_summary_update(thread_id=thread_id, actor_id=actor_id, recent_window=include_history)
 
+    # GAP-164: 会話から「他の案件でも使えるノウハウ」を自動でナレッジに残す。
+    # 外部のモデル学習には使わない — このワークスペースの資産として貯める
+    # (source_type=ai_extracted なので画面で見分けられ、不要なら消せる)。
+    from src.services.knowledge.auto_capture import schedule_capture
+
+    schedule_capture(thread_id=thread_id, actor_id=actor_id)
+
     yield _sse_event(
         {
             "type": "end",

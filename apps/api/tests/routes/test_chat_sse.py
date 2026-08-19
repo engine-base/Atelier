@@ -678,3 +678,148 @@ class TestGap161AttachmentsReachTheAI:
         assert "取り込めませんでした" in sys_p
         # 偽の中身を作らない
         assert "推測" in sys_p
+
+
+# ── GAP-164: 会話から「使えるノウハウ」を自動でナレッジに残す ────
+
+
+@pytest.mark.integration
+class TestGap164AutoKnowledgeCapture:
+    def test_generalizable_knowhow_becomes_workspace_knowledge(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """一般化できるノウハウだけが workspace ナレッジになる (重複は作らない)。"""
+        from typing import Any
+
+        from src.services.knowledge import auto_capture
+
+        with sync_engine.begin() as c:
+            for i in range(4):
+                c.execute(
+                    text(
+                        "insert into public.chat_messages (thread_id, role, content) "
+                        "values (cast(:t as uuid), cast(:r as chat_message_role_enum), :c)"
+                    ),
+                    {
+                        "t": seeded["thread_a"],
+                        "r": "user" if i % 2 == 0 else "assistant",
+                        "c": f"見積の前提条件は必ず書く ({i})",
+                    },
+                )
+
+        async def _fake_complete(**kwargs: Any) -> tuple[str, str]:
+            del kwargs
+            return (
+                '[{"title":"見積は前提条件を明記する",'
+                '"content_md":"見積には対象範囲と前提条件を必ず書く。'
+                '書かないと追加要望との境目が曖昧になり、後で揉める。",'
+                '"category":"ノウハウ","tags":["見積"]}]',
+                "fake",
+            )
+
+        async def run() -> list[str]:
+            engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(engine) as session:
+                    ids = await auto_capture.capture_from_thread(
+                        session,
+                        thread_id=seeded["thread_a"],
+                        actor_id=seeded["u_a"],
+                        complete=_fake_complete,
+                    )
+                    await session.commit()
+                    # 2 回目は同じ題なので作らない (重複で埋めない)
+                    again = await auto_capture.capture_from_thread(
+                        session,
+                        thread_id=seeded["thread_a"],
+                        actor_id=seeded["u_a"],
+                        complete=_fake_complete,
+                    )
+                    await session.commit()
+                    assert again == []
+                    return ids
+            finally:
+                await engine.dispose()
+
+        created = asyncio.run(run())
+        assert len(created) == 1
+        try:
+            with sync_engine.begin() as c:
+                row = c.execute(
+                    text(
+                        "select title, account_type::text as at, scope::text as sc, "
+                        "source_type, account_id from public.knowledge_nodes "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": created[0]},
+                ).one()
+            assert row.title == "見積は前提条件を明記する"
+            assert row.at == "workspace" and row.sc == "common"
+            # 画面で「AI が会話から拾ったもの」と分かる = 消す判断ができる
+            assert row.source_type == "ai_extracted"
+            assert str(row.account_id) == seeded["ws_a"]
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.knowledge_nodes where id = cast(:i as uuid)"),
+                    {"i": created[0]},
+                )
+
+    def test_nothing_is_invented_when_there_is_no_knowhow(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """拾うものが無ければ何も作らない。壊れた応答でも作らない。"""
+        from typing import Any
+
+        from src.services.knowledge import auto_capture
+
+        with sync_engine.begin() as c:
+            for i in range(4):
+                c.execute(
+                    text(
+                        "insert into public.chat_messages (thread_id, role, content) "
+                        "values (cast(:t as uuid), 'user', :c)"
+                    ),
+                    {"t": seeded["thread_a"], "c": f"お疲れ様です ({i})"},
+                )
+
+        async def _empty(**kwargs: Any) -> tuple[str, str]:
+            del kwargs
+            return "[]", "fake"
+
+        async def _broken(**kwargs: Any) -> tuple[str, str]:
+            del kwargs
+            return "これはJSONではありません", "fake"
+
+        async def run() -> tuple[list[str], list[str]]:
+            engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(engine) as session:
+                    a = await auto_capture.capture_from_thread(
+                        session,
+                        thread_id=seeded["thread_a"],
+                        actor_id=seeded["u_a"],
+                        complete=_empty,
+                    )
+                    b = await auto_capture.capture_from_thread(
+                        session,
+                        thread_id=seeded["thread_a"],
+                        actor_id=seeded["u_a"],
+                        complete=_broken,
+                    )
+                    return a, b
+            finally:
+                await engine.dispose()
+
+        empty, broken = asyncio.run(run())
+        assert empty == [] and broken == []
+
+    def test_prompt_forbids_client_specific_facts(self) -> None:
+        """抽出プロンプトが案件固有情報の持ち出しを禁じていること (漏えい防止)。"""
+        from src.services.knowledge import auto_capture
+
+        assert "社名・人名・金額・URL・日付" in auto_capture._SYSTEM
+        assert "無理に作らない" in auto_capture._SYSTEM
+        # 壊れた JSON / 短すぎる本文は採用しない
+        assert auto_capture.parse_candidates("{}") == []
+        assert auto_capture.parse_candidates('[{"title":"x","content_md":"短い"}]') == []
