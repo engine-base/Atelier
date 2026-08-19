@@ -1649,6 +1649,48 @@ class KnowledgeUpdate(BaseModel):
     """
 
 
+class CurationRunStats(BaseModel):
+    """
+    GAP-153 — キュレーションバッチ 1 回分の実測
+    """
+
+    scanned: int | None = None
+    proposed: int | None = None
+    skipped_not_useful: int | None = None
+    rejected_security: int | None = None
+
+
+class Status13(StrEnum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    rejected_security = "rejected_security"
+    skipped = "skipped"
+
+
+class KnowledgeCuration(BaseModel):
+    """
+    GAP-153 — 運営 AI による匿名化キュレーション提案 (運営 admin 専用・テナント不可視)
+    """
+
+    id: UUID | None = None
+    source_node_id: UUID | None = None
+    source_account_type: str | None = None
+    source_title: str | None = None
+    source_workspace_name: str | None = None
+    proposed_title: str | None = None
+    proposed_content_md: str | None = None
+    proposed_category: str | None = None
+    proposed_tags: list[str] | None = None
+    reason: str | None = None
+    security_notes: str | None = None
+    status: Status13 | None = None
+    model: str | None = None
+    published_node_id: UUID | None = None
+    reviewed_at: AwareDatetime | None = None
+    created_at: AwareDatetime | None = None
+
+
 class AdminKnowledgeCreate(BaseModel):
     """
     運営デフォルト(platform)ナレッジ作成（T-A-50 / F-023）。account_type/account_id は server 側で固定。
@@ -1816,7 +1858,7 @@ class KnowledgeReferencesResponse(BaseModel):
     total: Annotated[int, Field(ge=0)]
 
 
-class Status13(StrEnum):
+class Status14(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
@@ -1832,7 +1874,7 @@ class Execution(BaseModel):
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     duration_seconds: float | None = None
-    status: Status13
+    status: Status14
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1893,7 +1935,7 @@ class ExecutionEvent(BaseModel):
 class ExecLogMeta(BaseModel):
     execution_id: UUID
     task_id: UUID
-    status: Status13
+    status: Status14
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     logs_storage_path: str | None = None
@@ -2063,7 +2105,7 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Status15(StrEnum):
+class Status16(StrEnum):
     pass_ = "pass"
     fail = "fail"
     skip = "skip"
@@ -2072,7 +2114,7 @@ class Status15(StrEnum):
 class ExecutionTestResultIn(BaseModel):
     name: Annotated[str, Field(max_length=300, min_length=1)]
     file: Annotated[str | None, Field(max_length=300)] = None
-    status: Status15
+    status: Status16
     duration_ms: Annotated[int | None, Field(ge=0)] = None
     detail: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -2082,7 +2124,7 @@ class ExecutionTestResult(BaseModel):
     execution_id: UUID
     name: str
     file: str | None = None
-    status: Status15
+    status: Status16
     duration_ms: int | None = None
     detail: str | None = None
     created_at: AwareDatetime
@@ -2235,7 +2277,7 @@ class BridgeTokenRow(BaseModel):
     revoked_at: AwareDatetime | None = None
 
 
-class Status17(StrEnum):
+class Status18(StrEnum):
     allowed = "allowed"
     allowed_warning = "allowed_warning"
     rejected = "rejected"
@@ -2246,7 +2288,7 @@ class ChatRelayRateLimitObservation(BaseModel):
     GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
     """
 
-    status: Status17
+    status: Status18
     rate_limit_type: Annotated[str | None, Field(max_length=40)] = None
     utilization: Annotated[float | None, Field(ge=0.0, le=2.0)] = None
     resets_at: float | None = None
@@ -2323,7 +2365,7 @@ class ChatConnectionPlan(BaseModel):
     GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない）
     """
 
-    status: Status17
+    status: Status18
     five_hour_utilization: float | None = None
     five_hour_resets_at: AwareDatetime | None = None
     seven_day_utilization: float | None = None

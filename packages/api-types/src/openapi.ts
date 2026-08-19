@@ -14425,6 +14425,256 @@ export interface paths {
         };
         trace?: never;
     };
+    "/admin/knowledge/curation/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin：キュレーションバッチ実行（GAP-153 — 全テナント走査 + 匿名化 + リークスキャン） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @default 20 */
+                        limit?: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description 実行結果 (走査/提案/除外の実数) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["CurationRunStats"];
+                        };
+                    };
+                };
+                /** @description admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 運営側 LLM 未設定 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/knowledge/curation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin：キュレーション提案一覧（GAP-153） */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "approved" | "rejected" | "rejected_security" | "skipped";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 提案一覧 (新しい順) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeCuration"][];
+                        };
+                    };
+                };
+                /** @description admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/knowledge/curation/{curation_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin：提案を承認 → platform ナレッジとして全アカウント共有（GAP-153） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curation_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 承認結果 (公開された platform ナレッジつき)。公開直前にもリークスキャンを再実行 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                curation?: components["schemas"]["KnowledgeCuration"];
+                                published?: components["schemas"]["Knowledge"];
+                            };
+                        };
+                    };
+                };
+                /** @description admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 処理済み / リークスキャン検出 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/knowledge/curation/{curation_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin：提案を却下（GAP-153 — 公開しない） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    curation_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 却下後の提案 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeCuration"];
+                        };
+                    };
+                };
+                /** @description admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 処理済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/ai-employee-templates": {
         parameters: {
             query?: never;
@@ -17106,6 +17356,38 @@ export interface components {
             parent_id?: string | null;
             /** @description ナレッジツリー表示フラグ（運営デフォルトは false で非表示） */
             visible_in_tree?: boolean | null;
+        };
+        /** @description GAP-153 — キュレーションバッチ 1 回分の実測 */
+        CurationRunStats: {
+            scanned?: number;
+            proposed?: number;
+            skipped_not_useful?: number;
+            rejected_security?: number;
+        };
+        /** @description GAP-153 — 運営 AI による匿名化キュレーション提案 (運営 admin 専用・テナント不可視) */
+        KnowledgeCuration: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            source_node_id?: string;
+            source_account_type?: string;
+            source_title?: string | null;
+            source_workspace_name?: string | null;
+            proposed_title?: string;
+            proposed_content_md?: string;
+            proposed_category?: string;
+            proposed_tags?: string[];
+            reason?: string;
+            security_notes?: string | null;
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected" | "rejected_security" | "skipped";
+            model?: string | null;
+            /** Format: uuid */
+            published_node_id?: string | null;
+            /** Format: date-time */
+            reviewed_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
         };
         /** @description 運営デフォルト(platform)ナレッジ作成（T-A-50 / F-023）。account_type/account_id は server 側で固定。 */
         AdminKnowledgeCreate: {

@@ -1430,6 +1430,36 @@ components:
         parent_id: { type: string, format: uuid, nullable: true, description: '構造ツリーの親ノード（null=ルート）' }
         visible_in_tree: { type: boolean, nullable: true, description: 'ナレッジツリー表示フラグ（運営デフォルトは false で非表示）' }
 
+    CurationRunStats:
+      type: object
+      description: GAP-153 — キュレーションバッチ 1 回分の実測
+      properties:
+        scanned: { type: integer }
+        proposed: { type: integer }
+        skipped_not_useful: { type: integer }
+        rejected_security: { type: integer }
+
+    KnowledgeCuration:
+      type: object
+      description: GAP-153 — 運営 AI による匿名化キュレーション提案 (運営 admin 専用・テナント不可視)
+      properties:
+        id: { type: string, format: uuid }
+        source_node_id: { type: string, format: uuid }
+        source_account_type: { type: string }
+        source_title: { type: string, nullable: true }
+        source_workspace_name: { type: string, nullable: true }
+        proposed_title: { type: string }
+        proposed_content_md: { type: string }
+        proposed_category: { type: string }
+        proposed_tags: { type: array, items: { type: string } }
+        reason: { type: string }
+        security_notes: { type: string, nullable: true }
+        status: { type: string, enum: [pending, approved, rejected, rejected_security, skipped] }
+        model: { type: string, nullable: true }
+        published_node_id: { type: string, format: uuid, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
     AdminKnowledgeCreate:
       type: object
       description: 運営デフォルト(platform)ナレッジ作成（T-A-50 / F-023）。account_type/account_id は server 側で固定。
@@ -8424,6 +8454,98 @@ paths:
         '204': { description: 削除完了 }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge/curation/run:
+    post:
+      tags: [admin-knowledge]
+      summary: 運営 admin：キュレーションバッチ実行（GAP-153 — 全テナント走査 + 匿名化 + リークスキャン）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::run_knowledge_curation
+      x-screen-ids: [S-T06]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                limit: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: 実行結果 (走査/提案/除外の実数)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/CurationRunStats' }
+        '403': { description: admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: 運営側 LLM 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge/curation:
+    get:
+      tags: [admin-knowledge]
+      summary: 運営 admin：キュレーション提案一覧（GAP-153）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::list_knowledge_curations
+      x-screen-ids: [S-T06]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, rejected, rejected_security, skipped] } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        '200':
+          description: 提案一覧 (新しい順)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/KnowledgeCuration' } }
+        '403': { description: admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge/curation/{curation_id}/approve:
+    post:
+      tags: [admin-knowledge]
+      summary: 運営 admin：提案を承認 → platform ナレッジとして全アカウント共有（GAP-153）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::approve_knowledge_curation
+      x-screen-ids: [S-T06]
+      parameters:
+        - { name: curation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 承認結果 (公開された platform ナレッジつき)。公開直前にもリークスキャンを再実行
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      curation: { $ref: '#/components/schemas/KnowledgeCuration' }
+                      published: { $ref: '#/components/schemas/Knowledge' }
+        '403': { description: admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 処理済み / リークスキャン検出, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/knowledge/curation/{curation_id}/reject:
+    post:
+      tags: [admin-knowledge]
+      summary: 運営 admin：提案を却下（GAP-153 — 公開しない）
+      x-implementation-path: apps/api/src/routes/admin_knowledge/__init__.py::reject_knowledge_curation
+      x-screen-ids: [S-T06]
+      parameters:
+        - { name: curation_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 却下後の提案
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/KnowledgeCuration' }
+        '403': { description: admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 処理済み, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/ai-employee-templates:
     get:

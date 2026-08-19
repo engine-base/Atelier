@@ -207,3 +207,214 @@ def test_patch_non_admin_forbidden(app: FastAPI, seeded: dict[str, str]) -> None
             headers=_h(seeded["member"]),
         )
         assert r.status_code == 403, r.text
+
+
+# ── GAP-153: ナレッジ自動キュレーション (運営 AI 裏走・匿名化・承認ゲート) ──
+
+
+@pytest.fixture()
+def tenant(sync_engine: sqlalchemy.Engine, seeded: dict[str, str]) -> Iterator[dict[str, str]]:
+    """特定可能情報を持つテナント (社名/プロジェクト名) + 良いナレッジ 2 件。"""
+    ws = str(uuid.uuid4())
+    proj = str(uuid.uuid4())
+    clean = str(uuid.uuid4())
+    leaky = str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
+            {"i": ws, "o": seeded["member"], "n": "秘密商事ホールディングス"},
+        )
+        c.execute(
+            text(
+                "insert into public.projects (id,workspace_id,name,project_type) "
+                "values (:i,:w,'極秘アトリエ刷新PJ','client_work')"
+            ),
+            {"i": proj, "w": ws},
+        )
+        for nid, title, content in (
+            (
+                clean,
+                "見積レビューの観点",
+                "# 見積レビューの観点\n"
+                "工数は不確実性で幅を持たせ、前提条件を必ず明記する。"
+                "検収条件と支払サイトを見積段階で合意しておくと後工程の揉め事が減る。"
+                "スコープ外の要望はバックログへ分離し、追加見積として扱うと"
+                "利益率が読みやすくなる。",
+            ),
+            (
+                leaky,
+                "定例の進め方",
+                "# 定例の進め方\n"
+                "秘密商事ホールディングスの田中様との定例は毎週火曜。"
+                "極秘アトリエ刷新PJの課題は tanaka@himitsu.example.co.jp へ連絡し、"
+                "詳細は https://internal.himitsu.example/wiki を参照。"
+                "この運用でリードタイムが 30% 減った。",
+            ),
+        ):
+            c.execute(
+                text(
+                    "insert into public.knowledge_nodes "
+                    "(id, account_id, account_type, scope, category, title, content_md, "
+                    " usage_count, confidence_score) "
+                    "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                    "'gap153-test', :t, :c, 5, 0.9)"
+                ),
+                {"i": nid, "a": ws, "t": title, "c": content},
+            )
+    yield {"ws": ws, "clean": clean, "leaky": leaky}
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.knowledge_curations where source_node_id in (cast(:a as uuid), cast(:b as uuid))"
+            ),
+            {"a": clean, "b": leaky},
+        )
+        c.execute(
+            text("delete from public.knowledge_nodes where category in ('gap153-test', 'ノウハウ')")
+        )
+        c.execute(text("delete from public.workspaces where id = cast(:i as uuid)"), {"i": ws})
+
+
+def test_gap153_curation_run_anonymize_and_security_scan(
+    app: FastAPI,
+    seeded: dict[str, str],
+    tenant: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """裏走バッチ: 有用ナレッジは匿名化提案、特定可能情報の残存は機械的に排除。"""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+    with TestClient(app) as cl:
+        # 非 admin は 403 (運営専用 — テナントには存在自体を見せない)
+        assert (
+            cl.post(
+                "/admin/knowledge/curation/run", json={}, headers=_h(seeded["member"])
+            ).status_code
+            == 403
+        )
+        r = cl.post(
+            "/admin/knowledge/curation/run",
+            json={"limit": 10},
+            headers=_h(seeded["admin"], admin=True),
+        )
+        assert r.status_code == 200, r.text
+        stats = r.json()["data"]
+        assert stats["scanned"] == 2
+        assert stats["proposed"] == 1
+        # leaky はフェイク LLM が原文を引き写す → 決定的リークスキャンが社名/メール/URL を検出
+        assert stats["rejected_security"] == 1
+
+        pend = cl.get(
+            "/admin/knowledge/curation",
+            params={"status": "pending"},
+            headers=_h(seeded["admin"], admin=True),
+        ).json()["data"]
+        assert len(pend) == 1
+        assert pend[0]["source_node_id"] == tenant["clean"]
+        assert pend[0]["proposed_title"].startswith("[一般化]")
+        assert pend[0]["source_workspace_name"] == "秘密商事ホールディングス"
+
+        rej = cl.get(
+            "/admin/knowledge/curation",
+            params={"status": "rejected_security"},
+            headers=_h(seeded["admin"], admin=True),
+        ).json()["data"]
+        assert len(rej) == 1
+        assert rej[0]["source_node_id"] == tenant["leaky"]
+        assert "残存" in (rej[0]["security_notes"] or "")
+
+        # 再実行しても重複提案は作らない (1 ソース = 1 キュレーション)
+        r2 = cl.post(
+            "/admin/knowledge/curation/run",
+            json={"limit": 10},
+            headers=_h(seeded["admin"], admin=True),
+        )
+        assert r2.json()["data"]["scanned"] == 0
+
+
+def test_gap153_approve_publishes_platform_and_recheck(
+    app: FastAPI,
+    seeded: dict[str, str],
+    tenant: dict[str, str],
+    sync_engine: sqlalchemy.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """承認で platform ナレッジ (匿名化・承認者記録) を公開。公開直前にも再スキャン。"""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+    ha = _h(seeded["admin"], admin=True)
+    with TestClient(app) as cl:
+        cl.post("/admin/knowledge/curation/run", json={"limit": 10}, headers=ha)
+        pend = cl.get("/admin/knowledge/curation", params={"status": "pending"}, headers=ha).json()[
+            "data"
+        ]
+        cur_id = pend[0]["id"]
+
+        r = cl.post(f"/admin/knowledge/curation/{cur_id}/approve", headers=ha)
+        assert r.status_code == 200, r.text
+        d = r.json()["data"]
+        assert d["curation"]["status"] == "approved"
+        pub = d["published"]
+        assert pub["account_type"] == "platform"
+        assert pub["is_anonymized"] is True
+        with sync_engine.connect() as c:
+            approved_by = c.execute(
+                text(
+                    "select approved_by_user_id from public.knowledge_nodes "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": pub["id"]},
+            ).scalar_one()
+        assert str(approved_by) == seeded["admin"]
+        # 処理済みの再承認 / 却下は 409
+        assert cl.post(f"/admin/knowledge/curation/{cur_id}/approve", headers=ha).status_code == 409
+        assert cl.post(f"/admin/knowledge/curation/{cur_id}/reject", headers=ha).status_code == 409
+
+        # 公開直前の再スキャン: pending の提案文へ社名を混入させると承認は 409 +
+        # rejected_security へ落ちる (承認時点の照合 — LLM/過去の走査を信用しない)
+        cur2 = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.knowledge_curations "
+                    "(id, source_node_id, source_account_type, source_account_id, "
+                    " proposed_title, proposed_content_md, proposed_category, reason, status) "
+                    "values (cast(:i as uuid), cast(:s as uuid), 'workspace', cast(:a as uuid), "
+                    "'混入テスト', '秘密商事ホールディングス向けの手順', 'ノウハウ', 'x', 'pending') "
+                    "on conflict (source_node_id) do update set status='pending', "
+                    "proposed_title='混入テスト', "
+                    "proposed_content_md='秘密商事ホールディングス向けの手順'"
+                ),
+                {"i": cur2, "s": tenant["leaky"], "a": tenant["ws"]},
+            )
+        leaky_pending = cl.get(
+            "/admin/knowledge/curation", params={"status": "pending"}, headers=ha
+        ).json()["data"]
+        assert len(leaky_pending) == 1
+        r409 = cl.post(f"/admin/knowledge/curation/{leaky_pending[0]['id']}/approve", headers=ha)
+        assert r409.status_code == 409
+        assert "特定可能情報" in r409.json()["detail"]
+        after = cl.get(
+            "/admin/knowledge/curation", params={"status": "rejected_security"}, headers=ha
+        ).json()["data"]
+        assert any(x["id"] == leaky_pending[0]["id"] for x in after)
+
+
+def test_gap153_llm_unconfigured_503(
+    app: FastAPI,
+    seeded: dict[str, str],
+    tenant: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """運営側キー未設定は誠実に 503 (勝手に別経路・空実行にしない)。"""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ATELIER_ALLOW_FAKE_LLM", raising=False)
+    del tenant  # 候補が存在する状態で
+    with TestClient(app) as cl:
+        r = cl.post(
+            "/admin/knowledge/curation/run",
+            json={},
+            headers=_h(seeded["admin"], admin=True),
+        )
+        assert r.status_code == 503
+        assert "ANTHROPIC_API_KEY" in r.json()["detail"]

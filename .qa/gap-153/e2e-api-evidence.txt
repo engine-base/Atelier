@@ -1,0 +1,21 @@
+== 運営バッチ実行 (fake LLM — 配線検証。実運用は運営 API キー) ==
+{
+    "data": {
+        "scanned": 2,
+        "proposed": 1,
+        "skipped_not_useful": 0,
+        "rejected_security": 1
+    }
+}
+== 提案一覧 (pending) ==
+[一般化] 見積レビューの観点 | 出所: e2e137-ws | 理由: [fake] 一般的なノウハウと判定
+== セキュリティ除外 (リークスキャン検出) ==
+[一般化] 定例の進め方 | 検出: URL が残存; workspace名が残存; プロジェクト名が残存; メールアドレス形式が残存
+== 非 admin (テナントユーザー) は 403 ==
+403
+== 承認後: テナントユーザーの RAG/ツリーから platform ナレッジが見える ==
+ platform     | t             | t        | [一般化] 見積レビューの観点
+
+== テナント (非 admin) は curations テーブル自体に触れない (RLS default deny) ==
+SET
+     0

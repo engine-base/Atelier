@@ -20,8 +20,15 @@ from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user
 from src.schemas.admin_knowledge import AdminKnowledgeCreate
 from src.schemas.knowledge import KnowledgeCreate, KnowledgeResponse, KnowledgeUpdate
+from src.schemas.knowledge_curation import (
+    CurationApproveResponse,
+    CurationRunRequest,
+    CurationRunStats,
+    KnowledgeCurationResponse,
+)
 from src.services import admin as admin_svc
 from src.services import knowledge as kn
+from src.services.knowledge import curation as curation_svc
 
 router = APIRouter(tags=["admin-knowledge"])
 
@@ -137,3 +144,92 @@ async def delete_platform_knowledge(knowledge_id: str, user: UserDep) -> None:
         await session.commit()
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "platform knowledge not found")
+
+
+# ── GAP-153: ナレッジ自動キュレーション (運営 AI 裏走 + 匿名化 + 承認ゲート) ──
+
+
+def _raise_curation(exc: curation_svc.CurationError) -> None:
+    if exc.code == "llm_unconfigured":
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+    if exc.code == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+    if exc.code in ("not_pending", "security"):
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+    raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+
+
+@router.post(
+    "/admin/knowledge/curation/run",
+    summary="運営 admin: キュレーションバッチ実行 (GAP-153 — 全テナント走査 + 匿名化)",
+    responses={503: {"description": "運営側 LLM (ANTHROPIC_API_KEY) 未設定"}},
+)
+async def run_knowledge_curation(
+    body: CurationRunRequest, user: UserDep
+) -> dict[str, CurationRunStats]:
+    _require_admin(user)
+    async with _service_session_factory()() as session:
+        try:
+            stats = await curation_svc.run_curation(session, actor_id=user.id, limit=body.limit)
+        except curation_svc.CurationError as exc:
+            _raise_curation(exc)
+            raise  # unreachable — 型のため
+        await session.commit()
+    return {"data": stats}
+
+
+@router.get(
+    "/admin/knowledge/curation",
+    summary="運営 admin: キュレーション提案一覧 (GAP-153)",
+)
+async def list_knowledge_curations(
+    user: UserDep,
+    status_filter: Annotated[str | None, Query(alias="status")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> dict[str, list[KnowledgeCurationResponse]]:
+    _require_admin(user)
+    async with _service_session_factory()() as session:
+        items = await curation_svc.list_curations(session, status=status_filter, limit=limit)
+    return {"data": items}
+
+
+@router.post(
+    "/admin/knowledge/curation/{curation_id}/approve",
+    summary="運営 admin: 提案を承認 → platform ナレッジとして全アカウント共有 (GAP-153)",
+    responses={409: {"description": "処理済み / 公開直前リークスキャンで検出"}},
+)
+async def approve_knowledge_curation(
+    curation_id: str, user: UserDep
+) -> dict[str, CurationApproveResponse]:
+    _require_admin(user)
+    async with _service_session_factory()() as session:
+        try:
+            cur, published = await curation_svc.approve_curation(
+                session, actor_id=user.id, curation_id=curation_id
+            )
+        except curation_svc.CurationError as exc:
+            await session.commit()  # security 再判定の rejected_security は記録を残す
+            _raise_curation(exc)
+            raise
+        await session.commit()
+    return {"data": CurationApproveResponse(curation=cur, published=published)}
+
+
+@router.post(
+    "/admin/knowledge/curation/{curation_id}/reject",
+    summary="運営 admin: 提案を却下 (GAP-153 — 公開しない)",
+)
+async def reject_knowledge_curation(
+    curation_id: str, user: UserDep
+) -> dict[str, KnowledgeCurationResponse]:
+    _require_admin(user)
+    async with _service_session_factory()() as session:
+        try:
+            rejected = await curation_svc.reject_curation(
+                session, actor_id=user.id, curation_id=curation_id
+            )
+        except curation_svc.CurationError as exc:
+            _raise_curation(exc)
+            raise
+        await session.commit()
+    return {"data": rejected}
