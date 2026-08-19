@@ -1,0 +1,32 @@
+== 取り込み後のフロー (UI から 3 工程を確定反映した実状態) ==
+● 1 構想・ヒアリング
+✓ 2 要件定義
+○ 3 アーキ設計
+✓ 4 デザイン・モック
+○ 5 タスク分解・実装
+✓ 6 検証
+○ 7 リリース判定
+== 取り込まれた成果物 (フェーズ2 = 現在フェーズにスタンプ) ==
+verification | テスト仕様書 | phase: 634b13b8
+design | old-logo.png | phase: 634b13b8
+requirements | requirements-notes | phase: 634b13b8
+estimate | お見積書 | phase: 71d56211
+estimate | 御見積書（改訂版） | phase: 71d56211
+design | atelier-logo.png | phase: 71d56211
+== 取り込まれたモック ==
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.11/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+== 取り込まれたモック ==
+会員マイページ v1 | phase: 634b13b8

@@ -22,6 +22,7 @@ from src.schemas.projects import (
     ProjectUpdate,
 )
 from src.services import projects as svc
+from src.services.projects import import_assets as import_svc
 
 router = APIRouter(tags=["projects"])
 
@@ -133,4 +134,32 @@ async def set_account_ai_learning(
     result = await svc.set_account_ai_learning(session, actor_id=user.id, opt_out=body.opt_out)
     if result is None:  # pragma: no cover - 認証済 user は users 行を持つ
         raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+    return {"data": result}
+
+
+@router.post(
+    "/projects/{project_id}/import",
+    summary="既存資料の一括取り込み (GAP-156 — ツール形式へ変換 + 完了工程の提案)",
+)
+async def import_project_assets(
+    project_id: str,
+    body: import_svc.ImportRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, import_svc.ImportResult]:
+    """既存プロジェクトを途中から載せる: HTML→モック/成果物へ自動仕分け、
+    Markdown/テキスト→成果物、画像/PPTX/PDF/Excel 等→ファイル成果物。
+    取り込めた種類から「完了済みでは？」の工程を提案する (反映はユーザー確定)。
+    可視性は RLS で確認し、実体書込 (mockdb/filedb) は service session で行う。
+    """
+    from src.services.mocks.artifacts import service_session_factory
+
+    if await svc.get_project(session, project_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+    factory = service_session_factory()
+    async with factory() as service_session:
+        result = await import_svc.import_files(
+            service_session, actor_id=user.id, project_id=project_id, data=body
+        )
+        await service_session.commit()
     return {"data": result}

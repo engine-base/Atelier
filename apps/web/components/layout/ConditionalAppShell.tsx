@@ -72,6 +72,7 @@ function projectNav(projectId: string): readonly NavItem[] {
     { id: 'p-sales', labelKey: '営業ドラフト', href: `/sales${q}`, match: '/sales', icon: <Briefcase className={ICON} /> },
     // S-H01 も導線ゼロの到達不能画面だった (design-audit で検出) ため追加
     { id: 'p-mocks', labelKey: 'モック', href: `/mocks${q}`, match: '/mocks', icon: <MonitorSmartphone className={ICON} /> },
+    { id: 'p-import', labelKey: '取り込み', href: `/import${q}`, match: '/import', icon: <Inbox className={ICON} /> },
     { id: 'p-vault', labelKey: 'シークレット', href: `/projects/vault${q}`, match: '/projects/vault', icon: <KeyRound className={ICON} /> },
     { id: 'p-settings', labelKey: '設定', href: `/projects/settings${q}`, match: '/projects/settings', icon: <Settings className={ICON} /> },
   ];

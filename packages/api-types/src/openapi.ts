@@ -2251,6 +2251,88 @@ export interface paths {
         };
         trace?: never;
     };
+    "/projects/{project_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 既存資料の一括取り込み（GAP-156 — ツール形式へ変換 + 完了工程の提案） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        files: {
+                            file_name: string;
+                            content_b64: string;
+                        }[];
+                        note?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description per-file の取り込み結果 (mock/output/file or honest error) + 完了工程の提案 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                results?: {
+                                    file_name?: string;
+                                    /** @enum {string|null} */
+                                    type?: "mock" | "output" | "file" | null;
+                                    title?: string | null;
+                                    stage?: string | null;
+                                    version?: number | null;
+                                    target_id?: string | null;
+                                    error?: string | null;
+                                }[];
+                                imported?: number;
+                                failed?: number;
+                                suggested_stage_keys?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/restore": {
         parameters: {
             query?: never;

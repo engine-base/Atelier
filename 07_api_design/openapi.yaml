@@ -3551,6 +3551,62 @@ paths:
         '403': { description: 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /projects/{project_id}/import:
+    post:
+      tags: [projects]
+      summary: 既存資料の一括取り込み（GAP-156 — ツール形式へ変換 + 完了工程の提案）
+      x-implementation-path: apps/api/src/routes/projects/__init__.py::import_project_assets
+      x-screen-ids: [S-M01]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  items:
+                    type: object
+                    required: [file_name, content_b64]
+                    properties:
+                      file_name: { type: string, maxLength: 300 }
+                      content_b64: { type: string }
+                note: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: per-file の取り込み結果 (mock/output/file or honest error) + 完了工程の提案
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            file_name: { type: string }
+                            type: { type: string, nullable: true, enum: [mock, output, file] }
+                            title: { type: string, nullable: true }
+                            stage: { type: string, nullable: true }
+                            version: { type: integer, nullable: true }
+                            target_id: { type: string, nullable: true }
+                            error: { type: string, nullable: true }
+                      imported: { type: integer }
+                      failed: { type: integer }
+                      suggested_stage_keys: { type: array, items: { type: string } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /projects/{project_id}/restore:
     post:
       tags: [projects]

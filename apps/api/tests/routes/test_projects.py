@@ -364,3 +364,131 @@ class TestProjectsCrud:
                 ).scalar_one()
             assert n == 1
             client.delete(f"/projects/{pid}", headers=h)
+
+
+# ── GAP-156: 既存プロジェクトの途中取り込み ─────────────────────────────
+
+
+@pytest.mark.integration
+class TestGap156Import:
+    def test_import_converts_and_suggests_stages(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """HTML→モック/成果物の自動仕分け、MD→成果物、PNG→ファイル成果物。
+        取り込めた種類から「完了済みでは？」工程を提案し、反映はユーザー確定
+        (既存 flow complete API)。失敗ファイルは per-file の honest エラー。"""
+        import base64 as b64mod
+
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+        from sqlalchemy.pool import NullPool as _NP
+
+        from src.services.mocks import artifacts as artifacts_svc
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=_NP)
+        monkeypatch.setattr(
+            artifacts_svc,
+            "service_session_factory",
+            lambda: async_sessionmaker(test_engine, class_=AsyncSession),
+        )
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                r_create = client.post(
+                    "/projects",
+                    json={
+                        "workspace_id": seeded["ws_a"],
+                        "name": "既存案件の載せ替え",
+                        "type": "client_project",
+                    },
+                    headers=h,
+                )
+                assert r_create.status_code == 201, r_create.text
+                proj = r_create.json()["data"]["id"]
+                # フロー初期化 (client_work 10 工程 — 全部 pending)
+                client.get(f"/projects/{proj}/flow", headers=h)
+
+                enc = lambda s: b64mod.b64encode(s.encode()).decode()  # noqa: E731
+                files = [
+                    # 画面モック (HTML)
+                    {
+                        "file_name": "top-page.html",
+                        "content_b64": enc(
+                            "<html><title>トップページ</title><body><h1>TOP</h1></body></html>"
+                        ),
+                    },
+                    # 見積書 (HTML — 自動仕分けで estimate 成果物へ)
+                    {
+                        "file_name": "見積書.html",
+                        "content_b64": enc(
+                            "<html><title>御見積書</title><body><h1>御見積書</h1>"
+                            "<p>合計 1,000,000 円</p></body></html>"
+                        ),
+                    },
+                    # 要件メモ (Markdown → HTML 包装で成果物へ)
+                    {
+                        "file_name": "要件定義.md",
+                        "content_b64": enc("# 要件\n- ログイン\n- 一覧"),
+                    },
+                    # ロゴ画像 (バイナリ → filedb ファイル成果物)
+                    {
+                        "file_name": "logo.png",
+                        "content_b64": b64mod.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 64).decode(),
+                    },
+                    # 非対応形式は per-file の honest エラー (全体は落とさない)
+                    {"file_name": "archive.zip", "content_b64": enc("dummy")},
+                ]
+                r = client.post(f"/projects/{proj}/import", json={"files": files}, headers=h)
+                assert r.status_code == 200, r.text
+                d = r.json()["data"]
+                assert d["imported"] == 4 and d["failed"] == 1
+                by_name = {x["file_name"]: x for x in d["results"]}
+                assert by_name["top-page.html"]["type"] == "mock"
+                assert by_name["見積書.html"]["type"] == "output"
+                assert by_name["見積書.html"]["stage"] == "estimate"
+                assert by_name["要件定義.md"]["type"] == "output"
+                assert by_name["要件定義.md"]["stage"] == "requirements"
+                assert by_name["logo.png"]["type"] == "file"
+                assert by_name["archive.zip"]["error"] is not None
+                # 提案: 取り込めた種類の工程のみ・フロー順 (estimate → requirements → design)
+                assert d["suggested_stage_keys"] == ["estimate", "requirements", "design"]
+
+                # モック/成果物として実際に見える (ツール形式に載った)
+                mocks = client.get("/mocks", params={"project_id": proj}, headers=h).json()["data"]
+                assert [m["screen_name"] for m in mocks] == ["トップページ"]
+                outs = client.get("/outputs", params={"project_id": proj}, headers=h).json()["data"]
+                assert {o["stage"] for o in outs} == {"estimate", "requirements", "design"}
+
+                # ユーザー確定でフロー反映 (提案は自動反映しない)
+                flow = client.get(f"/projects/{proj}/flow", headers=h).json()["data"]
+                assert all(
+                    s["status"] == "pending"
+                    for s in flow
+                    if s["stage_key"] in d["suggested_stage_keys"]
+                )
+                for key in d["suggested_stage_keys"]:
+                    rr = client.post(f"/projects/{proj}/flow/{key}/complete", json={}, headers=h)
+                    assert rr.status_code == 200
+                flow2 = client.get(f"/projects/{proj}/flow", headers=h).json()["data"]
+                done = {s["stage_key"] for s in flow2 if s["status"] == "done"}
+                assert {"estimate", "requirements", "design"} <= done
+
+                # 他人のプロジェクトは 404 (RLS)
+                assert (
+                    client.post(
+                        f"/projects/{proj}/import",
+                        json={"files": files[:1]},
+                        headers=_h(seeded["u_b"]),
+                    ).status_code
+                    == 404
+                )
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.projects where workspace_id = cast(:w as uuid)"),
+                    {"w": seeded["ws_a"]},
+                )
