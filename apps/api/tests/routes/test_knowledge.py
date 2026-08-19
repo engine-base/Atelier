@@ -921,3 +921,176 @@ class TestVaultExport:
             assert r.status_code == 200
             zf = _zipfile.ZipFile(_io.BytesIO(r.content))
             assert all("ws-a common note" not in n for n in zf.namelist())
+
+
+# ── GAP-167: ナレッジ候補の採用 / 却下 (全部は溜めない) ────────────
+
+
+@pytest.mark.integration
+class TestGap167KnowledgeCandidates:
+    def _seed_candidate(self, sync_engine: sqlalchemy.Engine, *, ws: str, title: str) -> str:
+        with sync_engine.begin() as c:
+            return str(
+                c.execute(
+                    text(
+                        "insert into public.knowledge_candidates "
+                        "(workspace_id, title, content_md, category, tags) "
+                        "values (cast(:w as uuid), :t, :b, 'ノウハウ', array['auto']) "
+                        "returning id"
+                    ),
+                    {
+                        "w": ws,
+                        "t": title,
+                        "b": "見積には対象範囲と前提条件を必ず書く。書かないと後で揉める。",
+                    },
+                ).scalar_one()
+            )
+
+    def test_candidate_is_listed_and_approved_into_knowledge(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """候補は一覧に出て、採用して初めてナレッジになる (編集して採用もできる)。"""
+        cid = self._seed_candidate(sync_engine, ws=seeded["ws_a"], title="見積は前提条件を明記する")
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                listed = client.get("/knowledge/candidates", headers=h).json()["data"]
+                mine = [c for c in listed if c["id"] == cid]
+                assert len(mine) == 1
+                assert mine[0]["status"] == "pending"
+
+                # 編集して採用
+                r = client.post(
+                    f"/knowledge/candidates/{cid}/approve",
+                    headers=h,
+                    json={"title": "見積は前提条件と対象範囲を明記する"},
+                )
+                assert r.status_code == 201, r.text
+                kid = r.json()["data"]["knowledge_id"]
+
+                # ナレッジに入り、候補は approved になる
+                got = client.get(f"/knowledge/{kid}", headers=h).json()["data"]
+                assert got["title"] == "見積は前提条件と対象範囲を明記する"
+                assert got["source_type"] == "ai_extracted"
+                after = client.get(
+                    "/knowledge/candidates", headers=h, params={"status": "approved"}
+                ).json()["data"]
+                assert any(c["id"] == cid for c in after)
+
+                # 二重採用はできない
+                assert (
+                    client.post(
+                        f"/knowledge/candidates/{cid}/approve", headers=h, json={}
+                    ).status_code
+                    == 409
+                )
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.knowledge_candidates where id = cast(:i as uuid)"),
+                    {"i": cid},
+                )
+                c.execute(
+                    text(
+                        "delete from public.knowledge_nodes "
+                        "where account_id = cast(:w as uuid) and source_type = 'ai_extracted'"
+                    ),
+                    {"w": seeded["ws_a"]},
+                )
+
+    def test_rejected_candidate_never_becomes_knowledge_and_is_not_reproposed(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """却下したものはナレッジにならず、同じ題で再提案もされない (ノイズを繰り返さない)。"""
+        title = "雑談メモ"
+        cid = self._seed_candidate(sync_engine, ws=seeded["ws_a"], title=title)
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                assert (
+                    client.post(f"/knowledge/candidates/{cid}/reject", headers=h).status_code == 204
+                )
+                pending = client.get("/knowledge/candidates", headers=h).json()["data"]
+                assert all(c["id"] != cid for c in pending)
+                # ナレッジには入っていない
+                with sync_engine.begin() as c:
+                    n = c.execute(
+                        text(
+                            "select count(*) from public.knowledge_nodes "
+                            "where account_id = cast(:w as uuid) and title = :t "
+                            "and deleted_at is null"
+                        ),
+                        {"w": seeded["ws_a"], "t": title},
+                    ).scalar_one()
+                assert n == 0
+
+            # 自動抽出が同じ題を出しても再提案されない
+            from typing import Any
+
+            from src.services.knowledge import auto_capture
+
+            async def _same(**kwargs: Any) -> tuple[str, str]:
+                del kwargs
+                return (
+                    f'[{{"title":"{title}","content_md":"'
+                    "同じ題のノウハウ。却下済みなので再提案されないこと。"
+                    '","category":"ノウハウ","tags":[]}]',
+                    "stub",
+                )
+
+            with sync_engine.begin() as c:
+                emp = c.execute(
+                    text(
+                        "insert into public.ai_employees (workspace_id, name, display_name, "
+                        "role, department, is_default) values (cast(:w as uuid), 'steve', "
+                        "'スティーブ', 'lead', 'product', true) returning id"
+                    ),
+                    {"w": seeded["ws_a"]},
+                ).scalar_one()
+                proj = c.execute(
+                    text(
+                        "insert into public.projects (workspace_id, name, project_type) "
+                        "values (cast(:w as uuid), 'p', 'internal_product') returning id"
+                    ),
+                    {"w": seeded["ws_a"]},
+                ).scalar_one()
+                thread = c.execute(
+                    text(
+                        "insert into public.chat_threads (project_id, ai_employee_id, title) "
+                        "values (cast(:p as uuid), cast(:e as uuid), 't') returning id"
+                    ),
+                    {"p": proj, "e": emp},
+                ).scalar_one()
+                for i in range(4):
+                    c.execute(
+                        text(
+                            "insert into public.chat_messages (thread_id, role, content) "
+                            "values (cast(:t as uuid), 'user', :c)"
+                        ),
+                        {"t": thread, "c": f"雑談 {i}"},
+                    )
+
+            async def run() -> list[str]:
+                engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+                try:
+                    async with AsyncSession(engine) as session:
+                        out = await auto_capture.capture_from_thread(
+                            session,
+                            thread_id=str(thread),
+                            actor_id=seeded["u_a"],
+                            complete=_same,
+                        )
+                        await session.commit()
+                        return out
+                finally:
+                    await engine.dispose()
+
+            assert asyncio.run(run()) == []
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.knowledge_candidates where workspace_id = cast(:w as uuid)"
+                    ),
+                    {"w": seeded["ws_a"]},
+                )

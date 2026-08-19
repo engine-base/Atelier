@@ -43,6 +43,8 @@ import {
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+import { KnowledgeCandidates } from "./KnowledgeCandidates";
+
 import {
   EmployeeIcon,
   type EmployeeId,
@@ -532,6 +534,12 @@ export function KnowledgeExplorer({
         : [{ key: "all", header: null, nodes: roots }];
 
   return (
+    <>
+      {/* GAP-167: AI が拾った候補は「採用したものだけ」ナレッジになる */}
+      <KnowledgeCandidates
+        client={client}
+        onApproved={() => void queryClient.invalidateQueries({ queryKey: ["knowledge"] })}
+      />
     <section
       aria-label="ナレッジエクスプローラ"
       className={cn(
@@ -1038,5 +1046,6 @@ export function KnowledgeExplorer({
         onSubmit={(draft) => createMut.mutate(draft)}
       />
     </section>
+    </>
   );
 }

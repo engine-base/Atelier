@@ -7940,6 +7940,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** AI が会話から拾ったナレッジ候補 (GAP-167 — 採用したものだけがナレッジになる) */
+        get: {
+            parameters: {
+                query?: {
+                    status?: "pending" | "approved" | "rejected";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 候補一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["KnowledgeCandidate"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/candidates/{candidate_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 候補を採用してナレッジにする (GAP-167 — 編集して採用も可) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    candidate_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        content_md?: string;
+                        category?: string;
+                        tags?: string[];
+                    };
+                };
+            };
+            responses: {
+                /** @description 作成されたナレッジ */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                knowledge_id?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description 候補が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description すでに採用/却下済み */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/candidates/{candidate_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 候補を却下する (GAP-167 — 同じ題は再提案しない) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    candidate_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 却下した */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 候補が見つからない / すでに判断済み */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;
@@ -17976,6 +18126,23 @@ export interface components {
                 name?: string;
                 rows?: string[][];
             }[];
+        };
+        /** @description GAP-167 — AI が会話から拾ったナレッジ候補 (人が採用して初めてナレッジになる) */
+        KnowledgeCandidate: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            workspace_id?: string;
+            /** Format: uuid */
+            project_id?: string | null;
+            title?: string;
+            content_md?: string;
+            category?: string;
+            tags?: string[];
+            /** @enum {string} */
+            status?: "pending" | "approved" | "rejected";
+            /** Format: date-time */
+            created_at?: string;
         };
         /** @description GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可) */
         ShareLink: {

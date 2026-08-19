@@ -1257,6 +1257,22 @@ class OutputSheet(BaseModel):
     sheets: list[Sheet] | None = None
 
 
+class KnowledgeCandidate(BaseModel):
+    """
+    GAP-167 — AI が会話から拾ったナレッジ候補 (人が採用して初めてナレッジになる)
+    """
+
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    project_id: UUID | None = None
+    title: str | None = None
+    content_md: str | None = None
+    category: str | None = None
+    tags: list[str] | None = None
+    status: Status6 | None = None
+    created_at: AwareDatetime | None = None
+
+
 class ShareLink(BaseModel):
     """
     GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)
@@ -1367,7 +1383,7 @@ class OutputFixProposal(BaseModel):
     resolved_at: AwareDatetime | None = None
 
 
-class Status8(StrEnum):
+class Status9(StrEnum):
     decided = "decided"
     unresolved = "unresolved"
 
@@ -1376,7 +1392,7 @@ class Decision(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
     phase_id: UUID | None = None
-    status: Status8 | None = None
+    status: Status9 | None = None
     body: str | None = None
     reflected_to: str | None = None
     resolve_note: str | None = None
@@ -1391,7 +1407,7 @@ class Decision(BaseModel):
 class DecisionCreate(BaseModel):
     project_id: UUID
     phase_id: UUID | None = None
-    status: Status8 | None = "decided"
+    status: Status9 | None = "decided"
     body: Annotated[str, Field(max_length=2000, min_length=1)]
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -1400,7 +1416,7 @@ class DecisionCreate(BaseModel):
 
 
 class DecisionUpdate(BaseModel):
-    status: Status8 | None = None
+    status: Status9 | None = None
     body: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
     reflected_to: Annotated[str | None, Field(max_length=500)] = None
     resolve_note: Annotated[str | None, Field(max_length=500)] = None
@@ -1414,7 +1430,7 @@ class TargetType(StrEnum):
     acceptance_criteria = "acceptance_criteria"
 
 
-class Status11(StrEnum):
+class Status12(StrEnum):
     open = "open"
     resolved = "resolved"
     deleted = "deleted"
@@ -1428,7 +1444,7 @@ class Comment(BaseModel):
     author_user_id: UUID | None = None
     author_invitation_id: UUID | None = None
     content: str | None = None
-    status: Status11 | None = None
+    status: Status12 | None = None
     parent_comment_id: UUID | None = None
     created_at: AwareDatetime | None = None
     updated_at: AwareDatetime | None = None
@@ -1625,14 +1641,14 @@ class MeetingTranscribeRequest(PlayTaskRequest):
     pass
 
 
-class Status12(StrEnum):
+class Status13(StrEnum):
     queued = "queued"
     already_parsed = "already_parsed"
 
 
 class MeetingTranscribeResponse(BaseModel):
     id: UUID
-    status: Status12
+    status: Status13
     queued_at: AwareDatetime
 
 
@@ -1721,7 +1737,7 @@ class CurationRunStats(BaseModel):
     rejected_security: int | None = None
 
 
-class Status13(StrEnum):
+class Status14(StrEnum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -1745,7 +1761,7 @@ class KnowledgeCuration(BaseModel):
     proposed_tags: list[str] | None = None
     reason: str | None = None
     security_notes: str | None = None
-    status: Status13 | None = None
+    status: Status14 | None = None
     model: str | None = None
     published_node_id: UUID | None = None
     reviewed_at: AwareDatetime | None = None
@@ -1919,7 +1935,7 @@ class KnowledgeReferencesResponse(BaseModel):
     total: Annotated[int, Field(ge=0)]
 
 
-class Status14(StrEnum):
+class Status15(StrEnum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
@@ -1935,7 +1951,7 @@ class Execution(BaseModel):
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     duration_seconds: float | None = None
-    status: Status14
+    status: Status15
     score: float | None = None
     ac_pass_rate: float | None = None
     test_pass_rate: float | None = None
@@ -1996,7 +2012,7 @@ class ExecutionEvent(BaseModel):
 class ExecLogMeta(BaseModel):
     execution_id: UUID
     task_id: UUID
-    status: Status14
+    status: Status15
     started_at: AwareDatetime
     completed_at: AwareDatetime | None = None
     logs_storage_path: str | None = None
@@ -2166,7 +2182,7 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Status16(StrEnum):
+class Status17(StrEnum):
     pass_ = "pass"
     fail = "fail"
     skip = "skip"
@@ -2175,7 +2191,7 @@ class Status16(StrEnum):
 class ExecutionTestResultIn(BaseModel):
     name: Annotated[str, Field(max_length=300, min_length=1)]
     file: Annotated[str | None, Field(max_length=300)] = None
-    status: Status16
+    status: Status17
     duration_ms: Annotated[int | None, Field(ge=0)] = None
     detail: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -2185,7 +2201,7 @@ class ExecutionTestResult(BaseModel):
     execution_id: UUID
     name: str
     file: str | None = None
-    status: Status16
+    status: Status17
     duration_ms: int | None = None
     detail: str | None = None
     created_at: AwareDatetime
@@ -2338,7 +2354,7 @@ class BridgeTokenRow(BaseModel):
     revoked_at: AwareDatetime | None = None
 
 
-class Status18(StrEnum):
+class Status19(StrEnum):
     allowed = "allowed"
     allowed_warning = "allowed_warning"
     rejected = "rejected"
@@ -2349,7 +2365,7 @@ class ChatRelayRateLimitObservation(BaseModel):
     GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
     """
 
-    status: Status18
+    status: Status19
     rate_limit_type: Annotated[str | None, Field(max_length=40)] = None
     utilization: Annotated[float | None, Field(ge=0.0, le=2.0)] = None
     resets_at: float | None = None
@@ -2426,7 +2442,7 @@ class ChatConnectionPlan(BaseModel):
     GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない）
     """
 
-    status: Status18
+    status: Status19
     five_hour_utilization: float | None = None
     five_hour_resets_at: AwareDatetime | None = None
     seven_day_utilization: float | None = None

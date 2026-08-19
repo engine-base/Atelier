@@ -12,10 +12,10 @@ GAP-153 のキュレーションは「すでにナレッジになっているも
   - スレッドのローリング要約更新と同じタイミングで、直近の会話から
     **他の案件でも使える形に一般化できるノウハウ**だけを抽出する。
   - 抽出は **本人のサブスク経路 (relay → agent_sdk → API)** で走る。運営費用ではない。
-  - 保存先は **そのワークスペースのナレッジ** (account_type=workspace / scope=common)。
-    source_type='ai_extracted' なので画面で「AI が会話から拾ったもの」と分かり、
-    不要なら消せる。**外部のモデル学習には一切使わない** (鉄則: AI 学習デフォルト OFF)。
-  - 似た題のナレッジが既にあれば作らない (重複で埋めない)。
+  - GAP-167: 保存先は **ナレッジ候補** (knowledge_candidates)。**人が採用して初めて
+    ナレッジになる** — 全部を溜めてノイズにしない。却下した題は再提案しない。
+  - **外部のモデル学習には一切使わない** (鉄則: AI 学習デフォルト OFF)。
+  - 既にナレッジ/候補にある題は作らない (重複で埋めない)。
   - 抽出できなければ何も作らない。**でっち上げない**。
 """
 
@@ -23,10 +23,13 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.audit import AuditEvent, AuditWriter
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +122,11 @@ async def _thread_context(
 
 
 async def _existing_titles(session: AsyncSession, *, workspace_id: str) -> set[str]:
-    rows = (
+    """既にナレッジ化された題 + 既に候補に出した題 (却下済みを含む)。
+
+    GAP-167: 却下した題を再提案しない = 同じノイズを何度も見せない。
+    """
+    nodes = (
         await session.execute(
             text(
                 "select title from public.knowledge_nodes "
@@ -129,7 +136,16 @@ async def _existing_titles(session: AsyncSession, *, workspace_id: str) -> set[s
             {"w": workspace_id},
         )
     ).all()
-    return {str(r.title).strip() for r in rows}
+    cands = (
+        await session.execute(
+            text(
+                "select title from public.knowledge_candidates "
+                "where workspace_id = cast(:w as uuid)"
+            ),
+            {"w": workspace_id},
+        )
+    ).all()
+    return {str(r.title).strip() for r in [*nodes, *cands]}
 
 
 async def capture_from_thread(
@@ -141,7 +157,7 @@ async def capture_from_thread(
 ) -> list[str]:
     """会話からノウハウを抽出してワークスペースのナレッジに残す。
 
-    返り値 = 作成した knowledge の id 一覧 (何も作らなければ空)。
+    返り値 = 作成した **候補** の id 一覧 (何も作らなければ空)。
     complete は llm_complete 互換の注入口 (テスト用)。
     """
     workspace_id, project_name, lines = await _thread_context(session, thread_id=thread_id)
@@ -179,18 +195,21 @@ async def capture_from_thread(
         row = (
             await session.execute(
                 text(
-                    "insert into public.knowledge_nodes "
-                    "(account_id, account_type, scope, category, tags, title, content_md, "
-                    " source_type, confidence_score) "
-                    "values (cast(:w as uuid), 'workspace', 'common', :cat, :tags, :title, "
-                    "        :body, 'ai_extracted', 0.5) returning id"
+                    "insert into public.knowledge_candidates "
+                    "(workspace_id, project_id, thread_id, title, content_md, category, tags) "
+                    "values (cast(:w as uuid), "
+                    "        (select project_id from public.chat_threads "
+                    "          where id = cast(:t as uuid)), "
+                    "        cast(:t as uuid), :title, :body, :cat, :tags) "
+                    "on conflict (workspace_id, title) do nothing returning id"
                 ),
                 {
                     "w": workspace_id,
-                    "cat": cand["category"],
-                    "tags": cand["tags"],
+                    "t": thread_id,
                     "title": cand["title"],
                     "body": cand["content_md"],
+                    "cat": cand["category"],
+                    "tags": cand["tags"],
                 },
             )
         ).first()
@@ -219,7 +238,7 @@ def schedule_capture(*, thread_id: str, actor_id: str) -> None:
                 if created:
                     await session.commit()
                     logger.info(
-                        "knowledge auto-capture: %d item(s) from thread %s",
+                        "knowledge auto-capture: %d candidate(s) from thread %s",
                         len(created),
                         thread_id,
                     )
@@ -229,3 +248,150 @@ def schedule_capture(*, thread_id: str, actor_id: str) -> None:
     task = asyncio.create_task(_run())
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
+
+
+# ── GAP-167: 候補の採用 / 却下 (どれを入れるかは人が決める) ────────────
+
+
+@dataclass(frozen=True)
+class KnowledgeCandidate:
+    id: str
+    workspace_id: str
+    project_id: str | None
+    title: str
+    content_md: str
+    category: str
+    tags: list[str]
+    status: str
+    created_at: Any
+
+
+class CandidateError(Exception):
+    """code: not_found / already_decided"""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+_CAND_COLS = "id, workspace_id, project_id, title, content_md, category, tags, status, created_at"
+
+
+def _to_candidate(row: Any) -> KnowledgeCandidate:
+    return KnowledgeCandidate(
+        id=str(row.id),
+        workspace_id=str(row.workspace_id),
+        project_id=None if row.project_id is None else str(row.project_id),
+        title=str(row.title),
+        content_md=str(row.content_md),
+        category=str(row.category),
+        tags=list(row.tags or []),
+        status=str(row.status),
+        created_at=row.created_at,
+    )
+
+
+async def list_candidates(
+    session: AsyncSession, *, status: str = "pending", limit: int = 50
+) -> list[KnowledgeCandidate]:
+    rows = (
+        await session.execute(
+            text(
+                f"select {_CAND_COLS} from public.knowledge_candidates "
+                "where status = :s order by created_at desc limit :n"
+            ),
+            {"s": status, "n": limit},
+        )
+    ).all()
+    return [_to_candidate(r) for r in rows]
+
+
+async def approve_candidate(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    candidate_id: str,
+    title: str | None = None,
+    content_md: str | None = None,
+    category: str | None = None,
+    tags: list[str] | None = None,
+) -> str:
+    """候補を採用してナレッジにする。編集して採用もできる。返り値 = knowledge id。"""
+    row = (
+        await session.execute(
+            text(
+                f"select {_CAND_COLS} from public.knowledge_candidates where id = cast(:i as uuid)"
+            ),
+            {"i": candidate_id},
+        )
+    ).first()
+    if row is None:
+        raise CandidateError("not_found", "候補が見つかりません")
+    if str(row.status) != "pending":
+        raise CandidateError("already_decided", f"この候補はすでに{row.status}です")
+    cand = _to_candidate(row)
+    new_row = (
+        await session.execute(
+            text(
+                "insert into public.knowledge_nodes "
+                "(account_id, account_type, scope, category, tags, title, content_md, "
+                " source_type, confidence_score) "
+                "values (cast(:w as uuid), 'workspace', 'common', :cat, :tags, :title, "
+                "        :body, 'ai_extracted', 0.6) returning id"
+            ),
+            {
+                "w": cand.workspace_id,
+                "cat": (category or cand.category)[:40],
+                "tags": tags if tags is not None else cand.tags,
+                "title": (title or cand.title)[:120],
+                "body": content_md or cand.content_md,
+            },
+        )
+    ).one()
+    knowledge_id = str(new_row.id)
+    await session.execute(
+        text(
+            "update public.knowledge_candidates set status = 'approved', "
+            "approved_knowledge_id = cast(:k as uuid), decided_by = cast(:u as uuid), "
+            "decided_at = now() where id = cast(:i as uuid)"
+        ),
+        {"k": knowledge_id, "u": actor_id, "i": candidate_id},
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="knowledge.candidate.approve",
+            target_type="knowledge_node",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=knowledge_id,
+            after={"candidate_id": candidate_id, "edited": bool(title or content_md)},
+        )
+    )
+    return knowledge_id
+
+
+async def reject_candidate(session: AsyncSession, *, actor_id: str, candidate_id: str) -> None:
+    """候補を却下する。以後、同じ題は再提案しない (ノイズを繰り返さない)。"""
+    row = (
+        await session.execute(
+            text(
+                "update public.knowledge_candidates set status = 'rejected', "
+                "decided_by = cast(:u as uuid), decided_at = now() "
+                "where id = cast(:i as uuid) and status = 'pending' returning id"
+            ),
+            {"u": actor_id, "i": candidate_id},
+        )
+    ).first()
+    if row is None:
+        raise CandidateError("not_found", "候補が見つからないか、すでに判断済みです")
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="knowledge.candidate.reject",
+            target_type="knowledge_node",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=candidate_id,
+            after={"candidate_id": candidate_id},
+        )
+    )

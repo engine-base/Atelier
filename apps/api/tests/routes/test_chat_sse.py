@@ -685,10 +685,10 @@ class TestGap161AttachmentsReachTheAI:
 
 @pytest.mark.integration
 class TestGap164AutoKnowledgeCapture:
-    def test_generalizable_knowhow_becomes_workspace_knowledge(
+    def test_generalizable_knowhow_becomes_a_candidate_for_review(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:
-        """一般化できるノウハウだけが workspace ナレッジになる (重複は作らない)。"""
+        """GAP-167: 一般化できるノウハウは **候補** になる (直接ナレッジにしない)。"""
         from typing import Any
 
         from src.services.knowledge import auto_capture
@@ -747,21 +747,28 @@ class TestGap164AutoKnowledgeCapture:
             with sync_engine.begin() as c:
                 row = c.execute(
                     text(
-                        "select title, account_type::text as at, scope::text as sc, "
-                        "source_type, account_id from public.knowledge_nodes "
-                        "where id = cast(:i as uuid)"
+                        "select title, status, workspace_id, category "
+                        "from public.knowledge_candidates where id = cast(:i as uuid)"
                     ),
                     {"i": created[0]},
                 ).one()
+                # まだナレッジ本体には入っていない (人が採用して初めて入る)
+                n = c.execute(
+                    text(
+                        "select count(*) from public.knowledge_nodes "
+                        "where account_id = cast(:w as uuid) and title = :t "
+                        "and deleted_at is null"
+                    ),
+                    {"w": seeded["ws_a"], "t": "見積は前提条件を明記する"},
+                ).scalar_one()
             assert row.title == "見積は前提条件を明記する"
-            assert row.at == "workspace" and row.sc == "common"
-            # 画面で「AI が会話から拾ったもの」と分かる = 消す判断ができる
-            assert row.source_type == "ai_extracted"
-            assert str(row.account_id) == seeded["ws_a"]
+            assert row.status == "pending"
+            assert str(row.workspace_id) == seeded["ws_a"]
+            assert n == 0
         finally:
             with sync_engine.begin() as c:
                 c.execute(
-                    text("delete from public.knowledge_nodes where id = cast(:i as uuid)"),
+                    text("delete from public.knowledge_candidates where id = cast(:i as uuid)"),
                     {"i": created[0]},
                 )
 

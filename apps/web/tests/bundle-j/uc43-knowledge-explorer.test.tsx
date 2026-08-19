@@ -88,7 +88,12 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     expect(
       await screen.findByRole("treeitem", { name: "ルートA" }),
     ).toBeInTheDocument();
-    const init = (get.mock.calls[0] as unknown as [string, GetInit])[1];
+    // GAP-167: 候補取得の GET も走るため、呼び出し順ではなくパスで特定する
+    const knowledgeCall = (
+      get.mock.calls as unknown as [string, GetInit][]
+    ).find(([path]) => path === "/knowledge");
+    expect(knowledgeCall).toBeDefined();
+    const init = knowledgeCall![1];
     expect(init.params.query.tree_only).toBe(true);
     expect(init.params.query.scope).toBe("common");
     expect(init.params.query.account_id).toBe("w1");
@@ -154,7 +159,7 @@ describe("S-K01 KnowledgeExplorer (T-UC-43)", () => {
     fireEvent.change(screen.getByLabelText(/カテゴリ/), {
       target: { value: "用語" },
     });
-    fireEvent.change(screen.getByLabelText(/本文/), {
+    fireEvent.change(screen.getByLabelText(/^本文/), {
       target: { value: "# body" },
     });
     fireEvent.click(screen.getByRole("button", { name: "追加する" }));

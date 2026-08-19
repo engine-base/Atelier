@@ -204,3 +204,26 @@ class KnowledgePattern(BaseModel):
 class KnowledgePatternResponse(BaseModel):
     total: int
     patterns: list[KnowledgePattern]
+
+
+class KnowledgeCandidateResponse(BaseModel):
+    """GAP-167: AI が会話から拾ったナレッジ候補 (採用して初めてナレッジになる)。"""
+
+    id: str
+    workspace_id: str
+    project_id: str | None = None
+    title: str
+    content_md: str
+    category: str
+    tags: list[str] = Field(default_factory=list)
+    status: str
+    created_at: datetime
+
+
+class KnowledgeCandidateApproveRequest(BaseModel):
+    """採用 (そのまま / 編集して採用のどちらも)。"""
+
+    title: str | None = Field(default=None, max_length=120)
+    content_md: str | None = Field(default=None, max_length=4000)
+    category: str | None = Field(default=None, max_length=40)
+    tags: list[str] | None = Field(default=None, max_length=8)

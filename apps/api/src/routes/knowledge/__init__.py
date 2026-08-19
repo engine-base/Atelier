@@ -19,6 +19,8 @@ from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.rate_limit import rate_limit_user
 from src.schemas.knowledge import (
     KnowledgeAccountType,
+    KnowledgeCandidateApproveRequest,
+    KnowledgeCandidateResponse,
     KnowledgeCreate,
     KnowledgeGraphResponse,
     KnowledgePatternRequest,
@@ -148,6 +150,86 @@ async def get_knowledge_graph(
     account_id: Annotated[str, Query()],
 ) -> dict[str, KnowledgeGraphResponse]:
     return {"data": await svc.get_graph(session, account_id=account_id)}
+
+
+# ── GAP-167: ナレッジ候補 (どれを入れるかは人が決める) ─────────────────
+
+
+@router.get(
+    "/knowledge/candidates",
+    summary="AI が会話から拾ったナレッジ候補 (GAP-167 — 採用して初めてナレッジになる)",
+)
+async def list_knowledge_candidates(
+    session: SessionDep,
+    _user: UserDep,
+    status_filter: Annotated[str, Query(alias="status")] = "pending",
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> dict[str, list[KnowledgeCandidateResponse]]:
+    from src.services.knowledge import auto_capture
+
+    items = await auto_capture.list_candidates(session, status=status_filter, limit=limit)
+    return {
+        "data": [
+            KnowledgeCandidateResponse(
+                id=c.id,
+                workspace_id=c.workspace_id,
+                project_id=c.project_id,
+                title=c.title,
+                content_md=c.content_md,
+                category=c.category,
+                tags=c.tags,
+                status=c.status,
+                created_at=c.created_at,
+            )
+            for c in items
+        ]
+    }
+
+
+@router.post(
+    "/knowledge/candidates/{candidate_id}/approve",
+    status_code=status.HTTP_201_CREATED,
+    summary="候補を採用してナレッジにする (GAP-167 — 編集して採用も可)",
+)
+async def approve_knowledge_candidate(
+    candidate_id: str,
+    body: KnowledgeCandidateApproveRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, dict[str, str]]:
+    from src.services.knowledge import auto_capture
+
+    try:
+        knowledge_id = await auto_capture.approve_candidate(
+            session,
+            actor_id=user.id,
+            candidate_id=candidate_id,
+            title=body.title,
+            content_md=body.content_md,
+            category=body.category,
+            tags=body.tags,
+        )
+    except auto_capture.CandidateError as exc:
+        code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
+        raise HTTPException(code, exc.message) from exc
+    return {"data": {"knowledge_id": knowledge_id}}
+
+
+@router.post(
+    "/knowledge/candidates/{candidate_id}/reject",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="候補を却下する (GAP-167 — 同じ題は再提案しない)",
+)
+async def reject_knowledge_candidate(
+    candidate_id: str, session: SessionDep, user: UserDep
+) -> Response:
+    from src.services.knowledge import auto_capture
+
+    try:
+        await auto_capture.reject_candidate(session, actor_id=user.id, candidate_id=candidate_id)
+    except auto_capture.CandidateError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/knowledge/{knowledge_id}", summary="ナレッジ取得")

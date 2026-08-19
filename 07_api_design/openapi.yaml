@@ -1110,6 +1110,20 @@ components:
                   type: array
                   items: { type: string }
 
+    KnowledgeCandidate:
+      type: object
+      description: GAP-167 — AI が会話から拾ったナレッジ候補 (人が採用して初めてナレッジになる)
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid, nullable: true }
+        title: { type: string }
+        content_md: { type: string }
+        category: { type: string }
+        tags: { type: array, items: { type: string } }
+        status: { type: string, enum: [pending, approved, rejected] }
+        created_at: { type: string, format: date-time }
+
     ShareLink:
       type: object
       description: GAP-162 — 成果物のクライアント共有リンク (期限つき・失効可)
@@ -6021,6 +6035,67 @@ paths:
         '404': { description: 成果物が見つからない }
         '409': { description: この形式はファイル編集に対応していない }
         '503': { description: Bridge がオフライン }
+
+  /knowledge/candidates:
+    get:
+      tags: [knowledge]
+      summary: AI が会話から拾ったナレッジ候補 (GAP-167 — 採用したものだけがナレッジになる)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, approved, rejected], default: pending } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: 候補一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/KnowledgeCandidate' }
+
+  /knowledge/candidates/{candidate_id}/approve:
+    post:
+      tags: [knowledge]
+      summary: 候補を採用してナレッジにする (GAP-167 — 編集して採用も可)
+      parameters:
+        - { name: candidate_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string, maxLength: 120 }
+                content_md: { type: string, maxLength: 4000 }
+                category: { type: string, maxLength: 40 }
+                tags: { type: array, maxItems: 8, items: { type: string } }
+      responses:
+        '201':
+          description: 作成されたナレッジ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      knowledge_id: { type: string, format: uuid }
+        '404': { description: 候補が見つからない }
+        '409': { description: すでに採用/却下済み }
+
+  /knowledge/candidates/{candidate_id}/reject:
+    post:
+      tags: [knowledge]
+      summary: 候補を却下する (GAP-167 — 同じ題は再提案しない)
+      parameters:
+        - { name: candidate_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 却下した }
+        '404': { description: 候補が見つからない / すでに判断済み }
 
   /design-templates/{template_id}/content-url:
     get:
