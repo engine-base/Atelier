@@ -12,6 +12,11 @@
  * 法令・運用バックエンド (GAP-014 解消): GET /cron-platform-jobs の read-only
  * 実データで描画 (退会データ 30 日後完全削除 / データ整合性チェック — 無効化不可)。
  * 最終実行は cron_run_history 実データ。稼働状況を偽装しない (未実行なら未実行と出す)。
+ * GAP-179: 説明・コスト表示・担当は **API (GET /cron-actions) から取る**。
+ * 以前はこのファイルに「BYOK API 使用」等を直書きしていたため、実際には
+ * 一度も実行されていない自動実行に対して費用の嘘が表示されていた。
+ * 実行コード (apps/api/src/services/cron/actions.py) を唯一の信頼源にする。
+ *
  * データ配線・props・export・aria-label は不変（vitest / e2e が参照）。
  */
 
@@ -54,7 +59,25 @@ export interface CronRun {
   readonly name: string;
   readonly startedAt: string;
   readonly finishedAt?: string | null;
-  readonly status: "running" | "success" | "error";
+  /** GAP-179: deferred = 今は実行できないので自動再試行する (嘘の成功/失敗にしない)。 */
+  readonly status: "running" | "success" | "error" | "deferred";
+  /** どのスケジュールの実行か (行内に前回結果を出すため)。 */
+  readonly scheduleId?: string | null;
+}
+
+/**
+ * 自動実行の種類ごとのメタ情報 (GET /cron-actions)。
+ * 説明・コスト・担当・PC 接続要否はすべてこの API 由来。
+ */
+export interface CronActionInfo {
+  readonly action: string;
+  readonly title: string;
+  readonly description: string;
+  readonly group: "impl" | "knowledge" | "notify";
+  readonly staff: string;
+  readonly requiresBridge: boolean;
+  readonly costLabel: string;
+  readonly costNote: string;
 }
 
 /** プラットフォーム必須ジョブ (GAP-014 — GET /cron-platform-jobs、read-only)。 */
@@ -69,7 +92,7 @@ export interface PlatformJob {
   readonly nextRunAt?: string | null;
   readonly lastRun?: {
     readonly startedAt: string;
-    readonly status: "running" | "success" | "error";
+    readonly status: "running" | "success" | "error" | "deferred";
   } | null;
 }
 
@@ -79,6 +102,8 @@ export interface CronScheduleProps {
   readonly runs?: readonly CronRun[];
   /** 法令・運用バックエンド (GAP-014)。未指定なら節を出さない (Rule 10)。 */
   readonly platformJobs?: readonly PlatformJob[];
+  /** 種類ごとのメタ情報 (GET /cron-actions)。未取得なら説明・コストを出さない (Rule 10)。 */
+  readonly actions?: readonly CronActionInfo[];
   readonly onToggle: (id: string, enabled: boolean) => void;
   /** 即時実行。未指定なら「即時実行」ボタンを出さない（バックエンド未対応時など）。 */
   readonly onRunNow?: (id: string) => void;
@@ -88,15 +113,15 @@ export interface CronScheduleProps {
   readonly onRefresh?: () => void;
 }
 
-/** target_action ごとの表示仕様 (ScheduleBuilder の ACTIONS と整合)。 */
+/**
+ * target_action ごとの **見た目だけ** の仕様 (アイコン・配色・グループ)。
+ * 文言 (説明 / コスト / 担当) は API から取るのでここには置かない — 置くと
+ * 「画面の説明」と「実際に走る処理」がまた食い違う (GAP-179 の原因)。
+ */
 interface ActionSpec {
   readonly group: "impl" | "knowledge" | "notify";
   readonly icon: React.ReactNode;
   readonly iconTone: string;
-  readonly desc: string;
-  readonly costTag: string;
-  readonly costTone: string;
-  readonly staff: string;
 }
 
 const ACTION_SPEC: Record<string, ActionSpec> = {
@@ -104,55 +129,31 @@ const ACTION_SPEC: Record<string, ActionSpec> = {
     group: "impl",
     icon: <PlayCircle size={18} />,
     iconTone: "bg-primary-container text-primary-container-fg",
-    desc: "タスクボードの「着手可」レーンにあるタスクを、同時実行枠の範囲で自動的に再生します。",
-    costTag: "Claude プラン枠を使用",
-    costTone: "bg-primary-container text-primary-container-fg",
-    staff: "ソー（実装）",
   },
   knowledge_organize: {
     group: "knowledge",
     icon: <Brain size={18} />,
     iconTone: "bg-tertiary-container text-tertiary-container-fg",
-    desc: "新規追加されたナレッジに対してカテゴリ分け・タグ付け・重複統合を実行します。",
-    costTag: "BYOK API 使用",
-    costTone: "bg-secondary-container text-secondary-container-fg",
-    staff: "ティチャラ",
   },
   industry_extract: {
     group: "knowledge",
     icon: <Sparkles size={18} />,
     iconTone: "bg-tertiary-container text-tertiary-container-fg",
-    desc: "複数案件で類似度の高いパターンを検出して、共通ナレッジへの昇格を承認待ちに提案します。",
-    costTag: "BYOK API 使用",
-    costTone: "bg-secondary-container text-secondary-container-fg",
-    staff: "ティチャラ",
   },
   report_summary: {
     group: "notify",
     icon: <Mail size={18} />,
     iconTone: "bg-secondary-container text-secondary-container-fg",
-    desc: "進捗をまとめたレポートを生成して関係者へ配信します。",
-    costTag: "BYOK API 使用",
-    costTone: "bg-secondary-container text-secondary-container-fg",
-    staff: "スティーブ",
   },
   daily_digest: {
     group: "notify",
     icon: <ClipboardList size={18} />,
     iconTone: "bg-secondary-container text-secondary-container-fg",
-    desc: "当日の活動をまとめた日次ダイジェストを配信します。",
-    costTag: "BYOK API 使用",
-    costTone: "bg-secondary-container text-secondary-container-fg",
-    staff: "スティーブ",
   },
   weekly_burndown: {
     group: "notify",
     icon: <CalendarClock size={18} />,
     iconTone: "bg-surface-variant text-on-surface-variant",
-    desc: "週次のバーンダウンを集計します。バックエンドのみで AI 社員は使いません。",
-    costTag: "コスト無料",
-    costTone: "bg-tertiary-container text-tertiary-container-fg",
-    staff: "バックエンドのみ",
   },
 };
 
@@ -160,11 +161,22 @@ const FALLBACK_SPEC: ActionSpec = {
   group: "impl",
   icon: <Clock size={18} />,
   iconTone: "bg-primary-container text-primary-container-fg",
-  desc: "",
-  costTag: "—",
-  costTone: "bg-surface-variant text-on-surface-variant",
-  staff: "—",
 };
+
+/** コスト表示の配色。文言は API の cost_label をそのまま出す (言い換えない)。 */
+function costTone(label: string): string {
+  return label.includes("無料")
+    ? "bg-tertiary-container text-tertiary-container-fg"
+    : "bg-primary-container text-primary-container-fg";
+}
+
+/** 実行結果の日本語ラベル (deferred を「失敗」と書かない)。 */
+export function runStatusLabel(status: CronRun["status"]): string {
+  if (status === "success") return "成功";
+  if (status === "error") return "失敗";
+  if (status === "deferred") return "保留";
+  return "実行中";
+}
 
 const GROUPS: readonly {
   key: ActionSpec["group"];
@@ -176,14 +188,14 @@ const GROUPS: readonly {
   {
     key: "impl",
     name: "実装の夜間自動進行",
-    desc: "あなたが寝てる間に着手可タスクを自動消化（Claude プラン枠を使用）",
+    desc: "あなたが寝てる間に着手可タスクを自動消化（あなたの Claude プラン枠）",
     icon: <PlayCircle size={16} />,
     tone: "bg-primary-container text-primary-container-fg",
   },
   {
     key: "knowledge",
     name: "ナレッジ整理（ティチャラ）",
-    desc: "蓄積されたナレッジの整理・統合・横断パターン抽出。BYOK API キーを使用",
+    desc: "蓄積されたナレッジの整理・統合・横断パターン抽出",
     icon: <Brain size={16} />,
     tone: "bg-tertiary-container text-tertiary-container-fg",
   },
@@ -202,16 +214,25 @@ const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 export function cronLabel(expr: string): string {
   const m = /^(\d{1,2})\s+(\S+)\s+(\S+)\s+\*\s+(\S+)$/.exec(expr.trim());
   if (!m) return expr;
-  const [, min, hour, dom, dow] = m as unknown as [string, string, string, string, string];
+  const [, min, hour, dom, dow] = m as unknown as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
   const mm = min.padStart(2, "0");
-  if (hour === "*" && dom === "*" && dow === "*") return `毎時 ${Number(min)} 分`;
+  if (hour === "*" && dom === "*" && dow === "*")
+    return `毎時 ${Number(min)} 分`;
   if (!/^\d{1,2}$/.test(hour)) return expr;
   const h = Number(hour);
   const time = `${h}:${mm}`;
   const period = h < 5 ? "深夜" : h < 11 ? "朝" : h < 18 ? "昼" : "夜";
   if (dom === "*" && dow === "*") return `毎日 ${period} ${time}`;
-  if (dom === "*" && /^\d$/.test(dow)) return `毎週 ${DOW[Number(dow)] ?? dow}曜 ${time}`;
-  if (/^\d{1,2}$/.test(dom) && dow === "*") return `毎月 ${Number(dom)} 日 ${period} ${time}`;
+  if (dom === "*" && /^\d$/.test(dow))
+    return `毎週 ${DOW[Number(dow)] ?? dow}曜 ${time}`;
+  if (/^\d{1,2}$/.test(dom) && dow === "*")
+    return `毎月 ${Number(dom)} 日 ${period} ${time}`;
   return expr;
 }
 
@@ -222,7 +243,8 @@ function relUntil(iso: string): string {
   const min = Math.floor(diff / 60000);
   if (min < 60) return `あと ${min} 分`;
   const hours = Math.floor(min / 60);
-  if (hours < 24) return `あと ${hours} 時間 ${String(min % 60).padStart(2, "0")} 分`;
+  if (hours < 24)
+    return `あと ${hours} 時間 ${String(min % 60).padStart(2, "0")} 分`;
   const days = Math.floor(hours / 24);
   return `あと ${days} 日 ${hours % 24} 時間`;
 }
@@ -285,11 +307,15 @@ function EnableToggle({
 
 function ScheduleRow({
   job,
+  info,
+  lastRun,
   onToggle,
   onRunNow,
   onDelete,
 }: {
   readonly job: CronJob;
+  readonly info?: CronActionInfo;
+  readonly lastRun?: CronRun;
   readonly onToggle: (id: string, enabled: boolean) => void;
   readonly onRunNow?: (id: string) => void;
   readonly onDelete?: (id: string) => void;
@@ -319,24 +345,53 @@ function ScheduleRow({
         <div className="truncate text-sm font-bold text-on-surface">
           {job.name}
         </div>
-        {spec.desc ? (
+        {info ? (
           <p className="mt-0.5 text-[12px] leading-[1.55] text-on-surface-variant">
-            {spec.desc}
+            {info.description}
           </p>
         ) : null}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <StatusPill enabled={job.enabled} />
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
-              spec.costTone,
-            )}
-          >
-            {spec.costTag}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-variant px-2 py-0.5 text-[10.5px] font-semibold text-on-surface-variant">
-            {spec.staff}
-          </span>
+          {info ? (
+            <>
+              <span
+                title={info.costNote}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                  costTone(info.costLabel),
+                )}
+              >
+                {info.costLabel}
+              </span>
+              {info.requiresBridge ? (
+                <span
+                  title="あなたの PC の Claude Code で実行します。未接続の間は保留され、接続後に自動で再試行します。"
+                  className="inline-flex items-center gap-1 rounded-full bg-secondary-container px-2 py-0.5 text-[10.5px] font-semibold text-secondary-container-fg"
+                >
+                  PC 接続が必要
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-variant px-2 py-0.5 text-[10.5px] font-semibold text-on-surface-variant">
+                {info.staff}
+              </span>
+            </>
+          ) : null}
+          {lastRun ? (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold",
+                lastRun.status === "success" &&
+                  "bg-tertiary-container text-tertiary-container-fg",
+                lastRun.status === "error" && "bg-[#FEE2E2] text-[#991B1B]",
+                lastRun.status === "deferred" &&
+                  "bg-secondary-container text-secondary-container-fg",
+                lastRun.status === "running" &&
+                  "bg-surface-variant text-on-surface-variant",
+              )}
+            >
+              前回 {runStatusLabel(lastRun.status)}
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -352,7 +407,7 @@ function ScheduleRow({
           {job.schedule}
         </code>
         <div className="mt-1 text-[11px] tabular-nums text-on-surface-variant">
-          次回 {job.nextRunAt}
+          {job.enabled ? `次回 ${job.nextRunAt}` : "停止中のため次回なし"}
         </div>
       </div>
 
@@ -413,13 +468,7 @@ function ScheduleRow({
 /** 法令・運用バックエンドの 1 行 (モック .schedule-row 準拠、read-only)。 */
 function PlatformJobRow({ job }: { readonly job: PlatformJob }) {
   const lastLabel =
-    job.lastRun == null
-      ? "未実行"
-      : job.lastRun.status === "success"
-        ? "成功"
-        : job.lastRun.status === "error"
-          ? "失敗"
-          : "実行中";
+    job.lastRun == null ? "未実行" : runStatusLabel(job.lastRun.status);
   const lastStarted = job.lastRun ? new Date(job.lastRun.startedAt) : null;
   return (
     <li className="grid grid-cols-[44px_1fr] items-start gap-3 rounded-lg border border-border bg-white p-4 sm:grid-cols-[44px_1fr_auto]">
@@ -438,7 +487,9 @@ function PlatformJobRow({ job }: { readonly job: PlatformJob }) {
         )}
       </span>
       <div className="min-w-0">
-        <div className="text-[13.5px] font-bold text-on-surface">{job.title}</div>
+        <div className="text-[13.5px] font-bold text-on-surface">
+          {job.title}
+        </div>
         <div className="mt-0.5 text-[11.5px] leading-relaxed text-on-surface-variant">
           {job.description}
         </div>
@@ -502,7 +553,16 @@ export function CronSchedule({
   onRefresh,
   runs,
   platformJobs,
+  actions,
 }: CronScheduleProps) {
+  const infoByAction = new Map((actions ?? []).map((a) => [a.action, a]));
+  // 行内に「前回どうなったか」を出すための索引 (runs は新しい順)。
+  const lastRunBySchedule = new Map<string, CronRun>();
+  for (const r of runs ?? []) {
+    if (r.scheduleId && !lastRunBySchedule.has(r.scheduleId)) {
+      lastRunBySchedule.set(r.scheduleId, r);
+    }
+  }
   // 次に動くスケジュール: enabled かつ next_run_at があるものを昇順で最大 5 件
   const upcoming = jobs
     .filter((j) => j.enabled && j.nextRunIso)
@@ -515,7 +575,8 @@ export function CronSchedule({
   const grouped = GROUPS.map((g) => ({
     ...g,
     rows: jobs.filter(
-      (j) => (ACTION_SPEC[j.targetAction ?? ""] ?? FALLBACK_SPEC).group === g.key,
+      (j) =>
+        (ACTION_SPEC[j.targetAction ?? ""] ?? FALLBACK_SPEC).group === g.key,
     ),
   })).filter((g) => g.rows.length > 0);
 
@@ -547,6 +608,7 @@ export function CronSchedule({
           <ol className="py-1">
             {upcoming.map((j) => {
               const spec = ACTION_SPEC[j.targetAction ?? ""] ?? FALLBACK_SPEC;
+              const info = infoByAction.get(j.targetAction ?? "");
               return (
                 <li
                   key={j.id}
@@ -561,7 +623,10 @@ export function CronSchedule({
                       {fmtWhen(j.nextRunIso!)}
                     </span>
                   </div>
-                  <span aria-hidden className="hidden h-9 w-px bg-border sm:block" />
+                  <span
+                    aria-hidden
+                    className="hidden h-9 w-px bg-border sm:block"
+                  />
                   <span
                     className={cn(
                       "flex h-9 w-9 items-center justify-center rounded-md",
@@ -574,9 +639,11 @@ export function CronSchedule({
                     <div className="truncate text-[13.5px] font-bold text-on-surface">
                       {j.name}
                     </div>
-                    <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
-                      {spec.staff} · {spec.costTag}
-                    </div>
+                    {info ? (
+                      <div className="mt-0.5 text-[11.5px] text-on-surface-variant">
+                        {info.staff} · {info.costLabel}
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               );
@@ -635,7 +702,9 @@ export function CronSchedule({
                 {g.icon}
               </span>
               <div>
-                <div className="text-sm font-bold text-on-surface">{g.name}</div>
+                <div className="text-sm font-bold text-on-surface">
+                  {g.name}
+                </div>
                 <div className="text-[11.5px] text-on-surface-variant">
                   {g.desc}
                 </div>
@@ -646,6 +715,8 @@ export function CronSchedule({
                 <ScheduleRow
                   key={job.id}
                   job={job}
+                  info={infoByAction.get(job.targetAction ?? "")}
+                  lastRun={lastRunBySchedule.get(job.id)}
                   onToggle={onToggle}
                   onRunNow={onRunNow}
                   onDelete={onDelete}
@@ -687,26 +758,31 @@ export function CronSchedule({
                       r.finishedAt != null
                         ? `${Math.max(0, Math.round((new Date(r.finishedAt).getTime() - started.getTime()) / 1000))} 秒`
                         : "—";
-                    const label =
-                      r.status === "success"
-                        ? "成功"
-                        : r.status === "error"
-                          ? "失敗"
-                          : "実行中";
+                    const label = runStatusLabel(r.status);
                     return (
-                      <tr key={r.id} className="border-b border-border last:border-b-0">
-                        <td className="px-4 py-2 font-medium text-on-surface">{r.name}</td>
+                      <tr
+                        key={r.id}
+                        className="border-b border-border last:border-b-0"
+                      >
+                        <td className="px-4 py-2 font-medium text-on-surface">
+                          {r.name}
+                        </td>
                         <td className="px-4 py-2 tabular-nums text-on-surface-variant">
                           {`${started.getMonth() + 1}/${started.getDate()} ${String(started.getHours()).padStart(2, "0")}:${String(started.getMinutes()).padStart(2, "0")}`}
                         </td>
-                        <td className="px-4 py-2 tabular-nums text-on-surface-variant">{dur}</td>
+                        <td className="px-4 py-2 tabular-nums text-on-surface-variant">
+                          {dur}
+                        </td>
                         <td className="px-4 py-2">
                           <span
                             className={cn(
                               "inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-bold",
                               r.status === "success" &&
                                 "bg-tertiary-container text-tertiary-container-fg",
-                              r.status === "error" && "bg-[#FEE2E2] text-[#991B1B]",
+                              r.status === "error" &&
+                                "bg-[#FEE2E2] text-[#991B1B]",
+                              r.status === "deferred" &&
+                                "bg-secondary-container text-secondary-container-fg",
                               r.status === "running" &&
                                 "bg-surface-variant text-on-surface-variant",
                             )}

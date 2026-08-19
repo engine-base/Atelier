@@ -30,18 +30,18 @@ class CronSchedule:
 
 
 # Atelier の cron schedule 定義。実 handler は inngest_handlers.py で実装。
+#
+# GAP-179: 日次ダイジェスト / 週次バーンダウンの固定 cron はここから外した。
+# プラットフォーム側が 22:00 UTC 等の固定時刻で先に配信してしまうと、利用者が
+# 画面で指定した時刻 (cron_schedules.cron_expression) が無視される。配信は
+# user-schedules (毎分) が各プロジェクトの指定時刻で行う。
 CRON_SCHEDULES: tuple[CronSchedule, ...] = (
     CronSchedule(
-        name="daily-digest",
-        # 22:00 UTC = 07:00 JST 翌日
-        cron="0 22 * * *",
-        description="日次ダイジェスト: 当日の進捗を AI 社員ごとに集約してメール送付",
-    ),
-    CronSchedule(
-        name="weekly-burndown",
-        # 00:00 UTC 月曜 = 09:00 JST 月曜
-        cron="0 0 * * 1",
-        description="週次バーンダウン: Sprint 進捗をクライアントに送付",
+        name="user-schedules",
+        # 毎分: 利用者が画面で作った自動実行を「利用者が指定した時刻」に発火させる。
+        # これが無かったため cron_expression は保存されるだけで使われていなかった (GAP-179)。
+        cron="* * * * *",
+        description="利用者スケジュール発火: next_run_at を過ぎた cron_schedules を実行",
     ),
     CronSchedule(
         name="transcribe-queue",

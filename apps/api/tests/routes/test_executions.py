@@ -375,7 +375,11 @@ class TestDispatchOps:
             assert r.status_code == 200, r.text
             assert r.json()["data"]["paused"] is True
             # 一時停止中は pick が no_available_task
-            r = client.post("/kanban/pick", headers=bridge_h, json={"worker_pid": 4242})
+            r = client.post(
+                "/kanban/pick",
+                headers=bridge_h,
+                json={"worker_pid": 4242, "project_id": seeded["proj_a"]},
+            )
             assert r.status_code == 200
             assert r.json()["data"]["no_available_task"] is True
             # bridge/status に paused が出る
@@ -384,7 +388,13 @@ class TestDispatchOps:
             # 再開すると pick できる
             r = client.post("/dispatch/resume", headers=_h(seeded["u_a"]))
             assert r.json()["data"]["paused"] is False
-            r = client.post("/kanban/pick", headers=bridge_h, json={"worker_pid": 4242})
+            # GAP-179: pick は全プロジェクト横断なので、他の行に左右されないよう
+            # 対象プロジェクトに絞って検証する (dirty DB でも壊れないテストにする)。
+            r = client.post(
+                "/kanban/pick",
+                headers=bridge_h,
+                json={"worker_pid": 4242, "project_id": seeded["proj_a"]},
+            )
             assert r.json()["data"]["no_available_task"] is False
             assert r.json()["data"]["task_id"] == queued
 

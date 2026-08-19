@@ -3,7 +3,7 @@
 /cron-schedules[/{id}]。認証 (401) + RLS (cron_schedules_*_member) + 404/403。
 状態変更は audit_logs 記録。target_action は task_replay / knowledge_organize /
 industry_extract / report_summary / daily_digest / weekly_burndown のいずれか。
-Inngest 連動 (T-F-20) は別 PR で配線、本タスクは CRUD のみ。
+GAP-179: cron 式は保存時に検証し next_run_at を確定する (発火は dispatcher)。
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.cron import (
+    CronActionResponse,
     CronRunResponse,
     CronScheduleCreate,
     CronScheduleResponse,
@@ -24,6 +25,8 @@ from src.schemas.cron import (
 from src.services import cron as svc
 from src.services import platform_jobs as platform_svc
 from src.services.cron import history as history_svc
+from src.services.cron.actions import ACTION_SPECS
+from src.services.cron.expression import CronExpressionError
 
 router = APIRouter(tags=["cron-schedules"])
 
@@ -39,6 +42,34 @@ async def list_schedules(
     enabled: Annotated[bool | None, Query()] = None,
 ) -> dict[str, list[CronScheduleResponse]]:
     return {"data": await svc.list_schedules(session, project_id=project_id, enabled=enabled)}
+
+
+@router.get(
+    "/cron-actions",
+    summary="自動実行の種類とコスト情報 (GAP-179 — 画面表示の唯一の信頼源)",
+)
+async def list_cron_actions(_user: UserDep) -> dict[str, list[CronActionResponse]]:
+    """画面のコスト表示・説明はここを読む。
+
+    実際に走る処理 (services/cron/actions.py) と同じ定義を返すので、
+    「画面には BYOK API 使用と書いてあるが実際は動いていない」類の食い違いが
+    構造的に起きない。
+    """
+    return {
+        "data": [
+            CronActionResponse(
+                action=spec.action,  # pyright: ignore[reportArgumentType]
+                title=spec.title,
+                description=spec.description,
+                group=spec.group,
+                staff=spec.staff,
+                requires_bridge=spec.requires_bridge,
+                cost_label=spec.cost_label,
+                cost_note=spec.cost_note,
+            )
+            for spec in ACTION_SPECS.values()
+        ]
+    }
 
 
 @router.get("/cron-runs", summary="cron 実行履歴一覧 (GAP-013 / S-O01 実行履歴)")
@@ -70,7 +101,10 @@ async def list_platform_jobs(
 async def create_schedule(
     body: CronScheduleCreate, session: SessionDep, user: UserDep
 ) -> dict[str, CronScheduleResponse]:
-    created = await svc.create_schedule(session, actor_id=user.id, data=body)
+    try:
+        created = await svc.create_schedule(session, actor_id=user.id, data=body)
+    except CronExpressionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create cron_schedule")
     return {"data": created}
@@ -95,9 +129,12 @@ async def update_schedule(
 ) -> dict[str, CronScheduleResponse]:
     if await svc.get_schedule(session, schedule_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
-    updated = await svc.update_schedule(
-        session, actor_id=user.id, schedule_id=schedule_id, data=body
-    )
+    try:
+        updated = await svc.update_schedule(
+            session, actor_id=user.id, schedule_id=schedule_id, data=body
+        )
+    except CronExpressionError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update cron_schedule")
     return {"data": updated}

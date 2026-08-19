@@ -3,14 +3,17 @@
 RLS が効く AsyncSession を受け取り cron_schedules を CRUD する。
 可視性: member、INSERT/UPDATE: owner/member、DELETE: owner のみ (RLS で enforce)。
 target_payload は dict として受け取り JSONB で保存。状態変更は audit_logs 記録。
-Inngest 連動 (next_run_at の自動計算 / job 投入) は T-F-20 で別途配線する。
+GAP-179: next_run_at は cron_expression (日本時間で解釈) から算出して保存する。
+発火は services/cron/dispatcher.run_due_schedules が 1 分ごとに行う。
 """
 
 from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +24,10 @@ from src.schemas.cron import (
     CronScheduleResponse,
     CronScheduleUpdate,
 )
+
+from .expression import next_occurrence
+
+UTC = ZoneInfo("UTC")
 
 _COLS = (
     "id, project_id, name, cron_expression, target_action, target_payload, "
@@ -91,15 +98,20 @@ async def create_schedule(
     session: AsyncSession, *, actor_id: str, data: CronScheduleCreate
 ) -> CronScheduleResponse | None:
     new_id = str(uuid.uuid4())
+    # 式が不正なら CronExpressionError (route が 422 + 日本語メッセージにする)。
+    # 保存できて発火しない行を作らない。
+    next_run = next_occurrence(data.cron_expression, after=datetime.now(tz=UTC))
     res = await session.execute(
         text(
             "insert into public.cron_schedules "
-            "(id, project_id, name, cron_expression, target_action, target_payload, enabled) "
+            "(id, project_id, name, cron_expression, target_action, target_payload, "
+            " enabled, next_run_at) "
             "values (cast(:id as uuid), cast(:pid as uuid), :n, :ce, :ta, "
-            " cast(:pl as jsonb), :en) returning id"
+            " cast(:pl as jsonb), :en, :nr) returning id"
         ),
         {
             "id": new_id,
+            "nr": next_run if data.enabled else None,
             "pid": data.project_id,
             "n": data.name,
             "ce": data.cron_expression,
@@ -148,6 +160,24 @@ async def update_schedule(
     if data.enabled is not None:
         sets.append("enabled = :en")
         params["en"] = data.enabled
+
+    # next_run_at は 1 箇所でだけ決める (式変更・有効化/無効化のどちらでも矛盾しない)。
+    if data.cron_expression is not None or data.enabled is not None:
+        current = await get_schedule(session, schedule_id)
+        will_be_enabled = (
+            data.enabled
+            if data.enabled is not None
+            else (current.enabled if current is not None else True)
+        )
+        expression = data.cron_expression or (
+            current.cron_expression if current is not None else None
+        )
+        if not will_be_enabled or expression is None:
+            # 止めたのに「次回」が出ているのは嘘なので消す
+            sets.append("next_run_at = null")
+        else:
+            sets.append("next_run_at = :nr")
+            params["nr"] = next_occurrence(expression, after=datetime.now(tz=UTC))
     if not sets:
         return await get_schedule(session, schedule_id)
     res = await session.execute(

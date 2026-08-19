@@ -1,6 +1,8 @@
-"""T-A-53: daily_digest 実体 — cron 発火でプロジェクト日次ダイジェストを生成・保存する。
+"""T-A-53: daily_digest 実体 — スケジュール発火でプロジェクト日次ダイジェストを生成・保存する。
 
-T-F-20 の skeleton handler が予告していた「実体は別 task」の本体。
+GAP-179: 発火は services/cron/dispatcher が各プロジェクトの指定時刻に行う
+(以前はプラットフォーム固定 cron が 22:00 UTC に一括配信しており、利用者が
+画面で指定した時刻が使われていなかった)。
 
 設計:
 - 集約は決定論 (DB-as-truth): lifecycle_stage 別タスク件数 + phase 状況 + 直近 24h 実行結果。
@@ -21,6 +23,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
+
+from .output import post_assistant_message
 
 logger = logging.getLogger(__name__)
 
@@ -146,51 +150,26 @@ async def _has_digest_today(session: AsyncSession, *, thread_id: str) -> bool:
     return row is not None
 
 
-async def run_daily_digest(session: AsyncSession) -> dict[str, Any]:
-    """enabled な daily_digest schedule の全 project に digest を配信する。
+async def run_project_digest(session: AsyncSession, *, project_id: str) -> dict[str, Any]:
+    """1 project 分のダイジェストを生成して投稿する (GAP-179: 個別スケジュール用)。
 
-    Returns: {"generated": n, "skipped": n} (0 件でも例外にしない — UNWANTED AC)。
+    Returns: {"generated": 0|1, "reason": ...}。commit は呼び出し側が行う。
     """
-    schedules = (
-        await session.execute(
-            text(
-                "select id, project_id from public.cron_schedules "
-                "where enabled = true and target_action = 'daily_digest'"
-            )
+    thread_id = await _find_or_create_digest_thread(session, project_id=project_id)
+    if thread_id is None:
+        return {"generated": 0, "reason": "no_ai_employee"}
+    if await _has_digest_today(session, thread_id=thread_id):
+        return {"generated": 0, "reason": "already_posted_today"}
+    digest_md = await build_project_digest(session, project_id=project_id)
+    msg_id = await post_assistant_message(session, thread_id=thread_id, body=digest_md)
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="cron.daily_digest.generate",
+            target_type="chat_message",
+            actor_type="system",
+            actor_id="system",
+            target_id=msg_id,
+            after={"project_id": project_id},
         )
-    ).all()
-    generated = 0
-    skipped = 0
-    for sched in schedules:
-        project_id = str(sched.project_id)
-        thread_id = await _find_or_create_digest_thread(session, project_id=project_id)
-        if thread_id is None:
-            skipped += 1
-            continue
-        if await _has_digest_today(session, thread_id=thread_id):
-            skipped += 1
-            continue
-        digest_md = await build_project_digest(session, project_id=project_id)
-        msg_id = str(uuid.uuid4())
-        await session.execute(
-            text(
-                "insert into public.chat_messages (id, thread_id, role, content) "
-                "values (cast(:i as uuid), cast(:t as uuid), "
-                "cast('assistant' as chat_message_role_enum), :c)"
-            ),
-            {"i": msg_id, "t": thread_id, "c": digest_md},
-        )
-        await AuditWriter(session).write(
-            AuditEvent(
-                action="cron.daily_digest.generate",
-                target_type="chat_message",
-                actor_type="system",
-                actor_id="system",
-                target_id=msg_id,
-                after={"project_id": project_id, "schedule_id": str(sched.id)},
-            )
-        )
-        generated += 1
-    await session.commit()
-    logger.info("daily digest done: generated=%d skipped=%d", generated, skipped)
-    return {"generated": generated, "skipped": skipped}
+    )
+    return {"generated": 1, "reason": None}

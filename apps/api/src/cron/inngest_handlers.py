@@ -1,8 +1,7 @@
 # pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportArgumentType=false, reportUnknownParameterType=false, reportMissingTypeArgument=false
 """Inngest cron handler — 各 cron schedule に対応する関数。
 
-Phase 0 では skeleton (logger 出力のみ) で型と契約を確立する。
-実体 (日次ダイジェスト生成 / バーンダウン PDF 化 / 通知送信) は別 task で実装する。
+GAP-179 で全 handler が実体を持つ状態になった (skeleton は残っていない)。
 
 NOTE: file-level pyright directive で Inngest SDK 由来の Unknown 型を許容。
 """
@@ -20,39 +19,30 @@ from .scheduler import CronSchedule
 logger = logging.getLogger(__name__)
 
 
-async def _daily_digest_body(ctx: Any, step: Any) -> dict[str, str]:
-    """日次ダイジェスト生成本体 (T-A-53 実体)。
+async def _user_schedules_body(ctx: Any, step: Any) -> dict[str, str]:
+    """利用者スケジュール発火 (GAP-179 実体)。
 
-    services/cron/digest.run_daily_digest を呼び、enabled な daily_digest
-    schedule の全 project にダイジェストを配信する。
+    利用者が画面で作った cron_schedules のうち next_run_at を過ぎたものを実行し、
+    次回時刻を再計算する。実行できない (PC 未接続) ものは deferred として記録し、
+    短い間隔で再試行する。
     """
     del ctx, step
     from src.db import create_engine, create_session_factory
-    from src.services.cron.digest import run_daily_digest
+    from src.services.cron.dispatcher import run_due_schedules
 
     factory = create_session_factory(create_engine())
     async with factory() as session:
-        result = await run_daily_digest(session)
-    logger.info("daily-digest cron done: %s", result)
+        result = await run_due_schedules(session)
+    if result["due"] or result["scheduled"]:
+        logger.info("user-schedules cron done: %s", result)
     return {
         "status": "ok",
-        "name": "daily-digest",
-        "generated": str(result["generated"]),
-        "skipped": str(result["skipped"]),
+        "name": "user-schedules",
+        "due": str(result["due"]),
+        "ran": str(result["ran"]),
+        "deferred": str(result["deferred"]),
+        "failed": str(result["failed"]),
     }
-
-
-async def _weekly_burndown_body(ctx: Any, step: Any) -> dict[str, str]:
-    """週次バーンダウン本体 (skeleton)。
-
-    実装方針 (別 task):
-      1. step.run('aggregate') で Sprint 完了タスク数集計
-      2. step.run('render') で SVG/PDF 生成
-      3. step.run('notify') でクライアント slack/email へ
-    """
-    del ctx, step
-    logger.info("weekly-burndown cron triggered (skeleton)")
-    return {"status": "ok", "name": "weekly-burndown"}
 
 
 async def _transcribe_queue_body(ctx: Any, step: Any) -> dict[str, str]:
@@ -108,8 +98,7 @@ async def _integrity_check_body(ctx: Any, step: Any) -> dict[str, str]:
 
 
 _HANDLER_MAP: dict[str, Any] = {
-    "daily-digest": _daily_digest_body,
-    "weekly-burndown": _weekly_burndown_body,
+    "user-schedules": _user_schedules_body,
     "transcribe-queue": _transcribe_queue_body,
     "purge-deleted-accounts": _purge_deleted_accounts_body,
     "integrity-check": _integrity_check_body,

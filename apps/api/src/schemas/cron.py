@@ -3,7 +3,7 @@
 cron_schedules は project-scoped、target_action ∈ {task_replay,
 knowledge_organize, industry_extract, report_summary, daily_digest,
 weekly_burndown} の cron job スケジュール。RLS は member 可視 / owner-member
-編集 / owner 削除。Inngest 連動 (T-F-20) は別 PR で配線、本タスクは CRUD のみ。
+編集 / owner 削除。GAP-179 で発火まで配線済 (services/cron/dispatcher)。
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class CronRunResponse(BaseModel):
     project_id: str | None
     started_at: datetime
     finished_at: datetime | None
-    status: Literal["running", "success", "error"]
+    status: Literal["running", "success", "error", "deferred"]
     detail: dict[str, object]
 
 
@@ -71,7 +71,7 @@ class PlatformJobLastRun(BaseModel):
 
     started_at: datetime
     finished_at: datetime | None
-    status: Literal["running", "success", "error"]
+    status: Literal["running", "success", "error", "deferred"]
 
 
 class PlatformJobResponse(BaseModel):
@@ -90,3 +90,23 @@ class PlatformJobResponse(BaseModel):
     schedule_label: str
     next_run_at: datetime | None
     last_run: PlatformJobLastRun | None
+
+
+class CronActionResponse(BaseModel):
+    """自動実行の種類 1 件のメタ情報 (GAP-179)。
+
+    画面のコスト表示・説明はこの API を読む。「画面の説明」と「実際に走る処理」が
+    別々に書かれていたために「BYOK API 使用」という誤表示が出ていたため、
+    実行コード (services/cron/actions.py) を唯一の信頼源にする。
+    """
+
+    action: CronTargetAction
+    title: str
+    description: str
+    group: Literal["impl", "knowledge", "notify"]
+    staff: str
+    #: True = 実行に本人の PC (Bridge) の接続が要る。未接続なら保留して再試行する。
+    requires_bridge: bool
+    #: 「本人の Claude プラン枠」/「コスト無料」
+    cost_label: str
+    cost_note: str

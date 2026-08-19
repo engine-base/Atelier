@@ -3,6 +3,9 @@
  *
  * GET /cron-schedules?project_id=<id> で一覧、PATCH /cron-schedules/{id} {enabled} で
  * 有効/無効トグル → 再取得。即時実行(run-now)は専用エンドポイントが無いため列を出さない。
+ *
+ * GAP-179: 説明・コスト・担当・PC 接続要否は GET /cron-actions から取る。
+ * 画面側に文言を直書きしていたため「BYOK API 使用」という誤表示が残っていた。
  * api client は prop 注入可能 (テスト時に fake を渡す)。
  */
 
@@ -16,7 +19,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { CronSchedule, type CronJob } from "./CronSchedule";
+import {
+  CronSchedule,
+  type CronActionInfo,
+  type CronJob,
+} from "./CronSchedule";
 
 interface ApiCron {
   id: string;
@@ -110,15 +117,18 @@ export function CronScheduleContainer({
         params: { query: { limit: 6 } },
       });
       return (
-        (res as {
-          data?: {
-            id: string;
-            name: string;
-            started_at: string;
-            finished_at?: string | null;
-            status: "running" | "success" | "error";
-          }[];
-        }).data ?? []
+        (
+          res as {
+            data?: {
+              id: string;
+              name: string;
+              started_at: string;
+              finished_at?: string | null;
+              schedule_id?: string | null;
+              status: "running" | "success" | "error" | "deferred";
+            }[];
+          }
+        ).data ?? []
       );
     },
     retry: false,
@@ -129,6 +139,45 @@ export function CronScheduleContainer({
     startedAt: r.started_at,
     finishedAt: r.finished_at ?? null,
     status: r.status,
+    scheduleId: r.schedule_id ?? null,
+  }));
+
+  // GAP-179: 自動実行の種類とコスト情報 (GET /cron-actions)。
+  // 取得できない場合は説明・コストを出さない (推測で書かない)。
+  const actionsQuery = useQuery({
+    queryKey: ["cron-actions"],
+    queryFn: async () => {
+      const res = await client.get("/cron-actions");
+      return (
+        (
+          res as {
+            data?: {
+              action: string;
+              title: string;
+              description: string;
+              group: "impl" | "knowledge" | "notify";
+              staff: string;
+              requires_bridge: boolean;
+              cost_label: string;
+              cost_note: string;
+            }[];
+          }
+        ).data ?? []
+      );
+    },
+    retry: false,
+    // 取得失敗時は「説明を出さない」で正しく縮退するため赤 toast は出さない
+    meta: { expectedErrors: true },
+  });
+  const actions: CronActionInfo[] = (actionsQuery.data ?? []).map((a) => ({
+    action: a.action,
+    title: a.title,
+    description: a.description,
+    group: a.group,
+    staff: a.staff,
+    requiresBridge: a.requires_bridge,
+    costLabel: a.cost_label,
+    costNote: a.cost_note,
   }));
 
   // GAP-014: 法令・運用バックエンド (GET /cron-platform-jobs、read-only)
@@ -137,23 +186,25 @@ export function CronScheduleContainer({
     queryFn: async () => {
       const res = await client.get("/cron-platform-jobs");
       return (
-        (res as {
-          data?: {
-            name: string;
-            category: "legal" | "report" | "pipeline";
-            required: boolean;
-            title: string;
-            description: string;
-            cron: string;
-            schedule_label: string;
-            next_run_at?: string | null;
-            last_run?: {
-              started_at: string;
-              finished_at?: string | null;
-              status: "running" | "success" | "error";
-            } | null;
-          }[];
-        }).data ?? []
+        (
+          res as {
+            data?: {
+              name: string;
+              category: "legal" | "report" | "pipeline";
+              required: boolean;
+              title: string;
+              description: string;
+              cron: string;
+              schedule_label: string;
+              next_run_at?: string | null;
+              last_run?: {
+                started_at: string;
+                finished_at?: string | null;
+                status: "running" | "success" | "error" | "deferred";
+              } | null;
+            }[];
+          }
+        ).data ?? []
       );
     },
     retry: false,
@@ -215,6 +266,7 @@ export function CronScheduleContainer({
     <CronSchedule
       jobs={jobs}
       runs={runs}
+      {...(actions.length > 0 ? { actions } : {})}
       {...(platformJobs ? { platformJobs } : {})}
       onToggle={(id, enabled) => toggleMut.mutate({ id, enabled })}
       onDelete={(id) => deleteMut.mutate(id)}

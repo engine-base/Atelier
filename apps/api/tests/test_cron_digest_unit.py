@@ -12,7 +12,7 @@ from typing import Any
 from src.services.cron.digest import (
     DIGEST_THREAD_TITLE,
     build_project_digest,
-    run_daily_digest,
+    run_project_digest,
 )
 
 
@@ -76,58 +76,52 @@ class TestBuildProjectDigest:
         assert "- 実行なし" in md
 
 
-class TestRunDailyDigest:
-    async def test_zero_schedules_returns_ok(self) -> None:
-        session = FakeSession([[]])
-        result = await run_daily_digest(session)  # type: ignore[arg-type]
-        assert result == {"generated": 0, "skipped": 0}
-        assert session.committed
+class TestRunProjectDigest:
+    """GAP-179: 発火単位は「1 スケジュール = 1 プロジェクト」。
+
+    以前は全プロジェクトを固定時刻に一括配信していたため、利用者が画面で
+    指定した時刻が使われていなかった。
+    """
 
     async def test_skips_when_no_ai_employee(self) -> None:
         session = FakeSession(
             [
-                [_row(id="s1", project_id="p1")],  # schedules
                 [],  # 既存 thread なし
                 [],  # ai_employee なし → skip
             ]
         )
-        result = await run_daily_digest(session)  # type: ignore[arg-type]
-        assert result == {"generated": 0, "skipped": 1}
+        result = await run_project_digest(session, project_id="p1")  # type: ignore[arg-type]
+        assert result == {"generated": 0, "reason": "no_ai_employee"}
 
     async def test_skips_when_digest_already_today(self) -> None:
         session = FakeSession(
             [
-                [_row(id="s1", project_id="p1")],  # schedules
                 [_row(id="t1")],  # 既存 thread
                 [_row(x=1)],  # 当日分あり → skip
             ]
         )
-        result = await run_daily_digest(session)  # type: ignore[arg-type]
-        assert result == {"generated": 0, "skipped": 1}
+        result = await run_project_digest(session, project_id="p1")  # type: ignore[arg-type]
+        assert result == {"generated": 0, "reason": "already_posted_today"}
 
     async def test_generates_message_and_audit(self) -> None:
         session = FakeSession(
             [
-                [_row(id="s1", project_id="p1")],  # schedules
                 [_row(id="t1")],  # 既存 thread
                 [],  # 当日分なし
                 [_row(name="案件X", status="active")],  # digest: project
                 [_row(lifecycle_stage="ready", n=1)],  # digest: tasks
                 [],  # digest: phases
                 [],  # digest: executions
-                # 以降 insert message / audit insert は空 result で良い
             ]
         )
-        result = await run_daily_digest(session)  # type: ignore[arg-type]
-        assert result == {"generated": 1, "skipped": 0}
+        result = await run_project_digest(session, project_id="p1")  # type: ignore[arg-type]
+        assert result["generated"] == 1
         joined = "\n".join(session.statements)
         assert "insert into public.chat_messages" in joined
-        assert session.committed
 
     async def test_thread_created_when_absent(self) -> None:
         session = FakeSession(
             [
-                [_row(id="s1", project_id="p1")],  # schedules
                 [],  # thread なし
                 [_row(id="emp1")],  # ai_employee あり → create
                 [],  # insert thread
@@ -138,7 +132,7 @@ class TestRunDailyDigest:
                 [],
             ]
         )
-        result = await run_daily_digest(session)  # type: ignore[arg-type]
+        result = await run_project_digest(session, project_id="p1")  # type: ignore[arg-type]
         assert result["generated"] == 1
         joined = "\n".join(session.statements)
         assert "insert into public.chat_threads" in joined

@@ -9267,10 +9267,74 @@ export interface paths {
                                 /** Format: date-time */
                                 finished_at?: string | null;
                                 /** @enum {string} */
-                                status: "running" | "success" | "error";
+                                status: "running" | "success" | "error" | "deferred";
                                 detail: Record<string, never>;
                             }[];
                         };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cron-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 自動実行の種類とコスト情報 (GAP-179 — 画面表示の唯一の信頼源)
+         * @description 画面のコスト表示・説明はこの API を読む。実行コード (apps/api/src/services/cron/actions.py) と同じ定義を返すため、 「画面には BYOK API 使用と書いてあるが実際は動いていない」類の 食い違いが構造的に起きない。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 選択可能な自動実行の一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** @enum {string} */
+                                action: "task_replay" | "knowledge_organize" | "industry_extract" | "report_summary" | "daily_digest" | "weekly_burndown";
+                                title: string;
+                                description: string;
+                                /** @enum {string} */
+                                group: "impl" | "knowledge" | "notify";
+                                staff: string;
+                                /** @description true = 実行に本人の PC (Bridge) 接続が必要。未接続なら保留して自動再試行する。 */
+                                requires_bridge: boolean;
+                                /** @description 「本人の Claude プラン枠」/「コスト無料」 */
+                                cost_label: string;
+                                cost_note: string;
+                            }[];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
                     };
                 };
             };
@@ -9327,7 +9391,7 @@ export interface paths {
                                     /** Format: date-time */
                                     finished_at?: string | null;
                                     /** @enum {string} */
-                                    status: "running" | "success" | "error";
+                                    status: "running" | "success" | "error" | "deferred";
                                 } | null;
                             }[];
                         };

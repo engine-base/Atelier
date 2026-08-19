@@ -6544,8 +6544,47 @@ paths:
                         project_id: { type: string, format: uuid, nullable: true }
                         started_at: { type: string, format: date-time }
                         finished_at: { type: string, format: date-time, nullable: true }
-                        status: { type: string, enum: [running, success, error] }
+                        status: { type: string, enum: [running, success, error, deferred] }
                         detail: { type: object }
+
+  /cron-actions:
+    get:
+      tags: [cron-schedules]
+      summary: 自動実行の種類とコスト情報 (GAP-179 — 画面表示の唯一の信頼源)
+      description: >
+        画面のコスト表示・説明はこの API を読む。実行コード
+        (apps/api/src/services/cron/actions.py) と同じ定義を返すため、
+        「画面には BYOK API 使用と書いてあるが実際は動いていない」類の
+        食い違いが構造的に起きない。
+      x-implementation-path: apps/api/src/routes/cron/__init__.py::list_cron_actions
+      x-screen-ids: [S-O01]
+      responses:
+        '200':
+          description: 選択可能な自動実行の一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      required: [action, title, description, group, staff, requires_bridge, cost_label, cost_note]
+                      properties:
+                        action:
+                          type: string
+                          enum: [task_replay, knowledge_organize, industry_extract, report_summary, daily_digest, weekly_burndown]
+                        title: { type: string }
+                        description: { type: string }
+                        group: { type: string, enum: [impl, knowledge, notify] }
+                        staff: { type: string }
+                        requires_bridge:
+                          type: boolean
+                          description: true = 実行に本人の PC (Bridge) 接続が必要。未接続なら保留して自動再試行する。
+                        cost_label: { type: string, description: 「本人の Claude プラン枠」/「コスト無料」 }
+                        cost_note: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /cron-platform-jobs:
     get:
@@ -6582,7 +6621,7 @@ paths:
                           properties:
                             started_at: { type: string, format: date-time }
                             finished_at: { type: string, format: date-time, nullable: true }
-                            status: { type: string, enum: [running, success, error] }
+                            status: { type: string, enum: [running, success, error, deferred] }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /cron-schedules:

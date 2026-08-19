@@ -53,33 +53,33 @@ const ACTIONS: readonly ActionOpt[] = [
     value: "knowledge_organize",
     icon: <Brain size={14} />,
     name: "ナレッジを整理する",
-    skill: "ティチャラのナレッジ整理能力を起動",
-    tag: "API",
-    tagCls: "bg-secondary-container text-on-secondary-container",
+    skill: "ティチャラのナレッジ整理能力を起動（PC 接続が必要）",
+    tag: "プラン枠",
+    tagCls: "bg-primary-container text-on-primary-container",
   },
   {
     value: "industry_extract",
     icon: <Sparkles size={14} />,
     name: "横断パターンを抽出する",
-    skill: "ティチャラの横断抽出能力を起動",
-    tag: "API",
-    tagCls: "bg-secondary-container text-on-secondary-container",
+    skill: "サーバー集計のみ（AI を使わない）",
+    tag: "無料",
+    tagCls: "bg-tertiary-container text-on-tertiary-container",
   },
   {
     value: "report_summary",
     icon: <Mail size={14} />,
     name: "進捗レポートを配信する",
-    skill: "スティーブのレポート生成能力を起動",
-    tag: "API",
-    tagCls: "bg-secondary-container text-on-secondary-container",
+    skill: "スティーブのレポート生成能力を起動（PC 接続が必要）",
+    tag: "プラン枠",
+    tagCls: "bg-primary-container text-on-primary-container",
   },
   {
     value: "daily_digest",
     icon: <ClipboardList size={14} />,
     name: "日次ダイジェストを配信する",
-    skill: "スティーブのサマリー能力を起動",
-    tag: "API",
-    tagCls: "bg-secondary-container text-on-secondary-container",
+    skill: "サーバー集計のみ（AI を使わない）",
+    tag: "無料",
+    tagCls: "bg-tertiary-container text-on-tertiary-container",
   },
   {
     value: "weekly_burndown",
@@ -155,11 +155,16 @@ export function ScheduleBuilder({
       .trim();
   }, [presetIdx, cells]);
 
-  const canSubmit = name.trim().length > 0 && cronExpression.length > 0 && !submitting;
+  const canSubmit =
+    name.trim().length > 0 && cronExpression.length > 0 && !submitting;
 
   const submit = (): void => {
     if (!canSubmit) return;
-    onCreate({ name: name.trim(), cron_expression: cronExpression, target_action: action });
+    onCreate({
+      name: name.trim(),
+      cron_expression: cronExpression,
+      target_action: action,
+    });
   };
 
   return (
@@ -299,8 +304,11 @@ export function ScheduleBuilder({
                         const v = e.target.value;
                         setCells((prev) => ({ ...prev, [c.key]: v }));
                         // cron セルを触ったら「カスタム」に切り替える。
-                        const customIdx = PRESETS.findIndex((p) => p.cron === null);
-                        if (!isCustom && customIdx >= 0) setPresetIdx(customIdx);
+                        const customIdx = PRESETS.findIndex(
+                          (p) => p.cron === null,
+                        );
+                        if (!isCustom && customIdx >= 0)
+                          setPresetIdx(customIdx);
                       }}
                       aria-label={`cron ${c.label}`}
                       className="w-full border-none bg-transparent text-center font-mono text-[13px] font-bold text-on-surface outline-none"

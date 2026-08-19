@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from src.services.cron.digest import DIGEST_THREAD_TITLE, run_daily_digest
+from src.services.cron.digest import DIGEST_THREAD_TITLE, run_project_digest
 
 PG_ASYNC = os.environ.get(
     "ATELIER_TEST_PG_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
@@ -118,8 +118,9 @@ class TestRunDailyDigest:
     async def test_generates_thread_message_and_audit(
         self, session: AsyncSession, seeded: dict[str, str]
     ) -> None:
-        result = await run_daily_digest(session)
-        assert result["generated"] >= 1
+        result = await run_project_digest(session, project_id=seeded["project"])
+        await session.commit()
+        assert result["generated"] == 1
 
         row = (
             await session.execute(
@@ -151,9 +152,11 @@ class TestRunDailyDigest:
         assert audit is not None
 
     async def test_idempotent_same_day(self, session: AsyncSession, seeded: dict[str, str]) -> None:
-        await run_daily_digest(session)
-        second = await run_daily_digest(session)
-        assert second["skipped"] >= 1  # 同日分は再生成せず skip
+        await run_project_digest(session, project_id=seeded["project"])
+        await session.commit()
+        second = await run_project_digest(session, project_id=seeded["project"])
+        await session.commit()
+        assert second["generated"] == 0  # 同日分は再生成せず skip
         n = (
             await session.execute(
                 text(
@@ -166,31 +169,9 @@ class TestRunDailyDigest:
         ).scalar_one()
         assert n == 1
 
-    async def test_zero_schedules_ok(self, session: AsyncSession) -> None:
-        rows = (
-            await session.execute(
-                text(
-                    "select id from public.cron_schedules "
-                    "where enabled = true and target_action = 'daily_digest'"
-                )
-            )
-        ).all()
-        ids = [str(r.id) for r in rows]
-        await session.execute(
-            text(
-                "update public.cron_schedules set enabled = false where id = any(cast(:ids as uuid[]))"
-            ),
-            {"ids": ids},
-        )
-        await session.commit()
-        try:
-            result = await run_daily_digest(session)
-            assert result == {"generated": 0, "skipped": 0}
-        finally:
-            await session.execute(
-                text(
-                    "update public.cron_schedules set enabled = true where id = any(cast(:ids as uuid[]))"
-                ),
-                {"ids": ids},
-            )
-            await session.commit()
+    async def test_unknown_project_is_not_an_error(self, session: AsyncSession) -> None:
+        """存在しない project でも例外にしない (無人実行を止めない — UNWANTED AC)。"""
+        import uuid as _uuid
+
+        result = await run_project_digest(session, project_id=str(_uuid.uuid4()))
+        assert result["generated"] == 0

@@ -7,11 +7,7 @@ import inngest
 import pytest
 
 from src.cron import CRON_SCHEDULES, CronSchedule, register_cron_jobs
-from src.cron.inngest_handlers import (
-    _daily_digest_body,
-    _weekly_burndown_body,
-    build_cron_function,
-)
+from src.cron.inngest_handlers import _user_schedules_body, build_cron_function
 
 
 @pytest.fixture
@@ -29,10 +25,16 @@ class TestCronSchedule:
         with pytest.raises(dataclasses.FrozenInstanceError):
             s.name = "y"  # type: ignore[misc]
 
-    def test_default_schedules_contain_daily_and_weekly(self) -> None:
+    def test_reports_are_driven_by_user_schedules_not_fixed_crons(self) -> None:
+        """GAP-179: 配信時刻は利用者の cron_schedules が決める。
+
+        以前は daily-digest / weekly-burndown が固定時刻 (22:00 UTC 等) で
+        先に配信してしまい、画面で指定した時刻が無視されていた。
+        """
         names = {s.name for s in CRON_SCHEDULES}
-        assert "daily-digest" in names
-        assert "weekly-burndown" in names
+        assert "user-schedules" in names
+        assert "daily-digest" not in names
+        assert "weekly-burndown" not in names
 
     def test_all_schedules_have_valid_5_field_cron(self) -> None:
         for s in CRON_SCHEDULES:
@@ -67,15 +69,14 @@ class TestBuildCronFunction:
 @pytest.mark.unit
 class TestHandlerBodies:
     @pytest.mark.asyncio
-    async def test_daily_digest_body_calls_digest_service(
+    async def test_user_schedules_body_runs_due_schedules(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """T-A-53: handler は skeleton でなく digest 実体を呼ぶ (DB は monkeypatch)。"""
-        from src.services.cron import digest as digest_mod
+        """GAP-179: 利用者が指定した時刻で発火させる handler が居ること。"""
+        import src.services.cron.dispatcher as dispatcher_mod
 
-        async def _fake_run(session: object) -> dict[str, int]:
-            del session
-            return {"generated": 2, "skipped": 1}
+        async def _fake_run(_session: object) -> dict[str, int]:
+            return {"due": 2, "ran": 1, "deferred": 1, "failed": 0, "scheduled": 0}
 
         class _FakeSession:
             async def __aenter__(self) -> object:
@@ -84,29 +85,20 @@ class TestHandlerBodies:
             async def __aexit__(self, *exc: object) -> None:
                 return None
 
-        monkeypatch.setattr(digest_mod, "run_daily_digest", _fake_run)
+        monkeypatch.setattr(dispatcher_mod, "run_due_schedules", _fake_run)
         import src.db as db_mod
 
-        def _fake_engine() -> None:
-            return None
-
-        def _fake_factory(_eng: None) -> type[_FakeSession]:
-            return _FakeSession
-
-        monkeypatch.setattr(db_mod, "create_engine", _fake_engine)
-        monkeypatch.setattr(db_mod, "create_session_factory", _fake_factory)
-        result = await _daily_digest_body(ctx=None, step=None)
+        monkeypatch.setattr(db_mod, "create_engine", lambda: None)
+        monkeypatch.setattr(db_mod, "create_session_factory", lambda _eng: _FakeSession)
+        result = await _user_schedules_body(ctx=None, step=None)
         assert result == {
             "status": "ok",
-            "name": "daily-digest",
-            "generated": "2",
-            "skipped": "1",
+            "name": "user-schedules",
+            "due": "2",
+            "ran": "1",
+            "deferred": "1",
+            "failed": "0",
         }
-
-    @pytest.mark.asyncio
-    async def test_weekly_burndown_body_returns_status_ok(self) -> None:
-        result = await _weekly_burndown_body(ctx=None, step=None)
-        assert result == {"status": "ok", "name": "weekly-burndown"}
 
 
 @pytest.mark.unit

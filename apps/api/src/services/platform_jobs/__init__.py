@@ -70,20 +70,15 @@ PLATFORM_JOB_META: tuple[PlatformJobMeta, ...] = (
         schedule_label="毎日 朝 5:00 (JST)",
     ),
     PlatformJobMeta(
-        name="daily-digest",
-        category="report",
+        name="user-schedules",
+        category="pipeline",
         required=False,
-        title="日次ダイジェスト配信",
-        description="当日の進捗を AI 社員ごとに集約してメール送付。",
-        schedule_label="毎日 朝 7:00 (JST)",
-    ),
-    PlatformJobMeta(
-        name="weekly-burndown",
-        category="report",
-        required=False,
-        title="週次バーンダウン配信",
-        description="Sprint 進捗をクライアントに送付。",
-        schedule_label="毎週月曜 9:00 (JST)",
+        title="利用者スケジュールの発火",
+        description=(
+            "各プロジェクトの自動実行を、画面で指定された時刻に実行します "
+            "(GAP-179 — 以前は指定時刻が使われていませんでした)。"
+        ),
+        schedule_label="毎分",
     ),
     PlatformJobMeta(
         name="transcribe-queue",
