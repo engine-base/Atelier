@@ -34,7 +34,10 @@ export interface PhaseSwitcherProps {
   readonly freezePhaseFn?: (
     projectId: string,
     phaseId: string,
+    note?: string,
   ) => Promise<readonly PhaseLite[]>;
+  /** GAP-165: 確定前チェック (未完了の工程・タスク・未解決コメント)。 */
+  readonly freezeCheckFn?: (projectId: string, phaseId: string) => Promise<FreezeCheck>;
 }
 
 async function defaultGetPhases(projectId: string): Promise<readonly PhaseLite[]> {
@@ -42,14 +45,36 @@ async function defaultGetPhases(projectId: string): Promise<readonly PhaseLite[]
     .data;
 }
 
+export interface FreezeCheck {
+  readonly phase_name: string;
+  readonly pending_stages: readonly string[];
+  readonly open_tasks: number;
+  readonly unresolved_comments: number;
+  readonly output_count: number;
+  readonly mock_count: number;
+  readonly warnings: readonly string[];
+}
+
+async function defaultFreezeCheck(
+  projectId: string,
+  phaseId: string,
+): Promise<FreezeCheck> {
+  return (
+    await api.getJson<FreezeCheck>(
+      `/projects/${projectId}/delivery-phases/${phaseId}/freeze-check`,
+    )
+  ).data;
+}
+
 async function defaultFreezePhase(
   projectId: string,
   phaseId: string,
+  note?: string,
 ): Promise<readonly PhaseLite[]> {
   const res = await api.sendJson<PhaseLite[]>(
     "POST",
     `/projects/${projectId}/delivery-phases/${phaseId}/freeze`,
-    { confirm: true },
+    { confirm: true, ...(note ? { note } : {}) },
   );
   return res ?? [];
 }
@@ -58,10 +83,14 @@ export function PhaseSwitcher({
   projectId,
   getPhasesFn = defaultGetPhases,
   freezePhaseFn = defaultFreezePhase,
+  freezeCheckFn = defaultFreezeCheck,
 }: PhaseSwitcherProps) {
   const [phases, setPhases] = useState<readonly PhaseLite[]>([]);
   const [open, setOpen] = useState(false);
   const [freezeConfirm, setFreezeConfirm] = useState(false);
+  // GAP-165: 確定していいかの判断材料 (実データ)。null = 取得中
+  const [check, setCheck] = useState<FreezeCheck | null>(null);
+  const [freezeNote, setFreezeNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -167,7 +196,13 @@ export function PhaseSwitcher({
             {active && !freezeConfirm ? (
               <button
                 type="button"
-                onClick={() => setFreezeConfirm(true)}
+                onClick={() => {
+                  setFreezeConfirm(true);
+                  setCheck(null);
+                  freezeCheckFn(projectId, active.id)
+                    .then(setCheck)
+                    .catch(() => setCheck(null));
+                }}
                 className="w-full rounded-md px-2.5 py-1.5 text-left text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
               >
                 「{active.name}」を確定して次フェーズへ…
@@ -179,7 +214,46 @@ export function PhaseSwitcher({
                 {active.output_count + active.mock_count > 0
                   ? `（${active.output_count + active.mock_count} 件）`
                   : ""}
-                が凍結され、以後の追加・変更は次フェーズの作業になります。
+                が凍結されます。
+                {/* GAP-165: 「直せなくなる」わけではないことを先に伝える */}
+                <span className="mt-1 block text-[11px] text-on-surface-variant">
+                  確定後も修正はできます。確定済みの版はそのまま記録として残り、
+                  修正すると<strong>新しい版が「{active.name}の次のフェーズ」の成果物</strong>
+                  になります。
+                </span>
+
+                {/* GAP-165: 確定していいかの判断材料 (実データ) */}
+                <div className="mt-1.5 rounded-sm bg-white/70 px-2 py-1.5">
+                  {check === null ? (
+                    <span className="text-[11px] text-on-surface-variant">
+                      残っている作業を確認しています…
+                    </span>
+                  ) : check.warnings.length === 0 ? (
+                    <span className="text-[11px] text-on-surface-variant">
+                      未完了の工程・タスク・未解決コメントはありません。
+                    </span>
+                  ) : (
+                    <ul role="list" aria-label="確定前の確認事項" className="flex flex-col gap-0.5">
+                      {check.warnings.map((w) => (
+                        <li key={w} className="text-[11px] text-on-surface">
+                          ・{w}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <label className="mt-1.5 block">
+                  <span className="text-[10.5px] font-semibold text-on-surface-variant">
+                    このフェーズで確定した範囲 (任意 — 後から人も AI も参照します)
+                  </span>
+                  <input
+                    value={freezeNote}
+                    onChange={(e) => setFreezeNote(e.target.value)}
+                    placeholder="例: 初期スコープの要件・見積まで。決済連携は次フェーズ"
+                    className="mt-0.5 w-full rounded-sm border border-border bg-white px-1.5 py-1 text-[11px] text-on-surface outline-none focus-visible:border-primary"
+                  />
+                </label>
                 <div className="mt-1.5 flex justify-end gap-1.5">
                   <button
                     type="button"
@@ -194,13 +268,14 @@ export function PhaseSwitcher({
                     onClick={() => {
                       setBusy(true);
                       setError(null);
-                      freezePhaseFn(projectId, active.id)
+                      freezePhaseFn(projectId, active.id, freezeNote.trim() || undefined)
                         .then((next) => {
                           setPhases(next);
                           setFreezeConfirm(false);
                           setOpen(false);
                           // 表示は新しい現在フェーズへ (全タブ同期)
                           writeSelectedPhase(projectId, null);
+                          setFreezeNote("");
                         })
                         .catch((e: unknown) => {
                           setError(

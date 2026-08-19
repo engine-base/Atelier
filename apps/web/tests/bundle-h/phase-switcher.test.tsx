@@ -7,7 +7,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import * as React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -88,11 +88,70 @@ describe("PhaseSwitcher (GAP-157)", () => {
     expect(freezePhaseFn).not.toHaveBeenCalled();
     expect(screen.getByText(/確定すると成果物（1 件）が凍結され/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "確定して次フェーズへ" }));
-    await waitFor(() => expect(freezePhaseFn).toHaveBeenCalledWith("p1", "ph2"));
+    // GAP-165: 確定範囲メモ (任意) が第 3 引数で渡る — 未入力なら undefined
+    await waitFor(() =>
+      expect(freezePhaseFn).toHaveBeenCalledWith("p1", "ph2", undefined),
+    );
     // 新しい現在フェーズ (フェーズ3) の表示へ
     expect(
       await screen.findByRole("button", { name: /表示中: フェーズ3/ }),
     ).toBeInTheDocument();
     expect(readSelectedPhase("p1")).toBeNull();
+  });
+});
+
+describe("PhaseSwitcher 確定前チェック (GAP-165)", () => {
+  it("確定メニューで「残っている作業」と「確定後も直せる」ことを出し、確定範囲メモを送る", async () => {
+    const freezePhaseFn = vi.fn(async () => TWO);
+    const freezeCheckFn = vi.fn(async () => ({
+      phase_name: "フェーズ2",
+      pending_stages: ["アーキ設計", "検証"],
+      open_tasks: 3,
+      unresolved_comments: 1,
+      output_count: 1,
+      mock_count: 0,
+      warnings: [
+        "未完了の工程が 2 つあります（アーキ設計、検証）",
+        "完了していないタスクが 3 件あります",
+        "未解決のコメントが 1 件あります",
+      ],
+    }));
+    render(
+      <PhaseSwitcher
+        projectId="p1"
+        getPhasesFn={async () => TWO}
+        freezePhaseFn={freezePhaseFn}
+        freezeCheckFn={freezeCheckFn}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /フェーズ切替（表示中: フェーズ2）/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "「フェーズ2」を確定して次フェーズへ…" }),
+    );
+    await waitFor(() => expect(freezeCheckFn).toHaveBeenCalledWith("p1", "ph2"));
+
+    // 残っている作業が実データで並ぶ (判断は人がする)
+    const list = await screen.findByRole("list", { name: "確定前の確認事項" });
+    expect(within(list).getByText(/未完了の工程が 2 つあります/)).toBeInTheDocument();
+    expect(within(list).getByText(/完了していないタスクが 3 件/)).toBeInTheDocument();
+    expect(within(list).getByText(/未解決のコメントが 1 件/)).toBeInTheDocument();
+
+    // 「確定したら直せなくなる」ではないことを明示している
+    expect(screen.getByText(/確定後も修正はできます/)).toBeInTheDocument();
+
+    // 確定範囲メモを書いて確定 → 第 3 引数で渡る
+    fireEvent.change(screen.getByPlaceholderText(/初期スコープ/), {
+      target: { value: "要件と見積まで。決済連携は次フェーズ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "確定して次フェーズへ" }));
+    await waitFor(() =>
+      expect(freezePhaseFn).toHaveBeenCalledWith(
+        "p1",
+        "ph2",
+        "要件と見積まで。決済連携は次フェーズ",
+      ),
+    );
   });
 });

@@ -21,6 +21,7 @@ from src.schemas.flow import (
     FlowCompleteRequest,
     FlowSkipRequest,
     FlowStageResponse,
+    FreezeCheckResponse,
     PhaseFreezeRequest,
 )
 from src.services import flow as svc
@@ -187,3 +188,29 @@ async def ensure_stage_thread(
         _raise(exc)
         raise
     return {"data": {"thread_id": thread_id}}
+
+
+@router.get(
+    "/projects/{project_id}/delivery-phases/{phase_id}/freeze-check",
+    summary="確定前チェック (GAP-165 — 未完了工程・タスク・未解決コメントの実数)",
+)
+async def get_freeze_check(
+    project_id: str, phase_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, FreezeCheckResponse]:
+    from src.services.flow.phases import freeze_check
+
+    got = await freeze_check(session, project_id=project_id, phase_id=phase_id)
+    if got is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
+    return {
+        "data": FreezeCheckResponse(
+            phase_id=got.phase_id,
+            phase_name=got.phase_name,
+            pending_stages=got.pending_stages,
+            open_tasks=got.open_tasks,
+            unresolved_comments=got.unresolved_comments,
+            output_count=got.output_count,
+            mock_count=got.mock_count,
+            warnings=got.warnings,
+        )
+    }

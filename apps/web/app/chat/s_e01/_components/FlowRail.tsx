@@ -257,8 +257,13 @@ export function FlowRail({
         >
           「{viewingPhase.name}」は確定済みです（成果物 {viewingPhase.output_count} ·
           モック {viewingPhase.mock_count} · タスク {viewingPhase.task_count}
-          は凍結）。追加・変更は
-          {activePhase ? `「${activePhase.name}」` : "現在のフェーズ"}で行います。
+          は凍結）。
+          {/* GAP-165: 「もう直せない」ではないことを明示する */}
+          <span className="mt-0.5 block text-on-surface-variant">
+            確定済みの版はこのまま記録として残ります。修正の依頼はできて、
+            その結果は{activePhase ? `「${activePhase.name}」` : "現在のフェーズ"}
+            の新しい版になります。
+          </span>
         </div>
       ) : null}
 

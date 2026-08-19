@@ -5963,6 +5963,34 @@ paths:
         '404': { description: 成果物が見つからない }
         '409': { description: 編集できない形式 }
 
+  /projects/{project_id}/delivery-phases/{phase_id}/freeze-check:
+    get:
+      tags: [flow]
+      summary: 確定前チェック (GAP-165 — 未完了工程・タスク・未解決コメントの実数。判定は人が行う)
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: phase_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 判断材料
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      phase_id: { type: string, format: uuid }
+                      phase_name: { type: string }
+                      pending_stages: { type: array, items: { type: string } }
+                      open_tasks: { type: integer }
+                      unresolved_comments: { type: integer }
+                      output_count: { type: integer }
+                      mock_count: { type: integer }
+                      warnings: { type: array, items: { type: string } }
+        '404': { description: フェーズが見つからない }
+
   /design-templates/{template_id}/content-url:
     get:
       tags: [outputs]

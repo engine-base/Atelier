@@ -77,3 +77,16 @@ class FlowCompleteRequest(BaseModel):
     """hard_gate 工程は confirm=true (ユーザーの明示承認) が必須。"""
 
     confirm: bool = False
+
+
+class FreezeCheckResponse(BaseModel):
+    """GAP-165: 「今このフェーズを確定していいか」の判断材料 (判定は人が行う)。"""
+
+    phase_id: str
+    phase_name: str
+    pending_stages: list[str]
+    open_tasks: int
+    unresolved_comments: int
+    output_count: int
+    mock_count: int
+    warnings: list[str]

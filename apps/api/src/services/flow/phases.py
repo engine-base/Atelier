@@ -188,13 +188,17 @@ async def freeze_phase(
             f"「{row.name}」を確定すると成果物が凍結され、以後の追加は次フェーズに"
             "なります。内容を確認のうえ明示的に承認してください",
         )
+    # GAP-165: 何を確定したのかを実データから書き起こして残す
+    # (人が書いた note があればそれを先頭に置く)。後から人も AI も参照できる。
+    auto_summary = await build_freeze_summary(session, phase_id=phase_id)
+    stored_note = auto_summary if not note else f"{note}\n{auto_summary}" if auto_summary else note
     await session.execute(
         text(
             "update public.delivery_phases set status = 'frozen', frozen_at = now(), "
             "frozen_by = cast(:u as uuid), note = :n, updated_at = now() "
             "where id = cast(:i as uuid)"
         ),
-        {"i": phase_id, "u": actor_id, "n": None if note is None else note[:500]},
+        {"i": phase_id, "u": actor_id, "n": (stored_note or None) and stored_note[:1500]},
     )
     next_seq = int(row.seq) + 1
     await session.execute(
@@ -254,7 +258,7 @@ async def phase_history_block(session: AsyncSession, *, project_id: str) -> str:
     frozen = (
         await session.execute(
             text(
-                "select id, seq, name, frozen_at from public.delivery_phases "
+                "select id, seq, name, frozen_at, note from public.delivery_phases "
                 "where project_id = cast(:p as uuid) and status = 'frozen' order by seq"
             ),
             {"p": project_id},
@@ -297,6 +301,9 @@ async def phase_history_block(session: AsyncSession, *, project_id: str) -> str:
         ).all()
         frozen_date = "" if ph.frozen_at is None else str(ph.frozen_at)[:10]
         lines.append(f"## {ph.name}（{frozen_date} 確定）")
+        # GAP-165: 確定時に人が書いたメモ (確定の範囲・条件) があれば最優先で伝える
+        if ph.note:
+            lines.append(f"確定時のメモ: {str(ph.note)[:400]}")
         if stages:
             lines.append(
                 "完了工程: " + " / ".join(str(s.title) for s in stages if s.status == "done")
@@ -312,5 +319,167 @@ async def phase_history_block(session: AsyncSession, *, project_id: str) -> str:
         "新しいタスク・依存は上記の確定内容 (既存画面・既存成果物・既存実装) を"
         "前提に分解すること。"
     )
+    # GAP-165: 「直せるのか / 次フェーズなのか」の境目を AI にも同じ基準で言わせる
+    lines.append(
+        "確定済みの版そのものは書き換えられない (記録として残る)。"
+        "確定済みの成果物・画面への修正依頼を受けたら、断らずに新しい版を作ること — "
+        "その新版は現在フェーズの成果物になる。ユーザーには「この修正は"
+        "現在フェーズの作業として記録されます」と一言添えること。"
+    )
     block = "\n".join(lines)
     return block[:3000]
+
+
+# ── GAP-165: 確定 (凍結) の判断材料と、確定後の「境目」 ──────────────
+
+
+@dataclass(frozen=True)
+class FreezeCheck:
+    """「今このフェーズを確定していいか」の実データ。
+
+    経営者質問「どう確定として判断して、そこからの変更や修正は許容できるのか。
+    これはできない・フェーズ2として作りましょう、の境目はどうしているのか」への
+    答えを画面に出すための材料。**判定は人が行う** — ここは事実を並べるだけで、
+    AI が勝手に確定することはしない。
+    """
+
+    phase_id: str
+    phase_name: str
+    pending_stages: list[str]
+    open_tasks: int
+    unresolved_comments: int
+    output_count: int
+    mock_count: int
+    #: 確定してよいか迷う材料 (空なら「止める理由は見つからない」)
+    warnings: list[str]
+
+
+async def freeze_check(
+    session: AsyncSession, *, project_id: str, phase_id: str
+) -> FreezeCheck | None:
+    """確定前チェック — 未完了の工程・進行中タスク・未解決コメントを実数で返す。"""
+    row = (
+        await session.execute(
+            text(
+                "select id, name, status from public.delivery_phases "
+                "where id = cast(:i as uuid) and project_id = cast(:p as uuid)"
+            ),
+            {"i": phase_id, "p": project_id},
+        )
+    ).first()
+    if row is None:
+        return None
+
+    stages = (
+        await session.execute(
+            text(
+                "select stage_key, title from public.project_flow_stages "
+                "where delivery_phase_id = cast(:i as uuid) and status = 'pending' "
+                "order by seq"
+            ),
+            {"i": phase_id},
+        )
+    ).all()
+    pending = [str(s.title or s.stage_key) for s in stages]
+
+    tasks = (
+        await session.execute(
+            text(
+                "select count(*) as n from public.tasks "
+                "where delivery_phase_id = cast(:i as uuid) and deleted_at is null "
+                "and lifecycle_stage <> 'done'"
+            ),
+            {"i": phase_id},
+        )
+    ).one()
+
+    comments = (
+        await session.execute(
+            text(
+                "select count(*) as n from public.comments c "
+                "where c.status = 'open' and c.deleted_at is null "
+                "and c.target_type = 'workflow_output' and c.target_id in ("
+                "  select wo.id from public.workflow_outputs wo "
+                "  where wo.delivery_phase_id = cast(:i as uuid) and wo.deleted_at is null)"
+            ),
+            {"i": phase_id},
+        )
+    ).one()
+
+    counts = (
+        await session.execute(
+            text(
+                "select "
+                "(select count(*) from public.workflow_outputs wo "
+                "  where wo.delivery_phase_id = cast(:i as uuid) and wo.deleted_at is null) as outs, "
+                "(select count(*) from public.mocks m "
+                "  where m.delivery_phase_id = cast(:i as uuid) and m.deleted_at is null) as mocks"
+            ),
+            {"i": phase_id},
+        )
+    ).one()
+
+    warnings: list[str] = []
+    if pending:
+        warnings.append(f"未完了の工程が {len(pending)} つあります（{'、'.join(pending[:3])}）")
+    if int(tasks.n) > 0:
+        warnings.append(f"完了していないタスクが {int(tasks.n)} 件あります")
+    if int(comments.n) > 0:
+        warnings.append(f"未解決のコメントが {int(comments.n)} 件あります")
+    if int(counts.outs) == 0 and int(counts.mocks) == 0:
+        warnings.append("このフェーズにはまだ成果物もモックもありません")
+
+    return FreezeCheck(
+        phase_id=str(row.id),
+        phase_name=str(row.name),
+        pending_stages=pending,
+        open_tasks=int(tasks.n),
+        unresolved_comments=int(comments.n),
+        output_count=int(counts.outs),
+        mock_count=int(counts.mocks),
+        warnings=warnings,
+    )
+
+
+async def build_freeze_summary(session: AsyncSession, *, phase_id: str) -> str:
+    """確定時に「何を確定したか」を実データから書き起こす (phase.note に残す)。
+
+    後から「フェーズ1 で何を確定したのか」を人も AI も参照できるようにするため。
+    """
+    stages = (
+        await session.execute(
+            text(
+                "select title, stage_key from public.project_flow_stages "
+                "where delivery_phase_id = cast(:i as uuid) and status in ('done','skipped') "
+                "order by seq"
+            ),
+            {"i": phase_id},
+        )
+    ).all()
+    outs = (
+        await session.execute(
+            text(
+                "select summary, stage::text as stage, version from public.workflow_outputs "
+                "where delivery_phase_id = cast(:i as uuid) and deleted_at is null "
+                "order by created_at desc limit 12"
+            ),
+            {"i": phase_id},
+        )
+    ).all()
+    mocks = (
+        await session.execute(
+            text(
+                "select distinct screen_name from public.mocks "
+                "where delivery_phase_id = cast(:i as uuid) and deleted_at is null limit 12"
+            ),
+            {"i": phase_id},
+        )
+    ).all()
+    parts: list[str] = []
+    if stages:
+        parts.append("完了工程: " + " / ".join(str(s.title or s.stage_key) for s in stages))
+    if outs:
+        parts.append("成果物: " + " / ".join(f"{o.summary or o.stage}(v{o.version})" for o in outs))
+    if mocks:
+        parts.append("画面: " + " / ".join(str(m.screen_name) for m in mocks))
+    return " ｜ ".join(parts)

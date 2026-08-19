@@ -201,6 +201,12 @@ export function MockListContainer({ client: injected }: MockListContainerProps) 
             {viewingFrozen.name} ✓確定 のスナップショットを表示中
           </span>
         ) : null}
+        {/* GAP-165: 修正できないのではなく、修正すると現在フェーズの新版になる */}
+        {viewingFrozen ? (
+          <span className="ml-2 text-[11px] text-on-surface-variant">
+            修正はできます（新しい版は現在のフェーズの作業になります）
+          </span>
+        ) : null}
         {/* GAP-138: 一覧/キャンバス切替 (キャンバス = 全画面を俯瞰 + その場で編集) */}
         <div role="group" aria-label="表示切替" className="ml-auto flex rounded-md border border-border">
           <button

@@ -7812,6 +7812,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/delivery-phases/{phase_id}/freeze-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 確定前チェック (GAP-165 — 未完了工程・タスク・未解決コメントの実数。判定は人が行う) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                    phase_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 判断材料 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                phase_id?: string;
+                                phase_name?: string;
+                                pending_stages?: string[];
+                                open_tasks?: number;
+                                unresolved_comments?: number;
+                                output_count?: number;
+                                mock_count?: number;
+                                warnings?: string[];
+                            };
+                        };
+                    };
+                };
+                /** @description フェーズが見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;

@@ -543,3 +543,144 @@ def test_gap152_stamping_filters_and_frozen_guard(
         assert "S-152(v1)" in ctx  # フェーズ1 の画面モック
         assert "見積(v2, estimate)" in ctx  # フェーズ1 の成果物 (最新版)
         assert "現在フェーズの作業として扱い" in ctx
+
+
+# ── GAP-165: 確定の判断材料と、確定後の修正の境目 ────────────────
+
+
+@pytest.mark.integration
+class TestGap165FreezeJudgement:
+    def test_freeze_check_lists_what_is_left(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """確定前に「未完了の工程・タスク・未解決コメント」を実数で出す。"""
+        h = _h(seeded["u"])
+        with TestClient(app) as client:
+            phases = client.get(f"/projects/{seeded['proj']}/delivery-phases", headers=h).json()[
+                "data"
+            ]
+            active = next(p for p in phases if p["status"] == "active")
+            # 工程を初期化 (pending が立つ)
+            client.get(f"/projects/{seeded['proj']}/flow", headers=h)
+
+            got = client.get(
+                f"/projects/{seeded['proj']}/delivery-phases/{active['id']}/freeze-check",
+                headers=h,
+            )
+            assert got.status_code == 200, got.text
+            data = got.json()["data"]
+            assert data["phase_id"] == active["id"]
+            # まだ何も終わっていないので未完了工程が並ぶ
+            assert len(data["pending_stages"]) > 0
+            assert any("未完了の工程" in w for w in data["warnings"])
+            # 成果物もモックも無い状態はその旨も出す (確定していいか迷う材料)
+            assert any("まだ成果物もモックもありません" in w for w in data["warnings"])
+            assert data["open_tasks"] == 0
+            assert data["unresolved_comments"] == 0
+
+    def test_frozen_output_can_still_be_revised_into_current_phase(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """確定後も修正はできる。ただし新版は「現在フェーズの成果物」になる。
+
+        経営者質問「確定してからの変更や修正は許容できる状態か / これはできない・
+        フェーズ2として作りましょう、の境目はどうしているのか」に対する構造的な答え:
+        **確定済みの版は不変。修正すると必ず現在フェーズの新版になる。**
+        """
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        h = _h(seeded["u"])
+        with TestClient(app) as client:
+            phases = client.get(f"/projects/{seeded['proj']}/delivery-phases", headers=h).json()[
+                "data"
+            ]
+            phase1 = next(p for p in phases if p["status"] == "active")
+
+            # フェーズ1 に成果物を 1 件置く (mockdb 実体つき)
+            oid = str(uuid.uuid4())
+            with sync_engine.begin() as c:
+                cid = c.execute(
+                    text("insert into public.mock_contents (html) values (:h) returning id"),
+                    {"h": "<html><body><h1>御見積書</h1></body></html>"},
+                ).scalar_one()
+                c.execute(
+                    text(
+                        "insert into public.workflow_outputs "
+                        "(id, project_id, stage, html_path, summary, version, delivery_phase_id) "
+                        "values (cast(:i as uuid), cast(:p as uuid), 'estimate', :path, "
+                        "        '御見積書', 1, cast(:d as uuid))"
+                    ),
+                    {
+                        "i": oid,
+                        "p": seeded["proj"],
+                        "path": f"mockdb://{cid}",
+                        "d": phase1["id"],
+                    },
+                )
+
+            # 確定 (凍結)
+            frozen = client.post(
+                f"/projects/{seeded['proj']}/delivery-phases/{phase1['id']}/freeze",
+                headers=h,
+                json={"confirm": True, "note": "初期スコープの見積まで"},
+            )
+            assert frozen.status_code == 200, frozen.text
+            after = frozen.json()["data"]
+            p1 = next(p for p in after if p["id"] == phase1["id"])
+            p2 = next(p for p in after if p["status"] == "active")
+            assert p1["status"] == "frozen"
+            # 何を確定したかが記録される (人のメモ + 実データ)
+            assert "初期スコープの見積まで" in (p1["note"] or "")
+            assert "御見積書" in (p1["note"] or "")
+
+            # 確定済み成果物への修正依頼は **通る**
+            revised = client.post(
+                f"/outputs/{oid}/revise",
+                headers=h,
+                json={"instruction": "支払条件を追記して"},
+            )
+            assert revised.status_code == 201, revised.text
+            new_out = revised.json()["data"]
+            # ただし新版は「現在フェーズ (フェーズ2)」の成果物になる = 境目
+            assert new_out["delivery_phase_id"] == p2["id"]
+            assert new_out["version"] == 2
+
+            # 確定済みの版そのものは残っている (記録として不変)
+            old = client.get(f"/outputs/{oid}", headers=h).json()["data"]
+            assert old["delivery_phase_id"] == phase1["id"]
+            assert old["version"] == 1
+
+    def test_ai_is_told_the_boundary_rule(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """AI にも同じ境目を注入する (断らずに新版を作り、現在フェーズと伝える)。"""
+        h = _h(seeded["u"])
+        with TestClient(app) as client:
+            phases = client.get(f"/projects/{seeded['proj']}/delivery-phases", headers=h).json()[
+                "data"
+            ]
+            active = next(p for p in phases if p["status"] == "active")
+            client.post(
+                f"/projects/{seeded['proj']}/delivery-phases/{active['id']}/freeze",
+                headers=h,
+                json={"confirm": True, "note": "スコープ A まで"},
+            )
+        from src.services.flow.phases import phase_history_block
+
+        async def run() -> str:
+            engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(engine) as session:
+                    return await phase_history_block(session, project_id=seeded["proj"])
+            finally:
+                await engine.dispose()
+
+        block = asyncio.run(run())
+        assert "確定時のメモ: スコープ A まで" in block
+        assert "断らずに新しい版を作ること" in block
+        assert "現在フェーズの作業として記録されます" in block
