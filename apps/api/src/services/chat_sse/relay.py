@@ -60,15 +60,11 @@ def relay_mode_enabled() -> bool:
     運営課金**という、設計と正反対の状態だった。
     他経路を使いたいときだけ `agent_sdk` / `api` を明示する。
     """
-    value = os.environ.get(PROVIDER_ENV, "").strip().lower()
-    if value == "relay":
-        return True
-    if value != "":
-        return False  # agent_sdk / api を明示指定している
-    # 未設定 = 既定で relay。ただしテスト専用の決定的スタブが明示 opt-in されて
-    # いる環境 (ATELIER_ALLOW_FAKE_LLM=1) には Bridge が存在しないので試さない。
-    # この env は本番では絶対に設定しない (設定したら偽の応答が出る)。
-    return os.environ.get("ATELIER_ALLOW_FAKE_LLM") != "1"
+    # GAP-178: 判定は llm_route.resolve_llm_route() 1 か所に集約した
+    # (env の「不在」に挙動を依存させない / 打ち間違いは安全側へ倒す)。
+    from .llm_route import resolve_llm_route
+
+    return resolve_llm_route().route == "relay"
 
 
 def relay_mode_explicit() -> bool:

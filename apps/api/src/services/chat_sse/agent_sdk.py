@@ -125,8 +125,13 @@ def build_options_kwargs(
 
 
 def subscription_mode_enabled() -> bool:
-    """ATELIER_LLM_PROVIDER がサブスクモードを指しているか。"""
-    return os.environ.get(PROVIDER_ENV, "").strip().lower() in _SUBSCRIPTION_VALUES
+    """サーバー内のサブスク実行 (agent_sdk) モードか。
+
+    GAP-178: 判定は llm_route.resolve_llm_route() 1 か所に集約した。
+    """
+    from .llm_route import resolve_llm_route
+
+    return resolve_llm_route().route == "agent_sdk"
 
 
 def sdk_available() -> bool:

@@ -345,9 +345,24 @@ async def get_health() -> list[HealthCheckRow]:
                 else "Bridge 未接続でキューあり",
             )
         )
+    # GAP-178: AI 実行経路と「誰の費用か」を運営画面に出す。
+    # env をサーバーで読まないと分からない状態を作らない (設定ミスに気づけるように)。
+    from src.services.chat_sse.llm_route import resolve_llm_route
+
+    route = resolve_llm_route()
+    rows.append(
+        HealthCheckRow(
+            name="AI 実行経路 / 費用の出どころ",
+            status="ok" if route.is_user_subscription and not route.warnings else "warn",
+            detail=f"{route.payer} — {route.reason}"
+            + ("｜" + " / ".join(route.warnings) if route.warnings else ""),
+            meta="本人サブスク" if route.is_user_subscription else "運営負担あり",
+        )
+    )
+
     # 外部 API は「設定の有無」という事実のみ (稼働率の推測はしない)
     externals = (
-        ("Anthropic API (LLM)", "ANTHROPIC_API_KEY"),
+        ("Anthropic API キー (既定では未使用 — GAP-175)", "ANTHROPIC_API_KEY"),
         ("Voyage AI (埋め込み)", "VOYAGE_API_KEY"),
         ("Resend (メール)", "ATELIER_EMAIL_API_KEY"),
         ("Supabase Storage", "ATELIER_SUPABASE_ADMIN_API_URL"),

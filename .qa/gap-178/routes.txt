@@ -1,0 +1,21 @@
+=== ① 既定 (env なし) — 消し忘れではなく明示された既定 ===
+AI 実行経路: relay / 費用: 利用者本人の Claude サブスク (本人の PC の Bridge) — 既定 (本人の PC の Bridge = 本人の Claude サブスク) で実行します
+
+=== ② 昔の値が残っている (ATELIER_LLM_PROVIDER=api + キーあり) ===
+AI 実行経路: relay / 費用: 利用者本人の Claude サブスク (本人の PC の Bridge) — API 課金が許可されていないため本人サブスクへ切り替えました | 注意: ATELIER_LLM_PROVIDER=api が指定されていますが ATELIER_ALLOW_API_BILLING が無いため API 課金は行いません。本人サブスク (Bridge) で実行します
+
+=== ③ 打ち間違い (=rely) ===
+AI 実行経路: relay / 費用: 利用者本人の Claude サブスク (本人の PC の Bridge) — ATELIER_LLM_PROVIDER=rely のため本人サブスクで実行します | 注意: ATELIER_LLM_PROVIDER='rely' は未知の値です。本人サブスク (Bridge) として扱いました — 綴りを確認してください
+
+=== ④ API を意図的に使う (2 つ明示) — 削除していないので即使える ===
+AI 実行経路: api / 費用: 運営の Anthropic API 従量課金 — ATELIER_LLM_PROVIDER=api かつ ATELIER_ALLOW_API_BILLING=1 のため運営の API 課金で実行します
+
+=== ⑤ 本人サブスク主体 + Bridge 未接続時だけ運営が肩代わり ===
+AI 実行経路: relay / 費用: 利用者本人の Claude サブスク (本人の PC の Bridge) — 既定 (本人の PC の Bridge = 本人の Claude サブスク) で実行します | Bridge 未接続時は運営の API 課金へ肩代わりします | 注意: ATELIER_ALLOW_API_BILLING=1 のため、Bridge 未接続時は運営の API 課金へ肩代わりします (運営に LLM 費用が発生します)
+
+=== ⑥ 起動ログ (実サーバー) ===
+AI 実行経路: relay / 費用: 利用者本人の Claude サブスク (本人の PC の Bridge) — 既定 (本人の PC の Bridge = 本人の Claude サブスク) で実行します | 注意: ANTHROPIC_API_KEY は設定されていますが、ATELIER_ALLOW_API_BILLING=1 が無いので使いません (運営に LLM 費用は発生しません)
+
+=== ⑦ 運営画面 /admin/health (実 API) ===
+[warn] AI 実行経路 / 費用の出どころ | meta: 本人サブスク
+  利用者本人の Claude サブスク (本人の PC の Bridge) — 既定で実行します｜ANTHROPIC_API_KEY は設定されていますが、ATELIER_ALLOW_API_BILLING=1 が無いので使いません (運営に LLM 費用は発生しません)

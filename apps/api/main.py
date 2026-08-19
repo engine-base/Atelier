@@ -38,6 +38,17 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     from src.services.knowledge import schedule_local_embedding_warmup
 
     schedule_local_embedding_warmup()
+
+    # GAP-178: 「今どの経路で AI が動き、誰の費用か」を起動時に必ず 1 行出す。
+    # env の中身を読みに行かないと分からない状態 (= 設定ミスに気づけない状態)
+    # を作らないための可視化。警告があれば warning レベルで出す。
+    import logging as _logging
+
+    from src.services.chat_sse.llm_route import describe_llm_route, resolve_llm_route
+
+    _route = resolve_llm_route()
+    _log = _logging.getLogger("atelier.llm_route")
+    (_log.warning if _route.warnings else _log.info)(describe_llm_route())
     yield
 
 

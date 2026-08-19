@@ -37,7 +37,13 @@ def api_billing_allowed() -> bool:
     (運営バッチであるナレッジ自動キュレーションはこの経路を通らず、
      元から運営負担と決めているので影響しない。)
     """
-    return os.environ.get(API_BILLING_ENV, "").strip() == "1"
+    # GAP-178: 判定は llm_route.resolve_llm_route() に集約 (env を読む場所を 1 つに)。
+    # 主経路が api のとき、および「Bridge 未接続時の肩代わり」を明示許可した
+    # ときだけ真。既定ではどちらも成立しない = 運営に費用は発生しない。
+    from .llm_route import resolve_llm_route
+
+    route = resolve_llm_route()
+    return route.route == "api" or route.api_fallback_allowed
 
 
 class LLMUnavailable(Exception):

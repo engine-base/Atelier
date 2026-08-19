@@ -31,9 +31,7 @@ async def test_relay_success_returns_provider_relay(monkeypatch: pytest.MonkeyPa
         yield "ok</html>"
 
     monkeypatch.setattr(sse_relay, "relay_stream_chunks", _fake_relay)
-    out, provider = await llm_complete(
-        system_prompt="SYS", user_text="作って", actor_id="u1"
-    )
+    out, provider = await llm_complete(system_prompt="SYS", user_text="作って", actor_id="u1")
     assert out == "<html>ok</html>"
     assert provider == "relay"
 
@@ -66,9 +64,20 @@ async def test_fake_only_when_opted_in(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_unconfigured_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_no_route_reports_bridge_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """GAP-175: 経路ゼロは「未設定」ではなく「Bridge 未接続」として返す。
+
+    既定が本人サブスク (relay) になったので、実行できない理由の実態は
+    「利用者の PC が繋がっていない」。code を bridge_offline にすることで
+    画面 (GAP-168) がその場に接続フローを出せる。
+    """
+    from src.services.chat_sse import relay as relay_mod
+
+    async def _offline(*_a: object, **_k: object):  # pragma: no cover - 直後に raise
+        raise relay_mod.RelayUnavailable
+        yield ""  # 型のため (async generator)
+
+    monkeypatch.setattr(relay_mod, "relay_stream_chunks", _offline)
     with pytest.raises(LLMUnavailable) as exc:
-        await llm_complete(
-            system_prompt="SYS", user_text="x", actor_id="u1", fake=lambda: "FAKE"
-        )
-    assert exc.value.code == "unconfigured"
+        await llm_complete(system_prompt="SYS", user_text="x", actor_id="u1", fake=lambda: "FAKE")
+    assert exc.value.code == "bridge_offline"
