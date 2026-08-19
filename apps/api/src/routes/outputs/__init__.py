@@ -26,6 +26,8 @@ from src.schemas.outputs import (
     OutputAnchorResponse,
     OutputResponse,
     OutputReviseRequest,
+    OutputTemplateResponse,
+    OutputTemplateUpsert,
 )
 from src.schemas.storage import ContentUrlResponse
 from src.services import outputs as svc
@@ -185,6 +187,67 @@ async def get_output_content(
         content=html,
         headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},
     )
+
+
+@router.get(
+    "/workspaces/{workspace_id}/output-templates",
+    summary="出力テンプレート一覧 (GAP-154 — workspace 単位)",
+)
+async def list_output_templates(
+    workspace_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[OutputTemplateResponse]]:
+    from src.services.outputs import templates as tmpl_svc
+
+    items = await tmpl_svc.list_templates(session, workspace_id=workspace_id)
+    if items is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+    return {"data": items}
+
+
+@router.put(
+    "/workspaces/{workspace_id}/output-templates/{stage}",
+    summary="出力テンプレート保存 (GAP-154 — 種類ごとに upsert・生成時に必ず注入)",
+)
+async def put_output_template(
+    workspace_id: str,
+    stage: str,
+    body: OutputTemplateUpsert,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, OutputTemplateResponse]:
+    from src.services.outputs import templates as tmpl_svc
+
+    try:
+        saved = await tmpl_svc.upsert_template(
+            session,
+            actor_id=user.id,
+            workspace_id=workspace_id,
+            stage=stage,
+            title=body.title,
+            content_md=body.content_md,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    if saved is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+    return {"data": saved}
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/output-templates/{stage}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="出力テンプレート削除 (GAP-154 — 以後はテンプレ無し生成に戻る)",
+)
+async def delete_output_template(
+    workspace_id: str, stage: str, session: SessionDep, user: UserDep
+) -> None:
+    from src.services.outputs import templates as tmpl_svc
+
+    ok = await tmpl_svc.delete_template(
+        session, actor_id=user.id, workspace_id=workspace_id, stage=stage
+    )
+    if not ok:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
 
 
 @router.get("/outputs/{output_id}/versions", summary="成果物のバージョン履歴")

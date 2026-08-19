@@ -284,6 +284,13 @@ async def build_context(
         flow_block = await flow_context_block(session, project_id=project_id)
         if flow_block:
             parts.append(flow_block)
+        # GAP-154: 現在工程の出力テンプレート (workspace 定義) — 「基本的に
+        # それを使う」を構造で保証する
+        from src.services.outputs.templates import templates_context_block
+
+        tmpl_block = await templates_context_block(session, project_id=project_id)
+        if tmpl_block:
+            parts.append(tmpl_block)
         # GAP-149: 他 AI 社員との会話の要約を横断注入 (社員間の引き継ぎ)
         peers = await _peer_thread_summaries(session, project_id=project_id, thread_id=thread_id)
         if peers:

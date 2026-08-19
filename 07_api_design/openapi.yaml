@@ -1090,6 +1090,19 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
+    OutputTemplate:
+      type: object
+      description: GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        stage: { type: string }
+        stage_label: { type: string }
+        title: { type: string }
+        content_md: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
     VersionDiff:
       type: object
       description: バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通)
@@ -5467,6 +5480,66 @@ paths:
                       consistency_ok: { type: boolean }
                       dangling_count: { type: integer }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/output-templates:
+    get:
+      tags: [outputs]
+      summary: 出力テンプレート一覧（GAP-154 — workspace 単位）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::list_output_templates
+      x-screen-ids: [S-D01]
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: stage 順のテンプレ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/OutputTemplate' } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: workspace 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/output-templates/{stage}:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: stage, in: path, required: true, schema: { type: string } }
+    put:
+      tags: [outputs]
+      summary: 出力テンプレート保存（GAP-154 — 種類ごとに upsert・生成時に必ず注入）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::put_output_template
+      x-screen-ids: [S-D01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content_md]
+              properties:
+                title: { type: string, maxLength: 120 }
+                content_md: { type: string, minLength: 1, maxLength: 20000 }
+      responses:
+        '200':
+          description: 保存後のテンプレ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OutputTemplate' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: workspace 不在 or 未知の種類, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      tags: [outputs]
+      summary: 出力テンプレート削除（GAP-154 — 以後はテンプレ無し生成に戻る）
+      x-implementation-path: apps/api/src/routes/outputs/__init__.py::delete_output_template
+      x-screen-ids: [S-D01]
+      responses:
+        '204': { description: 削除済み }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /outputs:
     get:

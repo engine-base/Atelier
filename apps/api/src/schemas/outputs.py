@@ -31,6 +31,26 @@ class OutputResponse(BaseModel):
     updated_at: datetime
 
 
+class OutputTemplateResponse(BaseModel):
+    """GAP-154: workspace 単位の出力テンプレート (種類 = workflow stage)。"""
+
+    id: str
+    workspace_id: str
+    stage: str
+    stage_label: str
+    title: str
+    content_md: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class OutputTemplateUpsert(BaseModel):
+    """テンプレ保存 (title は任意の呼び名、content_md が型の本体)。"""
+
+    title: str = Field(default="", max_length=120)
+    content_md: str = Field(min_length=1, max_length=20000)
+
+
 class OutputReviseRequest(BaseModel):
     """「編集」= ドキュメント AI (スティーブ) への修正依頼 (GAP-023)。"""
 

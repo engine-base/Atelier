@@ -6915,6 +6915,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspace_id}/output-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 出力テンプレート一覧（GAP-154 — workspace 単位） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description stage 順のテンプレ一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputTemplate"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description workspace 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/output-templates/{stage}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                stage: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 出力テンプレート保存（GAP-154 — 種類ごとに upsert・生成時に必ず注入） */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                    stage: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        title?: string;
+                        content_md: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 保存後のテンプレ */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputTemplate"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description workspace 不在 or 未知の種類 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** 出力テンプレート削除（GAP-154 — 以後はテンプレ無し生成に戻る） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                    stage: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 削除済み */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 不在 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/outputs": {
         parameters: {
             query?: never;
@@ -16569,6 +16735,21 @@ export interface components {
             };
             /** Format: date-time */
             deleted_at?: string | null;
+            /** Format: date-time */
+            created_at?: string;
+            /** Format: date-time */
+            updated_at?: string;
+        };
+        /** @description GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。 */
+        OutputTemplate: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            workspace_id?: string;
+            stage?: string;
+            stage_label?: string;
+            title?: string;
+            content_md?: string;
             /** Format: date-time */
             created_at?: string;
             /** Format: date-time */

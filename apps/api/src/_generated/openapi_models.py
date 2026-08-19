@@ -1240,6 +1240,21 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class OutputTemplate(BaseModel):
+    """
+    GAP-154 — workspace 単位の出力テンプレート (種類 = workflow stage)。生成時に必ず注入。
+    """
+
+    id: UUID | None = None
+    workspace_id: UUID | None = None
+    stage: str | None = None
+    stage_label: str | None = None
+    title: str | None = None
+    content_md: str | None = None
+    created_at: AwareDatetime | None = None
+    updated_at: AwareDatetime | None = None
+
+
 class VersionDiff(BaseModel):
     """
     バージョン間差分 (GAP-155 — サーバ側で実 HTML 2 版から difflib 計算。モック/成果物共通)

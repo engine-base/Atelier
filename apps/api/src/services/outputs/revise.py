@@ -172,9 +172,17 @@ def extract_anchors(html: str, *, limit: int = 50) -> list[OutputAnchorResponse]
 
 
 async def run_revision(
-    html: str, instruction: str, client: CompletionClient | None
+    html: str,
+    instruction: str,
+    client: CompletionClient | None,
+    *,
+    system_extra: str | None = None,
 ) -> tuple[str, str]:
-    """LLM (または fake スタブ) で HTML を改訂する。返り値 (改訂 HTML, 使用モデル)。"""
+    """LLM (または fake スタブ) で HTML を改訂する。返り値 (改訂 HTML, 使用モデル)。
+
+    GAP-154: system_extra に workspace の出力テンプレートを渡すと、改訂も
+    その型に従う (契約 → 参考資料の順は mocks revise と同じ設計)。
+    """
     allow_fake = os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1"
     if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
         if allow_fake:
@@ -196,7 +204,7 @@ async def run_revision(
                     content=f"修正指示:\n{instruction}\n\n現行 HTML:\n{html}",
                 )
             ],
-            system=_SYSTEM,
+            system=(_SYSTEM if not system_extra else f"{_SYSTEM}\n\n{system_extra}"),
             max_tokens=16384,
             temperature=0.2,
         )
@@ -230,7 +238,17 @@ async def revise_output(
             "too_large", f"output html exceeds {_MAX_HTML_CHARS} chars — 分割を検討してください"
         )
 
-    revised, used_model = await run_revision(html, instruction, client)
+    # GAP-154: workspace の出力テンプレート (この成果物の種類 = stage) を必ず注入
+    from .templates import render_template_block, template_for_stage
+
+    tmpl = await template_for_stage(session, project_id=current.project_id, stage=current.stage)
+    system_extra = (
+        None
+        if tmpl is None
+        else render_template_block(stage=current.stage, title=tmpl[0], content_md=tmpl[1])
+    )
+
+    revised, used_model = await run_revision(html, instruction, client, system_extra=system_extra)
 
     # GAP-155: mockdb 由来は mockdb へ保存 (storage 未設定でも編集ループが回る —
     # GAP-138 の mocks revise と同じ設計)。storage 由来は従来どおり storage へ。

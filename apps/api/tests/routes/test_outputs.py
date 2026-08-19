@@ -686,3 +686,186 @@ class TestGap155OutputsDiffRestore:
                     ),
                     {"p": seeded["proj_a"]},
                 )
+
+
+# ── GAP-154: 出力テンプレート (workspace 単位・種類ごと・生成時必ず注入) ────
+
+
+@pytest.mark.integration
+class TestGap154OutputTemplates:
+    def test_crud_and_rls(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        ws = seeded["ws_a"]
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            # 保存 (upsert)
+            r = client.put(
+                f"/workspaces/{ws}/output-templates/estimate",
+                json={"title": "標準見積 v1", "content_md": "# 御見積書\n- 宛名\n- 有効期限30日"},
+                headers=h,
+            )
+            assert r.status_code == 200
+            saved = r.json()["data"]
+            assert saved["stage_label"] == "見積書"
+            # 一覧に出る
+            listed = client.get(f"/workspaces/{ws}/output-templates", headers=h).json()["data"]
+            assert [t["stage"] for t in listed] == ["estimate"]
+            # 上書き (同 stage は 1 件)
+            r2 = client.put(
+                f"/workspaces/{ws}/output-templates/estimate",
+                json={"title": "標準見積 v2", "content_md": "# 御見積書 v2"},
+                headers=h,
+            )
+            assert r2.status_code == 200
+            listed2 = client.get(f"/workspaces/{ws}/output-templates", headers=h).json()["data"]
+            assert len(listed2) == 1 and listed2[0]["title"] == "標準見積 v2"
+            # 未知の種類は 404 (偽の種類を作らない)
+            assert (
+                client.put(
+                    f"/workspaces/{ws}/output-templates/nonsense",
+                    json={"content_md": "x"},
+                    headers=h,
+                ).status_code
+                == 404
+            )
+            # 他人の workspace は RLS で不可視 (404)
+            assert (
+                client.get(
+                    f"/workspaces/{ws}/output-templates", headers=_h(seeded["u_b"])
+                ).status_code
+                == 404
+            )
+            # 削除 → 以後テンプレ無し
+            assert (
+                client.delete(f"/workspaces/{ws}/output-templates/estimate", headers=h).status_code
+                == 204
+            )
+            assert (
+                client.delete(f"/workspaces/{ws}/output-templates/estimate", headers=h).status_code
+                == 404
+            )
+
+    def test_template_injected_into_revise_system_prompt(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """スティーブ改訂の system prompt に該当種類のテンプレが必ず入る。"""
+        from typing import Any
+
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from src.services.mocks import artifacts as artifacts_svc
+        from src.services.outputs import revise as revise_svc
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        monkeypatch.setattr(
+            artifacts_svc,
+            "service_session_factory",
+            lambda: async_sessionmaker(test_engine, class_=AsyncSession),
+        )
+        # estimate テンプレ + mockdb 実体の estimate 成果物を seed
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.output_templates (workspace_id, stage, title, content_md) "
+                    "values (cast(:w as uuid), 'estimate', '標準見積', "
+                    "'# 御見積書\n## お支払い条件: 月末締め翌月末払い')"
+                ),
+                {"w": seeded["ws_a"]},
+            )
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": "<html><body><p>見積本文</p></body></html>"},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) "
+                    "values (cast(:i as uuid), cast(:p as uuid), 'estimate', :path, '見積', 1)"
+                ),
+                {"i": oid, "p": seeded["proj_a"], "path": f"mockdb://{cid}"},
+            )
+
+        captured: list[str] = []
+
+        class _Capture:
+            async def complete(self, **kwargs: Any) -> Any:
+                captured.append(str(kwargs.get("system")))
+
+                class _Res:
+                    text = "<html><body><p>改訂済み</p></body></html>"
+
+                return _Res()
+
+        async def run() -> None:
+            async with AsyncSession(test_engine) as session:
+                created = await revise_svc.revise_output(
+                    session,
+                    actor_id=seeded["u_a"],
+                    output_id=oid,
+                    instruction="支払条件を強調して",
+                    client=_Capture(),
+                )
+                assert created is not None
+                await session.commit()
+
+        try:
+            asyncio.run(run())
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs "
+                        "where project_id = cast(:p as uuid) and stage = 'estimate'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )
+        assert len(captured) == 1
+        assert "出力テンプレート: 見積書" in captured[0]
+        assert "月末締め翌月末払い" in captured[0]
+        assert "必ずこの構成・項目・書式に従う" in captured[0]
+
+    def test_template_injected_into_chat_context_for_current_stage(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """チャット生成: 現在工程 (hearing) のテンプレが system prompt に入る。"""
+        h = _h(seeded["u_a"])
+        thread = str(uuid.uuid4())
+        emp = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
+                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
+                    "'steve', 'スティーブ', 'lead', 'product', true)"
+                ),
+                {"i": emp, "w": seeded["ws_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'tmpl-t')"
+                ),
+                {"i": thread, "p": seeded["proj_a"], "e": emp},
+            )
+        with TestClient(app) as client:
+            client.put(
+                f"/workspaces/{seeded['ws_a']}/output-templates/hearing",
+                json={"title": "議事録型", "content_md": "## 決定事項\n## 宿題 (担当/期限)"},
+                headers=h,
+            )
+            # フロー初期化 (internal テンプレ → 現在工程 = hearing)
+            client.get(f"/projects/{seeded['proj_a']}/flow", headers=h)
+            r = client.post(
+                f"/chat/threads/{thread}/context-preview",
+                headers=h,
+                json={"user_message": "議事録まとめて", "include_history": 5},
+            )
+            assert r.status_code == 200
+            sys_p = r.json()["data"]["system_prompt"]
+            assert "出力テンプレート: 議事録・ヒアリングメモ" in sys_p
+            assert "宿題 (担当/期限)" in sys_p
