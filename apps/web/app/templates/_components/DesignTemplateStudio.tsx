@@ -26,15 +26,11 @@ export const TEMPLATE_KINDS: readonly { key: string; label: string }[] = [
   { key: "estimate", label: "見積書" },
   { key: "proposal", label: "提案書" },
   { key: "invoice", label: "請求書" },
-  { key: "contract", label: "契約書ドラフト" },
-  { key: "nda", label: "NDA ドラフト" },
-  { key: "hearing", label: "議事録・ヒアリングメモ" },
+  { key: "contract", label: "契約書" },
+  { key: "nda", label: "NDA" },
   { key: "requirements", label: "要件定義書" },
   { key: "architecture", label: "アーキ設計書" },
   { key: "design", label: "デザイン仕様書" },
-  { key: "breakdown", label: "機能分解書" },
-  { key: "tasks", label: "タスク一覧" },
-  { key: "implementation", label: "実装ドキュメント" },
   { key: "verification", label: "テスト仕様書" },
   { key: "delivery", label: "納品書・完了報告" },
 ];
@@ -45,6 +41,8 @@ interface ApiTemplate {
   stage_label: string;
   version: number;
   note: string;
+  /** GAP-159: "platform" = 運営既定を継承中 / "workspace" = この WS の版 */
+  source?: "workspace" | "platform";
   created_at?: string;
 }
 
@@ -60,12 +58,20 @@ const A4_H = 1123;
 export interface DesignTemplateStudioProps {
   readonly client?: ApiClient;
   readonly workspaceId?: string;
+  /**
+   * GAP-159: "workspace" = 各社のデザイン (運営既定を継承・上書き・既定に戻す)、
+   * "platform" = 運営 admin が全社の既定デザインそのものを作る。
+   * UI と操作は同一 (経営者指示「管理側でも全く同じように更新や追加変更できる状態」)。
+   */
+  readonly mode?: "workspace" | "platform";
 }
 
 export function DesignTemplateStudio({
   client: injected,
   workspaceId: forcedWs,
+  mode = "workspace",
 }: DesignTemplateStudioProps) {
+  const isPlatform = mode === "platform";
   const client = useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<string>("estimate");
@@ -89,53 +95,76 @@ export function DesignTemplateStudio({
   }, []);
 
   // workspace 解決: 明示指定 → localStorage → /workspaces 先頭
+  // (運営既定モードは workspace に紐づかないので解決自体を行わない)
   const wsQuery = useQuery({
     queryKey: ["workspaces", "for-templates"],
-    enabled: !forcedWs,
+    enabled: !forcedWs && !isPlatform,
     queryFn: async () => {
       const res = await client.get("/workspaces", {});
       return ((res as { data?: { id: string }[] }).data ?? []) as { id: string }[];
     },
     retry: false,
   });
-  const wsId =
-    forcedWs ??
-    (typeof window !== "undefined" ? readCurrentWorkspace() : undefined) ??
-    wsQuery.data?.[0]?.id;
+  const wsId = isPlatform
+    ? "platform"
+    : (forcedWs ??
+      (typeof window !== "undefined" ? readCurrentWorkspace() : undefined) ??
+      wsQuery.data?.[0]?.id);
 
   const versions = useQuery({
     queryKey: ["design-templates", wsId, kind, "versions"],
     enabled: Boolean(wsId),
     queryFn: async () => {
-      const res = await client.get(
-        "/workspaces/{workspace_id}/design-templates/{stage}/versions",
-        { params: { path: { workspace_id: wsId ?? "", stage: kind } } },
-      );
+      const res = isPlatform
+        ? await client.get("/admin/design-templates/{stage}/versions", {
+            params: { path: { stage: kind } },
+          })
+        : await client.get(
+            "/workspaces/{workspace_id}/design-templates/{stage}/versions",
+            { params: { path: { workspace_id: wsId ?? "", stage: kind } } },
+          );
       const d = (res as { data?: unknown }).data;
       return Array.isArray(d) ? (d as ApiTemplate[]) : [];
     },
     retry: false,
   });
   const latest = versions.data?.[0] ?? null;
-  const viewing =
-    (viewVersionId
-      ? (versions.data ?? []).find((v) => v.id === viewVersionId)
-      : null) ?? latest;
 
   // 全種類の設定済みバッジ用
   const allLatest = useQuery({
     queryKey: ["design-templates", wsId, "latest"],
     enabled: Boolean(wsId),
     queryFn: async () => {
-      const res = await client.get("/workspaces/{workspace_id}/design-templates", {
-        params: { path: { workspace_id: wsId ?? "" } },
-      });
+      const res = isPlatform
+        ? await client.get("/admin/design-templates", {})
+        : await client.get("/workspaces/{workspace_id}/design-templates", {
+            params: { path: { workspace_id: wsId ?? "" } },
+          });
       const d = (res as { data?: unknown }).data;
       return Array.isArray(d) ? (d as ApiTemplate[]) : [];
     },
     retry: false,
   });
   const configured = new Set((allLatest.data ?? []).map((t) => t.stage));
+  // GAP-159: この WS 自前の版がある種類 (継承中との区別)
+  const ownStages = new Set(
+    (allLatest.data ?? []).filter((t) => t.source !== "platform").map((t) => t.stage),
+  );
+  // 「継承中」= 自前の版履歴が空で、かつ運営既定が実在してそれが効いている状態
+  const inheritedLatest =
+    !isPlatform && (versions.data ?? []).length === 0
+      ? ((allLatest.data ?? []).find(
+          (t) => t.stage === kind && t.source === "platform",
+        ) ?? null)
+      : null;
+  const inheritingDefault = inheritedLatest !== null;
+
+  const viewing =
+    (viewVersionId
+      ? (versions.data ?? []).find((v) => v.id === viewVersionId)
+      : null) ??
+    latest ??
+    inheritedLatest;
 
   const contentUrl = useQuery({
     queryKey: ["design-templates", "content-url", viewing?.id],
@@ -152,13 +181,15 @@ export function DesignTemplateStudio({
   const create = useMutation({
     retry: false,
     mutationFn: async () => {
-      const res = await client.post(
-        "/workspaces/{workspace_id}/design-templates/{stage}",
-        {
-          params: { path: { workspace_id: wsId ?? "", stage: kind } },
-          body: { instruction: instruction.trim() },
-        },
-      );
+      const res = isPlatform
+        ? await client.post("/admin/design-templates/{stage}", {
+            params: { path: { stage: kind } },
+            body: { instruction: instruction.trim() },
+          })
+        : await client.post("/workspaces/{workspace_id}/design-templates/{stage}", {
+            params: { path: { workspace_id: wsId ?? "", stage: kind } },
+            body: { instruction: instruction.trim() },
+          });
       return (res as { data?: ApiTemplate }).data ?? null;
     },
     onSuccess: (created) => {
@@ -179,6 +210,33 @@ export function DesignTemplateStudio({
           e instanceof ApiError && e.status === 503
             ? "AI 実行経路が使えません (Bridge がオフラインの可能性)。Bridge を起動して再試行してください。"
             : "テンプレの作成に失敗しました。時間をおいて再度お試しください。",
+      }),
+  });
+
+  // GAP-159: このワークスペースの変更を捨てて運営既定に戻す (削除ではなく新版)
+  const reset = useMutation({
+    retry: false,
+    mutationFn: async () => {
+      const res = await client.post(
+        "/workspaces/{workspace_id}/design-templates/{stage}/reset-to-default",
+        { params: { path: { workspace_id: wsId ?? "", stage: kind } } },
+      );
+      return (res as { data?: ApiTemplate }).data ?? null;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["design-templates", wsId] });
+      setViewVersionId(null);
+      setNotice({ kind: "ok", text: "運営の既定デザインに戻しました。" });
+    },
+    onError: (e) =>
+      setNotice({
+        kind: "error",
+        text:
+          e instanceof ApiError && e.status === 409
+            ? "すでに運営の既定デザインを継承しています。"
+            : e instanceof ApiError && e.status === 404
+              ? "この種類の運営既定デザインはまだ設定されていません。"
+              : "既定に戻せませんでした。時間をおいて再度お試しください。",
       }),
   });
 
@@ -215,11 +273,20 @@ export function DesignTemplateStudio({
         className="w-full shrink-0 border-b border-border bg-surface p-sm lg:w-[240px] lg:border-b-0 lg:border-r"
       >
         <h1 className="px-2 py-1.5 text-[13px] font-bold text-on-surface">
-          出力デザインテンプレート
+          {isPlatform ? "既定デザインテンプレート（運営）" : "出力デザインテンプレート"}
         </h1>
         <p className="px-2 pb-2 text-[11px] leading-relaxed text-on-surface-variant">
-          クライアントに見せる最終 HTML/PDF の<strong>見た目の型</strong>。
-          内容の構成・文言はスキルが整えます — ここはデザインだけ。
+          {isPlatform ? (
+            <>
+              全ワークスペースが<strong>初期状態で継承</strong>するデザイン。
+              各社はこれを上書きでき、いつでも既定に戻せます。
+            </>
+          ) : (
+            <>
+              クライアントに見せる最終 HTML/PDF の<strong>見た目の型</strong>。
+              内容の構成・文言はスキルが整えます — ここはデザインだけ。
+            </>
+          )}
         </p>
         <ul role="list" className="flex flex-row flex-wrap gap-1 lg:flex-col">
           {TEMPLATE_KINDS.map((k) => (
@@ -242,8 +309,11 @@ export function DesignTemplateStudio({
                 <span className="truncate">{k.label}</span>
                 {configured.has(k.key) ? (
                   <span
-                    className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-tertiary"
-                    title="設定済み"
+                    className={cn(
+                      "ml-auto h-1.5 w-1.5 shrink-0 rounded-full",
+                      ownStages.has(k.key) ? "bg-tertiary" : "bg-on-surface-variant/40",
+                    )}
+                    title={ownStages.has(k.key) ? "このワークスペースで設定済み" : "運営既定を継承中"}
                   />
                 ) : null}
               </button>
@@ -265,7 +335,9 @@ export function DesignTemplateStudio({
             className="shrink-0"
           >
             <iframe
-              title={`${kindLabel} デザインテンプレ v${viewing.version}`}
+              title={`${kindLabel} デザインテンプレ ${
+                inheritingDefault ? "運営既定" : `v${viewing.version}`
+              }`}
               src={contentUrl.data}
               sandbox=""
               style={{
@@ -283,9 +355,9 @@ export function DesignTemplateStudio({
               「{kindLabel}」のテンプレはまだありません
             </p>
             <p className="mt-1 text-[12px] text-on-surface-variant">
-              右のボックスからワンダに指示すると、A4/PDF
-              前提のデザインテンプレを作成します。以後この種類の成果物は
-              このデザインで出力されます。
+              {isPlatform
+                ? "右のボックスからワンダに指示すると、全ワークスペースが継承する既定デザインを作成します。"
+                : "右のボックスからワンダに指示すると、A4/PDF 前提のデザインテンプレを作成します。以後この種類の成果物はこのデザインで出力されます。"}
             </p>
           </div>
         )}
@@ -301,11 +373,30 @@ export function DesignTemplateStudio({
             {kindLabel}
             {viewing ? (
               <span className="ml-1.5 text-[11px] font-semibold text-on-surface-variant">
-                v{viewing.version}
-                {viewing.id === latest?.id ? " · 最新" : "（過去版を表示中）"}
+                {inheritingDefault ? (
+                  "運営既定を継承中"
+                ) : (
+                  <>
+                    v{viewing.version}
+                    {viewing.id === latest?.id ? " · 最新" : "（過去版を表示中）"}
+                  </>
+                )}
               </span>
             ) : null}
           </h2>
+          {!isPlatform && !inheritingDefault && latest ? (
+            <button
+              type="button"
+              disabled={reset.isPending}
+              onClick={() => {
+                setNotice(null);
+                reset.mutate();
+              }}
+              className="mt-1.5 rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
+            >
+              {reset.isPending ? "戻しています…" : "運営の既定デザインに戻す"}
+            </button>
+          ) : null}
         </div>
 
         <form
@@ -359,7 +450,11 @@ export function DesignTemplateStudio({
               disabled={instruction.trim() === "" || create.isPending}
               className="rounded-md bg-primary px-4 py-1.5 text-[12.5px] font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
             >
-              {latest ? "改訂を依頼" : "テンプレを作成"}
+              {inheritingDefault
+                ? "既定を元に変更する"
+                : latest
+                  ? "改訂を依頼"
+                  : "テンプレを作成"}
             </button>
           </div>
         </form>

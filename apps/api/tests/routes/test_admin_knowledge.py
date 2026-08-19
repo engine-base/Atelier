@@ -304,21 +304,31 @@ def test_gap153_curation_run_anonymize_and_security_scan(
         # leaky はフェイク LLM が原文を引き写す → 決定的リークスキャンが社名/メール/URL を検出
         assert stats["rejected_security"] == 1
 
-        pend = cl.get(
-            "/admin/knowledge/curation",
-            params={"status": "pending"},
-            headers=_h(seeded["admin"], admin=True),
-        ).json()["data"]
+        pend = [
+            x
+            for x in cl.get(
+                "/admin/knowledge/curation",
+                params={"status": "pending"},
+                headers=_h(seeded["admin"], admin=True),
+            ).json()["data"]
+            if x["source_node_id"] in (tenant["clean"], tenant["leaky"])
+        ]
         assert len(pend) == 1
         assert pend[0]["source_node_id"] == tenant["clean"]
         assert pend[0]["proposed_title"].startswith("[一般化]")
         assert pend[0]["source_workspace_name"] == "秘密商事ホールディングス"
 
-        rej = cl.get(
-            "/admin/knowledge/curation",
-            params={"status": "rejected_security"},
-            headers=_h(seeded["admin"], admin=True),
-        ).json()["data"]
+        # 他テストが残した rejected 行と混ざらないよう、この tenant 由来だけを見る
+        # (キュー自体は運営横断のグローバル一覧のため)
+        rej = [
+            x
+            for x in cl.get(
+                "/admin/knowledge/curation",
+                params={"status": "rejected_security"},
+                headers=_h(seeded["admin"], admin=True),
+            ).json()["data"]
+            if x["source_node_id"] in (tenant["clean"], tenant["leaky"])
+        ]
         assert len(rej) == 1
         assert rej[0]["source_node_id"] == tenant["leaky"]
         assert "残存" in (rej[0]["security_notes"] or "")
@@ -387,9 +397,13 @@ def test_gap153_approve_publishes_platform_and_recheck(
                 ),
                 {"i": cur2, "s": tenant["leaky"], "a": tenant["ws"]},
             )
-        leaky_pending = cl.get(
-            "/admin/knowledge/curation", params={"status": "pending"}, headers=ha
-        ).json()["data"]
+        leaky_pending = [
+            x
+            for x in cl.get(
+                "/admin/knowledge/curation", params={"status": "pending"}, headers=ha
+            ).json()["data"]
+            if x["source_node_id"] in (tenant["clean"], tenant["leaky"])
+        ]
         assert len(leaky_pending) == 1
         r409 = cl.post(f"/admin/knowledge/curation/{leaky_pending[0]['id']}/approve", headers=ha)
         assert r409.status_code == 409

@@ -28,6 +28,7 @@ const NAV: readonly NavItem[] = [
   { href: '/admin/users', match: '/admin/users', label: 'ユーザー' },
   { href: '/admin/audit', match: '/admin/audit', label: '監査ログ' },
   { href: '/admin/platform-knowledge', match: '/admin/platform-knowledge', label: '運営ナレッジ' },
+  { href: '/admin/design-templates', match: '/admin/design-templates', label: '既定デザイン' },
 ];
 
 function isActive(pathname: string, item: NavItem): boolean {

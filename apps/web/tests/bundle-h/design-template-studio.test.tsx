@@ -73,7 +73,7 @@ function clientOf(opts?: {
 afterEach(() => vi.clearAllMocks());
 
 describe("DesignTemplateStudio (GAP-158)", () => {
-  it("14 種類の成果物デザインを列挙し、「見た目の型 / 内容はスキル」の位置づけを明示する", async () => {
+  it("10 種類の成果物デザインを列挙し、「見た目の型 / 内容はスキル」の位置づけを明示する", async () => {
     renderWithQuery(<DesignTemplateStudio client={clientOf()} workspaceId={WS} />);
     expect(
       await screen.findByRole("heading", { name: "出力デザインテンプレート" }),
@@ -82,7 +82,7 @@ describe("DesignTemplateStudio (GAP-158)", () => {
     expect(screen.getByText(/内容の構成・文言はスキルが整えます/)).toBeInTheDocument();
     const list = screen.getByRole("list", { name: undefined });
     expect(list).toBeInTheDocument();
-    expect(TEMPLATE_KINDS).toHaveLength(14);
+    expect(TEMPLATE_KINDS).toHaveLength(10);
     for (const k of ["見積書", "提案書", "請求書", "納品書・完了報告"]) {
       expect(screen.getByRole("button", { name: k })).toBeInTheDocument();
     }
@@ -158,5 +158,92 @@ describe("DesignTemplateStudio (GAP-158)", () => {
       "AI 実行経路が使えません",
     );
     expect(screen.queryByText(/作成しました/)).not.toBeInTheDocument();
+  });
+
+  it("運営既定を継承中は「運営既定を継承中」と出し、上書きすると「既定に戻す」が出る (GAP-159)", async () => {
+    // 自前の版履歴は空 / 一覧には運営既定 (source=platform) が実効デザインとして入る
+    const platformLatest = { ...V1, id: "p1", note: "運営既定", source: "platform" as const };
+    const client = {
+      get: vi.fn(async (path: string) => {
+        if (path.endsWith("/versions")) return { data: [] };
+        if (path.endsWith("/design-templates")) return { data: [platformLatest] };
+        if (path.endsWith("/content-url"))
+          return { data: { url: "http://api.test/signed/platform.html" } };
+        return { data: [] };
+      }),
+      post: vi.fn(async () => ({ data: V1 })),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<DesignTemplateStudio client={client} workspaceId={WS} />);
+    expect(await screen.findByText("運営既定を継承中")).toBeInTheDocument();
+    // 継承中は運営既定がプレビューされ、ボタンは「既定を元に変更する」
+    expect(
+      await screen.findByTitle("見積書 デザインテンプレ 運営既定"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "既定を元に変更する" }),
+    ).toBeInTheDocument();
+    // 継承中は「既定に戻す」は出ない (戻す先と同じなので)
+    expect(
+      screen.queryByRole("button", { name: "運営の既定デザインに戻す" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("自前版があるときは「運営の既定デザインに戻す」で reset API を叩く (GAP-159)", async () => {
+    const post = vi.fn(async () => ({ data: { ...V1, note: "運営の既定デザインに戻しました" } }));
+    renderWithQuery(
+      <DesignTemplateStudio
+        client={clientOf({ versions: [V1], post })}
+        workspaceId={WS}
+      />,
+    );
+    const resetBtn = await screen.findByRole("button", {
+      name: "運営の既定デザインに戻す",
+    });
+    fireEvent.click(resetBtn);
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { workspace_id: string; stage: string } } },
+    ];
+    expect(path).toBe(
+      "/workspaces/{workspace_id}/design-templates/{stage}/reset-to-default",
+    );
+    expect(init.params.path).toEqual({ workspace_id: WS, stage: "estimate" });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "運営の既定デザインに戻しました",
+    );
+  });
+
+  it("運営モード (mode=platform) は admin API を使い、全社が継承する既定として作る (GAP-159)", async () => {
+    const post = vi.fn(async () => ({ data: { ...V1, note: "全社既定を作成" } }));
+    const client = {
+      get: vi.fn(async (path: string) => {
+        if (path.endsWith("/versions")) return { data: [] };
+        return { data: [] };
+      }),
+      post,
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<DesignTemplateStudio client={client} mode="platform" />);
+    expect(
+      await screen.findByRole("heading", { name: "既定デザインテンプレート（運営）" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/全ワークスペースが/),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/ワンダへの指示/), {
+      target: { value: "全社共通の見積デザイン" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "テンプレを作成" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const [adminPath] = post.mock.calls[0]! as unknown as [string];
+    expect(adminPath).toBe("/admin/design-templates/{stage}");
   });
 });

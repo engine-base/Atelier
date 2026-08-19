@@ -46,6 +46,7 @@ export const ROUTE_MAP: ReadonlyArray<readonly [clean: string, internal: string]
   ['/admin/users', '/admin/s_t04'],
   ['/admin/audit', '/admin/s_t05'],
   ['/admin/platform-knowledge', '/admin/s_t06'],
+  ['/admin/design-templates', '/admin/s_t07'],
   // client portal
   ['/portal/invitations', '/client/s_l01'],
   ['/portal/signin', '/client/s_l02'],

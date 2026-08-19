@@ -1092,14 +1092,15 @@ components:
 
     OutputDesignTemplate:
       type: object
-      description: GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。
+      description: GAP-158/159 — 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。source=platform は運営既定を継承中。
       properties:
         id: { type: string, format: uuid }
-        workspace_id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid, nullable: true, description: 運営既定 (source=platform) は null }
         stage: { type: string }
         stage_label: { type: string }
         version: { type: integer, minimum: 1 }
         note: { type: string }
+        source: { type: string, enum: [workspace, platform], description: workspace=この WS の版 / platform=運営既定を継承中 }
         created_at: { type: string, format: date-time }
 
     VersionDiff:
@@ -5637,6 +5638,89 @@ paths:
                   data: { type: array, items: { $ref: '#/components/schemas/OutputDesignTemplate' } }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: workspace 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/design-templates/{stage}/reset-to-default:
+    post:
+      tags: [outputs]
+      summary: このワークスペースのデザインを運営既定に戻す (GAP-159 — 削除ではなく新版として積む)
+      parameters:
+        - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: stage, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 既定に戻した新版
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OutputDesignTemplate' }
+        '404': { description: workspace / 既定デザインが無い }
+        '409': { description: すでに運営既定を継承している }
+
+  /admin/design-templates:
+    get:
+      tags: [admin-design-templates]
+      summary: 運営 admin — 既定デザインテンプレ一覧 (種類ごとの最新版)
+      responses:
+        '200':
+          description: 既定一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/OutputDesignTemplate' }
+        '403': { description: admin 権限が必要 }
+
+  /admin/design-templates/{stage}/versions:
+    get:
+      tags: [admin-design-templates]
+      summary: 運営 admin — 既定デザインテンプレの版履歴
+      parameters:
+        - { name: stage, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 版履歴 (新しい順)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/OutputDesignTemplate' }
+        '403': { description: admin 権限が必要 }
+
+  /admin/design-templates/{stage}:
+    post:
+      tags: [admin-design-templates]
+      summary: 運営 admin — ワンダに既定デザインを作成/改訂させる (新版が積まれる)
+      parameters:
+        - { name: stage, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction]
+              properties:
+                instruction: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '201':
+          description: 作成された版
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/OutputDesignTemplate' }
+        '403': { description: admin 権限が必要 }
+        '404': { description: 未知の種類 }
+        '503': { description: LLM 実行経路が使えない (Bridge オフライン等) }
 
   /design-templates/{template_id}/content-url:
     get:

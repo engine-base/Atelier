@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import urllib.parse
 import uuid as uuid_mod
 from functools import lru_cache
@@ -49,10 +50,21 @@ SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 
-@lru_cache(maxsize=1)
-def _content_session_factory() -> async_sessionmaker[AsyncSession]:
-    """GAP-139: mockdb 成果物配信用の service session (routes/mocks と同じ方式)。"""
+@lru_cache(maxsize=8)
+def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
+    """GAP-139: mockdb 成果物配信用の service session (routes/mocks と同じ方式)。
+
+    GAP-159: asyncpg の接続は event loop を跨いで再利用できないため、実行中 loop
+    毎に engine を分離する (本番 uvicorn は単一 loop で挙動不変。テストは
+    TestClient ブロック毎に新 loop を作るため、単一キャッシュだと 2 つ目以降の
+    ブロックで死んだ loop の engine を掴んでしまう)。
+    """
+    del loop_key  # cache key 専用
     return create_session_factory(create_engine())
+
+
+def _content_session_factory() -> async_sessionmaker[AsyncSession]:
+    return _session_factory_for_loop(id(asyncio.get_running_loop()))
 
 
 @router.get("/outputs", summary="成果物一覧")
@@ -248,6 +260,28 @@ async def create_design_template_version(
         if exc.code == "not_found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+    return {"data": created}
+
+
+@router.post(
+    "/workspaces/{workspace_id}/design-templates/{stage}/reset-to-default",
+    summary="このワークスペースのデザインを運営既定に戻す (GAP-159 — 新版として積む)",
+)
+async def reset_design_template(
+    workspace_id: str, stage: str, session: SessionDep, user: UserDep
+) -> dict[str, OutputDesignTemplateResponse]:
+    from src.services.outputs import templates as tmpl_svc
+
+    try:
+        created = await tmpl_svc.reset_to_platform_default(
+            session, actor_id=user.id, workspace_id=workspace_id, stage=stage
+        )
+    except tmpl_svc.DesignTemplateError as exc:
+        if exc.code == "already_default":
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
     return {"data": created}

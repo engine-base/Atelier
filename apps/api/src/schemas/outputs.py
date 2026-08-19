@@ -8,6 +8,7 @@ E-006 workflow_outputs (project_scoped)。各工程の生成物。read 中心 (�
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -35,11 +36,14 @@ class OutputDesignTemplateResponse(BaseModel):
     """GAP-158: workspace 単位の出力デザインテンプレ (クライアント提出 HTML の見た目の型)。"""
 
     id: str
-    workspace_id: str
+    # GAP-159: 運営既定 (全テナントが継承する初期デザイン) は workspace_id=None
+    workspace_id: str | None = None
     stage: str
     stage_label: str
     version: int
     note: str
+    # "workspace" = この WS で作った版 / "platform" = 運営既定を継承中
+    source: Literal["workspace", "platform"] = "workspace"
     created_at: datetime
 
 

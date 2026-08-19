@@ -904,14 +904,18 @@ class TestGap158DesignTemplates:
         sync_engine: sqlalchemy.Engine,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """チャット生成: 現在工程 (hearing) のデザインテンプレが system prompt に入る。"""
+        """チャット生成: 現在工程のデザインテンプレが system prompt に入る。
+
+        GAP-159 で議事録は「デザインを持たない工程」になったため、現在工程を
+        要件定義 (デザイン種類あり) に進めた状態で検証する。
+        """
         test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
         _patch_service_factory(monkeypatch, test_engine)
         _seed_design_template(
             sync_engine,
             ws=seeded["ws_a"],
-            stage="hearing",
-            html="<html><body><h1>議事録</h1><ul class=agenda></ul></body></html>",
+            stage="requirements",
+            html="<html><body><h1>要件定義書</h1><ul class=agenda></ul></body></html>",
         )
         h = _h(seeded["u_a"])
         thread = str(uuid.uuid4())
@@ -934,16 +938,213 @@ class TestGap158DesignTemplates:
             )
         try:
             with TestClient(app) as client:
-                # フロー初期化 (internal テンプレ → 現在工程 = hearing)
+                # フロー初期化 → 議事録を完了にして現在工程を要件定義へ進める
                 client.get(f"/projects/{seeded['proj_a']}/flow", headers=h)
+                with sync_engine.begin() as c:
+                    c.execute(
+                        text(
+                            "update public.project_flow_stages set status = 'done' "
+                            "where project_id = cast(:p as uuid) and stage_key = 'hearing'"
+                        ),
+                        {"p": seeded["proj_a"]},
+                    )
                 r = client.post(
                     f"/chat/threads/{thread}/context-preview",
                     headers=h,
-                    json={"user_message": "議事録まとめて", "include_history": 5},
+                    json={"user_message": "要件をまとめて", "include_history": 5},
                 )
                 assert r.status_code == 200
                 sys_p = r.json()["data"]["system_prompt"]
-                assert "出力デザインテンプレート: 議事録・ヒアリングメモ（v1）" in sys_p
+                assert "出力デザインテンプレート: 要件定義書（v1）" in sys_p
                 assert "ul class=agenda" in sys_p
         finally:
             asyncio.run(test_engine.dispose())
+
+
+# ── GAP-159: 運営既定デザイン (継承 / 上書き / 既定に戻す) ────
+
+
+def _seed_platform_default(
+    sync_engine: sqlalchemy.Engine, *, stage: str, html: str, version: int = 1
+) -> str:
+    with sync_engine.begin() as c:
+        cid = c.execute(
+            text("insert into public.mock_contents (html) values (:h) returning id"),
+            {"h": html},
+        ).scalar_one()
+        return str(
+            c.execute(
+                text(
+                    "insert into public.output_design_templates "
+                    "(workspace_id, stage, version, html_storage_path, note, "
+                    " is_platform_default) "
+                    "values (null, cast(:s as workflow_stage_enum), :v, :p, '運営既定', true) "
+                    "returning id"
+                ),
+                {"s": stage, "v": version, "p": f"mockdb://{cid}"},
+            ).scalar_one()
+        )
+
+
+@pytest.mark.integration
+class TestGap159PlatformDefaults:
+    def test_workspace_inherits_platform_default_until_it_makes_its_own(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """既定を継承 → WS が変更すると自前版が優先 → 既定に戻せる。"""
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        ws, h = seeded["ws_a"], _h(seeded["u_a"])
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        default_id = _seed_platform_default(
+            sync_engine,
+            stage="estimate",
+            html="<html><body><h1 id='plat'>運営既定の見積書</h1></body></html>",
+        )
+        try:
+            with TestClient(app) as client:
+                # 1) 継承: WS は自前版ゼロでも既定が実効デザインとして返る
+                listed = client.get(f"/workspaces/{ws}/design-templates", headers=h).json()["data"]
+                est = [t for t in listed if t["stage"] == "estimate"]
+                assert len(est) == 1
+                assert est[0]["source"] == "platform" and est[0]["id"] == default_id
+                assert est[0]["workspace_id"] is None
+                # 自前の版履歴は空 (= 継承中)
+                assert (
+                    client.get(
+                        f"/workspaces/{ws}/design-templates/estimate/versions", headers=h
+                    ).json()["data"]
+                    == []
+                )
+                # 既定 HTML はテナントからも閲覧できる (プレビュー用)
+                url = client.get(f"/design-templates/{default_id}/content-url", headers=h).json()[
+                    "data"
+                ]["url"]
+                assert "運営既定の見積書" in client.get(url).text
+
+                # 2) 上書き: WS が変更すると自前版 v1 が実効になる (既定を土台に改訂)
+                created = client.post(
+                    f"/workspaces/{ws}/design-templates/estimate",
+                    json={"instruction": "ロゴを右上に"},
+                    headers=h,
+                )
+                assert created.status_code == 201
+                assert created.json()["data"]["source"] == "workspace"
+                listed2 = client.get(f"/workspaces/{ws}/design-templates", headers=h).json()["data"]
+                est2 = next(t for t in listed2 if t["stage"] == "estimate")
+                assert est2["source"] == "workspace" and est2["version"] == 1
+                own_html_url = client.get(
+                    f"/design-templates/{est2['id']}/content-url", headers=h
+                ).json()["data"]["url"]
+                own_html = client.get(own_html_url).text
+                # 既定を土台に改訂したので fake の改訂マーカーが付く
+                assert 'data-fake-revision="1"' in own_html
+
+                # 3) 既定に戻す: 削除ではなく新版として積まれ、中身は既定と同一
+                reset = client.post(
+                    f"/workspaces/{ws}/design-templates/estimate/reset-to-default",
+                    headers=h,
+                )
+                assert reset.status_code == 200
+                back = reset.json()["data"]
+                assert back["version"] == 2 and back["note"] == "運営の既定デザインに戻しました"
+                back_url = client.get(
+                    f"/design-templates/{back['id']}/content-url", headers=h
+                ).json()["data"]["url"]
+                assert "運営既定の見積書" in client.get(back_url).text
+                # 履歴は消えない (v1 も残る)
+                versions = client.get(
+                    f"/workspaces/{ws}/design-templates/estimate/versions", headers=h
+                ).json()["data"]
+                assert [v["version"] for v in versions] == [2, 1]
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.output_design_templates where is_platform_default")
+                )
+
+    def test_platform_default_is_injected_when_workspace_has_none(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """WS 自前版が無くても、運営既定が AI の system prompt に注入される。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        _seed_platform_default(
+            sync_engine,
+            stage="requirements",
+            html="<html><body><h1>要件定義書</h1><ol class='req-list'></ol></body></html>",
+        )
+        h = _h(seeded["u_a"])
+        thread, emp = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
+                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
+                    "'steve', 'スティーブ', 'lead', 'product', true)"
+                ),
+                {"i": emp, "w": seeded["ws_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'plat-t')"
+                ),
+                {"i": thread, "p": seeded["proj_a"], "e": emp},
+            )
+            # 現在工程を requirements にする (hearing を完了扱いにはせず直接 seed)
+        try:
+            with TestClient(app) as client:
+                client.get(f"/projects/{seeded['proj_a']}/flow", headers=h)
+                with sync_engine.begin() as c:
+                    c.execute(
+                        text(
+                            "update public.project_flow_stages set status = 'done' "
+                            "where project_id = cast(:p as uuid) and stage_key = 'hearing'"
+                        ),
+                        {"p": seeded["proj_a"]},
+                    )
+                r = client.post(
+                    f"/chat/threads/{thread}/context-preview",
+                    headers=h,
+                    json={"user_message": "要件まとめて", "include_history": 5},
+                )
+                assert r.status_code == 200
+                sys_p = r.json()["data"]["system_prompt"]
+                assert "出力デザインテンプレート: 要件定義書（運営既定）" in sys_p
+                assert "req-list" in sys_p
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.output_design_templates where is_platform_default")
+                )
+
+    def test_only_admin_can_write_platform_defaults(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """運営既定の作成は admin のみ (一般ユーザーは 403)。"""
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_LLM_PROVIDER", raising=False)
+        with TestClient(app) as client:
+            r = client.post(
+                "/admin/design-templates/estimate",
+                json={"instruction": "全社共通の見積デザイン"},
+                headers=_h(seeded["u_a"]),
+            )
+            assert r.status_code == 403
+            assert (
+                client.get("/admin/design-templates", headers=_h(seeded["u_a"])).status_code == 403
+            )

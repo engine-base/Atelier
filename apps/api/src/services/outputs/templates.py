@@ -27,18 +27,14 @@ from src.schemas.outputs import OutputDesignTemplateResponse
 
 # 成果物の stage 体系 (workflow_stage_enum) に対する表示名。
 STAGE_LABELS: dict[str, str] = {
-    "hearing": "議事録・ヒアリングメモ",
-    "proposal": "提案書",
     "estimate": "見積書",
-    "contract": "契約書ドラフト",
-    "nda": "NDA ドラフト",
+    "proposal": "提案書",
     "invoice": "請求書",
+    "contract": "契約書",
+    "nda": "NDA",
     "requirements": "要件定義書",
     "architecture": "アーキ設計書",
     "design": "デザイン仕様書",
-    "breakdown": "機能分解書",
-    "tasks": "タスク一覧",
-    "implementation": "実装ドキュメント",
     "verification": "テスト仕様書",
     "delivery": "納品書・完了報告",
 }
@@ -71,18 +67,24 @@ class DesignTemplateError(Exception):
         self.message = message
 
 
-_COLS = "id, workspace_id, stage::text as stage, version, html_storage_path, note, created_at"
+_COLS = (
+    "id, workspace_id, stage::text as stage, version, html_storage_path, note, "
+    "is_platform_default, created_at"
+)
 
 
 def _to_response(row: Any) -> OutputDesignTemplateResponse:
     stage = str(row.stage)
+    is_default = bool(row.is_platform_default)
     return OutputDesignTemplateResponse(
         id=str(row.id),
-        workspace_id=str(row.workspace_id),
+        workspace_id=None if row.workspace_id is None else str(row.workspace_id),
         stage=stage,
         stage_label=STAGE_LABELS.get(stage, stage),
         version=int(row.version),
         note=str(row.note),
+        # GAP-159: この版が運営既定か WS 自前か — UI が「継承中」を出し分ける
+        source="platform" if is_default else "workspace",
         created_at=row.created_at,
     )
 
@@ -100,7 +102,11 @@ async def _workspace_visible(session: AsyncSession, workspace_id: str) -> bool:
 async def list_templates(
     session: AsyncSession, *, workspace_id: str
 ) -> list[OutputDesignTemplateResponse] | None:
-    """種類ごとの最新版一覧。不可視 workspace は None。"""
+    """種類ごとの「実効デザイン」一覧 (WS 自前版 > 運営既定)。不可視 workspace は None。
+
+    GAP-159: WS がまだ作っていない種類は運営既定 (is_platform_default) を継承して
+    返す。UI は source で「継承中 / このワークスペースで変更済み」を出し分ける。
+    """
     if not await _workspace_visible(session, workspace_id):
         return None
     rows = (
@@ -114,14 +120,50 @@ async def list_templates(
             {"w": workspace_id},
         )
     ).all()
+    out = [_to_response(r) for r in rows]
+    own = {t.stage for t in out}
+    for d in await list_platform_templates(session):
+        if d.stage not in own:
+            out.append(d)
+    return sorted(
+        out, key=lambda t: list(STAGE_LABELS).index(t.stage) if t.stage in STAGE_LABELS else 99
+    )
+
+
+async def list_platform_templates(
+    session: AsyncSession,
+) -> list[OutputDesignTemplateResponse]:
+    """運営既定の種類ごと最新版 (全テナントが継承する初期デザイン)。"""
+    rows = (
+        await session.execute(
+            text(
+                f"select distinct on (stage) {_COLS} "
+                "from public.output_design_templates "
+                "where is_platform_default order by stage, version desc"
+            )
+        )
+    ).all()
     return [_to_response(r) for r in rows]
 
 
 async def list_versions(
-    session: AsyncSession, *, workspace_id: str, stage: str
+    session: AsyncSession, *, workspace_id: str | None, stage: str
 ) -> list[OutputDesignTemplateResponse] | None:
+    """版履歴。workspace_id=None は運営既定の版履歴 (管理画面用)。"""
     if stage not in STAGE_LABELS:
         return []
+    if workspace_id is None:
+        rows = (
+            await session.execute(
+                text(
+                    f"select {_COLS} from public.output_design_templates "
+                    "where is_platform_default "
+                    "and stage = cast(:s as workflow_stage_enum) order by version desc"
+                ),
+                {"s": stage},
+            )
+        ).all()
+        return [_to_response(r) for r in rows]
     if not await _workspace_visible(session, workspace_id):
         return None
     rows = (
@@ -201,13 +243,16 @@ async def create_version(
     session: AsyncSession,
     *,
     actor_id: str,
-    workspace_id: str,
+    workspace_id: str | None,
     stage: str,
     instruction: str,
 ) -> OutputDesignTemplateResponse | None:
     """ワンダがデザインテンプレを作成/改訂して新版を積む (Open Design 型)。
 
     既存版があれば現行 HTML を渡して改訂、無ければ新規作成。
+    GAP-159: workspace_id=None は運営既定 (全テナントが継承する初期デザイン) の
+    作成/改訂 — 管理画面から service 経路で呼ぶ。WS 側で既存版が無い種類は
+    運営既定を土台に改訂する (継承しているものを直す、が自然な操作のため)。
     LLM は relay (本人サブスク) 起点の確定チェーン。不可視 workspace は None。
     """
     from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete
@@ -217,26 +262,41 @@ async def create_version(
         store_content_service,
     )
 
+    is_platform = workspace_id is None
     if stage not in STAGE_LABELS:
         raise DesignTemplateError("not_found", f"unknown template kind: {stage}")
-    if not await _workspace_visible(session, workspace_id):
+    if not is_platform and not await _workspace_visible(session, workspace_id or ""):
         return None
-    latest = (
-        await session.execute(
-            text(
-                "select version, html_storage_path from public.output_design_templates "
-                "where workspace_id = cast(:w as uuid) "
-                "and stage = cast(:s as workflow_stage_enum) "
-                "order by version desc limit 1"
-            ),
-            {"w": workspace_id, "s": stage},
-        )
-    ).first()
+    if is_platform:
+        latest = (
+            await session.execute(
+                text(
+                    "select version, html_storage_path from public.output_design_templates "
+                    "where is_platform_default and stage = cast(:s as workflow_stage_enum) "
+                    "order by version desc limit 1"
+                ),
+                {"s": stage},
+            )
+        ).first()
+    else:
+        latest = (
+            await session.execute(
+                text(
+                    "select version, html_storage_path from public.output_design_templates "
+                    "where workspace_id = cast(:w as uuid) "
+                    "and stage = cast(:s as workflow_stage_enum) "
+                    "order by version desc limit 1"
+                ),
+                {"w": workspace_id, "s": stage},
+            )
+        ).first()
+    base_path: str | None = None if latest is None else str(latest.html_storage_path)
+    if base_path is None and not is_platform:
+        # GAP-159: WS 版がまだ無い種類は、継承中の運営既定を土台に改訂する
+        base_path = await _platform_default_path(session, stage=stage)
     base_html: str | None = None
-    if latest is not None:
-        path = str(latest.html_storage_path)
-        if path.startswith(MOCKDB_PREFIX):
-            base_html = await fetch_content_service(path[len(MOCKDB_PREFIX) :])
+    if base_path is not None and base_path.startswith(MOCKDB_PREFIX):
+        base_html = await fetch_content_service(base_path[len(MOCKDB_PREFIX) :])
     label = STAGE_LABELS[stage]
     if base_html is None:
         user_text = (
@@ -263,33 +323,125 @@ async def create_version(
         raise DesignTemplateError("llm_failed", "ワンダが空のテンプレを返しました")
     content_id = await store_content_service(html)
     next_version = 1 if latest is None else int(latest.version) + 1
+    row = await _insert_version(
+        session,
+        workspace_id=workspace_id,
+        stage=stage,
+        version=next_version,
+        html_path=f"{MOCKDB_PREFIX}{content_id}",
+        note=(summary or instruction[:200]),
+        actor_id=actor_id,
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="design_template.version",
+            target_type="platform" if is_platform else "workspace",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=workspace_id or "platform",
+            after={
+                "stage": stage,
+                "version": next_version,
+                "provider": provider,
+                "platform_default": is_platform,
+            },
+        )
+    )
+    return _to_response(row)
+
+
+async def _platform_default_path(session: AsyncSession, *, stage: str) -> str | None:
     row = (
         await session.execute(
             text(
+                "select html_storage_path from public.output_design_templates "
+                "where is_platform_default and stage = cast(:s as workflow_stage_enum) "
+                "order by version desc limit 1"
+            ),
+            {"s": stage},
+        )
+    ).first()
+    return None if row is None else str(row.html_storage_path)
+
+
+async def _insert_version(
+    session: AsyncSession,
+    *,
+    workspace_id: str | None,
+    stage: str,
+    version: int,
+    html_path: str,
+    note: str,
+    actor_id: str,
+) -> Any:
+    return (
+        await session.execute(
+            text(
                 "insert into public.output_design_templates "
-                "(workspace_id, stage, version, html_storage_path, note, created_by) "
+                "(workspace_id, stage, version, html_storage_path, note, created_by, "
+                " is_platform_default) "
                 "values (cast(:w as uuid), cast(:s as workflow_stage_enum), :v, :p, :n, "
-                "        cast(:u as uuid)) "
+                "        cast(:u as uuid), :d) "
                 f"returning {_COLS}"
             ),
             {
                 "w": workspace_id,
                 "s": stage,
-                "v": next_version,
-                "p": f"{MOCKDB_PREFIX}{content_id}",
-                "n": (summary or instruction[:200]),
+                "v": version,
+                "p": html_path,
+                "n": note,
                 "u": actor_id,
+                "d": workspace_id is None,
             },
         )
     ).one()
+
+
+async def reset_to_platform_default(
+    session: AsyncSession, *, actor_id: str, workspace_id: str, stage: str
+) -> OutputDesignTemplateResponse | None:
+    """WS のデザインを運営既定に戻す (GAP-159)。
+
+    削除ではなく「既定の HTML を中身とする新版」を積む — 履歴不滅の原則を保ち、
+    戻したこと自体も版として残す。既定が未設定の種類は not_found。
+    """
+    if stage not in STAGE_LABELS:
+        raise DesignTemplateError("not_found", f"unknown template kind: {stage}")
+    if not await _workspace_visible(session, workspace_id):
+        return None
+    default_path = await _platform_default_path(session, stage=stage)
+    if default_path is None:
+        raise DesignTemplateError("not_found", "この種類の運営既定デザインはまだ設定されていません")
+    latest = (
+        await session.execute(
+            text(
+                "select version from public.output_design_templates "
+                "where workspace_id = cast(:w as uuid) "
+                "and stage = cast(:s as workflow_stage_enum) order by version desc limit 1"
+            ),
+            {"w": workspace_id, "s": stage},
+        )
+    ).first()
+    if latest is None:
+        # まだ自前版が無い = すでに既定を継承中。新版は積まない (無駄な履歴を作らない)
+        raise DesignTemplateError("already_default", "すでに運営既定を継承しています")
+    row = await _insert_version(
+        session,
+        workspace_id=workspace_id,
+        stage=stage,
+        version=int(latest.version) + 1,
+        html_path=default_path,
+        note="運営の既定デザインに戻しました",
+        actor_id=actor_id,
+    )
     await AuditWriter(session).write(
         AuditEvent(
-            action="design_template.version",
+            action="design_template.reset_to_default",
             target_type="workspace",
             actor_type="user",
             actor_id=actor_id,
             target_id=workspace_id,
-            after={"stage": stage, "version": next_version, "provider": provider},
+            after={"stage": stage, "version": int(latest.version) + 1},
         )
     )
     return _to_response(row)
@@ -300,8 +452,10 @@ async def create_version(
 
 def render_design_block(*, stage: str, version: int, html: str) -> str:
     label = STAGE_LABELS.get(stage, stage)
+    # GAP-159: version 0 = 運営既定を継承中 (WS 自前版が無い状態)
+    ver = "運営既定" if version == 0 else f"v{version}"
     return (
-        f"# 出力デザインテンプレート: {label}（v{version}）\n"
+        f"# 出力デザインテンプレート: {label}（{ver}）\n"
         "このワークスペースで定めた「見た目の型」。最終的に人 (クライアント) に"
         "見せる HTML を作る・改訂するときは、このテンプレのレイアウト・CSS・"
         "表の様式・トーンを踏襲し、内容 (テキスト・数値・項目) だけを依頼内容と"
@@ -313,9 +467,16 @@ def render_design_block(*, stage: str, version: int, html: str) -> str:
 async def design_template_for_stage(
     session: AsyncSession, *, project_id: str, stage: str
 ) -> tuple[int, str] | None:
-    """project の workspace の該当種類の最新デザインテンプレ (version, html)。"""
+    """project の workspace の該当種類の実効デザイン (version, html)。
+
+    GAP-159: WS 自前版が無ければ運営既定を継承する — 初期状態でも
+    「運営が用意した既定デザイン」で成果物が出る。
+    """
     from src.services.mocks.artifacts import MOCKDB_PREFIX, fetch_content_service
 
+    if stage not in STAGE_LABELS:
+        # GAP-159: デザインテンプレを持たない工程 (議事録・タスク分解等) は注入しない
+        return None
     row = (
         await session.execute(
             text(
@@ -330,7 +491,11 @@ async def design_template_for_stage(
         )
     ).first()
     if row is None:
-        return None
+        default_path = await _platform_default_path(session, stage=stage)
+        if default_path is None or not default_path.startswith(MOCKDB_PREFIX):
+            return None
+        html = await fetch_content_service(default_path[len(MOCKDB_PREFIX) :])
+        return None if html is None else (0, html)
     path = str(row.html_storage_path)
     if not path.startswith(MOCKDB_PREFIX):
         return None

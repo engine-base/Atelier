@@ -7188,6 +7188,220 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspaces/{workspace_id}/design-templates/{stage}/reset-to-default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** このワークスペースのデザインを運営既定に戻す (GAP-159 — 削除ではなく新版として積む) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                    stage: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 既定に戻した新版 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputDesignTemplate"];
+                        };
+                    };
+                };
+                /** @description workspace / 既定デザインが無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description すでに運営既定を継承している */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/design-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin — 既定デザインテンプレ一覧 (種類ごとの最新版) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 既定一覧 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputDesignTemplate"][];
+                        };
+                    };
+                };
+                /** @description admin 権限が必要 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/design-templates/{stage}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 運営 admin — 既定デザインテンプレの版履歴 */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stage: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 版履歴 (新しい順) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputDesignTemplate"][];
+                        };
+                    };
+                };
+                /** @description admin 権限が必要 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/design-templates/{stage}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 運営 admin — ワンダに既定デザインを作成/改訂させる (新版が積まれる) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    stage: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        instruction: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description 作成された版 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["OutputDesignTemplate"];
+                        };
+                    };
+                };
+                /** @description admin 権限が必要 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未知の種類 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description LLM 実行経路が使えない (Bridge オフライン等) */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;
@@ -17214,16 +17428,24 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        /** @description GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。 */
+        /** @description GAP-158/159 — 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。source=platform は運営既定を継承中。 */
         OutputDesignTemplate: {
             /** Format: uuid */
             id?: string;
-            /** Format: uuid */
-            workspace_id?: string;
+            /**
+             * Format: uuid
+             * @description 運営既定 (source=platform) は null
+             */
+            workspace_id?: string | null;
             stage?: string;
             stage_label?: string;
             version?: number;
             note?: string;
+            /**
+             * @description workspace=この WS の版 / platform=運営既定を継承中
+             * @enum {string}
+             */
+            source?: "workspace" | "platform";
             /** Format: date-time */
             created_at?: string;
         };

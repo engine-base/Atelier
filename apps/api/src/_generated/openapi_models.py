@@ -1240,17 +1240,33 @@ class WorkflowOutput(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
+class Source(StrEnum):
+    """
+    workspace=この WS の版 / platform=運営既定を継承中
+    """
+
+    workspace = "workspace"
+    platform = "platform"
+
+
 class OutputDesignTemplate(BaseModel):
     """
-    GAP-158 — workspace 単位の出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。
+    GAP-158/159 — 出力デザインテンプレ (クライアント提出 HTML/PDF の見た目の型)。版連鎖。内容の構成はスキルが担う。source=platform は運営既定を継承中。
     """
 
     id: UUID | None = None
     workspace_id: UUID | None = None
+    """
+    運営既定 (source=platform) は null
+    """
     stage: str | None = None
     stage_label: str | None = None
     version: Annotated[int | None, Field(ge=1)] = None
     note: str | None = None
+    source: Source | None = None
+    """
+    workspace=この WS の版 / platform=運営既定を継承中
+    """
     created_at: AwareDatetime | None = None
 
 

@@ -1,0 +1,22 @@
+=== GAP-159 curl evidence (2026-08-19T03:54:27Z) ===
+※ 生成は ATELIER_ALLOW_FAKE_LLM=1 の決定的スタブ (Bridge/API キーの無い環境での配線検証)
+
+--- 1) 運営 admin が既定デザインを作成 POST /admin/design-templates/estimate ---
+{"data":{"id":"047dcc22-440a-47a3-9000-9f49be2309a8","workspace_id":null,"stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: 全社共通: 白基調・明細は罫線あり・右上にロゴ枠","source":"platform","created_at":"2026-08-19T03:54:27.630805Z"}}
+--- 2) 運営既定の一覧 GET /admin/design-templates ---
+{"data":[{"id":"047dcc22-440a-47a3-9000-9f49be2309a8","workspace_id":null,"stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: 全社共通: 白基調・明細は罫線あり・右上にロゴ枠","source":"platform","created_at":"2026-08-19T03:54:27.630805Z"}]}
+--- 3) テナント側: 既定を継承 (source=platform / workspace_id=null) ---
+{"data":[{"id":"047dcc22-440a-47a3-9000-9f49be2309a8","workspace_id":null,"stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: 全社共通: 白基調・明細は罫線あり・右上にロゴ枠","source":"platform","created_at":"2026-08-19T03:54:27.630805Z"}]}
+--- 4) テナントの自前版履歴は空 = 継承中 ---
+{"data":[]}
+--- 5) テナントが変更 → 自前版 v1 が実効に (既定を土台に改訂) ---
+{"data":{"id":"11363905-b37a-4b30-92b3-6861c3f3f579","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: うちはヘッダーを紺の帯に","source":"workspace","created_at":"2026-08-19T03:54:42.295598Z"}}
+--- 6) 実効デザインが workspace 版に切り替わる ---
+{"data":[{"id":"11363905-b37a-4b30-92b3-6861c3f3f579","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":1,"note":"[fake] デザインテンプレを更新: うちはヘッダーを紺の帯に","source":"workspace","created_at":"2026-08-19T03:54:42.295598Z"}]}
+--- 7) 既定に戻す (削除ではなく新版 v2 として積む = 履歴不滅) ---
+{"data":{"id":"0a7d168a-883b-4f0f-a0f5-682946724367","workspace_id":"ffd0c431-54a6-4553-ae6a-edec74df64b1","stage":"estimate","stage_label":"見積書","version":2,"note":"運営の既定デザインに戻しました","source":"workspace","created_at":"2026-08-19T03:54:42.352623Z"}}
+--- 8) 版履歴 (v2=既定に戻した / v1=自社版 が両方残る) ---
+[(2, '運営の既定デザインに戻しました'), (1, '[fake] デザインテンプレを更新: うちはヘッダーを紺の帯に')]
+
+--- 9) 一般ユーザーは運営既定を書き換えられない (403) ---
+POST /admin/design-templates/estimate (一般) -> 403
