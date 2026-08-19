@@ -1,0 +1,3 @@
+[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed

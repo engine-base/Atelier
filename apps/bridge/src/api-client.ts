@@ -326,12 +326,17 @@ export class ApiClient implements BridgeApi {
     // GAP-141: プロジェクト最新版をローカル作業場へ展開するための seed
     // GAP-161: 併せてこのスレッドの添付資料 (base64) も配られる
     const json = (await this.get(`/chat-relay/${jobId}/workspace`)) as {
-      data: readonly { file_name: string; html?: string; content_b64?: string }[];
+      data: readonly {
+        file_name: string;
+        html?: string | null;
+        content_b64?: string | null;
+      }[];
     };
+    // GAP-169: null (未設定) は undefined に正規化してから返す
     return json.data.map((f) => ({
       fileName: f.file_name,
-      html: f.html,
-      contentB64: f.content_b64,
+      html: f.html ?? undefined,
+      contentB64: f.content_b64 ?? undefined,
     }));
   }
 

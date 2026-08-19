@@ -386,6 +386,46 @@ def test_workspace_seed_returns_latest_versions(
 
 
 @pytest.mark.integration
+def test_workspace_seed_mixes_html_and_binary_files(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-169: HTML とバイナリ (Excel/PDF 等) が混ざった seed が壊れずに配られる。
+
+    以前は route が html 決め打ちで組み立てていたため、base64 のファイル成果物が
+    1 つでも混ざると KeyError で 500 になり、**作業場 seed 全体が配られなかった**
+    (= Excel/PDF が本人の PC に届かず GAP-166 が成立しない)。実 Bridge 往復で検出。
+    """
+    import base64 as b64
+
+    xlsx = b"PK\x03\x04" + bytes(range(64))  # 実体はここでは中身を問わない
+    with TestClient(app) as client:
+        # HTML モック + バイナリ (xlsx) の 2 種を取り込む
+        job1 = _enqueue_and_pick(client, seeded)
+        client.post(
+            f"/chat-relay/{job1}/artifacts",
+            json={
+                "artifacts": [
+                    {"file_name": "lp.html", "html": "<title>LP</title>seed"},
+                    {"file_name": "見積.xlsx", "content_b64": b64.b64encode(xlsx).decode()},
+                ]
+            },
+            headers=HEADERS,
+        )
+        client.post(f"/chat-relay/{job1}/complete", json={"ok": True}, headers=HEADERS)
+
+        job2 = _enqueue_and_pick(client, seeded)
+        res = client.get(f"/chat-relay/{job2}/workspace", headers=HEADERS)
+        assert res.status_code == 200, res.text  # 500 にならないこと (本丸)
+        files = {f["file_name"]: f for f in res.json()["data"]}
+        assert "lp.html" in files
+        assert "見積.xlsx" in files
+        # 使わない側は null ではなく省略して返す (受け手が null を値と誤読しないため)
+        assert "content_b64" not in files["lp.html"]
+        assert "html" not in files["見積.xlsx"]
+        assert b64.b64decode(files["見積.xlsx"]["content_b64"]) == xlsx
+
+
+@pytest.mark.integration
 def test_artifacts_binary_file_ingest_and_serving(
     app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
 ) -> None:

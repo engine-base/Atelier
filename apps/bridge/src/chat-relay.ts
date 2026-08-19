@@ -546,9 +546,13 @@ export class ChatRelayWorker {
           if (safe === '' || safe === '.' || safe === '..') continue;
           const target = join(workspace, safe);
           try {
-            if (f.html !== undefined) {
+            // GAP-169: サーバーは未設定フィールドを null で返すことがある。
+            // `!== undefined` だけで見ていたため、html=null の base64 項目で
+            // writeFileSync(target, null) が投げ、Excel/PDF が作業場に
+            // 展開されないまま黙って落ちていた (実往復で検出した実バグ)。
+            if (typeof f.html === 'string' && f.html !== '') {
               writeFileSync(target, f.html); // HTML 正本 (GAP-141)
-            } else if (f.contentB64 !== undefined) {
+            } else if (typeof f.contentB64 === 'string' && f.contentB64 !== '') {
               // GAP-161: ユーザーが会話に添付した資料 (画像/PDF/Excel 等) の実体。
               // これがあることで、この PC で走る Claude Code が実物を直接読める。
               writeFileSync(target, Buffer.from(f.contentB64, 'base64'));

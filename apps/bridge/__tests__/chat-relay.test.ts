@@ -82,10 +82,18 @@ class FakeSender implements ChatRelaySender {
     this.callOrder.push('artifacts');
     this.artifactUploads.push(artifacts);
   }
-  /** GAP-141: 作業場シード (テストが設定)。 */
-  seed: readonly { readonly fileName: string; readonly html: string }[] = [];
+  /** GAP-141/161/166: 作業場シード (テストが設定)。HTML と base64 が混ざる。 */
+  seed: readonly {
+    readonly fileName: string;
+    readonly html?: string;
+    readonly contentB64?: string;
+  }[] = [];
   async chatRelayWorkspaceSeed(): Promise<
-    readonly { readonly fileName: string; readonly html: string }[]
+    readonly {
+      readonly fileName: string;
+      readonly html?: string;
+      readonly contentB64?: string;
+    }[]
   > {
     this.callOrder.push('seed');
     return this.seed;
@@ -739,6 +747,33 @@ describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
     // seed → (実行) → complete の順
     expect(sender.callOrder[0]).toBe('seed');
     expect(sender.callOrder[sender.callOrder.length - 1]).toBe('complete');
+  });
+
+  it('GAP-169: html が null の項目もバイナリとして展開される (Excel/PDF が PC に届く)', async () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'ws-b64-'));
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: '直して', toolsMode: 'auto' };
+    // サーバーが未設定フィールドを null で返すケース (実 API で発生した形)。
+    // 以前は `html !== undefined` で判定していたため null が「値あり」となり
+    // writeFileSync(target, null) が投げ、ファイルが黙って落ちていた。
+    const xlsx = Buffer.from('PK\u0003\u0004atelier-xlsx', 'utf8');
+    sender.seed = [
+      {
+        fileName: '見積.xlsx',
+        html: null as unknown as undefined,
+        contentB64: xlsx.toString('base64'),
+      },
+    ];
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#1',
+      command: makeFakeClaude([DELTA_A, RESULT_OK]),
+      timeoutMs: 10_000,
+      env: { PATH: process.env.PATH, ATELIER_BRIDGE_CHAT_WORKSPACE: workspace },
+      flushIntervalMs: 10,
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    const { readFileSync: rf } = await import('node:fs');
+    expect(rf(join(workspace, '見積.xlsx')).equals(xlsx)).toBe(true);
   });
 
   it('off ジョブは seed を取得しない', async () => {

@@ -103,17 +103,19 @@ async def verify_bridge_token(
     1. ATELIER_BRIDGE_TOKEN と一致 → インスタンス トークン (全権)
     2. bridge_user_tokens の有効トークン → ユーザー トークン
        (chat-relay 本人分 + ping のみ。kanban 系は 403)
-    未設定は 500 (誤設定を明示)。どちらにも一致しなければ 401。
+    どちらにも一致しなければ 401。
+
+    GAP-169: **ユーザー トークンの検証はインスタンス トークンの設定有無に
+    依存させない**。以前は ATELIER_BRIDGE_TOKEN 未設定を 500 で弾いていたため、
+    画面 (GAP-122 の接続フロー) から発行した本人トークンで Bridge を繋ごうと
+    すると、運営がその環境変数を入れていない環境では全員 500 になっていた
+    (= 接続フローを出しても繋がらない)。インスタンス トークンは kanban /
+    タスク実行系のための任意設定であり、本人の PC を繋ぐのに必須ではない。
     """
-    expected = os.environ.get("ATELIER_BRIDGE_TOKEN")
-    if not expected:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "bridge token not configured (set ATELIER_BRIDGE_TOKEN)",
-        )
     if not x_bridge_token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
-    if hmac.compare_digest(x_bridge_token, expected):
+    expected = os.environ.get("ATELIER_BRIDGE_TOKEN")
+    if expected and hmac.compare_digest(x_bridge_token, expected):
         return BridgeIdentity(kind="instance")
     from src.services import bridge_tokens as user_tokens_svc
 
@@ -371,6 +373,9 @@ async def chat_relay_approval_status(
 @router.get(
     "/chat-relay/{job_id}/workspace",
     summary="chat relay ツールジョブの作業場シード (GAP-141 / BridgeAuth)",
+    # GAP-169: 使わない側 (html / content_b64) は null ではなく省略して返す。
+    # 受け手が null を「値あり」と誤読して落ちるのを契約側で防ぐ。
+    response_model_exclude_none=True,
 )
 async def chat_relay_workspace_seed(
     job_id: str,
@@ -389,8 +394,19 @@ async def chat_relay_workspace_seed(
         )
     except ChatRelayError as exc:
         _raise_for(exc.code, exc.message)
+    # GAP-169: seed には HTML (モック/mockdb 成果物) と base64 (添付・ファイル
+    # 成果物 — GAP-161/166) の 2 種類が混ざる。html 決め打ちで組み立てていたため
+    # base64 の項目が 1 つでも混ざると KeyError で 500 になり、**作業場 seed 全体が
+    # 配られなかった** (= Excel/PDF が本人の PC に届かず GAP-166 が成立しない)。
     return {
-        "data": [ChatRelayArtifactItem(file_name=f["file_name"], html=f["html"]) for f in files]
+        "data": [
+            ChatRelayArtifactItem(
+                file_name=f["file_name"],
+                html=f.get("html"),
+                content_b64=f.get("content_b64"),
+            )
+            for f in files
+        ]
     }
 
 

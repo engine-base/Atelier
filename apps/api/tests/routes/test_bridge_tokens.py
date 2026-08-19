@@ -302,3 +302,39 @@ def test_user_token_scope_and_revocation(
         client.post(f"/bridge-tokens/{token_id}/revoke", headers=headers_a)
         r4 = client.post("/chat-relay/pick", json={"worker_id": "bt-w1"}, headers=user_hdr)
         assert r4.status_code == 401
+
+
+@pytest.mark.integration
+def test_user_token_works_without_instance_token(
+    app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GAP-169: 運営が ATELIER_BRIDGE_TOKEN を入れていなくても本人トークンで繋がる。
+
+    以前は環境変数未設定を 500 で弾いていたため、画面の接続フロー (GAP-122) で
+    トークンを発行しても Bridge が「bridge auth failed: 500」で繋がらなかった。
+    インスタンス トークンは kanban / タスク実行系のための任意設定であり、
+    本人の PC を繋ぐのに必須ではない。
+    """
+    headers_a = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+    with TestClient(app) as client:
+        raw = client.post("/bridge-tokens", json={}, headers=headers_a).json()["data"]["token"]
+        monkeypatch.delenv("ATELIER_BRIDGE_TOKEN", raising=False)
+
+        # 本人トークン: 500 ではなく通る
+        r = client.post(
+            "/chat-relay/pick", json={"worker_id": "gap169-w"}, headers={"X-Bridge-Token": raw}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["no_available_job"] is True
+
+        # 未知トークンは 500 ではなく 401 (誤設定と誤認証を混同しない)
+        bad = client.post(
+            "/chat-relay/pick",
+            json={"worker_id": "gap169-w"},
+            headers={"X-Bridge-Token": "not-a-real-token"},
+        )
+        assert bad.status_code == 401
+
+        # ヘッダー無しも 401
+        none = client.post("/chat-relay/pick", json={"worker_id": "gap169-w"})
+        assert none.status_code == 401
