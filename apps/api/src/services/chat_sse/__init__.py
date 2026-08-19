@@ -700,7 +700,13 @@ async def stream_chat(
             }
         )
         return
-    use_real = use_subscription or use_relay or bool(os.environ.get("ANTHROPIC_API_KEY"))
+    # GAP-175: 運営の ANTHROPIC_API_KEY は既定で使わない。キーが環境にあるだけで
+    # 黙って従量課金へ流れると、Bridge が繋がっていない全ユーザー分が運営持ちに
+    # なる。API 課金は ATELIER_ALLOW_API_BILLING=1 の明示 opt-in のときだけ。
+    from .llm_chain import api_billing_allowed
+
+    use_api = api_billing_allowed() and bool(os.environ.get("ANTHROPIC_API_KEY"))
+    use_real = use_subscription or use_relay or use_api
     # GAP-124: agent_sdk 経路のプラン枠観測 (RateLimitEvent) の収集先
     sdk_rate_limits: list[dict[str, Any]] = []
     # GAP-137: agent_sdk 経路の成果物反映用スナップショット (tools 時のみ実値)
@@ -712,7 +718,11 @@ async def stream_chat(
         yield _sse_event(
             {
                 "type": "error",
-                "content": "LLM が利用できません (ANTHROPIC_API_KEY 未設定)。",
+                "content": (
+                    "お使いのパソコン (Bridge) が未接続のため AI 実行ができません。"
+                    "Bridge アプリを起動してから再送してください。"
+                ),
+                "metadata": {"code": "bridge_offline"},
             }
         )
         return
@@ -722,7 +732,7 @@ async def stream_chat(
     # ループ) は未注入 (実行系が API 形式と別系統のため)。テキスト+RAG のみ。
     tool_ctx: ToolContext | None = None
     if (
-        use_real
+        use_api
         and not use_subscription
         and not use_relay
         and os.environ.get("ATELIER_CHAT_TOOLS_ENABLED", "1") != "0"
@@ -782,7 +792,7 @@ async def stream_chat(
                 approval_user_id=actor_id,
                 approval_thread_id=thread_id,
             )
-        elif use_real:
+        elif use_api:
             chunks = _real_stream_chunks(
                 system_prompt=system_prompt,
                 history=history,

@@ -49,7 +49,30 @@ class RelayTimeout(Exception):
 
 
 def relay_mode_enabled() -> bool:
-    """ATELIER_LLM_PROVIDER=relay の明示 opt-in か。"""
+    """本人の PC の Bridge (= 本人の Claude サブスク) で実行するモードか。
+
+    GAP-175: **これが既定**。確定アーキテクチャは「全ユーザーが自分の PC・
+    自分の Claude サブスクで実行する」なので、`ATELIER_LLM_PROVIDER` が
+    未設定なら relay とみなす。
+
+    以前は `=relay` を明示したときだけ有効で、未設定だと relay を飛ばして
+    `ANTHROPIC_API_KEY` (運営の従量課金) に落ちていた — つまり**既定が
+    運営課金**という、設計と正反対の状態だった。
+    他経路を使いたいときだけ `agent_sdk` / `api` を明示する。
+    """
+    value = os.environ.get(PROVIDER_ENV, "").strip().lower()
+    if value == "relay":
+        return True
+    if value != "":
+        return False  # agent_sdk / api を明示指定している
+    # 未設定 = 既定で relay。ただしテスト専用の決定的スタブが明示 opt-in されて
+    # いる環境 (ATELIER_ALLOW_FAKE_LLM=1) には Bridge が存在しないので試さない。
+    # この env は本番では絶対に設定しない (設定したら偽の応答が出る)。
+    return os.environ.get("ATELIER_ALLOW_FAKE_LLM") != "1"
+
+
+def relay_mode_explicit() -> bool:
+    """`ATELIER_LLM_PROVIDER=relay` を明示指定しているか (既定の relay と区別)。"""
     return os.environ.get(PROVIDER_ENV, "").strip().lower() == "relay"
 
 
@@ -62,9 +85,25 @@ def _timeout_seconds() -> float:
     return value if value > 0 else _DEFAULT_TIMEOUT_SECONDS
 
 
-@lru_cache(maxsize=1)
-def _session_factory() -> async_sessionmaker[AsyncSession]:
+@lru_cache(maxsize=8)
+def _session_factory_for_loop(_loop_key: int) -> async_sessionmaker[AsyncSession]:
+    """GAP-175: event loop ごとに engine を分ける。
+
+    engine のコネクションプールは生成時の loop に紐づく。単一プロセス・単一 loop
+    の本番では問題にならないが、loop が作り直される経路 (テストの TestClient、
+    将来のワーカー再起動等) で使い回すと
+    "attached to a different loop" になり、**Bridge 未接続なのに「実行が失敗」**
+    という誤った分類でユーザーに返ってしまう (503 ではなく 502 になる)。
+    """
     return create_session_factory(create_engine())
+
+
+def _session_factory() -> async_sessionmaker[AsyncSession]:
+    try:
+        loop_key = id(asyncio.get_running_loop())
+    except RuntimeError:
+        loop_key = 0
+    return _session_factory_for_loop(loop_key)
 
 
 async def record_plan_observations(user_id: str, observations: list[dict[str, object]]) -> None:

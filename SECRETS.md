@@ -43,8 +43,13 @@ flyctl secrets set --app atelier-api-eb \
   ATELIER_SUPABASE_SERVICE_ROLE_KEY='<service_role>' \
   ANTHROPIC_API_KEY='<Anthropic Console で発行>' \
   VOYAGE_API_KEY='<Voyage AI Dashboard で発行>'
-# ⚠ ANTHROPIC_API_KEY / VOYAGE_API_KEY 未投入だと本番 chat は
-#   「LLM が利用できません」エラー、RAG は text 検索 degrade になる。
+# ⚠ GAP-175: 利用者向けの AI 実行は既定で **本人の PC の Bridge (本人の Claude
+#   サブスク)** で動く。ANTHROPIC_API_KEY は既定では使われない —
+#   運営の従量課金を使うには ATELIER_ALLOW_API_BILLING=1 を明示すること。
+#   ここで投入する ANTHROPIC_API_KEY は「運営バッチ (ナレッジ自動キュレーション)」
+#   と、明示的に API 課金を許可した場合のためのもの。
+#   ATELIER_LLM_PROVIDER は未設定のままにする (未設定 = relay = 本人サブスク)。
+# ⚠ VOYAGE_API_KEY 未投入だと RAG は text 検索 degrade になる。
 # 確認 (値は出ず名前と digest のみ):
 flyctl secrets list --app atelier-api-eb
 ```

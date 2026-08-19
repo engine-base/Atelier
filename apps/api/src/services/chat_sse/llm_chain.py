@@ -21,6 +21,24 @@ from typing import Any, Protocol
 
 DEFAULT_API_MODEL = os.environ.get("ATELIER_DESIGN_MODEL", "claude-sonnet-4-6")
 
+API_BILLING_ENV = "ATELIER_ALLOW_API_BILLING"
+
+
+def api_billing_allowed() -> bool:
+    """運営の `ANTHROPIC_API_KEY` (従量課金) を使ってよいか。
+
+    GAP-175: **既定は禁止**。確定アーキテクチャでは利用者向けの AI 実行は
+    すべて本人の Claude サブスク (Bridge) で動くので、運営のキーに落ちるのは
+    設計違反かつ課金事故になる。以前は「キーが環境にあれば黙って使う」動作で、
+    Bridge が繋がっていない全ユーザー分が運営持ちになりうる状態だった。
+
+    BYOK / セルフホスト等でどうしても API 課金を使う場合だけ
+    `ATELIER_ALLOW_API_BILLING=1` を明示する。
+    (運営バッチであるナレッジ自動キュレーションはこの経路を通らず、
+     元から運営負担と決めているので影響しない。)
+    """
+    return os.environ.get(API_BILLING_ENV, "").strip() == "1"
+
 
 class LLMUnavailable(Exception):
     """実行経路が使えない (code: bridge_offline / unconfigured / failed)。"""
@@ -66,6 +84,13 @@ async def llm_stream(
                     got = True
                     yield ("delta", c)
         except RelayUnavailable:
+            # GAP-175: relay が既定になったので、テスト専用 fake だけは
+            # 明示 opt-in (ATELIER_ALLOW_FAKE_LLM=1) のときに使う。
+            # 本番ではこの env は設定しないので、必ず正直に断る。
+            if fake is not None and os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
+                yield ("provider", "fake")
+                yield ("delta", fake())
+                return
             raise LLMUnavailable(
                 "bridge_offline",
                 "お使いの PC の Bridge がオフラインのため AI 実行ができません。"
@@ -145,6 +170,10 @@ async def llm_complete(
                 if isinstance(c, str)
             ]
         except RelayUnavailable:
+            # GAP-175: relay が既定。テスト専用 fake のみ明示 opt-in で許す
+            # (本番では ATELIER_ALLOW_FAKE_LLM を設定しないので必ず断る)。
+            if fake is not None and os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
+                return fake(), "fake"
             raise LLMUnavailable(
                 "bridge_offline",
                 "お使いの PC の Bridge がオフラインのため AI 実行ができません。"
@@ -171,7 +200,7 @@ async def llm_complete(
             raise LLMUnavailable("failed", "サブスク実行が空の応答を返しました")
         return out, "agent_sdk"
 
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    if api_billing_allowed() and os.environ.get("ANTHROPIC_API_KEY"):
         try:
             from anthropic import AsyncAnthropic  # type: ignore[import-not-found]
 
@@ -195,8 +224,9 @@ async def llm_complete(
         return fake(), "fake"
 
     raise LLMUnavailable(
-        "unconfigured",
-        "利用できる LLM 実行経路がありません (Bridge / サブスク / API キーのいずれも未設定)",
+        "bridge_offline",
+        "お使いの PC の Bridge がオフラインのため AI 実行ができません。"
+        "Bridge アプリを起動してから再実行してください。",
     )
 
 
