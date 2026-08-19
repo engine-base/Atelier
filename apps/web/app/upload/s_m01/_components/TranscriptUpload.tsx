@@ -204,8 +204,8 @@ export function TranscriptUpload({
           議事録 / 商談アップロード
         </h1>
         <p className="text-body-md text-on-surface-variant">
-          音声・動画・テキストをアップロードすると Whisper +
-          ナターシャが構造化し、要件抽出を提案します。
+          音声・動画・テキストをアップロードすると、このサーバー内で文字起こしし、
+          AI 社員が構造化して要件抽出を提案します。
         </p>
       </header>
 
@@ -258,7 +258,8 @@ export function TranscriptUpload({
           ))}
         </span>
         <span className="mt-3 block text-body-sm text-on-surface-variant">
-          最大 500MB · 解析は Whisper API（クラウド）経由
+          最大 500MB · 文字起こしは Atelier のサーバー内で実行（音声は外部の
+          文字起こしサービスに送信されません）
         </span>
       </label>
 
@@ -304,7 +305,7 @@ export function TranscriptUpload({
                     aria-live="polite"
                     className="text-[11.5px] text-on-surface-variant"
                   >
-                    Whisper で文字起こししています…
+                    サーバー内で文字起こししています…
                   </div>
                 ) : status === "done" ? (
                   <div className="text-[11.5px] text-on-surface-variant">
@@ -441,7 +442,7 @@ export function TranscriptUpload({
             </h2>
             {status === "done" ? (
               <span className="inline-flex max-w-[220px] items-center truncate rounded-sm bg-tertiary-container px-2 py-0.5 text-[10.5px] font-semibold text-tertiary-container-fg">
-                {previewName || "Whisper 生成"}
+                {previewName || "文字起こし結果"}
               </span>
             ) : null}
           </div>
@@ -451,7 +452,7 @@ export function TranscriptUpload({
               <article aria-label="文字起こし結果" className="flex flex-col">
                 <div className="py-3.5">
                   <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-on-surface-variant">
-                    文字起こし（Whisper 生成）
+                    文字起こし（自動生成）
                   </div>
                   <h3 className="sr-only">文字起こし</h3>
                   <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap rounded-md bg-surface-variant/40 p-4 text-body-sm leading-relaxed text-on-surface">

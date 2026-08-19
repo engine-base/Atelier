@@ -57,6 +57,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     _emb_log = _logging.getLogger("atelier.embedding_route")
     (_emb_log.warning if _emb.warnings else _emb_log.info)(describe_embedding_route())
 
+    # GAP-181: 文字起こし経路 (既定は OSS ローカル / 音声を外部に出さない)。
+    from src.services.meetings.stt import describe_stt_route, resolve_stt_route
+
+    _stt = resolve_stt_route()
+    _stt_log = _logging.getLogger("atelier.stt_route")
+    (_stt_log.warning if _stt.warnings else _stt_log.info)(describe_stt_route())
     yield
 
 

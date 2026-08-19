@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 import httpx
 import pytest
 
-from src.services.meetings import worker
+from src.services.meetings import stt, worker
 
 
 @dataclass
@@ -199,7 +199,10 @@ class TestQueueQuery:
 
 class TestHttpHelpers:
     def test_call_whisper_posts_multipart(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GAP-181: API 経路は残す — 明示 opt-in したときは従来どおり動く。"""
         monkeypatch.setenv("ATELIER_OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("ATELIER_ALLOW_WHISPER_API", "1")
+        monkeypatch.setenv("ATELIER_STT_PROVIDER", "openai")
         seen: dict[str, Any] = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -215,19 +218,24 @@ class TestHttpHelpers:
             kwargs["transport"] = transport
             return real_client(**kwargs)
 
-        monkeypatch.setattr(worker.httpx, "AsyncClient", patched_client)
+        monkeypatch.setattr(stt.httpx, "AsyncClient", patched_client)
         result = _run(worker._call_whisper(media=b"abc", file_name="a.mp3", mime_type="audio/mpeg"))
         assert result["text"] == "hello"
-        assert seen["url"] == worker.WHISPER_API_URL
+        assert seen["url"] == stt.WHISPER_API_URL
         assert seen["auth"] == "Bearer sk-test"
         assert b'name="model"' in seen["body"]
         assert b"whisper-1" in seen["body"]
 
-    def test_call_whisper_without_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_call_whisper_without_any_provider_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-181: 経路が無いときは黙って空文字を返さず誠実に失敗する。"""
         monkeypatch.delenv("ATELIER_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("ATELIER_ALLOW_WHISPER_API", raising=False)
+        monkeypatch.setattr(stt, "faster_whisper_available", lambda: False)
         with pytest.raises(worker.TranscribeWorkerError) as ei:
             _run(worker._call_whisper(media=b"x", file_name="a.mp3", mime_type="audio/mpeg"))
-        assert ei.value.code == "env_unconfigured"
+        assert ei.value.code == "stt_unavailable"
 
     def test_upload_result_upserts_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "http://storage.local")
@@ -295,6 +303,8 @@ class TestHttpHelpers:
 
     def test_whisper_error_status_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ATELIER_OPENAI_API_KEY", "sk-test")
+        monkeypatch.setenv("ATELIER_ALLOW_WHISPER_API", "1")
+        monkeypatch.setenv("ATELIER_STT_PROVIDER", "openai")
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(429, text="rate limited")
@@ -306,7 +316,7 @@ class TestHttpHelpers:
             kwargs["transport"] = transport
             return real_client(**kwargs)
 
-        monkeypatch.setattr(worker.httpx, "AsyncClient", patched_client)
+        monkeypatch.setattr(stt.httpx, "AsyncClient", patched_client)
         with pytest.raises(worker.TranscribeWorkerError) as ei:
             _run(worker._call_whisper(media=b"x", file_name="a.mp3", mime_type="audio/mpeg"))
         assert ei.value.code == "whisper_failed"

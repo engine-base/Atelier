@@ -54,6 +54,11 @@ flyctl secrets set --app atelier-api-eb \
 #   明示すること (従量課金 = 運営負担、ナレッジ本文が Voyage へ送信される)。
 #   いま何で動いているかは画面 (ナレッジ > 意味検索の状態) と
 #   運営ヘルスチェック「意味検索 (埋め込み) の経路」で確認できる。
+# ⚠ GAP-181: 議事録の文字起こしは既定で **このサーバー内の faster-whisper** (OSS)。
+#   費用 0 円で、顧客の会議音声が外部に出ない。ATELIER_OPENAI_API_KEY は投入しても
+#   **使われない** — 使うには ATELIER_ALLOW_WHISPER_API=1 を明示すること
+#   (従量課金 $0.006/分 = 運営負担、音声が OpenAI へ送信される)。
+#   運営ヘルスチェック「議事録の文字起こし経路」で現在の経路を確認できる。
 # 確認 (値は出ず名前と digest のみ):
 flyctl secrets list --app atelier-api-eb
 ```

@@ -5,7 +5,7 @@
  *   1. POST /meetings/upload-url         → 署名付き URL + storage_path
  *   2. PUT {upload_url} (実ファイル)      → storage へ直接アップロード
  *   3. POST /meetings                    → メタデータ登録 (meeting id)
- *   4. POST /meetings/{id}/transcribe    → Whisper キュー登録 (202)
+ *   4. POST /meetings/{id}/transcribe    → 文字起こしキュー登録 (202)
  *   5. GET  /meetings/{id} を polling     → parsed_at / parse_error まで待つ
  *   6. GET  /meetings/{id}/transcript-url → 署名付き URL を取得し本文を fetch 表示
  *

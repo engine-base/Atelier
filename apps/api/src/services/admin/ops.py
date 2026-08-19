@@ -374,6 +374,20 @@ async def get_health() -> list[HealthCheckRow]:
         )
     )
 
+    # GAP-181: 議事録の文字起こし経路も「誰の費用か / 音声が外部に出るか」つきで出す。
+    from src.services.meetings.stt import resolve_stt_route
+
+    stt = resolve_stt_route()
+    rows.append(
+        HealthCheckRow(
+            name="議事録の文字起こし経路",
+            status="ok" if stt.state == "ready" else "warn",
+            detail=f"{stt.payer} — {stt.reason}"
+            + ("｜" + " / ".join(stt.warnings) if stt.warnings else ""),
+            meta="稼働中" if stt.state == "ready" else "利用不可",
+        )
+    )
+
     # 外部 API は「設定の有無」という事実のみ (稼働率の推測はしない)
     externals = (
         ("Anthropic API キー (既定では未使用 — GAP-175)", "ANTHROPIC_API_KEY"),

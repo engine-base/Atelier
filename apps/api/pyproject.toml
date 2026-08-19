@@ -33,6 +33,10 @@ dependencies = [
 # 未導入でも import は失敗せず ilike フォールバックで誠実 degrade する。
 localrag = [
   "fastembed>=0.7.0",
+  # GAP-181: 議事録の文字起こしを OSS ローカル (faster-whisper) に切替。
+  # OpenAI Whisper API と同じ重みを CTranslate2 で動かすので精度は同等、費用は 0 円、
+  # 音声が外部に出ない。API 経路は残すが既定では使わない (明示 opt-in が要る)。
+  "faster-whisper>=1.1.0",
 ]
 # GAP-113/129/130: オーナーの Claude サブスク実行 (agent_sdk モード)。任意 —
 # 未導入でも import は失敗せず、opt-in 時に誠実エラーを返す。

@@ -111,8 +111,9 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
             <Link href="/privacy" className="font-semibold text-primary hover:underline">
               プライバシーポリシー
             </Link>
-            、およびデータの一部処理が海外サーバー（Anthropic / Voyage /
-            Whisper）経由となる<strong>越境同意</strong>に同意します。
+            、およびデータの一部処理が海外サーバー（Anthropic）経由となる
+            <strong>越境同意</strong>に同意します（GAP-180/181: 意味検索の埋め込みと
+            議事録の文字起こしは Atelier のサーバー内で行うため外部送信されません）。
           </span>
         </label>
         {form.formState.errors.consent?.message ? (

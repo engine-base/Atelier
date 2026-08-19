@@ -6,7 +6,8 @@ scope しており消費者が全リポジトリに不在だった (通し検証
 
 フロー (1 件ごと):
   1. storage から音声/動画を署名付き URL でダウンロード
-  2. OpenAI Whisper API (selected-stack#stt) で文字起こし
+  2. 文字起こし (GAP-181: 既定は OSS ローカルの faster-whisper。OpenAI Whisper API は
+     ATELIER_ALLOW_WHISPER_API=1 を明示したときだけ)
   3. 結果 JSON を storage `transcripts/results/{id}.json` へアップロード
   4. external_uploads.parse_result_path を結果 path に差替え + parsed_at 打刻
   5. audit_logs へ meeting.transcribe.complete (actor_type=system)
@@ -37,10 +38,6 @@ from src.audit import AuditEvent, AuditWriter
 from src.storage_signing import create_signed_download_url
 
 logger = logging.getLogger(__name__)
-
-# Whisper API 呼出設定 (selected-stack#stt = OpenAI Whisper API)。
-WHISPER_API_URL = "https://api.openai.com/v1/audio/transcriptions"
-WHISPER_MODEL = os.environ.get("ATELIER_WHISPER_MODEL", "whisper-1")
 
 # 1 回の run_once で処理する最大件数 (長時間ロックを避ける)。
 BATCH_LIMIT = 5
@@ -81,21 +78,17 @@ async def _download_media(storage_path: str) -> bytes:
 
 
 async def _call_whisper(*, media: bytes, file_name: str, mime_type: str) -> dict[str, Any]:
-    """OpenAI Whisper API で文字起こしする (response_format=verbose_json)。"""
-    api_key = _require_env("ATELIER_OPENAI_API_KEY")
-    async with httpx.AsyncClient(timeout=600.0) as client:
-        r = await client.post(
-            WHISPER_API_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            files={"file": (file_name, media, mime_type)},
-            data={"model": WHISPER_MODEL, "response_format": "verbose_json"},
-        )
-    if r.status_code >= 400:
-        raise TranscribeWorkerError(
-            "whisper_failed", f"whisper api failed: {r.status_code} {r.text[:200]}"
-        )
-    body: dict[str, Any] = r.json()
-    return body
+    """文字起こしする (GAP-181: 既定は OSS ローカルの faster-whisper)。
+
+    経路の判断は services/meetings/stt.py に一本化してある。使えないときは
+    偽の成功を作らず TranscribeWorkerError にして parse_error に残す。
+    """
+    from src.services.meetings import stt
+
+    try:
+        return await stt.transcribe(media, file_name=file_name, mime_type=mime_type)
+    except stt.STTUnavailable as exc:
+        raise TranscribeWorkerError(exc.code, exc.message) from exc
 
 
 async def _upload_result(result_path: str, payload: dict[str, Any]) -> None:
@@ -275,7 +268,8 @@ async def transcribe_one(session: AsyncSession, row: Any) -> str:
             target_id=meeting_id,
             after={
                 "result_path": result_path,
-                "model": WHISPER_MODEL,
+                "model": str(result.get("model") or ""),
+                "stt_provider": str(result.get("provider") or ""),
                 "analysis": "analysis" in result,
             },
         )
