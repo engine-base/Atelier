@@ -413,7 +413,11 @@ describe("TranscriptUpload 構造化解析 (GAP-015)", () => {
       await new Promise((r) => setTimeout(r, 0));
     });
     expect(screen.getByText(/構造化解析は未実行です/)).toBeInTheDocument();
-    expect(screen.getByText(/解析用 LLM が未設定の環境です/)).toBeInTheDocument();
+    // GAP-177: 解析は本人の PC の Claude で走る。未接続なら保留され、繋がれば
+    // 自動で解析されるので、その旨をユーザーに伝える文言になった。
+    expect(
+      screen.getByText(/接続すると自動で解析されます/),
+    ).toBeInTheDocument();
     expect(screen.queryByText("サマリー")).toBeNull();
   });
 });
