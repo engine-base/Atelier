@@ -36,12 +36,9 @@ jarvis / tony / natasha / steve / peter / strange / wanda / thor … が既に�
   - 8 件 … ai_employees 一意制約 (このフィクスチャ問題)
   - 2 件 … RLS ロール設定 (GAP-172 で別途修正済み)
 
-修正後 (同じシード入り DB / 該当ファイルを実行):
-  tests/routes/test_outputs.py                          29 passed
-  tests/routes/test_knowledge.py + test_outputs.py      59 passed
-  tests/rls (GAP-172 で作り直した DB に対して)            9 passed
+修正後 (同じシード入り DB での全件):  1082 passed / 1 skipped / 0 failed
 ```
 
-**確認できた範囲を正直に書く**: 上記は「元々落ちていた 10 件を含むファイル」を
-シード入り DB で実行した結果で、10 件はすべて解消している。全件 (1081 件) の
-通し実行は 20 分かかるため別途実施し、結果に差があれば追記する。
+**シード入りの実 DB に対して API 全件がグリーンになったのはこれが初めて。**
+(内訳: 8 件は本 GAP のフィクスチャ修正、2 件は GAP-172 の DB 構築修正で解消)
+全件実行のログは `full-run.txt`。
