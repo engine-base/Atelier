@@ -43,7 +43,14 @@ const INTERNAL_MATCH: ReadonlyArray<readonly [string, string]> = [
   ['/admin/s_t04', '/admin/users'],
   ['/admin/s_t05', '/admin/audit'],
   ['/admin/s_t06', '/admin/platform-knowledge'],
+  ['/admin/s_t07', '/admin/design-templates'],
 ];
+
+/**
+ * GAP-160: 運営側でも「左のサイドバーなくして全画面」で見る画面
+ * (既定デザインスタジオ)。代わりに上部の「運営メニューへ戻る」で必ず戻れる。
+ */
+const FULL_SCREEN_PREFIXES: readonly string[] = ['/admin/design-templates'];
 
 export default function AdminLayout({
   children,
@@ -54,6 +61,32 @@ export default function AdminLayout({
   const pathname =
     INTERNAL_MATCH.find(([internal]) => rawPath.startsWith(internal))?.[1] ??
     rawPath;
+
+  const fullScreen = FULL_SCREEN_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+
+  if (fullScreen) {
+    return (
+      <div className="flex min-h-dvh flex-col bg-surface">
+        <header className="sticky top-0 z-[100] flex h-14 shrink-0 items-center gap-3 border-b border-border bg-white px-4 lg:px-6">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12.5px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+          >
+            ← 運営メニューへ戻る
+          </Link>
+          <span className="inline-flex items-center rounded-sm bg-error px-2.5 py-[3px] text-[10px] font-extrabold tracking-[0.08em] text-white">
+            運営
+          </span>
+          <span className="text-[13px] font-semibold text-on-surface">
+            {NAV.find((n) => isActive(pathname, n))?.label ?? 'Admin'}
+          </span>
+        </header>
+        <div className="min-h-0 flex-1">{children}</div>
+      </div>
+    );
+  }
 
   const nav = (
     <nav aria-label="運営メニュー" className="flex flex-col gap-0.5 px-2 py-3">

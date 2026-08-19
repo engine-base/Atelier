@@ -94,7 +94,14 @@ const BARE_PREFIXES: readonly string[] = [
 ];
 
 /** main の既定 padding を外すフルブリード画面 (自前でヘッダー/余白を持つ)。 */
-const FULL_BLEED_PREFIXES: readonly string[] = ['/workflow', '/chat'];
+const FULL_BLEED_PREFIXES: readonly string[] = ['/workflow', '/chat', '/templates'];
+
+/**
+ * GAP-160: サイドバーを出さない全画面ワークスペース (経営者指示
+ * 「左のサイドバーなくしてしっかり全画面で見れる状態に」「戻ることができる状態で」)。
+ * 代わりに TopBar の「戻る」で必ず元の場所へ戻れるようにする。
+ */
+const NO_SIDEBAR_PREFIXES: readonly string[] = ['/chat', '/templates'];
 
 function isBare(pathname: string): boolean {
   if (BARE_EXACT.has(pathname)) return true;
@@ -296,6 +303,9 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const activeNav = allNav.find(
     (n) => pathname === n.match || pathname.startsWith(`${n.match}/`),
   );
+  const hideSidebar = NO_SIDEBAR_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
   const fullBleed = FULL_BLEED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
@@ -319,6 +329,23 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       breadcrumb={activeNav?.labelKey}
       topBarTrailing={<TopBarTrailing me={me} pendingCount={pendingCount} />}
       fullBleed={fullBleed}
+      hideSidebar={hideSidebar}
+      backHref={
+        !hideSidebar
+          ? undefined
+          : pathname.startsWith('/chat')
+            ? inProject
+              ? `/projects/dashboard?project=${project!.id}`
+              : '/projects'
+            : '/projects'
+      }
+      backLabel={
+        !hideSidebar
+          ? undefined
+          : pathname.startsWith('/chat') && inProject
+            ? 'プロジェクトへ戻る'
+            : 'プロジェクト一覧へ戻る'
+      }
     >
       {children}
     </AppShell>

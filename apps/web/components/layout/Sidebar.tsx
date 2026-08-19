@@ -134,10 +134,13 @@ export function Sidebar({
         className,
       )}
     >
-      {/* ロゴ (モック .sidebar-brand: 白地 + border-b) */}
+      {/* ロゴ (モック .sidebar-brand: 白地 + border-b)
+          GAP-160: 高さをヘッダー (h-14) と一致させ、境界線を 1 本に揃える
+          (経営者指摘「ヘッダーとサイドバーのロゴ部のラインがずれている」)。
+          ロゴは小さくして縦中央に置く。 */}
       <div
         className={cn(
-          'flex items-center gap-sm border-b border-border px-[18px] pb-[18px] pt-5',
+          'flex h-14 shrink-0 items-center gap-sm border-b border-border px-[18px]',
           collapsed && 'justify-center px-0',
         )}
       >
@@ -149,10 +152,10 @@ export function Sidebar({
           <img
             src="/brand/logo-mark.svg"
             alt={t('common.appName')}
-            className="h-7 w-7 shrink-0 object-contain"
+            className="h-6 w-6 shrink-0 object-contain"
           />
         ) : (
-          <BrandLockup sizeClassName="h-6" gapClassName="gap-2" />
+          <BrandLockup sizeClassName="h-5" gapClassName="gap-2" />
         )}
       </div>
 

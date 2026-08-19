@@ -151,12 +151,15 @@ function SE01Inner() {
     <div className={cn("grid h-[calc(100dvh-3.5rem)] grid-cols-1", gridCols)}>
       <h1 className="sr-only">チャット</h1>
 
-      {/* 左: スレッド一覧 — モバイルはスレッド未選択時のみ */}
-      <div
+      {/* 左: スレッド一覧 — モバイルはスレッド未選択時のみ。
+          GAP-160: 右のコンテキストペインと同じ作り (白地 + 境界線 + 縦スクロール) に
+          して、中央のチャットとの境目をはっきりさせる (経営者指摘)。 */}
+      <aside
+        aria-label="進行と会話"
         className={cn(
-          "min-h-0",
-          threadId ? "hidden" : "block",
-          leftOpen ? "lg:block" : "lg:hidden",
+          "flex min-h-0 flex-col overflow-hidden border-r border-border bg-white",
+          threadId ? "hidden" : "flex",
+          leftOpen ? "lg:flex" : "lg:hidden",
         )}
       >
         {/* GAP-150: フローが背骨 — 進行フローを最上部に常設し、そこから話す */}
@@ -183,7 +186,7 @@ function SE01Inner() {
           }}
         />
         </details>
-      </div>
+      </aside>
 
       {/* 中央: チャット */}
       <div

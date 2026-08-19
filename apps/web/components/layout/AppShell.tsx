@@ -46,6 +46,13 @@ export interface AppShellProps {
   readonly topBarTrailing?: ReactNode;
   /** main の既定 padding を外す (S-F01 のようなフルブリード画面用) */
   readonly fullBleed?: boolean;
+  /**
+   * GAP-160: サイドバーを出さない全画面モード (テンプレ / 進行のように画面自体が
+   * 広い作業面のもの)。代わりに TopBar の「戻る」で必ず戻れるようにする。
+   */
+  readonly hideSidebar?: boolean;
+  readonly backHref?: string;
+  readonly backLabel?: string;
   readonly className?: string;
 }
 
@@ -64,6 +71,9 @@ export function AppShell({
   projectExtra,
   topBarTrailing,
   fullBleed = false,
+  hideSidebar = false,
+  backHref,
+  backLabel,
   className,
 }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -99,11 +109,13 @@ export function AppShell({
         {t('a11y.skipToContent')}
       </a>
 
-      {/* デスクトップ常設サイドバー */}
-      <Sidebar {...sidebarProps} collapsed={collapsed} className="sticky top-0 hidden h-dvh shrink-0 lg:flex" />
+      {/* デスクトップ常設サイドバー (全画面モードでは出さない) */}
+      {hideSidebar ? null : (
+        <Sidebar {...sidebarProps} collapsed={collapsed} className="sticky top-0 hidden h-dvh shrink-0 lg:flex" />
+      )}
 
       {/* モバイル: オフキャンバスドロワー */}
-      {drawerOpen ? (
+      {drawerOpen && !hideSidebar ? (
         <div className="fixed inset-0 z-[1000] lg:hidden" role="dialog" aria-modal="true" aria-label="ナビゲーション">
           <button
             type="button"
@@ -122,7 +134,9 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
-          onToggleSidebar={() => {
+          backHref={backHref}
+          backLabel={backLabel}
+          onToggleSidebar={hideSidebar ? undefined : () => {
             // lg 以上は collapse、lg 未満はドロワー — 呼び出しは同一ボタン
             if (typeof window !== 'undefined' && window.innerWidth < 1024) {
               setDrawerOpen((o) => !o);

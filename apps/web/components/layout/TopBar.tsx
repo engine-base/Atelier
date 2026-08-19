@@ -14,7 +14,7 @@
 
 import * as React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, FolderOpen, Menu } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, FolderOpen, Menu } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -47,6 +47,9 @@ export interface TopBarProps {
   readonly projectExtra?: ReactNode;
   /** 右端 slot (ユーザーメニュー等) */
   readonly trailing?: ReactNode;
+  /** GAP-160: 全画面 (サイドバー無し) の画面から戻るためのリンク先とラベル。 */
+  readonly backHref?: string;
+  readonly backLabel?: string;
   readonly className?: string;
 }
 
@@ -163,6 +166,8 @@ export function TopBar({
   projectName,
   projectExtra,
   trailing,
+  backHref,
+  backLabel,
   className,
 }: TopBarProps) {
   const wsLabel = workspaceName ?? 'ワークスペース';
@@ -177,6 +182,16 @@ export function TopBar({
       )}
     >
       <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+        {/* GAP-160: 全画面 (サイドバー無し) の画面はここから戻る */}
+        {backHref ? (
+          <a
+            href={backHref}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[12.5px] font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            {backLabel ?? "戻る"}
+          </a>
+        ) : null}
         {/* モバイル: サイドバードロワー開閉 (lg 以上は常設サイドバーなので非表示) */}
         {onToggleSidebar ? (
           <button
