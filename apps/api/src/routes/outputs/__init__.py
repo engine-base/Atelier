@@ -15,6 +15,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -791,3 +792,38 @@ async def save_output_sheet(
     if created is None:  # pragma: no cover - 直前に作成済
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
     return {"data": created}
+
+
+# ── GAP-166: ファイル成果物を本人の Claude Code に直してもらう ────────
+
+
+class FileEditRequest(BaseModel):
+    instruction: str = Field(min_length=1, max_length=4000)
+
+
+@router.post(
+    "/outputs/{output_id}/ai-file-edit",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Excel/PDF 等を本人の PC の Claude Code に直してもらう (GAP-166)",
+    responses={
+        409: {"description": "この形式はファイル編集に対応していない"},
+        503: {"description": "Bridge がオフライン"},
+    },
+)
+async def request_output_file_edit(
+    output_id: str, body: FileEditRequest, session: SessionDep, user: UserDep
+) -> dict[str, dict[str, str]]:
+    from src.services.outputs import file_edit
+
+    try:
+        job_id = await file_edit.request_file_edit(
+            session, actor_id=user.id, output_id=output_id, instruction=body.instruction
+        )
+    except file_edit.FileEditError as exc:
+        code = {
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "unsupported": status.HTTP_409_CONFLICT,
+            "bridge_offline": status.HTTP_503_SERVICE_UNAVAILABLE,
+        }.get(exc.code, status.HTTP_409_CONFLICT)
+        raise HTTPException(code, exc.message) from exc
+    return {"data": {"job_id": job_id}}

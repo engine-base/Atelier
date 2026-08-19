@@ -5991,6 +5991,37 @@ paths:
                       warnings: { type: array, items: { type: string } }
         '404': { description: フェーズが見つからない }
 
+  /outputs/{output_id}/ai-file-edit:
+    post:
+      tags: [outputs]
+      summary: Excel/PDF 等を本人の PC の Claude Code に直してもらう (GAP-166 — 本人のサブスクで実行)
+      parameters:
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [instruction]
+              properties:
+                instruction: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '202':
+          description: ジョブを受け付けた (結果は新バージョンとして追加される)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      job_id: { type: string, format: uuid }
+        '404': { description: 成果物が見つからない }
+        '409': { description: この形式はファイル編集に対応していない }
+        '503': { description: Bridge がオフライン }
+
   /design-templates/{template_id}/content-url:
     get:
       tags: [outputs]

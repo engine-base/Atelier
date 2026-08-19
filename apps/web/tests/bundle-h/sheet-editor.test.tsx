@@ -101,4 +101,67 @@ describe("SheetEditor (GAP-163)", () => {
       screen.queryByRole("button", { name: "新しい版として保存" }),
     ).not.toBeInTheDocument();
   });
+
+  it("PDF 等でも「AI にファイルごと直してもらう」を出し、本人の PC へ依頼する (GAP-166)", async () => {
+    const post = vi.fn(async () => ({ data: { job_id: "job-1" } }));
+    const client = {
+      get: vi.fn(async () => {
+        throw new ApiError({
+          status: 409,
+          statusText: "conflict",
+          payload: { detail: "PDF はこの画面で表示できますが、直接の編集はできません。" },
+          path: "/outputs/{output_id}/sheet",
+          method: "get",
+        });
+      }),
+      post,
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<SheetEditor outputId="o1" client={client} />);
+    const box = await screen.findByPlaceholderText(/第 3 条の支払期日/);
+    fireEvent.change(box, { target: { value: "支払期日を月末締め翌月末に" } });
+    fireEvent.click(screen.getByRole("button", { name: "AI に修正を依頼" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const [path, init] = post.mock.calls[0]! as unknown as [
+      string,
+      { params: { path: { output_id: string } }; body: { instruction: string } },
+    ];
+    expect(path).toBe("/outputs/{output_id}/ai-file-edit");
+    expect(init.params.path.output_id).toBe("o1");
+    expect(init.body.instruction).toBe("支払期日を月末締め翌月末に");
+    expect(
+      await screen.findByText(/あなたの PC の Claude Code に依頼しました/),
+    ).toBeInTheDocument();
+  });
+
+  it("Bridge オフラインは正直に断る (GAP-166)", async () => {
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 503,
+        statusText: "unavailable",
+        payload: undefined,
+        path: "/outputs/{output_id}/ai-file-edit",
+        method: "post",
+      });
+    });
+    const client = {
+      get: vi.fn(async () => ({ data: SHEET })),
+      post,
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<SheetEditor outputId="o1" client={client} />);
+    fireEvent.change(await screen.findByPlaceholderText(/第 3 条の支払期日/), {
+      target: { value: "明細に保守費を追加" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "AI に修正を依頼" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bridge がオフラインのため実行できません",
+    );
+  });
 });

@@ -468,6 +468,10 @@ async def get_job_workspace_seed(
         name_hint = str(meta.get("file_name") or f"{o.summary or o.stage}.html")
         await _append(str(o.html_path), name_hint, f"{o.stage}.html")
 
+    # GAP-166: このプロジェクトのファイル成果物 (Excel/PDF 等) も配る。
+    # 本人の PC で走る Claude Code がファイルそのものを開いて直せるようにするため。
+    files.extend(await _project_file_outputs_seed(session, project_id=project_id))
+
     # GAP-161: このスレッドの添付資料 (画像/PDF/Excel 等) も作業場へ配る。
     # 本人の PC で走る Claude Code が実物を直接開けるようにするため
     # (サーバー側のテキスト抽出だけでは画像を見られない)。
@@ -892,3 +896,48 @@ async def connection_status(session: AsyncSession, *, user_id: str) -> dict[str,
         "last_job": last_job,
         "plan": plan,
     }
+
+
+_FILE_OUTPUT_SEED_MAX = 5
+
+
+async def _project_file_outputs_seed(
+    session: AsyncSession, *, project_id: str
+) -> list[dict[str, str]]:
+    """ファイル成果物 (filedb) の最新版を base64 で配る (GAP-166)。
+
+    ファイル名ごとの最新版のみ。読めなかったものは黙って落とす (実行は止めない)。
+    """
+    import base64
+
+    from src.services.mocks.artifacts import FILEDB_PREFIX, fetch_file_content
+
+    rows = (
+        await session.execute(
+            text(
+                "select distinct on (summary) summary, html_path "
+                "from public.workflow_outputs "
+                "where project_id = cast(:p as uuid) and deleted_at is null "
+                "and html_path like 'filedb://%' "
+                "order by summary, version desc"
+            ),
+            {"p": project_id},
+        )
+    ).all()
+    out: list[dict[str, str]] = []
+    for r in rows:
+        path = str(r.html_path)
+        try:
+            found = await fetch_file_content(session, file_id=path[len(FILEDB_PREFIX) :])
+        except Exception:
+            continue
+        if found is None:
+            continue
+        data, _mime, file_name = found
+        if len(data) > _ATTACHMENT_SEED_MAX_BYTES:
+            continue
+        name = _sanitize_seed_name(file_name, "output", keep_ext=True)
+        out.append({"file_name": name, "content_b64": base64.b64encode(data).decode()})
+        if len(out) >= _FILE_OUTPUT_SEED_MAX:
+            break
+    return out

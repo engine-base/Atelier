@@ -36,6 +36,100 @@ export interface SheetEditorProps {
   readonly onSaved?: (newOutputId: string) => void;
 }
 
+/**
+ * GAP-166: サーバーが表に落とせない形式 (PDF・書式つき Excel 等) も、
+ * 本人の PC で走る Claude Code なら直せる。ジョブを積んで実行してもらう。
+ */
+function AiFileEdit({
+  outputId,
+  client,
+}: {
+  readonly outputId: string;
+  readonly client: ApiClient;
+}) {
+  const [instruction, setInstruction] = useState("");
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(
+    null,
+  );
+  const ask = useMutation({
+    retry: false,
+    mutationFn: async () => {
+      const res = await client.post("/outputs/{output_id}/ai-file-edit", {
+        params: { path: { output_id: outputId } },
+        body: { instruction: instruction.trim() },
+      });
+      return (res as { data?: { job_id: string } }).data ?? null;
+    },
+    onSuccess: () => {
+      setInstruction("");
+      setNotice({
+        kind: "ok",
+        text:
+          "あなたの PC の Claude Code に依頼しました。実行が終わると新しい版として" +
+          "この成果物に追加されます (進行タブで実行状況を確認できます)。",
+      });
+    },
+    onError: (e) =>
+      setNotice({
+        kind: "error",
+        text:
+          e instanceof ApiError && e.status === 503
+            ? "Bridge がオフラインのため実行できません。Bridge アプリを起動してから再実行してください。"
+            : e instanceof ApiError && e.status === 409
+              ? ((e.payload as { detail?: string } | undefined)?.detail ??
+                "この形式はファイル編集に対応していません。")
+              : "依頼に失敗しました。時間をおいて再度お試しください。",
+      }),
+  });
+
+  return (
+    <div className="mt-2 rounded-md border border-border p-2.5">
+      <h4 className="text-[11.5px] font-bold text-on-surface">
+        AI にファイルごと直してもらう（あなたの PC の Claude Code で実行）
+      </h4>
+      <p className="mt-0.5 text-[11px] text-on-surface-variant">
+        書式つきの Excel や PDF など、この画面の表では直せないものはこちら。
+        あなたの Claude サブスクで実行され、結果は新しい版として追加されます。
+      </p>
+      <textarea
+        value={instruction}
+        onChange={(e) => setInstruction(e.target.value)}
+        rows={2}
+        maxLength={4000}
+        disabled={ask.isPending}
+        placeholder="例: 第 3 条の支払期日を月末締め翌月末に直して / 明細に保守費の行を追加して"
+        className="mt-1.5 w-full resize-y rounded-md border border-border bg-surface px-sm py-1.5 text-[12px] text-on-surface outline-none placeholder:text-on-surface-variant focus-visible:border-primary disabled:opacity-60"
+      />
+      {notice ? (
+        <p
+          role={notice.kind === "error" ? "alert" : "status"}
+          className={cn(
+            "mt-1.5 rounded-md px-2 py-1 text-[11px]",
+            notice.kind === "error"
+              ? "bg-error/10 text-error"
+              : "bg-tertiary-container text-tertiary-container-fg",
+          )}
+        >
+          {notice.text}
+        </p>
+      ) : null}
+      <div className="mt-1.5 flex justify-end">
+        <button
+          type="button"
+          disabled={instruction.trim() === "" || ask.isPending}
+          onClick={() => {
+            setNotice(null);
+            ask.mutate();
+          }}
+          className="rounded-md border border-border px-3 py-1 text-[11.5px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
+        >
+          {ask.isPending ? "依頼中…" : "AI に修正を依頼"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
   const [sheets, setSheets] = useState<{ name: string; rows: string[][] }[] | null>(null);
   const [active, setActive] = useState(0);
@@ -95,9 +189,15 @@ export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
           "この形式は表として扱えません。")
         : "表を読み込めませんでした。";
     return (
-      <p role="status" className="px-lg py-3 text-[12px] text-on-surface-variant">
-        {msg}
-      </p>
+      <section aria-label="ファイルの表示と編集" className="border-t border-border px-lg py-3">
+        <p role="status" className="text-[12px] text-on-surface-variant">
+          {msg}
+        </p>
+        {/* GAP-166: 表にできない形式でも、本人の Claude Code なら直せる */}
+        {sheet.error instanceof ApiError && sheet.error.status === 409 ? (
+          <AiFileEdit outputId={outputId} client={client} />
+        ) : null}
+      </section>
     );
   }
   if (!sheet.data || !Array.isArray(sheet.data.sheets) || !sheets) return null;
@@ -158,6 +258,8 @@ export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
           {notice.text}
         </p>
       ) : null}
+
+      <AiFileEdit outputId={outputId} client={client} />
 
       <div className="mt-2 max-h-[420px] overflow-auto rounded-md border border-border">
         <table className="w-full border-collapse text-[12px]">

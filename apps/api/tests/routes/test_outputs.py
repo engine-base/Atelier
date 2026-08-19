@@ -692,16 +692,19 @@ class TestGap155OutputsDiffRestore:
 
 
 def _patch_service_factory(monkeypatch: pytest.MonkeyPatch, engine: AsyncEngine) -> None:
-    """mockdb (mock_contents) の service 経路をテスト PG に向ける。"""
+    """service 経路 (mockdb / filedb / relay ジョブ) をテスト PG に向ける。
+
+    本番は単一 event loop だが TestClient はブロック毎に新しい loop を作るため、
+    NullPool のテスト engine に固定して loop 跨ぎの接続再利用を避ける。
+    """
     from sqlalchemy.ext.asyncio import async_sessionmaker
 
     from src.services.mocks import artifacts as artifacts_svc
+    from src.services.outputs import file_edit as file_edit_svc
 
-    monkeypatch.setattr(
-        artifacts_svc,
-        "service_session_factory",
-        lambda: async_sessionmaker(engine, class_=AsyncSession),
-    )
+    factory = async_sessionmaker(engine, class_=AsyncSession)
+    monkeypatch.setattr(artifacts_svc, "service_session_factory", lambda: factory)
+    monkeypatch.setattr(file_edit_svc, "job_session_factory", lambda: factory)
 
 
 def _seed_design_template(
@@ -1556,6 +1559,242 @@ class TestGap163SheetViewAndEdit:
         finally:
             asyncio.run(test_engine.dispose())
             with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+
+# ── GAP-166: ファイル成果物を本人の Claude Code に直してもらう ────────
+
+
+@pytest.mark.integration
+class TestGap166AiFileEdit:
+    def _seed_file_output(
+        self, sync_engine: sqlalchemy.Engine, project_id: str, *, name: str, mime: str
+    ) -> str:
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            fid = c.execute(
+                text(
+                    "insert into public.artifact_files (data, mime, file_name, byte_size) "
+                    "values (:d, :m, :n, :s) returning id"
+                ),
+                {"d": b"binary-content", "m": mime, "n": name, "s": 14},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) values "
+                    "(cast(:i as uuid), cast(:p as uuid), 'estimate', :path, :sm, 1)"
+                ),
+                {"i": oid, "p": project_id, "path": f"filedb://{fid}", "sm": name},
+            )
+        return oid
+
+    def test_bridge_offline_is_refused_without_queueing(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Bridge がオフラインなら 503 で断る (黙ってキューに積んで待たせない)。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_file_output(
+            sync_engine, seeded["proj_a"], name="見積.xlsx", mime="application/vnd.ms-excel"
+        )
+        emp, thread = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
+                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
+                    "'steve', 'スティーブ', 'lead', 'product', true)"
+                ),
+                {"i": emp, "w": seeded["ws_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'main')"
+                ),
+                {"i": thread, "p": seeded["proj_a"], "e": emp},
+            )
+            c.execute(text("delete from public.bridge_workers"))
+        try:
+            with TestClient(app) as client:
+                r = client.post(
+                    f"/outputs/{oid}/ai-file-edit",
+                    headers=_h(seeded["u_a"]),
+                    json={"instruction": "単価を 10% 上げて"},
+                )
+            assert r.status_code == 503
+            assert "Bridge" in r.json()["detail"]
+            # ジョブは積まれていない (この利用者の分で数える)
+            with sync_engine.begin() as c:
+                n = c.execute(
+                    text(
+                        "select count(*) from public.chat_relay_jobs "
+                        "where requested_by = cast(:u as uuid)"
+                    ),
+                    {"u": seeded["u_a"]},
+                ).scalar_one()
+            assert n == 0
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+    def test_pdf_edit_is_queued_for_the_users_own_claude_code(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """PDF もジョブとして本人の PC へ渡る (サーバーが諦めるのではなく Claude Code が直す)。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_file_output(
+            sync_engine, seeded["proj_a"], name="契約書.pdf", mime="application/pdf"
+        )
+        emp, thread, worker = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
+                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
+                    "'steve', 'スティーブ', 'lead', 'product', true)"
+                ),
+                {"i": emp, "w": seeded["ws_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'main')"
+                ),
+                {"i": thread, "p": seeded["proj_a"], "e": emp},
+            )
+            # Bridge をオンライン扱いにする
+            c.execute(
+                text(
+                    "insert into public.bridge_workers (id, host_label, version, last_seen_at) "
+                    "values (:i, 'mac', '1.0.0', now())"
+                ),
+                {"i": worker},
+            )
+        try:
+            with TestClient(app) as client:
+                r = client.post(
+                    f"/outputs/{oid}/ai-file-edit",
+                    headers=_h(seeded["u_a"]),
+                    json={"instruction": "第 3 条の支払期日を月末締め翌月末に直して"},
+                )
+                assert r.status_code == 202, r.text
+                job_id = r.json()["data"]["job_id"]
+            with sync_engine.begin() as c:
+                job = c.execute(
+                    text(
+                        "select prompt, system_prompt, tools_mode, requested_by, status "
+                        "from public.chat_relay_jobs where id = cast(:i as uuid)"
+                    ),
+                    {"i": job_id},
+                ).one()
+            # 本人の PC で・ファイル名を指定して・同名保存を指示している
+            assert "契約書.pdf" in job.prompt
+            assert "第 3 条の支払期日" in job.prompt
+            assert "同じファイル名で上書き保存" in job.prompt
+            assert "形式は変えない" in job.system_prompt
+            assert job.tools_mode == "auto"
+            assert str(job.requested_by) == seeded["u_a"]
+            assert job.status == "queued"
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.chat_relay_jobs where requested_by = cast(:u as uuid)"
+                    ),
+                    {"u": seeded["u_a"]},
+                )
+                c.execute(text("delete from public.bridge_workers where id = :i"), {"i": worker})
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+
+    def test_file_is_delivered_to_the_working_folder(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """作業場 seed に対象ファイルの実体 (base64) が含まれる = Claude Code が開ける。"""
+        from src.services.chat_relay import get_job_workspace_seed
+
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_file_output(
+            sync_engine,
+            seeded["proj_a"],
+            name="見積明細.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        emp, thread, job = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees (id, workspace_id, name, display_name, "
+                    "role, department, is_default) values (cast(:i as uuid), cast(:w as uuid), "
+                    "'steve', 'スティーブ', 'lead', 'product', true)"
+                ),
+                {"i": emp, "w": seeded["ws_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_threads (id, project_id, ai_employee_id, title) "
+                    "values (cast(:i as uuid), cast(:p as uuid), cast(:e as uuid), 'main')"
+                ),
+                {"i": thread, "p": seeded["proj_a"], "e": emp},
+            )
+            c.execute(
+                text(
+                    "insert into public.chat_relay_jobs "
+                    "(id, thread_id, requested_by, status, system_prompt, prompt, tools_mode) "
+                    "values (cast(:i as uuid), cast(:t as uuid), cast(:u as uuid), 'running', "
+                    "        's', 'p', 'auto')"
+                ),
+                {"i": job, "t": thread, "u": seeded["u_a"]},
+            )
+
+        async def run() -> list[dict[str, str]]:
+            engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+            try:
+                async with AsyncSession(engine) as session:
+                    return await get_job_workspace_seed(session, job_id=job)
+            finally:
+                await engine.dispose()
+
+        try:
+            seed = asyncio.run(run())
+            names = [f["file_name"] for f in seed]
+            assert "見積明細.xlsx" in names
+            target = next(f for f in seed if f["file_name"] == "見積明細.xlsx")
+            # HTML ではなく実体 (base64) で配られる
+            assert target.get("content_b64")
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.chat_relay_jobs where id = cast(:i as uuid)"),
+                    {"i": job},
+                )
                 c.execute(
                     text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
                     {"i": oid},

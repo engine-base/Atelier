@@ -7870,6 +7870,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/outputs/{output_id}/ai-file-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Excel/PDF 等を本人の PC の Claude Code に直してもらう (GAP-166 — 本人のサブスクで実行) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        instruction: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description ジョブを受け付けた (結果は新バージョンとして追加される) */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                job_id?: string;
+                            };
+                        };
+                    };
+                };
+                /** @description 成果物が見つからない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description この形式はファイル編集に対応していない */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bridge がオフライン */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/design-templates/{template_id}/content-url": {
         parameters: {
             query?: never;
