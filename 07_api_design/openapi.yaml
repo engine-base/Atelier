@@ -1539,6 +1539,24 @@ components:
         visible_in_tree: { type: boolean, default: false, description: '運営デフォルトは既定でツリー非表示（RAG 横断参照のみ）' }
         confidence_score: { type: number, minimum: 0, maximum: 1, default: 0.5 }
 
+    EmbeddingStatus:
+      type: object
+      required: [provider, state, reason, payer, next_steps, warnings, semantic_enabled, indexed, total]
+      properties:
+        provider: { type: string, enum: [local, voyage, none] }
+        state:
+          type: string
+          enum: [ready, preparing, unavailable]
+          description: ready=使える / preparing=準備中 (キーワード一致で代替) / unavailable=使えない
+        reason: { type: string, description: 画面にそのまま出す 1 行説明 }
+        payer: { type: string, description: 誰の費用か }
+        model_tag: { type: string, nullable: true, description: モデル空間タグ (埋め込みと対で扱う) }
+        next_steps: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+        semantic_enabled: { type: boolean }
+        indexed: { type: integer, description: 現行モデルで埋め込み済みの件数 }
+        total: { type: integer, description: 対象ナレッジ総数 }
+
     Knowledge:
       type: object
       required:
@@ -7087,6 +7105,45 @@ paths:
   # knowledge (ナレッジ CRUD + Voyage semantic 検索 — T-A-36 / R-T08)
   # E-018 knowledge_nodes (polymorphic account, soft_delete)
   # ==========================================================================
+  /embedding-status:
+    get:
+      tags: [knowledge]
+      summary: 意味検索 (埋め込み) の状態 (GAP-180)
+      description: >
+        意味検索が使えるか / 準備中か / なぜ使えないかと、誰の費用で動いているかを返す。
+        使えないときに黙ってキーワード検索へ落ちると利用者には「精度が落ちた」ようにしか
+        見えないため、理由と復旧手順を画面に出すための API。
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::get_embedding_status
+      x-screen-ids: [S-K01]
+      responses:
+        '200':
+          description: 現在の状態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EmbeddingStatus' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /embedding-status/prepare:
+    post:
+      tags: [knowledge]
+      summary: 意味検索の準備を開始 / 再試行 (GAP-180)
+      description: モデルの読み込みと未埋め込み分の補完を開始する (冪等)。開始直後の状態を返す。
+      x-implementation-path: apps/api/src/routes/knowledge/__init__.py::post_embedding_prepare
+      x-screen-ids: [S-K01]
+      responses:
+        '200':
+          description: 開始直後の状態
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/EmbeddingStatus' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /knowledge:
     get:
       tags: [knowledge]

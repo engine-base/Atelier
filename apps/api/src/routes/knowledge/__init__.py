@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.rate_limit import rate_limit_user
 from src.schemas.knowledge import (
+    EmbeddingStatusResponse,
     KnowledgeAccountType,
     KnowledgeCandidateApproveRequest,
     KnowledgeCandidateResponse,
@@ -38,6 +39,35 @@ router = APIRouter(tags=["knowledge"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+@router.get(
+    "/embedding-status",
+    summary="意味検索 (埋め込み) の状態 (GAP-180 — 何で動いていて誰の費用か)",
+)
+async def get_embedding_status(
+    session: SessionDep, _user: UserDep
+) -> dict[str, EmbeddingStatusResponse]:
+    """意味検索が使えるか / 準備中か / なぜ使えないか を返す。
+
+    使えないときに黙ってキーワード検索へ落ちると、利用者には「精度が落ちた」
+    ようにしか見えない。理由と復旧手順を画面に出すための API。
+    """
+    return {"data": await svc.embedding_status(session)}
+
+
+@router.post(
+    "/embedding-status/prepare",
+    summary="意味検索の準備を開始 / 再試行 (GAP-180)",
+)
+async def post_embedding_prepare(
+    session: SessionDep, _user: UserDep
+) -> dict[str, EmbeddingStatusResponse]:
+    """モデルの読み込みと未埋め込み分の補完を開始する (冪等)。
+
+    完了までは時間がかかるため、ここでは開始した直後の状態を返す。
+    """
+    return {"data": await svc.prepare_embeddings(session)}
 
 
 @router.get("/knowledge", summary="ナレッジ一覧")

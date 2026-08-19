@@ -67,6 +67,7 @@ import {
   CreateKnowledgeDialog,
   type KnowledgeDraft,
 } from "./CreateKnowledgeDialog";
+import { EmbeddingStatusCard } from "./EmbeddingStatusCard";
 import { NoteMarkdown } from "./NoteMarkdown";
 import { SCOPES, type KnowledgeNode, type KnowledgeScope } from "./types";
 import { fmtDateTime } from "../../../../lib/format";
@@ -565,6 +566,11 @@ export function KnowledgeExplorer({
           leftCollapsed && "hidden lg:flex lg:overflow-hidden lg:border-0 lg:p-0",
         )}
       >
+        {/* GAP-180: 意味検索が何で動いているか / 使えないなら理由と準備導線 */}
+        <div className="mb-2">
+          <EmbeddingStatusCard {...(injected ? { client: injected } : {})} />
+        </div>
+
         {/* RAG 検索 (実 POST /knowledge/search — Enter で実行) */}
         <form
           onSubmit={(e) => {
@@ -653,8 +659,8 @@ export function KnowledgeExplorer({
             </p>
             {searchMode === "text_fallback" ? (
               <p className="mx-2.5 mb-1 rounded-sm bg-surface-variant px-2 py-1 text-[11px] text-on-surface-variant">
-                意味検索は無効です (キーワード一致のみ)。ローカル埋め込みの導入または
-                VOYAGE_API_KEY の設定で有効になります。
+                この検索はキーワード一致です。理由と準備の手順は上の「意味検索の状態」を
+                見てください。
               </p>
             ) : null}
             {searchMut.isPending ? (

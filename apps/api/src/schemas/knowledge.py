@@ -227,3 +227,29 @@ class KnowledgeCandidateApproveRequest(BaseModel):
     content_md: str | None = Field(default=None, max_length=4000)
     category: str | None = Field(default=None, max_length=40)
     tags: list[str] | None = Field(default=None, max_length=8)
+
+
+class EmbeddingStatusResponse(BaseModel):
+    """GAP-180: 意味検索 (埋め込み) が今どう動いているか。
+
+    「検索の精度が落ちている理由」と「復旧のためにやること」を画面に出すための
+    read-only ステータス。env をサーバーで読まないと分からない状態を作らない。
+    """
+
+    provider: Literal["local", "voyage", "none"]
+    state: Literal["ready", "preparing", "unavailable"]
+    #: 1 行説明 (画面にそのまま出す)
+    reason: str
+    #: 誰の費用か
+    payer: str
+    #: 現在のモデル空間タグ (埋め込みと必ず対で扱う)
+    model_tag: str | None
+    #: 準備・復旧のためにやること
+    next_steps: list[str]
+    warnings: list[str]
+    #: 意味検索が今この瞬間使えるか (false ならキーワード一致のみ)
+    semantic_enabled: bool
+    #: 現行モデルで埋め込み済みのナレッジ件数
+    indexed: int
+    #: 対象ナレッジ総数 (indexed < total なら準備が残っている)
+    total: int

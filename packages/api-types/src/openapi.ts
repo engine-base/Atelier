@@ -10575,6 +10575,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/embedding-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 意味検索 (埋め込み) の状態 (GAP-180)
+         * @description 意味検索が使えるか / 準備中か / なぜ使えないかと、誰の費用で動いているかを返す。 使えないときに黙ってキーワード検索へ落ちると利用者には「精度が落ちた」ようにしか 見えないため、理由と復旧手順を画面に出すための API。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 現在の状態 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["EmbeddingStatus"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/embedding-status/prepare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 意味検索の準備を開始 / 再試行 (GAP-180)
+         * @description モデルの読み込みと未埋め込み分の補完を開始する (冪等)。開始直後の状態を返す。
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 開始直後の状態 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["EmbeddingStatus"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/knowledge": {
         parameters: {
             query?: never;
@@ -18661,6 +18762,28 @@ export interface components {
             visible_in_tree: boolean;
             /** @default 0.5 */
             confidence_score: number;
+        };
+        EmbeddingStatus: {
+            /** @enum {string} */
+            provider: "local" | "voyage" | "none";
+            /**
+             * @description ready=使える / preparing=準備中 (キーワード一致で代替) / unavailable=使えない
+             * @enum {string}
+             */
+            state: "ready" | "preparing" | "unavailable";
+            /** @description 画面にそのまま出す 1 行説明 */
+            reason: string;
+            /** @description 誰の費用か */
+            payer: string;
+            /** @description モデル空間タグ (埋め込みと対で扱う) */
+            model_tag?: string | null;
+            next_steps: string[];
+            warnings: string[];
+            semantic_enabled: boolean;
+            /** @description 現行モデルで埋め込み済みの件数 */
+            indexed: number;
+            /** @description 対象ナレッジ総数 */
+            total: number;
         };
         Knowledge: {
             /** Format: uuid */

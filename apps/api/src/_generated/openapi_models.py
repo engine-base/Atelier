@@ -1806,6 +1806,53 @@ class AdminKnowledgeCreate(BaseModel):
     confidence_score: Annotated[float | None, Field(ge=0.0, le=1.0)] = 0.5
 
 
+class Provider1(StrEnum):
+    local = "local"
+    voyage = "voyage"
+    none = "none"
+
+
+class State(StrEnum):
+    """
+    ready=使える / preparing=準備中 (キーワード一致で代替) / unavailable=使えない
+    """
+
+    ready = "ready"
+    preparing = "preparing"
+    unavailable = "unavailable"
+
+
+class EmbeddingStatus(BaseModel):
+    provider: Provider1
+    state: State
+    """
+    ready=使える / preparing=準備中 (キーワード一致で代替) / unavailable=使えない
+    """
+    reason: str
+    """
+    画面にそのまま出す 1 行説明
+    """
+    payer: str
+    """
+    誰の費用か
+    """
+    model_tag: str | None = None
+    """
+    モデル空間タグ (埋め込みと対で扱う)
+    """
+    next_steps: list[str]
+    warnings: list[str]
+    semantic_enabled: bool
+    indexed: int
+    """
+    現行モデルで埋め込み済みの件数
+    """
+    total: int
+    """
+    対象ナレッジ総数
+    """
+
+
 class Knowledge(BaseModel):
     id: UUID
     account_id: UUID
@@ -2143,14 +2190,14 @@ class ChatContextPreviewResponse(BaseModel):
     rag_hit_ids: list[UUID]
 
 
-class State(StrEnum):
+class State1(StrEnum):
     closed = "closed"
     open = "open"
     half_open = "half_open"
 
 
 class CircuitBreakerState(BaseModel):
-    state: State
+    state: State1
     failure_rate: Annotated[float, Field(ge=0.0, le=1.0)]
     total_executions: Annotated[int, Field(ge=0)]
     failed_executions: Annotated[int, Field(ge=0)]
@@ -2573,7 +2620,7 @@ class McpTokenCreateResponse(McpToken):
     """
 
 
-class Provider1(StrEnum):
+class Provider2(StrEnum):
     claude = "claude"
     openai = "openai"
     gemini = "gemini"
@@ -2586,7 +2633,7 @@ class ByokKey(BaseModel):
 
     id: UUID | None = None
     user_id: UUID | None = None
-    provider: Provider1 | None = None
+    provider: Provider2 | None = None
     label: str | None = None
     is_active: bool | None = None
     created_at: AwareDatetime | None = None

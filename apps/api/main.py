@@ -49,6 +49,14 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     _route = resolve_llm_route()
     _log = _logging.getLogger("atelier.llm_route")
     (_log.warning if _route.warnings else _log.info)(describe_llm_route())
+
+    # GAP-180: 意味検索 (埋め込み) も同様に 1 行出す。
+    from src.embeddings.route import describe_embedding_route, resolve_embedding_route
+
+    _emb = resolve_embedding_route()
+    _emb_log = _logging.getLogger("atelier.embedding_route")
+    (_emb_log.warning if _emb.warnings else _emb_log.info)(describe_embedding_route())
+
     yield
 
 

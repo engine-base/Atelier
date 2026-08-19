@@ -1095,3 +1095,48 @@ class TestGap167KnowledgeCandidates:
                     ),
                     {"w": seeded["ws_a"]},
                 )
+
+
+class TestEmbeddingStatusRoutes:
+    """GAP-180: 意味検索が何で動いているかを画面が取得できること。"""
+
+    def test_status_reports_provider_and_payer(self, app: FastAPI, seeded: dict[str, str]) -> None:
+        with TestClient(app) as client:
+            r = client.get("/embedding-status", headers=_h(seeded["u_a"]))
+        assert r.status_code == 200, r.text
+        data = r.json()["data"]
+        assert data["provider"] in ("local", "voyage", "none")
+        assert data["state"] in ("ready", "preparing", "unavailable")
+        assert data["payer"]  # 誰の費用かを必ず返す
+        assert data["reason"]  # 理由を必ず返す
+        assert isinstance(data["indexed"], int)
+        assert isinstance(data["total"], int)
+        # 使えないなら「使えない」と言う (semantic_enabled を盛らない)
+        if data["state"] != "ready":
+            assert data["semantic_enabled"] is False
+
+    def test_status_requires_auth(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.get("/embedding-status").status_code == 401
+
+    def test_prepare_is_idempotent_and_returns_status(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        with TestClient(app) as client:
+            first = client.post("/embedding-status/prepare", headers=_h(seeded["u_a"]))
+            second = client.post("/embedding-status/prepare", headers=_h(seeded["u_a"]))
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200
+        assert first.json()["data"]["provider"] == second.json()["data"]["provider"]
+
+    def test_voyage_key_alone_is_not_used(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """キーがあるだけで課金経路に切り替わらない (GAP-180 の主眼)。"""
+        monkeypatch.setenv("VOYAGE_API_KEY", "pa-should-not-be-used")
+        monkeypatch.delenv("ATELIER_ALLOW_VOYAGE", raising=False)
+        with TestClient(app) as client:
+            r = client.get("/embedding-status", headers=_h(seeded["u_a"]))
+        data = r.json()["data"]
+        assert data["provider"] != "voyage"
+        assert any("明示 opt-in" in w for w in data["warnings"])

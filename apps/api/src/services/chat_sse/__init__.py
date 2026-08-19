@@ -60,7 +60,7 @@ async def _build_rag_context(
 ) -> tuple[str, list[str]]:
     """ナレッジ RAG を **本物のベクトル検索** (Voyage 埋め込み + pgvector cosine) で構築する。
 
-    T-A-47 の knowledge.search_knowledge を呼ぶ (VOYAGE_API_KEY 未設定時は text fallback に
+    T-A-47 の knowledge.search_knowledge を呼ぶ (埋め込みが使えないときは text fallback に
     自動 degrade)。account_id 指定時はそのテナント + 運営デフォルト (account_type=platform) を
     横断参照する。RLS で不可視は自動 skip。
     """
@@ -270,9 +270,13 @@ async def _recent_attachment_records(
     out: list[dict[str, Any]] = []
     for r in rows:
         raw = r.attachments
-        items = json.loads(raw) if isinstance(raw, str) else raw
+        items: object = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(items, list):
-            out.extend([i for i in items if isinstance(i, dict)])
+            out.extend(
+                cast("dict[str, Any]", i)
+                for i in cast("list[object]", items)
+                if isinstance(i, dict)
+            )
     return out
 
 

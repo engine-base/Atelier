@@ -360,10 +360,23 @@ async def get_health() -> list[HealthCheckRow]:
         )
     )
 
+    # GAP-180: 意味検索 (埋め込み) の経路も「誰の費用か」つきで出す。
+    from src.embeddings.route import resolve_embedding_route
+
+    emb = resolve_embedding_route()
+    rows.append(
+        HealthCheckRow(
+            name="意味検索 (埋め込み) の経路",
+            status="ok" if emb.state == "ready" else "warn",
+            detail=f"{emb.payer} — {emb.reason}"
+            + ("｜" + " / ".join(emb.warnings) if emb.warnings else ""),
+            meta={"ready": "稼働中", "preparing": "準備中", "unavailable": "利用不可"}[emb.state],
+        )
+    )
+
     # 外部 API は「設定の有無」という事実のみ (稼働率の推測はしない)
     externals = (
         ("Anthropic API キー (既定では未使用 — GAP-175)", "ANTHROPIC_API_KEY"),
-        ("Voyage AI (埋め込み)", "VOYAGE_API_KEY"),
         ("Resend (メール)", "ATELIER_EMAIL_API_KEY"),
         ("Supabase Storage", "ATELIER_SUPABASE_ADMIN_API_URL"),
     )

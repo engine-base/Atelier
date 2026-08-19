@@ -49,7 +49,11 @@ flyctl secrets set --app atelier-api-eb \
 #   ここで投入する ANTHROPIC_API_KEY は「運営バッチ (ナレッジ自動キュレーション)」
 #   と、明示的に API 課金を許可した場合のためのもの。
 #   ATELIER_LLM_PROVIDER は未設定のままにする (未設定 = relay = 本人サブスク)。
-# ⚠ VOYAGE_API_KEY 未投入だと RAG は text 検索 degrade になる。
+# ⚠ GAP-180: 意味検索の既定は **ローカル埋め込み** (課金ゼロ・外部送信なし)。
+#   VOYAGE_API_KEY は投入しても **使われない** — 使うには ATELIER_ALLOW_VOYAGE=1 を
+#   明示すること (従量課金 = 運営負担、ナレッジ本文が Voyage へ送信される)。
+#   いま何で動いているかは画面 (ナレッジ > 意味検索の状態) と
+#   運営ヘルスチェック「意味検索 (埋め込み) の経路」で確認できる。
 # 確認 (値は出ず名前と digest のみ):
 flyctl secrets list --app atelier-api-eb
 ```

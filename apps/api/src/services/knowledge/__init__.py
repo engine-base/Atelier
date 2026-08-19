@@ -5,14 +5,13 @@ RLS が効く AsyncSession を受け取り E-018 knowledge_nodes を操作する
 
 Voyage embedding は VoyageClient (T-F-14) 経由。create / update で
 content_md を embed して保存、search で query を embed して cosine 類似度
-で取得する。VOYAGE_API_KEY 未設定環境では embedding を None で保存し、
+で取得する。埋め込みが使えない環境では embedding を None で保存し、
 search はテキスト LIKE フォールバックする (テスト容易性 / dev 環境)。
 """
 
 from __future__ import annotations
 
 import io
-import os
 import uuid
 import zipfile
 from typing import Any
@@ -24,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.embeddings.voyage import VoyageClient, VoyageError
 from src.schemas.knowledge import (
+    EmbeddingStatusResponse,
     KnowledgeAccountType,
     KnowledgeCreate,
     KnowledgeGraphEdge,
@@ -91,13 +91,16 @@ async def _embed_text(
 ) -> tuple[list[float] | None, str | None]:
     """content を埋め込み、(vector, モデル空間タグ) を返す (GAP-133 provider 抽象化)。
 
-    優先順:
-      1. Voyage (VOYAGE_API_KEY 設定時) — 最高精度・従量課金 (タグ 'voyage-3-large')
-      2. ローカル (fastembed / ONNX) — 課金ゼロの意味検索 (タグ 'local:<model>')
-      3. どちらも不可 → (None, None) — 呼出側が ilike に誠実 degrade
+    経路の判断は src/embeddings/route.py に一本化してある (GAP-180)。
+      - 既定: ローカル (fastembed / ONNX) — 課金ゼロ (タグ 'local:<model>')
+      - Voyage: **ATELIER_ALLOW_VOYAGE=1 を明示したときだけ**使う。キーが環境変数に
+        あるだけでは使わない (GAP-178 と同じ「env を消さないと使われる」設計の排除)
+      - どちらも不可 → (None, None) — 呼出側が ilike に誠実 degrade
     モデルが違えばベクトル空間が違うため、タグは埋め込みと必ず対で扱う。
     """
-    if os.environ.get("VOYAGE_API_KEY"):
+    from src.embeddings.route import voyage_allowed
+
+    if voyage_allowed():
         try:
             client = VoyageClient()
             if input_type == "query":
@@ -108,7 +111,7 @@ async def _embed_text(
             return None, None
     from src.embeddings import local as local_emb
 
-    if local_emb.local_available() and local_emb.is_ready():
+    if local_emb.local_embedding_enabled() and local_emb.local_available() and local_emb.is_ready():
         # is_ready ガード: 初回モデル DL 中はユーザー操作を分単位でブロック
         # しない (このターンは ilike に degrade し、起動時ウォームアップ完了後の
         # 自動バックフィルが埋め込みを補完する — UX を犠牲にしない)。
@@ -360,7 +363,7 @@ async def search_knowledge(
 ) -> KnowledgeSearchResponse:
     """semantic 検索。
 
-    VOYAGE_API_KEY 設定時は query を embed → cosine similarity (1 - <-> distance)
+    埋め込みが使える場合は query を embed → cosine similarity (1 - <-> distance)
     で検索。未設定時は content_md / title ilike フォールバック (score=0.5)。
     どちらも RLS で account 不可視は自動 skip。
 
@@ -907,7 +910,11 @@ def schedule_local_embedding_warmup() -> None:
     from src.embeddings import local as local_emb
 
     logger = logging.getLogger(__name__)
-    if os.environ.get("VOYAGE_API_KEY") or not local_emb.local_available():
+    from src.embeddings.route import resolve_embedding_route
+
+    route = resolve_embedding_route()
+    if route.provider != "local":
+        # Voyage を明示有効化している / ローカルが使えない → ウォームアップ不要
         return
 
     async def _run() -> None:
@@ -925,3 +932,55 @@ def schedule_local_embedding_warmup() -> None:
     task = asyncio.create_task(_run())
     _warmup_tasks.add(task)
     task.add_done_callback(_warmup_tasks.discard)
+
+
+# --------------------------------------------------------------------------- #
+# GAP-180: 意味検索 (埋め込み) の状態と準備
+# --------------------------------------------------------------------------- #
+
+
+async def embedding_status(session: AsyncSession) -> EmbeddingStatusResponse:
+    """意味検索が今どう動いているか + 埋め込み済み件数を返す。
+
+    件数は RLS 下のセッションで数えるので、利用者からは自分の見える範囲の
+    進み具合が見える (運営全体の件数を漏らさない)。
+    """
+    from src.embeddings.route import resolve_embedding_route
+
+    route = resolve_embedding_route()
+    row = (
+        await session.execute(
+            text(
+                "select count(*) as total, "
+                "count(*) filter (where embedding is not null "
+                "                 and embedding_model is not distinct from cast(:tag as text)) "
+                "  as indexed "
+                "from public.knowledge_nodes where deleted_at is null"
+            ),
+            {"tag": route.model_tag},
+        )
+    ).first()
+    total = int(row.total) if row else 0
+    indexed = int(row.indexed) if row else 0
+    return EmbeddingStatusResponse(
+        provider=route.provider,
+        state=route.state,
+        reason=route.reason,
+        payer=route.payer,
+        model_tag=route.model_tag,
+        next_steps=list(route.next_steps),
+        warnings=list(route.warnings),
+        semantic_enabled=route.semantic_enabled,
+        indexed=indexed,
+        total=total,
+    )
+
+
+async def prepare_embeddings(session: AsyncSession) -> EmbeddingStatusResponse:
+    """意味検索の準備 (モデル読み込み + 未埋め込みの補完) をその場で開始する。
+
+    画面の「今すぐ準備する / 再試行」から呼ぶ。すでに準備済みなら未埋め込み分の
+    補完だけを行う (冪等)。起動時の自動ウォームアップと同じ処理を使う。
+    """
+    schedule_local_embedding_warmup()
+    return await embedding_status(session)

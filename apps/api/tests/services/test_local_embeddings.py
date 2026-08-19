@@ -65,11 +65,34 @@ class _FakeVoyage:
 
 
 @pytest.mark.asyncio
-async def test_embed_text_prefers_voyage(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_embed_text_uses_voyage_only_when_explicitly_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-180: 明示 opt-in があるときだけ Voyage を使う。"""
     monkeypatch.setenv("VOYAGE_API_KEY", "test-key")
+    monkeypatch.setenv("ATELIER_ALLOW_VOYAGE", "1")
     monkeypatch.setattr(kn, "VoyageClient", _FakeVoyage)
     vec, tag = await kn._embed_text("query 文", input_type="query")  # pyright: ignore[reportPrivateUsage]
     assert tag == "voyage-3-large" and vec is not None and len(vec) == 1024
+
+
+@pytest.mark.asyncio
+async def test_embed_text_ignores_voyage_key_without_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-180: キーが env にあるだけでは課金経路に切り替わらない。"""
+    monkeypatch.setenv("VOYAGE_API_KEY", "test-key")
+    monkeypatch.delenv("ATELIER_ALLOW_VOYAGE", raising=False)
+    monkeypatch.setattr(local_emb, "local_available", lambda: True)
+    monkeypatch.setattr(local_emb, "is_ready", lambda: True)
+
+    async def _fake_q(_q: str) -> list[float]:
+        return [0.5] * 1024
+
+    monkeypatch.setattr(local_emb, "embed_query", _fake_q)
+    monkeypatch.setattr(local_emb, "local_model_tag", lambda env=None: "local:test-model")
+    vec, tag = await kn._embed_text("query 文", input_type="query")  # pyright: ignore[reportPrivateUsage]
+    assert tag == "local:test-model" and vec is not None
 
 
 @pytest.mark.asyncio
