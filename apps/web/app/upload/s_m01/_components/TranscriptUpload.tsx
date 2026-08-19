@@ -15,6 +15,11 @@
 import * as React from "react";
 import { useState } from "react";
 
+import {
+  MeetingAnalysisView,
+  type MeetingAnalysis,
+} from "./MeetingAnalysisView";
+
 export interface MeetingRow {
   readonly id: string;
   readonly fileName: string;
@@ -24,13 +29,11 @@ export interface MeetingRow {
   readonly errorText?: string | null;
 }
 
-/** GAP-015: 構造化解析 (worker の LLM 後段が result JSON に載せる)。 */
-export interface MeetingAnalysis {
-  readonly summary: string;
-  readonly speakers: readonly { name: string; role?: string | null }[];
-  readonly requirements: readonly string[];
-  readonly action_items: readonly { title: string; owner?: string | null }[];
-}
+/**
+ * GAP-015 / GAP-184: 構造化解析 (worker の LLM 後段が result JSON に載せる)。
+ * 型と描画は MeetingAnalysisView に一本化した (9 セクション + 引用)。
+ */
+export type { MeetingAnalysis } from "./MeetingAnalysisView";
 
 /** onUpload/onOpen の戻り値 (本文 + 任意の解析結果/解析エラー分類)。 */
 export interface TranscriptResult {
@@ -460,81 +463,9 @@ export function TranscriptUpload({
                   </pre>
                 </div>
 
-                {/* GAP-015: 構造化解析ブロック (サマリー/話者/抽出要件/アクションアイテム) */}
+                {/* GAP-184: 9 セクション + 文字起こしからの引用 */}
                 {analysis ? (
-                  <section aria-label="解析結果" className="flex flex-col gap-3">
-                    <div className="rounded-md border-l-[3px] border-primary bg-primary-container/40 p-4">
-                      <h3 className="mb-1 text-[11px] font-bold uppercase tracking-[0.08em] text-primary">
-                        サマリー
-                      </h3>
-                      <p className="text-body-sm leading-relaxed text-on-surface">
-                        {analysis.summary || "（要約なし）"}
-                      </p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-md border border-border p-4">
-                        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
-                          話者
-                        </h3>
-                        {analysis.speakers.length === 0 ? (
-                          <p className="text-[12px] text-on-surface-variant">特定できませんでした</p>
-                        ) : (
-                          <ul className="flex flex-wrap gap-1.5">
-                            {analysis.speakers.map((sp) => (
-                              <li
-                                key={sp.name}
-                                className="rounded-full bg-surface-variant px-2.5 py-1 text-[12px] font-medium text-on-surface"
-                              >
-                                {sp.name}
-                                {sp.role ? (
-                                  <span className="text-on-surface-variant">（{sp.role}）</span>
-                                ) : null}
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      <div className="rounded-md border border-border p-4">
-                        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
-                          アクションアイテム
-                        </h3>
-                        {analysis.action_items.length === 0 ? (
-                          <p className="text-[12px] text-on-surface-variant">ありません</p>
-                        ) : (
-                          <ul className="flex flex-col gap-1.5">
-                            {analysis.action_items.map((a) => (
-                              <li key={a.title} className="flex items-start gap-2 text-[12.5px] text-on-surface">
-                                <span aria-hidden="true" className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-tertiary" />
-                                <span>
-                                  {a.title}
-                                  {a.owner ? (
-                                    <span className="text-on-surface-variant">（{a.owner}）</span>
-                                  ) : null}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
-                    <div className="rounded-md border border-border p-4">
-                      <h3 className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
-                        抽出要件
-                      </h3>
-                      {analysis.requirements.length === 0 ? (
-                        <p className="text-[12px] text-on-surface-variant">抽出されませんでした</p>
-                      ) : (
-                        <ul className="flex flex-col gap-1.5">
-                          {analysis.requirements.map((r) => (
-                            <li key={r} className="flex items-start gap-2 text-[12.5px] text-on-surface">
-                              <span aria-hidden="true" className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                              {r}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </section>
+                  <MeetingAnalysisView analysis={analysis} />
                 ) : analysisError ? (
                   <p className="rounded-md border border-border bg-surface-variant/40 px-4 py-3 text-[12.5px] text-on-surface-variant">
                     構造化解析は未実行です（

@@ -41,6 +41,10 @@ UTC = ZoneInfo("UTC")
 #: 保留 (PC 未接続など) のときの再試行間隔。
 RETRY_AFTER_MINUTES = 10
 
+#: GAP-184: プラン枠の上限で保留したときの再試行間隔。5 時間枠のリセットを
+#: 待つ必要があるので、10 分ごとに叩き続けても無駄 (かつ枠を消費しかねない)。
+RATE_LIMIT_RETRY_MINUTES = 30
+
 
 async def compute_next_run(
     session: AsyncSession, *, schedule_id: str, expression: str, after: datetime
@@ -252,8 +256,14 @@ async def run_due_schedules(
             stats["deferred"] += 1
             await _record_finish(session, run_id=run_id, status="deferred", detail=detail)
 
-            # 次の定刻より早く再試行する (PC を起動したらすぐ動く)
-            retry_at = current + timedelta(minutes=RETRY_AFTER_MINUTES)
+            # 次の定刻より早く再試行する (PC を起動したらすぐ動く)。
+            # ただしプラン枠の上限はリセット待ちなので間隔を空ける (GAP-184)。
+            wait_minutes = (
+                RATE_LIMIT_RETRY_MINUTES
+                if outcome.reason == "rate_limited"
+                else RETRY_AFTER_MINUTES
+            )
+            retry_at = current + timedelta(minutes=wait_minutes)
             try:
                 scheduled_next = next_occurrence(str(row.cron_expression), after=current)
                 retry_at = min(retry_at, scheduled_next)

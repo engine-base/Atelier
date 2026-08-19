@@ -44,7 +44,9 @@ ActionGroup = Literal["impl", "knowledge", "notify"]
 
 #: 本人サブスク経路 (Bridge) が使えないときの LLMUnavailable code。
 #: 「今は無理だが後でやれば成功しうる」= 次のチェックで再試行する。
-RETRYABLE_LLM_CODES = frozenset({"bridge_offline", "llm_unconfigured"})
+#: GAP-184: プラン枠の上限 (rate_limited) も必ずリセットされるのでここに含める。
+#: 失敗として確定させると、上限に当たった日の自動実行が永久に欠ける。
+RETRYABLE_LLM_CODES = frozenset({"bridge_offline", "llm_unconfigured", "rate_limited"})
 
 COST_SUBSCRIPTION = "本人の Claude プラン枠"
 COST_FREE = "コスト無料"

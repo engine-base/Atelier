@@ -47,12 +47,42 @@ def api_billing_allowed() -> bool:
 
 
 class LLMUnavailable(Exception):
-    """実行経路が使えない (code: bridge_offline / unconfigured / failed)。"""
+    """実行経路が使えない。
+
+    code:
+      - bridge_offline : 利用者の PC が繋がっていない (後で再試行すれば成功しうる)
+      - rate_limited   : 本人の Claude プラン枠が上限 (GAP-184 — 必ずリセットされる)
+      - unconfigured   : 経路が 1 つも無い
+      - failed         : 実行したが失敗した (恒久的)
+    """
 
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+#: GAP-184: Claude CLI / API が上限で止まったときに出る語 (実測ベース)。
+_RATE_LIMIT_MARKERS = (
+    "rate limit",
+    "rate_limit",
+    "usage limit",
+    "usage_limit",
+    "5-hour limit",
+    "five hour limit",
+    "quota",
+    "上限",
+    "利用枠",
+)
+
+
+def _looks_rate_limited(message: str) -> bool:
+    """エラー文面が「プラン枠の上限」を指しているか。
+
+    上限は時間が経てば必ず解消するので、恒久的な失敗と混ぜてはいけない。
+    """
+    low = message.lower()
+    return any(marker in low for marker in _RATE_LIMIT_MARKERS)
 
 
 async def llm_stream(
@@ -186,6 +216,14 @@ async def llm_complete(
                 "Bridge アプリを起動してから再実行してください。",
             ) from None
         except Exception as exc:
+            # GAP-184: 本人プランの上限 (5 時間 / 7 日) は必ずリセットされる。
+            # 「失敗」で確定させると解析や自動実行が永久に欠ける (GAP-177 と同じ罠)。
+            if _looks_rate_limited(str(exc)):
+                raise LLMUnavailable(
+                    "rate_limited",
+                    "お使いの Claude プランの利用枠が上限に達しています。"
+                    "枠がリセットされたら自動で再実行します。",
+                ) from exc
             raise LLMUnavailable("failed", f"ローカル実行が失敗しました: {exc}") from exc
         out = "".join(parts).strip()
         if out == "":

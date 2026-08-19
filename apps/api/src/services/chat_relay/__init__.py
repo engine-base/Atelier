@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import uuid as uuid_mod
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -508,9 +508,13 @@ async def _thread_attachment_seed(session: AsyncSession, *, thread_id: str) -> l
     records: list[dict[str, Any]] = []
     for r in rows:
         raw = r.attachments
-        items = json.loads(raw) if isinstance(raw, str) else raw
+        items: object = json.loads(raw) if isinstance(raw, str) else raw
         if isinstance(items, list):
-            records.extend([i for i in items if isinstance(i, dict)])
+            records.extend(
+                cast("dict[str, Any]", i)
+                for i in cast("list[object]", items)
+                if isinstance(i, dict)
+            )
 
     out: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -719,6 +723,32 @@ async def job_result(session: AsyncSession, *, job_id: str) -> tuple[str, str | 
 # ── GAP-119: Claude プラン接続の状態表示 ────────────────────────
 
 _RATE_LIMIT_STATUSES = ("allowed", "allowed_warning", "rejected")
+
+
+async def plan_limit_reached(session: AsyncSession, *, user_id: str) -> bool:
+    """GAP-184: この人の Claude プラン枠が今「上限到達」かどうか。
+
+    Bridge が実行中に観測した rate_limit_event の実値だけを見る (推測しない)。
+    上限は必ずリセットされるので、これが True の失敗を「恒久的な失敗」として
+    確定させてはいけない — 呼び出し側は保留して後で再試行する。
+    """
+    row = (
+        await session.execute(
+            text(
+                "select status, five_hour_resets_at, seven_day_resets_at "
+                "from public.chat_plan_status where user_id = cast(:u as uuid)"
+            ),
+            {"u": user_id},
+        )
+    ).first()
+    if row is None or str(row.status) != "rejected":
+        return False
+    # リセット時刻を過ぎていれば、もう上限ではない (古い観測を引きずらない)
+    from datetime import UTC, datetime
+
+    now = datetime.now(tz=UTC)
+    resets = [r for r in (row.five_hour_resets_at, row.seven_day_resets_at) if r is not None]
+    return not (resets and all(r <= now for r in resets))
 
 
 async def record_plan_status(
