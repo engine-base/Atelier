@@ -34,6 +34,8 @@ from src.schemas.admin import (
     AdminTemplateUpdate,
     AdminTrendsResponse,
     AdminUserResponse,
+    AlertStateEntry,
+    AlertStatusResponse,
     AuditLogResponse,
     BetaFeedbackCreate,
     BetaFeedbackResponse,
@@ -300,6 +302,45 @@ async def delete_admin_acquisition(record_id: str, user: UserDep) -> None:
 async def get_admin_health(user: UserDep) -> dict[str, list[HealthCheckRow]]:
     _require_admin(user)
     return {"data": await ops.get_health()}
+
+
+@router.get(
+    "/admin/alerts",
+    summary="運営 admin: エラー通知の設定と送信状態 (GAP-194)",
+)
+async def get_admin_alerts(
+    user: UserDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> AlertStatusResponse:
+    """「通知が届く状態か」と「実際に送ったか」を返す。
+
+    GAP-182 で記録はできたが誰にも届かなかった。ここで送信先の設定状況を
+    そのまま見せる — channels が空なら「どこにも通知できていない」が真実。
+    """
+    _require_admin(user)
+    from src.observability.alerts import list_alert_state
+    from src.observability.notify import alert_settings, configured_channels
+
+    cfg = alert_settings()
+    rows = await list_alert_state(limit=limit)
+    return AlertStatusResponse(
+        channels=list(configured_channels(cfg)),
+        cooldown_minutes=cfg.cooldown_minutes,
+        notify_warnings=cfg.notify_warnings,
+        max_delay_minutes=15,
+        data=[
+            AlertStateEntry(
+                fingerprint=r.fingerprint,
+                first_seen_at=r.first_seen_at,
+                last_notified_at=r.last_notified_at,
+                notified_count=r.notified_count,
+                reported_errors=r.reported_errors,
+                last_status=r.last_status,  # pyright: ignore[reportArgumentType]
+                last_detail=r.last_detail,
+            )
+            for r in rows
+        ],
+    )
 
 
 @router.get(

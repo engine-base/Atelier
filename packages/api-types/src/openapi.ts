@@ -15498,6 +15498,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 運営 admin: エラー通知の設定と送信状態 (GAP-194)
+         * @description GAP-182 で記録はできたが誰にも届かなかった問題の続き。「通知が届く状態か」 (channels) と「実際に送ったか」(data) をそのまま返す。channels が空なら どこにも通知できていない — 画面でもその通り表示する。
+         *
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 通知設定と送信状態 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AlertStatusResponse"];
+                    };
+                };
+                /** @description 運営 admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/errors": {
         parameters: {
             query?: never;
@@ -18998,6 +19049,32 @@ export interface components {
             }[];
             recent?: components["schemas"]["AcquisitionRecord"][];
             total?: number;
+        };
+        /** @description GAP-194 エラー通知の送信状態 1 件 (fingerprint 単位) */
+        AlertStateEntry: {
+            fingerprint: string;
+            /** Format: date-time */
+            first_seen_at: string;
+            /** Format: date-time */
+            last_notified_at?: string | null;
+            /** @description 通知した回数 (0 = まだ届いていない) */
+            notified_count: number;
+            /** @description 通知に含めたエラーの累計件数 */
+            reported_errors: number;
+            /** @enum {string} */
+            last_status: "pending" | "sent" | "failed" | "skipped";
+            last_detail?: string | null;
+        };
+        /** @description GAP-194 通知設定と直近の送信状態 */
+        AlertStatusResponse: {
+            /** @description 実際に送れるチャネル。空 = どこにも通知できない */
+            channels: string[];
+            /** @description 同じ不具合を再通知するまでの冷却時間 */
+            cooldown_minutes: number;
+            notify_warnings: boolean;
+            /** @description 通知が最大どれだけ遅れるか (cron 間隔) */
+            max_delay_minutes: number;
+            data: components["schemas"]["AlertStateEntry"][];
         };
         ErrorLogEntry: {
             /** Format: uuid */

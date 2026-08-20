@@ -920,6 +920,54 @@ class Acquisitions(BaseModel):
     total: int | None = None
 
 
+class LastStatus(StrEnum):
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class AlertStateEntry(BaseModel):
+    """
+    GAP-194 エラー通知の送信状態 1 件 (fingerprint 単位)
+    """
+
+    fingerprint: str
+    first_seen_at: AwareDatetime
+    last_notified_at: AwareDatetime | None = None
+    notified_count: int
+    """
+    通知した回数 (0 = まだ届いていない)
+    """
+    reported_errors: int
+    """
+    通知に含めたエラーの累計件数
+    """
+    last_status: LastStatus
+    last_detail: str | None = None
+
+
+class AlertStatusResponse(BaseModel):
+    """
+    GAP-194 通知設定と直近の送信状態
+    """
+
+    channels: list[str]
+    """
+    実際に送れるチャネル。空 = どこにも通知できない
+    """
+    cooldown_minutes: int
+    """
+    同じ不具合を再通知するまでの冷却時間
+    """
+    notify_warnings: bool
+    max_delay_minutes: int
+    """
+    通知が最大どれだけ遅れるか (cron 間隔)
+    """
+    data: list[AlertStateEntry]
+
+
 class Source(StrEnum):
     api = "api"
     web = "web"

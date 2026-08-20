@@ -843,6 +843,35 @@ components:
         recent: { type: array, items: { $ref: '#/components/schemas/AcquisitionRecord' } }
         total: { type: integer }
 
+    AlertStateEntry:
+      type: object
+      description: GAP-194 エラー通知の送信状態 1 件 (fingerprint 単位)
+      required: [fingerprint, first_seen_at, notified_count, reported_errors, last_status]
+      properties:
+        fingerprint: { type: string }
+        first_seen_at: { type: string, format: date-time }
+        last_notified_at: { type: string, format: date-time, nullable: true }
+        notified_count: { type: integer, description: 通知した回数 (0 = まだ届いていない) }
+        reported_errors: { type: integer, description: 通知に含めたエラーの累計件数 }
+        last_status: { type: string, enum: [pending, sent, failed, skipped] }
+        last_detail: { type: string, nullable: true }
+
+    AlertStatusResponse:
+      type: object
+      description: GAP-194 通知設定と直近の送信状態
+      required: [channels, cooldown_minutes, notify_warnings, max_delay_minutes, data]
+      properties:
+        channels:
+          type: array
+          items: { type: string }
+          description: 実際に送れるチャネル。空 = どこにも通知できない
+        cooldown_minutes: { type: integer, description: 同じ不具合を再通知するまでの冷却時間 }
+        notify_warnings: { type: boolean }
+        max_delay_minutes: { type: integer, description: 通知が最大どれだけ遅れるか (cron 間隔) }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AlertStateEntry' }
+
     ErrorLogEntry:
       type: object
       required: [id, occurred_at, source, level, kind, message, fingerprint, count_24h]
@@ -9206,6 +9235,26 @@ paths:
         '204': { description: 削除 (audit admin.acquisition.delete) }
         '403': { description: admin 権限なし, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/alerts:
+    get:
+      tags: [admin]
+      summary: "運営 admin: エラー通知の設定と送信状態 (GAP-194)"
+      description: >
+        GAP-182 で記録はできたが誰にも届かなかった問題の続き。「通知が届く状態か」
+        (channels) と「実際に送ったか」(data) をそのまま返す。channels が空なら
+        どこにも通知できていない — 画面でもその通り表示する。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_alerts
+      x-screen-ids: [S-T05]
+      parameters:
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: 通知設定と送信状態
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertStatusResponse' }
+        '403': { description: 運営 admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/errors:
     get:

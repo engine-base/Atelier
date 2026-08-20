@@ -68,6 +68,24 @@ async def _transcribe_queue_body(ctx: Any, step: Any) -> dict[str, str]:
     }
 
 
+async def _error_alerts_body(ctx: Any, step: Any) -> dict[str, str]:
+    """エラー通知 (GAP-194 — GAP-182 の記録が誰にも届かなかった問題の解消)。
+
+    冷却つきで「新種のエラー」「増え続けているエラー」を運営へ送る。送信先が
+    未設定なら送ったふりをせず skipped として記録する。
+    """
+    del ctx, step
+    from src.db import create_engine, create_session_factory
+    from src.observability.alerts import run_error_alerts
+
+    factory = create_session_factory(create_engine())
+    async with factory() as session:
+        result = await run_error_alerts(session)
+    if result.get("candidates", "0") != "0":
+        logger.info("error-alerts cron done: %s", result)
+    return result
+
+
 async def _purge_deleted_accounts_body(ctx: Any, step: Any) -> dict[str, str]:
     """退会データ 30 日後完全削除 (GAP-014 — T-A-05 の worker 実体)。"""
     del ctx, step
@@ -99,6 +117,7 @@ async def _integrity_check_body(ctx: Any, step: Any) -> dict[str, str]:
 
 _HANDLER_MAP: dict[str, Any] = {
     "user-schedules": _user_schedules_body,
+    "error-alerts": _error_alerts_body,
     "transcribe-queue": _transcribe_queue_body,
     "purge-deleted-accounts": _purge_deleted_accounts_body,
     "integrity-check": _integrity_check_body,

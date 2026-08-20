@@ -82,6 +82,18 @@ PLATFORM_JOB_META: tuple[PlatformJobMeta, ...] = (
         schedule_label="15 分ごと",
     ),
     PlatformJobMeta(
+        name="error-alerts",
+        category="report",
+        required=False,
+        title="エラー通知 (メール / Slack)",
+        description=(
+            "記録されたエラーのうち新種・増加中のものを運営へ通知します。"
+            "同じ不具合は冷却時間 (既定 60 分) に 1 通だけ。送信先が未設定なら"
+            "送らず「未設定」として記録します。通知は最大 15 分遅れます。"
+        ),
+        schedule_label="15 分ごと",
+    ),
+    PlatformJobMeta(
         name="transcribe-queue",
         category="pipeline",
         required=False,

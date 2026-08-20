@@ -12,6 +12,7 @@ import * as React from "react";
 
 import { QueryProvider } from "../../../providers/query-provider";
 import { AuditLogContainer } from "./_components/AuditLogContainer";
+import { AlertStatusPanel } from "./_components/AlertStatusPanel";
 import { ErrorLogPanel } from "./_components/ErrorLogPanel";
 
 export default function ST05Page() {
@@ -54,6 +55,8 @@ export default function ST05Page() {
         <AuditLogContainer />
         {/* GAP-182: エラー監視は外部 SaaS ではなく自前。ここが唯一の記録先。 */}
         <ErrorLogPanel />
+        {/* GAP-194: 記録するだけでなく「届いているか」もここで見える。 */}
+        <AlertStatusPanel />
       </QueryProvider>
     </div>
   );

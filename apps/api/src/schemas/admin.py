@@ -239,6 +239,38 @@ class AcquisitionsResponse(BaseModel):
     total: int
 
 
+class AlertStateEntry(BaseModel):
+    """GAP-194: エラー通知の送信状態 1 件 (fingerprint 単位)。"""
+
+    fingerprint: str
+    first_seen_at: datetime
+    last_notified_at: datetime | None
+    #: 通知した回数 (0 = まだ届いていない)
+    notified_count: int
+    #: 通知に含めたエラーの累計件数
+    reported_errors: int
+    last_status: Literal["pending", "sent", "failed", "skipped"]
+    last_detail: str | None
+
+
+class AlertStatusResponse(BaseModel):
+    """GAP-194: 通知設定と直近の送信状態。
+
+    「通知できる状態か」を画面ではっきり見せるための応答。channels が空なら
+    どこにも届かない — その事実を隠さない。
+    """
+
+    #: 実際に送れるチャネル (email / slack)。空 = どこにも通知できない
+    channels: list[str]
+    #: 同じ不具合を再通知するまでの冷却時間 (分)
+    cooldown_minutes: int
+    #: warning レベルも通知するか
+    notify_warnings: bool
+    #: 通知が最大どれだけ遅れるか (分) — cron 間隔そのもの
+    max_delay_minutes: int
+    data: list[AlertStateEntry]
+
+
 class HealthCheckRow(BaseModel):
     """実計測 / 実設定状態のみ (推測の稼働率は返さない)。"""
 

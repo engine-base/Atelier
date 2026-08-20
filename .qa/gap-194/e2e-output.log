@@ -1,0 +1,18 @@
+[1] webhook 受信サーバー起動: http://127.0.0.1:33267/hook
+[2] 本物のエラーを 1 件記録: fingerprint=e2e-194-539fe075
+[3] cron 実行: {'status': 'ok', 'name': 'error-alerts', 'candidates': '1', 'sent': '1', 'failed': '0', 'skipped': '0'}
+[4] 実際に届いた本文:
+      🔴 [Atelier] サーバーでエラー: ZeroDivisionError
+      
+      内容: division by zero e2e-194-539fe075
+      発生場所: サーバー /e2e
+      前回通知以降の件数: 1 件 (新種)
+      最初に観測: 2026-08-20 04:14 UTC
+      最後に観測: 2026-08-20 04:14 UTC
+      同種をまとめる key: e2e-194-539fe075
+      
+      運営画面: https://atelier.example/admin/s_t05
+[5] DB の送信記録: status=sent 回数=1 伝えた件数=1
+[6] 冷却中の再発では再送されない (確認)
+
+PASS: 記録 → 判定 → 実 HTTP 送信 → 冷却 まで実データで確認

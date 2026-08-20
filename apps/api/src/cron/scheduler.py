@@ -59,6 +59,14 @@ CRON_SCHEDULES: tuple[CronSchedule, ...] = (
         description="退会データ 30 日後完全削除: T-A-05 soft-delete の物理削除実体",
     ),
     CronSchedule(
+        name="error-alerts",
+        # GAP-194: 記録するだけで誰にも届かなかったエラーを運営へ通知する。
+        # user-schedules と同じ 15 分間隔にしてあるのは意図的 — 同じ起床で処理でき、
+        # Fly.io の machine 起動回数 (= 課金) が増えない。通知は最大 15 分遅れる。
+        cron="*/15 * * * *",
+        description="エラー通知: 新種/継続のエラーを冷却つきでメール・Slack へ送る",
+    ),
+    CronSchedule(
         name="integrity-check",
         # 20:00 UTC = 05:00 JST。SQL のみのデータ整合性チェック (GAP-014)
         cron="0 20 * * *",
