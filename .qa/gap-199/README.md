@@ -21,11 +21,14 @@
 2. 既に接続済みで**接続先が変わる**ときは、Electron のダイアログで本人の確認を取る
    （「心当たりが無い場合はキャンセルしてください」）
 
-### ② 実行モードをサーバーが単独で決められた
+### ② 実行モードの値が検証されていなかった
 
-`tools_mode` はサーバーが送ってきた値を**そのまま**使っていた。
-→ `ATELIER_BRIDGE_MAX_TOOLS_MODE`（この PC の上限。**既定 auto = 体験は変わらない**）
-を超える指示は自動で格下げする。未知の値は最も弱い `off` に倒す（推測で強くしない）。
+`tools_mode` はサーバーが送ってきた値を**検証せず**使っていた。
+→ 既知の 3 値（`off`/`approve`/`auto`）に正規化し、想定外の文字列は最も弱い `off`
+に倒す（推測で強くしない）。
+
+**PC 側で上限は掛けない**（経営者判断 2026-08-20）— Claude Code もやっていないので
+勝手に制限を足さない。auto を指示されたら auto で動く（GAP-134 の仕様のまま）。
 
 ### ③ セッション ID が無検証でコマンド引数とファイルパスに入っていた
 
@@ -43,7 +46,7 @@
 
 → `~/.atelier-bridge-audit.log`（JSON Lines / mode 0600）に 1 ジョブ 1 行:
 `at / jobId / requestedMode / effectiveMode / cwd / apiOrigin / outcome`。
-**格下げされた事実（サーバー指定 auto・実際 approve）がそのまま残る**。
+**サーバー指定と実際に使った値の両方が残る**（食い違えばそれも残る）。
 `ATELIER_BRIDGE_AUDIT=0` で止められる。書けなくても実行は止めない。
 
 ## どこで動くか / 誰の費用か
@@ -57,22 +60,21 @@
 （引数をそのまま記録するシェルスクリプト）に対して走らせた。
 
 1. 見知らぬ https の接続リンク → **受理しない** / 本番 origin → 今までどおり受理
-2. サーバーが `auto` を指示 → **実際に起動された引数に `bypassPermissions` が無く**、
-   格下げ先の approve（`--permission-prompt-tool`）で起動している
-3. 監査ログに `requestedMode=auto / effectiveMode=approve / apiOrigin=...` が残る
+2. サーバーが `auto` を指示 → **実際に起動された引数がそのとおり**
+   （`bypassPermissions` + GAP-134 のツール一覧）— 勝手に制限を足していない
+3. 監査ログに `requestedMode=auto / effectiveMode=auto / apiOrigin=...` が残る
 4. 作業フォルダに `stolen.html -> <外部>/id_rsa` を置いても **集められず**、
    正当な `ok.html` だけが集まる（秘密鍵の中身は送信対象に入らない）
 
 ## 自動テスト
 
-- `apps/bridge/__tests__/security.test.ts` — 21 件
+- `apps/bridge/__tests__/security.test.ts` — 19 件
 - 既存 `chat-relay.test.ts` / `deep-link.test.ts` を新しい（厳しい）挙動に更新
-- Bridge 全体 168 件 PASS (追加前 147 件) / tsc 0 / eslint 0
+- Bridge 全体 181 件 PASS / tsc 0 / eslint 0
 
 ## まだやっていないこと（正直に書く）
 
-- **auto モードそのものの危険性は変わらない**。auto は「確認なしで bash を動かす」
-  という約束なので、ここで塞いだのは「誰がそれを決めるか」であって
-  「auto の中で何ができるか」ではない。
+- **auto モードそのものは変えていない**。auto は「確認なしで bash を動かす」という
+  約束で、これは Claude Code と同じ考え方。ここで塞いだのは**指示元のすり替え**。
 - Bridge トークンは今も平文 JSON（mode 0600）。OS キーチェーン (safeStorage) への
   移行は Electron 実機での検証が要るため、本 GAP には含めていない。

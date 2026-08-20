@@ -5,7 +5,7 @@
  *   ① `atelier-bridge://connect?api=<任意の http URL>` が **無条件で保存**されていた。
  *      悪意のあるページにリンクを開かせるだけで、指示元を攻撃者のサーバーに
  *      差し替えられた (PC 操作 auto なら任意コマンド実行に直結)。
- *   ② `tools_mode` は **サーバーが送ってきた値をそのまま**使っていた。
+ *   ② `tools_mode` は検証なしで使っていた（想定外の値で強い権限に倒れうる）。
  *   ③ セッション ID は検証なしでコマンド引数とファイルパスに入っていた。
  *   ④ 作業フォルダの外を指すシンボリックリンクもそのまま送られていた。
  */
@@ -19,15 +19,13 @@ import { describe, expect, it } from 'vitest';
 import {
   AUDIT_ENABLED_ENV,
   DEFAULT_TRUSTED_ORIGINS,
-  MAX_TOOLS_MODE_ENV,
   TRUSTED_ORIGINS_ENV,
   appendAudit,
   auditFilePath,
-  capToolsMode,
   isTrustedApiUrl,
   isValidSessionId,
-  maxToolsMode,
   needsOriginChangeApproval,
+  normalizeToolsMode,
   resolvesInsideWorkspace,
   trustedOrigins,
 } from '../src/security.js';
@@ -84,29 +82,17 @@ describe('① 接続先の固定', () => {
   });
 });
 
-describe('② 実行モードの上限は PC 側が決める', () => {
-  it('既定は今までどおり auto（体験を変えない）', () => {
-    expect(maxToolsMode({})).toBe('auto');
-    expect(capToolsMode('auto', {})).toBe('auto');
-    expect(capToolsMode('approve', {})).toBe('approve');
-    expect(capToolsMode('off', {})).toBe('off');
+describe('② 実行モードの値の検証（上限は掛けない）', () => {
+  it('サーバーの指定をそのまま使う（Claude Code と同じ挙動を変えない）', () => {
+    expect(normalizeToolsMode('auto')).toBe('auto');
+    expect(normalizeToolsMode('approve')).toBe('approve');
+    expect(normalizeToolsMode('off')).toBe('off');
   });
 
-  it('PC 側の上限を超える指示は格下げされる', () => {
-    const env = { [MAX_TOOLS_MODE_ENV]: 'approve' };
-    expect(capToolsMode('auto', env)).toBe('approve');
-    expect(capToolsMode('approve', env)).toBe('approve');
-    expect(capToolsMode('off', env)).toBe('off');
-    expect(capToolsMode('auto', { [MAX_TOOLS_MODE_ENV]: 'off' })).toBe('off');
-  });
-
-  it('未知の値は最も弱い off に倒す（推測で強くしない）', () => {
-    expect(capToolsMode('yolo', {})).toBe('off');
-    expect(capToolsMode('', {})).toBe('off');
-  });
-
-  it('上限の env が壊れていたら既定 (auto) に戻す', () => {
-    expect(maxToolsMode({ [MAX_TOOLS_MODE_ENV]: 'nonsense' })).toBe('auto');
+  it('想定外の値は最も弱い off に倒す（推測して強い方に倒さない）', () => {
+    expect(normalizeToolsMode('yolo')).toBe('off');
+    expect(normalizeToolsMode('')).toBe('off');
+    expect(normalizeToolsMode('AUTO')).toBe('off');
   });
 });
 
@@ -173,7 +159,7 @@ describe('ローカル監査ログ', () => {
     at: '2026-08-20T04:00:00.000Z',
     jobId: 'job-1',
     requestedMode: 'auto',
-    effectiveMode: 'approve' as const,
+    effectiveMode: 'auto' as const,
     cwd: '/home/u/AtelierChatWork',
     apiOrigin: PROD,
     outcome: 'completed',
@@ -191,12 +177,12 @@ describe('ローカル監査ログ', () => {
     expect(statSync(auditFilePath(home)).mode & 0o777).toBe(0o600);
   });
 
-  it('格下げされた事実が残る（サーバー指定と実際の値が両方入る）', () => {
+  it('サーバー指定と実際に使った値の両方が残る', () => {
     const home = mkdtempSync(join(tmpdir(), 'g199-home-'));
     appendAudit(entry, {}, home);
     const row = JSON.parse(readFileSync(auditFilePath(home), 'utf8').trim());
     expect(row.requestedMode).toBe('auto');
-    expect(row.effectiveMode).toBe('approve');
+    expect(row.effectiveMode).toBe('auto');
   });
 
   it('明示的に OFF にできる', () => {

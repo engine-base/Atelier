@@ -1,14 +1,13 @@
 [1] 悪意のある接続リンクを受理しないこと
   OK   見知らぬ https の指示元は保存しない
   OK   本番の指示元は今までどおり受理する
-[2] サーバーが auto を指示しても PC 側の上限まで格下げされること
-[bridge:chat-relay] サーバー指定 auto をこの PC の上限 approve へ格下げしました
+[2] サーバーが指示した auto がそのまま使われること + 監査ログに残ること
   runOnce -> completed
-  実際に起動された引数: --append-system-prompt --output-format --include-partial-messages --verbose --max-turns --permission-mode --permission-prompt-tool --input-format
-  OK   サーバーが auto と言っても bypassPermissions では起動しない
-  OK   格下げ先の approve (承認プロンプト) で起動している
-  監査ログ: {"at":"2026-08-20T04:52:02.654Z","jobId":"job-g199","requestedMode":"auto","effectiveMode":"approve","cwd":"/tmp/g199-ws-FmhoKD","apiOrigin":"https://atelier-api-eb.fly.dev","outcome":"completed"}
-  OK   監査ログに「サーバー指定 auto / 実際 approve」が残る
+  実際に起動された引数: --append-system-prompt --output-format --include-partial-messages --verbose --max-turns --allowedTools --permission-mode
+  OK   サーバーが指示した auto がそのまま使われる (勝手に制限しない)
+  OK   GAP-134 で決めたツール一覧で起動している
+  監査ログ: {"at":"2026-08-20T08:03:26.178Z","jobId":"job-g199","requestedMode":"auto","effectiveMode":"auto","cwd":"/tmp/g199-ws-sYQsm0","apiOrigin":"https://atelier-api-eb.fly.dev","outcome":"completed"}
+  OK   監査ログに「サーバー指定 auto / 実際 auto」が残る
   OK   監査ログに指示元が残る
 [3] 作業フォルダの外を指すリンクを持ち出さないこと
   集めた成果物: ["ok.html"]
@@ -16,4 +15,4 @@
   OK   外を指すリンクは集めない
   OK   秘密鍵の中身が送信対象に入っていない
 
-PASS: 接続先の固定 / モード上限の格下げ / 持ち出し防止 を実プロセスで確認
+PASS: 接続先の固定 / モード指定の尊重と記録 / 持ち出し防止 を実プロセスで確認

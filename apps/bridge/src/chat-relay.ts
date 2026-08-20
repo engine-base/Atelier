@@ -46,8 +46,8 @@ import {
 // GAP-199: クラウド由来の値をそのまま信じない (上限は PC 側が決める)。
 import {
   appendAudit,
-  capToolsMode,
   isValidSessionId,
+  normalizeToolsMode,
   resolvesInsideWorkspace,
 } from './security.js';
 
@@ -661,14 +661,10 @@ export class ChatRelayWorker {
     const picked = await this.api.chatRelayPick(this.config.workerId);
     if (picked === null) return 'no-job';
     const { jobId, systemPrompt } = picked;
-    // GAP-199: 実行モードの上限は **この PC** が決める。サーバーが乗っ取られても
-    // ATELIER_BRIDGE_MAX_TOOLS_MODE を超える権限では動かない (既定は今までどおり auto)。
-    const toolsMode = capToolsMode(picked.toolsMode, this.config.env);
-    if (toolsMode !== picked.toolsMode) {
-      console.warn(
-        `[bridge:chat-relay] サーバー指定 ${picked.toolsMode} をこの PC の上限 ${toolsMode} へ格下げしました`,
-      );
-    }
+    // GAP-199: 実行モードは既知の 3 値に正規化するだけ (PC 側で上限は掛けない —
+    // Claude Code もやっていないので勝手に制限を足さない、という判断)。
+    // 想定外の文字列で強い権限に倒れないようにするための検証。
+    const toolsMode = normalizeToolsMode(picked.toolsMode);
 
     // GAP-190: このスレッドのセッションをこの PC で再開できるかを、
     // transcript の実ファイルを見て決める (推測しない)。

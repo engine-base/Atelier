@@ -12,10 +12,9 @@
  *      Bridge の指示元を攻撃者のサーバーへ差し替えられる状態だった。
  *      → 許可した接続先だけを受理し、接続先が変わるときは本人の確認を要る形にする。
  *
- *   ② 実行モードの上限は PC 側が決める — これまで `tools_mode` は
- *      **サーバーが送ってきた値をそのまま**使っていた。auto (確認なしで bash 実行) を
- *      サーバー側だけで決められる状態だった。
- *      → この PC の上限 (既定は今までどおり auto) を超える指示は自動で格下げする。
+ *   ② サーバー由来の実行モードは既知の 3 値に正規化する — 想定外の文字列で
+ *      強い権限に倒れないようにする。**PC 側で上限は掛けない**
+ *      (経営者判断: Claude Code もやっていないので勝手に制限を足さない)。
  *
  *   ③ サーバー由来の値の検証 — セッション ID はコマンド引数とファイルパスの
  *      両方に使われる。UUID 以外を弾く。
@@ -110,39 +109,25 @@ export function needsOriginChangeApproval(
 }
 
 /* ------------------------------------------------------------------ */
-/* ② 実行モードの上限は PC 側が決める                                    */
+/* ② 実行モードの値そのものの検証                                        */
 /* ------------------------------------------------------------------ */
 
 export type ToolsMode = 'off' | 'approve' | 'auto';
 
-/** この PC で許す最大の実行モード。既定は今までどおり auto (体験を変えない)。 */
-export const MAX_TOOLS_MODE_ENV = 'ATELIER_BRIDGE_MAX_TOOLS_MODE';
-
-const MODE_RANK: Record<ToolsMode, number> = { off: 0, approve: 1, auto: 2 };
-
-export function maxToolsMode(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): ToolsMode {
-  const raw = (env[MAX_TOOLS_MODE_ENV] ?? '').trim();
-  return raw === 'off' || raw === 'approve' || raw === 'auto' ? raw : 'auto';
-}
-
 /**
- * サーバーが指定したモードを、この PC の上限まで下げる。
+ * サーバーが指定した実行モードを、既知の 3 値のどれかに正規化する。
  *
- * サーバーが乗っ取られても、PC 側の設定より強い権限では動かない。
- * 未知の値は最も弱い 'off' に倒す (推測して強い方に倒さない)。
+ * **PC 側で上限を掛けることはしない** — 経営者判断 (2026-08-20):
+ * 「Claude Code もやっていないので、勝手に制限を足さない」。
+ * auto を指示されたら auto で動く (これは GAP-134 で決めた仕様のまま)。
+ *
+ * ここでやるのは**値の検証だけ**。想定外の文字列は最も弱い 'off' に倒す
+ * (推測して強い方に倒さない)。
  */
-export function capToolsMode(
-  requested: string,
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): ToolsMode {
-  const asked: ToolsMode =
-    requested === 'off' || requested === 'approve' || requested === 'auto'
-      ? requested
-      : 'off';
-  const cap = maxToolsMode(env);
-  return MODE_RANK[asked] <= MODE_RANK[cap] ? asked : cap;
+export function normalizeToolsMode(requested: string): ToolsMode {
+  return requested === 'off' || requested === 'approve' || requested === 'auto'
+    ? requested
+    : 'off';
 }
 
 /* ------------------------------------------------------------------ */
@@ -206,7 +191,7 @@ export interface BridgeAuditEntry {
   readonly jobId: string;
   /** サーバーが指定したモード。 */
   readonly requestedMode: string;
-  /** この PC が実際に使ったモード (格下げされていれば違う値になる)。 */
+  /** この PC が実際に使ったモード (通常はサーバー指定と同じ)。 */
   readonly effectiveMode: ToolsMode;
   readonly cwd: string;
   readonly apiOrigin: string;

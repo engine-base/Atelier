@@ -5,8 +5,8 @@
  * (シェルスクリプト) に対して走らせる。検証するのは 3 点:
  *
  *   ① 悪意のある接続リンク (見知らぬ https) を受理しないこと
- *   ② サーバーが auto を指示しても、PC 側の上限 approve まで格下げされ、
- *      **実際に起動された claude の引数**が bypassPermissions ではないこと
+ *   ② **実際に起動された claude の引数**が、サーバーの指示どおりであること
+ *      （勝手に制限を足していないこと）と、監査ログに残ること
  *   ③ 作業フォルダの外を指すシンボリックリンクをアップロードしないこと
  *
  * さらに、ローカル監査ログに「サーバー指定 auto / 実際 approve」が残ることを見る。
@@ -44,7 +44,7 @@ check(
 );
 
 /* ------------------------------------------------------------------ */
-console.log('[2] サーバーが auto を指示しても PC 側の上限まで格下げされること');
+console.log('[2] サーバーが指示した auto がそのまま使われること + 監査ログに残ること');
 
 const home = mkdtempSync(join(tmpdir(), 'g199-home-'));
 const workspace = mkdtempSync(join(tmpdir(), 'g199-ws-'));
@@ -103,8 +103,6 @@ const worker = new ChatRelayWorker(sender, {
     HOME: home,
     PATH: process.env.PATH,
     ATELIER_BRIDGE_CHAT_WORKSPACE: workspace,
-    // ★ この PC の上限 (本人が決める設定)
-    ATELIER_BRIDGE_MAX_TOOLS_MODE: 'approve',
   },
   flushIntervalMs: 0,
   approvalPollMs: 10,
@@ -119,20 +117,20 @@ console.log(`  runOnce -> ${outcome}`);
 const spawnedArgs = readFileSync(argsLog, 'utf8').split('\n');
 console.log(`  実際に起動された引数: ${spawnedArgs.filter((a) => a.startsWith('--')).join(' ')}`);
 check(
-  !spawnedArgs.includes('bypassPermissions'),
-  'サーバーが auto と言っても bypassPermissions では起動しない',
+  spawnedArgs.includes('bypassPermissions'),
+  'サーバーが指示した auto がそのまま使われる (勝手に制限しない)',
 );
 check(
-  spawnedArgs.includes('--permission-prompt-tool'),
-  '格下げ先の approve (承認プロンプト) で起動している',
+  spawnedArgs.includes('--allowedTools'),
+  'GAP-134 で決めたツール一覧で起動している',
 );
 
 const auditLines = readFileSync(auditFilePath(home), 'utf8').trim().split('\n');
 const audit = JSON.parse(auditLines[auditLines.length - 1]);
 console.log(`  監査ログ: ${JSON.stringify(audit)}`);
 check(
-  audit.requestedMode === 'auto' && audit.effectiveMode === 'approve',
-  '監査ログに「サーバー指定 auto / 実際 approve」が残る',
+  audit.requestedMode === 'auto' && audit.effectiveMode === 'auto',
+  '監査ログに「サーバー指定 auto / 実際 auto」が残る',
 );
 check(audit.apiOrigin === 'https://atelier-api-eb.fly.dev', '監査ログに指示元が残る');
 
@@ -162,4 +160,4 @@ if (failures.length > 0) {
   for (const f of failures) console.log(`  - ${f}`);
   process.exit(1);
 }
-console.log('\nPASS: 接続先の固定 / モード上限の格下げ / 持ち出し防止 を実プロセスで確認');
+console.log('\nPASS: 接続先の固定 / モード指定の尊重と記録 / 持ち出し防止 を実プロセスで確認');
