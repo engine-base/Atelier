@@ -80,17 +80,16 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
-    from src.routes.admin_knowledge import (
-        _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
-    )
+    # GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+    from src.db.session import reset_shared_engine_cache
 
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
     from src.routes import api_router
 
     application = FastAPI()
     application.include_router(api_router)
     yield application
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
 
 
 @pytest.fixture()

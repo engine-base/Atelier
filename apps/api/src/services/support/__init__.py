@@ -8,35 +8,27 @@
 
 from __future__ import annotations
 
-import asyncio
 import html as html_mod
 import json
-from functools import lru_cache
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.email.sender import EmailMessage, ResendSender
 from src.schemas.support import SupportContactItem, SupportContactResponse
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """service_role 相当の sessionmaker (skills service と同パターン)。"""
-    del loop_key
-    return create_session_factory(create_engine())
-
-
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    """GAP-197: engine はプロセスに 1 つ。
 
-
-_service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
-    _session_factory_for_loop.cache_clear
-)
+    以前は event loop ごとに engine を作ってキャッシュしていたが、engine を
+    共有にしたのでこの層は不要になった (loop id は再利用されうるので、
+    残しておくと死んだ engine を掴み続ける危険がある)。
+    """
+    return shared_session_factory()
 
 
 async def send_support_contact(

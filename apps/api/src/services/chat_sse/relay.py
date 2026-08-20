@@ -22,11 +22,10 @@ import asyncio
 import json
 import os
 from collections.abc import AsyncIterator
-from functools import lru_cache
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.services import chat_relay
 
 PROVIDER_ENV = "ATELIER_LLM_PROVIDER"
@@ -92,25 +91,9 @@ def _timeout_seconds() -> float:
     return value if value > 0 else _DEFAULT_TIMEOUT_SECONDS
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(_loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """GAP-175: event loop ごとに engine を分ける。
-
-    engine のコネクションプールは生成時の loop に紐づく。単一プロセス・単一 loop
-    の本番では問題にならないが、loop が作り直される経路 (テストの TestClient、
-    将来のワーカー再起動等) で使い回すと
-    "attached to a different loop" になり、**Bridge 未接続なのに「実行が失敗」**
-    という誤った分類でユーザーに返ってしまう (503 ではなく 502 になる)。
-    """
-    return create_session_factory(create_engine())
-
-
 def _session_factory() -> async_sessionmaker[AsyncSession]:
-    try:
-        loop_key = id(asyncio.get_running_loop())
-    except RuntimeError:
-        loop_key = 0
-    return _session_factory_for_loop(loop_key)
+    # GAP-197: engine はプロセスに 1 つ (loop ごとに作らない)
+    return shared_session_factory()
 
 
 def service_session_factory() -> async_sessionmaker[AsyncSession]:

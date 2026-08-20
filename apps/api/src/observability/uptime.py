@@ -375,13 +375,13 @@ async def _main() -> int:
     """GitHub Actions から呼ばれる CLI 本体。"""
     from datetime import UTC
 
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
 
     targets = targets_from_env()
     if not targets:
         print("ATELIER_UPTIME_TARGETS が未設定です (例: api=https://.../health)")
         return 2
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await check_targets(session, targets, now=datetime.now(UTC))
     print(result)

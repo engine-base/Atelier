@@ -94,26 +94,11 @@ def decrypt_value(ciphertext: str) -> str:
         ) from exc
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """RLS role を下げない service セッション (ciphertext 読み出し専用)。
-
-    encrypted_value は GAP-131 で authenticated から列レベル revoke 済のため、
-    RLS セッションでは読めない。可視性チェック (RLS) を通過した後にのみ
-    この factory で ciphertext を 1 行だけ取得する。
-    asyncpg 接続は event loop を跨げないため loop 毎に分離 (skills と同じ)。
-    """
-    del loop_key  # cache key 専用
-    from src.db.session import create_engine, create_session_factory
-
-    return create_session_factory(create_engine())
-
-
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:
-    """実行中 event loop に紐づく sessionmaker を返す。"""
-    import asyncio
+    """GAP-197: engine はプロセスに 1 つ (loop ごとに作らない)。"""
+    from src.db.session import shared_session_factory
 
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    return shared_session_factory()
 
 
 def _last4(plaintext: str) -> str:

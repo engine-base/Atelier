@@ -77,3 +77,6 @@ supabase/.temp/
 
 # vitest --coverage の生成物 (ローカル計測用 — commit しない)
 coverage/
+
+# GAP-200: サーバー実行用に取り込むモデル (イメージには入れるが Git には入れない)
+.models/

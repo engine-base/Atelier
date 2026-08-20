@@ -44,11 +44,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E4
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 import src.services.billing as billing  # noqa: E402
+
+# GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+from src.db.session import reset_shared_engine_cache  # noqa: E402
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
 from src.services.billing import (  # noqa: E402
     STRIPE_API_BASE,
     BillingSettings,
-    _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
     verify_webhook_signature,
 )
 
@@ -123,7 +125,7 @@ def _configured_settings(**overrides: object) -> BillingSettings:
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
     test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
 
     async def _override_session(
@@ -150,7 +152,7 @@ def app() -> Iterator[FastAPI]:
     application.dependency_overrides[get_rls_session] = _override_session
     yield application
     asyncio.run(test_engine.dispose())
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
 
 
 @pytest.fixture()

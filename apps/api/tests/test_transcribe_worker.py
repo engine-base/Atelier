@@ -179,8 +179,8 @@ class TestRunLoop:
             async def __aexit__(self, *args: Any) -> None:
                 return None
 
-        monkeypatch.setattr(db_mod, "create_engine", lambda: object())
-        monkeypatch.setattr(db_mod, "create_session_factory", lambda _engine: _Factory())  # pyright: ignore[reportUnknownLambdaType]
+        # GAP-197: engine はプロセスに 1 つ (shared_session_factory 経由)
+        monkeypatch.setattr(db_mod, "shared_session_factory", _Factory())
         _run(worker.run_loop(poll_interval_s=0.01, once=True))
         assert any("select id, storage_path" in s for s, _ in session.executed)
 

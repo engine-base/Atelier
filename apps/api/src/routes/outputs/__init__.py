@@ -7,10 +7,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import urllib.parse
 import uuid as uuid_mod
-from functools import lru_cache
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -19,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.outputs import (
@@ -54,21 +52,9 @@ SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """GAP-139: mockdb 成果物配信用の service session (routes/mocks と同じ方式)。
-
-    GAP-159: asyncpg の接続は event loop を跨いで再利用できないため、実行中 loop
-    毎に engine を分離する (本番 uvicorn は単一 loop で挙動不変。テストは
-    TestClient ブロック毎に新 loop を作るため、単一キャッシュだと 2 つ目以降の
-    ブロックで死んだ loop の engine を掴んでしまう)。
-    """
-    del loop_key  # cache key 専用
-    return create_session_factory(create_engine())
-
-
 def _content_session_factory() -> async_sessionmaker[AsyncSession]:
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    # GAP-197: engine はプロセスに 1 つ (loop ごとに作らない)
+    return shared_session_factory()
 
 
 @router.get("/outputs", summary="成果物一覧")

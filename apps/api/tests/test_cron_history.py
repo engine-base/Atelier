@@ -66,8 +66,8 @@ def store(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, dict[str, Any]]]:
     import src.db as db_mod
 
     executed: list[tuple[str, dict[str, Any]]] = []
-    monkeypatch.setattr(db_mod, "create_engine", lambda: object())
-    monkeypatch.setattr(db_mod, "create_session_factory", lambda _e: _Factory(executed))  # pyright: ignore[reportUnknownLambdaType]
+    # GAP-197: engine はプロセスに 1 つになったので shared_session_factory を差し替える
+    monkeypatch.setattr(db_mod, "shared_session_factory", lambda: _Factory(executed))
     return executed
 
 

@@ -15,18 +15,16 @@ service session (RLS bypass) — でアクセスする。
 
 from __future__ import annotations
 
-import asyncio
 import os
 import time
 from datetime import date
-from functools import lru_cache
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
-from src.db.session import create_engine, create_session_factory
+from src.db.session import pool_stats, shared_session_factory
 from src.schemas.admin import (
     AcquisitionChannelCount,
     AcquisitionCreate,
@@ -48,6 +46,8 @@ from src.schemas.admin import (
     BetaFeedbackResponse,
     HealthCheckRow,
 )
+from src.services.chat_sse.capacity import snapshot as stream_capacity
+from src.services.server_ai import describe_server_ai
 
 GOAL_KEY = "acquisition"
 
@@ -63,20 +63,14 @@ def is_uuid(value: str) -> bool:
     return True
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """service_role 相当の sessionmaker (RLS バイパス。loop 毎に分離キャッシュ)。"""
-    del loop_key
-    return create_session_factory(create_engine())
-
-
 def service_session_factory() -> async_sessionmaker[AsyncSession]:
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    """GAP-197: engine はプロセスに 1 つ。
 
-
-service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
-    _session_factory_for_loop.cache_clear
-)
+    以前は event loop ごとに engine を作ってキャッシュしていたが、engine を
+    共有にしたのでこの層は不要になった (loop id は再利用されうるので、
+    残しておくと死んだ engine を掴み続ける危険がある)。
+    """
+    return shared_session_factory()
 
 
 async def _audit(
@@ -323,6 +317,66 @@ async def get_health() -> list[HealthCheckRow]:
                 status="ok" if conn_ratio < 0.8 else "warn",
                 detail=f"DB {size_mb:.0f} MB · 接続数 {int(d.conns)} / {int(d.max_conns)}",
                 meta="正常" if conn_ratio < 0.8 else "接続数逼迫",
+            )
+        )
+        # GAP-197: プールの実使用量。「足りているか」を測ってから増やすための数字。
+        # これまでは engine が 13 個あり (最大 195 接続/machine)、どれだけ使って
+        # いるかを見る手段が無かった。
+        stats = pool_stats()
+        pool_ratio = stats.checked_out / max(1, stats.capacity)
+        pool_status = "ok"
+        if not stats.within_budget:
+            pool_status = "err"
+        elif pool_ratio >= 0.8:
+            pool_status = "warn"
+        rows.append(
+            HealthCheckRow(
+                name="DB 接続プール",
+                status=pool_status,
+                detail=(
+                    f"使用中 {stats.checked_out} / 1 台あたり上限 {stats.capacity} "
+                    f"(常設 {stats.size} + 追加 {stats.overflow}) · "
+                    f"全台合計 {stats.fleet_capacity} / 予算 {stats.budget}"
+                ),
+                meta=(
+                    "予算超過 (DB 側の上限に当たる恐れ)"
+                    if not stats.within_budget
+                    else ("逼迫" if pool_ratio >= 0.8 else "余裕あり")
+                ),
+            )
+        )
+        # GAP-198: SSE は張っている間ずっと DB セッションを 1 本掴む。
+        # fly.toml の soft_limit ではなく、ここが本当の同時チャット上限。
+        sse = stream_capacity()
+        rows.append(
+            HealthCheckRow(
+                name="同時チャット (SSE)",
+                status=("warn" if (sse.ratio >= 0.8 or sse.rejected > 0) else "ok"),
+                detail=(
+                    f"接続中 {sse.open_streams} / 1 台あたり上限 {sse.limit} "
+                    f"· 混雑でお断りした回数 {sse.rejected}"
+                ),
+                meta=(
+                    "混雑あり (お断り発生)"
+                    if sse.rejected > 0
+                    else ("逼迫" if sse.ratio >= 0.8 else "余裕あり")
+                ),
+            )
+        )
+        # GAP-200: 意味検索・文字起こしを「サーバーで動かすか」の実態。
+        # 入っていないのに入っているように書かない (import して確かめる)。
+        ai_status, ai_detail, ai_next = describe_server_ai()
+        rows.append(
+            HealthCheckRow(
+                name="サーバー側 AI (意味検索 / 文字起こし)",
+                status="warn" if ai_status == "warn" else "ok",
+                detail=ai_detail,
+                meta=(
+                    "入れたつもりで入っていない"
+                    if ai_status == "warn"
+                    else ("サーバー実行" if ai_status == "ok" else "利用者の PC で実行")
+                )
+                + (f" — {ai_next}" if ai_next else ""),
             )
         )
         disp = await session.execute(

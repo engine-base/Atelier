@@ -29,9 +29,11 @@ class TestDatabaseSettings:
         monkeypatch.setenv("ATELIER_DB_URL", "postgresql+asyncpg://u:p@h:5432/db")
         cfg = DatabaseSettings()  # type: ignore[call-arg]
         assert cfg.url == "postgresql+asyncpg://u:p@h:5432/db"
-        assert cfg.pool_size == 10
-        assert cfg.max_overflow == 5
-        assert cfg.pool_timeout == 30.0
+        # GAP-197: engine が 1 個になったので 1 プロセスの上限がそのままこの値
+        assert cfg.pool_size == 20
+        assert cfg.max_overflow == 10
+        # 長く待たせると「遅い」が「壊れている」に見えないので短め
+        assert cfg.pool_timeout == 10.0
         assert cfg.pool_recycle_seconds == 1800
         assert cfg.echo_sql is False
 

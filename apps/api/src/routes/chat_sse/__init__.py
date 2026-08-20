@@ -10,6 +10,7 @@ JSON で encode、Content-Type: text/event-stream で配信。
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -32,7 +33,7 @@ from src.schemas.chat_sse import (
 )
 from src.services import chat_run as run_svc
 from src.services import chat_sse as svc
-from src.services.chat_sse import pc_approvals
+from src.services.chat_sse import capacity, pc_approvals
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -64,6 +65,38 @@ async def _thread_visible(session: AsyncSession, thread_id: str) -> bool:
         {"id": thread_id},
     )
     return res.first() is not None
+
+
+# --------------------------------------------------------------------------- #
+# GAP-198: SSE は張っている間ずっと DB セッションを 1 本掴む。上限に当たったら
+# pool_timeout ぶん黙って待たせるのではなく、混んでいることをその場で伝える。
+# --------------------------------------------------------------------------- #
+def guarded_stream(
+    generator: AsyncIterator[bytes],
+) -> StreamingResponse:
+    """SSE を 1 本ぶん確保してから返す (切断されても必ず返却する)。"""
+    try:
+        capacity.acquire()
+    except capacity.StreamCapacityExceeded:
+        limit = capacity.max_concurrent_streams()
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            f"ただいま混み合っています (同時に開ける上限 {limit} 本に達しました)。"
+            "少し待ってからもう一度お試しください。",
+        ) from None
+
+    async def _wrapped() -> AsyncIterator[bytes]:
+        try:
+            async for chunk in generator:
+                yield chunk
+        finally:
+            capacity.release()
+
+    return StreamingResponse(
+        _wrapped(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post(
@@ -98,14 +131,7 @@ async def stream_chat_thread(
         attachments=[att.model_dump() for att in body.attachments],
         tools_mode=body.tools_mode,
     )
-    return StreamingResponse(
-        gen,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return guarded_stream(gen)
 
 
 @router.post(
@@ -256,11 +282,7 @@ async def attach_run(job_id: str, user: UserDep) -> StreamingResponse:
     DB に溜まった chunk を先頭から流し、その後は追いつきながら中継する。
     イベント形は通常のストリームと同じなので、画面側は同じパーサで読める。
     """
-    return StreamingResponse(
-        svc.attach_run(job_id=job_id, actor_id=user.id),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    return guarded_stream(svc.attach_run(job_id=job_id, actor_id=user.id))
 
 
 @router.get(

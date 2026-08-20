@@ -16,11 +16,11 @@ from src.services.cron.history import record_run
 
 
 async def _run(job: str) -> dict[str, str]:
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
 
     from . import purge_deleted_accounts, run_integrity_check
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
 
     async def _body() -> dict[str, str]:
         async with factory() as session:

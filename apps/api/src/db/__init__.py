@@ -9,16 +9,28 @@
 from .base import Base, metadata
 from .session import (
     DatabaseSettings,
+    PoolStats,
     create_engine,
     create_session_factory,
+    describe_pool_budget,
     get_session,
+    pool_stats,
+    reset_shared_engine_cache,
+    shared_engine,
+    shared_session_factory,
 )
 
 __all__ = [
     "Base",
     "DatabaseSettings",
+    "PoolStats",
     "create_engine",
     "create_session_factory",
+    "describe_pool_budget",
     "get_session",
     "metadata",
+    "pool_stats",
+    "reset_shared_engine_cache",
+    "shared_engine",
+    "shared_session_factory",
 ]

@@ -23,7 +23,6 @@ import os
 import re
 import time
 import uuid
-from functools import lru_cache
 from typing import TypedDict
 
 from sqlalchemy import text
@@ -31,7 +30,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 
 MOCKDB_PREFIX = "mockdb://"
 
@@ -74,14 +73,14 @@ def derive_screen_name(file_name: str, html: str) -> str:
     return title[:80]
 
 
-@lru_cache(maxsize=1)
 def service_session_factory() -> async_sessionmaker[AsyncSession]:
     """mock_contents (RLS default deny) の読み書き用 service session。
 
     RLS session (JWT ロール) からは mock_contents に触れない — mocks 行の
     認可は RLS で確認しつつ、コンテンツ実体はこの factory で扱う (GAP-138)。
     """
-    return create_session_factory(create_engine())
+    # GAP-197: engine はプロセスに 1 つ (個別に作るとプールが 13 倍になる)
+    return shared_session_factory()
 
 
 async def store_content_service(html: str) -> str:

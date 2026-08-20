@@ -85,11 +85,10 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
     # service 層の lru_cache をクリア (ATELIER_DB_URL を確実に反映)。
-    from src.services.skills import (
-        _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
-    )
+    # GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+    from src.db.session import reset_shared_engine_cache
 
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
     from src.routes import api_router
 
     # GET /skills (get_rls_session) 用: TestClient ブロック毎に event loop が変わる
@@ -119,7 +118,7 @@ def app() -> Iterator[FastAPI]:
     application.dependency_overrides[get_rls_session] = _override_session
     yield application
     asyncio.run(test_engine.dispose())
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
 
 
 @pytest.fixture()

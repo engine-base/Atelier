@@ -9,13 +9,12 @@ POST /dispatch/chat-relay/{job}/artifacts で送る。ここはサーバー内�
 from __future__ import annotations
 
 import os
-from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.services.mocks.artifacts import (
     ARTIFACT_KIND_MOCK,
     MAX_ARTIFACTS_PER_JOB,
@@ -95,9 +94,9 @@ def collect_new_artifacts(root: str, before: dict[str, float]) -> list[dict[str,
     return out
 
 
-@lru_cache(maxsize=1)
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:
-    return create_session_factory(create_engine())
+    # GAP-197: engine はプロセスに 1 つ (個別に作るとプールが 13 倍になる)
+    return shared_session_factory()
 
 
 async def ingest_for_thread(

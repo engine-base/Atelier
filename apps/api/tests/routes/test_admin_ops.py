@@ -34,10 +34,9 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+# GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+from src.db.session import reset_shared_engine_cache  # noqa: E402
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
-from src.services.admin.ops import (  # noqa: E402
-    _session_factory_for_loop,  # pyright: ignore[reportPrivateUsage]  # lru_cache 実体を clear
-)
 
 
 def _b64url(data: bytes) -> str:
@@ -81,7 +80,7 @@ pytestmark = pytest.mark.skipif(not _db_available(), reason="local Postgres not 
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
     test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
 
     async def _override_session(
@@ -107,7 +106,7 @@ def app() -> Iterator[FastAPI]:
     application.include_router(api_router)
     application.dependency_overrides[get_rls_session] = _override_session
     yield application
-    _session_factory_for_loop.cache_clear()
+    reset_shared_engine_cache()
     asyncio.run(test_engine.dispose())
 
 

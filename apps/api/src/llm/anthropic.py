@@ -68,7 +68,7 @@ class AnthropicClient:
         response = await self._sdk.messages.create(**kwargs)
 
         text_blocks = [
-            cast(Any, block).text
+            cast("Any", block).text
             for block in response.content
             if getattr(block, "type", None) == "text"
         ]

@@ -81,15 +81,16 @@ def apply_migration() -> None:
 
 @pytest.fixture()
 def app() -> Iterator[FastAPI]:
-    from src.services.auth import _service_session_factory
+    # GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+    from src.db.session import reset_shared_engine_cache
 
-    _service_session_factory.cache_clear()
+    reset_shared_engine_cache()
     from src.routes import api_router
 
     application = FastAPI()
     application.include_router(api_router)
     yield application
-    _service_session_factory.cache_clear()
+    reset_shared_engine_cache()
 
 
 @pytest.fixture()

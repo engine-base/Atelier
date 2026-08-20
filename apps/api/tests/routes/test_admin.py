@@ -34,6 +34,8 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+# GAP-197: engine はプロセスに 1 つ。テストは loop 毎に作り直すのでここで捨てる。
+from src.db.session import reset_shared_engine_cache  # noqa: E402
 from src.dependencies import CurrentUser, get_current_user, get_rls_session  # noqa: E402
 
 
@@ -436,11 +438,10 @@ class TestAdminDashboard:
 def svc_session_env() -> Iterator[None]:
     """GAP-031⑤: service session (ops.service_session_factory) の loop-cache を
     テスト前後でクリア (別 loop の stale factory を掴まないため)。"""
-    from src.services.admin.ops import service_session_factory
 
-    service_session_factory.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+    reset_shared_engine_cache()
     yield
-    service_session_factory.cache_clear()  # pyright: ignore[reportFunctionMemberAccess]
+    reset_shared_engine_cache()
 
 
 @pytest.mark.integration

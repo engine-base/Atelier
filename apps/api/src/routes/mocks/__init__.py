@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy import text as sql_text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.mocks import (
@@ -53,7 +53,8 @@ def _content_session_factory() -> async_sessionmaker[AsyncSession]:
     JWT 依存の RLS session は使えない — 代わりに自己署名トークン
     (content-url 取得時に RLS で可視性を確認済み) を検証して配信する。
     """
-    return create_session_factory(create_engine())
+    # GAP-197: engine はプロセスに 1 つ
+    return shared_session_factory()
 
 
 @router.get("/mocks", summary="モック一覧")
@@ -415,11 +416,10 @@ async def revise_mock_stream(
         ):
             yield f"data: {_json.dumps(ev, ensure_ascii=False)}\n\n".encode()
 
-    return StreamingResponse(
-        _events(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
+    # GAP-198: SSE は張っている間ずっと DB セッションを掴むので、同じ上限に載せる
+    from src.routes.chat_sse import guarded_stream
+
+    return guarded_stream(_events())
 
 
 @router.post(

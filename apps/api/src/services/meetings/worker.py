@@ -342,9 +342,9 @@ async def run_once(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> dict[s
 
 async def run_loop(*, poll_interval_s: float, once: bool) -> None:
     """単独プロセス実行 (dev / Inngest 無し環境用のポーリングループ)。"""
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     while True:
         async with factory() as session:
             result = await run_once(session)

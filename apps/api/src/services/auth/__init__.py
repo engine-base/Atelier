@@ -15,7 +15,6 @@ F-LEGAL-004: terms_of_service と privacy_policy は accepted=True 必須、
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import contextlib
 import hashlib
@@ -28,7 +27,6 @@ import secrets
 import time
 import uuid
 from datetime import UTC, datetime, timedelta
-from functools import lru_cache
 from typing import Any, cast
 
 import httpx
@@ -36,7 +34,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.schemas.auth import (
     ConsentEntry,
     PasswordResetConfirmResponse,
@@ -87,26 +85,14 @@ def _validate_consents(consents: list[ConsentEntry]) -> None:
             )
 
 
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """service_role 相当の sessionmaker。RLS バイパス用 (role を下げない)。
-
-    asyncpg の接続は event loop を跨いで再利用できないため、実行中 loop 毎に
-    engine を分離してキャッシュする (本番 uvicorn は単一 loop で挙動不変。
-    テストの TestClient はブロック毎に新 loop を作るため必須)。
-    """
-    del loop_key  # cache key 専用
-    return create_session_factory(create_engine())
-
-
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:
-    """実行中 event loop に紐づく sessionmaker を返す。"""
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    """GAP-197: engine はプロセスに 1 つ。
 
-
-_service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
-    _session_factory_for_loop.cache_clear
-)
+    以前は event loop ごとに engine を作ってキャッシュしていたが、engine を
+    共有にしたのでこの層は不要になった (loop id は再利用されうるので、
+    残しておくと死んだ engine を掴み続ける危険がある)。
+    """
+    return shared_session_factory()
 
 
 async def _create_supabase_auth_user(*, email: str, password: str) -> str | None:

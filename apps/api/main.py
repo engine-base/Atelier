@@ -50,12 +50,30 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     _log = _logging.getLogger("atelier.llm_route")
     (_log.warning if _route.warnings else _log.info)(describe_llm_route())
 
+    # GAP-197: DB 接続の見積もりを起動時に 1 行出す。engine が増えて予算を
+    # 超えていることに「負荷がかかって落ちてから」気づく状態を作らない。
+    from src.db.session import describe_pool_budget
+
+    _pool_text, _pool_ok = describe_pool_budget()
+    _pool_log = _logging.getLogger("atelier.db_pool")
+    (_pool_log.info if _pool_ok else _pool_log.warning)(_pool_text)
+
     # GAP-180: 意味検索 (埋め込み) も同様に 1 行出す。
     from src.embeddings.route import describe_embedding_route, resolve_embedding_route
 
     _emb = resolve_embedding_route()
     _emb_log = _logging.getLogger("atelier.embedding_route")
     (_emb_log.warning if _emb.warnings else _emb_log.info)(describe_embedding_route())
+
+    # GAP-200: 意味検索・文字起こしを「サーバーで動かすか」を起動時に 1 行出す。
+    # 「入れたつもりで入っていない」を静かに通さない。
+    from src.services.server_ai import describe_server_ai
+
+    _ai_state, _ai_detail, _ai_next = describe_server_ai()
+    _ai_log = _logging.getLogger("atelier.server_ai")
+    (_ai_log.warning if _ai_state == "warn" else _ai_log.info)(
+        _ai_detail + (f" / {_ai_next}" if _ai_next else "")
+    )
 
     # GAP-181: 文字起こし経路 (既定は OSS ローカル / 音声を外部に出さない)。
     from src.services.meetings.stt import describe_stt_route, resolve_stt_route

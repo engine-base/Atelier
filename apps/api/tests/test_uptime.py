@@ -20,7 +20,7 @@ import threading
 import uuid
 from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import sqlalchemy
@@ -90,8 +90,8 @@ class _OkHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"down")
 
-    def log_message(self, *_args: object) -> None:
-        pass
+    def log_message(self, format: str, *args: Any) -> None:
+        del format, args  # テスト中はアクセスログを出さない
 
 
 @pytest.fixture(scope="module")
@@ -289,7 +289,13 @@ class TestRecording:
     def sent(self, monkeypatch: pytest.MonkeyPatch):
         calls: list[tuple[str, str]] = []
 
-        async def _fake(*, title: str, lines: list[str], level: str = "error", settings=None):
+        async def _fake(
+            *,
+            title: str,
+            lines: list[str],
+            level: str = "error",
+            settings: AlertSettings | None = None,
+        ) -> AlertDelivery:
             del lines, settings
             calls.append((title, level))
             return AlertDelivery(status="sent", detail="email 送信", channels=("email",))
@@ -388,7 +394,13 @@ class TestRecording:
         name = f"t195-nodeliver-{uuid.uuid4().hex[:8]}"
         await self._clean(session, name)
 
-        async def _fail(*, title: str, lines: list[str], level: str = "error", settings=None):
+        async def _fail(
+            *,
+            title: str,
+            lines: list[str],
+            level: str = "error",
+            settings: AlertSettings | None = None,
+        ) -> AlertDelivery:
             del title, lines, level, settings
             return AlertDelivery(status="skipped", detail="送信先が未設定", channels=())
 
@@ -446,22 +458,26 @@ class TestRecording:
 # --------------------------------------------------------------------------- #
 class TestWorkflow:
     @staticmethod
-    def _workflow() -> dict[str, Any]:
+    def _workflow() -> dict[Any, Any]:
         import pathlib
 
         import yaml
 
         root = pathlib.Path(__file__).resolve().parents[3]
         raw = (root / ".github" / "workflows" / "uptime.yml").read_text(encoding="utf-8")
-        return yaml.safe_load(raw)
+        return cast("dict[Any, Any]", yaml.safe_load(raw))
+
+    @classmethod
+    def _triggers(cls) -> dict[str, Any]:
+        """PyYAML は `on:` を True (bool) として解釈する。"""
+        wf = cls._workflow()
+        return cast("dict[str, Any]", wf.get("on") or wf[True])
 
     def test_runs_on_schedule_outside_our_infra(self) -> None:
-        wf = self._workflow()
-        # PyYAML は on: を True (bool) として解釈する
-        triggers = wf.get("on", wf.get(True))
+        triggers = self._triggers()
         assert triggers["schedule"] == [{"cron": "*/15 * * * *"}]
         assert "workflow_dispatch" in triggers
-        assert wf["jobs"]["probe"]["runs-on"] == "ubuntu-latest"
+        assert self._workflow()["jobs"]["probe"]["runs-on"] == "ubuntu-latest"
 
     def test_missing_settings_fail_loudly(self) -> None:
         """設定漏れで監視が動いていない状態を黙って作らない (GAP-192 と同じ方針)。"""

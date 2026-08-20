@@ -57,11 +57,7 @@ async def stream_exec_logs(
         poll_interval_seconds=poll_interval_seconds,
         max_duration_seconds=max_duration_seconds,
     )
-    return StreamingResponse(
-        gen,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    # GAP-198: SSE は張っている間ずっと DB セッションを掴むので、同じ上限に載せる
+    from src.routes.chat_sse import guarded_stream
+
+    return guarded_stream(gen)

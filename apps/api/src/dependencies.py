@@ -28,9 +28,9 @@ from fastapi import Depends, Header, HTTPException, status
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.txn_commit import current_rls_session
 
 
@@ -124,14 +124,15 @@ async def get_current_user(
     return decode_supabase_jwt(token, secret)
 
 
-@lru_cache(maxsize=1)
-def _engine() -> AsyncEngine:
-    return create_engine()
-
-
-@lru_cache(maxsize=1)
 def _session_factory() -> async_sessionmaker[AsyncSession]:
-    return create_session_factory(_engine())
+    """GAP-197: RLS セッションも共有 engine を使う。
+
+    以前はここが独立した engine を持っていたため、service 系 12 個と合わせて
+    **プロセス内に 13 engine (最大 195 接続/machine)** になっていた。
+    role / claims は `set local` (transaction-local) なので、同じプールを
+    service セッションと共有しても設定は次の transaction へ漏れない。
+    """
+    return shared_session_factory()
 
 
 async def get_rls_session(

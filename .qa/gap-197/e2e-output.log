@@ -1,0 +1,19 @@
+[1] 旧方式の再現 (各サービスが個別に engine を作っていた頃)
+    engine 数: 13
+    要求しうる最大接続数: 195 / machine
+    fly.toml の max_machines_running=2 なら: 390
+
+[2] 現方式の実測 (service factory を全部呼ぶ)
+    service factory が使っている engine の種類数: 1
+    プロセス内に生きている AsyncEngine 数: 1
+    DB 接続: 1 台あたり最大 30 (常設 20 + 追加 10) × 2 台 = 最大 60 / 予算 60
+
+[3] 実接続での挙動 (実 Postgres に同時オープン)
+    同時 5 セッション: 使用中 5 (待機中 0 / 1 台あたり上限 30)
+    解放後: 使用中 0
+
+[4] 枯渇時の挙動 (黙って遅くならず、明示的に失敗するか)
+    上限超過は 1.0 秒で TimeoutError として返った
+    → 無限に待たず、原因の分かる失敗になる (QueuePool limit of size 1 overflow 0 reached, connection timed out, timeout 1.00)
+
+PASS: 13 engine (195 接続/machine) → 1 engine (30 接続/machine) を実測で確認

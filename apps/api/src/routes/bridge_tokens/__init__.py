@@ -14,9 +14,9 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user
 from src.schemas.bridge_tokens import (
     BridgeTokenCreate,
@@ -27,15 +27,11 @@ from src.services import bridge_tokens as svc
 
 router = APIRouter(tags=["bridge-tokens"])
 
-_factory: async_sessionmaker[AsyncSession] | None = None
-
 
 async def _service_session() -> AsyncGenerator[AsyncSession, None]:
     """service session (RLS バイパス — 書き込みは所有チェック付き SQL のみ)。"""
-    global _factory  # engine は 1 度だけ作る
-    if _factory is None:
-        _factory = create_session_factory(create_engine())
-    async with _factory() as session:
+    # GAP-197: engine はプロセスに 1 つ (モジュール変数で持つと loop を跨いで壊れる)
+    async with shared_session_factory()() as session:
         try:
             yield session
         except Exception:

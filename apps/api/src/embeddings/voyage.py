@@ -134,7 +134,7 @@ class VoyageClient:
                 all_vectors.append(cast("list[float]", item["embedding"]))
             usage = cast("dict[str, Any]", data.get("usage", {}))
             total_tokens += int(usage.get("total_tokens", 0))
-            model_returned = cast(str, data.get("model", model))
+            model_returned = cast("str", data.get("model", model))
 
         dim = len(all_vectors[0]) if all_vectors else DEFAULT_DIMENSIONS
         return EmbedResult(

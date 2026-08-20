@@ -27,10 +27,10 @@ async def _user_schedules_body(ctx: Any, step: Any) -> dict[str, str]:
     短い間隔で再試行する。
     """
     del ctx, step
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
     from src.services.cron.dispatcher import run_due_schedules
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await run_due_schedules(session)
     if result["due"] or result["scheduled"]:
@@ -51,10 +51,10 @@ async def _transcribe_queue_body(ctx: Any, step: Any) -> dict[str, str]:
     services/meetings/worker.run_once を呼び、queued 行を Whisper で処理する。
     """
     del ctx, step
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
     from src.services.meetings.worker import run_once
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await run_once(session)
     if result["queued"]:
@@ -75,10 +75,10 @@ async def _error_alerts_body(ctx: Any, step: Any) -> dict[str, str]:
     未設定なら送ったふりをせず skipped として記録する。
     """
     del ctx, step
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
     from src.observability.alerts import run_error_alerts
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await run_error_alerts(session)
     if result.get("candidates", "0") != "0":
@@ -89,10 +89,10 @@ async def _error_alerts_body(ctx: Any, step: Any) -> dict[str, str]:
 async def _purge_deleted_accounts_body(ctx: Any, step: Any) -> dict[str, str]:
     """退会データ 30 日後完全削除 (GAP-014 — T-A-05 の worker 実体)。"""
     del ctx, step
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
     from src.services.platform_jobs import purge_deleted_accounts
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await purge_deleted_accounts(session)
         await session.commit()
@@ -104,10 +104,10 @@ async def _purge_deleted_accounts_body(ctx: Any, step: Any) -> dict[str, str]:
 async def _integrity_check_body(ctx: Any, step: Any) -> dict[str, str]:
     """データ整合性チェック (GAP-014)。検知時は approval_inbox へ通知。"""
     del ctx, step
-    from src.db import create_engine, create_session_factory
+    from src.db import shared_session_factory
     from src.services.platform_jobs import run_integrity_check
 
-    factory = create_session_factory(create_engine())
+    factory = shared_session_factory()
     async with factory() as session:
         result = await run_integrity_check(session)
         await session.commit()

@@ -30,9 +30,11 @@ async def record_run(name: str, body: Callable[[], Awaitable[dict[str, str]]]) -
     factory: Any = None
     run_id: str | None = None
     try:
-        from src.db import create_engine, create_session_factory
+        # GAP-197: cron は 15 分ごと / 毎分に呼ばれる。呼ばれるたびに engine を
+        # 作ると、dispose しない engine が積み上がって接続が漏れる (実測済み)。
+        from src.db import shared_session_factory
 
-        factory = create_session_factory(create_engine())
+        factory = shared_session_factory()
         async with factory() as session:
             res = await session.execute(
                 text(

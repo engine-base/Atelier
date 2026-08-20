@@ -39,6 +39,11 @@ on:
         required: false
         type: boolean
         default: false
+      server_ai:
+        description: "意味検索・文字起こしをサーバーで動かす (VM を 2GB へ上げてから)"
+        required: false
+        type: boolean
+        default: false
 
 # concurrency: 同一ブランチで重複 deploy を抑止する。
 concurrency:
@@ -109,11 +114,38 @@ jobs:
         env:
           PGURL: ${{ env.PROD_DATABASE_URL }}
         run: bash scripts/ci/apply-seeds.sh
-      - name: Deploy
+      # GAP-200: サーバー実行を選んだら、VM が足りているかを **deploy 前に** 確かめる。
+      # メモリ不足のまま入れると OOM で落ちるだけで、原因が分からない。
+      - name: Verify VM size for server-side AI
+        if: ${{ inputs.server_ai == true }}
+        env:
+          SERVER_AI_MIN_MB: "1024"
         run: |
+          MEM=$(grep -A5 '^\[\[vm\]\]' fly.toml | grep 'memory' | head -1 | sed 's/[^0-9]*\([0-9]*\).*/\1/')
+          UNIT=$(grep -A5 '^\[\[vm\]\]' fly.toml | grep 'memory' | head -1 | grep -o 'gb\|mb')
+          if [ "$UNIT" = "gb" ]; then MEM=$((MEM * 1024)); fi
+          echo "::notice::fly.toml の memory = ${MEM}MB"
+          if [ "${MEM:-0}" -lt "$SERVER_AI_MIN_MB" ]; then
+            echo "::error::server_ai=true ですが fly.toml の memory が ${MEM}MB です。"
+            echo "::error::意味検索・文字起こしをサーバーで動かすには 1024MB 以上 (推奨 2048MB) が要ります。"
+            echo "::error::実測: 埋め込み 652MB〜1,554MB / whisper 302MB〜1,007MB。"
+            echo "::error::fly.toml の [[vm]] memory を上げてから再実行してください (月額も上がります)。"
+            exit 1
+          fi
+      - name: Deploy
+        env:
+          SERVER_AI: ${{ inputs.server_ai }}
+        run: |
+          # GAP-200: 既定は 0 (モデルを入れない = 運営費用を勝手に増やさない)
+          LOCALRAG=0
+          if [ "$SERVER_AI" = "true" ]; then
+            LOCALRAG=1
+            echo "::notice::意味検索・文字起こしをサーバー同梱でビルドします (イメージ +約 2.6GB)"
+          fi
           flyctl deploy \
             --app "$FLY_APP_NAME" \
             --remote-only \
+            --build-arg "INSTALL_LOCALRAG=$LOCALRAG" \
             --strategy rolling \
             --wait-timeout 300
       - name: Smoke test /health

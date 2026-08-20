@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import time
@@ -32,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
 from src.audit.writer import ActorType
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 
 STRIPE_API_BASE = "https://api.stripe.com"
 
@@ -71,20 +70,16 @@ def get_settings() -> BillingSettings:
 # --------------------------------------------------------------------------- #
 # service session (RLS bypass — workspace_billing の唯一の書き込み経路)
 # --------------------------------------------------------------------------- #
-@lru_cache(maxsize=8)
-def _session_factory_for_loop(loop_key: int) -> async_sessionmaker[AsyncSession]:
-    """service_role 相当の sessionmaker (RLS バイパス。event loop 毎に分離キャッシュ)。"""
-    del loop_key
-    return create_session_factory(create_engine())
 
 
 def service_session_factory() -> async_sessionmaker[AsyncSession]:
-    return _session_factory_for_loop(id(asyncio.get_running_loop()))
+    """GAP-197: engine はプロセスに 1 つ。
 
-
-service_session_factory.cache_clear = (  # pyright: ignore[reportAttributeAccessIssue, reportFunctionMemberAccess]
-    _session_factory_for_loop.cache_clear
-)
+    以前は event loop ごとに engine を作ってキャッシュしていたが、engine を
+    共有にしたのでこの層は不要になった (loop id は再利用されうるので、
+    残しておくと死んだ engine を掴み続ける危険がある)。
+    """
+    return shared_session_factory()
 
 
 # --------------------------------------------------------------------------- #

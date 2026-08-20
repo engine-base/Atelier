@@ -1,0 +1,18 @@
+[1] 既定は「入れない」ことの確認
+  OK Dockerfile の既定は INSTALL_LOCALRAG=0
+  OK localrag extra は 1 のときだけ入る
+
+[2] 有効化したときにモデルが実際に取り込めるか (実 DL)
+OK  埋め込みモデル intfloat/multilingual-e5-large を取り込みました
+OK  文字起こしモデル small を取り込みました
+  OK 取り込んだモデルの実サイズ: 2.6G
+       464M	/home/user/Atelier/.qa/gap-200/.models/models--Systran--faster-whisper-small
+  -- 確認後に削除 (リポジトリには残さない)
+
+[3] VM 不足のまま有効化できないことの確認 (deploy の実スクリプトを実行)
+  -- 今の fly.toml の memory = 256MB
+  OK 1024MB 未満なので server_ai=true の deploy は止まる (意図どおり)
+  OK 2048mb の設定は 2048MB として読める (判定式が正しい)
+  OK gb 表記も MB に換算できる
+
+PASS: 既定は増やさない / 有効化すれば実際に取り込める / VM 不足では止まる
