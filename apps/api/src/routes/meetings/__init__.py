@@ -27,6 +27,7 @@ from src.schemas.meetings import (
     MeetingUploadUrlResponse,
 )
 from src.schemas.storage import ContentUrlResponse
+from src.schemas.workflow import PhaseProposalResponse
 from src.services import meetings as svc
 from src.services.meetings import adopt as adopt_svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
@@ -242,6 +243,47 @@ async def adopt_items(
             message=result.message,
         )
     }
+
+
+@router.post(
+    "/meetings/{meeting_id}/propose-phase",
+    summary="この打合せを根拠に次フェーズを提案 (GAP-187)",
+)
+async def propose_phase_from_meeting(
+    meeting_id: str, session: SessionDep, user: UserDep
+) -> dict[str, PhaseProposalResponse]:
+    """議事録の決定・要件・未決事項を根拠に、次に確定すべきフェーズを 1 つ提案する。
+
+    **提案するだけで確定はしない** — 承認は既存のフェーズ提案フロー (GAP-150)
+    と同じで、人が承認して初めてフェーズになる。
+
+    AI 実行は利用者の PC の Claude (Bridge) で走る。経路が無いときは嘘の提案を
+    作らず、そのまま誠実にエラーを返す。
+    """
+    from src.services.workflow import proposals as proposal_svc
+
+    if await svc.get_meeting(session, meeting_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    try:
+        created = await proposal_svc.propose_from_meeting(
+            session, actor_id=user.id, meeting_id=meeting_id
+        )
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "このプロジェクトには未処理のフェーズ提案があります。先に承認か却下をしてください。",
+        ) from None
+    except proposal_svc.PhaseProposalError as exc:
+        code = (
+            status.HTTP_409_CONFLICT
+            if exc.code == "analysis_missing"
+            else status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+        raise HTTPException(code, exc.message) from exc
+    if created is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    await session.commit()
+    return {"data": created}
 
 
 @router.delete(

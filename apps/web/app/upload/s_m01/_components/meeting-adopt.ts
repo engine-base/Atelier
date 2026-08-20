@@ -114,3 +114,66 @@ export async function adoptItems(
     message: body.data?.message ?? "反映しました。",
   };
 }
+
+
+/* ------------------------------------------------------------------ */
+/* GAP-187: この打合せを根拠に次フェーズを提案する                       */
+/* ------------------------------------------------------------------ */
+
+/** 作られた提案 (pending)。承認は既存のフェーズ提案フローで人が行う。 */
+export interface PhaseProposal {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string | null;
+  readonly reason: string;
+  readonly proposed_order: number;
+  readonly status: string;
+  readonly source_meeting_id?: string | null;
+}
+
+/** 提案できなかった理由 (画面にそのまま出せる日本語つき)。 */
+export class ProposeError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ProposeError";
+  }
+}
+
+/**
+ * 議事録の決定・要件・未決事項を根拠に、次フェーズを 1 つ提案する。
+ * **提案するだけで確定はしない** — 承認は人が行う。
+ * AI 実行は利用者の PC の Claude で走るので、未接続なら正直に断られる。
+ */
+export async function proposePhaseFromMeeting(
+  meetingId: string,
+  opts: Opts = {},
+): Promise<PhaseProposal> {
+  const { baseURL, headers, doFetch } = ctx(opts);
+  const res = await doFetch(`${baseURL}/meetings/${meetingId}/propose-phase`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+  });
+  if (!res.ok) {
+    // サーバーが返した理由をそのまま見せる (握りつぶして「失敗」にしない)
+    let detail = "";
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      /* JSON でなければ既定文言 */
+    }
+    throw new ProposeError(
+      res.status,
+      detail !== ""
+        ? detail
+        : "フェーズを提案できませんでした。時間をおいて再試行してください。",
+    );
+  }
+  const body = (await res.json()) as { data?: PhaseProposal };
+  if (!body.data) throw new ProposeError(res.status, "提案の応答が不正です。");
+  return body.data;
+}

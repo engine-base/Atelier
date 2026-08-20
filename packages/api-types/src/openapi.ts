@@ -10624,6 +10624,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/meetings/{meeting_id}/propose-phase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * この打合せを根拠に次フェーズを提案（GAP-187）
+         * @description 議事録の決定・要件・未決事項を根拠に、次に確定すべきフェーズを 1 つ提案する。
+         *     **提案するだけで確定はしない** — 承認は既存のフェーズ提案フロー（GAP-150）と
+         *     同じで、人が承認して初めてフェーズになる。
+         *     AI 実行は利用者の PC の Claude（Bridge）で走り、経路が無いときは嘘の提案を
+         *     作らず 503 を返す。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    meeting_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 作成された提案（pending） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["PhaseProposal"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 議事録 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 未処理の提案がある / 解析がまだ無い */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description AI 実行経路が使えない（PC 未接続 / 枠上限） */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meetings/{meeting_id}/adoptable": {
         parameters: {
             query?: never;
@@ -19166,6 +19250,8 @@ export interface components {
             created_at?: string;
             /** Format: date-time */
             resolved_at?: string | null;
+            /** Format: uuid */
+            source_meeting_id?: string | null;
         };
         /** @description F-IMP01 影響範囲解析の結果 (dependencies 推移的走査 — GAP-022) */
         ImpactAnalysis: {

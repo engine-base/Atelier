@@ -20,7 +20,11 @@ import {
   type MeetingAnalysis,
 } from "./MeetingAnalysisView";
 import { MeetingAdoptPanel } from "./MeetingAdoptPanel";
-import type { adoptItems, fetchAdoptable } from "./meeting-adopt";
+import type {
+  adoptItems,
+  fetchAdoptable,
+  proposePhaseFromMeeting,
+} from "./meeting-adopt";
 
 export interface MeetingRow {
   readonly id: string;
@@ -68,6 +72,9 @@ export interface TranscriptUploadProps {
   readonly onAdopted?: (message: string) => void;
   readonly fetchAdoptableFn?: typeof fetchAdoptable;
   readonly adoptItemsFn?: typeof adoptItems;
+  /** GAP-187: 打合せから次フェーズを提案する (注入 fn はテスト用)。 */
+  readonly proposePhaseFn?: typeof proposePhaseFromMeeting;
+  readonly flowHref?: string;
   /** 再開の実行中 (ボタンを二度押しさせない)。 */
   readonly resuming?: boolean;
 }
@@ -158,6 +165,8 @@ export function TranscriptUpload({
   onAdopted,
   fetchAdoptableFn,
   adoptItemsFn,
+  proposePhaseFn,
+  flowHref,
   resuming = false,
   onDelete,
   chatHref,
@@ -509,6 +518,8 @@ export function TranscriptUpload({
                         {...(onAdopted ? { onAdopted } : {})}
                         {...(fetchAdoptableFn ? { fetchAdoptableFn } : {})}
                         {...(adoptItemsFn ? { adoptItemsFn } : {})}
+                        {...(proposePhaseFn ? { proposePhaseFn } : {})}
+                        {...(flowHref ? { flowHref } : {})}
                       />
                     ) : null}
                   </>

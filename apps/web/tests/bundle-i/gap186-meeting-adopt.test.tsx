@@ -187,3 +187,82 @@ describe("GAP-186 議事録の抽出項目の採用", () => {
     ).toBeInTheDocument();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* GAP-187: この打合せから次の工程を提案する                            */
+/* ------------------------------------------------------------------ */
+
+function renderWithPropose(proposePhaseFn: ReturnType<typeof vi.fn>) {
+  return render(
+    <MeetingAdoptPanel
+      meetingId="m1"
+      projectId="p1"
+      flowHref="/workflow?project=p1"
+      fetchAdoptableFn={(async () => ITEMS) as never}
+      adoptItemsFn={
+        (async () => ({
+          created: [],
+          already: [],
+          missing: [],
+          message: "",
+        })) as never
+      }
+      proposePhaseFn={proposePhaseFn as never}
+    />,
+  );
+}
+
+describe("GAP-187 議事録からのフェーズ提案", () => {
+  it("提案するだけで確定しないことを明記する", async () => {
+    renderWithPropose(vi.fn(async () => ({})));
+    expect(
+      await screen.findByText(/提案されるだけで確定はしません/),
+    ).toBeInTheDocument();
+    // どこで実行されるか（誰の費用か）も隠さない
+    expect(
+      screen.getByText(/お使いのパソコンの Claude で実行されます/),
+    ).toBeInTheDocument();
+  });
+
+  it("提案されたら理由と「まだ確定していない」を出す", async () => {
+    const proposePhaseFn = vi.fn(async () => ({
+      id: "pp1",
+      name: "デザイン確定フェーズ",
+      description: "A 案の 2 ページ構成を実制作に落とす",
+      reason: "議事録で「構成は A 案で確定」と決まったため。",
+      proposed_order: 2,
+      status: "pending",
+      source_meeting_id: "m1",
+    }));
+    renderWithPropose(proposePhaseFn);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "この打合せから次の工程を提案" }),
+    );
+    expect(await screen.findByText("提案: デザイン確定フェーズ")).toBeInTheDocument();
+    expect(
+      screen.getByText(/議事録で「構成は A 案で確定」と決まったため。/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/まだ確定していません/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "進行画面で承認する" })).toHaveAttribute(
+      "href",
+      "/workflow?project=p1",
+    );
+    expect(proposePhaseFn).toHaveBeenCalledWith("m1");
+  });
+
+  it("PC 未接続などの理由をそのまま画面に出す（握りつぶさない）", async () => {
+    const proposePhaseFn = vi.fn(async () => {
+      throw new Error(
+        "お使いの PC の Bridge がオフラインのため AI 実行ができません。",
+      );
+    });
+    renderWithPropose(proposePhaseFn);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "この打合せから次の工程を提案" }),
+    );
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.some((a) => /Bridge がオフライン/.test(a.textContent ?? ""))).toBe(
+      true,
+    );
+  });
+});

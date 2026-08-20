@@ -1064,6 +1064,8 @@ components:
         approved_phase_id: { type: string, format: uuid, nullable: true }
         created_at: { type: string, format: date-time }
         resolved_at: { type: string, format: date-time, nullable: true }
+        # GAP-187: この提案の根拠になった議事録 (null = 既存フェーズ状況からの提案)
+        source_meeting_id: { type: string, format: uuid, nullable: true }
 
     ImpactAnalysis:
       type: object
@@ -7250,6 +7252,35 @@ paths:
         '409': { description: 文字起こし未完了, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/propose-phase:
+    post:
+      tags: [meetings]
+      summary: この打合せを根拠に次フェーズを提案（GAP-187）
+      description: |
+        議事録の決定・要件・未決事項を根拠に、次に確定すべきフェーズを 1 つ提案する。
+        **提案するだけで確定はしない** — 承認は既存のフェーズ提案フロー（GAP-150）と
+        同じで、人が承認して初めてフェーズになる。
+        AI 実行は利用者の PC の Claude（Bridge）で走り、経路が無いときは嘘の提案を
+        作らず 503 を返す。
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::propose_phase_from_meeting
+      x-screen-ids: [S-M01, S-W01]
+      x-feature-ids: [F-MEET01, F-FLOW01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 作成された提案（pending）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/PhaseProposal' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 議事録 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 未処理の提案がある / 解析がまだ無い, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: AI 実行経路が使えない（PC 未接続 / 枠上限）, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /meetings/{meeting_id}/adoptable:
     get:

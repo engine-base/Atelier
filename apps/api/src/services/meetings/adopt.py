@@ -178,6 +178,15 @@ async def _meeting_row(session: AsyncSession, *, meeting_id: str) -> Any:
     return row
 
 
+async def load_meeting_analysis(row: Any) -> dict[str, Any]:
+    """GAP-187: 保存済みの解析結果を読む公開入口 (フェーズ提案が使う)。
+
+    row は external_uploads の parse_result_path / analysis_pending_since を
+    持つ行。まだ解析が無ければ AdoptError で正直に断る。
+    """
+    return await _load_analysis(row)
+
+
 async def _load_analysis(row: Any) -> dict[str, Any]:
     """保存済みの解析結果を読む。まだ無ければ正直に断る。"""
     if row.parse_result_path is None:
@@ -457,4 +466,5 @@ __all__ = [
     "extract_items",
     "item_key",
     "list_adoptable",
+    "load_meeting_analysis",
 ]

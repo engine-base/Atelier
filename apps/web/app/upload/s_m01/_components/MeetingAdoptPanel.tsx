@@ -19,8 +19,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   adoptItems as adoptItemsDefault,
   fetchAdoptable as fetchAdoptableDefault,
+  proposePhaseFromMeeting as proposePhaseDefault,
   type AdoptableItem,
   type AdoptKind,
+  type PhaseProposal,
 } from "./meeting-adopt";
 
 /** 種別ごとの見出しと、反映先の説明 (どこへ行くのかを隠さない)。 */
@@ -92,6 +94,10 @@ export interface MeetingAdoptPanelProps {
   /** 注入用 (省略時は実 API)。 */
   readonly fetchAdoptableFn?: typeof fetchAdoptableDefault;
   readonly adoptItemsFn?: typeof adoptItemsDefault;
+  /** GAP-187: この打合せを根拠に次フェーズを提案する。 */
+  readonly proposePhaseFn?: typeof proposePhaseDefault;
+  /** 提案後に進行画面へ誘導するリンク先 (未指定ならリンクを出さない)。 */
+  readonly flowHref?: string;
 }
 
 export function MeetingAdoptPanel({
@@ -100,6 +106,8 @@ export function MeetingAdoptPanel({
   onAdopted,
   fetchAdoptableFn = fetchAdoptableDefault,
   adoptItemsFn = adoptItemsDefault,
+  proposePhaseFn = proposePhaseDefault,
+  flowHref,
 }: MeetingAdoptPanelProps) {
   const [items, setItems] = useState<readonly AdoptableItem[]>([]);
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
@@ -107,6 +115,10 @@ export function MeetingAdoptPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // GAP-187: この打合せを根拠にした次フェーズ提案 (提案するだけ・確定はしない)
+  const [proposing, setProposing] = useState(false);
+  const [proposal, setProposal] = useState<PhaseProposal | null>(null);
+  const [proposeError, setProposeError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -163,6 +175,22 @@ export function MeetingAdoptPanel({
       })
       .catch(() => setError("反映できませんでした。時間をおいて再試行してください。"))
       .finally(() => setSaving(false));
+  };
+
+  const propose = (): void => {
+    setProposing(true);
+    setProposeError(null);
+    proposePhaseFn(meetingId)
+      .then((created) => setProposal(created))
+      .catch((e: unknown) => {
+        // サーバーが返した理由 (PC 未接続・枠上限・解析なし等) をそのまま出す
+        setProposeError(
+          e instanceof Error
+            ? e.message
+            : "フェーズを提案できませんでした。時間をおいて再試行してください。",
+        );
+      })
+      .finally(() => setProposing(false));
   };
 
   if (loading) {
@@ -312,6 +340,56 @@ export function MeetingAdoptPanel({
           <span className="text-[11.5px] text-on-surface-variant">
             すべて反映済みです
           </span>
+        ) : null}
+      </div>
+
+      {/* GAP-187: 打合せを根拠に「次に確定すべき工程」を提案する。
+          提案するだけで確定はしない — 承認は進行画面で人が行う。 */}
+      <div className="border-t border-border pt-3">
+        <h4 className="text-[12px] font-bold text-on-surface">次の工程を提案してもらう</h4>
+        <p className="mt-1 text-[11.5px] text-on-surface-variant">
+          この打合せで決まったこと・出た要件・未決事項をもとに、次に確定すべき工程を
+          1 つ提案します。提案されるだけで確定はしません（承認は進行画面で行います）。
+          お使いのパソコンの Claude で実行されます。
+        </p>
+        <button
+          type="button"
+          onClick={propose}
+          disabled={proposing}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-[7px] text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-variant disabled:opacity-50"
+        >
+          {proposing ? "提案を作っています…" : "この打合せから次の工程を提案"}
+        </button>
+
+        {proposeError ? (
+          <p role="alert" className="mt-2 text-[12px] font-semibold text-error">
+            {proposeError}
+          </p>
+        ) : null}
+
+        {proposal ? (
+          <div className="mt-2 rounded-md border border-primary/40 bg-primary-container/30 p-3">
+            <p className="text-[12.5px] font-bold text-on-surface">
+              提案: {proposal.name}
+            </p>
+            {proposal.description ? (
+              <p className="mt-0.5 text-[12px] text-on-surface">{proposal.description}</p>
+            ) : null}
+            <p className="mt-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-on-surface-variant">
+              {proposal.reason}
+            </p>
+            <p className="mt-1.5 text-[11.5px] text-on-surface-variant">
+              まだ確定していません。進行画面で承認すると工程になります。
+            </p>
+            {flowHref ? (
+              <a
+                href={flowHref}
+                className="mt-1 inline-block text-[11.5px] font-semibold text-primary underline"
+              >
+                進行画面で承認する
+              </a>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </section>

@@ -105,3 +105,30 @@ describe('SignupForm (T-UC-01)', () => {
     expect(await screen.findByText(/一致しません/)).toBeInTheDocument();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* GAP-188: AI 機能には利用者自身の Claude 契約が要ることを申込前に伝える */
+/* ------------------------------------------------------------------ */
+
+describe('SignupForm — 自分の Claude 契約が必要 (GAP-188)', () => {
+  it('規約の中に埋めず、申し込む前に見える場所で伝える', () => {
+    render(<SignupForm onSubmit={async () => undefined} />);
+    expect(
+      screen.getByText(/AI 機能のご利用には、お客様ご自身の Claude 契約が必要です/),
+    ).toBeInTheDocument();
+  });
+
+  it('誰の費用かを明示する（当社は AI 利用料を取らない / 契約は本人負担）', () => {
+    render(<SignupForm onSubmit={async () => undefined} />);
+    expect(
+      screen.getByText(/Claude の契約と料金はお客様のご負担となります/),
+    ).toBeInTheDocument();
+  });
+
+  it('契約が無くても使える範囲を隠さない', () => {
+    render(<SignupForm onSubmit={async () => undefined} />);
+    expect(
+      screen.getByText(/AI を使わない機能[\s\S]*はご利用いただけますが、AI 機能はご利用いただけません/),
+    ).toBeInTheDocument();
+  });
+});

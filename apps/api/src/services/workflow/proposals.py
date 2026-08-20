@@ -48,7 +48,7 @@ class PhaseProposalError(Exception):
 
 _COLS = (
     "id, project_id, name, description, reason, proposed_order, proposed_by, "
-    "status, approved_phase_id, created_at, resolved_at"
+    "status, approved_phase_id, created_at, resolved_at, source_meeting_id"
 )
 
 
@@ -65,6 +65,10 @@ def _row(row: Any) -> PhaseProposalResponse:
         approved_phase_id=(None if row.approved_phase_id is None else str(row.approved_phase_id)),
         created_at=row.created_at,
         resolved_at=row.resolved_at,
+        # GAP-187: この提案がどの打合せ由来かを画面に出す (根拠を隠さない)
+        source_meeting_id=(
+            None if getattr(row, "source_meeting_id", None) is None else str(row.source_meeting_id)
+        ),
     )
 
 
@@ -316,3 +320,271 @@ async def reject(
         )
     )
     return result
+
+
+# ── GAP-187: 議事録からフェーズを提案する ────────────────────────────
+#
+# 経営者指示「1,2 だね」の ②。
+#
+# これまでの提案は「既存フェーズとタスクの状況」だけを見ていた。打合せで
+# 決まったこと・出た要件・未決事項こそが「次に何を確定すべきか」の一番の
+# 材料なのに、それが根拠に入っていなかった。
+
+_MEETING_SYSTEM = (
+    "あなたは開発案件管理 SaaS の COO AI「ジャービス」です。"
+    "**打合せの議事録**と、プロジェクトの既存フェーズ状況を読み、"
+    "次に確定すべきフェーズを 1 つ提案してください。"
+    "提案は必ず議事録に書かれている内容を根拠にすること。"
+    "議事録に無いことを推測で足さないこと。"
+    "reason には**議事録のどの決定・要件・未決事項を根拠にしたか**を具体的に書くこと。"
+    "出力は次のキーを持つ JSON オブジェクトのみ: "
+    '{"name": "フェーズ名 (50 字以内)", "description": "内容の要約 (120 字以内)", '
+    '"reason": "議事録のどこを根拠にこの順序で提案するか (400 字以内)"}。'
+    "説明・コードフェンス・前置きを一切出力しないこと。"
+)
+
+#: 議事録から提案へ渡すセクション (見出し, JSON キー, 各項目の見出しフィールド)。
+_MEETING_SECTIONS: tuple[tuple[str, str, str], ...] = (
+    ("決まったこと", "decisions", "title"),
+    ("出た要件", "requirements", "title"),
+    ("未決事項", "open_questions", "question"),
+    ("リスク・懸念", "risks", "title"),
+)
+
+
+def meeting_digest(analysis: dict[str, Any]) -> str:
+    """議事録の解析結果を、提案の根拠として渡せる形に畳む。
+
+    **要約だけに頼らない** — 決定・要件・未決・リスクを見出しごとに並べて渡す
+    (GAP-184 で厚くした解析を活かす)。数値・次回予定も判断材料なので入れる。
+    """
+    lines: list[str] = []
+    summary = str(analysis.get("summary") or "").strip()
+    if summary:
+        lines.append(f"# 打合せの要約\n{summary}")
+
+    for label, key, field in _MEETING_SECTIONS:
+        raw = analysis.get(key)
+        if not isinstance(raw, list) or not raw:
+            continue
+        items: list[str] = []
+        for entry in raw:  # pyright: ignore[reportUnknownVariableType]
+            if not isinstance(entry, dict):
+                continue
+            item: dict[str, Any] = entry  # pyright: ignore[reportUnknownVariableType]
+            head = str(item.get(field) or "").strip()
+            if not head:
+                continue
+            detail = str(item.get("detail") or item.get("impact") or "").strip()
+            items.append(f"- {head}" + (f" — {detail}" if detail else ""))
+        if items:
+            lines.append(f"# {label}\n" + "\n".join(items))
+
+    facts = analysis.get("facts")
+    if isinstance(facts, list) and facts:
+        rows: list[str] = []
+        for entry in facts:  # pyright: ignore[reportUnknownVariableType]
+            if not isinstance(entry, dict):
+                continue
+            fact: dict[str, Any] = entry  # pyright: ignore[reportUnknownVariableType]
+            label_text = str(fact.get("label") or "").strip()
+            value = str(fact.get("value") or "").strip()
+            if label_text:
+                rows.append(f"- {label_text}: {value}")
+        if rows:
+            lines.append("# 数値・日付・金額\n" + "\n".join(rows))
+
+    nxt = analysis.get("next_meeting")
+    if isinstance(nxt, dict):
+        date = str(nxt.get("date") or "").strip()  # pyright: ignore[reportUnknownArgumentType]
+        agenda = str(nxt.get("agenda") or "").strip()  # pyright: ignore[reportUnknownArgumentType]
+        if date or agenda:
+            lines.append(f"# 次回\n- {date} {agenda}".rstrip())
+
+    return "\n\n".join(lines)
+
+
+async def propose_from_meeting(
+    session: AsyncSession,
+    *,
+    actor_id: str,
+    meeting_id: str,
+    client: Any | None = None,
+) -> PhaseProposalResponse | None:
+    """議事録を根拠に次フェーズを 1 つ提案する。
+
+    None = 議事録が不可視/不在。ValueError = pending 重複。
+    PhaseProposalError = 解析が無い / AI の経路が使えない (嘘の提案を作らない)。
+
+    **提案するだけで確定はしない。** 承認は既存のフェーズ提案フロー (GAP-150)
+    と同じで、人が承認して初めてフェーズになる。
+    """
+    from src.services.meetings.adopt import AdoptError, load_meeting_analysis
+
+    if not is_uuid(meeting_id):
+        return None
+    row = await session.execute(
+        text(
+            "select u.id, u.project_id, u.file_name, u.parse_result_path, "
+            "  u.analysis_pending_since, p.name as project_name "
+            "from public.external_uploads u "
+            "join public.projects p on p.id = u.project_id "
+            "where u.id = cast(:i as uuid) and u.deleted_at is null and p.deleted_at is null"
+        ),
+        {"i": meeting_id},
+    )
+    meeting = row.first()
+    if meeting is None:
+        return None
+    project_id = str(meeting.project_id)
+
+    dup = await session.execute(
+        text(
+            "select count(*) from public.phase_proposals "
+            "where project_id = cast(:pid as uuid) and status = 'pending'"
+        ),
+        {"pid": project_id},
+    )
+    if int(dup.scalar_one()) > 0:
+        raise ValueError("a pending phase proposal already exists for this project")
+
+    try:
+        analysis = await load_meeting_analysis(meeting)
+    except AdoptError as exc:
+        raise PhaseProposalError("analysis_missing", exc.message) from exc
+
+    digest = meeting_digest(analysis)
+    if digest.strip() == "":
+        raise PhaseProposalError(
+            "analysis_missing",
+            "この議事録には、フェーズ提案の根拠になる内容がありませんでした。",
+        )
+
+    phases = await session.execute(
+        text(
+            'select p."order", p.name, p.status, '
+            "(select count(*) from public.tasks t "
+            " where t.phase_id = p.id and t.deleted_at is null) as task_count "
+            "from public.phases p where p.project_id = cast(:pid as uuid) "
+            'order by p."order"'
+        ),
+        {"pid": project_id},
+    )
+    rows = phases.all()
+    phases_summary = (
+        "\n".join(
+            f"- 第 {r.order} 段階 {r.name} ({r.status}, タスク {r.task_count} 件)" for r in rows
+        )
+        or "(フェーズ未作成)"
+    )
+    next_order = max((int(r.order) for r in rows), default=0) + 1
+
+    name, description, reason, model = await _generate_from_meeting(
+        project_name=str(meeting.project_name),
+        file_name=str(meeting.file_name),
+        digest=digest,
+        phases_summary=phases_summary,
+        client=client,
+        actor_id=actor_id,
+    )
+
+    created_row = await session.execute(
+        text(
+            "insert into public.phase_proposals "
+            "(project_id, name, description, reason, proposed_order, model, "
+            " proposed_by, source_meeting_id) "
+            "values (cast(:pid as uuid), :n, :d, :r, :o, :m, 'jarvis', cast(:src as uuid)) "
+            f"returning {_COLS}"
+        ),
+        {
+            "pid": project_id,
+            "n": name,
+            "d": description,
+            "r": reason,
+            "o": next_order,
+            "m": model,
+            "src": meeting_id,
+        },
+    )
+    created = _row(created_row.one())
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="phase.proposal.propose_from_meeting",
+            target_type="project",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=project_id,
+            after={
+                "proposal_id": created.id,
+                "name": name,
+                "source_meeting_id": meeting_id,
+            },
+        )
+    )
+    return created
+
+
+async def _generate_from_meeting(
+    *,
+    project_name: str,
+    file_name: str,
+    digest: str,
+    phases_summary: str,
+    client: Any | None,
+    actor_id: str,
+) -> tuple[str, str | None, str, str]:
+    """議事録を根拠に提案を生成する。返り値 (name, description, reason, 経路)。
+
+    実行は費用順チェーン (relay = 本人の PC の Claude → agent_sdk → API → fake)。
+    経路が無いときは嘘の提案を作らず、そのまま誠実にエラーにする。
+    """
+    from src.services.chat_sse.llm_chain import LLMUnavailable, llm_complete_or_injected
+
+    def _fake() -> str:
+        return json.dumps(
+            {
+                "name": "次フェーズ提案（議事録ベース）",
+                "description": "[fake LLM] 打合せ内容を踏まえた次工程",
+                "reason": f"[fake LLM] 議事録「{file_name}」の内容を根拠に提案します。",
+            },
+            ensure_ascii=False,
+        )
+
+    user_text = (
+        f"プロジェクト名: {project_name}\n"
+        f"議事録: {file_name}\n\n"
+        f"{digest}\n\n"
+        f"# 既存フェーズとタスク状況\n{phases_summary}"
+    )
+    try:
+        out, provider = await llm_complete_or_injected(
+            system_prompt=_MEETING_SYSTEM,
+            user_text=user_text,
+            actor_id=actor_id,
+            max_tokens=1500,
+            fake=_fake,
+            client=client,
+            model=PROPOSE_MODEL,
+            temperature=0.3,
+        )
+    except LLMUnavailable as exc:
+        if exc.code in ("bridge_offline", "unconfigured"):
+            raise PhaseProposalError(
+                "bridge_offline" if exc.code == "bridge_offline" else "llm_unconfigured",
+                exc.message,
+            ) from exc
+        if exc.code == "rate_limited":
+            # GAP-184: 枠の上限は必ずリセットされる。恒久的な失敗と混ぜない。
+            raise PhaseProposalError("rate_limited", exc.message) from exc
+        raise PhaseProposalError("llm_failed", exc.message) from exc
+
+    try:
+        parsed = json.loads(_strip_fence(out))
+        name = str(parsed["name"]).strip()[:200]
+        reason = str(parsed["reason"]).strip()
+        description = str(parsed.get("description") or "").strip() or None
+    except (ValueError, KeyError, TypeError) as e:
+        raise PhaseProposalError("llm_failed", f"LLM 応答の JSON 解析に失敗: {e}") from e
+    if not name or not reason:
+        raise PhaseProposalError("llm_failed", "LLM が空の提案を返しました")
+    return name, description, reason, (PROPOSE_MODEL if provider == "injected" else provider)

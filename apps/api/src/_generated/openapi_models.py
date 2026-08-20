@@ -1243,6 +1243,7 @@ class PhaseProposal(BaseModel):
     approved_phase_id: UUID | None = None
     created_at: AwareDatetime | None = None
     resolved_at: AwareDatetime | None = None
+    source_meeting_id: UUID | None = None
 
 
 class AffectedItem(BaseModel):

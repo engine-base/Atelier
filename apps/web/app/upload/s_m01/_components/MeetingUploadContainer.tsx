@@ -281,6 +281,8 @@ export function MeetingUploadContainer({
       resuming={resumeMut.isPending}
       // GAP-186: 抽出項目の採用結果はトーストで返し、タスク/決定の一覧を更新する
       projectId={projectId}
+      // GAP-187: 提案は進行画面で承認する (ここでは確定しない)
+      flowHref={`/workflow?project=${projectId}`}
       onAdopted={(message) => {
         pushToast(message, "success");
         void queryClient.invalidateQueries({ queryKey: ["tasks"] });

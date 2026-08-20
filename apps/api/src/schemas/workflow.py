@@ -71,6 +71,8 @@ class PhaseProposalResponse(BaseModel):
     approved_phase_id: str | None
     created_at: datetime
     resolved_at: datetime | None
+    #: GAP-187: 根拠になった議事録 (null = 既存フェーズ状況からの提案)。
+    source_meeting_id: str | None = None
 
 
 class PhaseProposalApproveResponse(BaseModel):

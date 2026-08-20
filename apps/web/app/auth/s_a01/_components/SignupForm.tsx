@@ -95,6 +95,17 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
           className="w-full rounded-md border border-transparent bg-surface-variant px-3.5 py-2.5 text-sm text-on-surface transition-colors focus:border-primary focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-container"
         />
       </Field>
+      {/* GAP-188: AI 機能には利用者自身の Claude 契約が要る。規約の中に埋めず、
+          申し込む前に見える場所で伝える (「契約したのに使えない」を作らない)。 */}
+      <div className="rounded-md border border-border bg-surface p-3 text-xs leading-relaxed text-on-surface">
+        <p className="font-semibold">AI 機能のご利用には、お客様ご自身の Claude 契約が必要です</p>
+        <p className="mt-1 text-on-surface-variant">
+          Atelier の AI は、<strong>お客様ご自身のパソコン上で、お客様が Anthropic 社と契約した
+          Claude</strong> を使って動きます。当社は AI の利用料をいただかない代わりに、
+          Claude の契約と料金はお客様のご負担となります。ご契約が無い場合、AI を使わない機能
+          （案件・タスク・成果物の管理など）はご利用いただけますが、AI 機能はご利用いただけません。
+        </p>
+      </div>
       {/* 同意行 (モックの consent-row) */}
       <div>
         <label className="flex items-start gap-2.5 rounded-md bg-surface-variant p-3 text-xs leading-relaxed text-on-surface-variant">
