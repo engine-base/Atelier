@@ -1,0 +1,22 @@
+[1] SSE と同じ順序を再現する（文脈構築 → commit → 待ち → 保存）
+    文脈構築中: 接続 1 本 / role=authenticated
+  OK   文脈構築の間は接続を 1 本使う（当然）
+  OK   RLS の claims が入っている
+  OK   role が authenticated に下がっている
+    commit 直後: 接続 0 本
+  OK   **待っている間は接続を 0 本しか使わない**
+  OK   待っている間ずっと 0 本のまま
+    保存フェーズ: 接続 1 本 / role=authenticated
+  OK   保存のときだけ取り直す
+  OK   commit のあとも RLS の claims が効いている
+  OK   commit のあとも role が authenticated のまま
+
+[2] 同時 100 本の「待ち」で接続が増えないこと
+    100 本が待機中: 接続 0 本 / メモリ増 0.4 MB
+  OK   100 本待たせても DB 接続は 0 本
+
+[3] 比べる: 以前の方式（commit しないで待つ）
+    10 本が待機中: 接続 10 本 ← 人数ぶん食い潰す
+  OK   以前は待っている人数ぶん接続を握っていた（再現）
+
+PASS: 待機中の接続 0 本 / commit 後も RLS 継続 / 100 人待たせても 0 本 を実測

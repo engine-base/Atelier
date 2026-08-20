@@ -30,7 +30,7 @@ os.environ.setdefault(
 
 from fastapi import HTTPException
 
-from src.db.session import DatabaseSettings, pool_capacity
+from src.db.session import pool_capacity
 from src.routes.chat_sse import guarded_stream
 from src.services.chat_sse import capacity
 
@@ -43,15 +43,14 @@ def clean_counters():
 
 
 class TestLimitDerivation:
-    def test_limit_comes_from_pool_minus_reserve(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_default_comes_from_measurement_not_the_pool(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-201: 待機中は DB 接続を使わないので、プールから逆算しない。"""
         monkeypatch.delenv(capacity.MAX_CONCURRENT_ENV, raising=False)
-        expected = pool_capacity() - capacity.RESERVED_FOR_NON_STREAM
-        assert capacity.max_concurrent_streams() == expected
-
-    def test_reserve_keeps_room_for_normal_requests(self) -> None:
-        """チャットで全部使い切って一覧・保存まで詰まらせない。"""
-        assert capacity.RESERVED_FOR_NON_STREAM > 0
-        assert capacity.max_concurrent_streams() < pool_capacity()
+        assert capacity.max_concurrent_streams() == capacity.DEFAULT_MAX_CONCURRENT
+        # プールを小さくしても上限は変わらない (依存が切れていることの確認)
+        assert pool_capacity() < capacity.DEFAULT_MAX_CONCURRENT
 
     def test_env_can_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "3")
@@ -59,27 +58,16 @@ class TestLimitDerivation:
 
     def test_broken_env_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "たくさん")
-        assert capacity.max_concurrent_streams() == (
-            pool_capacity() - capacity.RESERVED_FOR_NON_STREAM
-        )
+        assert capacity.max_concurrent_streams() == capacity.DEFAULT_MAX_CONCURRENT
 
     def test_never_drops_below_minimum(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """プールが極端に小さくても 0 人にはしない。"""
-        monkeypatch.delenv(capacity.MAX_CONCURRENT_ENV, raising=False)
+        """小さすぎる設定でも 0 人にはしない。"""
+        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "1")
+        assert capacity.max_concurrent_streams() == capacity.MIN_CONCURRENT
 
-        def _tiny(settings: DatabaseSettings | None = None) -> int:
-            del settings
-            return 1
-
-        monkeypatch.setattr("src.db.session.pool_capacity", _tiny)
-        assert capacity.max_concurrent_streams() >= capacity.MIN_CONCURRENT
-
-    def test_default_pool_gives_a_usable_number(self) -> None:
-        """既定設定で 22 本 (プール 30 − 予備 8)。fly.toml の soft_limit と揃える値。"""
-        cfg = DatabaseSettings(
-            url="postgresql+asyncpg://u:p@h:5432/db", pool_size=20, max_overflow=10
-        )
-        assert pool_capacity(cfg) - capacity.RESERVED_FOR_NON_STREAM == 22
+    def test_default_is_the_measured_number(self) -> None:
+        """実測 (同時 150 本でポーリング p95 70ms) に基づく値であること。"""
+        assert capacity.DEFAULT_MAX_CONCURRENT == 150
 
 
 class TestAcquireRelease:
@@ -113,7 +101,7 @@ class TestGuardedStream:
 
     @pytest.mark.anyio
     async def test_stream_releases_after_completion(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "1")
+        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
         response = guarded_stream(self._gen())
         assert capacity.snapshot().open_streams == 1
         body = cast("AsyncIterator[bytes]", response.body_iterator)
@@ -126,7 +114,7 @@ class TestGuardedStream:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """途中で切られても 1 本返る (返らないと上限が減り続けて詰まる)。"""
-        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "1")
+        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
         response = guarded_stream(self._gen())
         iterator = cast("AsyncGenerator[bytes, None]", response.body_iterator)
         assert await anext(iterator) == b"data: 1\n\n"
@@ -138,13 +126,14 @@ class TestGuardedStream:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """黙って遅くならず、その場で「混んでいる」と伝える。"""
-        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "1")
-        guarded_stream(self._gen())  # 1 本目で埋める
+        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
+        guarded_stream(self._gen())  # 上限まで埋める
+        guarded_stream(self._gen())
         with pytest.raises(HTTPException) as excinfo:
             guarded_stream(self._gen())
         assert excinfo.value.status_code == 503
         assert "混み合っています" in str(excinfo.value.detail)
-        assert "1" in str(excinfo.value.detail)  # 上限の本数を伝える
+        assert "2" in str(excinfo.value.detail)  # 上限の本数を伝える
 
     def test_every_sse_endpoint_goes_through_the_guard(self) -> None:
         """SSE を返す全経路が同じ守りを通ること (1 か所だけ素通りを作らない)。"""
@@ -173,11 +162,7 @@ class TestFlyConfigMatchesReality:
 
     def test_soft_limit_matches_app_limit(self) -> None:
         """fly.toml の数字が「1 台でさばける本数」と一致していること。"""
-        cfg = DatabaseSettings(
-            url="postgresql+asyncpg://u:p@h:5432/db", pool_size=20, max_overflow=10
-        )
-        expected = pool_capacity(cfg) - capacity.RESERVED_FOR_NON_STREAM
-        assert f"soft_limit = {expected}" in self._fly()
+        assert f"soft_limit = {capacity.DEFAULT_MAX_CONCURRENT}" in self._fly()
 
     def test_old_misleading_limit_is_gone(self) -> None:
         assert "soft_limit = 50" not in self._fly()

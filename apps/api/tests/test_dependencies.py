@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy.orm import Session as SyncSession
 
 import src.dependencies as deps
 
@@ -142,9 +143,26 @@ def test_auth_settings_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
 # --------------------------------------------------------------------------- #
 # get_rls_session (fake session — DB 不要)
 # --------------------------------------------------------------------------- #
-class _FakeSession:
+class _FakeConnection:
+    """`after_begin` フックへ渡される同期コネクションの代役。"""
+
     def __init__(self) -> None:
         self.executed: list[Any] = []
+
+    def execute(self, statement: Any, params: Any = None) -> None:
+        self.executed.append((str(statement), params))
+
+
+class _FakeSession:
+    """GAP-201: RLS の投入は `after_begin` フック経由になったので、
+    フェイクにも本物の `sync_session` (SQLAlchemy の同期 Session) を持たせる。
+
+    `event.listen(..., "after_begin", ...)` は実 Session を対象に取るため、
+    ここをダミーのオブジェクトにすると登録自体が通らない。
+    """
+
+    def __init__(self) -> None:
+        self.sync_session = SyncSession()
         self.committed = False
         self.rolled_back = False
 
@@ -154,14 +172,17 @@ class _FakeSession:
     async def __aexit__(self, *exc: object) -> bool:
         return False
 
-    async def execute(self, statement: Any, params: Any = None) -> None:
-        self.executed.append((str(statement), params))
-
     async def commit(self) -> None:
         self.committed = True
 
     async def rollback(self) -> None:
         self.rolled_back = True
+
+    def begin_transaction(self) -> _FakeConnection:
+        """トランザクション開始を模擬し、フックが流した SQL を返す。"""
+        conn = _FakeConnection()
+        self.sync_session.dispatch.after_begin(self.sync_session, None, conn)
+        return conn
 
 
 def _patch_factory(monkeypatch: pytest.MonkeyPatch, session: _FakeSession) -> None:
@@ -181,13 +202,44 @@ def test_get_rls_session_commits_on_success(monkeypatch: pytest.MonkeyPatch) -> 
             await gen.__anext__()
 
     asyncio.run(run())
-    # set_config(request.jwt.claims) + set local role authenticated の 2 文が流れる
-    assert len(session.executed) == 2
-    assert "set_config" in session.executed[0][0]
-    assert session.executed[0][1] == {"claims": json.dumps({"sub": "u-1", "role": "authenticated"})}
-    assert "authenticated" in session.executed[1][0]
     assert session.committed is True
     assert session.rolled_back is False
+
+
+def test_rls_guard_reapplies_claims_on_every_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """GAP-201: role / claims は **トランザクションが始まるたび**に貼り直される。
+
+    `set local` は transaction-local なので、払い出し時に 1 回だけ入れる作りだと
+    リクエストの途中で commit した後の SQL が RLS 無しで走ってしまう。
+    ここでは「begin のたびに 2 文が流れる」ことを固定する。
+    """
+    session = _FakeSession()
+    _patch_factory(monkeypatch, session)
+    user = deps.CurrentUser(id="u-1", role="authenticated", claims={})
+    expected_claims = json.dumps({"sub": "u-1", "role": "authenticated"})
+
+    async def run() -> None:
+        gen = deps.get_rls_session(user)
+        await gen.__anext__()
+        with pytest.raises(StopAsyncIteration):
+            await gen.__anext__()
+
+    asyncio.run(run())
+
+    # 1 回目の transaction
+    first = session.begin_transaction()
+    assert len(first.executed) == 2
+    assert "set_config" in first.executed[0][0]
+    assert first.executed[0][1] == {"claims": expected_claims}
+    assert "authenticated" in first.executed[1][0]
+
+    # commit を挟んだ 2 回目の transaction でも同じものが流れる (ここが GAP-201)
+    second = session.begin_transaction()
+    assert len(second.executed) == 2
+    assert second.executed[0][1] == {"claims": expected_claims}
+    assert "authenticated" in second.executed[1][0]
 
 
 def test_get_rls_session_rolls_back_on_error(monkeypatch: pytest.MonkeyPatch) -> None:

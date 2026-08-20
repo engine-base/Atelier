@@ -26,5 +26,5 @@
 
 | # | 項目 | 今の状態 / いつ必要になるか |
 |---|---|---|
-| — | Supabase の Supavisor (transaction pooler) へ切替 | GAP-197/198 で同時チャットは **1 台 22 人 / 2 台 44 人**。それを超えるとき。asyncpg では `statement_cache_size=0` が要るため実 Supabase での検証が前提 |
+| — | 同時チャットをさらに増やす | GAP-201 で **1 台 150 人 / 2 台 300 人**（実測）。それを超えたときの手は 3 つ: ① 待機中のポーリングを 3 クエリ→1 クエリにまとめる（約 3 倍） ② ポーリングをやめて push (LISTEN/NOTIFY) ③ Supabase の Supavisor（asyncpg は `statement_cache_size=0` が要るため実 Supabase 検証が前提）。**断った回数が S-T01 に出る**ので必要時期は数字で分かる |
 | — | Bridge トークンを OS キーチェーンへ | 今は平文 JSON (mode 0600)。Electron の safeStorage へ移すには実機検証が要る (GAP-199 で明記) |

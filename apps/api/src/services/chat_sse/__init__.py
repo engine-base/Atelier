@@ -816,6 +816,20 @@ async def stream_chat(
     )
     yield _sse_event({"type": "start"})
 
+    # GAP-201: **ここで確定して DB 接続をいったん手放す**。
+    #
+    # この先は本人の PC (Bridge) の実行待ちで、長いと数分かかる。以前はその間
+    # ずっとリクエストの DB 接続を握ったままだったので、「同時に喋れる人数 =
+    # DB 接続の本数」になっていた (GAP-198 で実測)。
+    #
+    # commit すると接続はプールへ返り、次に SQL を投げた時に取り直される。
+    # role / claims は transaction-local なので普通なら消えるが、GAP-201 で
+    # `after_begin` に貼り直しを仕込んだので RLS は効いたまま。
+    #
+    # 副産物として **ユーザーの発言がこの時点で確定する** — 生成に失敗しても
+    # 「送ったのに消えた」が起きない。
+    await session.commit()
+
     # GAP-113: ATELIER_LLM_PROVIDER=agent_sdk でオーナーの Claude サブスク
     # (Agent SDK 認証) 経路に切替 (セルフホスト個人インスタンス専用 opt-in)。
     # GAP-114: 同 =relay で各ユーザー PC の Bridge (= 本人のプラン) へ中継。

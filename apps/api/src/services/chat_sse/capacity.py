@@ -1,20 +1,34 @@
-"""GAP-198: SSE (長時間つなぎっぱなし) の同時接続数を、実態に合わせて扱う。
+"""GAP-198 / GAP-201: SSE (長時間つなぎっぱなし) の同時接続数を実態に合わせて扱う。
 
-**これまでの実態**:
-    fly.toml には `soft_limit = 50` と書いてあり、docs にも「同時チャット 50 人で
-    2 台目が起動」と書いていた。だが **SSE のストリームは張っている間ずっと
-    リクエスト scope の DB セッションを 1 本掴んだまま**なので、実際の上限は
-    Fly の 50 ではなく **DB プールの本数**だった (GAP-197 以前は 1 台 15 本)。
+**GAP-198 で分かったこと**:
+    fly.toml には `soft_limit = 50` と書いてあったが、**SSE は張っている間ずっと
+    リクエスト scope の DB セッションを 1 本掴んだまま**だったので、実際の上限は
+    Fly の 50 ではなく **DB プールの本数** (当時 1 台 15 本) だった。
     上限に当たると `pool_timeout` ぶん黙って待たされ、最後に DB のエラー文が
     出るだけで、利用者にも運営にも「混んでいる」ことが分からなかった。
 
-**この GAP でやること**:
-    ① 上限を **アプリが自分で持つ** (DB プールから逆算する)
-    ② 上限に当たったら**黙って遅くならず**、日本語で「今は混み合っている」と返す
-    ③ 今いくつ開いているかを運営画面から見えるようにする
+**GAP-201 で外した制約**:
+    待っている間に `commit` して **DB 接続をプールへ返す**ようにした
+    (RLS は `after_begin` で貼り直すので効いたまま)。実測で
+    **同時 100 本を待たせても DB 接続は 0 本**になった。
+    → 同時チャットの上限は **もう DB プールでは決まらない**。
 
-**上限の決め方**: プールの上限 − 予備。予備を残すのは、チャットで全部使い切って
-**普通の画面操作 (一覧・保存) まで詰まらせない**ため。
+**では今は何が上限か (実測 / 2026-08-20)**:
+    待っている間もサーバーは 0.25 秒ごとに「Bridge から続きが届いたか」を
+    見に行く。その負荷が上限を決める。
+
+    2 回走らせた実測 (数字はマシンの都合でぶれるので幅で書く):
+
+    | 同時待機 | 1 回のポーリング p95 |
+    |---|---|
+    |  50 |  46〜55 ms |
+    | 100 |  57〜74 ms |
+    | 150 |  76〜90 ms |
+    | 200 | 104〜141 ms |
+    | 400 | 699〜787 ms (飽和 = 応答が遅れ始める) |
+
+    ポーリング間隔 250 ms に対して余裕がある **150 本/台** を既定にする
+    (2 台で 300 人)。それ以上は黙って遅くせず、日本語で断る。
 """
 
 from __future__ import annotations
@@ -22,27 +36,28 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-#: 普通の API 呼び出し用に残しておく接続数 (チャットで使い切らない)。
-RESERVED_FOR_NON_STREAM = 8
+#: 1 台が同時に張れる SSE の本数 (実測に基づく既定 — 上の表を参照)。
+#: ポーリング p95 が間隔 250ms に対して十分速い範囲で選んでいる。
+DEFAULT_MAX_CONCURRENT = 150
 
-#: 上限を直接指定する env (未設定なら DB プールから逆算)。
+#: 上限を直接指定する env (未設定なら DEFAULT_MAX_CONCURRENT)。
 MAX_CONCURRENT_ENV = "ATELIER_SSE_MAX_CONCURRENT"
 
-#: 逆算しても最低これだけは受ける (小さすぎる設定で 1 人も入れないのを防ぐ)。
+#: 小さすぎる設定で 1 人も入れないのを防ぐ下限。
 MIN_CONCURRENT = 2
 
 
 def max_concurrent_streams() -> int:
     """この 1 台が同時に張れる SSE の本数。
 
-    既定は「DB プールの上限 − 予備」。env で明示指定もできる。
+    GAP-201 以降、**DB プールからは逆算しない** (待機中は接続を使わないため)。
+    上限を決めているのは「待っている間のポーリング負荷」で、その実測値から
+    既定を置いている。env で明示指定もできる。
     """
     raw = (os.environ.get(MAX_CONCURRENT_ENV) or "").strip()
     if raw.isdigit() and int(raw) > 0:
-        return int(raw)
-    from src.db.session import pool_capacity
-
-    return max(MIN_CONCURRENT, pool_capacity() - RESERVED_FOR_NON_STREAM)
+        return max(MIN_CONCURRENT, int(raw))
+    return DEFAULT_MAX_CONCURRENT
 
 
 @dataclass
@@ -99,9 +114,9 @@ def reset_for_tests() -> None:
 
 
 __all__ = [
+    "DEFAULT_MAX_CONCURRENT",
     "MAX_CONCURRENT_ENV",
     "MIN_CONCURRENT",
-    "RESERVED_FOR_NON_STREAM",
     "StreamCapacity",
     "StreamCapacityExceeded",
     "acquire",

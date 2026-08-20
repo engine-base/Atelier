@@ -16,13 +16,19 @@ from src.services.chat_sse import relay as sse_relay
 
 
 class _FakeSession:
+    """GAP-201: `commit()` の回数を数える (待ちに入る前に確定しているかを見る)。"""
+
+    def __init__(self) -> None:
+        self.commits = 0
+
     async def __aenter__(self) -> Any:
         return self
 
     async def __aexit__(self, *args: Any) -> bool:
         return False
 
-    async def commit(self) -> None: ...
+    async def commit(self) -> None:
+        self.commits += 1
 
 
 @pytest.fixture()
@@ -149,8 +155,10 @@ async def test_stream_chat_allows_tools_on_relay(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(sse_relay, "relay_stream_chunks", _fake_relay)
     events: list[str] = []
+    # GAP-201: stream_chat は「待ちに入る前」に commit して DB 接続を手放す
+    session = _FakeSession()
     async for b in chat_sse.stream_chat(
-        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        session,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
         actor_id="u1",
         thread_id="t1",
         user_message="ファイル作って",
@@ -161,6 +169,7 @@ async def test_stream_chat_allows_tools_on_relay(monkeypatch: pytest.MonkeyPatch
     ):
         events.append(b.decode())
     joined = "".join(events)
+    assert session.commits >= 1, "待ちに入る前に commit していない (接続を握りっぱなし)"
     assert '"error"' not in joined  # 誠実エラーで弾かれていない
     assert '"tool"' in joined and "了解" in joined and '"end"' in joined
     assert captured["tools_mode"] == "approve"

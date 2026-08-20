@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 import types
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -247,12 +248,22 @@ def _patch_stream_chat_io(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(chat_sse, "AuditWriter", _FakeAuditWriter)
 
 
+class _CountingSession:
+    """GAP-201: stream_chat が「待ちに入る前」に commit することを受けるフェイク。"""
+
+    def __init__(self) -> None:
+        self.commits = 0
+
+    async def commit(self) -> None:
+        self.commits += 1
+
+
 async def _run_stream_chat() -> list[str]:
     from src.services import chat_sse
 
     events: list[str] = []
     async for b in chat_sse.stream_chat(
-        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        _CountingSession(),  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
         actor_id="actor",
         thread_id="thread",
         user_message="やあ",
@@ -313,7 +324,7 @@ async def test_stream_chat_uses_relay_when_opted_in(
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     events: list[str] = []
     async for b in chat_sse.stream_chat(
-        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        _CountingSession(),  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
         actor_id="actor",
         thread_id="thread",
         user_message="やあ",
@@ -345,7 +356,7 @@ async def test_stream_chat_relay_offline_message(
     monkeypatch.setenv(agent_sdk.PROVIDER_ENV, "relay")
     events: list[str] = []
     async for b in chat_sse.stream_chat(
-        None,  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
+        _CountingSession(),  # pyright: ignore[reportArgumentType]  - DB I/O は全てフェイク済
         actor_id="actor",
         thread_id="thread",
         user_message="やあ",
@@ -411,7 +422,7 @@ def test_build_options_off_has_no_tools() -> None:
     assert "cwd" not in kw
 
 
-def test_build_options_auto_enables_claude_code_tools(tmp_path) -> None:
+def test_build_options_auto_enables_claude_code_tools(tmp_path: Path) -> None:
     from src.services.chat_sse.agent_sdk import build_options_kwargs
 
     kw = build_options_kwargs(
@@ -427,7 +438,7 @@ def test_build_options_auto_enables_claude_code_tools(tmp_path) -> None:
     assert "ローカル作業ツール" in kw["system_prompt"]
 
 
-def test_chat_workspace_dir_default_and_override(tmp_path) -> None:
+def test_chat_workspace_dir_default_and_override(tmp_path: Path) -> None:
     from src.services.chat_sse.agent_sdk import chat_workspace_dir
 
     assert chat_workspace_dir({}).endswith("AtelierChatWork")
@@ -439,7 +450,7 @@ def test_chat_workspace_dir_default_and_override(tmp_path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_build_options_approve_uses_permission_prompt(tmp_path) -> None:
+def test_build_options_approve_uses_permission_prompt(tmp_path: Path) -> None:
     """approve は allowed_tools に載せない (載せると聞かずに自動許可される)。"""
     from src.services.chat_sse.agent_sdk import build_options_kwargs
 
@@ -453,6 +464,11 @@ def test_build_options_approve_uses_permission_prompt(tmp_path) -> None:
     assert kw["cwd"] == str(tmp_path)
     assert kw["max_turns"] > 1
     assert "承認制" in kw["system_prompt"]
+
+
+def _deny_result(message: str) -> tuple[str, str]:
+    """SDK の PermissionResultDeny の代役 (テスト用ファクトリ)。"""
+    return ("DENIED", message)
 
 
 @pytest.mark.asyncio
@@ -469,7 +485,7 @@ async def test_pc_can_use_tool_allow_flow() -> None:
         thread_id="t1",
         events=events,
         allow_result=lambda: "ALLOWED",
-        deny_result=lambda m: ("DENIED", m),
+        deny_result=_deny_result,
     )
     task = asyncio.ensure_future(cb("Bash", {"command": "echo hi"}, None))
     kind, payload = await asyncio.wait_for(events.get(), timeout=2)
@@ -499,7 +515,7 @@ async def test_pc_can_use_tool_deny_and_timeout() -> None:
         thread_id="t1",
         events=events,
         allow_result=lambda: "ALLOWED",
-        deny_result=lambda m: ("DENIED", m),
+        deny_result=_deny_result,
         timeout_seconds=0.05,
     )
     # deny
@@ -533,7 +549,7 @@ async def test_pc_can_use_tool_rejects_unlisted_tool() -> None:
         thread_id="t1",
         events=events,
         allow_result=lambda: "ALLOWED",
-        deny_result=lambda m: ("DENIED", m),
+        deny_result=_deny_result,
     )
     result = await cb("WebSearch", {"query": "x"}, None)
     assert result[0] == "DENIED" and "許可されていません" in result[1]
@@ -543,7 +559,7 @@ async def test_pc_can_use_tool_rejects_unlisted_tool() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_approve_emits_approval_chunks(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """approve モードの実ストリーム: 承認カード → allow → resolved → 応答 delta。"""
     import asyncio

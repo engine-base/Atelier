@@ -27,7 +27,8 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, status
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import shared_session_factory
@@ -135,6 +136,29 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
     return shared_session_factory()
 
 
+def _install_rls_guard(session: AsyncSession, claims: str) -> None:
+    """**トランザクションが始まるたびに** role と claims を貼り直す。
+
+    GAP-201: role / claims は `set local` = **transaction-local** なので、
+    途中で commit するとその瞬間に消える。以前は払い出し時に 1 回だけ入れて
+    いたため、リクエストの途中で commit したあとに実行される SQL は
+    **RLS が効かない状態 (接続ロールのまま) で走っていた**。
+
+    ここで `after_begin` に紐付けておけば、commit のたびに自動で貼り直る。
+    副産物として「待っている間だけ DB 接続を手放す」(SSE) が安全にできる。
+    """
+
+    def _apply(_sync_session: object, _transaction: object, connection: Connection) -> None:
+        # claims を先に設定 (権限のあるうちに) してから role を下げる。
+        connection.execute(
+            text("select set_config('request.jwt.claims', :claims, true)"),
+            {"claims": claims},
+        )
+        connection.execute(text("set local role authenticated"))
+
+    event.listen(session.sync_session, "after_begin", _apply)
+
+
 async def get_rls_session(
     user: Annotated[CurrentUser, Depends(get_current_user)],
 ) -> AsyncGenerator[AsyncSession, None]:
@@ -142,17 +166,14 @@ async def get_rls_session(
 
     接続単位で role=authenticated + request.jwt.claims を投入し、per-entity RLS が
     auth.uid() = user.id として評価されるようにする。例外時 rollback、正常時 commit。
+
+    GAP-201: 投入は `after_begin` フックで行うので、**リクエストの途中で
+    commit しても RLS は効いたまま**になる (以前は消えていた)。
     """
     factory = _session_factory()
     claims = json.dumps({"sub": user.id, "role": user.role})
     async with factory() as session:
-        # claims を先に設定 (superuser 権限のうちに) してから role を下げる。
-        # いずれも transaction-local (true) — pooled connection 越しの漏洩を防ぐ。
-        await session.execute(
-            text("select set_config('request.jwt.claims', :claims, true)"),
-            {"claims": claims},
-        )
-        await session.execute(text("set local role authenticated"))
+        _install_rls_guard(session, claims)
         # CommitBeforeResponseMiddleware がレスポンス送信「前」に commit できるよう
         # 現リクエストのセッションを contextvar へ登録する (read-your-own-write 整合)。
         token = current_rls_session.set(session)
