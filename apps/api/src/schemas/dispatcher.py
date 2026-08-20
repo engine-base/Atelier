@@ -165,6 +165,19 @@ class ChatRelayControlResponse(BaseModel):
     cancel: bool = False
 
 
+class ChatRelayFollowUpResponse(BaseModel):
+    """GAP-191: 実行中のターンへ流し込む「追い足し」1 件。
+
+    content が None = 今は何も無い。**実行中のジョブにだけ**返す
+    (終わった実行へ流し込まない — それは次のターンとして普通に流れる)。
+    """
+
+    #: 追い足しの本文 (無ければ None)
+    content: str | None = None
+    #: 消費した待ち行列の ID (画面から「送信済み」に見せるため)
+    queued_id: str | None = None
+
+
 class ChatRelayChunksRequest(BaseModel):
     """running ジョブへ chunk を追記 (seq_start からの連番)。
 

@@ -27,7 +27,7 @@ from typing import Annotated, NoReturn
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from src.db.session import create_engine, create_session_factory
+from src.db.session import shared_session_factory
 from src.schemas.dispatcher import (
     ChatRelayApprovalCreateRequest,
     ChatRelayApprovalCreateResponse,
@@ -38,6 +38,7 @@ from src.schemas.dispatcher import (
     ChatRelayChunksRequest,
     ChatRelayCompleteRequest,
     ChatRelayControlResponse,
+    ChatRelayFollowUpResponse,
     ChatRelayPickRequest,
     ChatRelayPickResponse,
     KanbanCompleteRequest,
@@ -60,7 +61,8 @@ router = APIRouter(tags=["kanban-tools"])
 
 @lru_cache(maxsize=1)
 def _bridge_session_factory() -> async_sessionmaker[AsyncSession]:
-    return create_session_factory(create_engine())
+    # GAP-197: engine はプロセスに 1 つ
+    return shared_session_factory()
 
 
 @dataclass(frozen=True)
@@ -377,6 +379,37 @@ async def chat_relay_control(
     except chat_run.RunControlError:
         cancelled = True
     return {"data": ChatRelayControlResponse(cancel=cancelled)}
+
+
+@router.get(
+    "/chat-relay/{job_id}/follow-up",
+    summary="実行中のターンへ流し込む追い足しを 1 件取り出す (GAP-191 / BridgeAuth)",
+)
+async def chat_relay_follow_up(
+    job_id: str, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, ChatRelayFollowUpResponse]:
+    """Bridge が実行中にポーリングする「今のうちに伝えたいこと」。
+
+    GAP-189 では追い足しは**実行が終わってから**次のジョブとして流していた。
+    GAP-191 で Bridge が claude を常駐させるようになったので、**走っている
+    ターンの中へそのまま**流し込めるようになった (Claude Code のインタラクティブで
+    作業中に入力するのと同じ)。取り出しは `for update skip locked` なので
+    二重には流れない。
+    """
+    from src.services import chat_run
+
+    try:
+        picked = await chat_run.consume_next_for_job(session, job_id=job_id)
+    except chat_run.RunControlError:
+        picked = None
+    if picked is None:
+        return {"data": ChatRelayFollowUpResponse()}
+    await session.commit()
+    return {
+        "data": ChatRelayFollowUpResponse(
+            content=str(picked["content"]), queued_id=str(picked["id"])
+        )
+    }
 
 
 @router.post(

@@ -12125,6 +12125,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat-relay/{job_id}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 実行中のターンへ流し込む追い足しを 1 件取り出す（GAP-191 / BridgeAuth）
+         * @description GAP-189 では追い足しは実行が終わってから次のジョブとして流していた。
+         *     GAP-191 で Bridge が claude を常駐させるようになったので、走っている
+         *     ターンの中へそのまま流し込める（Claude Code のインタラクティブで
+         *     作業中に入力するのと同じ）。取り出しは for update skip locked なので
+         *     二重には流れない。走っていないジョブには何も返さない。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 追い足し（無ければ content=null） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRelayFollowUpResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat-relay/{job_id}/approvals": {
         parameters: {
             query?: never;
@@ -20504,6 +20561,13 @@ export interface components {
             /** @description GAP-190: 再開できなかったときに使う「履歴を畳んだ」プロンプト。 どちらを使うかは Bridge が実ファイルを見て決める（サーバーは推測しない）。 */
             prompt_full?: string | null;
             no_available_job: boolean;
+        };
+        /** @description GAP-191 実行中のターンへ流し込む追い足し 1 件 */
+        ChatRelayFollowUpResponse: {
+            /** @description 追い足しの本文 (無ければ null) */
+            content?: string | null;
+            /** @description 消費した待ち行列の ID */
+            queued_id?: string | null;
         };
         /** @description GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める） */
         ChatRelayControlResponse: {

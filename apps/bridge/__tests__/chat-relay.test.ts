@@ -1024,3 +1024,156 @@ describe('ChatRelayWorker — セッションの実測値を報告する (GAP-19
     expect(sender.completes[0]?.session).toBeUndefined();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* GAP-191: 常駐プロセスで走らせ、実行中に追い足しを流し込む             */
+/* ------------------------------------------------------------------ */
+
+/** 1 行受け取るごとに result を返し、**終了しない**常駐型 fake-claude。 */
+function makePersistentFakeClaude(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'fake-persist-'));
+  const path = join(dir, 'fake-claude.mjs');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env node',
+      "let buf = '';",
+      'let n = 0;',
+      "process.stdin.on('data', (d) => {",
+      '  buf += d.toString();',
+      "  const lines = buf.split('\\n');",
+      "  buf = lines.pop() ?? '';",
+      '  for (const line of lines) {',
+      '    if (!line.trim()) continue;',
+      '    let msg; try { msg = JSON.parse(line); } catch { continue; }',
+      "    if (msg.type !== 'user') continue;",
+      '    n += 1;',
+      "    const content = msg.message?.content ?? '';",
+      "    console.log(JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text: 'T' + n + ':' + content } } }));",
+      "    setTimeout(() => console.log(JSON.stringify({ type: 'result', subtype: 'success', result: 'done' + n })), 120);",
+      '  }',
+      '});',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+const PLAN_SESSION = '11111111-2222-4333-8444-555555555555';
+
+describe('GAP-191 常駐プロセスと実行中の追い足し', () => {
+  afterEach(() => ChatRelayWorker.sessions.closeAll());
+
+  function makePersistentWorker(
+    sender: FakeSender,
+    env: Record<string, string | undefined> = {},
+  ): ChatRelayWorker {
+    return new ChatRelayWorker(sender, {
+      workerId: 'test#persist',
+      command: makePersistentFakeClaude(),
+      timeoutMs: 10_000,
+      env: {
+        PATH: process.env.PATH,
+        ATELIER_BRIDGE_CHAT_WORKSPACE: mkdtempSync(join(tmpdir(), 'g191-ws-')),
+        ...env,
+      },
+      flushIntervalMs: 5,
+      cancelPollMs: 20,
+      auditHome: mkdtempSync(join(tmpdir(), 'g191-audit-')),
+    });
+  }
+
+  it('ツールありジョブは常駐プロセスで走り、プロセスが残る（次のターンで使い回せる）', async () => {
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-persist-1',
+      systemPrompt: 'SYS',
+      prompt: 'こんにちは',
+      toolsMode: 'auto',
+      sessionId: PLAN_SESSION,
+    };
+    const worker = makePersistentWorker(sender);
+    expect(await worker.runOnce()).toBe('completed');
+    expect(ChatRelayWorker.sessions.size).toBe(1);
+    const texts = sender.chunks.flatMap((c) => c.texts);
+    expect(texts.join('')).toContain('T1:こんにちは');
+  });
+
+  it('実行中に届いた追い足しを、そのターンの中へ流し込む', async () => {
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-persist-2',
+      systemPrompt: 'SYS',
+      prompt: '長い作業',
+      toolsMode: 'auto',
+      sessionId: PLAN_SESSION,
+    };
+    const delivered: string[] = [];
+    // 1 回だけ追い足しを返すサーバー
+    let served = false;
+    (sender as unknown as { chatRelayFollowUp: (id: string) => Promise<string | null> })
+      .chatRelayFollowUp = async () => {
+      if (served) return null;
+      served = true;
+      delivered.push('やっぱりこうして');
+      return 'やっぱりこうして';
+    };
+    const worker = makePersistentWorker(sender);
+    await worker.runOnce();
+    expect(delivered).toEqual(['やっぱりこうして']);
+    const texts = sender.chunks.flatMap((c) => c.texts).join('');
+    // 画面にも「実行中に追加で伝えた」ことが残る（黙って混ぜない）
+    expect(texts).toContain('実行中に追加で伝えました');
+    expect(texts).toContain('やっぱりこうして');
+  });
+
+  it('常駐を切れば従来どおり 1 ターン 1 プロセスに戻る', async () => {
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-persist-3',
+      systemPrompt: 'SYS',
+      prompt: 'こんにちは',
+      toolsMode: 'auto',
+      sessionId: PLAN_SESSION,
+    };
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#off',
+      command: makeFakeClaude([DELTA_A, RESULT_OK]),
+      timeoutMs: 10_000,
+      env: {
+        PATH: process.env.PATH,
+        ATELIER_BRIDGE_PERSISTENT: '0',
+        ATELIER_BRIDGE_CHAT_WORKSPACE: mkdtempSync(join(tmpdir(), 'g191-ws-')),
+      },
+      flushIntervalMs: 5,
+      auditHome: mkdtempSync(join(tmpdir(), 'g191-audit-')),
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(ChatRelayWorker.sessions.size).toBe(0);
+  });
+
+  it('セッションが無いジョブ（モック生成等）は常駐しない', async () => {
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-persist-4',
+      systemPrompt: 'SYS',
+      prompt: 'こんにちは',
+      toolsMode: 'auto',
+    };
+    const worker = new ChatRelayWorker(sender, {
+      workerId: 'test#nosession',
+      command: makeFakeClaude([DELTA_A, RESULT_OK]),
+      timeoutMs: 10_000,
+      env: {
+        PATH: process.env.PATH,
+        ATELIER_BRIDGE_CHAT_WORKSPACE: mkdtempSync(join(tmpdir(), 'g191-ws-')),
+      },
+      flushIntervalMs: 5,
+      auditHome: mkdtempSync(join(tmpdir(), 'g191-audit-')),
+    });
+    expect(await worker.runOnce()).toBe('completed');
+    expect(ChatRelayWorker.sessions.size).toBe(0);
+  });
+});

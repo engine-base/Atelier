@@ -418,3 +418,67 @@ class TestQueuedInstructions:
                 session, thread_id=thread, actor_id=uid, content="溢れる分"
             )
         assert ei.value.code == "too_many"
+
+
+class TestFollowUpDuringRun:
+    """GAP-191: 走っているターンへ「今のうちに」流し込む経路。
+
+    GAP-189 では追い足しは**実行が終わってから**次のジョブとして流していた。
+    GAP-191 で Bridge が claude を常駐させたので、走っているターンの中へ
+    そのまま渡せるようになった。ここでは Bridge が呼ぶ経路 (job_id しか
+    知らない) が正しく効くことを固定する。
+    """
+
+    async def test_running_job_receives_the_next_instruction(self, session: AsyncSession) -> None:
+        uid = await _seed_user(session)
+        thread = await _seed_thread(session, owner=uid)
+        job = await _running_job(session, owner=uid, thread=thread)
+        await chat_run.queue_message(
+            session, thread_id=thread, actor_id=uid, content="やっぱり青で"
+        )
+        await session.commit()
+
+        picked = await chat_run.consume_next_for_job(session, job_id=job)
+        await session.commit()
+        assert picked is not None
+        assert picked["content"] == "やっぱり青で"
+
+    async def test_the_same_instruction_never_runs_twice(self, session: AsyncSession) -> None:
+        uid = await _seed_user(session)
+        thread = await _seed_thread(session, owner=uid)
+        job = await _running_job(session, owner=uid, thread=thread)
+        await chat_run.queue_message(session, thread_id=thread, actor_id=uid, content="1 度だけ")
+        await session.commit()
+
+        first = await chat_run.consume_next_for_job(session, job_id=job)
+        second = await chat_run.consume_next_for_job(session, job_id=job)
+        await session.commit()
+        assert first is not None
+        assert second is None
+
+    async def test_finished_job_gets_nothing(self, session: AsyncSession) -> None:
+        """終わった実行へ流し込まない (捨てずに次のターンとして流す)。"""
+        uid = await _seed_user(session)
+        thread = await _seed_thread(session, owner=uid)
+        job = await _running_job(session, owner=uid, thread=thread)
+        await session.execute(
+            text("update public.chat_relay_jobs set status='done' where id = cast(:i as uuid)"),
+            {"i": job},
+        )
+        await chat_run.queue_message(session, thread_id=thread, actor_id=uid, content="あとで")
+        await session.commit()
+
+        assert await chat_run.consume_next_for_job(session, job_id=job) is None
+        # **消えていない** — 画面の待ち行列に残っている
+        items = await chat_run.list_queued(session, thread_id=thread, actor_id=uid)
+        assert [i["content"] for i in items] == ["あとで"]
+
+    async def test_system_job_without_thread_gets_nothing(self, session: AsyncSession) -> None:
+        uid = await _seed_user(session)
+        job = await _running_job(session, owner=uid, thread=None)
+        assert await chat_run.consume_next_for_job(session, job_id=job) is None
+
+    async def test_unknown_job_is_silent(self, session: AsyncSession) -> None:
+        import uuid as uuid_mod
+
+        assert await chat_run.consume_next_for_job(session, job_id=str(uuid_mod.uuid4())) is None

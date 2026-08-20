@@ -2602,6 +2602,21 @@ class ChatRelayPickResponse(BaseModel):
     no_available_job: bool
 
 
+class ChatRelayFollowUpResponse(BaseModel):
+    """
+    GAP-191 実行中のターンへ流し込む追い足し 1 件
+    """
+
+    content: str | None = None
+    """
+    追い足しの本文 (無ければ null)
+    """
+    queued_id: str | None = None
+    """
+    消費した待ち行列の ID
+    """
+
+
 class ChatRelayControlResponse(BaseModel):
     """
     GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める）

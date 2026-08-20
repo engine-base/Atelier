@@ -88,6 +88,11 @@ export interface BridgeApi {
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
   /** GAP-189: 中断を言われていないかをポーリングで読む (true なら子プロセスを止める)。 */
   chatRelayControl(jobId: string): Promise<boolean>;
+  /**
+   * GAP-191: 実行中のターンへ流し込む追い足しを 1 件取り出す。
+   * 無ければ null。取り出しはサーバー側で消費済みになるので二重には流れない。
+   */
+  chatRelayFollowUp(jobId: string): Promise<string | null>;
   /** GAP-137/145: 成果物 (HTML + 画像/PPTX/PDF 等バイナリ) の送信 — complete の前に呼ぶ。 */
   chatRelayUploadArtifacts(
     jobId: string,
@@ -353,6 +358,16 @@ export class ApiClient implements BridgeApi {
       data: { decision: ChatRelayApprovalDecision };
     };
     return json.data.decision;
+  }
+
+  async chatRelayFollowUp(jobId: string): Promise<string | null> {
+    // GAP-191: 走っているターンへ差し込む指示。通信できないときは null
+    // (通信不良で存在しない指示を流し込まない)。
+    const json = (await this.get(`/chat-relay/${jobId}/follow-up`)) as {
+      data: { content?: string | null };
+    };
+    const content = json.data.content;
+    return typeof content === 'string' && content.trim() !== '' ? content : null;
   }
 
   async chatRelayControl(jobId: string): Promise<boolean> {

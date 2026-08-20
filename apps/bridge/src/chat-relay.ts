@@ -35,6 +35,14 @@ import type {
   ChatRelayPicked,
   ChatRelayRateLimitObservation,
 } from './api-client.js';
+// GAP-191: スレッドごとに claude を常駐させ、実行中でも指示を流し込む。
+import {
+  PersistentSession,
+  PersistentSessionPool,
+  idleTimeoutMs,
+  persistentEnabled,
+  sessionKey,
+} from './persistent-session.js';
 // GAP-199: クラウド由来の値をそのまま信じない (上限は PC 側が決める)。
 import {
   appendAudit,
@@ -47,6 +55,13 @@ export const CHAT_RELAY_ENABLED_ENV = 'ATELIER_BRIDGE_CHAT_RELAY';
 export const CHAT_WORKSPACE_ENV = 'ATELIER_BRIDGE_CHAT_WORKSPACE';
 
 export type ChatToolsMode = 'off' | 'approve' | 'auto';
+
+/**
+ * GAP-191: 実行中のターンへ届いた追い足しを、画面にもそれと分かる形で残す。
+ * 黙って会話に混ぜると「言ったのに反映されていない」に見える。
+ */
+export const FOLLOW_UP_MARK = (text: string): string =>
+  `\n\n---\n（実行中に追加で伝えました）${text}\n---\n`;
 
 /** GAP-134: PC 操作で使える Claude Code ツール (サーバー側 _AUTO_TOOLS と同一)。 */
 export const ALLOWED_TOOLS = ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'] as const;
@@ -184,6 +199,13 @@ export function buildChatArgs(
    * ターンごとに変わるので、履歴を送らなくても最新の文脈は効かせる。
    */
   session: { readonly sessionId: string; readonly resume: boolean } | null = null,
+  /**
+   * GAP-191: 常駐プロセスとして起動するか。
+   * true なら `--input-format stream-json` を必ず付ける — stdin を開いたままに
+   * して、**ターンをまたいで / 実行中にも**指示を送れるようにするため
+   * (実 CLI で 1 プロセス・同一 session_id のまま 2 ターン処理できることを確認済み)。
+   */
+  persistent = false,
 ): string[] {
   const base = [
     '-p',
@@ -208,9 +230,11 @@ export function buildChatArgs(
       ALLOWED_TOOLS.join(','),
       '--permission-mode',
       'bypassPermissions',
+      ...(persistent ? ['--input-format', 'stream-json'] : []),
     ];
   }
   if (toolsMode === 'approve') {
+    // approve は元から stream-json 入力 (承認往復のため stdin を開いたままにする)
     return [
       ...base,
       '--max-turns',
@@ -532,6 +556,11 @@ export interface ChatRelaySender {
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
   /** GAP-189: 中断要求のポーリング (true なら PC 上の claude を実際に止める)。 */
   chatRelayControl(jobId: string): Promise<boolean>;
+  /**
+   * GAP-191: 実行中のターンへ流し込む追い足しを 1 件取り出す (無ければ null)。
+   * 常駐プロセスを使っているときだけ呼ぶ — 取り出して捨てると指示が消えるため。
+   */
+  chatRelayFollowUp?(jobId: string): Promise<string | null>;
   /** GAP-137: 成果物 (HTML) を送る — complete の前に呼ぶ契約。 */
   chatRelayUploadArtifacts(jobId: string, artifacts: readonly ChatArtifact[]): Promise<void>;
   /** GAP-141: ツールジョブ開始前に作業場へ展開する「正本」一式。 */
@@ -594,7 +623,35 @@ interface PendingChunk {
  * 応答長に比例して往復が増えるため)。送信失敗はリトライせず job を error で
  * 確定する (SSE 側はタイムアウトかエラーで誠実に終わる)。
  */
+/** GAP-191: 実行中のターンを外から操作する口。 */
+export interface PersistentTurnHandle {
+  /** この PC 上の claude を実際に止める。 */
+  readonly kill: () => void;
+  /** 実行中でも指示を流し込む (送れたら true)。 */
+  readonly inject: (text: string) => boolean;
+  readonly pid: number | undefined;
+}
+
+/** runChild / runPersistent の戻り値 (同じ形で扱う)。 */
+export interface RunChildResult {
+  ok: boolean;
+  exitCode: number | null;
+  timedOut: boolean;
+  assistantText: string;
+  spawnFailed: boolean;
+  stderrTail: string;
+  resultDetail: string;
+  /** GAP-191: 既に生きていたプロセスを使い回したか (起動コストが要らなかった)。 */
+  reusedProcess?: boolean;
+}
+
 export class ChatRelayWorker {
+  /**
+   * GAP-191: スレッド (セッション) ごとの常駐プロセス台帳。
+   * worker はジョブごとに使い回されるので、プロセスは**クラス側**で持つ。
+   */
+  static readonly sessions = new PersistentSessionPool();
+
   constructor(
     private readonly api: ChatRelaySender,
     private readonly config: ChatRelayConfig,
@@ -732,6 +789,8 @@ export class ChatRelayWorker {
     // 通信できないときは中断とみなさない (通信不良で仕事を殺さない)。
     let cancelled = false;
     let killChild: (() => void) | null = null;
+    // GAP-191: 走っているターンへ**そのまま**流し込む口 (常駐プロセスのときだけ非 null)。
+    let injectFollowUp: ((text: string) => boolean) | null = null;
     const cancelTimer = setInterval(() => {
       void this.api
         .chatRelayControl(jobId)
@@ -743,37 +802,75 @@ export class ChatRelayWorker {
         .catch(() => {
           /* 通信不良は中断ではない — 走っている仕事を殺さない */
         });
+      // GAP-191: 中断の見張りと同じ間隔で「追い足し」も見る。
+      // 常駐していないとき (従来動作) は取り出さない — 取り出して捨てると
+      // 指示が消えてしまう。その場合は実行後に次のジョブとして流れる。
+      if (injectFollowUp === null || cancelled) return;
+      const followUp = this.api.chatRelayFollowUp?.bind(this.api);
+      if (followUp === undefined) return;
+      void followUp(jobId)
+        .then((text: string | null) => {
+          if (text === null || cancelled) return;
+          const sent = injectFollowUp?.(text) ?? false;
+          if (sent) {
+            // 画面にも「今の実行に届いた」ことを出す (黙って混ぜない)
+            pending.push({ text: FOLLOW_UP_MARK(text), chunkKind: 'delta' });
+          } else {
+            console.error('[bridge:chat-relay] 追い足しを流し込めませんでした');
+          }
+        })
+        .catch(() => {
+          /* 通信不良は「追い足し無し」として扱う */
+        });
     }, Math.max(this.config.cancelPollMs ?? 2_000, 1));
 
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
     let run;
+    // GAP-191: 常駐プロセスが使えるのは「セッションがある」かつ「ツールあり」のとき。
+    // off モードは 1 往復で終わる軽い経路なので従来どおり (stdin にテキストを書いて閉じる)。
+    const usePersistent =
+      persistentEnabled(this.config.env) && plan !== null && toolsMode !== 'off';
+    const onItem = (item: ChatStreamItem): void => {
+      if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
+      else if (item.kind === 'tool_start') pending.push({ text: item.tool, chunkKind: 'tool' });
+      else if (item.kind === 'tool_detail')
+        // GAP-148: 実入力の要約 (JSON) — UI が名前だけの行を実値行へ格上げする
+        pending.push({
+          text: JSON.stringify({ tool: item.tool, summary: item.summary }),
+          chunkKind: 'tool',
+        });
+      else if (item.kind === 'rate_limit')
+        rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
+    };
     try {
-      run = await this.runChild(
-        systemPrompt,
-        prompt,
-        toolsMode,
-        plan,
-        decideApproval,
-        (item) => {
-          if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
-          else if (item.kind === 'tool_start')
-            pending.push({ text: item.tool, chunkKind: 'tool' });
-          else if (item.kind === 'tool_detail')
-            // GAP-148: 実入力の要約 (JSON) — UI が名前だけの行を実値行へ格上げする
-            pending.push({
-              text: JSON.stringify({ tool: item.tool, summary: item.summary }),
-              chunkKind: 'tool',
-            });
-          else if (item.kind === 'rate_limit')
-            rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
-        },
-        (kill) => {
-          killChild = kill;
-          // 見張りが先に「止めろ」を掴んでいた場合の取りこぼしを防ぐ。
-          if (cancelled) kill();
-        },
-      );
+      run = usePersistent
+        ? await this.runPersistent(
+            systemPrompt,
+            prompt,
+            toolsMode,
+            plan as SessionPlan,
+            decideApproval,
+            onItem,
+            (handle) => {
+              killChild = handle.kill;
+              injectFollowUp = handle.inject;
+              if (cancelled) handle.kill();
+            },
+          )
+        : await this.runChild(
+            systemPrompt,
+            prompt,
+            toolsMode,
+            plan,
+            decideApproval,
+            onItem,
+            (kill) => {
+              killChild = kill;
+              // 見張りが先に「止めろ」を掴んでいた場合の取りこぼしを防ぐ。
+              if (cancelled) kill();
+            },
+          );
     } finally {
       clearInterval(timer);
       clearInterval(cancelTimer);
@@ -856,6 +953,149 @@ export class ChatRelayWorker {
       : Math.max(this.config.timeoutMs, 600_000);
   }
 
+  /**
+   * GAP-191: 常駐プロセスで 1 ターン走らせる。
+   *
+   * 従来 (runChild) は 1 ターン 1 プロセスだった。ここではスレッド (セッション)
+   * ごとにプロセスを保ち、
+   *   - 2 ターン目以降は**起動もセッション復元も要らない**
+   *   - **実行中でも `injectFollowUp()` で指示を流し込める**
+   * ようにする。実 CLI で「1 プロセス・同一 session_id のまま 2 ターン処理」
+   * 「1 ターン目の実行中に送った 2 通目が受け取られる」ことを確認済み。
+   */
+  private runPersistent(
+    systemPrompt: string,
+    prompt: string,
+    toolsMode: ChatToolsMode,
+    session: SessionPlan,
+    decideApproval: (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<'allow' | 'deny'>,
+    onItem: (item: ChatStreamItem) => void,
+    onReady?: (handle: PersistentTurnHandle) => void,
+  ): Promise<RunChildResult> {
+    return new Promise((resolve) => {
+      const cwd = chatWorkspaceDir(this.config.env);
+      try {
+        mkdirSync(cwd, { recursive: true });
+      } catch {
+        /* 既存 or 権限 — CLI 側のエラーに任せる */
+      }
+      const key = sessionKey(cwd, session.sessionId);
+      const pool = ChatRelayWorker.sessions;
+      const before = pool.size;
+      const live = pool.acquire(
+        key,
+        () =>
+          new PersistentSession({
+            command: this.config.command,
+            args: [
+              ...(this.config.prependArgs ?? []),
+              ...buildChatArgs(systemPrompt, toolsMode, session, true),
+            ],
+            cwd,
+            env: sanitizedChildEnv(this.config.env),
+            idleMs: idleTimeoutMs(this.config.env),
+            onExit: () => pool.drop(key),
+          }),
+      );
+      const reused = live.alive;
+      live.start();
+      if (!live.alive) {
+        resolve({
+          ok: false,
+          exitCode: 127,
+          timedOut: false,
+          assistantText: '',
+          spawnFailed: true,
+          stderrTail: live.stderr,
+          resultDetail: '',
+        });
+        return;
+      }
+      void before;
+
+      let settled = false;
+      let timedOut = false;
+      let sawDelta = false;
+      let assistantText = '';
+      let resultOk: boolean | null = null;
+      let resultDetail = '';
+
+      const finish = (): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsubscribe();
+        resolve({
+          ok: !timedOut && resultOk !== false,
+          exitCode: timedOut ? null : 0,
+          timedOut,
+          assistantText: sawDelta ? '' : assistantText,
+          spawnFailed: false,
+          stderrTail: live.stderr,
+          resultDetail,
+          reusedProcess: reused,
+        });
+      };
+
+      const unsubscribe = live.onLine((line) => {
+        for (const d of extractToolDetails(line)) {
+          onItem({ kind: 'tool_detail', tool: d.tool, summary: d.summary });
+        }
+        const item = parseStreamLine(line);
+        if (item === null) return;
+        if (item.kind === 'delta') {
+          sawDelta = true;
+          onItem(item);
+        } else if (item.kind === 'tool_start' || item.kind === 'rate_limit') {
+          onItem(item);
+        } else if (item.kind === 'permission_request') {
+          void decideApproval(item.tool, item.input)
+            .catch(() => 'deny' as const)
+            .then((decision) => {
+              live.writeRaw(buildControlResponse(item.requestId, decision, item.input));
+            });
+        } else if (item.kind === 'assistant_text') {
+          assistantText += item.text;
+        } else if (item.kind === 'tool_detail') {
+          onItem(item);
+        } else {
+          resultOk = item.ok;
+          if (!item.ok && item.detail) resultDetail = item.detail;
+          // **stdin は閉じない** — 閉じるとプロセスが終わって常駐でなくなる。
+          finish();
+        }
+      });
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        // ターンが返らないプロセスは使い回さない (壊れたまま次のターンへ渡さない)
+        pool.drop(key);
+        finish();
+      }, this.jobTimeoutMs(toolsMode));
+
+      onReady?.({
+        // GAP-189 と同じ「実際に止める」口。常駐でも PC 上の claude を本当に殺す。
+        kill: () => {
+          pool.drop(key);
+        },
+        // GAP-191: **実行中に**追い足しを流し込む。
+        inject: (text: string) => live.send(text, { asFollowUp: true }),
+        pid: live.pid,
+      });
+
+      if (!live.send(prompt)) {
+        timedOut = false;
+        resultOk = false;
+        resultDetail = 'prompt を常駐プロセスへ送れませんでした';
+        pool.drop(key);
+        finish();
+      }
+    });
+  }
+
   private runChild(
     systemPrompt: string,
     prompt: string,
@@ -869,15 +1109,7 @@ export class ChatRelayWorker {
     onItem: (item: ChatStreamItem) => void,
     /** GAP-189: 起動直後に「この子プロセスを止める関数」を渡す。 */
     onSpawn?: (kill: () => void) => void,
-  ): Promise<{
-    ok: boolean;
-    exitCode: number | null;
-    timedOut: boolean;
-    assistantText: string;
-    spawnFailed: boolean;
-    stderrTail: string;
-    resultDetail: string;
-  }> {
+  ): Promise<RunChildResult> {
     return new Promise((resolve) => {
       // GAP-134/138: 常に本人 PC の作業フォルダをカレントにして実行する。
       // off モードでも cwd を固定しないと、Bridge の起動場所がたまたま

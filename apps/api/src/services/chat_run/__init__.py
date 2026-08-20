@@ -502,6 +502,31 @@ async def consume_next(
     }
 
 
+async def consume_next_for_job(session: AsyncSession, *, job_id: str) -> dict[str, Any] | None:
+    """GAP-191: 走っているジョブの「追い足し」を 1 件取り出す (Bridge 用)。
+
+    Bridge は job_id しか知らないので、ジョブからスレッドと依頼者を引いて
+    `consume_next` に渡す。**実行中の claude へそのまま流し込む**ための入口。
+
+    ジョブが走っていない (完了済み・中断済み) 場合は None — 終わった実行へ
+    追い足しを流し込まない (次のターンとして普通に流れる)。
+    """
+    row = (
+        await session.execute(
+            text(
+                "select thread_id, requested_by, status from public.chat_relay_jobs "
+                "where id = cast(:i as uuid)"
+            ),
+            {"i": job_id},
+        )
+    ).first()
+    if row is None or row.thread_id is None:
+        return None
+    if str(row.status) != "running":
+        return None
+    return await consume_next(session, thread_id=str(row.thread_id), actor_id=str(row.requested_by))
+
+
 async def drop_queued(
     session: AsyncSession, *, thread_id: str, queued_id: str, actor_id: str
 ) -> bool:
@@ -533,6 +558,7 @@ __all__ = [
     "assemble_answer",
     "cancel_requested",
     "consume_next",
+    "consume_next_for_job",
     "drop_queued",
     "list_queued",
     "persist_answer",
