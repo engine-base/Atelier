@@ -15549,6 +15549,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/uptime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 運営 admin: 外形監視の状態 (GAP-195)
+         * @description 自前のエラーログはサーバーが生きている前提でしか書けない。ここは運営インフラの 外側 (GitHub Actions) が API を経由せず直接 Supabase へ書いた記録なので、 サーバーが落ちていた時間もそのまま残る。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 対象ごとの現在状態と直近 24 時間の成功率 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UptimeStatusResponse"];
+                    };
+                };
+                /** @description 運営 admin 以外 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/errors": {
         parameters: {
             query?: never;
@@ -19075,6 +19124,31 @@ export interface components {
             /** @description 通知が最大どれだけ遅れるか (cron 間隔) */
             max_delay_minutes: number;
             data: components["schemas"]["AlertStateEntry"][];
+        };
+        /** @description GAP-195 外形監視 1 対象の現在状態 */
+        UptimeTargetStatus: {
+            target: string;
+            ok: boolean;
+            /** Format: date-time */
+            last_checked_at: string;
+            /**
+             * Format: date-time
+             * @description 現在の状態が続いている開始時刻
+             */
+            since?: string | null;
+            /** @description 直近 24 時間の成功率 (%) */
+            availability_24h?: number | null;
+            checks_24h: number;
+            last_error?: string | null;
+            last_latency_ms?: number | null;
+        };
+        /** @description GAP-195 外形監視の状態。data が空 = まだ一度も外から観測されていない */
+        UptimeStatusResponse: {
+            data: components["schemas"]["UptimeTargetStatus"][];
+            /** @description 監視の実行間隔 (分) */
+            interval_minutes: number;
+            /** Format: date-time */
+            last_observed_at?: string | null;
         };
         ErrorLogEntry: {
             /** Format: uuid */

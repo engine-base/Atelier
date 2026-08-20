@@ -1,0 +1,27 @@
+[1] 監視対象: http://127.0.0.1:32885/health
+[2] 通知先 (Slack の代わり): http://127.0.0.1:38171/hook
+[3] 稼働中を観測: {'status': 'ok', 'name': 'uptime', 'targets': '1', 'up': '1', 'down': '0', 'notified': '0'}
+[4] 監視対象を落とした (503 を返す状態)
+    観測: {'status': 'ok', 'name': 'uptime', 'targets': '1', 'up': '0', 'down': '1', 'notified': '1'}
+[5] 実際に届いた通知:
+      🔴 [Atelier] e2e-195-4b0b7e0f が応答しません
+      
+      URL: http://127.0.0.1:32885/health
+      症状: HTTP 503
+      3 回試行して全部失敗しました
+      判定理由: 落ちた
+      
+      運営画面: https://atelier.example/admin/s_t05
+[6] 落ちたままでは再通知しない (確認)
+[7] 復旧を観測: {'status': 'ok', 'name': 'uptime', 'targets': '1', 'up': '1', 'down': '0', 'notified': '1'}
+    実際に届いた通知:
+      🟢 [Atelier] e2e-195-4b0b7e0f が復旧しました
+      
+      URL: http://127.0.0.1:32885/health
+      応答: HTTP 200 (1 ms)
+      停止していた開始時刻: 2026-08-20 04:36 UTC
+      
+      運営画面: https://atelier.example/admin/s_t05
+[8] 集計: 状態=応答あり 24h 稼働率=50.0% (4 回)
+
+PASS: 稼働 → 停止 → 停止継続 → 復旧 を実 HTTP・実 DB・実通知で確認

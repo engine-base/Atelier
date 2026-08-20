@@ -42,6 +42,8 @@ from src.schemas.admin import (
     ClientErrorReport,
     ErrorLogEntry,
     HealthCheckRow,
+    UptimeStatusResponse,
+    UptimeTargetStatus,
 )
 from src.schemas.support import (
     SupportContactItem,
@@ -340,6 +342,41 @@ async def get_admin_alerts(
             )
             for r in rows
         ],
+    )
+
+
+@router.get(
+    "/admin/uptime",
+    summary="運営 admin: 外形監視の状態 (GAP-195)",
+)
+async def get_admin_uptime(user: UserDep) -> UptimeStatusResponse:
+    """運営インフラの外側から観測した結果を返す。
+
+    自前のエラーログはサーバーが生きている前提でしか書けない。ここは
+    GitHub Actions が **API を経由せず直接 Supabase へ** 書いた記録なので、
+    サーバーが落ちていた時間もそのまま残る。
+    """
+    _require_admin(user)
+    from src.observability.uptime import summarize
+
+    async with ops.service_session_factory()() as session:
+        rows = await summarize(session)
+    return UptimeStatusResponse(
+        data=[
+            UptimeTargetStatus(
+                target=r.target,
+                ok=r.ok,
+                last_checked_at=r.last_checked_at,
+                since=r.since,
+                availability_24h=r.availability_24h,
+                checks_24h=r.checks_24h,
+                last_error=r.last_error,
+                last_latency_ms=r.last_latency_ms,
+            )
+            for r in rows
+        ],
+        interval_minutes=15,
+        last_observed_at=max((r.last_checked_at for r in rows), default=None),
     )
 
 

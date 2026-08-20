@@ -872,6 +872,31 @@ components:
           type: array
           items: { $ref: '#/components/schemas/AlertStateEntry' }
 
+    UptimeTargetStatus:
+      type: object
+      description: GAP-195 外形監視 1 対象の現在状態
+      required: [target, ok, last_checked_at, checks_24h]
+      properties:
+        target: { type: string }
+        ok: { type: boolean }
+        last_checked_at: { type: string, format: date-time }
+        since: { type: string, format: date-time, nullable: true, description: 現在の状態が続いている開始時刻 }
+        availability_24h: { type: number, nullable: true, description: 直近 24 時間の成功率 (%) }
+        checks_24h: { type: integer }
+        last_error: { type: string, nullable: true }
+        last_latency_ms: { type: integer, nullable: true }
+
+    UptimeStatusResponse:
+      type: object
+      description: GAP-195 外形監視の状態。data が空 = まだ一度も外から観測されていない
+      required: [data, interval_minutes]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/UptimeTargetStatus' }
+        interval_minutes: { type: integer, description: 監視の実行間隔 (分) }
+        last_observed_at: { type: string, format: date-time, nullable: true }
+
     ErrorLogEntry:
       type: object
       required: [id, occurred_at, source, level, kind, message, fingerprint, count_24h]
@@ -9254,6 +9279,24 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AlertStatusResponse' }
+        '403': { description: 運営 admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /admin/uptime:
+    get:
+      tags: [admin]
+      summary: "運営 admin: 外形監視の状態 (GAP-195)"
+      description: >
+        自前のエラーログはサーバーが生きている前提でしか書けない。ここは運営インフラの
+        外側 (GitHub Actions) が API を経由せず直接 Supabase へ書いた記録なので、
+        サーバーが落ちていた時間もそのまま残る。
+      x-implementation-path: apps/api/src/routes/admin/__init__.py::get_admin_uptime
+      x-screen-ids: [S-T05]
+      responses:
+        '200':
+          description: 対象ごとの現在状態と直近 24 時間の成功率
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UptimeStatusResponse' }
         '403': { description: 運営 admin 以外, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /admin/errors:

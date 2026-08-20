@@ -968,6 +968,40 @@ class AlertStatusResponse(BaseModel):
     data: list[AlertStateEntry]
 
 
+class UptimeTargetStatus(BaseModel):
+    """
+    GAP-195 外形監視 1 対象の現在状態
+    """
+
+    target: str
+    ok: bool
+    last_checked_at: AwareDatetime
+    since: AwareDatetime | None = None
+    """
+    現在の状態が続いている開始時刻
+    """
+    availability_24h: float | None = None
+    """
+    直近 24 時間の成功率 (%)
+    """
+    checks_24h: int
+    last_error: str | None = None
+    last_latency_ms: int | None = None
+
+
+class UptimeStatusResponse(BaseModel):
+    """
+    GAP-195 外形監視の状態。data が空 = まだ一度も外から観測されていない
+    """
+
+    data: list[UptimeTargetStatus]
+    interval_minutes: int
+    """
+    監視の実行間隔 (分)
+    """
+    last_observed_at: AwareDatetime | None = None
+
+
 class Source(StrEnum):
     api = "api"
     web = "web"

@@ -1,0 +1,79 @@
+# Atelier — 外形監視 (GAP-195)
+#
+# なぜ GitHub Actions か:
+#   自前のエラーログ (GAP-182/194) は **サーバーが生きている前提**でしか書けない。
+#   Fly.io が完全に落ちたら記録も通知も残らず、復旧後に「いつからいつまで落ちて
+#   いたか」を答えられなかった。運営インフラの**外側**から見る目が要る。
+#
+# 費用: このリポジトリは public なので GitHub Actions は無料 (分数無制限)。
+#   監視 SaaS の契約も不要。15 分ごと × 月 2,880 回でも運営費用は 0 円。
+#
+# 記録先: **API を経由せず Supabase へ直接** 書く (API が落ちている時に
+#   API 経由で記録はできないため)。deploy.yml と同じ PROD_DATABASE_URL を使う。
+#
+# 必要な設定:
+#   secrets.PROD_DATABASE_URL          — 記録先 (deploy.yml と共用)
+#   vars.ATELIER_UPTIME_TARGETS        — 例: api=https://atelier-api-eb.fly.dev/health,web=https://atelier-web-coral.vercel.app
+#   secrets.ATELIER_ALERT_SLACK_WEBHOOK_URL / secrets.ATELIER_ALERT_EMAIL_TO — 通知先 (GAP-194 と共用)
+#   secrets.ATELIER_EMAIL_API_KEY      — メール通知に使う Resend key (任意)
+#
+# 注意 (GitHub の仕様):
+#   - schedule は混雑時に遅れることがある。分単位の精度は保証されない。
+#   - リポジトリが 60 日間非活性だと schedule は自動停止する。
+#   どちらも「監視が止まったこと」に気づけるよう、実行結果は S-T05 に出す。
+
+name: uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: "外形監視 (15 分ごと)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify required settings
+        env:
+          PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+          TARGETS: ${{ vars.ATELIER_UPTIME_TARGETS }}
+        run: |
+          # GAP-192 と同じ方針: 未設定を黙って skip しない。
+          # 監視が「設定漏れで動いていなかった」状態を静かに作らないため。
+          if [ -z "$TARGETS" ]; then
+            echo "::error::vars.ATELIER_UPTIME_TARGETS が未設定です"
+            echo "::error::例: api=https://<fly-app>.fly.dev/health,web=https://<vercel>.vercel.app"
+            exit 1
+          fi
+          if [ -z "$PROD_DATABASE_URL" ]; then
+            echo "::error::secrets.PROD_DATABASE_URL が未設定です (監視結果の記録先)"
+            exit 1
+          fi
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Probe and record
+        env:
+          # asyncpg 用に driver を差し替える (deploy.yml の psql 用 URL と同じ値)
+          ATELIER_DB_URL: ${{ secrets.PROD_DATABASE_URL }}
+          ATELIER_UPTIME_TARGETS: ${{ vars.ATELIER_UPTIME_TARGETS }}
+          ATELIER_ALERT_EMAIL_TO: ${{ secrets.ATELIER_ALERT_EMAIL_TO }}
+          ATELIER_ALERT_SLACK_WEBHOOK_URL: ${{ secrets.ATELIER_ALERT_SLACK_WEBHOOK_URL }}
+          ATELIER_ALERT_DASHBOARD_URL: ${{ vars.ATELIER_ALERT_DASHBOARD_URL }}
+          ATELIER_EMAIL_API_KEY: ${{ secrets.ATELIER_EMAIL_API_KEY }}
+          ATELIER_EMAIL_FROM_ADDRESS: ${{ vars.ATELIER_EMAIL_FROM_ADDRESS }}
+          ATELIER_AUTH_JWT_SECRET: "uptime-monitor-unused"
+        run: |
+          # postgresql:// → postgresql+asyncpg:// (値は GitHub がマスクするので出力しない)
+          export ATELIER_DB_URL="${ATELIER_DB_URL/postgresql:\/\//postgresql+asyncpg://}"
+          uv run --project apps/api python -m src.observability.uptime

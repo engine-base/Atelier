@@ -271,6 +271,36 @@ class AlertStatusResponse(BaseModel):
     data: list[AlertStateEntry]
 
 
+class UptimeTargetStatus(BaseModel):
+    """GAP-195: 外形監視 1 対象の現在状態。"""
+
+    target: str
+    ok: bool
+    last_checked_at: datetime
+    #: 現在の状態 (稼働中 / 停止中) が続いている開始時刻
+    since: datetime | None
+    #: 直近 24 時間の成功率 (%)。観測が無ければ null
+    availability_24h: float | None
+    #: 直近 24 時間の観測回数
+    checks_24h: int
+    last_error: str | None
+    last_latency_ms: int | None
+
+
+class UptimeStatusResponse(BaseModel):
+    """GAP-195: 外形監視の状態。
+
+    data が空 = **まだ一度も外から観測されていない**。監視が動いていないことを
+    「異常なし」と見せないため、画面ではその旨を明示する。
+    """
+
+    data: list[UptimeTargetStatus]
+    #: 監視の実行間隔 (分)。GitHub Actions の cron と一致
+    interval_minutes: int
+    #: 最後に観測が行われた時刻 (対象を問わず)。null = 一度も観測されていない
+    last_observed_at: datetime | None
+
+
 class HealthCheckRow(BaseModel):
     """実計測 / 実設定状態のみ (推測の稼働率は返さない)。"""
 

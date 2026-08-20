@@ -14,6 +14,7 @@ import { QueryProvider } from "../../../providers/query-provider";
 import { AuditLogContainer } from "./_components/AuditLogContainer";
 import { AlertStatusPanel } from "./_components/AlertStatusPanel";
 import { ErrorLogPanel } from "./_components/ErrorLogPanel";
+import { UptimePanel } from "./_components/UptimePanel";
 
 export default function ST05Page() {
   return (
@@ -57,6 +58,8 @@ export default function ST05Page() {
         <ErrorLogPanel />
         {/* GAP-194: 記録するだけでなく「届いているか」もここで見える。 */}
         <AlertStatusPanel />
+        {/* GAP-195: サーバーが落ちていた時間は、外から見た記録にしか残らない。 */}
+        <UptimePanel />
       </QueryProvider>
     </div>
   );
