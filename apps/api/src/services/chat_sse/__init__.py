@@ -437,6 +437,57 @@ async def _insert_message(
     return new_id
 
 
+#: GAP-189: 繋ぎ直しストリームのポーリング間隔と最大接続時間。
+_ATTACH_POLL_SECONDS = 0.25
+_ATTACH_TIMEOUT_ENV = "ATELIER_CHAT_ATTACH_TIMEOUT"
+_ATTACH_TIMEOUT_DEFAULT = 900.0
+
+
+def _attach_timeout_seconds() -> float:
+    """繋ぎ直しを維持する最大秒数 (既定 15 分)。"""
+    raw = os.environ.get(_ATTACH_TIMEOUT_ENV, "").strip()
+    try:
+        value = float(raw) if raw else _ATTACH_TIMEOUT_DEFAULT
+    except ValueError:
+        return _ATTACH_TIMEOUT_DEFAULT
+    return value if value > 0 else _ATTACH_TIMEOUT_DEFAULT
+
+
+async def _relay_answer_id(job_id: str, *, thread_id: str) -> str | None:
+    """GAP-189: relay ジョブの返答が保存された chat_messages.id を引く。
+
+    保存は complete_job (サーバー側のジョブ確定) が済ませている。まだ入って
+    いない稀なケース (確定と SSE の見え方のずれ) はここで冪等に保存する —
+    「chunk は DB にあるのにスレッドに答えが無い」を残さないため。
+    別 session を使うのは、SSE の generator が持つリクエスト scope の session
+    とジョブ確定側のトランザクションが別物だから (Bridge 側の commit を跨ぐ)。
+    """
+    from src.services import chat_run
+
+    from .relay import service_session_factory
+
+    factory = service_session_factory()
+    async with factory() as s:
+        result = await chat_run.persist_answer(s, job_id=job_id, thread_id=thread_id)
+        await s.commit()
+    return result.message_id
+
+
+async def _cancelled_result(job_id: str) -> tuple[str, int]:
+    """GAP-189: 中断されたターンの「ここまで」を返す (id, 文字数)。
+
+    保存自体は中断操作の時点で済んでいる。ここは画面に返すための読み取り。
+    """
+    from src.services import chat_run
+
+    from .relay import service_session_factory
+
+    factory = service_session_factory()
+    async with factory() as s:
+        saved = await chat_run.saved_answer(s, job_id=job_id)
+    return saved.message_id or "", saved.chars
+
+
 def _sse_event(payload: dict[str, Any]) -> bytes:
     """data: <json>\\n\\n の SSE event をエンコード。"""
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode()
@@ -608,6 +659,103 @@ async def _real_stream_chunks(
         msgs.append({"role": "user", "content": results})
 
 
+async def attach_run(
+    *,
+    job_id: str,
+    actor_id: str,
+) -> AsyncIterator[bytes]:
+    """GAP-189: すでに走っている実行に**繋ぎ直す** SSE ストリーム。
+
+    画面を閉じても PC は仕事を続けている。戻ってきたときに最初から見えるよう、
+    DB に溜まった chunk を先頭から流し直し、その後は追いつきながら中継する。
+    イベント形は stream_chat と同じなので、画面側は同じパーサで読める。
+
+    認可はここで行う (本人のジョブのみ)。終わっているジョブに繋いだ場合は
+    溜まっている分を流し切って end を返す — 「見に行ったら空だった」を作らない。
+    """
+    import asyncio
+
+    from src.services import chat_relay, chat_run
+
+    from .relay import service_session_factory
+
+    factory = service_session_factory()
+    async with factory() as s:
+        try:
+            snap = await chat_run.run_snapshot(s, job_id=job_id, actor_id=actor_id)
+        except chat_run.RunControlError as exc:
+            yield _sse_event({"type": "error", "content": exc.message})
+            return
+    if snap.thread_id is None:
+        yield _sse_event({"type": "error", "content": "この実行はチャットの返答ではありません。"})
+        return
+
+    yield _sse_event({"type": "run", "metadata": {"job_id": job_id, "attached": True}})
+
+    last_seq = -1
+    total = 0
+    deadline = asyncio.get_event_loop().time() + _attach_timeout_seconds()
+    while True:
+        async with factory() as s:
+            chunks = await chat_relay.fetch_chunks(s, job_id=job_id, after_seq=last_seq)
+            status, error = await chat_relay.job_result(s, job_id=job_id)
+        for seq, kind, content in chunks:
+            last_seq = seq
+            if not content:
+                continue
+            if kind == "tool":
+                yield _sse_event({"type": "tool", "content": content})
+            elif kind == "artifact":
+                try:
+                    payload = json.loads(content)
+                except ValueError:
+                    continue
+                if isinstance(payload, dict):
+                    yield _sse_event({"type": "artifact", "metadata": payload})
+            else:
+                total += len(content)
+                yield _sse_event({"type": "delta", "content": content})
+
+        if status in ("done", "error", "expired", "cancelled"):
+            async with factory() as s:
+                saved = await chat_run.persist_answer(s, job_id=job_id, thread_id=snap.thread_id)
+                await s.commit()
+            event = "cancelled" if status == "cancelled" else "end"
+            if status == "error":
+                # 生のプロバイダーエラー (内部情報) は画面へ流さない — 既存方針と同一。
+                logger.error("attached relay job %s ended with error: %s", job_id, error)
+                yield _sse_event(
+                    {
+                        "type": "error",
+                        "content": (
+                            "ローカル実行がエラーで終了しました。Bridge のログを確認してください。"
+                        ),
+                    }
+                )
+            yield _sse_event(
+                {
+                    "type": event,
+                    "metadata": {
+                        "assistant_message_id": saved.message_id or "",
+                        "user_message_id": "",
+                        "total_chars": total,
+                    },
+                }
+            )
+            return
+        if asyncio.get_event_loop().time() > deadline:
+            # 繋ぎっぱなしにしない。実行自体は PC で続いているので、
+            # もう一度開けば続きから見える (嘘の完了は出さない)。
+            yield _sse_event(
+                {
+                    "type": "error",
+                    "content": "実行はまだ続いています。画面を開き直すと続きから表示します。",
+                }
+            )
+            return
+        await asyncio.sleep(_ATTACH_POLL_SECONDS)
+
+
 async def stream_chat(
     session: AsyncSession,
     *,
@@ -761,6 +909,9 @@ async def stream_chat(
         )
 
     accumulated: list[str] = []
+    # GAP-189: relay 経路のこのターンの実行 ID。中断・繋ぎ直しの手掛かりであり、
+    # 返答の保存主体がサーバー (ジョブ確定) 側であることの目印でもある。
+    relay_job_id: str | None = None
     try:
         if use_relay:
             from .relay import relay_stream_chunks
@@ -823,6 +974,11 @@ async def stream_chat(
                     # GAP-137: 成果物のモック取り込み結果 — UI が「モック保存」
                     # カード (S-H01 へのリンク) を出すための実値。
                     yield _sse_event({"type": "artifact", "metadata": chunk["artifact"]})
+                elif "job" in chunk:
+                    # GAP-189: 実行 ID。画面はこれで「停止」を出せるようになり、
+                    # 閉じてしまっても同じ実行に繋ぎ直せる。
+                    relay_job_id = str(chunk["job"])
+                    yield _sse_event({"type": "run", "metadata": {"job_id": relay_job_id}})
                 else:
                     yield _sse_event({"type": "tool", "content": str(chunk.get("tool", ""))})
                 continue
@@ -852,8 +1008,23 @@ async def stream_chat(
                 await record_plan_observations(actor_id, sdk_rate_limits)
     except Exception as exc:  # pragma: no cover  - 実 LLM 障害は別レイヤ
         # GAP-114: リレー固有の失敗は原因を偽らず具体的に伝える (誠実設計)。
-        from .relay import RelayFailed, RelayTimeout, RelayUnavailable
+        from .relay import RelayCancelled, RelayFailed, RelayTimeout, RelayUnavailable
 
+        if isinstance(exc, RelayCancelled):
+            # GAP-189: 人が止めた = 失敗ではない。エラー文言を出さず、
+            # 「ここまで」を確定させて静かに終える (本文は保存済み)。
+            saved_id, saved_chars = await _cancelled_result(exc.job_id)
+            yield _sse_event(
+                {
+                    "type": "cancelled",
+                    "metadata": {
+                        "assistant_message_id": saved_id,
+                        "user_message_id": user_msg_id,
+                        "total_chars": saved_chars,
+                    },
+                }
+            )
+            return
         if isinstance(exc, RelayUnavailable):
             message = (
                 "ローカル実行 (Bridge) がオフラインのため応答できません。"
@@ -871,9 +1042,15 @@ async def stream_chat(
         return
 
     final_text = "".join(accumulated)
-    assistant_msg_id = await _insert_message(
-        session, thread_id=thread_id, role="assistant", content=final_text
-    )
+    if relay_job_id is not None:
+        # GAP-189: relay 経路の返答は **ジョブ確定時にサーバーが保存済み**。
+        # ここで入れ直すと二重投稿になるので、保存された id を引くだけにする
+        # (画面を閉じても答えが消えないのは、保存がこちらに寄っているため)。
+        assistant_msg_id = await _relay_answer_id(relay_job_id, thread_id=thread_id)
+    else:
+        assistant_msg_id = await _insert_message(
+            session, thread_id=thread_id, role="assistant", content=final_text
+        )
     if rag_ids:
         # GAP-012: RAG で実消費したナレッジの参照元 (このスレッド) を永続化し、
         # S-K01 バックリンクの逆引きデータ源にする。再参照は count++ に畳まれる。
@@ -886,16 +1063,17 @@ async def stream_chat(
             referrer_id=thread_id,
             context="チャット応答で参照（RAG）",
         )
-    await AuditWriter(session).write(
-        AuditEvent(
-            action="chat.message.create",
-            target_type="chat_message",
-            actor_type="user",
-            actor_id=actor_id,
-            target_id=assistant_msg_id,
-            after={"thread_id": thread_id, "role": "assistant"},
+    if assistant_msg_id is not None:
+        await AuditWriter(session).write(
+            AuditEvent(
+                action="chat.message.create",
+                target_type="chat_message",
+                actor_type="user",
+                actor_id=actor_id,
+                target_id=assistant_msg_id,
+                after={"thread_id": thread_id, "role": "assistant"},
+            )
         )
-    )
 
     # GAP-132: 応答完了後にローリング要約を非同期更新する (溢れが無ければ
     # no-op)。応答自体は既に配信済みなので体感遅延ゼロ。失敗しても
@@ -915,7 +1093,7 @@ async def stream_chat(
         {
             "type": "end",
             "metadata": {
-                "assistant_message_id": assistant_msg_id,
+                "assistant_message_id": assistant_msg_id or "",
                 "user_message_id": user_msg_id,
                 "total_chars": len(final_text),
             },

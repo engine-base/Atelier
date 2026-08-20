@@ -67,6 +67,10 @@ class FakeSender implements ChatRelaySender {
     kinds?: readonly ChatRelayChunkKind[],
   ): Promise<void> {
     this.chunks.push({ seqStart, texts, ...(kinds ? { kinds } : {}) });
+    // GAP-189: 「本文が出てきたのを見てから停止を押した」を決定的に再現する
+    if (this.cancelAfterChunks !== null && this.chunks.length >= this.cancelAfterChunks) {
+      this.cancel = true;
+    }
   }
   async chatRelayCreateApproval(_jobId: string, tool: string, summary: string): Promise<string> {
     this.approvals.push({ tool, summary });
@@ -74,6 +78,18 @@ class FakeSender implements ChatRelaySender {
   }
   async chatRelayApprovalDecision(): Promise<ChatRelayApprovalDecision> {
     return this.approvalDecision;
+  }
+  /** GAP-189: 中断の見張り。テストが cancel を立てると PC 上の子が kill される。 */
+  cancel = false;
+  /** N 回目の chunk 受信で cancel を立てる (人が本文を見てから止める再現)。 */
+  cancelAfterChunks: number | null = null;
+  /** true にすると control ポーリング自体が失敗する (通信不良の再現)。 */
+  controlFails = false;
+  controlCalls = 0;
+  async chatRelayControl(): Promise<boolean> {
+    this.controlCalls += 1;
+    if (this.controlFails) throw new Error('network down');
+    return this.cancel;
   }
   async chatRelayUploadArtifacts(
     _jobId: string,
@@ -783,4 +799,92 @@ describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
     expect(await worker.runOnce()).toBe('completed');
     expect(sender.callOrder).toEqual(['complete']);
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* GAP-189: 中断 — PC 上の claude を実際に止める                        */
+/* ------------------------------------------------------------------ */
+
+/** 出力してから長く居座る fake CLI (中断されない限り終わらない)。 */
+function makeSlowClaude(lines: readonly string[]): string {
+  const dir = mkdtempSync(join(tmpdir(), 'slow-claude-'));
+  const path = join(dir, 'slow-claude.mjs');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env node',
+      'process.stdin.resume();',
+      "process.stdin.on('data', () => {});",
+      ...lines.map((l) => `console.log(${JSON.stringify(l)});`),
+      '// 中断されるまで終わらない (実行中の状態を作る)',
+      'setInterval(() => {}, 1000);',
+    ].join('\n'),
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+function makeCancellableWorker(sender: FakeSender, command: string): ChatRelayWorker {
+  return new ChatRelayWorker(sender, {
+    workerId: 'test#cancel',
+    command,
+    timeoutMs: 30_000,
+    env: { PATH: process.env.PATH },
+    flushIntervalMs: 5,
+    cancelPollMs: 10, // 見張りを速く回す
+  });
+}
+
+describe('ChatRelayWorker — 中断 (GAP-189)', () => {
+  it('サーバーが中断を告げたら PC 上の claude を実際に止め、そこまでの本文は送る', async () => {
+    const sender = new FakeSender();
+    // 本文が 1 度届いた後に「停止」を押された状態を作る (実際の使われ方)
+    sender.cancelAfterChunks = 1;
+    sender.picked = { jobId: 'j-cancel', systemPrompt: 'SYS', prompt: 'P', toolsMode: 'off' };
+
+    const started = Date.now();
+    const worker = makeCancellableWorker(sender, makeSlowClaude([DELTA_A]));
+    const outcome = await worker.runOnce();
+    const elapsed = Date.now() - started;
+
+    // 居座る子プロセスなのに、タイムアウト (30 秒) を待たずに戻る = 実際に止めた
+    expect(outcome).toBe('completed');
+    expect(elapsed).toBeLessThan(10_000);
+    expect(sender.controlCalls).toBeGreaterThan(0);
+    // そこまでに出た本文は捨てない
+    expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toContain('やあ、');
+    // 中断であることが complete に残る (成功で塗り潰さない)
+    expect(sender.completes).toHaveLength(1);
+    expect(sender.completes[0]?.ok).toBe(false);
+    expect(sender.completes[0]?.error).toContain('[cancelled]');
+  }, 20_000);
+
+  it('中断されたときは成果物をツールへ取り込まない (途中の状態を反映しない)', async () => {
+    const sender = new FakeSender();
+    sender.cancel = true;
+    sender.picked = { jobId: 'j-cancel2', systemPrompt: 'SYS', prompt: 'P', toolsMode: 'auto' };
+    const worker = makeCancellableWorker(sender, makeSlowClaude([DELTA_A]));
+    await worker.runOnce();
+    expect(sender.artifactUploads).toHaveLength(0);
+    expect(sender.callOrder).not.toContain('artifacts');
+  }, 20_000);
+
+  it('見張りの通信が失敗しても中断扱いにしない (通信不良で仕事を殺さない)', async () => {
+    const sender = new FakeSender();
+    sender.controlFails = true;
+    sender.picked = { jobId: 'j-net', systemPrompt: 'SYS', prompt: 'P', toolsMode: 'off' };
+    const worker = makeCancellableWorker(sender, makeFakeClaude([DELTA_A, RESULT_OK]));
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.completes[0]?.ok).toBe(true);
+  }, 20_000);
+
+  it('中断が告げられていなければ普通に完走する', async () => {
+    const sender = new FakeSender();
+    sender.cancel = false;
+    sender.picked = { jobId: 'j-ok', systemPrompt: 'SYS', prompt: 'P', toolsMode: 'off' };
+    const worker = makeCancellableWorker(sender, makeFakeClaude([DELTA_A, DELTA_B, RESULT_OK]));
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.completes[0]?.ok).toBe(true);
+    expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toBe('やあ、こんにちは');
+  }, 20_000);
 });

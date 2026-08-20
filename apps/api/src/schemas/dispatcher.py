@@ -151,6 +151,15 @@ class ChatRelayPickResponse(BaseModel):
     no_available_job: bool = False
 
 
+class ChatRelayControlResponse(BaseModel):
+    """GAP-189: 実行中の Bridge が読む制御信号。
+
+    cancel=true なら PC 上の claude 子プロセスを実際に止める。
+    """
+
+    cancel: bool = False
+
+
 class ChatRelayChunksRequest(BaseModel):
     """running ジョブへ chunk を追記 (seq_start からの連番)。
 

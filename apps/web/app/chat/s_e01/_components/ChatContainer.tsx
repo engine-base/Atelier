@@ -30,6 +30,16 @@ import {
   type ToolRunItem,
 } from "./ChatPanel";
 import {
+  attachRun as attachRunDefault,
+  cancelRun as cancelRunDefault,
+  consumeQueued as consumeQueuedDefault,
+  dropQueued as dropQueuedDefault,
+  fetchActiveRun as fetchActiveRunDefault,
+  listQueued as listQueuedDefault,
+  queueMessage as queueMessageDefault,
+  type QueuedMessage,
+} from "./run-control";
+import {
   branchThreadAtMessage,
   executeToolApproval,
   fetchChatAttachmentUrl,
@@ -160,6 +170,14 @@ export interface ChatContainerProps {
   readonly commandFn?: typeof runChatCommand;
   /** GAP-130: PC 操作の承認決定 (approve モード) の注入用 (省略時は実 POST)。 */
   readonly resolvePcApprovalFn?: typeof resolvePcApproval;
+  /** GAP-189: 実行の制御 (中断 / 追い足し / 繋ぎ直し) の注入用 (省略時は実 API)。 */
+  readonly cancelRunFn?: typeof cancelRunDefault;
+  readonly fetchActiveRunFn?: typeof fetchActiveRunDefault;
+  readonly attachRunFn?: typeof attachRunDefault;
+  readonly queueMessageFn?: typeof queueMessageDefault;
+  readonly listQueuedFn?: typeof listQueuedDefault;
+  readonly consumeQueuedFn?: typeof consumeQueuedDefault;
+  readonly dropQueuedFn?: typeof dropQueuedDefault;
 }
 
 let _seq = 0;
@@ -201,6 +219,13 @@ export function ChatContainer({
   openUrlFn,
   commandFn = runChatCommand,
   resolvePcApprovalFn = resolvePcApproval,
+  cancelRunFn = cancelRunDefault,
+  fetchActiveRunFn = fetchActiveRunDefault,
+  attachRunFn = attachRunDefault,
+  queueMessageFn = queueMessageDefault,
+  listQueuedFn = listQueuedDefault,
+  consumeQueuedFn = consumeQueuedDefault,
+  dropQueuedFn = dropQueuedDefault,
 }: ChatContainerProps) {
   const [messages, setMessages] =
     useState<readonly ChatMessage[]>(initialMessages);
@@ -263,6 +288,14 @@ export function ChatContainer({
   const [pendingFiles, setPendingFiles] = useState<readonly File[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  // GAP-189: 実行の制御。runJobId はこのターンの実行 ID (停止・繋ぎ直しの鍵)、
+  // queued は実行中に送られた追い足し指示 (受領時点でサーバー保存済み)。
+  const [runJobId, setRunJobId] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [queued, setQueued] = useState<readonly QueuedMessage[]>([]);
+  // 送信ハンドラを ref 経由で参照する (待ち行列の消費が送信自身を呼ぶため、
+  // useCallback の依存に自分自身を入れられない)。
+  const sendRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     onBusyChange?.(sending);
@@ -447,6 +480,7 @@ export function ChatContainer({
       setToolRunSummary(null);
       setToolStartedAt(null);
       setSavedArtifacts([]);
+      setRunJobId(null);
       toolLogRef.current = [];
       toolStartRef.current = null;
 
@@ -571,6 +605,15 @@ export function ChatContainer({
           const meta = chunk.metadata ?? {};
           const id = typeof meta.id === "string" ? meta.id : "";
           if (id) setPcApprovals((prev) => prev.filter((a) => a.id !== id));
+        } else if (chunk.type === "run") {
+          // GAP-189: このターンの実行 ID。これが来た時点で「停止」を押せる。
+          const meta = chunk.metadata ?? {};
+          if (typeof meta.job_id === "string" && meta.job_id !== "") {
+            setRunJobId(meta.job_id);
+          }
+        } else if (chunk.type === "cancelled") {
+          // GAP-189: 人が止めた終端。失敗ではないのでエラー表示にしない。
+          setPendingStage(null);
         } else if (chunk.type === "error") {
           setError(chunk.content ?? "ストリーミング中にエラーが発生しました");
         }
@@ -630,6 +673,18 @@ export function ChatContainer({
         setToolActivity([]);
         setToolStartedAt(null);
         setPcApprovals([]);
+        setRunJobId(null);
+      }
+      // GAP-189: 実行中に送られた指示を取りこぼさない。1 件ずつ取り出して
+      // 続けて流す (取り出しはサーバー側で二重消費を防いでいる)。
+      try {
+        const next = await consumeQueuedFn(threadId);
+        if (next !== null) {
+          setQueued((prev) => prev.filter((q) => q.id !== next.id));
+          await sendRef.current?.(next.content);
+        }
+      } catch {
+        // 取り出し失敗で会話を壊さない。指示は消えていない (次に開けば残っている)。
       }
     },
     [
@@ -643,8 +698,132 @@ export function ChatContainer({
       uploadAttachmentFn,
       commandFn,
       reloadMessages,
+      consumeQueuedFn,
     ],
   );
+
+  // 待ち行列の消費が handleSend 自身を呼ぶため、ref 経由で最新実装を保持する。
+  useEffect(() => {
+    sendRef.current = handleSend;
+  }, [handleSend]);
+
+  /**
+   * GAP-189: 送信の入口。実行中なら「あとで送る」= 待ち行列に積む。
+   *
+   * 経営者指摘「中断とか入ってないけど、これ Claude だとできるけど」。
+   * これまでは生成中に入力欄が塞がり、割り込みも追い足しもできなかった。
+   * 積んだ指示は**受け取った瞬間にサーバーが保存する**ので、この後ブラウザが
+   * 落ちても消えない (今の実行が終わったら順に流れる)。
+   */
+  const handleSubmit = useCallback(
+    (text: string): void => {
+      if (!sending) {
+        void handleSend(text);
+        return;
+      }
+      queueMessageFn(threadId, text, toolsMode)
+        .then((item) => setQueued((prev) => [...prev, item]))
+        .catch(() => {
+          setError(
+            "指示を受け付けられませんでした。今の実行が終わってから送ってください。",
+          );
+        });
+    },
+    [sending, handleSend, queueMessageFn, threadId, toolsMode],
+  );
+
+  /**
+   * GAP-189: 実行を止める。**本人の PC で走っている claude も実際に止まる**
+   * (クラウドの状態を落とすだけの嘘の中断にしない)。そこまでに出た本文は
+   * サーバーがスレッドへ残しているので、止めた後に再読込しても消えない。
+   */
+  const handleStop = useCallback((): void => {
+    const jobId = runJobId;
+    if (jobId === null) return;
+    setStopping(true);
+    cancelRunFn(jobId)
+      .then((result) => {
+        if (result.status === "already_finished") return;
+        // 保存済みの「ここまで」を正として画面を揃える。
+        void reloadMessages();
+      })
+      .catch(() => setError("実行を止められませんでした。もう一度お試しください。"))
+      .finally(() => setStopping(false));
+  }, [runJobId, cancelRunFn, reloadMessages]);
+
+  /** GAP-189: 待ちの指示を取り消す (流す前に気が変わったとき)。 */
+  const handleDropQueued = useCallback(
+    (id: string): void => {
+      setQueued((prev) => prev.filter((q) => q.id !== id));
+      dropQueuedFn(threadId, id).catch(() => {
+        // 消せなかったら表示を戻す (嘘の「消えました」を出さない)
+        void listQueuedFn(threadId)
+          .then(setQueued)
+          .catch(() => undefined);
+      });
+    },
+    [dropQueuedFn, listQueuedFn, threadId],
+  );
+
+  // GAP-189: 画面を開いた時に「まだ走っている実行」と「待ちの指示」を拾う。
+  // 画面を閉じても PC は仕事を続けているので、戻ってきたら繋ぎ直す。
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    void listQueuedFn(threadId)
+      .then((items) => {
+        if (!cancelled) setQueued(items);
+      })
+      .catch(() => undefined);
+    void fetchActiveRunFn(threadId)
+      .then(async (active) => {
+        if (cancelled || active === null) return;
+        const assistantId = nextId("a");
+        setMessages((prev) => [
+          ...prev,
+          { id: assistantId, role: "assistant", content: "" },
+        ]);
+        setSending(true);
+        setPendingId(assistantId);
+        setPendingStage("streaming");
+        setRunJobId(active.job_id);
+        try {
+          await attachRunFn({
+            jobId: active.job_id,
+            signal: controller.signal,
+            onChunk: (chunk) => {
+              if (chunk.type === "delta" && chunk.content) {
+                const piece = chunk.content;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, content: m.content + piece }
+                      : m,
+                  ),
+                );
+              } else if (chunk.type === "error") {
+                setError(chunk.content ?? "実行の取得に失敗しました");
+              }
+            },
+          });
+          if (!cancelled) await reloadMessages();
+        } catch {
+          // 繋ぎ直しの失敗は会話を壊さない (実行自体は PC で続いている)
+        } finally {
+          if (!cancelled) {
+            setSending(false);
+            setPendingId(null);
+            setPendingStage(null);
+            setRunJobId(null);
+          }
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [threadId, listQueuedFn, fetchActiveRunFn, attachRunFn, reloadMessages]);
 
   // GAP-130: 承認カードの許可/拒否。成功時は即カードを消す (サーバーの
   // resolved chunk でも消えるが、体感を待たせない)。失敗は inline error。
@@ -755,8 +934,12 @@ export function ChatContainer({
       <div className="min-h-0 flex-1">
         <ChatPanel
           messages={messages}
-          onSend={(t) => void handleSend(t)}
-          disabled={sending}
+          onSend={handleSubmit}
+          disabled={uploadingAttachments}
+          running={sending}
+          {...(runJobId !== null ? { onStop: handleStop, stopping } : {})}
+          queuedMessages={queued.map((q) => ({ id: q.id, content: q.content }))}
+          onDropQueued={handleDropQueued}
           employee={employee}
           errorNotice={error}
           onDismissError={() => setError(null)}

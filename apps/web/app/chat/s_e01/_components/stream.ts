@@ -17,7 +17,11 @@ export type ChatChunkType =
   | "tool"
   | "pc_approval"
   | "pc_approval_resolved"
-  | "artifact";
+  | "artifact"
+  // GAP-189: このターンの実行 ID (停止ボタン・繋ぎ直しの手掛かり)
+  | "run"
+  // GAP-189: 人が中断した終端。error ではない (失敗ではないので赤くしない)
+  | "cancelled";
 
 /**
  * GAP-129/130: PC 操作モード。off=ツールなし (既定) /

@@ -80,3 +80,40 @@ class ChatContextPreviewResponse(BaseModel):
     system_prompt: str
     history_count: int
     rag_hit_ids: list[str]
+
+
+# ── GAP-189: 実行の制御 (中断 / 追い足し / 繋ぎ直し) ───────────────────
+
+
+class ChatRunResponse(BaseModel):
+    """今このスレッドで走っている実行 (無ければ null)。"""
+
+    job_id: str | None = None
+    status: str | None = None
+    tools_mode: str | None = None
+    started_at: str | None = None
+
+
+class ChatRunCancelResponse(BaseModel):
+    """中断の結果。message はそのまま画面に出せる日本語。"""
+
+    status: Literal["cancelled", "already_finished"]
+    message: str
+    assistant_message_id: str | None = None
+    saved_chars: int = 0
+
+
+class ChatQueuedMessageRequest(BaseModel):
+    """実行中に送られた追い足し指示。受領した瞬間に保存する。"""
+
+    content: str = Field(min_length=1, max_length=20000)
+    tools_mode: Literal["off", "approve", "auto"] = "off"
+
+
+class ChatQueuedMessageResponse(BaseModel):
+    """待ち行列の 1 件。"""
+
+    id: str
+    content: str
+    tools_mode: str
+    created_at: str | None = None

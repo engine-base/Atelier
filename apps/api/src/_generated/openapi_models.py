@@ -2227,6 +2227,68 @@ class ChatContextPreviewResponse(BaseModel):
     rag_hit_ids: list[UUID]
 
 
+class Status17Enum(StrEnum):
+    queued = "queued"
+    running = "running"
+
+
+class Status17(RootModel[Status17Enum | None]):
+    root: Status17Enum | None = None
+
+
+class ToolsMode1Enum(StrEnum):
+    off = "off"
+    approve = "approve"
+    auto = "auto"
+
+
+class ToolsMode1(RootModel[ToolsMode1Enum | None]):
+    root: ToolsMode1Enum | None = None
+
+
+class ChatRunResponse(BaseModel):
+    """
+    今このスレッドで走っている実行（無ければ全て null）
+    """
+
+    job_id: UUID | None = None
+    status: Status17 | None = None
+    tools_mode: ToolsMode1 | None = None
+    started_at: AwareDatetime | None = None
+
+
+class Status18(StrEnum):
+    cancelled = "cancelled"
+    already_finished = "already_finished"
+
+
+class ChatRunCancelResponse(BaseModel):
+    """
+    中断の結果。message はそのまま画面に出せる日本語。
+    """
+
+    status: Status18
+    message: str
+    assistant_message_id: UUID | None = None
+    saved_chars: Annotated[int | None, Field(ge=0)] = 0
+
+
+class ChatQueuedMessageRequest(BaseModel):
+    """
+    実行中に送られた追い足し指示（受領した瞬間に保存する）
+    """
+
+    content: Annotated[str, Field(max_length=20000, min_length=1)]
+    tools_mode: ToolsMode1Enum | None = "off"
+
+
+class ChatQueuedMessageResponse(BaseModel):
+    id: UUID
+    content: str
+    tools_mode: ToolsMode1Enum
+    created_at: AwareDatetime | None = None
+
+
 class State1(StrEnum):
     closed = "closed"
     open = "open"
@@ -2287,7 +2349,7 @@ class KanbanCompleteRequest(BaseModel):
     metadata: Metadata
 
 
-class Status17(StrEnum):
+class Status19(StrEnum):
     pass_ = "pass"
     fail = "fail"
     skip = "skip"
@@ -2296,7 +2358,7 @@ class Status17(StrEnum):
 class ExecutionTestResultIn(BaseModel):
     name: Annotated[str, Field(max_length=300, min_length=1)]
     file: Annotated[str | None, Field(max_length=300)] = None
-    status: Status17
+    status: Status19
     duration_ms: Annotated[int | None, Field(ge=0)] = None
     detail: Annotated[str | None, Field(max_length=2000)] = None
 
@@ -2306,7 +2368,7 @@ class ExecutionTestResult(BaseModel):
     execution_id: UUID
     name: str
     file: str | None = None
-    status: Status17
+    status: Status19
     duration_ms: int | None = None
     detail: str | None = None
     created_at: AwareDatetime
@@ -2369,7 +2431,7 @@ class ChatRelayPickRequest(BaseModel):
     worker_id: Annotated[str, Field(max_length=200, min_length=1)]
 
 
-class ToolsMode1(StrEnum):
+class ToolsMode4(StrEnum):
     """
     GAP-134: PC 操作モード — Bridge が本人 PC で実行する
     """
@@ -2383,11 +2445,19 @@ class ChatRelayPickResponse(BaseModel):
     job_id: UUID | None = None
     system_prompt: str | None = None
     prompt: str | None = None
-    tools_mode: ToolsMode1 | None = None
+    tools_mode: ToolsMode4 | None = None
     """
     GAP-134: PC 操作モード — Bridge が本人 PC で実行する
     """
     no_available_job: bool
+
+
+class ChatRelayControlResponse(BaseModel):
+    """
+    GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める）
+    """
+
+    cancel: bool
 
 
 class Kind8(StrEnum):
@@ -2459,7 +2529,7 @@ class BridgeTokenRow(BaseModel):
     revoked_at: AwareDatetime | None = None
 
 
-class Status19(StrEnum):
+class Status21(StrEnum):
     allowed = "allowed"
     allowed_warning = "allowed_warning"
     rejected = "rejected"
@@ -2470,7 +2540,7 @@ class ChatRelayRateLimitObservation(BaseModel):
     GAP-119 — claude CLI の rate_limit_event 観測値 1 件（実値のみ転送）
     """
 
-    status: Status19
+    status: Status21
     rate_limit_type: Annotated[str | None, Field(max_length=40)] = None
     utilization: Annotated[float | None, Field(ge=0.0, le=2.0)] = None
     resets_at: float | None = None
@@ -2547,7 +2617,7 @@ class ChatConnectionPlan(BaseModel):
     GAP-119 — 本人 Claude プラン枠の直近観測値（claude CLI rate_limit_event の実値のみ。 未観測の window は null — 推測で埋めない）
     """
 
-    status: Status19
+    status: Status21
     five_hour_utilization: float | None = None
     five_hour_resets_at: AwareDatetime | None = None
     seven_day_utilization: float | None = None

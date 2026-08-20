@@ -27,6 +27,7 @@ import {
   Paperclip,
   SendHorizontal,
   ShieldCheck,
+  Square,
   Terminal,
   Upload,
   X,
@@ -128,6 +129,21 @@ export interface ChatPanelProps {
   readonly pendingAssistantId?: string | null;
   /** GAP-128: 生成の段階 (context=文脈構築中 / answer=最初の応答待ち / streaming=本文受信中)。 */
   readonly pendingStage?: "context" | "answer" | "streaming" | null;
+  /**
+   * GAP-189: 実行の制御 — 中断 / 実行中の追い足し。
+   *
+   * 経営者指摘「中断とか入ってないけど、これ Claude だとできるけど」。
+   * これまでは生成中に入力欄が塞がり、止めることも割り込むこともできなかった。
+   *
+   * onStop 未指定なら停止ボタンを出さない (死にボタン禁止 — Rule 10)。
+   */
+  readonly onStop?: () => void;
+  readonly stopping?: boolean;
+  /** 生成中か (入力は塞がず、送信が「あとで送る」に変わる)。 */
+  readonly running?: boolean;
+  /** GAP-189: まだ流していない追い足し指示 (受領時点で保存済み = 消えない)。 */
+  readonly queuedMessages?: readonly { id: string; content: string }[];
+  readonly onDropQueued?: (id: string) => void;
   /**
    * GAP-129: PC 操作 (Claude Code 同等ツール)。onToolsModeChange 未指定なら
    * トグル自体を出さない (agent_sdk モード以外 — 死にボタン禁止)。
@@ -517,6 +533,11 @@ export function ChatPanel({
   commandsEnabled,
   pendingAssistantId,
   pendingStage,
+  onStop,
+  stopping,
+  running,
+  queuedMessages = [],
+  onDropQueued,
   toolsMode = "off",
   onToolsModeChange,
   toolActivity,
@@ -745,6 +766,40 @@ export function ChatPanel({
             <p role="alert" className="mt-1.5 text-[11.5px] font-semibold text-error">
               {attachmentError}
             </p>
+          ) : null}
+          {/* GAP-189: 実行中に送った指示の待ち行列。受け取った時点でサーバーに
+              保存済みなので、ここを閉じても消えない。今の実行が終わったら
+              上から順に流れる。 */}
+          {queuedMessages.length > 0 ? (
+            <div
+              role="region"
+              aria-label="あとで送る指示"
+              className="mt-2 rounded-md border border-border bg-surface-variant/60 px-3 py-2"
+            >
+              <p className="text-[11.5px] font-semibold text-on-surface-variant">
+                今の実行が終わったら送ります（{queuedMessages.length} 件・保存済み）
+              </p>
+              <ul className="mt-1.5 flex flex-col gap-1">
+                {queuedMessages.map((q) => (
+                  <li
+                    key={q.id}
+                    className="flex items-start gap-2 text-[12px] text-on-surface"
+                  >
+                    <span className="min-w-0 flex-1 truncate">{q.content}</span>
+                    {onDropQueued ? (
+                      <button
+                        type="button"
+                        aria-label={`あとで送る指示を取り消す: ${q.content}`}
+                        onClick={() => onDropQueued(q.id)}
+                        className="shrink-0 rounded-sm p-[1px] text-on-surface-variant hover:bg-white hover:text-on-surface"
+                      >
+                        <X size={11} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           {/* GAP-130: PC 操作の承認カード (approve モード — Claude Code の
               permission prompt 同等)。先頭 1 件だけ提示し、決定すると次が出る。 */}
@@ -1078,12 +1133,31 @@ export function ChatPanel({
                 )}
               </div>
             ) : null}
+            {/* GAP-189: 生成中は「停止」を出す。押すと本人の PC で走っている
+                claude まで実際に止まる (クラウドの状態だけ落とす嘘の中断にしない)。 */}
+            {running && onStop ? (
+              <button
+                type="button"
+                onClick={onStop}
+                disabled={stopping}
+                title="実行を止めます。ここまでの内容はスレッドに残ります。"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-[7px] text-[12.5px] font-semibold text-on-surface transition-colors hover:bg-surface-variant disabled:opacity-50"
+              >
+                <Square size={11} aria-hidden="true" />
+                {stopping ? "停止中…" : "停止"}
+              </button>
+            ) : null}
             <button
               type="submit"
               disabled={disabled || !input.trim()}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-[7px] text-[12.5px] font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50"
+              className={`${running && onStop ? "" : "ml-auto "}inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-[7px] text-[12.5px] font-semibold text-on-primary transition-opacity hover:opacity-90 disabled:opacity-50`}
+              title={
+                running
+                  ? "実行中でも送れます。今の実行が終わったら続けて実行します。"
+                  : undefined
+              }
             >
-              送信
+              {running ? "あとで送る" : "送信"}
               <SendHorizontal size={12} aria-hidden="true" />
             </button>
           </div>

@@ -410,9 +410,11 @@ def test_relay_stream_end_to_end_with_fake_worker(
         finally:
             await eng.dispose()
 
-    async def _run() -> list[str]:
+    async def _run() -> tuple[list[str], list[str]]:
         worker = asyncio.create_task(_fake_worker())
         collected: list[str] = []
+        # GAP-189: 本文以外に実行 ID ({"job": ...}) が先頭で来る
+        job_ids: list[str] = []
         async for chunk in sse_relay.relay_stream_chunks(
             system_prompt="sys",
             history=[("user", "前")],
@@ -420,12 +422,39 @@ def test_relay_stream_end_to_end_with_fake_worker(
             thread_id=seeded["thread"],
             actor_id=seeded["u_a"],
         ):
-            collected.append(chunk)
+            if isinstance(chunk, dict):
+                job_ids.append(str(chunk["job"]))
+            else:
+                collected.append(chunk)
         await worker
-        return collected
+        return collected, job_ids
 
-    collected = asyncio.run(_run())
+    collected, job_ids = asyncio.run(_run())
     assert "".join(collected) == "やあ、こんにちは!"
+    # GAP-189: 実行 ID が 1 度だけ届く (画面の「停止」と繋ぎ直しの手掛かり)
+    assert len(job_ids) == 1 and job_ids[0] != ""
+
+    # GAP-189: 返答の保存は SSE ではなくジョブ確定 (サーバー) 側で行われている。
+    # ブラウザを閉じても答えがスレッドから消えない、の実証。
+    async def _saved() -> str:
+        eng = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        try:
+            async with AsyncSession(eng) as s:
+                row = (
+                    await s.execute(
+                        text(
+                            "select m.content from public.chat_relay_jobs j "
+                            "join public.chat_messages m on m.id = j.assistant_message_id "
+                            "where j.id = cast(:i as uuid)"
+                        ),
+                        {"i": job_ids[0]},
+                    )
+                ).first()
+                return "" if row is None else str(row.content)
+        finally:
+            await eng.dispose()
+
+    assert asyncio.run(_saved()) == "やあ、こんにちは!"
 
 
 @pytest.mark.integration

@@ -11823,6 +11823,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/chat-relay/{job_id}/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * chat relay の中断指示を取得（GAP-189 / BridgeAuth）
+         * @description 真なら Bridge は PC 上の claude 子プロセスを実際に kill する。
+         *     クラウド側の状態を落とすだけで本人の PC では走り続ける、という
+         *     嘘の中断にしないための経路。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 制御信号 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRelayControlResponse"];
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat-relay/{job_id}/approvals": {
         parameters: {
             query?: never;
@@ -14072,6 +14127,413 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/threads/{thread_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** このスレッドで今走っている実行（GAP-189） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 走っている実行（無ければ job_id=null） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRunResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description thread 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/runs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 走っている実行を止める（GAP-189 / PC 上の claude も実際に止まる） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 中断の結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatRunCancelResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 他人の実行 */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 実行が存在しない */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/runs/{job_id}/attach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 走っている実行に繋ぎ直す SSE（GAP-189） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    job_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE ストリーム（イベント形は通常のチャット SSE と同一） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/threads/{thread_id}/queued": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** まだ流していない追い足し指示（GAP-189） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 待ちの指示（古い順） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatQueuedMessageResponse"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description thread 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** 実行中でも指示を送れるようにする（GAP-189 / 受領時点で保存） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChatQueuedMessageRequest"];
+                };
+            };
+            responses: {
+                /** @description 積んだ指示 */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatQueuedMessageResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description thread 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 待ちが上限 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/threads/{thread_id}/queued/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 待ちの指示を 1 件取り出す（GAP-189 / 二重消費しない） */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り出した 1 件（無ければ data=null） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ChatQueuedMessageResponse"] | null;
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description thread 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/chat/threads/{thread_id}/queued/{queued_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 待ちの指示を取り消す（GAP-189） */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    thread_id: string;
+                    queued_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消した */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 対象が無い */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -19413,6 +19875,45 @@ export interface components {
             history_count: number;
             rag_hit_ids: string[];
         };
+        /** @description 今このスレッドで走っている実行（無ければ全て null） */
+        ChatRunResponse: {
+            /** Format: uuid */
+            job_id?: string | null;
+            /** @enum {string|null} */
+            status?: "queued" | "running" | null;
+            /** @enum {string|null} */
+            tools_mode?: "off" | "approve" | "auto" | null;
+            /** Format: date-time */
+            started_at?: string | null;
+        };
+        /** @description 中断の結果。message はそのまま画面に出せる日本語。 */
+        ChatRunCancelResponse: {
+            /** @enum {string} */
+            status: "cancelled" | "already_finished";
+            message: string;
+            /** Format: uuid */
+            assistant_message_id?: string | null;
+            /** @default 0 */
+            saved_chars: number;
+        };
+        /** @description 実行中に送られた追い足し指示（受領した瞬間に保存する） */
+        ChatQueuedMessageRequest: {
+            content: string;
+            /**
+             * @default off
+             * @enum {string}
+             */
+            tools_mode: "off" | "approve" | "auto";
+        };
+        ChatQueuedMessageResponse: {
+            /** Format: uuid */
+            id: string;
+            content: string;
+            /** @enum {string} */
+            tools_mode: "off" | "approve" | "auto";
+            /** Format: date-time */
+            created_at?: string | null;
+        };
         CircuitBreakerState: {
             /** @enum {string} */
             state: "closed" | "open" | "half_open";
@@ -19556,6 +20057,11 @@ export interface components {
              */
             tools_mode?: "off" | "approve" | "auto" | null;
             no_available_job: boolean;
+        };
+        /** @description GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める） */
+        ChatRelayControlResponse: {
+            /** @default false */
+            cancel: boolean;
         };
         ChatRelayChunksRequest: {
             seq_start: number;

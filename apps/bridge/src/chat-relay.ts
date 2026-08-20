@@ -396,6 +396,8 @@ export interface ChatRelayConfig {
   /** GAP-134: 承認待ちのポーリング間隔 / 上限 (テストで短縮可)。 */
   readonly approvalPollMs?: number;
   readonly approvalTimeoutMs?: number;
+  /** GAP-189: 中断要求を見に行く間隔 (ms)。既定 2 秒、テストで短縮可。 */
+  readonly cancelPollMs?: number;
 }
 
 export interface ChatRelaySender {
@@ -408,6 +410,8 @@ export interface ChatRelaySender {
   ): Promise<void>;
   chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
+  /** GAP-189: 中断要求のポーリング (true なら PC 上の claude を実際に止める)。 */
+  chatRelayControl(jobId: string): Promise<boolean>;
   /** GAP-137: 成果物 (HTML) を送る — complete の前に呼ぶ契約。 */
   chatRelayUploadArtifacts(jobId: string, artifacts: readonly ChatArtifact[]): Promise<void>;
   /** GAP-141: ツールジョブ開始前に作業場へ展開する「正本」一式。 */
@@ -569,25 +573,70 @@ export class ChatRelayWorker {
     // GAP-137: PC 操作の成果物検出 — 実行前スナップショット (seed 展開後)
     const wsBefore = workspace !== null ? snapshotArtifactFiles(workspace) : null;
 
+    // GAP-189: 中断の見張り。人が「停止」を押したらサーバーの状態が cancelled に
+    // なるので、それを見て **この PC の claude を実際に kill する**。
+    // 通信できないときは中断とみなさない (通信不良で仕事を殺さない)。
+    let cancelled = false;
+    let killChild: (() => void) | null = null;
+    const cancelTimer = setInterval(() => {
+      void this.api
+        .chatRelayControl(jobId)
+        .then((stop) => {
+          if (!stop || cancelled) return;
+          cancelled = true;
+          killChild?.();
+        })
+        .catch(() => {
+          /* 通信不良は中断ではない — 走っている仕事を殺さない */
+        });
+    }, Math.max(this.config.cancelPollMs ?? 2_000, 1));
+
     // 実行中に flush を回す — delta は claude の実行と並行して逐次返送される
     const timer = setInterval(flush, Math.max(this.config.flushIntervalMs, 1));
     let run;
     try {
-      run = await this.runChild(systemPrompt, prompt, toolsMode, decideApproval, (item) => {
-        if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
-        else if (item.kind === 'tool_start')
-          pending.push({ text: item.tool, chunkKind: 'tool' });
-        else if (item.kind === 'tool_detail')
-          // GAP-148: 実入力の要約 (JSON) — UI が名前だけの行を実値行へ格上げする
-          pending.push({
-            text: JSON.stringify({ tool: item.tool, summary: item.summary }),
-            chunkKind: 'tool',
-          });
-        else if (item.kind === 'rate_limit')
-          rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
-      });
+      run = await this.runChild(
+        systemPrompt,
+        prompt,
+        toolsMode,
+        decideApproval,
+        (item) => {
+          if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
+          else if (item.kind === 'tool_start')
+            pending.push({ text: item.tool, chunkKind: 'tool' });
+          else if (item.kind === 'tool_detail')
+            // GAP-148: 実入力の要約 (JSON) — UI が名前だけの行を実値行へ格上げする
+            pending.push({
+              text: JSON.stringify({ tool: item.tool, summary: item.summary }),
+              chunkKind: 'tool',
+            });
+          else if (item.kind === 'rate_limit')
+            rateLimits.set(item.observation.rate_limit_type ?? 'overall', item.observation);
+        },
+        (kill) => {
+          killChild = kill;
+          // 見張りが先に「止めろ」を掴んでいた場合の取りこぼしを防ぐ。
+          if (cancelled) kill();
+        },
+      );
     } finally {
       clearInterval(timer);
+      clearInterval(cancelTimer);
+    }
+
+    // GAP-189: 中断されたときは、そこまでに出た本文だけ送って静かに終える。
+    // 成果物の取り込みはしない (途中の状態をツールへ反映しない)。
+    // complete は「Bridge が停止処理を終えた」報告 — サーバー側は cancelled を
+    // 上書きせず静かに受け取る。
+    if (cancelled) {
+      flush();
+      await sendChain.catch(() => undefined);
+      try {
+        await this.api.chatRelayComplete(jobId, false, '[cancelled] ユーザーが中断しました');
+      } catch {
+        /* 中断済みなので送信失敗は握りつぶす */
+      }
+      return 'completed';
     }
     // partial が 1 つも取れなかった場合は完成 assistant text で代替
     if (seq === 0 && pending.length === 0 && run.assistantText !== '') {
@@ -644,6 +693,8 @@ export class ChatRelayWorker {
       input: Record<string, unknown>,
     ) => Promise<'allow' | 'deny'>,
     onItem: (item: ChatStreamItem) => void,
+    /** GAP-189: 起動直後に「この子プロセスを止める関数」を渡す。 */
+    onSpawn?: (kill: () => void) => void,
   ): Promise<{
     ok: boolean;
     exitCode: number | null;
@@ -674,6 +725,17 @@ export class ChatRelayWorker {
         [...(this.config.prependArgs ?? []), ...buildChatArgs(systemPrompt, toolsMode)],
         spawnOpts,
       );
+      // GAP-189: 中断されたときに **この PC 上の claude を実際に止める**ための
+      // 口を呼び出し側へ渡す。クラウドの状態を落とすだけの嘘の中断にしない。
+      onSpawn?.(() => {
+        if (child.exitCode === null && child.signalCode === null) {
+          child.kill('SIGTERM');
+          // SIGTERM を無視して残る場合に備えて、少し待って強制終了する。
+          setTimeout(() => {
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+          }, 2_000).unref?.();
+        }
+      });
       if (toolsMode === 'approve') {
         // stream-json 入力: user メッセージ 1 件を送り、承認往復のため
         // stdin は result まで開いたままにする (閉じると CLI の許可要求が

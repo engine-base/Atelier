@@ -1949,6 +1949,43 @@ components:
           type: array
           items: { type: string, format: uuid }
 
+    # ── GAP-189: 実行の制御 ────────────────────────────────────────────
+    ChatRunResponse:
+      type: object
+      description: 今このスレッドで走っている実行（無ければ全て null）
+      properties:
+        job_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, nullable: true, enum: [queued, running, null] }
+        tools_mode: { type: string, nullable: true, enum: [off, approve, auto, null] }
+        started_at: { type: string, format: date-time, nullable: true }
+
+    ChatRunCancelResponse:
+      type: object
+      required: [status, message]
+      description: 中断の結果。message はそのまま画面に出せる日本語。
+      properties:
+        status: { type: string, enum: [cancelled, already_finished] }
+        message: { type: string }
+        assistant_message_id: { type: string, format: uuid, nullable: true }
+        saved_chars: { type: integer, minimum: 0, default: 0 }
+
+    ChatQueuedMessageRequest:
+      type: object
+      required: [content]
+      description: 実行中に送られた追い足し指示（受領した瞬間に保存する）
+      properties:
+        content: { type: string, minLength: 1, maxLength: 20000 }
+        tools_mode: { type: string, enum: [off, approve, auto], default: off }
+
+    ChatQueuedMessageResponse:
+      type: object
+      required: [id, content, tools_mode]
+      properties:
+        id: { type: string, format: uuid }
+        content: { type: string }
+        tools_mode: { type: string, enum: [off, approve, auto] }
+        created_at: { type: string, format: date-time, nullable: true }
+
     CircuitBreakerState:
       type: object
       required: [state, failure_rate, total_executions, failed_executions, window_minutes, threshold, evaluated_at]
@@ -2119,6 +2156,13 @@ components:
           nullable: true
           description: "GAP-134: PC 操作モード — Bridge が本人 PC で実行する"
         no_available_job: { type: boolean }
+
+    ChatRelayControlResponse:
+      type: object
+      required: [cancel]
+      description: GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める）
+      properties:
+        cancel: { type: boolean, default: false }
 
     ChatRelayChunksRequest:
       type: object
@@ -7623,6 +7667,31 @@ paths:
         '404': { description: job 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: job が running でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /chat-relay/{job_id}/control:
+    get:
+      tags: [kanban-tools]
+      summary: chat relay の中断指示を取得（GAP-189 / BridgeAuth）
+      description: |
+        真なら Bridge は PC 上の claude 子プロセスを実際に kill する。
+        クラウド側の状態を落とすだけで本人の PC では走り続ける、という
+        嘘の中断にしないための経路。
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::chat_relay_control
+      x-feature-ids: [F-BRIDGE01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: 制御信号
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRelayControlResponse' }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /chat-relay/{job_id}/approvals:
     post:
       tags: [kanban-tools]
@@ -8517,6 +8586,160 @@ paths:
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # --------------------------------------------------------------------------
+  # GAP-189: 実行の制御 — 中断 / 実行中の追い足し指示 / 繋ぎ直し
+  # 「中断とか入ってないけど、これ Claude だとできるけど」への対応。
+  # --------------------------------------------------------------------------
+  /chat/threads/{thread_id}/run:
+    get:
+      tags: [chat-sse]
+      summary: このスレッドで今走っている実行（GAP-189）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::get_active_run
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 走っている実行（無ければ job_id=null）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRunResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/runs/{job_id}/cancel:
+    post:
+      tags: [chat-sse]
+      summary: 走っている実行を止める（GAP-189 / PC 上の claude も実際に止まる）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::cancel_run
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      x-rate-limit: 60/min/user
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 中断の結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatRunCancelResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: 他人の実行, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 実行が存在しない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/runs/{job_id}/attach:
+    get:
+      tags: [chat-sse]
+      summary: 走っている実行に繋ぎ直す SSE（GAP-189）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::attach_run
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: job_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: SSE ストリーム（イベント形は通常のチャット SSE と同一）
+          content:
+            text/event-stream:
+              schema: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/queued:
+    get:
+      tags: [chat-sse]
+      summary: まだ流していない追い足し指示（GAP-189）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::list_queued_messages
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 待ちの指示（古い順）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChatQueuedMessageResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [chat-sse]
+      summary: 実行中でも指示を送れるようにする（GAP-189 / 受領時点で保存）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::queue_message
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      x-rate-limit: 60/min/user
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatQueuedMessageRequest' }
+      responses:
+        '201':
+          description: 積んだ指示
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChatQueuedMessageResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 待ちが上限, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/queued/consume:
+    post:
+      tags: [chat-sse]
+      summary: 待ちの指示を 1 件取り出す（GAP-189 / 二重消費しない）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::consume_queued_message
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 取り出した 1 件（無ければ data=null）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - { $ref: '#/components/schemas/ChatQueuedMessageResponse' }
+                      - { type: 'null' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: thread 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /chat/threads/{thread_id}/queued/{queued_id}:
+    delete:
+      tags: [chat-sse]
+      summary: 待ちの指示を取り消す（GAP-189）
+      x-implementation-path: apps/api/src/routes/chat_sse/__init__.py::drop_queued_message
+      x-screen-ids: [S-E01]
+      x-feature-ids: [F-CTX01]
+      parameters:
+        - { name: thread_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: queued_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: 取り消した }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 対象が無い, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   # ==========================================================================
   # circuit-breaker (サーキットブレーカ + PID ポーリング — T-A-29)

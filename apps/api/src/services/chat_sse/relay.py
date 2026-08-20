@@ -48,6 +48,17 @@ class RelayTimeout(Exception):
     """制限時間内に done/error にならなかった (job は expired 済)。"""
 
 
+class RelayCancelled(Exception):
+    """GAP-189: 人が中断した。失敗ではないので error 扱いにしない。
+
+    そこまでに出た本文は cancel 時にサーバーがスレッドへ保存済み。
+    """
+
+    def __init__(self, job_id: str) -> None:
+        super().__init__(f"chat relay job {job_id} was cancelled by the user")
+        self.job_id = job_id
+
+
 def relay_mode_enabled() -> bool:
     """本人の PC の Bridge (= 本人の Claude サブスク) で実行するモードか。
 
@@ -102,6 +113,15 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
     return _session_factory_for_loop(loop_key)
 
 
+def service_session_factory() -> async_sessionmaker[AsyncSession]:
+    """GAP-189: SSE の外 (ジョブ確定を跨ぐ読み書き) で使う service session factory。
+
+    リクエスト scope の session は SSE の寿命と合わず、Bridge 側の commit を
+    跨いで読むには別 session が要る。同一モジュール内の実装を公開名で貸す。
+    """
+    return _session_factory()
+
+
 async def record_plan_observations(user_id: str, observations: list[dict[str, object]]) -> None:
     """GAP-124: agent_sdk 経路の RateLimitEvent 観測値を本人へ記録する。
 
@@ -130,6 +150,8 @@ async def relay_stream_chunks(
     """Bridge 中継でイベントを逐次 yield する。
 
     yield するもの (agent_sdk_stream_chunks と同一形 — SSE 側は共通処理):
+      - {"job": job_id}: このターンの実行 ID (GAP-189 — 最初に 1 回だけ)。
+        画面はこれで「停止」ボタンを出し、閉じても繋ぎ直せる
       - str: 応答本文の text delta
       - {"tool": name}: ツール実行の実況 (GAP-134)
       - {"pc_approval": {...}} / {"pc_approval_resolved": {...}}: 承認カード
@@ -154,6 +176,10 @@ async def relay_stream_chunks(
             tools_mode=tools_mode,
         )
         await session.commit()
+
+    # GAP-189: 実行 ID を先に渡す。これが無いと画面から中断できず、
+    # 画面を閉じたときに「どの実行に繋ぎ直せばいいか」も分からない。
+    yield {"job": job_id}
 
     # PC 操作 (approve/auto) は複数ターンのツール実行 + ユーザー承認待ちを含む
     # ため、既定タイムアウトを長めに取る (env 明示があればそちらを尊重)。
@@ -206,6 +232,10 @@ async def relay_stream_chunks(
                 yield {"pc_approval_resolved": {"id": ap["id"], "decision": ap["decision"]}}
         if status == "done":
             return
+        if status == "cancelled":
+            # GAP-189: 人が止めた。エラーメッセージを出さず、静かに終える
+            # (ここまでの本文は cancel 時にサーバーが保存済み)。
+            raise RelayCancelled(job_id)
         if status == "error":
             raise RelayFailed(error or "ローカル実行がエラーで終了しました")
         if status == "expired":

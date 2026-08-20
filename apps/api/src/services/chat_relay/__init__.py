@@ -20,6 +20,7 @@ state-changing 操作は audit_logs に記録 (actor_type='system', actor_id='br
 from __future__ import annotations
 
 import json
+import logging
 import uuid as uuid_mod
 from typing import Any, cast
 
@@ -27,6 +28,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
+
+logger = logging.getLogger(__name__)
 
 # Bridge presence をオンラインとみなす鮮度 (秒)。S-I03 接続バッジ (90 秒) と同一。
 PRESENCE_FRESH_SECONDS = 90
@@ -540,6 +543,29 @@ async def _thread_attachment_seed(session: AsyncSession, *, thread_id: str) -> l
     return out
 
 
+async def _persist_answer_for_job(session: AsyncSession, *, job_id: str) -> None:
+    """GAP-189: ジョブ確定時に返答をスレッドへ保存する (チャット由来のみ・冪等)。
+
+    thread_id が無いジョブ (モック生成等のシステムジョブ) は会話ではないので
+    対象外。保存失敗でジョブ確定自体を壊さない — 保存されなかったことは
+    assistant_message_id が null のままなので後から検出できる。
+    """
+    row = (
+        await session.execute(
+            text("select thread_id from public.chat_relay_jobs where id = cast(:i as uuid)"),
+            {"i": job_id},
+        )
+    ).first()
+    if row is None or row.thread_id is None:
+        return
+    from src.services import chat_run
+
+    try:
+        await chat_run.persist_answer(session, job_id=job_id, thread_id=str(row.thread_id))
+    except Exception:  # pragma: no cover  - DB 例外は環境依存
+        logger.exception("failed to persist relay answer for job %s", job_id)
+
+
 async def complete_job(
     session: AsyncSession,
     *,
@@ -547,11 +573,23 @@ async def complete_job(
     ok: bool,
     error: str | None = None,
 ) -> None:
-    """running ジョブを done / error で確定する。"""
+    """running ジョブを done / error で確定する。
+
+    GAP-189: すでに `cancelled` (人が止めた) なら何もしない — Bridge が停止処理を
+    終えて報告してきただけなので、エラーにせず静かに受け取る。中断済みの状態を
+    done で塗り替えて「完走した」ことにもしない。
+
+    GAP-189: done/error の確定時に**サーバー側で返答をスレッドへ保存する**。
+    従来は SSE の generator を抜けた後に保存していたので、生成中にブラウザを
+    閉じると PC が最後まで仕事をして chunk も残っているのに、その回の答えだけが
+    スレッドから消えていた。保存をブラウザではなくジョブ確定に紐づけて直す。
+    """
     job_id = _validated_job_id(job_id)
     status = await _job_status(session, job_id)
     if status is None:
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
+    if status == "cancelled":
+        return
     if status != "running":
         raise ChatRelayError("invalid_state", f"job is {status}, not running")
     new_status = "done" if ok else "error"
@@ -562,6 +600,7 @@ async def complete_job(
         ),
         {"st": new_status, "er": error, "i": job_id},
     )
+    await _persist_answer_for_job(session, job_id=job_id)
     # GAP-134: 未決の承認は timeout で閉じる (SSE が resolved を配ってカードを掃除)
     await session.execute(
         text(

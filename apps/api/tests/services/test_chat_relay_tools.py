@@ -76,6 +76,8 @@ async def test_relay_stream_multiplexes_tool_and_approval_events(
         actor_id="u1",
         tools_mode="approve",
     )
+    # GAP-189: 最初に実行 ID が来る (画面はこれで「停止」を出し、閉じても繋ぎ直せる)
+    assert await gen.__anext__() == {"job": "job-1"}
     # 1 巡目: 承認カード pending
     state["approvals"] = [
         {"id": "ap-1", "tool": "Bash", "summary": "touch x", "decision": "pending"}
@@ -110,7 +112,8 @@ async def test_relay_stream_off_mode_passes_only_deltas(relay_env: dict[str, Any
             actor_id="u1",
         )
     ]
-    assert out == ["こんにちは"]
+    # GAP-189: 先頭は実行 ID (中断・繋ぎ直しの手掛かり)、その後に本文
+    assert out == [{"job": "job-1"}, "こんにちは"]
     assert state["enqueued"]["tools_mode"] == "off"
 
 

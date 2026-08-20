@@ -70,6 +70,8 @@ export interface BridgeApi {
   chatRelayCreateApproval(jobId: string, tool: string, summary: string): Promise<string>;
   /** GAP-134: 承認決定をポーリングで読む。 */
   chatRelayApprovalDecision(jobId: string, approvalId: string): Promise<ChatRelayApprovalDecision>;
+  /** GAP-189: 中断を言われていないかをポーリングで読む (true なら子プロセスを止める)。 */
+  chatRelayControl(jobId: string): Promise<boolean>;
   /** GAP-137/145: 成果物 (HTML + 画像/PPTX/PDF 等バイナリ) の送信 — complete の前に呼ぶ。 */
   chatRelayUploadArtifacts(
     jobId: string,
@@ -324,6 +326,15 @@ export class ApiClient implements BridgeApi {
       data: { decision: ChatRelayApprovalDecision };
     };
     return json.data.decision;
+  }
+
+  async chatRelayControl(jobId: string): Promise<boolean> {
+    // GAP-189: サーバーが「止めろ」と言っているか。通信できないときは false
+    // (通信不良を勝手に中断と解釈して、走っている仕事を殺さない)。
+    const json = (await this.get(`/chat-relay/${jobId}/control`)) as {
+      data: { cancel?: boolean };
+    };
+    return json.data.cancel === true;
   }
 
   async chatRelayUploadArtifacts(

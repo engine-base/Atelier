@@ -37,6 +37,7 @@ from src.schemas.dispatcher import (
     ChatRelayArtifactsRequest,
     ChatRelayChunksRequest,
     ChatRelayCompleteRequest,
+    ChatRelayControlResponse,
     ChatRelayPickRequest,
     ChatRelayPickResponse,
     KanbanCompleteRequest,
@@ -351,6 +352,28 @@ async def chat_relay_chunks(
     except ChatRelayError as exc:
         _raise_for(exc.code, exc.message)
     return {"data": {"status": "ok"}}
+
+
+@router.get(
+    "/chat-relay/{job_id}/control",
+    summary="chat relay の中断指示を取得 (GAP-189 / BridgeAuth)",
+)
+async def chat_relay_control(
+    job_id: str, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, ChatRelayControlResponse]:
+    """Bridge が実行中にポーリングする「止めろと言われているか」。
+
+    真なら Bridge は **PC 上の claude 子プロセスを実際に kill する**。
+    クラウド側の状態を落とすだけで本人の PC では走り続ける、という嘘の中断に
+    しないための経路。ジョブが消えている場合も真 (走らせておく理由が無い)。
+    """
+    from src.services import chat_run
+
+    try:
+        cancelled = await chat_run.cancel_requested(session, job_id=job_id)
+    except chat_run.RunControlError:
+        cancelled = True
+    return {"data": ChatRelayControlResponse(cancel=cancelled)}
 
 
 @router.post(

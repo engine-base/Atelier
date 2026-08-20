@@ -10,7 +10,7 @@ JSON で encode、Content-Type: text/event-stream で配信。
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -22,17 +22,38 @@ from src.rate_limit import rate_limit_user
 from src.schemas.chat_sse import (
     ChatContextPreviewRequest,
     ChatContextPreviewResponse,
+    ChatQueuedMessageRequest,
+    ChatQueuedMessageResponse,
+    ChatRunCancelResponse,
+    ChatRunResponse,
     ChatStreamRequest,
     PcApprovalDecisionRequest,
     PcApprovalDecisionResponse,
 )
+from src.services import chat_run as run_svc
 from src.services import chat_sse as svc
 from src.services.chat_sse import pc_approvals
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
 
 router = APIRouter(tags=["chat-sse"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+def _run_session() -> AsyncSession:
+    """GAP-189: 実行制御用の service session。
+
+    chat_relay_jobs / chat_queued_messages は本人の行しか触らないが、RLS 経路の
+    session は SSE やジョブ確定を跨いだ読み書きに使えないため service 経路を使う
+    (本人性はサービス層で requested_by 照合により担保する)。
+    """
+    from src.services.chat_sse.relay import service_session_factory
+
+    factory: async_sessionmaker[AsyncSession] = service_session_factory()
+    return factory()
 
 
 async def _thread_visible(session: AsyncSession, thread_id: str) -> bool:
@@ -147,3 +168,208 @@ async def preview_chat_context(
             rag_account_id=body.rag_account_id,
         )
     }
+
+
+# ── GAP-189: 実行の制御 — 中断 / 追い足し指示 / 繋ぎ直し ───────────────
+#
+# 経営者指摘「中断とか入ってないけど、これ Claude だとできるけど」
+#           「止まっても裏のターミナルは変わらないんでしょ？ だったら続けてと
+#             かで自動で後ろは繋がるよね？」
+#
+# 本人性の検証 (requested_by 照合) は services/chat_run 側で行う。ここは
+# HTTP 表現への変換のみ。
+
+
+def _raise_run_error(exc: run_svc.RunControlError) -> NoReturn:
+    code = {
+        "not_found": status.HTTP_404_NOT_FOUND,
+        "forbidden": status.HTTP_403_FORBIDDEN,
+        "invalid_state": status.HTTP_409_CONFLICT,
+        "too_many": status.HTTP_409_CONFLICT,
+    }.get(exc.code, status.HTTP_400_BAD_REQUEST)
+    raise HTTPException(code, exc.message)
+
+
+@router.get(
+    "/chat/threads/{thread_id}/run",
+    summary="このスレッドで今走っている実行 (GAP-189)",
+)
+async def get_active_run(
+    thread_id: str, session: SessionDep, user: UserDep
+) -> dict[str, ChatRunResponse]:
+    """画面を開き直したときに「まだ走っている」と分かるようにする。
+
+    job_id が返ったら、そのまま `/chat/runs/{job_id}/attach` に繋ぎ直せる。
+    """
+    if not await _thread_visible(session, thread_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    async with _run_session() as s:
+        active = await run_svc.active_run(s, thread_id=thread_id, actor_id=user.id)
+    if active is None:
+        return {"data": ChatRunResponse()}
+    return {
+        "data": ChatRunResponse(
+            job_id=active.job_id,
+            status=active.status,
+            tools_mode=active.tools_mode,
+            started_at=None if active.started_at is None else active.started_at.isoformat(),
+        )
+    }
+
+
+@router.post(
+    "/chat/runs/{job_id}/cancel",
+    dependencies=[Depends(rate_limit_user(60))],  # x-rate-limit: 60/min/user
+    summary="走っている実行を止める (GAP-189)",
+)
+async def cancel_run(job_id: str, user: UserDep) -> dict[str, ChatRunCancelResponse]:
+    """人が押した中断。**PC 上の claude も実際に止まる**。
+
+    クラウドの状態を落とすだけで本人の PC では走り続ける、という嘘の中断には
+    しない (Bridge が状態を見て子プロセスを kill する)。そこまでに出ていた
+    本文は捨てずにスレッドへ残す。
+    """
+    async with _run_session() as s:
+        try:
+            result = await run_svc.request_cancel(s, job_id=job_id, actor_id=user.id)
+        except run_svc.RunControlError as exc:
+            await s.rollback()
+            _raise_run_error(exc)
+        await s.commit()
+    return {
+        "data": ChatRunCancelResponse(
+            status=result.status,  # pyright: ignore[reportArgumentType]
+            message=result.message,
+            assistant_message_id=result.assistant_message_id,
+            saved_chars=result.saved_chars,
+        )
+    }
+
+
+@router.get(
+    "/chat/runs/{job_id}/attach",
+    summary="走っている実行に繋ぎ直す SSE (GAP-189)",
+)
+async def attach_run(job_id: str, user: UserDep) -> StreamingResponse:
+    """画面を閉じても PC は仕事を続けている。戻ってきたら最初から見せ直す。
+
+    DB に溜まった chunk を先頭から流し、その後は追いつきながら中継する。
+    イベント形は通常のストリームと同じなので、画面側は同じパーサで読める。
+    """
+    return StreamingResponse(
+        svc.attach_run(job_id=job_id, actor_id=user.id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get(
+    "/chat/threads/{thread_id}/queued",
+    summary="まだ流していない追い足し指示 (GAP-189)",
+)
+async def list_queued_messages(
+    thread_id: str, session: SessionDep, user: UserDep
+) -> dict[str, list[ChatQueuedMessageResponse]]:
+    if not await _thread_visible(session, thread_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    async with _run_session() as s:
+        items = await run_svc.list_queued(s, thread_id=thread_id, actor_id=user.id)
+    return {
+        "data": [
+            ChatQueuedMessageResponse(
+                id=str(i["id"]),
+                content=str(i["content"]),
+                tools_mode=str(i["tools_mode"]),
+                created_at=(None if i["created_at"] is None else i["created_at"].isoformat()),
+            )
+            for i in items
+        ]
+    }
+
+
+@router.post(
+    "/chat/threads/{thread_id}/queued",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit_user(60))],  # x-rate-limit: 60/min/user
+    summary="実行中でも指示を送れるようにする (GAP-189)",
+)
+async def queue_message(
+    thread_id: str,
+    body: ChatQueuedMessageRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, ChatQueuedMessageResponse]:
+    """実行中に送られた指示を**受け取った瞬間に保存**する。
+
+    ここで保存するので、この後ブラウザが落ちても指示は消えない。今の実行が
+    終わったら consume で順に取り出して普通の 1 ターンとして流す。
+    """
+    if not await _thread_visible(session, thread_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    async with _run_session() as s:
+        try:
+            item = await run_svc.queue_message(
+                s,
+                thread_id=thread_id,
+                actor_id=user.id,
+                content=body.content,
+                tools_mode=body.tools_mode,
+            )
+        except run_svc.RunControlError as exc:
+            await s.rollback()
+            _raise_run_error(exc)
+        await s.commit()
+    return {
+        "data": ChatQueuedMessageResponse(
+            id=str(item["id"]), content=str(item["content"]), tools_mode=str(item["tools_mode"])
+        )
+    }
+
+
+@router.post(
+    "/chat/threads/{thread_id}/queued/consume",
+    summary="待ちの指示を 1 件取り出す (GAP-189)",
+)
+async def consume_queued_message(
+    thread_id: str, session: SessionDep, user: UserDep
+) -> dict[str, ChatQueuedMessageResponse | None]:
+    """実行が終わった画面が次に流す 1 件を取り出す (無ければ null)。
+
+    `for update skip locked` で二重消費を防ぐ — 同じスレッドを 2 つの画面で
+    開いていても、同じ指示が 2 回流れることはない。
+    """
+    if not await _thread_visible(session, thread_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    async with _run_session() as s:
+        item = await run_svc.consume_next(s, thread_id=thread_id, actor_id=user.id)
+        await s.commit()
+    if item is None:
+        return {"data": None}
+    return {
+        "data": ChatQueuedMessageResponse(
+            id=str(item["id"]), content=str(item["content"]), tools_mode=str(item["tools_mode"])
+        )
+    }
+
+
+@router.delete(
+    "/chat/threads/{thread_id}/queued/{queued_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="待ちの指示を取り消す (GAP-189)",
+)
+async def drop_queued_message(
+    thread_id: str, queued_id: str, session: SessionDep, user: UserDep
+) -> None:
+    if not await _thread_visible(session, thread_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+    async with _run_session() as s:
+        try:
+            removed = await run_svc.drop_queued(
+                s, thread_id=thread_id, queued_id=queued_id, actor_id=user.id
+            )
+        except run_svc.RunControlError as exc:
+            await s.rollback()
+            _raise_run_error(exc)
+        await s.commit()
+    if not removed:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "queued message not found")
