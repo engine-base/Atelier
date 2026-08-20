@@ -186,6 +186,11 @@ async def _download_result(result_path: str) -> dict[str, Any]:
     return parsed
 
 
+async def load_result(result_path: str) -> dict[str, Any]:
+    """GAP-186: 保存済みの結果 JSON を読む公開入口 (採用機能が使う)。"""
+    return await _download_result(result_path)
+
+
 async def list_analysis_pending(session: AsyncSession, *, limit: int = BATCH_LIMIT) -> list[Any]:
     """解析だけ保留になっている行 (GAP-177)。文字起こしは終わっている。"""
     res = await session.execute(

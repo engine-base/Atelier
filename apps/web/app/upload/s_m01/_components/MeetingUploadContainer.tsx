@@ -279,6 +279,13 @@ export function MeetingUploadContainer({
       chatHref={`/chat?project=${projectId}`}
       onResumeAnalysis={(id) => resumeMut.mutate(id)}
       resuming={resumeMut.isPending}
+      // GAP-186: 抽出項目の採用結果はトーストで返し、タスク/決定の一覧を更新する
+      projectId={projectId}
+      onAdopted={(message) => {
+        pushToast(message, "success");
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+        void queryClient.invalidateQueries({ queryKey: ["decisions"] });
+      }}
     />
   );
 }

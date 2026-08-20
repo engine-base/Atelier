@@ -7,13 +7,17 @@ video / document として扱い、Whisper transcription をキュー登録す�
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.meetings import (
+    MeetingAdoptableItem,
+    MeetingAdoptedRef,
+    MeetingAdoptRequest,
+    MeetingAdoptResponse,
     MeetingCreate,
     MeetingResponse,
     MeetingTranscribeRequest,
@@ -24,6 +28,7 @@ from src.schemas.meetings import (
 )
 from src.schemas.storage import ContentUrlResponse
 from src.services import meetings as svc
+from src.services.meetings import adopt as adopt_svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
 
 router = APIRouter(tags=["meetings"])
@@ -151,6 +156,92 @@ async def resume_meeting_analysis(
     if result.status == "not_found":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
     return {"data": {"status": result.status, "message": result.message}}
+
+
+# ── GAP-186: 議事録の抽出項目を「確認して採用」→ 要件・タスク・決定へ ─────
+#
+# 経営者指示「1,2 だね」の ①。**自動反映はしない** — AI の抽出をそのまま正に
+# すると、聞き間違い・言い過ぎがプロジェクトの要件として固定されてしまう。
+
+
+def _raise_adopt_error(exc: adopt_svc.AdoptError) -> NoReturn:
+    code = {
+        "not_found": status.HTTP_404_NOT_FOUND,
+        "invalid_state": status.HTTP_409_CONFLICT,
+        "too_many": status.HTTP_409_CONFLICT,
+    }.get(exc.code, status.HTTP_400_BAD_REQUEST)
+    raise HTTPException(code, exc.message)
+
+
+@router.get(
+    "/meetings/{meeting_id}/adoptable",
+    summary="議事録から採用できる項目 (GAP-186)",
+)
+async def list_adoptable_items(
+    meeting_id: str, session: SessionDep, _user: UserDep
+) -> dict[str, list[MeetingAdoptableItem]]:
+    """要件・アクション・決定事項・未決事項を、採用済みの印つきで返す。
+
+    リスク・数値・議題は「読むためのもの」なので反映先を持たない
+    (無理にタスク化すると台帳がノイズで埋まる)。
+    """
+    if await svc.get_meeting(session, meeting_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    try:
+        items = await adopt_svc.list_adoptable(session, meeting_id=meeting_id)
+    except adopt_svc.AdoptError as exc:
+        _raise_adopt_error(exc)
+    return {
+        "data": [
+            MeetingAdoptableItem(
+                kind=i.kind,  # pyright: ignore[reportArgumentType]
+                key=i.key,
+                title=i.title,
+                detail=i.detail,
+                quote=i.quote,
+                meta=i.meta,
+                adopted=i.adopted,
+                target_type=i.target_type,  # pyright: ignore[reportArgumentType]
+                target_id=i.target_id,
+            )
+            for i in items
+        ]
+    }
+
+
+@router.post(
+    "/meetings/{meeting_id}/adopt",
+    summary="選んだ項目を要件・タスク・決定に反映 (GAP-186)",
+)
+async def adopt_items(
+    meeting_id: str,
+    body: MeetingAdoptRequest,
+    session: SessionDep,
+    user: UserDep,
+) -> dict[str, MeetingAdoptResponse]:
+    """人がチェックした項目だけを実データに落とす。
+
+    すでに採用済みのものは作り直さない (二重に増やさない)。1 件の失敗で
+    全部を落とさず、できたものは残して結果を正直に返す。
+    """
+    if await svc.get_meeting(session, meeting_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+    try:
+        result = await adopt_svc.adopt(
+            session, meeting_id=meeting_id, actor_id=user.id, keys=list(body.keys)
+        )
+    except adopt_svc.AdoptError as exc:
+        await session.rollback()
+        _raise_adopt_error(exc)
+    await session.commit()
+    return {
+        "data": MeetingAdoptResponse(
+            created=[MeetingAdoptedRef(**c) for c in result.created],
+            already=result.already,
+            missing=result.missing,
+            message=result.message,
+        )
+    }
 
 
 @router.delete(

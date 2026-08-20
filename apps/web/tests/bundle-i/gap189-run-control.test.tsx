@@ -68,12 +68,13 @@ describe("GAP-189 中断", () => {
   });
 
   it("生成中は停止ボタンが出て、押すとその実行 ID で中断が呼ばれる", async () => {
-    let release: (() => void) | null = null;
+    // オブジェクト経由で保持する（let だと代入が制御フロー解析に見えず never になる）
+    const gate: { release: (() => void) | null } = { release: null };
     const streamFn = vi.fn(async (args: StreamChatArgs) => {
       args.onChunk({ type: "run", metadata: { job_id: "job-1" } });
       args.onChunk({ type: "delta", content: "書いている途中" });
       await new Promise<void>((r) => {
-        release = r;
+        gate.release = r;
       });
       args.onChunk({ type: "cancelled", metadata: {} });
     });
@@ -96,7 +97,7 @@ describe("GAP-189 中断", () => {
     const stop = await screen.findByRole("button", { name: "停止" });
     fireEvent.click(stop);
     await waitFor(() => expect(cancelRunFn).toHaveBeenCalledWith("job-1"));
-    release?.();
+    gate.release?.();
   });
 
   it("中断はエラー表示にしない（失敗ではない）", async () => {
@@ -119,12 +120,12 @@ describe("GAP-189 中断", () => {
 
 describe("GAP-189 実行中の追い足し指示", () => {
   it("生成中でも入力できて、送ると待ち行列に積まれる（取りこぼさない）", async () => {
-    let release: (() => void) | null = null;
+    const gate: { release: (() => void) | null } = { release: null };
     const streamFn = vi.fn(async (args: StreamChatArgs) => {
       args.onChunk({ type: "run", metadata: { job_id: "job-3" } });
       args.onChunk({ type: "delta", content: "実行中" });
       await new Promise<void>((r) => {
-        release = r;
+        gate.release = r;
       });
       args.onChunk({ type: "end" });
     });
@@ -163,7 +164,7 @@ describe("GAP-189 実行中の追い足し指示", () => {
       await screen.findByText(/今の実行が終わったら送ります/),
     ).toBeInTheDocument();
     expect(screen.getByText("やっぱり色は青で")).toBeInTheDocument();
-    release?.();
+    gate.release?.();
   });
 
   it("実行が終わったら待ちの指示を取り出して続けて流す", async () => {

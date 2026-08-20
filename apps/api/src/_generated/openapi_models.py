@@ -2227,6 +2227,65 @@ class ChatContextPreviewResponse(BaseModel):
     rag_hit_ids: list[UUID]
 
 
+class Kind6(StrEnum):
+    requirement = "requirement"
+    action = "action"
+    decision = "decision"
+    open_question = "open_question"
+
+
+class TargetType1Enum(StrEnum):
+    task = "task"
+    decision = "decision"
+
+
+class TargetType1(RootModel[TargetType1Enum | None]):
+    root: TargetType1Enum | None = None
+
+
+class MeetingAdoptableItem(BaseModel):
+    """
+    採用できる 1 項目。引用つきなので創作でないか人が確かめられる。
+    """
+
+    kind: Kind6
+    key: Annotated[str, Field(max_length=400)]
+    title: str
+    detail: str | None = ""
+    quote: str | None = ""
+    meta: dict[str, str] | None = None
+    adopted: bool | None = False
+    target_type: TargetType1 | None = None
+    target_id: UUID | None = None
+
+
+class Key(RootModel[str]):
+    root: Annotated[str, Field(max_length=400)]
+
+
+class MeetingAdoptRequest(BaseModel):
+    keys: Annotated[list[Key], Field(max_length=50, min_length=1)]
+
+
+class MeetingAdoptedRef(BaseModel):
+    key: str
+    kind: Kind6
+    title: str
+    target_type: TargetType1Enum
+    target_id: UUID
+
+
+class MeetingAdoptResponse(BaseModel):
+    """
+    採用の結果。何ができて何を飛ばしたかを正直に返す。
+    """
+
+    created: list[MeetingAdoptedRef] | None = None
+    already: list[str] | None = None
+    missing: list[str] | None = None
+    message: str
+
+
 class Status17Enum(StrEnum):
     queued = "queued"
     running = "running"
@@ -2374,12 +2433,12 @@ class ExecutionTestResult(BaseModel):
     created_at: AwareDatetime
 
 
-class Kind6(StrEnum):
+class Kind8(StrEnum):
     mock_updated = "mock_updated"
 
 
 class SpecChange(BaseModel):
-    kind: Kind6
+    kind: Kind8
     mock_id: UUID
     screen_name: str
     current_version: int
@@ -2412,7 +2471,7 @@ class SpecChangeResolveResponse(BaseModel):
     follow_up_task_id: UUID | None = None
 
 
-class Kind7(StrEnum):
+class Kind9(StrEnum):
     mock = "mock"
     spec = "spec"
     acceptance_criteria = "acceptance_criteria"
@@ -2421,7 +2480,7 @@ class Kind7(StrEnum):
 
 
 class RelatedResource(BaseModel):
-    kind: Kind7
+    kind: Kind9
     name: str
     meta: str
     href: str | None = None
@@ -2460,7 +2519,7 @@ class ChatRelayControlResponse(BaseModel):
     cancel: bool
 
 
-class Kind8(StrEnum):
+class Kind10(StrEnum):
     delta = "delta"
     tool = "tool"
 
@@ -2468,7 +2527,7 @@ class Kind8(StrEnum):
 class ChatRelayChunksRequest(BaseModel):
     seq_start: Annotated[int, Field(ge=0)]
     texts: Annotated[list[str], Field(max_length=200, min_length=1)]
-    kinds: Annotated[list[Kind8] | None, Field(max_length=200)] = None
+    kinds: Annotated[list[Kind10] | None, Field(max_length=200)] = None
     """
     GAP-134: texts と同長の種別 (delta=本文 / tool=実況)。省略時は全て delta
     """
@@ -2902,7 +2961,7 @@ class ClientMocksResponse(BaseModel):
     total_screens: int
 
 
-class TargetType1(StrEnum):
+class TargetType3(StrEnum):
     workflow_output = "workflow_output"
     mock = "mock"
 
@@ -2912,7 +2971,7 @@ class ClientCommentCreate(BaseModel):
     クライアントのコメント投稿 (comment スコープ必須 — GAP-029)。
     """
 
-    target_type: TargetType1
+    target_type: TargetType3
     target_id: UUID
     content: Annotated[str, Field(max_length=4000, min_length=1)]
 

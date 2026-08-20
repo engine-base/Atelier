@@ -86,3 +86,46 @@ class MeetingUploadUrlResponse(BaseModel):
     upload_url: str
     storage_path: str
     bucket: str
+
+
+# ── GAP-186: 議事録の抽出項目を「確認して採用」→ 要件・タスク・決定へ ─────
+
+
+class MeetingAdoptableItem(BaseModel):
+    """採用できる 1 項目。引用つきなので創作でないか人が確かめられる。"""
+
+    kind: Literal["requirement", "action", "decision", "open_question"]
+    key: str
+    title: str
+    detail: str = ""
+    quote: str = ""
+    meta: dict[str, str] = Field(default_factory=dict["str", "str"])
+    #: すでに採用済みか (押しても増えない)
+    adopted: bool = False
+    target_type: Literal["task", "decision"] | None = None
+    target_id: str | None = None
+
+
+class MeetingAdoptRequest(BaseModel):
+    """採用する項目のキー一覧 (画面でチェックしたものだけ)。"""
+
+    keys: list[str] = Field(min_length=1, max_length=50)
+
+
+class MeetingAdoptedRef(BaseModel):
+    """採用の結果できた 1 件。"""
+
+    key: str
+    kind: str
+    title: str
+    target_type: str
+    target_id: str
+
+
+class MeetingAdoptResponse(BaseModel):
+    """採用の結果。何ができて何を飛ばしたかを正直に返す。"""
+
+    created: list[MeetingAdoptedRef] = Field(default_factory=list["MeetingAdoptedRef"])
+    already: list[str] = Field(default_factory=list["str"])
+    missing: list[str] = Field(default_factory=list["str"])
+    message: str

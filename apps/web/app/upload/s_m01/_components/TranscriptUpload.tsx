@@ -19,6 +19,8 @@ import {
   MeetingAnalysisView,
   type MeetingAnalysis,
 } from "./MeetingAnalysisView";
+import { MeetingAdoptPanel } from "./MeetingAdoptPanel";
+import type { adoptItems, fetchAdoptable } from "./meeting-adopt";
 
 export interface MeetingRow {
   readonly id: string;
@@ -58,6 +60,14 @@ export interface TranscriptUploadProps {
    * 「進めて」と言える導線をここで用意する。
    */
   readonly onResumeAnalysis?: (id: string) => void;
+  /**
+   * GAP-186: 議事録の抽出項目を「確認して採用」→ 要件・タスク・決定へ。
+   * projectId は反映先 (決定一覧) へのリンクに使う。注入 fn はテスト用。
+   */
+  readonly projectId?: string;
+  readonly onAdopted?: (message: string) => void;
+  readonly fetchAdoptableFn?: typeof fetchAdoptable;
+  readonly adoptItemsFn?: typeof adoptItems;
   /** 再開の実行中 (ボタンを二度押しさせない)。 */
   readonly resuming?: boolean;
 }
@@ -144,6 +154,10 @@ export function TranscriptUpload({
   history = [],
   onOpen,
   onResumeAnalysis,
+  projectId,
+  onAdopted,
+  fetchAdoptableFn,
+  adoptItemsFn,
   resuming = false,
   onDelete,
   chatHref,
@@ -484,7 +498,20 @@ export function TranscriptUpload({
 
                 {/* GAP-184: 9 セクション + 文字起こしからの引用 */}
                 {analysis ? (
-                  <MeetingAnalysisView analysis={analysis} />
+                  <>
+                    <MeetingAnalysisView analysis={analysis} />
+                    {/* GAP-186: 抽出項目を「確認して採用」→ 要件・タスク・決定へ。
+                        自動反映はしない (チェックしたものだけが実データになる)。 */}
+                    {openedId ? (
+                      <MeetingAdoptPanel
+                        meetingId={openedId}
+                        {...(projectId ? { projectId } : {})}
+                        {...(onAdopted ? { onAdopted } : {})}
+                        {...(fetchAdoptableFn ? { fetchAdoptableFn } : {})}
+                        {...(adoptItemsFn ? { adoptItemsFn } : {})}
+                      />
+                    ) : null}
+                  </>
                 ) : analysisError ? (
                   <div className="rounded-md border border-border bg-surface-variant/40 px-4 py-3">
                     <p className="text-[12.5px] text-on-surface-variant">

@@ -1950,6 +1950,60 @@ components:
           items: { type: string, format: uuid }
 
     # ── GAP-189: 実行の制御 ────────────────────────────────────────────
+    # ── GAP-186: 議事録の抽出項目の採用 ────────────────────────────────
+    MeetingAdoptableItem:
+      type: object
+      required: [kind, key, title]
+      description: 採用できる 1 項目。引用つきなので創作でないか人が確かめられる。
+      properties:
+        kind: { type: string, enum: [requirement, action, decision, open_question] }
+        key: { type: string, maxLength: 400 }
+        title: { type: string }
+        detail: { type: string, default: '' }
+        quote: { type: string, default: '' }
+        meta:
+          type: object
+          additionalProperties: { type: string }
+        adopted: { type: boolean, default: false }
+        target_type: { type: string, nullable: true, enum: [task, decision, null] }
+        target_id: { type: string, format: uuid, nullable: true }
+
+    MeetingAdoptRequest:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { type: string, maxLength: 400 }
+
+    MeetingAdoptedRef:
+      type: object
+      required: [key, kind, title, target_type, target_id]
+      properties:
+        key: { type: string }
+        kind: { type: string, enum: [requirement, action, decision, open_question] }
+        title: { type: string }
+        target_type: { type: string, enum: [task, decision] }
+        target_id: { type: string, format: uuid }
+
+    MeetingAdoptResponse:
+      type: object
+      required: [message]
+      description: 採用の結果。何ができて何を飛ばしたかを正直に返す。
+      properties:
+        created:
+          type: array
+          items: { $ref: '#/components/schemas/MeetingAdoptedRef' }
+        already:
+          type: array
+          items: { type: string }
+        missing:
+          type: array
+          items: { type: string }
+        message: { type: string }
+
     ChatRunResponse:
       type: object
       description: 今このスレッドで走っている実行（無ければ全て null）
@@ -7196,6 +7250,65 @@ paths:
         '409': { description: 文字起こし未完了, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '502': { description: storage 署名失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: storage 未設定, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/adoptable:
+    get:
+      tags: [meetings]
+      summary: 議事録から採用できる項目（GAP-186）
+      description: |
+        要件・アクション・決定事項・未決事項を、採用済みの印つきで返す。
+        リスク・数値・議題は「読むためのもの」なので反映先を持たない。
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::list_adoptable_items
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-MEET01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: 採用できる項目（引用つき）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MeetingAdoptableItem' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 議事録 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 解析がまだ無い / 保留中, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /meetings/{meeting_id}/adopt:
+    post:
+      tags: [meetings]
+      summary: 選んだ項目を要件・タスク・決定に反映（GAP-186 / 自動反映はしない）
+      description: |
+        人がチェックした項目だけを実データに落とす。すでに採用済みのものは
+        作り直さない（二重に増やさない）。1 件の失敗で全部を落とさず、
+        できたものは残して結果を正直に返す。
+      x-implementation-path: apps/api/src/routes/meetings/__init__.py::adopt_items
+      x-screen-ids: [S-M01]
+      x-feature-ids: [F-MEET01]
+      parameters:
+        - { name: meeting_id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MeetingAdoptRequest' }
+      responses:
+        '200':
+          description: 採用の結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/MeetingAdoptResponse' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 議事録 不在 or 不可視, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 解析がまだ無い / 上限超過, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /meetings/{meeting_id}/resume-analysis:
     post:

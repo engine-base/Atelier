@@ -10624,6 +10624,164 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/meetings/{meeting_id}/adoptable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 議事録から採用できる項目（GAP-186）
+         * @description 要件・アクション・決定事項・未決事項を、採用済みの印つきで返す。
+         *     リスク・数値・議題は「読むためのもの」なので反映先を持たない。
+         *
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    meeting_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 採用できる項目（引用つき） */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["MeetingAdoptableItem"][];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 議事録 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 解析がまだ無い / 保留中 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/meetings/{meeting_id}/adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 選んだ項目を要件・タスク・決定に反映（GAP-186 / 自動反映はしない）
+         * @description 人がチェックした項目だけを実データに落とす。すでに採用済みのものは
+         *     作り直さない（二重に増やさない）。1 件の失敗で全部を落とさず、
+         *     できたものは残して結果を正直に返す。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    meeting_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MeetingAdoptRequest"];
+                };
+            };
+            responses: {
+                /** @description 採用の結果 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["MeetingAdoptResponse"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 議事録 不在 or 不可視 */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 解析がまだ無い / 上限超過 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/meetings/{meeting_id}/resume-analysis": {
         parameters: {
             query?: never;
@@ -19874,6 +20032,46 @@ export interface components {
             system_prompt: string;
             history_count: number;
             rag_hit_ids: string[];
+        };
+        /** @description 採用できる 1 項目。引用つきなので創作でないか人が確かめられる。 */
+        MeetingAdoptableItem: {
+            /** @enum {string} */
+            kind: "requirement" | "action" | "decision" | "open_question";
+            key: string;
+            title: string;
+            /** @default  */
+            detail: string;
+            /** @default  */
+            quote: string;
+            meta?: {
+                [key: string]: string;
+            };
+            /** @default false */
+            adopted: boolean;
+            /** @enum {string|null} */
+            target_type?: "task" | "decision" | null;
+            /** Format: uuid */
+            target_id?: string | null;
+        };
+        MeetingAdoptRequest: {
+            keys: string[];
+        };
+        MeetingAdoptedRef: {
+            key: string;
+            /** @enum {string} */
+            kind: "requirement" | "action" | "decision" | "open_question";
+            title: string;
+            /** @enum {string} */
+            target_type: "task" | "decision";
+            /** Format: uuid */
+            target_id: string;
+        };
+        /** @description 採用の結果。何ができて何を飛ばしたかを正直に返す。 */
+        MeetingAdoptResponse: {
+            created?: components["schemas"]["MeetingAdoptedRef"][];
+            already?: string[];
+            missing?: string[];
+            message: string;
         };
         /** @description 今このスレッドで走っている実行（無ければ全て null） */
         ChatRunResponse: {
