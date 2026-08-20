@@ -329,6 +329,9 @@ async def chat_relay_pick(
             system_prompt=picked["system_prompt"],
             prompt=picked["prompt"],
             tools_mode=picked["tools_mode"],
+            # GAP-190: 同じスレッドは同じ Claude セッションで走らせる
+            session_id=picked.get("session_id"),
+            prompt_full=picked.get("prompt_full"),
         )
     }
 
@@ -505,6 +508,9 @@ async def chat_relay_complete(
 
     GAP-119: Bridge が実行中に観測した rate_limit_event (本人プラン枠) が
     付いていれば chat_plan_status へ upsert する (無ければ何も書かない)。
+
+    GAP-190: Bridge が実際に使った Claude セッション ID と、再開できたかの
+    実測値を受け取ってスレッドへ書き戻す。次のターンから確実に再開できる。
     """
     try:
         if body.rate_limits:
@@ -513,7 +519,15 @@ async def chat_relay_complete(
                 job_id=job_id,
                 observations=[o.model_dump() for o in body.rate_limits],
             )
-        await relay_svc.complete_job(session, job_id=job_id, ok=body.ok, error=body.error)
+        await relay_svc.complete_job(
+            session,
+            job_id=job_id,
+            ok=body.ok,
+            error=body.error,
+            session_id=body.session_id,
+            resumed=body.resumed,
+            worker_id=_token.user_id,
+        )
     except ChatRelayError as exc:
         _raise_for(exc.code, exc.message)
     return {"data": {"status": "ok"}}

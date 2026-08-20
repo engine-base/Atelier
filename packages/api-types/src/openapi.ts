@@ -20340,6 +20340,13 @@ export interface components {
              * @enum {string|null}
              */
             tools_mode?: "off" | "approve" | "auto" | null;
+            /**
+             * Format: uuid
+             * @description GAP-190: 使ってほしい Claude セッション ID。Bridge はこの PC に transcript の実体があれば --resume し、prompt（新しい発言だけ）で足りる。
+             */
+            session_id?: string | null;
+            /** @description GAP-190: 再開できなかったときに使う「履歴を畳んだ」プロンプト。 どちらを使うかは Bridge が実ファイルを見て決める（サーバーは推測しない）。 */
+            prompt_full?: string | null;
             no_available_job: boolean;
         };
         /** @description GAP-189 — 実行中の Bridge が読む制御信号（true なら PC 上の claude を止める） */
@@ -20403,6 +20410,10 @@ export interface components {
             ok: boolean;
             error?: string | null;
             rate_limits?: components["schemas"]["ChatRelayRateLimitObservation"][] | null;
+            /** @description GAP-190: 実際に使った Claude セッション ID。サーバーが希望した ID では なく、PC 上に実在するセッションを正としてスレッドへ保存する（自己修復）。 */
+            session_id?: string | null;
+            /** @description GAP-190: 実際に再開できたか（実ファイルの有無で決めた実測値） */
+            resumed?: boolean | null;
         };
         /** @description GAP-137/145 — PC 操作で生まれた成果物 1 件 (HTML は html / バイナリは content_b64 のどちらか一方。MIME はサーバが拡張子から導出) */
         ChatRelayArtifactItem: {

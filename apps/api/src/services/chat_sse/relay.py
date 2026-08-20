@@ -167,13 +167,27 @@ async def relay_stream_chunks(
     async with factory() as session:
         if not await chat_relay.worker_online(session):
             raise RelayUnavailable
+
+        # GAP-190: スレッドは「同じ Claude セッション」で走らせる。
+        #   - prompt      … 新しい発言だけ (セッションを再開できたとき用)
+        #   - prompt_full … 履歴を畳んだもの (再開できなかったとき用)
+        # どちらを使うかは **Bridge が PC 上の実ファイルを見て決める**。
+        # 再開できたときは履歴を送らないので、利用者のプラン枠を余分に使わない。
+        session_id: str | None = None
+        if thread_id is not None:
+            from src.services.chat_relay.session import ensure_thread_session
+
+            session_id = (await ensure_thread_session(session, thread_id=thread_id)).session_id
+
         job_id = await chat_relay.enqueue_job(
             session,
             thread_id=thread_id,
             requested_by=actor_id,
             system_prompt=system_prompt,
-            prompt=fold_prompt(history, user_message),
+            prompt=user_message if session_id is not None else fold_prompt(history, user_message),
             tools_mode=tools_mode,
+            session_id=session_id,
+            prompt_full=(fold_prompt(history, user_message) if session_id is not None else None),
         )
         await session.commit()
 

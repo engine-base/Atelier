@@ -2509,6 +2509,14 @@ class ChatRelayPickResponse(BaseModel):
     """
     GAP-134: PC 操作モード — Bridge が本人 PC で実行する
     """
+    session_id: UUID | None = None
+    """
+    GAP-190: 使ってほしい Claude セッション ID。Bridge はこの PC に transcript の実体があれば --resume し、prompt（新しい発言だけ）で足りる。
+    """
+    prompt_full: str | None = None
+    """
+    GAP-190: 再開できなかったときに使う「履歴を畳んだ」プロンプト。 どちらを使うかは Bridge が実ファイルを見て決める（サーバーは推測しない）。
+    """
     no_available_job: bool
 
 
@@ -2612,6 +2620,14 @@ class ChatRelayCompleteRequest(BaseModel):
     rate_limits: Annotated[
         list[ChatRelayRateLimitObservation] | None, Field(max_length=20)
     ] = None
+    session_id: Annotated[str | None, Field(max_length=64)] = None
+    """
+    GAP-190: 実際に使った Claude セッション ID。サーバーが希望した ID では なく、PC 上に実在するセッションを正としてスレッドへ保存する（自己修復）。
+    """
+    resumed: bool | None = None
+    """
+    GAP-190: 実際に再開できたか（実ファイルの有無で決めた実測値）
+    """
 
 
 class ChatRelayArtifactItem(BaseModel):

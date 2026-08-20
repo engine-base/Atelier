@@ -87,6 +87,8 @@ async def enqueue_job(
     system_prompt: str,
     prompt: str,
     tools_mode: str = "off",
+    session_id: str | None = None,
+    prompt_full: str | None = None,
 ) -> str:
     """queued ジョブを積み、job_id を返す。
 
@@ -94,12 +96,19 @@ async def enqueue_job(
     本人のプランを使った PC 操作 (Claude Code 同等) を有効化する。
     GAP-138: thread_id=None はチャット外のシステムジョブ (モック生成等) —
     requested_by 本人の Bridge が実行する点は同じ。
+
+    GAP-190: session_id は「使ってほしい Claude セッション」。Bridge がその PC に
+    実体を見つけたら `--resume` し、prompt (新しい発言だけ) で足りる。見つから
+    なければ prompt_full (履歴を畳んだもの) を使って新しいセッションを始める。
+    **どちらを使うかは Bridge が実ファイルを見て決める** — サーバーは推測しない。
     """
     res = await session.execute(
         text(
             "insert into public.chat_relay_jobs "
-            "(thread_id, requested_by, status, system_prompt, prompt, tools_mode) "
-            "values (cast(:t as uuid), cast(:u as uuid), 'queued', :sp, :p, :tm) "
+            "(thread_id, requested_by, status, system_prompt, prompt, tools_mode, "
+            " session_id, prompt_full) "
+            "values (cast(:t as uuid), cast(:u as uuid), 'queued', :sp, :p, :tm, "
+            " cast(:sid as uuid), :pf) "
             "returning id"
         ),
         {
@@ -108,6 +117,8 @@ async def enqueue_job(
             "sp": system_prompt,
             "p": prompt,
             "tm": tools_mode,
+            "sid": session_id,
+            "pf": prompt_full,
         },
     )
     job_id = str(res.scalar_one())
@@ -139,7 +150,8 @@ async def pick_job(
             ") update public.chat_relay_jobs j set status = 'running', "
             "worker_id = :w, started_at = now() "
             "where j.id in (select id from picked) "
-            "returning j.id, j.system_prompt, j.prompt, j.tools_mode"
+            "returning j.id, j.system_prompt, j.prompt, j.tools_mode, "
+            "          j.session_id, j.prompt_full"
         ),
         {"w": worker_id, "u": requested_by},
     )
@@ -155,6 +167,9 @@ async def pick_job(
         "system_prompt": str(row.system_prompt),
         "prompt": str(row.prompt),
         "tools_mode": str(row.tools_mode),
+        # GAP-190: 使ってほしいセッションと、再開できなかったとき用のプロンプト
+        "session_id": None if row.session_id is None else str(row.session_id),
+        "prompt_full": None if row.prompt_full is None else str(row.prompt_full),
     }
 
 
@@ -543,6 +558,31 @@ async def _thread_attachment_seed(session: AsyncSession, *, thread_id: str) -> l
     return out
 
 
+async def _record_session(
+    session: AsyncSession,
+    *,
+    job_id: str,
+    session_id: str | None,
+    resumed: bool | None,
+    worker_id: str | None,
+) -> None:
+    """GAP-190: セッションの実績を記録する (失敗でジョブ確定を壊さない)。"""
+    if session_id is None:
+        return
+    from src.services.chat_relay.session import record_session_use
+
+    try:
+        await record_session_use(
+            session,
+            job_id=job_id,
+            session_id=session_id,
+            resumed=resumed,
+            worker_id=worker_id,
+        )
+    except Exception:  # pragma: no cover  - DB 例外は環境依存
+        logger.exception("failed to record claude session for job %s", job_id)
+
+
 async def _persist_answer_for_job(session: AsyncSession, *, job_id: str) -> None:
     """GAP-189: ジョブ確定時に返答をスレッドへ保存する (チャット由来のみ・冪等)。
 
@@ -572,6 +612,9 @@ async def complete_job(
     job_id: str,
     ok: bool,
     error: str | None = None,
+    session_id: str | None = None,
+    resumed: bool | None = None,
+    worker_id: str | None = None,
 ) -> None:
     """running ジョブを done / error で確定する。
 
@@ -589,6 +632,10 @@ async def complete_job(
     if status is None:
         raise ChatRelayError("not_found", f"chat relay job {job_id} not found")
     if status == "cancelled":
+        # GAP-190: 中断でも「どのセッションを使ったか」は次のターンに要る事実なので残す。
+        await _record_session(
+            session, job_id=job_id, session_id=session_id, resumed=resumed, worker_id=worker_id
+        )
         return
     if status != "running":
         raise ChatRelayError("invalid_state", f"job is {status}, not running")
@@ -599,6 +646,11 @@ async def complete_job(
             "finished_at = now() where id = cast(:i as uuid)"
         ),
         {"st": new_status, "er": error, "i": job_id},
+    )
+    # GAP-190: Bridge が実際に使ったセッションをスレッドへ書き戻す (自己修復)。
+    # サーバーが希望した ID ではなく **PC 上に実在するセッション** を正にする。
+    await _record_session(
+        session, job_id=job_id, session_id=session_id, resumed=resumed, worker_id=worker_id
     )
     await _persist_answer_for_job(session, job_id=job_id)
     # GAP-134: 未決の承認は timeout で閉じる (SSE が resolved を配ってカードを掃除)

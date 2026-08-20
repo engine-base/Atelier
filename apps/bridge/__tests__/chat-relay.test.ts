@@ -24,13 +24,16 @@ import {
   MAX_ARTIFACT_BYTES,
   buildChatArgs,
   buildControlResponse,
+  canResumeSession,
   chatRelayEnabled,
   chatWorkspaceDir,
   classifyRunFailure,
   collectNewArtifacts,
   extractToolDetails,
   parseStreamLine,
+  planSession,
   sanitizedChildEnv,
+  sessionTranscriptPath,
   snapshotArtifactFiles,
   summarizeToolInput,
   type ChatRelaySender,
@@ -50,6 +53,8 @@ class FakeSender implements ChatRelaySender {
     ok: boolean;
     error?: string;
     rateLimits?: readonly ChatRelayRateLimitObservation[];
+    /** GAP-190: 実際に使ったセッションの実測値 */
+    session?: { readonly sessionId: string; readonly resumed: boolean };
   }> = [];
   /** GAP-137: 成果物送信の記録 (complete との順序検証用に順序も記録) */
   readonly artifactUploads: Array<
@@ -119,9 +124,10 @@ class FakeSender implements ChatRelaySender {
     ok: boolean,
     error?: string,
     rateLimits?: readonly ChatRelayRateLimitObservation[],
+    session?: { readonly sessionId: string; readonly resumed: boolean },
   ): Promise<void> {
     this.callOrder.push('complete');
-    this.completes.push({ ok, error, rateLimits });
+    this.completes.push({ ok, error, rateLimits, session });
   }
 }
 
@@ -887,4 +893,125 @@ describe('ChatRelayWorker — 中断 (GAP-189)', () => {
     expect(sender.completes[0]?.ok).toBe(true);
     expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toBe('やあ、こんにちは');
   }, 20_000);
+});
+
+/* ------------------------------------------------------------------ */
+/* GAP-190: スレッドごとに同じ Claude セッションで走らせる              */
+/* ------------------------------------------------------------------ */
+
+describe('sessionTranscriptPath / canResumeSession (GAP-190)', () => {
+  it('cwd の / を - に置換した実パスを決定的に求める（実測に一致）', () => {
+    const p = sessionTranscriptPath('/tmp/g190work', 'abc-123', { HOME: '/home/u' });
+    expect(p).toBe('/home/u/.claude/projects/-tmp-g190work/abc-123.jsonl');
+  });
+
+  it('Windows の区切りも同じ規則へ寄せる', () => {
+    const p = sessionTranscriptPath('C:\\Users\\me\\Work', 'sid', { HOME: '/h' });
+    expect(p).toBe('/h/.claude/projects/C:-Users-me-Work/sid.jsonl');
+  });
+
+  it('実ファイルがあれば再開できる / 無ければできない（推測しない）', () => {
+    const home = mkdtempSync(join(tmpdir(), 'g190-home-'));
+    const cwd = '/tmp/g190-cwd';
+    const dir = join(home, '.claude', 'projects', '-tmp-g190-cwd');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'exists.jsonl'), '{}\n');
+
+    expect(canResumeSession(cwd, 'exists', { HOME: home })).toBe(true);
+    expect(canResumeSession(cwd, 'missing', { HOME: home })).toBe(false);
+    // ID 未指定はセッションを使わない
+    expect(canResumeSession(cwd, undefined, { HOME: home })).toBe(false);
+  });
+});
+
+describe('planSession (GAP-190)', () => {
+  const home = mkdtempSync(join(tmpdir(), 'g190-plan-'));
+  const cwd = '/tmp/g190-plan-cwd';
+  const dir = join(home, '.claude', 'projects', '-tmp-g190-plan-cwd');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'known.jsonl'), '{}\n');
+
+  it('この PC にセッションがあれば再開し、履歴は送らない（プラン枠の節約）', () => {
+    const plan = planSession(
+      { prompt: '新しい発言', sessionId: 'known', promptFull: '履歴ぜんぶ + 新しい発言' },
+      cwd,
+      { HOME: home },
+    );
+    expect(plan).toEqual({ sessionId: 'known', resume: true, prompt: '新しい発言' });
+  });
+
+  it('別の PC など実体が無ければ、その ID で新規に始めて履歴込みを送る（会話が飛ばない）', () => {
+    const plan = planSession(
+      { prompt: '新しい発言', sessionId: 'unknown', promptFull: '履歴ぜんぶ + 新しい発言' },
+      cwd,
+      { HOME: home },
+    );
+    expect(plan).toEqual({
+      sessionId: 'unknown',
+      resume: false,
+      prompt: '履歴ぜんぶ + 新しい発言',
+    });
+  });
+
+  it('履歴込みが渡されていなければ prompt をそのまま使う（落とさない）', () => {
+    const plan = planSession({ prompt: '本文', sessionId: 'unknown' }, cwd, { HOME: home });
+    expect(plan?.prompt).toBe('本文');
+  });
+
+  it('セッション指定が無いジョブ（モック生成等）はセッションを使わない', () => {
+    expect(planSession({ prompt: '本文' }, cwd, { HOME: home })).toBeNull();
+  });
+});
+
+describe('buildChatArgs — セッション引数 (GAP-190)', () => {
+  it('再開時は --resume を付ける', () => {
+    const args = buildChatArgs('SYS', 'off', { sessionId: 'sid-1', resume: true });
+    expect(args[args.indexOf('--resume') + 1]).toBe('sid-1');
+    expect(args).not.toContain('--session-id');
+  });
+
+  it('新規時は --session-id で ID を固定する（次回から再開できる）', () => {
+    const args = buildChatArgs('SYS', 'off', { sessionId: 'sid-2', resume: false });
+    expect(args[args.indexOf('--session-id') + 1]).toBe('sid-2');
+    expect(args).not.toContain('--resume');
+  });
+
+  it('セッション未使用なら従来どおり付けない', () => {
+    const args = buildChatArgs('SYS', 'off', null);
+    expect(args).not.toContain('--resume');
+    expect(args).not.toContain('--session-id');
+  });
+
+  it('再開時も --append-system-prompt は毎回渡す（案件状況・RAG を最新にする）', () => {
+    const args = buildChatArgs('SYS-NOW', 'off', { sessionId: 'sid', resume: true });
+    expect(args[args.indexOf('--append-system-prompt') + 1]).toBe('SYS-NOW');
+  });
+});
+
+describe('ChatRelayWorker — セッションの実測値を報告する (GAP-190)', () => {
+  it('新規セッションで走ったら resumed=false を返す', async () => {
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-sess',
+      systemPrompt: 'SYS',
+      prompt: '新しい発言',
+      toolsMode: 'off',
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      promptFull: '履歴込み',
+    };
+    const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_OK]));
+    expect(await worker.runOnce()).toBe('completed');
+    expect(sender.completes[0]?.session).toEqual({
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      resumed: false,
+    });
+  });
+
+  it('セッション指定が無いジョブでは報告しない（無いものを送らない）', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j-nos', systemPrompt: 'SYS', prompt: 'P', toolsMode: 'off' };
+    const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_OK]));
+    await worker.runOnce();
+    expect(sender.completes[0]?.session).toBeUndefined();
+  });
 });

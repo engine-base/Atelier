@@ -18,7 +18,14 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 
@@ -70,6 +77,82 @@ export function sanitizedChildEnv(
   return out;
 }
 
+/* ------------------------------------------------------------------ */
+/* GAP-190: スレッドごとに「同じ Claude セッション」で走らせる           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * claude が会話を保存する transcript のパスを求める。
+ *
+ * 実測 (2026-08-20): `~/.claude/projects/<cwd の / を - に置換>/<session-id>.jsonl`。
+ * 例) cwd=/tmp/g190work, id=abc → ~/.claude/projects/-tmp-g190work/abc.jsonl
+ *
+ * このパスが**決定的に求まる**ので、Bridge は「この PC でそのセッションを
+ * 再開できるか」を推測せずに判定できる。
+ */
+export function sessionTranscriptPath(
+  cwd: string,
+  sessionId: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  const home = env.HOME ?? env.USERPROFILE ?? homedir();
+  // Windows のドライブレターや区切りも同じ規則に寄せる
+  const encoded = cwd.replaceAll('\\', '/').replaceAll('/', '-');
+  return join(home, '.claude', 'projects', encoded, `${sessionId}.jsonl`);
+}
+
+/** この PC でそのセッションを再開できるか (実ファイルの有無で決める)。 */
+export function canResumeSession(
+  cwd: string,
+  sessionId: string | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (sessionId === undefined || sessionId === '') return false;
+  try {
+    return existsSync(sessionTranscriptPath(cwd, sessionId, env));
+  } catch {
+    // 権限等で見られないときは「再開できない」に倒す (勝手に --resume して落ちない)
+    return false;
+  }
+}
+
+/** GAP-190: セッションの使い方の決定。 */
+export interface SessionPlan {
+  /** 実際に使うセッション ID。 */
+  readonly sessionId: string;
+  /** 再開するか (false = このセッション ID で新規に始める)。 */
+  readonly resume: boolean;
+  /** 実際に送るプロンプト (再開時は新しい発言だけ = プラン枠の節約)。 */
+  readonly prompt: string;
+}
+
+/**
+ * サーバーの指定と、この PC の実状からセッションの使い方を決める。
+ *
+ * - サーバーが ID を指定し、この PC に実体がある → 再開 + 新しい発言だけ
+ * - サーバーが ID を指定したが実体が無い (別 PC / 初期化後) → その ID で新規に
+ *   始め、**履歴を畳んだプロンプト**を使う (会話が飛ばない)
+ * - サーバーが ID を指定しない (システムジョブ等) → セッションを使わない
+ */
+export function planSession(
+  picked: {
+    readonly prompt: string;
+    readonly sessionId?: string;
+    readonly promptFull?: string;
+  },
+  cwd: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): SessionPlan | null {
+  if (picked.sessionId === undefined || picked.sessionId === '') return null;
+  const resume = canResumeSession(cwd, picked.sessionId, env);
+  return {
+    sessionId: picked.sessionId,
+    resume,
+    // 再開できないなら履歴込み。promptFull が無ければ prompt をそのまま使う。
+    prompt: resume ? picked.prompt : (picked.promptFull ?? picked.prompt),
+  };
+}
+
 /**
  * claude の引数を tools_mode ごとに組み立てる。
  * - off: ツールなし・1 往復 (従来)。prompt は stdin テキスト
@@ -79,7 +162,19 @@ export function sanitizedChildEnv(
  *    prompt は stream-json の user メッセージで送り、承認往復のため
  *    stdin を result まで開いたままにする — GAP-130 で実証した実プロトコル)
  */
-export function buildChatArgs(systemPrompt: string, toolsMode: ChatToolsMode = 'off'): string[] {
+export function buildChatArgs(
+  systemPrompt: string,
+  toolsMode: ChatToolsMode = 'off',
+  /**
+   * GAP-190: セッションの使い方。resume なら --resume、そうでなければ
+   * --session-id で「この ID で始める」。null ならセッションを使わない
+   * (従来どおり毎回まっさらなセッション)。
+   *
+   * --append-system-prompt は再開時も毎回渡す — ペルソナ・案件状況・RAG は
+   * ターンごとに変わるので、履歴を送らなくても最新の文脈は効かせる。
+   */
+  session: { readonly sessionId: string; readonly resume: boolean } | null = null,
+): string[] {
   const base = [
     '-p',
     '--append-system-prompt',
@@ -88,6 +183,11 @@ export function buildChatArgs(systemPrompt: string, toolsMode: ChatToolsMode = '
     'stream-json',
     '--include-partial-messages',
     '--verbose',
+    ...(session === null
+      ? []
+      : session.resume
+        ? ['--resume', session.sessionId]
+        : ['--session-id', session.sessionId]),
   ];
   if (toolsMode === 'auto') {
     return [
@@ -421,6 +521,8 @@ export interface ChatRelaySender {
     ok: boolean,
     error?: string,
     rateLimits?: readonly ChatRelayRateLimitObservation[],
+    /** GAP-190: 実際に使った Claude セッションの実測値 (再開できたか含む)。 */
+    session?: { readonly sessionId: string; readonly resumed: boolean },
   ): Promise<void>;
 }
 
@@ -481,7 +583,13 @@ export class ChatRelayWorker {
   async runOnce(): Promise<ChatRelayOutcome> {
     const picked = await this.api.chatRelayPick(this.config.workerId);
     if (picked === null) return 'no-job';
-    const { jobId, systemPrompt, prompt, toolsMode } = picked;
+    const { jobId, systemPrompt, toolsMode } = picked;
+
+    // GAP-190: このスレッドのセッションをこの PC で再開できるかを、
+    // transcript の実ファイルを見て決める (推測しない)。
+    // 再開できるときは履歴を送らない = 利用者のプラン枠を余分に使わない。
+    const plan = planSession(picked, chatWorkspaceDir(this.config.env), this.config.env);
+    const prompt = plan === null ? picked.prompt : plan.prompt;
 
     let seq = 0;
     let pending: PendingChunk[] = [];
@@ -599,6 +707,7 @@ export class ChatRelayWorker {
         systemPrompt,
         prompt,
         toolsMode,
+        plan,
         decideApproval,
         (item) => {
           if (item.kind === 'delta') pending.push({ text: item.text, chunkKind: 'delta' });
@@ -632,7 +741,13 @@ export class ChatRelayWorker {
       flush();
       await sendChain.catch(() => undefined);
       try {
-        await this.api.chatRelayComplete(jobId, false, '[cancelled] ユーザーが中断しました');
+        await this.api.chatRelayComplete(
+          jobId,
+          false,
+          '[cancelled] ユーザーが中断しました',
+          undefined,
+          plan === null ? undefined : { sessionId: plan.sessionId, resumed: plan.resume },
+        );
       } catch {
         /* 中断済みなので送信失敗は握りつぶす */
       }
@@ -669,7 +784,15 @@ export class ChatRelayWorker {
             : classifyRunFailure(run) // GAP-127: 未ログイン/未インストールをタグ付け
         ).slice(0, 2000);
     try {
-      await this.api.chatRelayComplete(jobId, ok, error, [...rateLimits.values()]);
+      await this.api.chatRelayComplete(
+        jobId,
+        ok,
+        error,
+        [...rateLimits.values()],
+        // GAP-190: 実際に使ったセッションと、再開できたかの実測値を返す。
+        // サーバーはこれを正としてスレッドへ保存する (次回から確実に再開できる)。
+        plan === null ? undefined : { sessionId: plan.sessionId, resumed: plan.resume },
+      );
     } catch (err: unknown) {
       console.error('[bridge:chat-relay] complete 送信失敗:', err);
       return 'failed';
@@ -688,6 +811,8 @@ export class ChatRelayWorker {
     systemPrompt: string,
     prompt: string,
     toolsMode: ChatToolsMode,
+    /** GAP-190: 使うセッション (null = セッションを使わない従来動作)。 */
+    session: SessionPlan | null,
     decideApproval: (
       tool: string,
       input: Record<string, unknown>,
@@ -722,7 +847,10 @@ export class ChatRelayWorker {
       }
       const child = spawn(
         this.config.command,
-        [...(this.config.prependArgs ?? []), ...buildChatArgs(systemPrompt, toolsMode)],
+        [
+          ...(this.config.prependArgs ?? []),
+          ...buildChatArgs(systemPrompt, toolsMode, session),
+        ],
         spawnOpts,
       );
       // GAP-189: 中断されたときに **この PC 上の claude を実際に止める**ための

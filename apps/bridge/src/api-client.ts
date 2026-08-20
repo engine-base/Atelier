@@ -39,6 +39,22 @@ export interface ChatRelayPicked {
   readonly prompt: string;
   /** GAP-134: PC 操作モード (off/approve/auto) — 本人 PC で実行する。 */
   readonly toolsMode: 'off' | 'approve' | 'auto';
+  /**
+   * GAP-190: 使ってほしい Claude セッション ID。
+   * この PC に実体 (transcript) があれば --resume して prompt (新しい発言だけ)
+   * で足りる。無ければ --session-id で新規に始め promptFull を使う。
+   */
+  readonly sessionId?: string;
+  /** GAP-190: 再開できなかったときに使う「履歴を畳んだ」プロンプト。 */
+  readonly promptFull?: string;
+}
+
+/** GAP-190: ジョブ完了時にサーバーへ返すセッションの実測値。 */
+export interface ChatRelaySessionOutcome {
+  /** 実際に使ったセッション ID (別 ID を採番したらそれ)。 */
+  readonly sessionId: string;
+  /** 実際に再開できたか。推測せず実ファイルの有無で決める。 */
+  readonly resumed: boolean;
 }
 
 /** GAP-134: chunk 種別 — delta (本文) / tool (ツール実況、content はツール名)。 */
@@ -98,6 +114,8 @@ export interface BridgeApi {
     ok: boolean,
     error?: string,
     rateLimits?: readonly ChatRelayRateLimitObservation[],
+    /** GAP-190: 実際に使った Claude セッションの実測値。 */
+    session?: ChatRelaySessionOutcome,
   ): Promise<void>;
   start(taskId: string, executionId: string, workerPid: number): Promise<void>;
   complete(
@@ -281,6 +299,8 @@ export class ApiClient implements BridgeApi {
         system_prompt: string | null;
         prompt: string | null;
         tools_mode?: string | null;
+        session_id?: string | null;
+        prompt_full?: string | null;
         no_available_job: boolean;
       };
     };
@@ -293,6 +313,13 @@ export class ApiClient implements BridgeApi {
       systemPrompt: d.system_prompt ?? '',
       prompt: d.prompt ?? '',
       toolsMode,
+      // GAP-190: null は「指定なし」— undefined に潰して省略扱いにする
+      ...(typeof d.session_id === 'string' && d.session_id !== ''
+        ? { sessionId: d.session_id }
+        : {}),
+      ...(typeof d.prompt_full === 'string' && d.prompt_full !== ''
+        ? { promptFull: d.prompt_full }
+        : {}),
     };
   }
 
@@ -387,12 +414,16 @@ export class ApiClient implements BridgeApi {
     ok: boolean,
     error?: string,
     rateLimits?: readonly ChatRelayRateLimitObservation[],
+    session?: ChatRelaySessionOutcome,
   ): Promise<void> {
     await this.post(`/chat-relay/${jobId}/complete`, {
       ok,
       error: error ?? null,
       // GAP-119: 観測が無いときは送らない (無いものを送らない誠実設計)
       ...(rateLimits && rateLimits.length > 0 ? { rate_limits: rateLimits } : {}),
+      // GAP-190: 実際に使ったセッションと、再開できたかの実測値を返す。
+      // サーバーはこれを正としてスレッドに保存する (自己修復)。
+      ...(session ? { session_id: session.sessionId, resumed: session.resumed } : {}),
     });
   }
 }

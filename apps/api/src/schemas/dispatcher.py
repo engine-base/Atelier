@@ -148,6 +148,11 @@ class ChatRelayPickResponse(BaseModel):
     prompt: str | None = None
     # GAP-134: PC 操作モード (off/approve/auto) — Bridge が本人 PC で実行する
     tools_mode: str | None = None
+    # GAP-190: 使ってほしい Claude セッション ID。Bridge はこの PC に実体が
+    # あれば --resume し、prompt (新しい発言だけ) で足りる。
+    session_id: str | None = None
+    # GAP-190: 再開できなかったときに使う「履歴を畳んだ」プロンプト。
+    prompt_full: str | None = None
     no_available_job: bool = False
 
 
@@ -248,3 +253,7 @@ class ChatRelayCompleteRequest(BaseModel):
     error: str | None = Field(default=None, max_length=2000)
     # GAP-119: 実行中に観測した本人プラン枠 (rate_limit_event)。未観測なら省略
     rate_limits: list[ChatRelayRateLimitObservation] | None = Field(default=None, max_length=20)
+    # GAP-190: 実際に使った Claude セッション ID と、再開できたかの実測値。
+    # サーバーが希望した ID ではなく **PC 上に実在するセッション** を正にする。
+    session_id: str | None = Field(default=None, max_length=64)
+    resumed: bool | None = None
