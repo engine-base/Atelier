@@ -35,6 +35,13 @@ import type {
   ChatRelayPicked,
   ChatRelayRateLimitObservation,
 } from './api-client.js';
+// GAP-199: クラウド由来の値をそのまま信じない (上限は PC 側が決める)。
+import {
+  appendAudit,
+  capToolsMode,
+  isValidSessionId,
+  resolvesInsideWorkspace,
+} from './security.js';
 
 export const CHAT_RELAY_ENABLED_ENV = 'ATELIER_BRIDGE_CHAT_RELAY';
 export const CHAT_WORKSPACE_ENV = 'ATELIER_BRIDGE_CHAT_WORKSPACE';
@@ -144,6 +151,9 @@ export function planSession(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): SessionPlan | null {
   if (picked.sessionId === undefined || picked.sessionId === '') return null;
+  // GAP-199: この値は `--session-id <値>` として引数になり、transcript の
+  // ファイルパスにも使われる。UUID 以外は受け付けない (`../` も `-` 始まりも弾く)。
+  if (!isValidSessionId(picked.sessionId)) return null;
   const resume = canResumeSession(cwd, picked.sessionId, env);
   return {
     sessionId: picked.sessionId,
@@ -304,6 +314,9 @@ export function collectNewArtifacts(
     .slice(0, MAX_ARTIFACTS_PER_JOB);
   const out: ChatArtifact[] = [];
   for (const [path] of changed) {
+    // GAP-199: 作業フォルダの外を指すシンボリックリンクは送らない。
+    // 例) report.html -> ~/.ssh/id_rsa を置かれても外に出ない。
+    if (!resolvesInsideWorkspace(root, path)) continue;
     let raw;
     try {
       raw = readFileSync(path);
@@ -498,6 +511,13 @@ export interface ChatRelayConfig {
   readonly approvalTimeoutMs?: number;
   /** GAP-189: 中断要求を見に行く間隔 (ms)。既定 2 秒、テストで短縮可。 */
   readonly cancelPollMs?: number;
+  /**
+   * GAP-199: ローカル監査ログに残す指示元 (API の origin)。
+   * 「どのサーバーからの指示で、この PC が何をしたか」を後から追えるようにする。
+   */
+  readonly apiOrigin?: string;
+  /** GAP-199: 監査ログの書き込み先ホーム (テストで差し替える)。 */
+  readonly auditHome?: string;
 }
 
 export interface ChatRelaySender {
@@ -583,13 +603,39 @@ export class ChatRelayWorker {
   async runOnce(): Promise<ChatRelayOutcome> {
     const picked = await this.api.chatRelayPick(this.config.workerId);
     if (picked === null) return 'no-job';
-    const { jobId, systemPrompt, toolsMode } = picked;
+    const { jobId, systemPrompt } = picked;
+    // GAP-199: 実行モードの上限は **この PC** が決める。サーバーが乗っ取られても
+    // ATELIER_BRIDGE_MAX_TOOLS_MODE を超える権限では動かない (既定は今までどおり auto)。
+    const toolsMode = capToolsMode(picked.toolsMode, this.config.env);
+    if (toolsMode !== picked.toolsMode) {
+      console.warn(
+        `[bridge:chat-relay] サーバー指定 ${picked.toolsMode} をこの PC の上限 ${toolsMode} へ格下げしました`,
+      );
+    }
 
     // GAP-190: このスレッドのセッションをこの PC で再開できるかを、
     // transcript の実ファイルを見て決める (推測しない)。
     // 再開できるときは履歴を送らない = 利用者のプラン枠を余分に使わない。
     const plan = planSession(picked, chatWorkspaceDir(this.config.env), this.config.env);
     const prompt = plan === null ? picked.prompt : plan.prompt;
+
+    // GAP-199: 何をさせられたかが本人の PC に残るようにする。
+    // 書けなくても実行は止めない (監査は目的ではなく、後から見返すための記録)。
+    const writeAudit = (outcome: string): void => {
+      appendAudit(
+        {
+          at: new Date().toISOString(),
+          jobId,
+          requestedMode: picked.toolsMode,
+          effectiveMode: toolsMode,
+          cwd: chatWorkspaceDir(this.config.env),
+          apiOrigin: this.config.apiOrigin ?? '',
+          outcome,
+        },
+        this.config.env,
+        this.config.auditHome,
+      );
+    };
 
     let seq = 0;
     let pending: PendingChunk[] = [];
@@ -751,6 +797,7 @@ export class ChatRelayWorker {
       } catch {
         /* 中断済みなので送信失敗は握りつぶす */
       }
+      writeAudit('cancelled');
       return 'completed';
     }
     // partial が 1 つも取れなかった場合は完成 assistant text で代替
@@ -795,8 +842,10 @@ export class ChatRelayWorker {
       );
     } catch (err: unknown) {
       console.error('[bridge:chat-relay] complete 送信失敗:', err);
+      writeAudit('report-failed');
       return 'failed';
     }
+    writeAudit(ok ? 'completed' : 'failed');
     return ok ? 'completed' : 'failed';
   }
 

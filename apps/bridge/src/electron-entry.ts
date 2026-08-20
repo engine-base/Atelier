@@ -12,7 +12,7 @@
  * (vitest からの import が壊れないように分離)。
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -27,6 +27,7 @@ import {
   saveConnectConfig,
 } from './deep-link.js';
 import { runDoctor } from './doctor.js';
+import { needsOriginChangeApproval } from './security.js';
 import { runHeadless } from './headless.js';
 import { createBridge } from './main.js';
 import { BRIDGE_VERSION, checkForUpdate } from './updates.js';
@@ -98,12 +99,40 @@ function registerIpcHandlers(): void {
 /* GAP-122: ワンクリック接続 (atelier-bridge:// ディープリンク)          */
 /* ------------------------------------------------------------------ */
 
-/** 接続 URL を受けたら設定を保存して再起動する (新しい設定でループが立ち上がる)。 */
+/**
+ * 接続 URL を受けたら設定を保存して再起動する (新しい設定でループが立ち上がる)。
+ *
+ * GAP-199: これまでは **どんな http(s) URL でも無条件に保存**していた。
+ * 悪意のあるページに `atelier-bridge://connect?api=...` を開かせるだけで
+ * 指示元を差し替えられる状態だったので、次の 2 段で塞ぐ:
+ *   ① parseConnectUrl が許可した接続先しか通さない
+ *   ② 既に接続済みで**接続先が変わる**ときは、本人の確認を必ず取る
+ */
 function handleConnectUrl(raw: string): void {
-  const parsed = parseConnectUrl(raw);
+  const parsed = parseConnectUrl(raw, process.env);
   if (parsed === null) {
-    console.error('[bridge] 不正な接続 URL を無視しました');
+    console.error('[bridge] 許可されていない接続先、または不正な接続 URL を無視しました');
     return;
+  }
+  const current = loadConnectConfig(configFilePath(homedir()));
+  if (needsOriginChangeApproval(current?.apiUrl ?? null, parsed.apiUrl)) {
+    const choice = dialog.showMessageBoxSync({
+      type: 'warning',
+      buttons: ['接続先を変更する', 'キャンセル'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Atelier Bridge — 接続先の変更',
+      message: 'このパソコンへの指示元を変更しようとしています',
+      detail:
+        `今の接続先: ${current?.apiUrl ?? '(なし)'}\n` +
+        `新しい接続先: ${parsed.apiUrl}\n\n` +
+        '心当たりが無い場合はキャンセルしてください。' +
+        '接続先を変えると、そのサーバーからの指示でこのパソコンの Claude が動きます。',
+    });
+    if (choice !== 0) {
+      console.error('[bridge] 接続先の変更をキャンセルしました');
+      return;
+    }
   }
   saveConnectConfig(configFilePath(homedir()), parsed);
   console.log('[bridge] 接続設定を保存しました。再起動します');

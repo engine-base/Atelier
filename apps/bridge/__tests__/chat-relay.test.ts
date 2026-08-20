@@ -929,37 +929,46 @@ describe('planSession (GAP-190)', () => {
   const cwd = '/tmp/g190-plan-cwd';
   const dir = join(home, '.claude', 'projects', '-tmp-g190-plan-cwd');
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'known.jsonl'), '{}\n');
+  // GAP-199: セッション ID は UUID しか受け付けなくなったので実在する形にする
+  const KNOWN = '11111111-2222-4333-8444-555555555555';
+  const UNKNOWN = '99999999-8888-4777-8666-555555555555';
+  writeFileSync(join(dir, `${KNOWN}.jsonl`), '{}\n');
 
   it('この PC にセッションがあれば再開し、履歴は送らない（プラン枠の節約）', () => {
     const plan = planSession(
-      { prompt: '新しい発言', sessionId: 'known', promptFull: '履歴ぜんぶ + 新しい発言' },
+      { prompt: '新しい発言', sessionId: KNOWN, promptFull: '履歴ぜんぶ + 新しい発言' },
       cwd,
       { HOME: home },
     );
-    expect(plan).toEqual({ sessionId: 'known', resume: true, prompt: '新しい発言' });
+    expect(plan).toEqual({ sessionId: KNOWN, resume: true, prompt: '新しい発言' });
   });
 
   it('別の PC など実体が無ければ、その ID で新規に始めて履歴込みを送る（会話が飛ばない）', () => {
     const plan = planSession(
-      { prompt: '新しい発言', sessionId: 'unknown', promptFull: '履歴ぜんぶ + 新しい発言' },
+      { prompt: '新しい発言', sessionId: UNKNOWN, promptFull: '履歴ぜんぶ + 新しい発言' },
       cwd,
       { HOME: home },
     );
     expect(plan).toEqual({
-      sessionId: 'unknown',
+      sessionId: UNKNOWN,
       resume: false,
       prompt: '履歴ぜんぶ + 新しい発言',
     });
   });
 
   it('履歴込みが渡されていなければ prompt をそのまま使う（落とさない）', () => {
-    const plan = planSession({ prompt: '本文', sessionId: 'unknown' }, cwd, { HOME: home });
+    const plan = planSession({ prompt: '本文', sessionId: UNKNOWN }, cwd, { HOME: home });
     expect(plan?.prompt).toBe('本文');
   });
 
   it('セッション指定が無いジョブ（モック生成等）はセッションを使わない', () => {
     expect(planSession({ prompt: '本文' }, cwd, { HOME: home })).toBeNull();
+  });
+
+  it('GAP-199: UUID でないセッション ID は使わない（引数とファイルパスに入る値だから）', () => {
+    for (const bad of ['known', '../../etc/passwd', '--dangerously-skip-permissions', 'a b']) {
+      expect(planSession({ prompt: '本文', sessionId: bad }, cwd, { HOME: home })).toBeNull();
+    }
   });
 });
 

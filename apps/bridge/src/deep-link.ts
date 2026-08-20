@@ -8,11 +8,17 @@
  * セキュリティ:
  *   - token はユーザー別 Bridge トークン (チャット中継 + presence 限定)。
  *   - 設定ファイルは mode 0600 で保存 (他ユーザーから読めない)。
- *   - api は http(s) のみ受理 (それ以外のスキームは拒否)。
+ *   - GAP-199: api は **許可した接続先だけ** 受理する。
+ *     以前は http(s) でありさえすればどんな URL でも保存していたため、
+ *     悪意のあるページにリンクを開かせるだけで Bridge の指示元を
+ *     攻撃者のサーバーへ差し替えられる状態だった (PC 操作が auto の場合は
+ *     そのまま任意コマンド実行に繋がる)。
  */
 
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+
+import { isTrustedApiUrl } from './security.js';
 
 export const PROTOCOL_SCHEME = 'atelier-bridge';
 export const CONFIG_FILE_NAME = '.atelier-bridge.json';
@@ -22,8 +28,17 @@ export interface BridgeConnectConfig {
   readonly token: string;
 }
 
-/** `atelier-bridge://connect?api=...&token=...` を解釈する (対象外は null)。 */
-export function parseConnectUrl(raw: string): BridgeConnectConfig | null {
+/**
+ * `atelier-bridge://connect?api=...&token=...` を解釈する (対象外は null)。
+ *
+ * GAP-199: 接続先が許可一覧に無ければ **受理しない**。
+ * 自前ホスティング等で別の接続先を使う場合は ATELIER_BRIDGE_TRUSTED_ORIGINS で
+ * 明示的に追加する (env は本人の PC にしか無いので、クラウドからは増やせない)。
+ */
+export function parseConnectUrl(
+  raw: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): BridgeConnectConfig | null {
   let url: URL;
   try {
     url = new URL(raw);
@@ -44,6 +59,7 @@ export function parseConnectUrl(raw: string): BridgeConnectConfig | null {
     return null;
   }
   if (apiUrl.protocol !== 'http:' && apiUrl.protocol !== 'https:') return null;
+  if (!isTrustedApiUrl(api, env)) return null;
   return { apiUrl: api, token };
 }
 

@@ -22,10 +22,10 @@ describe('parseConnectUrl', () => {
     expect(
       parseConnectUrl('atelier-bridge://connect?api=http%3A%2F%2F127.0.0.1%3A8000&token=tok123'),
     ).toEqual({ apiUrl: 'http://127.0.0.1:8000', token: 'tok123' });
-    // https / クエリ順不同も受理
+    // https / クエリ順不同も受理 (許可された接続先であること — GAP-199)
     expect(
-      parseConnectUrl('atelier-bridge://connect?token=t&api=https://api.example.com'),
-    ).toEqual({ apiUrl: 'https://api.example.com', token: 't' });
+      parseConnectUrl('atelier-bridge://connect?token=t&api=https://atelier-api-eb.fly.dev'),
+    ).toEqual({ apiUrl: 'https://atelier-api-eb.fly.dev', token: 't' });
   });
 
   it('対象外 URL は null (別スキーム / 別アクション / パラメータ欠落 / 非 http api)', () => {

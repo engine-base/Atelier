@@ -91,6 +91,15 @@ export function makeDefaultRunner(
   });
 }
 
+/** GAP-199: 監査ログに残す指示元 (origin だけ — token 等は残さない)。 */
+function apiOriginOf(rawUrl: string): string {
+  try {
+    return new URL(rawUrl).origin;
+  } catch {
+    return '';
+  }
+}
+
 /** GAP-114: 実 ChatRelayWorker を生成する (headless 既定)。 */
 export function makeDefaultChatRelay(
   token: string,
@@ -109,6 +118,8 @@ export function makeDefaultChatRelay(
     timeoutMs: Number(env.ATELIER_BRIDGE_TIMEOUT_MS ?? 180_000),
     env: { ...env, ...spec.extraEnv },
     flushIntervalMs: 300,
+    // GAP-199: 「どの指示元でこの PC が何をしたか」をローカル監査ログに残す
+    apiOrigin: apiOriginOf(env.ATELIER_API_URL ?? 'http://127.0.0.1:8000'),
   });
 }
 
