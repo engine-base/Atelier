@@ -64,6 +64,9 @@ class CronRunResponse(BaseModel):
     finished_at: datetime | None
     status: Literal["running", "success", "error", "deferred"]
     detail: dict[str, object]
+    #: GAP-193: この実行の前に飛ばした定刻の回数 (0 = 取りこぼしなし)。
+    #: PC を止めていた間に消えた回数を人が気づけるようにするための実測値。
+    skipped_occurrences: int = 0
 
 
 class PlatformJobLastRun(BaseModel):

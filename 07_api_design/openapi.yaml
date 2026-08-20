@@ -6737,6 +6737,13 @@ paths:
                         finished_at: { type: string, format: date-time, nullable: true }
                         status: { type: string, enum: [running, success, error, deferred] }
                         detail: { type: object }
+                        skipped_occurrences:
+                          type: integer
+                          minimum: 0
+                          default: 0
+                          description: >-
+                            GAP-193: この実行の前に飛ばした定刻の回数（0 = 取りこぼしなし）。
+                            PC を止めていた間に消えた回数を人が気づけるようにするための実測値。
 
   /cron-actions:
     get:

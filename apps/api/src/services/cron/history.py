@@ -87,7 +87,7 @@ async def list_runs(
     res = await session.execute(
         text(
             "select id, name, schedule_id, project_id, started_at, finished_at, "
-            "status, detail from public.cron_run_history "
+            "status, detail, skipped_occurrences from public.cron_run_history "
             f"where {' and '.join(where)} order by started_at desc limit :lim"
         ),
         params,
@@ -108,6 +108,8 @@ async def list_runs(
                 finished_at=row.finished_at,
                 status=str(row.status),  # type: ignore[arg-type]
                 detail=detail,
+                # GAP-193: PC 停止などで飛ばした定刻の回数 (黙って消さない)
+                skipped_occurrences=int(row.skipped_occurrences or 0),
             )
         )
     return out

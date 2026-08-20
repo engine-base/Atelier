@@ -32,7 +32,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .actions import ActionOutcome, get_action_spec
-from .expression import CronExpressionError, next_occurrence
+from .expression import CronExpressionError, missed_occurrences, next_occurrence
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,10 @@ RETRY_AFTER_MINUTES = 10
 #: GAP-184: プラン枠の上限で保留したときの再試行間隔。5 時間枠のリセットを
 #: 待つ必要があるので、10 分ごとに叩き続けても無駄 (かつ枠を消費しかねない)。
 RATE_LIMIT_RETRY_MINUTES = 30
+
+#: GAP-193: 取りこぼしを数える上限。PC を長期間止めていても数え上げで固まらない
+#: ようにする。この値に達したら「これ以上は数えていない」ことを履歴に残す。
+CATCH_UP_LIMIT = 32
 
 
 async def compute_next_run(
@@ -67,15 +71,26 @@ async def compute_next_run(
 
 
 async def _record_start(
-    session: AsyncSession, *, name: str, schedule_id: str, project_id: str
+    session: AsyncSession,
+    *,
+    name: str,
+    schedule_id: str,
+    project_id: str,
+    skipped: int = 0,
 ) -> str | None:
+    """実行開始を履歴に残す。
+
+    GAP-193: skipped は「この実行の前に飛ばした定刻の回数」。PC を数日止めて
+    いたときに黙って消さないための記録 (0 = 取りこぼしなし)。
+    """
     try:
         res = await session.execute(
             text(
-                "insert into public.cron_run_history (name, schedule_id, project_id, status) "
-                "values (:n, cast(:s as uuid), cast(:p as uuid), 'running') returning id"
+                "insert into public.cron_run_history "
+                "(name, schedule_id, project_id, status, skipped_occurrences) "
+                "values (:n, cast(:s as uuid), cast(:p as uuid), 'running', :sk) returning id"
             ),
-            {"n": name, "s": schedule_id, "p": project_id},
+            {"n": name, "s": schedule_id, "p": project_id, "sk": skipped},
         )
         return str(res.scalar_one())
     except Exception:  # pragma: no cover - 履歴が書けなくても本体は止めない
@@ -166,7 +181,8 @@ async def run_due_schedules(
         )
     ).all()
 
-    stats = {"due": 0, "ran": 0, "deferred": 0, "failed": 0, "scheduled": 0}
+    # GAP-193: skipped = PC 停止などで飛ばした定刻の回数 (黙って消さないための実測)
+    stats = {"due": 0, "ran": 0, "deferred": 0, "failed": 0, "scheduled": 0, "skipped": 0}
     for row in rows:
         schedule_id = str(row.id)
         if row.next_run_at is None:
@@ -188,6 +204,20 @@ async def run_due_schedules(
         stats["due"] += 1
         action = str(row.target_action)
         spec = get_action_spec(action)
+
+        # GAP-193: PC を止めていた間に何回分の定刻を過ぎたかを数える。
+        # 既定 (catch_up=false) は最新の 1 回だけ実行するが、**飛ばした回数は
+        # 必ず履歴に残す** — 黙って消さないため。
+        try:
+            missed = missed_occurrences(
+                str(row.cron_expression), due_at=due_at, now=current, limit=CATCH_UP_LIMIT
+            )
+        except CronExpressionError:
+            missed = [due_at]
+        skipped = max(0, len(missed) - 1)
+        if skipped:
+            stats["skipped"] += skipped
+
         # 実行**前**に次回時刻を進める。ここで確定させておかないと、実行中に
         # もう一方の見張り役が同じ行を拾って二重実行になる。
         await compute_next_run(
@@ -197,7 +227,11 @@ async def run_due_schedules(
             after=current,
         )
         run_id = await _record_start(
-            session, name=str(row.name), schedule_id=schedule_id, project_id=str(row.project_id)
+            session,
+            name=str(row.name),
+            schedule_id=schedule_id,
+            project_id=str(row.project_id),
+            skipped=skipped,
         )
         if spec is None:
             # 未知の action。嘘の success を書かない。

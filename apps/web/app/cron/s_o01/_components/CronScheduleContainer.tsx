@@ -151,6 +151,8 @@ export function CronScheduleContainer({
               finished_at?: string | null;
               schedule_id?: string | null;
               status: "running" | "success" | "error" | "deferred";
+              // GAP-193: PC を止めていた間に過ぎた定刻の回数
+              skipped_occurrences?: number;
             }[];
           }
         ).data ?? []
@@ -165,6 +167,8 @@ export function CronScheduleContainer({
     finishedAt: r.finished_at ?? null,
     status: r.status,
     scheduleId: r.schedule_id ?? null,
+    // GAP-193: PC を止めていた間に過ぎた定刻の回数 (黙って消さない)
+    skippedOccurrences: r.skipped_occurrences ?? 0,
   }));
 
   // GAP-179: 自動実行の種類とコスト情報 (GET /cron-actions)。

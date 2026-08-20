@@ -295,3 +295,49 @@ describe("S-O01 実行履歴 (GAP-013)", () => {
     expect(screen.getByText(/実行履歴はまだありません/)).toBeInTheDocument();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/* GAP-193: 取りこぼした自動実行を黙って消さない                        */
+/* ------------------------------------------------------------------ */
+
+describe("GAP-193 取りこぼしの可視化", () => {
+  it("PC を止めていた間に過ぎた定刻の回数を実行履歴に出す", () => {
+    render(
+      <CronSchedule
+        jobs={[]}
+        onToggle={() => undefined}
+        runs={[
+          {
+            id: "r1",
+            name: "毎朝の進捗ダイジェスト",
+            startedAt: "2026-08-20T00:00:00Z",
+            finishedAt: "2026-08-20T00:00:03Z",
+            status: "success",
+            skippedOccurrences: 2,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText("2 回分を未実行")).toBeInTheDocument();
+  });
+
+  it("取りこぼしが無いときは余計な表示を出さない", () => {
+    render(
+      <CronSchedule
+        jobs={[]}
+        onToggle={() => undefined}
+        runs={[
+          {
+            id: "r2",
+            name: "毎朝の進捗ダイジェスト",
+            startedAt: "2026-08-20T00:00:00Z",
+            finishedAt: "2026-08-20T00:00:03Z",
+            status: "success",
+            skippedOccurrences: 0,
+          },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/回分を未実行/)).toBeNull();
+  });
+});

@@ -63,6 +63,11 @@ export interface CronRun {
   readonly status: "running" | "success" | "error" | "deferred";
   /** どのスケジュールの実行か (行内に前回結果を出すため)。 */
   readonly scheduleId?: string | null;
+  /**
+   * GAP-193: この実行の前に飛ばした定刻の回数 (0 = 取りこぼしなし)。
+   * PC を止めていた間の分は実行されない。**黙って消さない**ために出す。
+   */
+  readonly skippedOccurrences?: number;
 }
 
 /**
@@ -804,6 +809,16 @@ export function CronSchedule({
                           >
                             {label}
                           </span>
+                          {/* GAP-193: PC を止めていた間に過ぎた定刻は実行されない。
+                              何回分飛んだかを必ず出す (黙って消さない)。 */}
+                          {r.skippedOccurrences ? (
+                            <span
+                              className="ml-1.5 inline-flex items-center rounded-full bg-surface-variant px-2 py-0.5 text-[10.5px] font-semibold text-on-surface-variant"
+                              title="パソコンが止まっていた等で、この実行までに過ぎた定刻です。その分は実行されていません（遡っての作成は行いません）。"
+                            >
+                              {r.skippedOccurrences} 回分を未実行
+                            </span>
+                          ) : null}
                         </td>
                       </tr>
                     );

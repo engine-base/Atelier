@@ -156,7 +156,7 @@ async def _last_run(session: AsyncSession, schedule_id: str) -> Any:
     return (
         await session.execute(
             text(
-                "select status, detail from public.cron_run_history "
+                "select status, detail, skipped_occurrences from public.cron_run_history "
                 "where schedule_id = cast(:s as uuid) order by started_at desc limit 1"
             ),
             {"s": schedule_id},
@@ -457,3 +457,68 @@ class TestEveryActionActuallyDoesSomething:
         ).first()
         assert row is not None
         assert "今週の状況" in str(row.content)
+
+
+class TestMissedRunsAreNotSilentlyLost:
+    """GAP-193: PC を止めていた間に過ぎた定刻を黙って消さない。
+
+    経営者質問「これは何？ 日次ダイジェストの遡り生成」への対応。
+    実行は最新の 1 回だけ (集計が現在時刻に固定されているため遡れない) だが、
+    **何回分が実行されなかったか**は必ず履歴に残す。
+    """
+
+    async def test_a_normal_run_reports_zero_skipped(
+        self, session: AsyncSession, env: dict[str, str]
+    ) -> None:
+        past = datetime.now(tz=UTC) - timedelta(minutes=1)
+        sched = await _add_schedule(
+            session, project_id=env["project"], action="daily_digest", next_run_at=past
+        )
+        await run_due_schedules(session)
+        run = await _last_run(session, sched)
+        assert run is not None and int(run.skipped_occurrences) == 0
+
+    async def test_three_days_off_records_two_missed(
+        self, session: AsyncSession, env: dict[str, str]
+    ) -> None:
+        """PC を 3 日止めた後に起動 → 実行は 1 回、未実行 2 回が履歴に残る。"""
+        three_days_ago = datetime.now(tz=UTC) - timedelta(days=3)
+        sched = await _add_schedule(
+            session,
+            project_id=env["project"],
+            action="daily_digest",
+            expression="0 9 * * *",
+            next_run_at=three_days_ago,
+        )
+        stats = await run_due_schedules(session)
+        assert stats["skipped"] >= 2
+
+        run = await _last_run(session, sched)
+        assert run is not None
+        assert int(run.skipped_occurrences) >= 2, "飛ばした回数が履歴に残っていない"
+
+        # 実行そのものは 1 回だけ (同じ内容を何個も作らない)
+        count = (
+            await session.execute(
+                text(
+                    "select count(*) from public.cron_run_history "
+                    "where schedule_id = cast(:s as uuid)"
+                ),
+                {"s": sched},
+            )
+        ).scalar_one()
+        assert int(count) == 1
+
+    async def test_next_run_moves_to_the_future_after_an_outage(
+        self, session: AsyncSession, env: dict[str, str]
+    ) -> None:
+        """復帰後は未来の定刻に揃う (過去に張り付いて毎分走り続けない)。"""
+        sched = await _add_schedule(
+            session,
+            project_id=env["project"],
+            action="daily_digest",
+            next_run_at=datetime.now(tz=UTC) - timedelta(days=3),
+        )
+        await run_due_schedules(session)
+        row = await _schedule_row(session, sched)
+        assert row.next_run_at > datetime.now(tz=UTC)

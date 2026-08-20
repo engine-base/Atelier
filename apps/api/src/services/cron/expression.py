@@ -163,6 +163,38 @@ def next_occurrence(
     raise CronExpressionError(f"この cron 式は今後 4 年間発火しません: '{expression}'")
 
 
+def missed_occurrences(
+    expression: str,
+    *,
+    due_at: datetime,
+    now: datetime,
+    limit: int = 32,
+    tz: ZoneInfo = USER_TZ,
+) -> list[datetime]:
+    """`due_at` (含む) から `now` までに発火するはずだった時刻を古い順で返す。
+
+    GAP-193: PC を数日止めていたときに「何回分を取りこぼしたか」を数えるための関数。
+    これまでは 1 回だけ実行して次回時刻を今から先へ飛ばしていたため、間の回数が
+    **黙って消えていた**。まず数えられるようにする。
+
+    limit を超える分は打ち切る (1 か月止めていた等で無限に積み上げない)。
+    打ち切ったかどうかは呼び出し側が len() == limit で判断できる。
+    """
+    base = due_at if due_at.tzinfo is not None else due_at.replace(tzinfo=UTC)
+    end = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    if base > end:
+        return []
+    out: list[datetime] = [base]
+    cursor = base
+    while len(out) < limit:
+        nxt = next_occurrence(expression, after=cursor, tz=tz)
+        if nxt > end:
+            break
+        out.append(nxt)
+        cursor = nxt
+    return out
+
+
 def describe_ja(expression: str) -> str:
     """cron 式を日本語ラベルにする (画面と API で同じ文言を使うため)。
 

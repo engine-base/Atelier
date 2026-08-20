@@ -9331,6 +9331,11 @@ export interface paths {
                                 /** @enum {string} */
                                 status: "running" | "success" | "error" | "deferred";
                                 detail: Record<string, never>;
+                                /**
+                                 * @description GAP-193: この実行の前に飛ばした定刻の回数（0 = 取りこぼしなし）。 PC を止めていた間に消えた回数を人が気づけるようにするための実測値。
+                                 * @default 0
+                                 */
+                                skipped_occurrences: number;
                             }[];
                         };
                     };

@@ -9,9 +9,11 @@
 #
 # 必要な GitHub Secrets:
 #   - FLY_API_TOKEN / FLY_APP_NAME
-#   - PROD_DATABASE_URL (任意 / 推奨): 本番 DB へ schema migration を自動適用する。
-#     未設定なら migration ステップは skip (従来動作)。設定すると deploy 前に
-#     SCHEMA_ONLY=1 で冪等適用し、スキーマドリフト (INFRA-3) を恒久的に防ぐ。
+#   - PROD_DATABASE_URL (**必須**): 本番 DB へ schema migration を自動適用する。
+#     deploy 前に SCHEMA_ONLY=1 で冪等適用し、スキーマドリフト (INFRA-3) を防ぐ。
+#     GAP-192: 未設定なら **deploy を止める**。従来は黙って skip していたため
+#     「新しいコードを古いスキーマの本番へ流す」事故を CI が素通ししていた。
+#     スキーマ変更が無い緊急 deploy のみ skip_migrations=true で明示的に抜ける。
 #
 # v3-gate.yml が PASS している前提 (deploy は merge 後にのみ動く)。
 
@@ -32,6 +34,11 @@ on:
         description: "Fly.io app to deploy"
         required: false
         default: ""
+      skip_migrations:
+        description: "migration を skip する (スキーマ変更が無い緊急 deploy のみ)"
+        required: false
+        type: boolean
+        default: false
 
 # concurrency: 同一ブランチで重複 deploy を抑止する。
 concurrency:
@@ -50,6 +57,7 @@ jobs:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       FLY_APP_NAME: ${{ inputs.app || secrets.FLY_APP_NAME }}
       PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      SKIP_MIGRATIONS: ${{ inputs.skip_migrations }}
     steps:
       - uses: actions/checkout@v4
       - name: Install flyctl
@@ -64,13 +72,27 @@ jobs:
             echo "::error::FLY_APP_NAME secret is not set"
             exit 1
           fi
+          # GAP-192: PROD_DATABASE_URL 未設定は **黙って skip させない**。
+          # 従来は migration ステップが if で静かに飛ばされるだけだったので、
+          # 「新しいコードを古いスキーマの本番へ流す」= 起動後に 500 になる事故を
+          # CI が素通ししていた (ローカルで直した GAP-172 と同じ穴が本番に残っていた)。
+          # スキーマ変更を伴わない緊急 deploy だけ skip_migrations=true で明示的に抜ける。
+          if [ -z "$PROD_DATABASE_URL" ] && [ "$SKIP_MIGRATIONS" != "true" ]; then
+            echo "::error::PROD_DATABASE_URL secret is not set."
+            echo "::error::設定するまで deploy しません (古いスキーマの本番へ新しいコードを流さないため)。"
+            echo "::error::スキーマ変更が無い緊急 deploy のみ skip_migrations=true で実行してください。"
+            exit 1
+          fi
+          if [ "$SKIP_MIGRATIONS" = "true" ]; then
+            echo "::warning::migration を明示的に skip しています。スキーマ変更を含む deploy では使わないでください。"
+          fi
           echo "::notice::deploying to app=$FLY_APP_NAME"
       # INFRA-3 恒久対策: 本番 DB スキーマを deploy 前に同期する。
       # スキーマ用 migration は冪等 (if not exists / drop policy if exists) なので
       # 部分適用済みの本番へ再適用しても安全。@verification-only (RLS 越境試験の
       # fixture) は SCHEMA_ONLY=1 で skip し本番を汚さない。
       - name: Apply DB migrations (schema-only)
-        if: ${{ env.PROD_DATABASE_URL != '' }}
+        if: ${{ inputs.skip_migrations != true }}
         env:
           PGURL: ${{ env.PROD_DATABASE_URL }}
           SCHEMA_ONLY: "1"
@@ -83,7 +105,7 @@ jobs:
       # 再実行安全。これが無いと新規 workspace の AI 社員自動シード (t-d-99) が
       # テンプレ 0 件で空振りする (ギャップ #27)。
       - name: Apply DB seeds
-        if: ${{ env.PROD_DATABASE_URL != '' }}
+        if: ${{ inputs.skip_migrations != true }}
         env:
           PGURL: ${{ env.PROD_DATABASE_URL }}
         run: bash scripts/ci/apply-seeds.sh
