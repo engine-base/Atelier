@@ -66,8 +66,13 @@ class TestLimitDerivation:
         assert capacity.max_concurrent_streams() == capacity.MIN_CONCURRENT
 
     def test_default_is_the_measured_number(self) -> None:
-        """実測 (同時 150 本でポーリング p95 70ms) に基づく値であること。"""
-        assert capacity.DEFAULT_MAX_CONCURRENT == 150
+        """実測に基づく値であること (GAP-202 で 150 → 1000)。
+
+        GAP-202 で待機中のポーリングをやめたので、上限を決めていた負荷が
+        消えた。実測 (.qa/gap-202): 同時 1000 人待機でメモリ +2.5MB /
+        通知の配達 p95 20ms / 待機中の DB 接続 0 本。
+        """
+        assert capacity.DEFAULT_MAX_CONCURRENT == 1000
 
 
 class TestAcquireRelease:

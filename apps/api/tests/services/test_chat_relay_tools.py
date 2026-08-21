@@ -13,6 +13,7 @@ import pytest
 
 from src.services import chat_relay as relay_svc
 from src.services.chat_sse import relay as sse_relay
+from tests._support import patch_relay_notifier
 
 
 class _FakeSession:
@@ -42,7 +43,7 @@ def relay_env(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
         "approvals": [],
     }
     monkeypatch.setattr(sse_relay, "_session_factory", lambda: _FakeSession)
-    monkeypatch.setattr(sse_relay, "_POLL_INTERVAL_SECONDS", 0.0)
+    patch_relay_notifier(monkeypatch, sse_relay)
 
     async def _online(_s: Any) -> bool:
         return True

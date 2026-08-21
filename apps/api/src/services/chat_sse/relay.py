@@ -8,7 +8,9 @@ ATELIER_LLM_PROVIDER=relay の opt-in で、S-E01 チャットの LLM 実行を
        (黙って API 課金や fake に落とさない誠実設計)
     2. chat_relay_jobs へ enqueue し即 commit (Bridge の別トランザクション
        から見えるように。SSE 応答の generator 内で長 tx を持たない)
-    3. chunks をポーリング (0.25s) して text delta を逐次 yield
+    3. GAP-202: chunk が書き込まれた瞬間に DB から通知を受けて text delta を
+       逐次 yield する (待っている間は DB を叩かない。通知が使えない環境では
+       従来のポーリング間隔へ自動で戻る)
     4. done で完走 / error で RelayFailed / タイムアウトで expire + RelayTimeout
 
 このモジュールは自前の session factory を持つ (リクエストスコープの
@@ -25,6 +27,7 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.db.notify import JobNotifier, job_notifier
 from src.db.session import shared_session_factory
 from src.services import chat_relay
 
@@ -32,7 +35,6 @@ PROVIDER_ENV = "ATELIER_LLM_PROVIDER"
 TIMEOUT_ENV = "ATELIER_CHAT_RELAY_TIMEOUT"
 
 _DEFAULT_TIMEOUT_SECONDS = 180.0
-_POLL_INTERVAL_SECONDS = 0.25
 
 
 class RelayUnavailable(Exception):
@@ -187,8 +189,44 @@ async def relay_stream_chunks(
     deadline = asyncio.get_event_loop().time() + timeout
     last_seq = -1
     seen_approvals: dict[str, str] = {}  # id -> 最後に配信した decision
+
+    # GAP-202: 0.25 秒ごとに「届いた？」と聞きに行くのをやめ、**書き込まれた
+    # 瞬間に起こしてもらう**。待っている人数ぶん DB を叩いていたのが、
+    # 動きがあったときだけになる (待機は運営サーバーの負荷にならない)。
+    # 通知が張れない / 落ちている間は従来のポーリング間隔へ自動で戻るので、
+    # 黙って固まることはない。
+    notifier = await job_notifier()
+    with notifier.subscribe(job_id) as wake:
+        async for event in _relay_events(
+            notifier=notifier,
+            wake=wake,
+            factory=factory,
+            job_id=job_id,
+            tools_mode=tools_mode,
+            timeout=timeout,
+            deadline=deadline,
+            last_seq=last_seq,
+            seen_approvals=seen_approvals,
+        ):
+            yield event
+
+
+async def _relay_events(
+    *,
+    notifier: JobNotifier,
+    wake: asyncio.Event,
+    factory: async_sessionmaker[AsyncSession],
+    job_id: str,
+    tools_mode: str,
+    timeout: float,
+    deadline: float,
+    last_seq: int,
+    seen_approvals: dict[str, str],
+) -> AsyncIterator[str | dict[str, object]]:
+    """通知で起きて差分を配る本体 (GAP-202 で poll ループから切り出した)。"""
     while True:
-        await asyncio.sleep(_POLL_INTERVAL_SECONDS)
+        # 通知が来たら即座に、来なければ保険の間隔で起きる。
+        await notifier.wait(wake)
         async with factory() as session:
             chunks = await chat_relay.fetch_chunks(session, job_id=job_id, after_seq=last_seq)
             status, error = await chat_relay.job_result(session, job_id=job_id)

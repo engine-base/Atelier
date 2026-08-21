@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._support import patch_relay_notifier
+
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", "test-jwt-secret")
 
 from src.services.chat_sse.pc_artifacts import collect_new_artifacts, snapshot_artifact_files
@@ -109,7 +111,7 @@ async def test_relay_adapter_maps_artifact_chunks(monkeypatch: pytest.MonkeyPatc
 
     state: dict[str, Any] = {"status": "running", "chunks": []}
     monkeypatch.setattr(sse_relay, "_session_factory", lambda: _FakeSession)
-    monkeypatch.setattr(sse_relay, "_POLL_INTERVAL_SECONDS", 0.0)
+    patch_relay_notifier(monkeypatch, sse_relay)
 
     async def _online(_s: Any) -> bool:
         return True

@@ -24,6 +24,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import AuditEvent, AuditWriter
+from src.db import notify as db_notify
+from src.db.notify import notifier_health
 from src.db.session import pool_stats, shared_session_factory
 from src.schemas.admin import (
     AcquisitionChannelCount,
@@ -345,8 +347,8 @@ async def get_health() -> list[HealthCheckRow]:
                 ),
             )
         )
-        # GAP-198: SSE は張っている間ずっと DB セッションを 1 本掴む。
-        # fly.toml の soft_limit ではなく、ここが本当の同時チャット上限。
+        # GAP-198/201/202: fly.toml の soft_limit ではなく、ここが本当の
+        # 同時チャット上限。GAP-202 で待機中のポーリングをやめたので 150→1000。
         sse = stream_capacity()
         rows.append(
             HealthCheckRow(
@@ -360,6 +362,33 @@ async def get_health() -> list[HealthCheckRow]:
                     "混雑あり (お断り発生)"
                     if sse.rejected > 0
                     else ("逼迫" if sse.ratio >= 0.8 else "余裕あり")
+                ),
+            )
+        )
+        # GAP-202: 押し出し (通知) が生きているか。**ここが落ちると黙って
+        # 従来のポーリングに戻る** ので、静かに劣化していることを見えるようにする。
+        notifier = await notifier_health()
+        rows.append(
+            HealthCheckRow(
+                name="チャットの押し出し通知",
+                status="ok" if notifier.connected else "warn",
+                detail=(
+                    (
+                        f"待ち受け中 · 待っているチャット {notifier.waiting} 本 "
+                        f"· 配達 {notifier.delivered} 回 · 切断 {notifier.reconnects} 回"
+                    )
+                    if notifier.connected
+                    else (
+                        "待ち受けが繋がっていない — "
+                        f"{db_notify.DEGRADED_RECHECK_SECONDS:.2f} 秒ごとの"
+                        "確認に戻っています "
+                        f"({notifier.last_error or '理由不明'})"
+                    )
+                ),
+                meta=(
+                    "正常 (待機中は DB を叩かない)"
+                    if notifier.connected
+                    else "劣化 (動くが重い — LISTEN が届かない構成の可能性)"
                 ),
             )
         )
