@@ -1112,6 +1112,32 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────
   # 全 gate 集約
   # ─────────────────────────────────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────
+  # Gate #16 — 中身の流出検査 (GAP-204)
+  #
+  # ブラウザに配る HTML/CSS/JS は必ず相手の手元に届く。見た目が真似されるのは
+  # 止められないが、**中身 (プロンプト / スキル本文 / テンプレ本文) が画面側の
+  # JS に混ざる**のは事故であり、1 行混ざれば丸ごと読まれる。
+  # ここで毎回 build して機械検査する。本番ソースマップの配布も同時に見る。
+  # ─────────────────────────────────────────────────────────
+  gate-16-client-leak:
+    name: "Gate #16 — 中身の流出検査 (client leak)"
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: build + 流出検査
+        run: python3 scripts/ci/check-client-leak.py --build
+
   aggregate-status:
     name: "v3-gate / all 10 gates"
     if: always()
@@ -1131,6 +1157,7 @@ jobs:
       - gate-13-gap-tracker
       - gate-14-real-pg
       - gate-15-browser-e2e
+      - gate-16-client-leak
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -1151,6 +1178,7 @@ jobs:
             [gate-13-gap-tracker]="${{ needs.gate-13-gap-tracker.result }}"
             [gate-14-real-pg]="${{ needs.gate-14-real-pg.result }}"
             [gate-15-browser-e2e]="${{ needs.gate-15-browser-e2e.result }}"
+            [gate-16-client-leak]="${{ needs.gate-16-client-leak.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do

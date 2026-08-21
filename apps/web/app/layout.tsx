@@ -6,6 +6,11 @@ import { ConditionalAppShell } from "../components/layout/ConditionalAppShell";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import "./globals.css";
 
+/** GAP-204: 権利者表示。契約主体と一致させること。 */
+const COPYRIGHT_HOLDER = "ENGINE BASE";
+/** 利用条件の所在 (規約 第9条 知的財産権 / 第10条 秘密情報)。 */
+const TERMS_URL = "/terms";
+
 // モック(_shared/atelier.css)は Noto Sans JP を Google Fonts から読み込む。
 // 実装はフォント宣言のみで実体を読み込んでおらず system font にフォールバックしていたため、
 // タイポグラフィがモックと別物になっていた (F-VIS: フォント未ロード)。next/font で実ロードする。
@@ -25,6 +30,16 @@ export const metadata: Metadata = {
   robots: {
     index: false,
     follow: false,
+  },
+  // GAP-204: 著作権と利用条件を **配る HTML 自体に** 明記する。
+  //
+  // 技術的な事実として、ブラウザへ届いた HTML/CSS は必ず読める。見た目の模倣を
+  // 技術で止めることはできない。止められないぶん、**誰の著作物で、どういう
+  // 条件で使えるのかを明示**しておき、法的に戦える状態にする
+  // (規約側の実体は利用規約 第9条・第10条 — supabase/migrations/gap-204_*)。
+  other: {
+    copyright: `© ${COPYRIGHT_HOLDER} All rights reserved.`,
+    "rights-standard": TERMS_URL,
   },
 };
 
