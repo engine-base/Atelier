@@ -21,7 +21,50 @@ export type ChatChunkType =
   // GAP-189: このターンの実行 ID (停止ボタン・繋ぎ直しの手掛かり)
   | "run"
   // GAP-189: 人が中断した終端。error ではない (失敗ではないので赤くしない)
-  | "cancelled";
+  | "cancelled"
+  // GAP-203: 混雑していて順番待ち中。metadata に position / ahead / eta_seconds
+  | "queued";
+
+/**
+ * GAP-203: サーバーが返した理由を持ったまま投げるエラー。
+ *
+ * `status` を見れば「混雑 (503)」と「本当の故障」を画面が区別できる。
+ * `detail` はサーバーが日本語で返した本文 (無ければ null)。
+ */
+export class ChatStreamError extends Error {
+  readonly status: number;
+  readonly detail: string | null;
+
+  constructor(status: number, detail: string | null) {
+    super(detail ?? `chat stream failed: HTTP ${status}`);
+    this.name = "ChatStreamError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+/** エラー応答の本文から、利用者に見せられる日本語の理由を取り出す。 */
+async function readErrorDetail(res: Response): Promise<string | null> {
+  try {
+    const text = await res.text();
+    if (!text) return null;
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (parsed && typeof parsed === "object") {
+        const obj = parsed as Record<string, unknown>;
+        for (const key of ["detail", "message", "error"]) {
+          const v = obj[key];
+          if (typeof v === "string" && v.trim()) return v;
+        }
+      }
+    } catch {
+      // JSON でなければ本文そのものを使う
+    }
+    return text.slice(0, 400);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * GAP-129/130: PC 操作モード。off=ツールなし (既定) /
@@ -108,7 +151,11 @@ export async function streamChatThread(args: StreamChatArgs): Promise<void> {
   });
 
   if (!res.ok || !res.body) {
-    throw new Error(`chat stream failed: HTTP ${res.status}`);
+    // GAP-203: **サーバーが返した日本語の理由を捨てない**。
+    // 以前はここで `HTTP 503` とだけ投げていたため、混雑していても画面には
+    // 「AI 応答の取得に失敗しました」という汎用エラーしか出ず、利用者には
+    // 何が起きたのか分からなかった。
+    throw new ChatStreamError(res.status, await readErrorDetail(res));
   }
 
   const reader = res.body.getReader();

@@ -22,6 +22,7 @@ import {
   Brain,
   Check,
   CircleAlert,
+  Clock,
   Copy,
   GitBranch,
   Paperclip,
@@ -83,6 +84,12 @@ export interface ToolRunItem {
   readonly summary?: string;
 }
 
+/** GAP-203: 待ち時間の目安を人が読める形にする (秒だけ出さない)。 */
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${Math.max(1, Math.round(seconds))} 秒`;
+  return `${Math.round(seconds / 60)} 分`;
+}
+
 export interface ChatPanelProps {
   readonly messages: readonly ChatMessage[];
   readonly onSend: (text: string) => void;
@@ -92,6 +99,16 @@ export interface ChatPanelProps {
   /** 送信エラー (コンポーザ直上に 1 箇所だけ表示、閉じるで消える)。 */
   readonly errorNotice?: string | null;
   readonly onDismissError?: () => void;
+  /**
+   * GAP-203: 混雑で順番待ち中の現在地。**エラーではない**ので赤くしない。
+   * null なら何も出さない。
+   */
+  readonly queueNotice?: { readonly position: number; readonly etaSeconds: number | null } | null;
+  /**
+   * GAP-203: 送信に失敗したときに入力欄へ戻す文章。
+   * 値が変わったときだけ入力欄へ入れる (書き直させないため)。
+   */
+  readonly restoredDraft?: string | null;
   /** @メンション候補 (他の AI 社員)。 */
   readonly mentionCandidates?: readonly MentionCandidate[];
   /** ナレッジ参照候補 (プロジェクトの実ナレッジ)。 */
@@ -513,6 +530,8 @@ export function ChatPanel({
   disabled,
   employee,
   errorNotice,
+  queueNotice,
+  restoredDraft,
   onDismissError,
   mentionCandidates = [],
   knowledgeCandidates = [],
@@ -548,6 +567,15 @@ export function ChatPanel({
   onPcApprovalDecision,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
+
+  // GAP-203: 送信に失敗したら**打った文章を戻す**。書き直させない。
+  const lastRestoredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (restoredDraft && restoredDraft !== lastRestoredRef.current) {
+      lastRestoredRef.current = restoredDraft;
+      setInput((cur) => (cur === "" ? restoredDraft : cur));
+    }
+  }, [restoredDraft]);
   // GAP-136: 実行中の経過秒 (1 秒刻み)。toolStartedAt が無ければ表示しない。
   const [elapsedSec, setElapsedSec] = useState(0);
   useEffect(() => {
@@ -694,6 +722,23 @@ export function ChatPanel({
         }}
         className="shrink-0 border-t border-border bg-surface px-md pb-4 pt-3 sm:px-[24px]"
       >
+        {queueNotice ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-2 flex items-start gap-2 rounded-md border border-border bg-surface-variant px-3 py-2 text-[12px] leading-[1.5] text-on-surface-variant"
+          >
+            <Clock size={14} aria-hidden="true" className="mt-[1px] shrink-0" />
+            <span className="flex-1">
+              ただいま混み合っています。
+              <strong className="font-semibold">順番待ち {queueNotice.position} 番目</strong>
+              {queueNotice.etaSeconds !== null
+                ? `（目安 約 ${formatWait(queueNotice.etaSeconds)}）`
+                : ""}
+              — 空き次第そのまま実行します。このままお待ちください。
+            </span>
+          </div>
+        ) : null}
         {errorNotice ? (
           <div
             role="alert"

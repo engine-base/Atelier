@@ -10,6 +10,8 @@ JSON で encode、Content-Type: text/event-stream で配信。
 
 from __future__ import annotations
 
+import json
+import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Annotated, NoReturn
 
@@ -68,29 +70,79 @@ async def _thread_visible(session: AsyncSession, thread_id: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# GAP-198: SSE は張っている間ずっと DB セッションを 1 本掴む。上限に当たったら
-# pool_timeout ぶん黙って待たせるのではなく、混んでいることをその場で伝える。
+# GAP-198 / GAP-203: SSE の同時本数を守る。
+#
+# GAP-198 では上限に当たったら即 503 にしていた。だが上限は「同時に**実行**
+# できる数」であって「受け付けられない数」ではない。503 にすると利用者は
+# **打った文章ごと弾き返される** — 混雑がそのまま故障に見える。
+#
+# GAP-203: **断らずに並んでもらう**。並んでいる間は「順番待ち N 番目」を
+# SSE で流し続け、空き次第そのまま実行に入る。列まで一杯 / 待たせすぎのときだけ
+# 正直に断る (そのときも日本語で理由を返す)。
 # --------------------------------------------------------------------------- #
+BUSY_MESSAGE = (
+    "ただいま大変混み合っています。時間をおいてもう一度お試しください。"
+    "（お客様の文章は消えていません）"
+)
+
+
+def _sse(payload: dict[str, object]) -> bytes:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode()
+
+
 def guarded_stream(
     generator: AsyncIterator[bytes],
 ) -> StreamingResponse:
-    """SSE を 1 本ぶん確保してから返す (切断されても必ず返却する)。"""
-    try:
-        capacity.acquire()
-    except capacity.StreamCapacityExceeded:
-        limit = capacity.max_concurrent_streams()
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            f"ただいま混み合っています (同時に開ける上限 {limit} 本に達しました)。"
-            "少し待ってからもう一度お試しください。",
-        ) from None
+    """SSE を 1 本ぶん確保してから返す (切断されても必ず返却する)。
+
+    空いていれば今までどおり即座に流れる。混んでいるときだけ、先に
+    `queued` イベントを流しながら順番を待つ。
+    """
 
     async def _wrapped() -> AsyncIterator[bytes]:
+        started: float | None = None
+        holding = False
+        # **明示的に持っておく**: 順番待ちの最中に画面を閉じられると、この
+        # generator は GeneratorExit で畳まれる。そのとき `async for` の中の
+        # generator は自動では閉じられない (GC 任せ) ので、列に並んだままになり
+        # **席が戻らない**。実 e2e で踏んだ。finally で必ず閉じる。
+        waiter = capacity.wait_for_slot()
         try:
+            try:
+                async for update in waiter:
+                    yield _sse(
+                        {
+                            "type": "queued",
+                            "metadata": {
+                                "position": update.position,
+                                "ahead": update.ahead,
+                                # 材料が無いうちは null (根拠の無い秒数を出さない)
+                                "eta_seconds": (
+                                    None
+                                    if update.eta_seconds is None
+                                    else round(update.eta_seconds)
+                                ),
+                            },
+                        }
+                    )
+            except capacity.StreamCapacityExceeded:
+                # ここまで来たら本文は 1 バイトも流していない場合もあるが、
+                # SSE として **理由を本文で返す** (画面が読める形にする)。
+                yield _sse({"type": "error", "content": BUSY_MESSAGE})
+                return
+            finally:
+                await waiter.aclose()
+
+            holding = True
+            started = time.monotonic()
             async for chunk in generator:
                 yield chunk
         finally:
-            capacity.release()
+            if holding:
+                if started is not None:
+                    # 次の人へ出す「待ち時間の目安」の材料 (実測)。
+                    capacity.record_duration(time.monotonic() - started)
+                capacity.release()
 
     return StreamingResponse(
         _wrapped(),

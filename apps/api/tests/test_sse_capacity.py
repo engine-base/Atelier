@@ -28,7 +28,6 @@ os.environ.setdefault(
     "ATELIER_DB_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
 )
 
-from fastapi import HTTPException
 
 from src.db.session import pool_capacity
 from src.routes.chat_sse import guarded_stream
@@ -108,10 +107,12 @@ class TestGuardedStream:
     async def test_stream_releases_after_completion(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
         response = guarded_stream(self._gen())
+        body = cast("AsyncGenerator[bytes, None]", response.body_iterator)
+        # GAP-203: 席を取るのは **本文を流し始めたとき** (並ぶ可能性があるため)
+        assert await anext(body) == b"data: 1\n\n"
         assert capacity.snapshot().open_streams == 1
-        body = cast("AsyncIterator[bytes]", response.body_iterator)
-        chunks = [chunk async for chunk in body]
-        assert chunks == [b"data: 1\n\n", b"data: 2\n\n"]
+        rest = [chunk async for chunk in body]
+        assert rest == [b"data: 2\n\n"]
         assert capacity.snapshot().open_streams == 0
 
     @pytest.mark.anyio
@@ -123,22 +124,64 @@ class TestGuardedStream:
         response = guarded_stream(self._gen())
         iterator = cast("AsyncGenerator[bytes, None]", response.body_iterator)
         assert await anext(iterator) == b"data: 1\n\n"
+        assert capacity.snapshot().open_streams == 1
         await iterator.aclose()
         assert capacity.snapshot().open_streams == 0
 
     @pytest.mark.anyio
-    async def test_over_limit_returns_503_in_japanese(
+    async def test_over_limit_queues_instead_of_refusing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """黙って遅くならず、その場で「混んでいる」と伝える。"""
+        """GAP-203: 上限を超えても **断らずに並ぶ**。
+
+        以前 (GAP-198) はここで 503 を投げていた。だが利用者から見ると
+        「混んでいる」が「壊れている」と区別できず、打った文章まで消えていた。
+        """
         monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
-        guarded_stream(self._gen())  # 上限まで埋める
-        guarded_stream(self._gen())
-        with pytest.raises(HTTPException) as excinfo:
-            guarded_stream(self._gen())
-        assert excinfo.value.status_code == 503
-        assert "混み合っています" in str(excinfo.value.detail)
-        assert "2" in str(excinfo.value.detail)  # 上限の本数を伝える
+        first = cast("AsyncGenerator[bytes, None]", guarded_stream(self._gen()).body_iterator)
+        second = cast("AsyncGenerator[bytes, None]", guarded_stream(self._gen()).body_iterator)
+        await anext(first)
+        await anext(second)
+        assert capacity.snapshot().open_streams == 2  # 上限まで埋まった
+
+        third = cast("AsyncGenerator[bytes, None]", guarded_stream(self._gen()).body_iterator)
+        queued_event = await anext(third)
+        assert b'"queued"' in queued_event, "順番待ちを伝えていない"
+        assert b'"position": 1' in queued_event
+        assert capacity.snapshot().queued == 1
+        assert capacity.snapshot().rejected == 0, "断ってはいけない"
+
+        # 1 本終われば、並んでいた人がそのまま本文を受け取る
+        await first.aclose()
+        assert await anext(third) == b"data: 1\n\n"
+
+        await second.aclose()
+        await third.aclose()
+        assert capacity.snapshot().open_streams == 0
+
+    @pytest.mark.anyio
+    async def test_queue_full_returns_japanese_reason_in_the_stream(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """列まで一杯なら断る。**そのときも理由を本文で返す** (画面が読める形)。"""
+        monkeypatch.setenv(capacity.MAX_CONCURRENT_ENV, "2")
+        monkeypatch.setenv(capacity.MAX_QUEUE_ENV, "0")
+        open_streams = [
+            cast("AsyncGenerator[bytes, None]", guarded_stream(self._gen()).body_iterator)
+            for _ in range(2)
+        ]
+        for it in open_streams:
+            await anext(it)
+
+        refused = cast("AsyncGenerator[bytes, None]", guarded_stream(self._gen()).body_iterator)
+        event = await anext(refused)
+        assert b'"error"' in event
+        assert "混み合っています".encode() in event
+        assert "文章は消えていません".encode() in event
+        assert capacity.snapshot().rejected == 1
+        await refused.aclose()
+        for it in open_streams:
+            await it.aclose()
 
     def test_every_sse_endpoint_goes_through_the_guard(self) -> None:
         """SSE を返す全経路が同じ守りを通ること (1 か所だけ素通りを作らない)。"""

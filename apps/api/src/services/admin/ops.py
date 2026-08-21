@@ -356,12 +356,19 @@ async def get_health() -> list[HealthCheckRow]:
                 status=("warn" if (sse.ratio >= 0.8 or sse.rejected > 0) else "ok"),
                 detail=(
                     f"接続中 {sse.open_streams} / 1 台あたり上限 {sse.limit} "
-                    f"· 混雑でお断りした回数 {sse.rejected}"
+                    f"· 順番待ち {sse.queued} / 上限 {sse.queue_limit} "
+                    f"· 延べ待たせた人数 {sse.queued_total} "
+                    f"(最長 {sse.longest_wait_seconds:.0f} 秒) "
+                    f"· 並べずお断りした回数 {sse.rejected}"
                 ),
                 meta=(
-                    "混雑あり (お断り発生)"
+                    "並ぶ列まで一杯 (お断り発生)"
                     if sse.rejected > 0
-                    else ("逼迫" if sse.ratio >= 0.8 else "余裕あり")
+                    else (
+                        "順番待ちが発生中 (断ってはいない)"
+                        if sse.queued > 0
+                        else ("逼迫" if sse.ratio >= 0.8 else "余裕あり")
+                    )
                 ),
             )
         )

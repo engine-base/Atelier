@@ -52,6 +52,7 @@ import {
   streamChatThread,
   uploadChatAttachment,
   type ChatAttachmentMeta,
+  ChatStreamError,
   type ChatStreamChunk,
   type StreamChatArgs,
 } from "./stream";
@@ -281,6 +282,13 @@ export function ChatContainer({
   const toolsAvailable =
     connQuery.data?.mode === "agent_sdk" || connQuery.data?.mode === "relay";
   const [error, setError] = useState<string | null>(null);
+  /** GAP-203: 混雑で順番待ち中の現在地 (null = 待っていない)。 */
+  const [busyQueue, setBusyQueue] = useState<{
+    position: number;
+    etaSeconds: number | null;
+  } | null>(null);
+  /** GAP-203: 送信に失敗したとき、打った文章を入力欄へ戻すための一時保管。 */
+  const [restoredDraft, setRestoredDraft] = useState<string | null>(null);
   const [feedbackDoneIds, setFeedbackDoneIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -614,9 +622,18 @@ export function ChatContainer({
         } else if (chunk.type === "cancelled") {
           // GAP-189: 人が止めた終端。失敗ではないのでエラー表示にしない。
           setPendingStage(null);
+        } else if (chunk.type === "queued") {
+          // GAP-203: 混雑中。**断らずに並んでいる**ので、待っていることと
+          // 現在地を伝える (エラーにしない)。
+          const meta = chunk.metadata ?? {};
+          const position = typeof meta.position === "number" ? meta.position : 0;
+          const eta =
+            typeof meta.eta_seconds === "number" ? meta.eta_seconds : null;
+          setBusyQueue({ position, etaSeconds: eta });
         } else if (chunk.type === "error") {
           setError(chunk.content ?? "ストリーミング中にエラーが発生しました");
         }
+        if (chunk.type !== "queued") setBusyQueue(null);
       };
 
       try {
@@ -640,15 +657,24 @@ export function ChatContainer({
         }
         // ツールが承認待ちに登録された場合に承認カードを即時表示する
         refreshApprovals();
-      } catch {
+      } catch (e) {
+        // GAP-203: **サーバーが返した理由をそのまま出す**。以前はここで
+        // 常に「AI 応答の取得に失敗しました」と表示していたため、混雑して
+        // いても故障に見えていた。
+        const detail =
+          e instanceof ChatStreamError && e.detail ? e.detail : null;
         setError(
-          "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
+          detail ?? "AI 応答の取得に失敗しました。時間をおいて再試行してください。",
         );
+        // GAP-203: **打った文章を消さない**。入力欄へ戻して、押し直すだけで
+        // 再送できるようにする (書き直させない)。
+        setRestoredDraft(text);
         // 失敗した空の assistant placeholder は取り除く。
         setMessages((prev) =>
           prev.filter((m) => !(m.id === assistantId && m.content === "")),
         );
       } finally {
+        setBusyQueue(null);
         setSending(false);
         setPendingId(null);
         setPendingStage(null);
@@ -935,6 +961,8 @@ export function ChatContainer({
         <ChatPanel
           messages={messages}
           onSend={handleSubmit}
+          queueNotice={busyQueue}
+          restoredDraft={restoredDraft}
           disabled={uploadingAttachments}
           running={sending}
           {...(runJobId !== null ? { onStop: handleStop, stopping } : {})}

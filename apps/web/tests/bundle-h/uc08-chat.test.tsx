@@ -110,8 +110,19 @@ describe("S-E01 ChatContainer (T-UC-08)", () => {
       ),
     );
     // ユーザ発話は残り、空の assistant placeholder は消えている (AI 社員ラベルは出ない)
-    expect(screen.getByText("test")).toBeInTheDocument();
+    // GAP-203 以降、失敗した文章は入力欄にも戻るので、吹き出し側を明示して数える。
+    const bubbles = screen
+      .getAllByText("test")
+      .filter((el) => el.tagName !== "TEXTAREA");
+    expect(bubbles).toHaveLength(1);
     expect(screen.queryByText("AI 社員")).toBeNull();
+    // GAP-203: **打った文章を消さない** (押し直すだけで再送できる)。
+    // 入力欄へ戻すのは effect 経由なので、反映を待ってから確かめる。
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText(/メッセージを入力/) as HTMLTextAreaElement).value,
+      ).toBe("test"),
+    );
   });
 });
 
