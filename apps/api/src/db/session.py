@@ -73,6 +73,59 @@ class DatabaseSettings(BaseSettings):
     #: 同時に動きうる machine 数 (fly.toml の max_machines_running と揃える)。
     max_machines: int = Field(default=2, ge=1, le=100)
 
+    # ----------------------------------------------------------------- #
+    # GAP-205: 3 台目の壁 (DB 接続) を **来てから慌てない**ようにする。
+    #
+    # 機械は 1 台 $2.02/月 で増やせるが、全部の機械が同じ Supabase を共有する。
+    # 直結だと 1 台 30 接続 × 台数 が DB 側の上限に当たるため、**2 台で頭打ち**。
+    # その先は Supabase の Supavisor (接続をまとめ役に集約する仕組み) を挟む。
+    #
+    # ここを **設定だけで切り替えられる**ようにしておく。混み始めてから
+    # コードを直すのでは間に合わない。
+    # ----------------------------------------------------------------- #
+
+    #: Supavisor (transaction pooler) 経由か。未指定なら **接続文字列から自動判定**。
+    #: 明示したいときは ATELIER_DB_POOLER_MODE=1 / 0。
+    pooler_mode: bool | None = None
+    #: pooler 経由のときの接続予算 (Supabase のプランで決まる。要確認)。
+    pooler_connection_budget: int = Field(default=200, ge=1, le=100000)
+
+
+#: Supavisor の接続文字列に必ず現れる印 (ホスト名 or transaction mode のポート)。
+_POOLER_HINTS = ("pooler.supabase.com", ":6543")
+
+
+def uses_pooler(settings: DatabaseSettings | None = None) -> bool:
+    """Supavisor 経由で繋いでいるか。
+
+    明示指定があればそれに従い、無ければ接続文字列から判定する
+    (**繋ぎ先を変えたのに設定を変え忘れる**、を防ぐ)。
+    """
+    cfg = settings or _settings()
+    if cfg.pooler_mode is not None:
+        return cfg.pooler_mode
+    return any(hint in cfg.url for hint in _POOLER_HINTS)
+
+
+def connect_args_for(settings: DatabaseSettings | None = None) -> dict[str, object]:
+    """接続時に渡す引数。
+
+    **Supavisor の transaction mode では prepared statement が使えない**
+    (接続が毎回別のものに割り当てられるため、前回作った文が見つからず
+    `InvalidSQLStatementNameError` で落ちる)。asyncpg は既定で prepared
+    statement を使うので、pooler 経由のときだけ無効にする。
+
+    直結のときは無効にしない — 速度が落ちるだけで得が無いため。
+    """
+    if not uses_pooler(settings):
+        return {}
+    return {
+        # 文のキャッシュを持たない (毎回その場で組み立てる)
+        "statement_cache_size": 0,
+        # SQLAlchemy が付ける名前付き prepared statement も止める
+        "prepared_statement_cache_size": 0,
+    }
+
 
 @lru_cache(maxsize=1)
 def _settings() -> DatabaseSettings:
@@ -84,6 +137,7 @@ def create_engine(settings: DatabaseSettings | None = None) -> AsyncEngine:
     cfg = settings or _settings()
     return create_async_engine(
         cfg.url,
+        connect_args=connect_args_for(cfg),
         pool_size=cfg.pool_size,
         max_overflow=cfg.max_overflow,
         pool_timeout=cfg.pool_timeout,
@@ -209,19 +263,54 @@ def pool_capacity(settings: DatabaseSettings | None = None) -> int:
     return cfg.pool_size + cfg.max_overflow
 
 
+def effective_budget(settings: DatabaseSettings | None = None) -> int:
+    """今の繋ぎ方で使える接続予算。
+
+    Supavisor 経由なら、まとめ役が肩代わりするぶん予算が増える。
+    """
+    cfg = settings or _settings()
+    return cfg.pooler_connection_budget if uses_pooler(cfg) else cfg.connection_budget
+
+
+def machines_supported(settings: DatabaseSettings | None = None) -> int:
+    """**あと何台まで増やせるか** を予算から逆算する (GAP-205)。
+
+    「増やしたいときに初めて壁を知る」を無くすための数字。
+    機械 1 台は月 $2.02 で増やせるが、**DB 接続はそうはいかない**ので、
+    そちらが先に頭打ちになることを常に見えるようにしておく。
+    """
+    cfg = settings or _settings()
+    capacity = pool_capacity(cfg)
+    if capacity <= 0:  # pragma: no cover - 設定上ありえないが 0 除算を避ける
+        return cfg.max_machines
+    return max(0, effective_budget(cfg) // capacity)
+
+
 def describe_pool_budget(settings: DatabaseSettings | None = None) -> tuple[str, bool]:
     """接続予算の説明文と「予算内か」を返す (起動ログ + 運営画面で使う)。"""
     cfg = settings or _settings()
-    capacity = cfg.pool_size + cfg.max_overflow
+    capacity = pool_capacity(cfg)
     fleet = capacity * cfg.max_machines
-    ok = fleet <= cfg.connection_budget
+    budget = effective_budget(cfg)
+    ok = fleet <= budget
+    route = "Supavisor 経由" if uses_pooler(cfg) else "直結"
+    limit = machines_supported(cfg)
     text = (
-        f"DB 接続: 1 台あたり最大 {capacity} "
+        f"DB 接続 ({route}): 1 台あたり最大 {capacity} "
         f"(常設 {cfg.pool_size} + 追加 {cfg.max_overflow}) × {cfg.max_machines} 台 "
-        f"= 最大 {fleet} / 予算 {cfg.connection_budget}"
+        f"= 最大 {fleet} / 予算 {budget}"
     )
     if not ok:
         text += " — **予算超過**。DB 側の上限に当たると接続エラーになります"
+    elif limit <= cfg.max_machines:
+        # GAP-205: **増やそうとした瞬間に壁がある**ことを、増やす前に知らせる。
+        text += (
+            f" — この予算で動かせるのは {limit} 台まで。"
+            "これ以上 machine を増やすには Supavisor 経由へ切り替えが要ります"
+            " (docs/scaling-runbook.md)"
+        )
+    else:
+        text += f" — この予算なら {limit} 台まで増やせます"
     return text, ok
 
 

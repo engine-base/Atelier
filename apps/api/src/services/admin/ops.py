@@ -26,7 +26,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.audit import AuditEvent, AuditWriter
 from src.db import notify as db_notify
 from src.db.notify import notifier_health
-from src.db.session import pool_stats, shared_session_factory
+from src.db.session import (
+    describe_pool_budget,
+    machines_supported,
+    pool_stats,
+    shared_session_factory,
+)
 from src.schemas.admin import (
     AcquisitionChannelCount,
     AcquisitionCreate,
@@ -344,6 +349,27 @@ async def get_health() -> list[HealthCheckRow]:
                     "予算超過 (DB 側の上限に当たる恐れ)"
                     if not stats.within_budget
                     else ("逼迫" if pool_ratio >= 0.8 else "余裕あり")
+                ),
+            )
+        )
+        # GAP-205: **増やそうとした瞬間に壁を知る**のを無くす。
+        # 機械は 1 台 $2.02/月 で増やせるが、DB 接続はそうはいかない。
+        # 「今の繋ぎ方だと何台まで」を常に出しておく。
+        budget_text, budget_ok = describe_pool_budget()
+        max_machines = machines_supported()
+        rows.append(
+            HealthCheckRow(
+                name="増やせる余地 (machine 数)",
+                status="err" if not budget_ok else ("warn" if max_machines <= 2 else "ok"),
+                detail=budget_text,
+                meta=(
+                    "予算超過"
+                    if not budget_ok
+                    else (
+                        "この先は Supavisor 経由への切替が要る (docs/scaling-runbook.md)"
+                        if max_machines <= 2
+                        else f"あと {max_machines} 台まで設定変更だけで増やせる"
+                    )
                 ),
             )
         )
