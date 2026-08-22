@@ -15,6 +15,7 @@ from __future__ import annotations
 import traceback
 from typing import Any
 
+from fastapi import HTTPException, status
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -72,3 +73,36 @@ class UnhandledErrorMiddleware:
                 content={"detail": f"internal server error ({type(exc).__name__}) at {path}"},
             )
             await response(scope, receive, send)
+
+
+# --------------------------------------------------------------------------- #
+# GAP-206: 503 の「理由」を機械可読で返す。
+#
+# **これまでの実態**: 503 は 30 か所以上で使われていて、原因は
+# 「本人の PC (Bridge) が未接続」「保存先 (storage) が未設定」「LLM 経路が
+# 未設定」と別物なのに、画面には **同じ 503 としてしか届いていなかった**。
+# その結果、画面は status だけで原因を推測し、
+#   - 保存先の設定漏れなのに「パソコンを繋いでください」と案内する
+#   - あるいは「未接続、または保存先が未設定」と両論併記で逃げる
+# という状態だった。**どちらも利用者は次に何をすればいいか分からない。**
+#
+# service 層は既に `exc.code` で原因を区別しているので、それを**そのまま
+# ヘッダで返す**。本文の形は変えないので既存の呼び出しは壊れない。
+# --------------------------------------------------------------------------- #
+
+#: 原因を載せるヘッダ名 (CORS の expose_headers にも入れること)。
+REASON_HEADER = "X-Atelier-Reason"
+
+
+def service_unavailable(reason: str, message: str) -> HTTPException:
+    """503 を **理由つきで** 返す。
+
+    `reason` は service 層の `exc.code` をそのまま渡す
+    (`bridge_offline` / `storage_unconfigured` / `llm_unconfigured` 等)。
+    画面はこれを見て案内を変える — 推測させない。
+    """
+    return HTTPException(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        message,
+        headers={REASON_HEADER: reason},
+    )

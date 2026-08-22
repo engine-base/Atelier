@@ -19,6 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+// GAP-206: 「未接続かどうか」の判定は共通の正本を使う
+// (サーバーが理由を申告したときだけ未接続とみなす)。
+import { isBridgeOffline } from "../../../../components/bridge/BridgeOfflineNotice";
+
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import { ShareExportPanel } from "./ShareExportPanel";
 import { SheetEditor } from "./SheetEditor";
@@ -309,12 +313,14 @@ export function OutputViewerContainer({
     },
     onError: (e) => {
       const s = statusOf(e);
-      setBridgeOffline(s === 503);
+      setBridgeOffline(isBridgeOffline(e));
       setAction({
         kind: "error",
         text:
           s === 503
-            ? "お使いのパソコン (Bridge) が未接続、または保存先が未設定のため修正を実行できません。"
+            ? // GAP-206: サーバーが理由を返すので、推測せずそのまま出す
+              (detailOf(e) ??
+              "サービスが一時的に利用できません。時間をおいてお試しください。")
             : s === 413
               ? "本文が大きすぎるため自動改訂できません。分割を検討してください。"
               : s === 409
@@ -398,12 +404,14 @@ export function OutputViewerContainer({
         queryKey: ["output", outputId, "fix-proposals"],
       }),
     onError: (e) => {
-      setBridgeOffline(statusOf(e) === 503);
+      setBridgeOffline(isBridgeOffline(e));
       setAction({
         kind: "error",
         text:
           statusOf(e) === 503
-            ? "お使いのパソコン (Bridge) が未接続のため提案を生成できません。"
+            ? // GAP-206: 503 の理由はサーバーが申告する — 推測して案内しない
+              (detailOf(e) ??
+              "サービスが一時的に利用できません。時間をおいてお試しください。")
             : statusOf(e) === 409
               ? "このコメントには既に未処理の提案があります。"
               : "修正提案の生成に失敗しました。",
@@ -432,14 +440,16 @@ export function OutputViewerContainer({
       }
     },
     onError: (e) => {
-      setBridgeOffline(statusOf(e) === 503);
+      setBridgeOffline(isBridgeOffline(e));
       setAction({
         kind: "error",
         text:
           statusOf(e) === 409
             ? "この提案は既に処理済みです。"
             : statusOf(e) === 503
-              ? "お使いのパソコン (Bridge) が未接続、または保存先が未設定のため適用できません。"
+              ? // GAP-206: 「未接続、または保存先が未設定」の両論併記をやめる
+                (detailOf(e) ??
+                "サービスが一時的に利用できません。時間をおいてお試しください。")
               : "提案の承認に失敗しました。",
       });
     },

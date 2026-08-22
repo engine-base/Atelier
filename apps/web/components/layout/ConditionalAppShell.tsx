@@ -45,6 +45,7 @@ import {
 import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
 import { AppShell } from './AppShell';
 import { PhaseSwitcher } from './PhaseSwitcher';
+import { ReconsentNotice } from './ReconsentNotice';
 import type { NavItem, NavSection } from './Sidebar';
 
 const ICON = 'h-4 w-4';
@@ -347,6 +348,9 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
             : 'プロジェクト一覧へ戻る'
       }
     >
+      {/* GAP-206: 規約が新しくなったら、全画面の上端で同意を求める。
+          **強制はしない**（閉じられる。版が変わればまた出る）。 */}
+      <ReconsentNotice />
       {children}
     </AppShell>
   );

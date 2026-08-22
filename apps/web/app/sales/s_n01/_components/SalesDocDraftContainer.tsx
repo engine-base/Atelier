@@ -63,6 +63,13 @@ export interface SalesDocDraftContainerProps {
   readonly client?: ApiClient;
 }
 
+/** GAP-206: API の honest メッセージ (FastAPI detail) をそのまま出すために取り出す。 */
+function detailOf(error: unknown): string | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  const payload = error.payload as { detail?: unknown } | undefined;
+  return typeof payload?.detail === "string" ? payload.detail : undefined;
+}
+
 function statusOf(error: unknown): number | null {
   return error instanceof ApiError ? error.status : null;
 }
@@ -168,12 +175,17 @@ export function SalesDocDraftContainer({
       });
     },
     onError: (e) => {
-      setBridgeOffline(statusOf(e) === 503);
+      // GAP-206: 503 = 未接続 と決めつけない。サーバーが申告した理由で判断する。
+      const offline = e instanceof ApiError && e.reason === "bridge_offline";
+      setBridgeOffline(offline);
       setAction({
         kind: "error",
-        text:
-          statusOf(e) === 503
-            ? "お使いのパソコン (Bridge) が未接続のため生成できません。「AI を使わず保存」でも進められます。"
+        text: offline
+          ? "お使いのパソコン (Bridge) が未接続のため生成できません。「AI を使わず保存」でも進められます。"
+          : statusOf(e) === 503
+            ? // 未接続以外の 503 (保存先未設定 / LLM 経路未設定 等) は理由をそのまま出す
+              (detailOf(e) ??
+              "サービスが一時的に利用できません。時間をおいてお試しください。")
             : "ドラフトの生成に失敗しました。",
       });
     },

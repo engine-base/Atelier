@@ -43,14 +43,16 @@ function renderWithQuery(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-function throwing503(path: string) {
+/** GAP-206: サーバーは 503 の**理由**を申告する。既定は「本人の PC 未接続」。 */
+function throwing503(path: string, reason: string | null = "bridge_offline") {
   return vi.fn(async () => {
     throw new ApiError({
       status: 503,
       statusText: "unavailable",
-      payload: undefined,
+      payload: { detail: "保存先 (storage) が未設定です。運営にお問い合わせください。" },
       path,
       method: "post",
+      reason,
     });
   });
 }
@@ -98,16 +100,23 @@ describe("BridgeOfflineNotice (GAP-168)", () => {
     expect(screen.getByText("接続の手順")).toBeInTheDocument();
   });
 
-  it("isBridgeOffline は実行経路ゼロ (503) だけを未接続とみなす", () => {
-    const mk = (status: number) =>
+  it("isBridgeOffline は **サーバーが申告したときだけ** 未接続とみなす (GAP-206)", () => {
+    const mk = (status: number, reason: string | null = null) =>
       new ApiError({
         status,
         statusText: "e",
         payload: undefined,
         path: "/x",
         method: "post",
+        reason,
       });
-    expect(isBridgeOffline(mk(503))).toBe(true);
+    expect(isBridgeOffline(mk(503, "bridge_offline"))).toBe(true);
+    // **ここが GAP-206 の要点**: 503 でも理由が違えば未接続ではない。
+    // 以前はこれを未接続と決めつけ、保存先の設定漏れでも
+    // 「パソコンを繋いでください」と案内していた (利用者は永遠に直せない)。
+    expect(isBridgeOffline(mk(503, "storage_unconfigured"))).toBe(false);
+    expect(isBridgeOffline(mk(503, "llm_unconfigured"))).toBe(false);
+    expect(isBridgeOffline(mk(503))).toBe(false);
     expect(isBridgeOffline(mk(409))).toBe(false);
     expect(isBridgeOffline(new Error("boom"))).toBe(false);
   });
@@ -166,6 +175,32 @@ describe("Bridge を使う各画面に接続フローが出る (GAP-168)", () =>
     ).toBeInTheDocument();
   });
 
+  it("**未接続でない 503** は接続フローを出さず、サーバーの理由をそのまま出す (GAP-206)", async () => {
+    const client = {
+      get: vi.fn(async () => ({ data: [] })),
+      post: throwing503(
+        "/workspaces/{workspace_id}/design-templates/{stage}",
+        "storage_unconfigured",
+      ),
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<DesignTemplateStudio client={client} workspaceId="ws-1" />);
+    fireEvent.change(await screen.findByLabelText(/ワンダへの指示/), {
+      target: { value: "紺基調で" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "テンプレを作成" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "保存先 (storage) が未設定です",
+    );
+    // **接続を促さない** — 繋いでも直らないため
+    expect(
+      screen.queryByRole("button", { name: "接続トークンを発行" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("モックスタジオ: 改訂が未接続で止まったら指示欄の隣に接続フロー", () => {
     render(
       <MockViewer
@@ -186,15 +221,16 @@ describe("Bridge を使う各画面に接続フローが出る (GAP-168)", () =>
 
 describe("グローバル toast の文言も実態に合わせる (GAP-168)", () => {
   it("503 は「サーバーでエラー」ではなく「Bridge が未接続」と言う", () => {
-    const mk = (status: number) =>
+    const mk = (status: number, reason: string | null = null) =>
       new ApiError({
         status,
         statusText: "e",
         payload: undefined,
         path: "/x",
         method: "post",
+        reason,
       });
-    expect(_internal.toastMessage(mk(503))).toBe(
+    expect(_internal.toastMessage(mk(503, "bridge_offline"))).toBe(
       "お使いのパソコン (Bridge) が未接続です。画面の案内から接続してください。",
     );
     // 本当のサーバー障害 (500) は従来どおり

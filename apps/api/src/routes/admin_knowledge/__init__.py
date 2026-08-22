@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user
+from src.errors import service_unavailable
 from src.schemas.admin_knowledge import AdminKnowledgeCreate
 from src.schemas.knowledge import KnowledgeCreate, KnowledgeResponse, KnowledgeUpdate
 from src.schemas.knowledge_curation import (
@@ -137,7 +138,7 @@ async def delete_platform_knowledge(knowledge_id: str, user: UserDep) -> None:
 
 def _raise_curation(exc: curation_svc.CurationError) -> None:
     if exc.code == "llm_unconfigured":
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise service_unavailable(exc.code, exc.message) from exc
     if exc.code == "not_found":
         raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
     if exc.code in ("not_pending", "security"):

@@ -33,13 +33,15 @@ function renderWithQuery(ui: React.ReactElement) {
   return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
 }
 
-function apiError(status: number): ApiError {
+function apiError(status: number, reason: string | null = null): ApiError {
   return new ApiError({
     status,
     statusText: "x",
     payload: undefined,
     path: "/mocks",
     method: "get",
+    // GAP-206: 503 の「理由」はサーバーが申告する。未接続はこの理由のときだけ。
+    reason,
   });
 }
 
@@ -516,7 +518,7 @@ describe("S-H01 MockListContainer (一覧ピッカー)", () => {
   it("GAP-138/168: 生成 503 (Bridge 未接続) は誠実メッセージ + その場に接続フロー", async () => {
     const get = vi.fn(async () => ({ data: [] }));
     const post = vi.fn(async () => {
-      throw apiError(503);
+      throw apiError(503, "bridge_offline");
     });
     const client = { ...fakeClient(get), post } as unknown as ApiClient;
     renderWithQuery(<MockListContainer client={client} />);

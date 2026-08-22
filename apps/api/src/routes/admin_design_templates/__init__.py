@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user
+from src.errors import service_unavailable
 from src.schemas.outputs import DesignTemplateCreateRequest, OutputDesignTemplateResponse
 from src.services import admin as admin_svc
 from src.services.outputs import templates as tmpl_svc
@@ -90,7 +91,7 @@ async def create_platform_design_template_version(
             )
         except tmpl_svc.DesignTemplateError as exc:
             if exc.code in ("llm_unconfigured", "bridge_offline"):
-                raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+                raise service_unavailable(exc.code, exc.message) from exc
             if exc.code == "not_found":
                 raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc

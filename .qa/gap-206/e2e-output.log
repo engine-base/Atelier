@@ -1,0 +1,119 @@
+==========================================================
+ GAP-206 実 e2e — 3 本 (実ブラウザ / 実 DB / 実 SSE 経路)
+ 実行: 2026-08-22 08:23:44 UTC
+ web=http://localhost:3100 (next start / 本番ビルド)
+ API=http://127.0.0.1:8123 (uvicorn)
+ DB =postgresql://postgres@/postgres?host=/tmp&port=54322
+==========================================================
+
+###### (A) 再同意の導線 — 実ブラウザ (Chromium) ######
+[seed] 旧版 (2026-05-25) に同意したままの利用者を 2 人つくる
+       user1=8dd05bd6-92a7-482e-9bec-6d27cd2bf19c
+       user2=8e82657e-3057-4e00-b899-0ebaf6cbe1c7
+       現行版: privacy_policy=2026-08-20 terms_of_service=2026-08-21 tokushoho=2026-05-25 
+
+[1] 旧版のままの利用者に **再同意の帯が出る**
+     帯の文言: 利用規約を更新しました。内容をご確認のうえ、同意をお願いします。 利用規約を読む 同意する
+  OK   更新された規約の名前が出ている
+  OK   同意済みのものは載せない (余計な不安を与えない)
+  OK   本文を読むリンクがある
+[2] 読むリンクが **本当に本文へ着く**
+  OK   GAP-204 で足した条項 (第9条) が本文に載っている
+  OK   機械学習への利用禁止の条項が読める
+[3] 「同意する」で記録され、帯が消える
+  OK   同意したら帯が消えた
+     送った内容: {"doc_type":"terms_of_service","version":"2026-08-21"}
+  OK   同意が要るものだけに送った (1 回)
+  OK   **画面が見せた版**を指定して記録している
+[4] 読み込み直しても出ない (記録が効いている)
+  OK   再読み込みでも帯は出ない
+[5] 503 の **理由がブラウザから読める** (誤案内をやめる根拠)
+     [browser console] Failed to load resource: the server responded with a status of 503 (Service Unavailable)
+     実応答: {"status":503,"reason":"provider_disabled","detail":"Google OAuth is not configured (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET)"}
+  OK   503 が返っている
+  OK   理由が読める (provider_disabled)
+  OK   **未接続と決めつけない** — この 503 は PC の未接続ではない
+  OK   本文にも理由が書かれている
+[6] 強制しない — 「あとで」で閉じられ、同じ版では出ない
+  OK   旧版のままの利用者には出ている
+  OK   「あとで」で閉じられる (同意しないと使えない、にはしない)
+  OK   同じ版なら再表示しない (しつこくしない)
+  OK   閉じただけで **同意したことにはしていない** (記録は増えない)
+
+PASS: 再同意の導線が実ブラウザで機能し、503 の理由も画面から読める
+
+[DB] 同意が実際に増えたか (画面の言い分ではなく DB を見る)
+terms_of_service 2026-05-25 accepted=true ua=-
+privacy_policy 2026-08-20 accepted=true ua=-
+terms_of_service 2026-08-21 accepted=true ua=Mozilla/5.0 (X11; Li
+       user2 (閉じただけ):
+terms_of_service 2026-05-25
+privacy_policy 2026-08-20
+  → exit=0
+
+###### (B) 検査の登録漏れ — 実際に漏らして確かめる ######
+[0] 前提
+  OK   画面側のビルド成果物がある
+
+[1] 今の状態は PASS すること (土台)
+  OK   現状は登録漏れも漏洩も無い
+
+[2] **プロンプトを持つ新ファイルを足す** → 登録漏れとして落ちること
+  OK   登録漏れとして落ちた
+  OK   どのファイルが漏れているか名前が出ている
+  OK   直し方 (どこに足すか) が出ている
+
+[3] 登録したら PASS すること (登録すれば止まらない)
+  OK   登録したら通った
+
+[4] **登録した中身が本当に守られる**こと (登録が飾りでない)
+  OK   登録したファイルの文言が画面側に出たら落ちた
+  OK   出どころのファイル名が出ている
+
+[5] 登録だけ残してファイルを消したら、**古い登録**として落ちること
+  OK   実在しない登録を検知して落ちた
+
+[6] 後片付けしたら元どおり PASS すること
+  OK   元どおり PASS (仕込みが残っていない)
+
+PASS: 登録漏れは落ちる / 登録すれば本当に守られる / 古い登録も落ちる
+  → exit=0
+
+###### (C) 混雑の通知 — 実アプリ起動 + 実 SSE 経路 + 実 DB ######
+[1] **本物のアプリ起動**で記録先が差し込まれる
+  OK   起動前は記録先が無い
+  OK   起動後は記録先が差し込まれている
+
+[2] **本物の SSE 経路**で溢れさせる → DB に 1 行残る
+  OK   上限 2 本まで埋まった
+/home/user/Atelier/apps/api/src/embeddings/local.py:129: UserWarning: The model intfloat/multilingual-e5-large now uses mean pooling instead of CLS embedding. In order to preserve the previous behaviour, consider either pinning fastembed version to 0.5.1 or using `add_custom_model` functionality.
+  model = TextEmbedding(name)
+  OK   3 人目は断られず並んだ (実際 b'data: {"type": "queued", "metadata": {"p')
+  OK   混雑が 1 行残った (実際 1 行)
+     残った行: kind=queued machine=e2e-machine-1 open=2/2 queued=1 detail=1 人目
+  OK   「並ばせた」として残っている (断ったとは書かない)
+  OK   **どの machine で起きたか**が残っている
+  OK   そのときの混み具合も残っている
+
+[3] **machine をまたいで**集計される (1 台からしか見えない、を無くす)
+  OK   知らせる候補は 1 件 (実際 1)
+     集計: kind=queued events=2 machines=2 peak_queued=7
+  OK   **2 台ぶんまとめて**数えている
+  OK   一番混んだ時の人数が出る
+     件名: [Atelier] 順番待ちが発生しました（2 回 / machine 2 台）
+       種類: 順番待ちが発生しました
+       回数: 2 回（2 台で発生）
+       最大の順番待ち: 7 人（1 台あたりの上限 2）
+       
+       直近の記録:
+       08/22 17:24 machine e2e-machine-2 — 実行中 2/2 · 順番待ち 7
+  OK   誰も断っていないことを明記する
+
+[4] 送信先が無いときに **送ったふりをしない**
+     結果: {'status': 'ok', 'name': 'capacity-alerts', 'candidates': '1', 'sent': '0', 'failed': '0', 'skipped': '1'}
+  OK   送っていないと申告する
+  OK   skipped として残る
+  OK   送っていないのに時刻を進めない (次回また試す)
+
+PASS: 起動で記録先が差さり、実際の混雑が machine をまたいで集まり、送れないときは送ったふりをしない
+  → exit=0

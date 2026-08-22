@@ -34,11 +34,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import os
 import time
 from collections import deque
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 #: 1 台が同時に張れる SSE の本数 (実測に基づく既定 — 上の表を参照)。
 #: GAP-202 でポーリングをやめたので 150 → 1000。未実測の HTTP 層に余白を残す。
@@ -104,6 +107,46 @@ def max_wait_seconds() -> float:
     except ValueError:
         return DEFAULT_MAX_WAIT_SECONDS
     return value if value > 0 else DEFAULT_MAX_WAIT_SECONDS
+
+
+# --------------------------------------------------------------------------- #
+# GAP-206: 混雑が起きたことを **machine をまたいで**残せるようにする。
+#
+# 上のカウンタはプロセス内の値なので、machine が 2 台あると別々になる。
+# 通知の cron は 1 台でしか動かないため、そのままでは「もう 1 台で起きた混雑」に
+# 気づけない。そこで**混雑が起きた瞬間に記録する**口をここに開けておく。
+#
+# このモジュールは DB を知らない (テストが軽いままであることに意味がある) ので、
+# **実際の記録先はアプリ起動時に差し込む**。差し込まれていなければ何もしない。
+# --------------------------------------------------------------------------- #
+EventRecorder = Callable[[str, "StreamCapacity", str | None], Awaitable[None]]
+
+_recorder: EventRecorder | None = None
+
+
+def set_event_recorder(recorder: EventRecorder | None) -> None:
+    """混雑イベントの記録先を差し込む (アプリ起動時に 1 回)。"""
+    global _recorder
+    _recorder = recorder
+
+
+#: 記録に許す時間。**DB が遅いときに利用者を待たせない**ための上限。
+RECORD_TIMEOUT_SECONDS = 2.0
+
+
+async def _record_event(kind: str, detail: str | None = None) -> None:
+    """記録する。**記録に失敗してもチャットは止めない** (通知は主目的ではない)。
+
+    書き込みは 1 行で、混雑したときにしか走らないのでその場で待つ。ただし
+    DB が詰まったときに**利用者の順番待ち通知まで遅れる**のは本末転倒なので、
+    上限時間を切る (超えたら記録を諦めて先へ進む)。
+    """
+    if _recorder is None:
+        return
+    try:
+        await asyncio.wait_for(_recorder(kind, snapshot(), detail), RECORD_TIMEOUT_SECONDS)
+    except Exception:  # pragma: no cover - 記録失敗でチャットを壊さない
+        logger.warning("混雑イベントの記録に失敗しました (kind=%s)", kind, exc_info=True)
 
 
 @dataclass
@@ -227,11 +270,14 @@ async def wait_for_slot() -> AsyncGenerator[QueuedUpdate, None]:
 
     if len(_state.queue) >= max_queued_streams():
         _state.rejected += 1
+        await _record_event("rejected", "並ぶ列も一杯")
         raise StreamCapacityExceeded
 
     ticket = _Ticket()
     _state.queue.append(ticket)
     _state.queued_total += 1
+    # **並び始めた瞬間**に残す (待ち終わってからでは、待たせた事実が消える)
+    await _record_event("queued", f"{len(_state.queue)} 人目")
     started = time.monotonic()
     deadline = started + max_wait_seconds()
     delivered = False
@@ -247,6 +293,7 @@ async def wait_for_slot() -> AsyncGenerator[QueuedUpdate, None]:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 _state.rejected += 1
+                await _record_event("rejected", f"{max_wait_seconds():.0f} 秒待っても空かなかった")
                 raise StreamCapacityExceeded
             try:
                 await asyncio.wait_for(
@@ -321,6 +368,8 @@ __all__ = [
     "MIN_CONCURRENT",
     "POSITION_REFRESH_SECONDS",
     "QUEUE_MULTIPLIER",
+    "RECORD_TIMEOUT_SECONDS",
+    "EventRecorder",
     "QueuedUpdate",
     "StreamCapacity",
     "StreamCapacityExceeded",
@@ -332,6 +381,7 @@ __all__ = [
     "record_duration",
     "release",
     "reset_for_tests",
+    "set_event_recorder",
     "snapshot",
     "try_acquire",
     "wait_for_slot",

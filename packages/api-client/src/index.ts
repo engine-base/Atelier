@@ -61,13 +61,26 @@ type SuccessResponse<P extends keyof Paths, M extends HttpMethod> =
       : never
     : never;
 
-/** Atelier API の構造的エラー */
+/**
+ * GAP-206: 503 の「理由」を載せるヘッダ (API の src/errors.py と対)。
+ *
+ * 503 は「本人の PC (Bridge) 未接続」「保存先が未設定」「LLM 経路が未設定」と
+ * 別物なのに、以前は **status しか画面に届いていなかった**。そのため画面は
+ * 原因を推測し、保存先の設定漏れでも「パソコンを繋いでください」と案内したり、
+ * 「未接続、または保存先が未設定」と両論併記で逃げたりしていた。
+ * **どちらも利用者は次に何をすればいいか分からない。**
+ */
+export const REASON_HEADER = 'X-Atelier-Reason';
+
+/** Atelier API の構造的エラー (GAP-206 で `reason` を追加)。 */
 export class ApiError<Body = unknown> extends Error {
   readonly status: number;
   readonly statusText: string;
   readonly payload: Body | undefined;
   readonly path: string;
   readonly method: HttpMethod;
+  /** サーバーが申告した原因コード (`bridge_offline` / `storage_unconfigured` 等)。 */
+  readonly reason: string | null;
 
   constructor(args: {
     status: number;
@@ -75,6 +88,7 @@ export class ApiError<Body = unknown> extends Error {
     payload: Body | undefined;
     path: string;
     method: HttpMethod;
+    reason?: string | null;
   }) {
     super(`Atelier API ${args.method.toUpperCase()} ${args.path} -> ${args.status} ${args.statusText}`);
     this.name = 'ApiError';
@@ -83,6 +97,7 @@ export class ApiError<Body = unknown> extends Error {
     this.payload = args.payload;
     this.path = args.path;
     this.method = args.method;
+    this.reason = args.reason ?? null;
   }
 }
 
@@ -191,6 +206,7 @@ export function createApiClient(opts: ApiClientOptions) {
         payload: payload as unknown,
         path: path as string,
         method,
+        reason: res.headers.get(REASON_HEADER),
       });
     }
 

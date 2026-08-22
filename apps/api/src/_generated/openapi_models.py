@@ -90,6 +90,43 @@ class MeUpdate(BaseModel):
     display_name: Annotated[str, Field(max_length=100, min_length=1)]
 
 
+class DocType(StrEnum):
+    terms_of_service = "terms_of_service"
+    privacy_policy = "privacy_policy"
+
+
+class ConsentStatus(BaseModel):
+    doc_type: DocType
+    current_version: str
+    """
+    今 有効な版
+    """
+    accepted_version: str
+    """
+    最後に同意した版（未同意なら null）
+    """
+    needs_consent: bool
+    """
+    同意し直しが要るか
+    """
+
+
+class ConsentStatusList(BaseModel):
+    items: list[ConsentStatus]
+    needs_consent: bool
+    """
+    1 件でも同意し直しが要るか
+    """
+
+
+class ConsentAcceptRequest(BaseModel):
+    doc_type: DocType
+    version: str
+    """
+    画面が表示した版（古ければ 409）
+    """
+
+
 class Kind(StrEnum):
     project = "project"
     task = "task"
@@ -1617,7 +1654,7 @@ class CronSchedule(BaseModel):
     updated_at: AwareDatetime | None = None
 
 
-class DocType(StrEnum):
+class DocType2(StrEnum):
     terms_of_service = "terms_of_service"
     privacy_policy = "privacy_policy"
     tokushoho = "tokushoho"
@@ -1625,7 +1662,7 @@ class DocType(StrEnum):
 
 class LegalDocument(BaseModel):
     id: UUID | None = None
-    doc_type: DocType | None = None
+    doc_type: DocType2 | None = None
     version: str | None = None
     locale: str | None = None
     title: str | None = None
@@ -1691,7 +1728,7 @@ class TaskDecisionRequest(BaseModel):
     note: Annotated[str | None, Field(max_length=2000)] = None
 
 
-class DocType1(StrEnum):
+class DocType3(StrEnum):
     proposal = "proposal"
     estimate = "estimate"
     contract = "contract"
@@ -1701,7 +1738,7 @@ class DocType1(StrEnum):
 
 class SalesDocCreate(BaseModel):
     project_id: UUID
-    doc_type: DocType1
+    doc_type: DocType3
     summary: Annotated[str | None, Field(max_length=4000)] = None
     html_path: Annotated[str | None, Field(max_length=500)] = None
     json_path: Annotated[str | None, Field(max_length=500)] = None
@@ -1719,7 +1756,7 @@ class SalesDoc(BaseModel):
     id: UUID
     project_id: UUID
     phase_id: UUID | None = None
-    doc_type: DocType1
+    doc_type: DocType3
     html_path: str | None = None
     json_path: str | None = None
     md_path: str | None = None

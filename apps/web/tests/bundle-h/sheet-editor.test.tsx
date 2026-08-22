@@ -143,6 +143,8 @@ describe("SheetEditor (GAP-163)", () => {
         status: 503,
         statusText: "unavailable",
         payload: undefined,
+        // GAP-206: サーバーは 503 の理由を申告する。未接続はこの理由のときだけ。
+        reason: "bridge_offline",
         path: "/outputs/{output_id}/ai-file-edit",
         method: "post",
       });

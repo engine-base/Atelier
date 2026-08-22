@@ -20,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.services import billing as svc
 from src.services.billing import (
     BillingPlanResponse,
@@ -67,9 +68,9 @@ async def create_checkout(
     await _visible_or_404(session, body.workspace_id)
     settings = svc.get_settings()
     if not settings.stripe_secret_key:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Stripe is not configured (STRIPE_SECRET_KEY missing)",
+        # GAP-206: 503 は理由つきで返す (画面が「PC 未接続」と誤読しないため)。
+        raise service_unavailable(
+            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
         )
     # GAP-115: 登録済みメールを Stripe 決済画面に自動入力する (取得失敗時は
     # 未入力のまま = Stripe 側で入力させる誠実 fallback)
@@ -111,9 +112,9 @@ async def get_checkout_status(
 ) -> dict[str, CheckoutStatusResponse]:
     settings = svc.get_settings()
     if not settings.stripe_secret_key:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Stripe is not configured (STRIPE_SECRET_KEY missing)",
+        # GAP-206: 503 は理由つきで返す (画面が「PC 未接続」と誤読しないため)。
+        raise service_unavailable(
+            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
         )
     try:
         checkout = await svc.retrieve_checkout_session(settings, session_id=session_id)
@@ -152,8 +153,9 @@ async def stripe_webhook(
 ) -> dict[str, object]:
     settings = svc.get_settings()
     if not settings.stripe_webhook_secret:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
+        # GAP-206: 503 は理由つきで返す。
+        raise service_unavailable(
+            "billing_unconfigured",
             "Stripe webhook is not configured (STRIPE_WEBHOOK_SECRET missing)",
         )
     payload = await request.body()

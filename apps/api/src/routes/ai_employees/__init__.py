@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.ai_employees import (
     AiEmployeeResponse,
     AiEmployeeTemplateResponse,
@@ -119,7 +120,7 @@ async def create_employee_icon_upload_url(
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": result}
 
@@ -146,7 +147,7 @@ async def get_employee_icon_url(
         url = await create_signed_download_url(emp.icon)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": EmployeeIconUrlResponse(url=url)}
 

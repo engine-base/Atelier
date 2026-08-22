@@ -20,6 +20,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 
 from src.dependencies import CurrentUser, get_current_user
+from src.errors import service_unavailable
 from src.rate_limit import rate_limit_ip
 from src.schemas.auth import (
     AccountDeleteRequest,
@@ -176,7 +177,7 @@ async def oauth_start(provider: OAuthProvider) -> RedirectResponse:
         authorize_url = oauth_svc.build_authorize_url(provider)
     except oauth_svc.OAuthError as exc:
         if exc.code == "provider_disabled":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
     return RedirectResponse(authorize_url, status_code=status.HTTP_302_FOUND)
 
@@ -198,7 +199,7 @@ async def oauth_callback(
     try:
         oauth_svc._require_enabled(provider)  # pyright: ignore[reportPrivateUsage]
     except oauth_svc.OAuthError as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise service_unavailable(exc.code, exc.message) from exc
 
     # プロバイダ側でユーザーが拒否した等 → web に誠実にエラー表示
     if error:

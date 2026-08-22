@@ -1290,6 +1290,119 @@ export interface paths {
         };
         trace?: never;
     };
+    "/me/consents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 自己の同意状況（同意し直しが要るか / GAP-206） */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 同意状況 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ConsentStatusList"];
+                        };
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * 現行版へ同意する（版を必ず指定 / GAP-206）
+         * @description 表示中の版が古い場合は 409 で拒否する（読んでいない文面に同意させないため）。 旧版の記録は消さず、新しい行として積む（append-only）。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConsentAcceptRequest"];
+                };
+            };
+            responses: {
+                /** @description 記録後の同意状況 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ConsentStatus"];
+                        };
+                    };
+                };
+                /** @description 対象外の種類 */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 未認証 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 表示中の版が古い（読み直しが必要） */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/search": {
         parameters: {
             query?: never;
@@ -18521,6 +18634,27 @@ export interface components {
         };
         MeUpdate: {
             display_name: string;
+        };
+        ConsentStatus: {
+            /** @enum {string} */
+            doc_type: "terms_of_service" | "privacy_policy";
+            /** @description 今 有効な版 */
+            current_version: string | null;
+            /** @description 最後に同意した版（未同意なら null） */
+            accepted_version: string | null;
+            /** @description 同意し直しが要るか */
+            needs_consent: boolean;
+        };
+        ConsentStatusList: {
+            items: components["schemas"]["ConsentStatus"][];
+            /** @description 1 件でも同意し直しが要るか */
+            needs_consent: boolean;
+        };
+        ConsentAcceptRequest: {
+            /** @enum {string} */
+            doc_type: "terms_of_service" | "privacy_policy";
+            /** @description 画面が表示した版（古ければ 409） */
+            version: string;
         };
         SearchHit: {
             id: string;

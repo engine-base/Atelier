@@ -46,3 +46,34 @@ class BridgeLatestResponse(BaseModel):
 
     version: str
     download_urls: dict[str, str] = Field(default_factory=dict)
+
+
+class ConsentStatusResponse(BaseModel):
+    """GAP-206: 同意状況 1 件（同意し直しが要るかどうか）。"""
+
+    doc_type: str
+    #: 今 有効な版
+    current_version: str | None
+    #: この人が最後に同意した版（未同意なら null）
+    accepted_version: str | None
+    #: 同意し直しが要るか
+    needs_consent: bool
+
+
+class ConsentStatusListResponse(BaseModel):
+    """GAP-206: 同意状況の一覧と、まとめの判定。"""
+
+    items: list[ConsentStatusResponse]
+    #: 1 件でも同意し直しが要るか（画面はこれで案内を出す）
+    needs_consent: bool
+
+
+class ConsentAcceptRequest(BaseModel):
+    """GAP-206: 同意の記録。
+
+    **版を必ず指定させる** — 画面が見せた版と記録する版が食い違うと、
+    「読んでいない文面に同意した」ことになるため。
+    """
+
+    doc_type: str
+    version: str

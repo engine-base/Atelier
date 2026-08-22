@@ -36,8 +36,17 @@ function toastMessage(error: unknown): string {
     if (error.status === 422) return "入力内容を確認してください。";
     // GAP-168: 503 = AI 実行経路ゼロ (Bridge 未接続) が実態。「サーバーで
     // エラー」は嘘になるので、画面の接続フローと同じ事実を言う。
-    if (error.status === 503)
-      return "お使いのパソコン (Bridge) が未接続です。画面の案内から接続してください。";
+    // GAP-206: ただし **503 = 未接続 とは限らない** (保存先や LLM 経路の
+    // 未設定でも 503)。サーバーが申告した理由で言い分け、理由が無い/違う
+    // ときは サーバーの本文をそのまま出す (推測で案内しない)。
+    if (error.status === 503) {
+      if (error.reason === "bridge_offline")
+        return "お使いのパソコン (Bridge) が未接続です。画面の案内から接続してください。";
+      const detail = (error.payload as { detail?: unknown } | undefined)?.detail;
+      return typeof detail === "string" && detail
+        ? detail
+        : "サービスが一時的に利用できません。時間をおいてお試しください。";
+    }
     if (error.status >= 500) return "サーバーでエラーが発生しました。";
     return `エラーが発生しました（HTTP ${error.status}）。`;
   }

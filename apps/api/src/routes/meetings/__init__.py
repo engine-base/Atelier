@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.meetings import (
     MeetingAdoptableItem,
     MeetingAdoptedRef,
@@ -77,7 +78,7 @@ async def create_meeting_upload_url(
         )
     except svc.MeetingUploadError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": result}
 
@@ -110,7 +111,7 @@ async def get_meeting_transcript_url(
         url = await create_signed_download_url(meeting.parse_result_path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": ContentUrlResponse(url=url)}
 
@@ -274,12 +275,10 @@ async def propose_phase_from_meeting(
             "このプロジェクトには未処理のフェーズ提案があります。先に承認か却下をしてください。",
         ) from None
     except proposal_svc.PhaseProposalError as exc:
-        code = (
-            status.HTTP_409_CONFLICT
-            if exc.code == "analysis_missing"
-            else status.HTTP_503_SERVICE_UNAVAILABLE
-        )
-        raise HTTPException(code, exc.message) from exc
+        if exc.code == "analysis_missing":
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        # GAP-206: 503 は理由つきで返す (bridge_offline / llm_unconfigured 等)。
+        raise service_unavailable(exc.code, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
     await session.commit()

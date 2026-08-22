@@ -62,8 +62,23 @@ SERVER_ONLY_SOURCES = [
     "apps/api/src/services/sales_docs/generate.py",
     "apps/api/src/services/workflow/proposals.py",
     "apps/api/src/services/knowledge/auto_capture.py",
+    "apps/api/src/services/knowledge/curation.py",
     "apps/api/src/services/cron/actions.py",
+    "apps/api/src/services/mocks/design_note.py",
+    "apps/api/src/services/mocks/generate.py",
+    "apps/api/src/services/mocks/revise.py",
 ]
+
+#: ここより下を探す範囲 (プロンプトを持つファイルの取りこぼしを機械的に見つける)。
+DISCOVERY_ROOT = "apps/api/src"
+
+#: **プロンプトである印**。この文字列を含む Python は必ず SERVER_ONLY_SOURCES に
+#: 載っていなければならない。「〜してください」等は利用者向けメッセージにも出るので
+#: 印にしない (誤検知だらけになると誰も見なくなる)。
+PROMPT_MARKER = "あなたは"
+
+#: 印を含むが **プロンプトではない**と確認済みのファイル (理由つきで書く)。
+NOT_A_PROMPT: dict[str, str] = {}
 
 #: これより短い文字列は「ラベル」であって中身ではないので対象外。
 MIN_MARKER_CHARS = 16
@@ -97,6 +112,53 @@ def japanese_literals(path: Path) -> set[str]:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             found |= _fragments(node.value)
     return found
+
+
+def files_with_prompts() -> list[str]:
+    """プロンプトを持つ Python を **機械的に洗い出す**。
+
+    `SERVER_ONLY_SOURCES` は手で書く一覧なので、**新しくプロンプトを持つ
+    ファイルを足したときの登録漏れ**が起きる。それを検知できないと、
+    そのファイルの中身は検査を素通りしてしまう (実際に 4 ファイル漏れていた)。
+    """
+    root = ROOT / DISCOVERY_ROOT
+    found: list[str] = []
+    for path in sorted(root.rglob("*.py")):
+        if "__pycache__" in str(path):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        except SyntaxError:  # pragma: no cover - 壊れた .py は type check 側の責務
+            continue
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and PROMPT_MARKER in node.value
+            ):
+                found.append(str(path.relative_to(ROOT)))
+                break
+    return found
+
+
+def check_registration(problems: list[str]) -> None:
+    """**登録漏れをサボれなくする** (GAP-206)。
+
+    プロンプトを持つのに検査対象へ登録されていないファイルがあれば落とす。
+    誤検知だった場合は `NOT_A_PROMPT` に理由つきで書く (黙って除外させない)。
+    """
+    registered = set(SERVER_ONLY_SOURCES)
+    for rel in files_with_prompts():
+        if rel in registered or rel in NOT_A_PROMPT:
+            continue
+        problems.append(
+            f"プロンプトを持つのに検査対象になっていません: {rel} "
+            f"— SERVER_ONLY_SOURCES に追加してください "
+            f"(プロンプトでないなら NOT_A_PROMPT に理由つきで)"
+        )
+    for rel, reason in NOT_A_PROMPT.items():
+        if not (ROOT / rel).exists():
+            problems.append(f"NOT_A_PROMPT の項目が実在しません: {rel} ({reason})")
 
 
 def load_allowlist() -> dict[str, str]:
@@ -155,6 +217,7 @@ def main() -> int:
 
     problems: list[str] = []
     check_source_maps(problems)
+    check_registration(problems)
 
     chunks = client_chunks()
     if not chunks:

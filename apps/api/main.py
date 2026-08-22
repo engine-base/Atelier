@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src import __version__
-from src.errors import UnhandledErrorMiddleware
+from src.errors import REASON_HEADER, UnhandledErrorMiddleware
 from src.health import router as health_router
 from src.routes import api_router
 from src.txn_commit import CommitBeforeResponseMiddleware
@@ -64,6 +64,18 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     _emb = resolve_embedding_route()
     _emb_log = _logging.getLogger("atelier.embedding_route")
     (_emb_log.warning if _emb.warnings else _emb_log.info)(describe_embedding_route())
+
+    # GAP-206: 混雑 (順番待ち・お断り) を **machine をまたいで**残せるようにする。
+    # capacity は DB を知らないモジュールなので、記録先をここで差し込む。
+    # 差し込まないと記録されないだけで、チャット自体は動く。
+    from src.db import shared_session_factory
+    from src.observability.capacity_alerts import record_capacity_event
+    from src.services.chat_sse.capacity import StreamCapacity, set_event_recorder
+
+    async def _record(kind: str, snap: StreamCapacity, detail: str | None) -> None:
+        await record_capacity_event(shared_session_factory(), kind, snap, detail)
+
+    set_event_recorder(_record)
 
     # GAP-200: 意味検索・文字起こしを「サーバーで動かすか」を起動時に 1 行出す。
     # 「入れたつもりで入っていない」を静かに通さない。
@@ -114,6 +126,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # GAP-206: 503 の「理由」を画面が読めるようにする。
+    # expose_headers に入れないとブラウザから見えず、画面はまた status だけで
+    # 原因を推測することになる (= 誤案内が戻る)。
+    expose_headers=[REASON_HEADER],
 )
 
 # レスポンス送信前に RLS セッションを commit する (read-your-own-write 整合)。

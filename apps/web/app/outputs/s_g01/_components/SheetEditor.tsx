@@ -74,7 +74,9 @@ function AiFileEdit({
       });
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 503) {
+      // GAP-206: 「503 なら未接続」ではない (保存先の未設定でも 503)。
+      // サーバーが申告したときだけ接続導線を出す。
+      if (e instanceof ApiError && e.reason === "bridge_offline") {
         setBridgeOffline(true);
         setNotice(null);
         return;
@@ -86,7 +88,10 @@ function AiFileEdit({
           e instanceof ApiError && e.status === 409
             ? ((e.payload as { detail?: string } | undefined)?.detail ??
               "この形式はファイル編集に対応していません。")
-            : "依頼に失敗しました。時間をおいて再度お試しください。",
+            : e instanceof ApiError && e.status === 503
+              ? ((e.payload as { detail?: string } | undefined)?.detail ??
+                "サービスが一時的に利用できません。時間をおいてお試しください。")
+              : "依頼に失敗しました。時間をおいて再度お試しください。",
       });
     },
   });

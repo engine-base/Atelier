@@ -17,6 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.dependencies import CurrentUser, get_current_user
+from src.errors import service_unavailable
 from src.schemas.references import ReferenceUploadRequest, ReferenceUploadResponse
 from src.services.chat import ATTACHMENT_ALLOWED_MIME, ATTACHMENT_MAX_BYTES
 from src.storage_signing import (
@@ -59,5 +60,6 @@ async def create_reference_upload_url(
     try:
         upload_url = await create_signed_upload_url(storage_path)
     except StorageSigningError as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+        # GAP-206: 保存先の未設定を「パソコン未接続」と誤読させないため理由を載せる。
+        raise service_unavailable(exc.code, str(exc)) from exc
     return {"data": ReferenceUploadResponse(upload_url=upload_url, storage_path=storage_path)}

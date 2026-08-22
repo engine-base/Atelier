@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.sales_docs import (
     SalesDocCreate,
     SalesDocGenerateRequest,
@@ -104,7 +105,7 @@ async def generate_sales_doc(
     except gen_svc.SalesDocGenerateError as exc:
         # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")

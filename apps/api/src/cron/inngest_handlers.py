@@ -77,13 +77,19 @@ async def _error_alerts_body(ctx: Any, step: Any) -> dict[str, str]:
     del ctx, step
     from src.db import shared_session_factory
     from src.observability.alerts import run_error_alerts
+    from src.observability.capacity_alerts import run_capacity_alerts
 
     factory = shared_session_factory()
     async with factory() as session:
         result = await run_error_alerts(session)
+        # GAP-206: 混雑 (順番待ち・お断り) も **同じ起床で**通知する。
+        # 別 cron にすると machine の起動回数が増えて課金に響くため、相乗りする。
+        capacity = await run_capacity_alerts(session)
     if result.get("candidates", "0") != "0":
         logger.info("error-alerts cron done: %s", result)
-    return result
+    if capacity.get("candidates", "0") != "0":
+        logger.info("capacity-alerts cron done: %s", capacity)
+    return {**result, **{f"capacity_{k}": v for k, v in capacity.items()}}
 
 
 async def _purge_deleted_accounts_body(ctx: Any, step: Any) -> dict[str, str]:

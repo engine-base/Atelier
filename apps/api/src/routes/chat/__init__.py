@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.chat import (
     ChatAttachmentUploadUrlRequest,
     ChatAttachmentUploadUrlResponse,
@@ -181,7 +182,7 @@ async def create_chat_attachment_upload_url(
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": result}
 
@@ -206,7 +207,7 @@ async def get_chat_attachment_url(
         raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")

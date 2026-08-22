@@ -12,7 +12,7 @@ from collections.abc import AsyncGenerator
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -20,11 +20,15 @@ from src.db.session import create_engine, create_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.schemas.public import (
     BridgeLatestResponse,
+    ConsentAcceptRequest,
+    ConsentStatusListResponse,
+    ConsentStatusResponse,
     DataDeletionRequestCreate,
     DataDeletionRequestResponse,
     LegalDocType,
     LegalDocumentResponse,
 )
+from src.services import consents as consent_svc
 from src.services import public as svc
 
 router = APIRouter(tags=["public"])
@@ -81,6 +85,68 @@ async def get_legal_document(
     if doc is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "legal document not found")
     return {"data": doc}
+
+
+@router.get("/me/consents", summary="同意状況（GAP-206 — 再同意が要るか）")
+async def get_my_consents(
+    session: RlsSessionDep,
+    user: UserDep,
+) -> dict[str, ConsentStatusListResponse]:
+    """自分の同意状況を返す。
+
+    **これが無かったせいで**、規約を新しくしても「誰が旧版のままか」が
+    分からず、再同意を求めようがなかった (GAP-188/204 で足した条項が
+    旧版に同意したままの利用者には効きにくい状態だった)。
+    """
+    rows = await consent_svc.consent_status(session, user_id=user.id)
+    items = [
+        ConsentStatusResponse(
+            doc_type=r.doc_type,
+            current_version=r.current_version,
+            accepted_version=r.accepted_version,
+            needs_consent=r.needs_consent,
+        )
+        for r in rows
+    ]
+    return {
+        "data": ConsentStatusListResponse(
+            items=items, needs_consent=any(i.needs_consent for i in items)
+        )
+    }
+
+
+@router.post("/me/consents", summary="現行版へ同意する（GAP-206）")
+async def accept_my_consent(
+    body: ConsentAcceptRequest,
+    session: RlsSessionDep,
+    user: UserDep,
+    request: Request,
+) -> dict[str, ConsentStatusResponse]:
+    """現行版への同意を記録する。**旧版の記録は消さない**（append-only）。
+
+    表示中の版が古い場合は 409 で拒否する — 読んでいない文面に同意させない。
+    """
+    try:
+        status_row = await consent_svc.accept_current(
+            session,
+            user_id=user.id,
+            doc_type=body.doc_type,
+            version=body.version,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except consent_svc.ConsentError as exc:
+        if exc.code == "version_mismatch":
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+    return {
+        "data": ConsentStatusResponse(
+            doc_type=status_row.doc_type,
+            current_version=status_row.current_version,
+            accepted_version=status_row.accepted_version,
+            needs_consent=status_row.needs_consent,
+        )
+    }
 
 
 @router.get("/public/bridge-latest", summary="Bridge 最新版情報（公開）")

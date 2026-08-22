@@ -19,11 +19,15 @@ import { cn } from "../../lib/cn";
 import { BridgeConnectFlow } from "./BridgeConnectFlow";
 
 /**
- * 「Bridge 未接続が原因か」の判定。API は実行経路ゼロを 503 で返す
- * (GAP-138 の relay → agent_sdk → API キー チェーンが全滅した状態)。
+ * 「Bridge 未接続が原因か」の判定。
+ *
+ * GAP-206 まではここが **503 かどうか**だけを見ていた。だが 503 は
+ * 「保存先が未設定」「LLM 経路が未設定」でも返る。そのため設定漏れなのに
+ * 「パソコンを繋いでください」と案内していた (利用者は永遠に直せない)。
+ * 今は **サーバーが `X-Atelier-Reason` で申告したときだけ**未接続とみなす。
  */
 export function isBridgeOffline(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 503;
+  return error instanceof ApiError && error.reason === "bridge_offline";
 }
 
 export interface BridgeOfflineNoticeProps {

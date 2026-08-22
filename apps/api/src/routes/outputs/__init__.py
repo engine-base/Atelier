@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.outputs import (
     DesignTemplateCreateRequest,
@@ -154,7 +155,7 @@ async def get_output_content_url(
         url = await create_signed_download_url(path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": ContentUrlResponse(url=url)}
 
@@ -277,7 +278,7 @@ async def create_design_template_version(
         )
     except tmpl_svc.DesignTemplateError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         if exc.code == "not_found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
@@ -413,7 +414,7 @@ async def diff_output_versions(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {
         "data": VersionDiffResponse(
@@ -475,7 +476,7 @@ async def list_output_anchors(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": revise_svc.extract_anchors(html)}
 
@@ -483,7 +484,7 @@ async def list_output_anchors(
 def _raise_revise_error(exc: revise_svc.OutputReviseError) -> None:
     # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
     if exc.code in ("llm_unconfigured", "bridge_offline"):
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+        raise service_unavailable(exc.code, exc.message) from exc
     if exc.code == "too_large":
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
     if exc.code == "no_html":
@@ -512,7 +513,7 @@ async def revise_output(
         raise  # unreachable — 型のため
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
@@ -546,7 +547,7 @@ async def create_fix_proposal(
         raise
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(
@@ -572,7 +573,7 @@ async def approve_fix_proposal(
         raise
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "fix proposal not found")
@@ -837,10 +838,12 @@ async def request_output_file_edit(
             session, actor_id=user.id, output_id=output_id, instruction=body.instruction
         )
     except file_edit.FileEditError as exc:
+        # GAP-206: 503 は理由つきで返す (画面が「未接続」と決めつけないため)。
+        if exc.code == "bridge_offline":
+            raise service_unavailable(exc.code, exc.message) from exc
         code = {
             "not_found": status.HTTP_404_NOT_FOUND,
             "unsupported": status.HTTP_409_CONFLICT,
-            "bridge_offline": status.HTTP_503_SERVICE_UNAVAILABLE,
         }.get(exc.code, status.HTTP_409_CONFLICT)
         raise HTTPException(code, exc.message) from exc
     return {"data": {"job_id": job_id}}

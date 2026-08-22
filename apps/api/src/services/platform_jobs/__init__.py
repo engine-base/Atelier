@@ -243,9 +243,11 @@ async def purge_deleted_accounts(session: AsyncSession) -> dict[str, str]:
     if user_ids:
         logger.info("purged %d account(s), %d workspace(s)", len(user_ids), purged_workspaces)
 
+    from src.observability.capacity_alerts import purge_old_capacity_events
     from src.observability.errors import purge_old_errors
 
     purged_errors = await purge_old_errors(session, days=30)
+    purged_capacity = await purge_old_capacity_events(session, days=90)
     return {
         "status": "ok",
         "name": "purge-deleted-accounts",
@@ -253,6 +255,8 @@ async def purge_deleted_accounts(session: AsyncSession) -> dict[str, str]:
         "purged_workspaces": str(purged_workspaces),
         # GAP-182: 自前エラーログの保持期間 (30 日) を同じ掃除ジョブで守る。
         "purged_errors": str(purged_errors),
+        # GAP-206: 混雑の記録も同じ掃除ジョブで 90 日で消す (無限に太らせない)。
+        "purged_capacity_events": str(purged_capacity),
     }
 
 

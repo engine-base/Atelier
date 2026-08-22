@@ -74,14 +74,37 @@ export function readAccessToken(): string | null {
   return m && m[1] ? decodeURIComponent(m[1]) : null;
 }
 
-/** API エラー。status を保持する (401 等のハンドリング用)。 */
+/** GAP-206: 503 の「理由」を載せるヘッダ (API の src/errors.py と対)。 */
+export const REASON_HEADER = "X-Atelier-Reason";
+
+/**
+ * API エラー。status と、GAP-206 で足した **原因コード**を持ったまま投げる。
+ *
+ * 503 は「本人の PC (Bridge) 未接続」「保存先が未設定」「LLM 経路が未設定」と
+ * 別物なのに、以前は **status しか無かった**。そのため画面は原因を推測し、
+ * 保存先の設定漏れでも「パソコンを繋いでください」と案内していた
+ * （あるいは両論併記で逃げていた）。**推測させないために原因を運ぶ。**
+ */
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** サーバーが返した原因コード (`bridge_offline` / `storage_unconfigured` 等)。 */
+    readonly reason: string | null = null,
   ) {
     super(message);
   }
+
+  /** 本人の PC が未接続であることが **サーバーの申告で** 確定しているか。 */
+  get isBridgeOffline(): boolean {
+    return this.reason === "bridge_offline";
+  }
+}
+
+/** 応答から原因コードを取り出す (無ければ null)。 */
+export function reasonOf(res: Response): string | null {
+  const v = res.headers.get(REASON_HEADER);
+  return v && v.trim() ? v.trim() : null;
 }
 
 /**
@@ -108,6 +131,7 @@ export async function getJson<T>(
     throw new ApiError(
       typeof detail === "string" ? detail : `HTTP ${res.status}`,
       res.status,
+      reasonOf(res),
     );
   }
   return { data: (json?.data ?? []) as T, meta: json?.meta };
@@ -142,6 +166,7 @@ export async function sendJson<T>(
     throw new ApiError(
       typeof detail === "string" ? detail : `HTTP ${res.status}`,
       res.status,
+      reasonOf(res),
     );
   }
   return json?.data as T;

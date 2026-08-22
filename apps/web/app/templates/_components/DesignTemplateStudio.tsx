@@ -215,15 +215,24 @@ export function DesignTemplateStudio({
       });
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 503) {
+      // GAP-206: 「503 なら未接続」ではない。サーバーが申告したときだけ接続導線を出し、
+      // それ以外の 503 (LLM 経路の未設定等) は理由をそのまま見せる。
+      if (e instanceof ApiError && e.reason === "bridge_offline") {
         setBridgeOffline(true);
         setNotice(null);
         return;
       }
       setBridgeOffline(false);
+      const detail =
+        e instanceof ApiError
+          ? (e.payload as { detail?: unknown } | undefined)?.detail
+          : undefined;
       setNotice({
         kind: "error",
-        text: "テンプレの作成に失敗しました。時間をおいて再度お試しください。",
+        text:
+          e instanceof ApiError && e.status === 503 && typeof detail === "string"
+            ? detail
+            : "テンプレの作成に失敗しました。時間をおいて再度お試しください。",
       });
     },
   });

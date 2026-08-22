@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.errors import service_unavailable
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.mocks import (
     DesignNoteUpdate,
@@ -115,7 +116,7 @@ async def get_mock_content_url(
         url = await create_signed_download_url(mock.html_storage_path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {"data": ContentUrlResponse(url=url)}
 
@@ -261,7 +262,7 @@ async def diff_mock_versions(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     return {
         "data": VersionDiffResponse(
@@ -343,7 +344,7 @@ async def generate_mock(
         )
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
@@ -372,7 +373,7 @@ async def revise_mock(
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
             # GAP-138: Bridge オフラインも「実行経路が無い」— 黙って API 課金に落とさない
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         if exc.code == "too_large":
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
         if exc.code == "conflict":
@@ -381,7 +382,7 @@ async def revise_mock(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, exc.message) from exc
+            raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")

@@ -143,6 +143,8 @@ describe("DesignTemplateStudio (GAP-158)", () => {
         status: 503,
         statusText: "unavailable",
         payload: undefined,
+        // GAP-206: サーバーは 503 の理由を申告する。未接続はこの理由のときだけ。
+        reason: "bridge_offline",
         path: "/workspaces/{workspace_id}/design-templates/{stage}",
         method: "post",
       });

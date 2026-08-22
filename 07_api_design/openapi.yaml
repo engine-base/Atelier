@@ -169,6 +169,30 @@ components:
       properties:
         display_name: { type: string, minLength: 1, maxLength: 100 }
 
+    # GAP-206: 「同意済みの版」と「今の版」のずれ (再同意が要るか) を表す。
+    ConsentStatus:
+      type: object
+      required: [doc_type, current_version, accepted_version, needs_consent]
+      properties:
+        doc_type: { type: string, enum: [terms_of_service, privacy_policy] }
+        current_version: { type: string, nullable: true, description: 今 有効な版 }
+        accepted_version: { type: string, nullable: true, description: 最後に同意した版（未同意なら null） }
+        needs_consent: { type: boolean, description: 同意し直しが要るか }
+
+    ConsentStatusList:
+      type: object
+      required: [items, needs_consent]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ConsentStatus' } }
+        needs_consent: { type: boolean, description: 1 件でも同意し直しが要るか }
+
+    ConsentAcceptRequest:
+      type: object
+      required: [doc_type, version]
+      properties:
+        doc_type: { type: string, enum: [terms_of_service, privacy_policy] }
+        version: { type: string, description: 画面が表示した版（古ければ 409） }
+
     SearchHit:
       type: object
       required: [id, kind, title, snippet]
@@ -3389,6 +3413,51 @@ paths:
                   data: { $ref: '#/components/schemas/Me' }
         '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # GAP-206: 規約を新しくしたときに、旧版のままの利用者へ再同意を求めるための口。
+  # これが無かったせいで、GAP-188/204 で足した条項が旧版同意者に効きにくかった。
+  /me/consents:
+    get:
+      tags: [users]
+      summary: 自己の同意状況（同意し直しが要るか / GAP-206）
+      x-implementation-path: apps/api/src/routes/public/__init__.py::get_my_consents
+      x-screen-ids: [S-U01]
+      responses:
+        '200':
+          description: 同意状況
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ConsentStatusList' }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      tags: [users]
+      summary: 現行版へ同意する（版を必ず指定 / GAP-206）
+      description: >
+        表示中の版が古い場合は 409 で拒否する（読んでいない文面に同意させないため）。
+        旧版の記録は消さず、新しい行として積む（append-only）。
+      x-implementation-path: apps/api/src/routes/public/__init__.py::accept_my_consent
+      x-screen-ids: [S-U01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsentAcceptRequest' }
+      responses:
+        '200':
+          description: 記録後の同意状況
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ConsentStatus' }
+        '400': { description: 対象外の種類, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 表示中の版が古い（読み直しが必要）, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '422': { description: バリデーション失敗, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /search:

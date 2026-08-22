@@ -19,6 +19,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+// GAP-206: 「未接続かどうか」の判定は共通の正本を使う
+// (サーバーが理由を申告したときだけ未接続とみなす)。
+import { isBridgeOffline } from "../../../../components/bridge/BridgeOfflineNotice";
+
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
 import {
   PhaseList,
@@ -94,6 +98,13 @@ function dateLabel(iso: string | undefined): string {
 
 function statusOf(error: unknown): number | null {
   return error instanceof ApiError ? error.status : null;
+}
+
+/** API の honest エラーメッセージ (FastAPI detail) を取り出す。 */
+function detailOf(error: unknown): string | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  const payload = error.payload as { detail?: unknown } | undefined;
+  return typeof payload?.detail === "string" ? payload.detail : undefined;
 }
 
 export function PhaseListContainer({
@@ -289,12 +300,14 @@ export function PhaseListContainer({
       setAction({ kind: "notice", text: "ジャービスが次フェーズを提案しました。" });
     },
     onError: (e) => {
-      setBridgeOffline(statusOf(e) === 503);
+      // GAP-206: 503 = 未接続 と決めつけない。サーバーが申告した理由で判断する。
+      setBridgeOffline(isBridgeOffline(e));
       setAction({
         kind: "error",
         text:
           statusOf(e) === 503
-            ? "お使いのパソコン (Bridge) が未接続のため提案を生成できません。"
+            ? (detailOf(e) ??
+              "サービスが一時的に利用できません。時間をおいてお試しください。")
             : statusOf(e) === 409
               ? "承認待ちの提案が既にあります。"
               : "提案の生成に失敗しました。",
