@@ -119,6 +119,15 @@ export function ReconsentNotice() {
 
   if (pending.length === 0 || hidden) return null;
 
+  /**
+   * まだ一度も同意していない場合に「更新しました」と言わない。
+   *
+   * 通常は新規登録時に記録されるのでここに来ないが、**移行してきた
+   * アカウント等で同意の記録が無い**ことはあり得る。その人に
+   * 「更新しました」と出すのは事実と違う (更新ではなく初回)。
+   */
+  const firstTime = pending.every((p) => p.accepted_version === null);
+
   return (
     <div
       role="region"
@@ -131,7 +140,9 @@ export function ReconsentNotice() {
           <strong className="font-semibold">
             {pending.map((p) => LABEL[p.doc_type] ?? p.doc_type).join('・')}
           </strong>
-          を更新しました。内容をご確認のうえ、同意をお願いします。
+          {firstTime
+            ? 'への同意をお願いします。内容をご確認ください。'
+            : 'を更新しました。内容をご確認のうえ、同意をお願いします。'}
         </span>
         {pending.map((p) => (
           <Link

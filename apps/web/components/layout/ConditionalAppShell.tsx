@@ -15,7 +15,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import {
   Bell,
   Brain,
@@ -39,6 +39,7 @@ import { usePathname } from 'next/navigation';
 import { getJson } from '../../lib/auth/connector';
 import { ROUTE_MAP } from '../../lib/routes';
 import {
+  WORKSPACES_CHANGED_EVENT,
   readCurrentWorkspace,
   writeCurrentWorkspace,
 } from '../../lib/currentWorkspace';
@@ -148,34 +149,45 @@ interface MeLite {
 function TopBarTrailing({
   me,
   pendingCount,
+  minimal = false,
 }: {
   readonly me?: MeLite;
   readonly pendingCount: number;
+  /**
+   * GAP-207: ワークスペースがまだ無いとき (オンボーディング) は、検索と
+   * 通知センターを出さない。**探すものも承認するものもまだ存在しない**ため、
+   * 押しても空の画面に行くだけになる。本人のプロフィールだけ残す。
+   */
+  readonly minimal?: boolean;
 }) {
   const label = me?.display_name || me?.email || undefined;
   return (
     <span className="flex items-center gap-1.5">
-      <Link
-        href="/t-uc-40"
-        aria-label="検索"
-        title="検索"
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
-      >
-        <Search className="h-4 w-4" aria-hidden="true" />
-      </Link>
-      <Link
-        href="/t-uc-36"
-        aria-label={`通知センター (未処理の承認待ち ${pendingCount} 件)`}
-        title="通知センター"
-        className="relative inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
-      >
-        <Bell className="h-4 w-4" aria-hidden="true" />
-        {pendingCount > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9.5px] font-bold text-white tabular-nums">
-            {pendingCount > 99 ? '99+' : pendingCount}
-          </span>
-        ) : null}
-      </Link>
+      {minimal ? null : (
+        <Link
+          href="/t-uc-40"
+          aria-label="検索"
+          title="検索"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
+        >
+          <Search className="h-4 w-4" aria-hidden="true" />
+        </Link>
+      )}
+      {minimal ? null : (
+        <Link
+          href="/t-uc-36"
+          aria-label={`通知センター (未処理の承認待ち ${pendingCount} 件)`}
+          title="通知センター"
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-variant"
+        >
+          <Bell className="h-4 w-4" aria-hidden="true" />
+          {pendingCount > 0 ? (
+            <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[9.5px] font-bold text-white tabular-nums">
+              {pendingCount > 99 ? '99+' : pendingCount}
+            </span>
+          ) : null}
+        </Link>
+      )}
       {label ? (
         <Link
           href="/t-uc-37"
@@ -195,26 +207,63 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const pathname = INTERNAL_TO_CLEAN.get(rawPathname) ?? rawPathname;
   const bare = isBare(pathname);
   const [workspaces, setWorkspaces] = useState<readonly WorkspaceLite[]>([]);
+  /**
+   * GAP-207: 「この人はワークスペースを持っているか」。
+   *
+   * `'some'` になるまでサイドバーを出さない。**ワークスペースが 1 つも無い
+   * うちは、サイドバーの項目 (プロジェクト / AI社員 / ナレッジ / …) が全部
+   * 空か作れない画面**で、押しても何も起きない。出さないのが正しい。
+   *
+   * 読み込み中の判定は localStorage の「前回のワークスペース」を手掛かりに
+   * する (下の useLayoutEffect)。**描画の前に**決まるので、既存ユーザーの
+   * 画面でサイドバーがちらつかない。
+   */
+  const [wsPresence, setWsPresence] = useState<'unknown' | 'none' | 'some'>('unknown');
   const [currentWsId, setCurrentWsId] = useState<string | undefined>();
   const [me, setMe] = useState<MeLite | undefined>();
   const [project, setProject] = useState<ProjectLite | undefined>();
   const [pendingCount, setPendingCount] = useState(0);
 
+  // GAP-207: 前に使っていたワークスペースを覚えていれば、**取得を待たずに**
+  // シェルを出す (useLayoutEffect = 最初のペイントより前に反映される)。
+  // 覚えていない = 新規登録直後なので、取得結果が出るまで出さない。
+  useLayoutEffect(() => {
+    if (bare) return;
+    if (readCurrentWorkspace()) setWsPresence('some');
+  }, [bare]);
+
+  // GAP-207: 「ワークスペースが増えた」を受け取ったら読み直す。
+  // これが無いと、最初の 1 つを作った直後もシェルは 0 件のままだった
+  // (実ブラウザ e2e で発見 — 再読み込みするまでサイドバーが出なかった)。
   useEffect(() => {
     if (bare) return;
     let cancelled = false;
-    getJson<readonly WorkspaceLite[]>('/workspaces')
-      .then((res) => {
-        if (cancelled) return;
-        setWorkspaces(res.data);
-        // 現在 WS: localStorage 永続値 (T-UC-38 と同一キー) → 先頭フォールバック
-        const saved = readCurrentWorkspace();
-        const valid = res.data.find((w) => w.id === saved);
-        setCurrentWsId((valid ?? res.data[0])?.id);
-      })
-      .catch(() => {
-        /* シェル表示は WS 名取得失敗でも継続 */
-      });
+    const loadWorkspaces = () => {
+      getJson<readonly WorkspaceLite[]>('/workspaces')
+        .then((res) => {
+          if (cancelled) return;
+          setWorkspaces(res.data);
+          setWsPresence(res.data.length > 0 ? 'some' : 'none');
+          // 現在 WS: localStorage 永続値 (T-UC-38 と同一キー) → 先頭フォールバック
+          const saved = readCurrentWorkspace();
+          const valid = res.data.find((w) => w.id === saved);
+          setCurrentWsId((valid ?? res.data[0])?.id);
+        })
+        .catch(() => {
+          /* シェル表示は WS 名取得失敗でも継続 */
+        });
+    };
+    loadWorkspaces();
+    window.addEventListener(WORKSPACES_CHANGED_EVENT, loadWorkspaces);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WORKSPACES_CHANGED_EVENT, loadWorkspaces);
+    };
+  }, [bare]);
+
+  useEffect(() => {
+    if (bare) return;
+    let cancelled = false;
     getJson<MeLite>('/me')
       .then((res) => {
         if (!cancelled) setMe(res.data);
@@ -258,6 +307,16 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   }, [bare, pathname]);
 
   if (bare) return <>{children}</>;
+
+  /**
+   * GAP-207: ワークスペースがまだ 1 つも無い状態 (= 新規登録直後の
+   * オンボーディング)。この間はサイドバーもワークスペースのピルも出さない。
+   *
+   * これまでは「プロジェクト / AI社員 / ナレッジ / テンプレート / 承認待ち /
+   * WS設定」の 6 本を出していたが、**ワークスペースが無いとどれも空か
+   * 作れない画面**で、押しても何も起きない。出す方が UX を悪くしていた。
+   */
+  const onboarding = wsPresence !== 'some';
 
   const currentWs = workspaces.find((w) => w.id === currentWsId);
   const workspaceName = currentWs?.name;
@@ -304,9 +363,9 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   const activeNav = allNav.find(
     (n) => pathname === n.match || pathname.startsWith(`${n.match}/`),
   );
-  const hideSidebar = NO_SIDEBAR_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  const hideSidebar =
+    onboarding ||
+    NO_SIDEBAR_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const fullBleed = FULL_BLEED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
@@ -317,22 +376,29 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       navSections={sections}
       workspaceName={workspaceName}
       workspaceIcon={workspaceIcon}
-      workspaces={workspaces}
+      workspaces={onboarding ? undefined : workspaces}
       currentWorkspaceId={currentWsId}
-      onSelectWorkspace={(id) => {
-        writeCurrentWorkspace(id);
-        setCurrentWsId(id);
-      }}
+      onSelectWorkspace={
+        onboarding
+          ? undefined
+          : (id) => {
+              writeCurrentWorkspace(id);
+              setCurrentWsId(id);
+            }
+      }
       projectName={inProject ? project!.name : undefined}
       projectExtra={
         inProject ? <PhaseSwitcher key={project!.id} projectId={project!.id} /> : undefined
       }
-      breadcrumb={activeNav?.labelKey}
-      topBarTrailing={<TopBarTrailing me={me} pendingCount={pendingCount} />}
+      breadcrumb={onboarding ? undefined : activeNav?.labelKey}
+      topBarTrailing={
+        <TopBarTrailing me={me} pendingCount={pendingCount} minimal={onboarding} />
+      }
       fullBleed={fullBleed}
       hideSidebar={hideSidebar}
+      hideWorkspacePill={onboarding}
       backHref={
-        !hideSidebar
+        !hideSidebar || onboarding
           ? undefined
           : pathname.startsWith('/chat')
             ? inProject
@@ -341,7 +407,7 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
             : '/projects'
       }
       backLabel={
-        !hideSidebar
+        !hideSidebar || onboarding
           ? undefined
           : pathname.startsWith('/chat') && inProject
             ? 'プロジェクトへ戻る'

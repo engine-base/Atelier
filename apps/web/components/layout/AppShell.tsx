@@ -51,6 +51,11 @@ export interface AppShellProps {
    * 広い作業面のもの)。代わりに TopBar の「戻る」で必ず戻れるようにする。
    */
   readonly hideSidebar?: boolean;
+  /**
+   * GAP-207: ワークスペースがまだ 1 つも無いとき、TopBar の中身の無い
+   * ワークスペースピルを出さない (代わりにロゴが出る)。
+   */
+  readonly hideWorkspacePill?: boolean;
   readonly backHref?: string;
   readonly backLabel?: string;
   readonly className?: string;
@@ -72,6 +77,7 @@ export function AppShell({
   topBarTrailing,
   fullBleed = false,
   hideSidebar = false,
+  hideWorkspacePill = false,
   backHref,
   backLabel,
   className,
@@ -153,6 +159,7 @@ export function AppShell({
           projectName={projectName}
           projectExtra={projectExtra}
           trailing={topBarTrailing}
+          hideWorkspacePill={hideWorkspacePill}
         />
         <main
           id="main-content"

@@ -16,3 +16,18 @@ export function writeCurrentWorkspace(id: string): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(CURRENT_WS_KEY, id);
 }
+
+/**
+ * GAP-207: 「ワークスペースの一覧が変わった」を画面全体へ知らせる。
+ *
+ * シェル (ConditionalAppShell) は起動時に 1 回しか `/workspaces` を読まない。
+ * そのため **最初のワークスペースを作った直後**、シェルはまだ「0 件」のままで、
+ * サイドバーもワークスペース名も再読み込みするまで更新されなかった
+ * (GAP-207 の実ブラウザ e2e で発見)。作った側がこれを呼ぶ。
+ */
+export const WORKSPACES_CHANGED_EVENT = "atelier:workspaces-changed";
+
+export function notifyWorkspacesChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(WORKSPACES_CHANGED_EVENT));
+}

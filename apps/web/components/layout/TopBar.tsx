@@ -18,6 +18,7 @@ import { ArrowLeft, Check, ChevronDown, FolderOpen, Menu } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
+import { BrandLockup } from '../brand/BrandLockup';
 
 export interface WorkspaceLite {
   readonly id: string;
@@ -47,6 +48,14 @@ export interface TopBarProps {
   readonly projectExtra?: ReactNode;
   /** 右端 slot (ユーザーメニュー等) */
   readonly trailing?: ReactNode;
+  /**
+   * GAP-207: ワークスペースがまだ 1 つも無いとき (オンボーディング) は
+   * ワークスペースのピルを出さない。
+   *
+   * これまでは切替先が無くても「ワークスペース」という **中身の無いピル**を
+   * 常に描いていた。押せないし、何も指していない。代わりにロゴを置く。
+   */
+  readonly hideWorkspacePill?: boolean;
   /** GAP-160: 全画面 (サイドバー無し) の画面から戻るためのリンク先とラベル。 */
   readonly backHref?: string;
   readonly backLabel?: string;
@@ -166,6 +175,7 @@ export function TopBar({
   projectName,
   projectExtra,
   trailing,
+  hideWorkspacePill = false,
   backHref,
   backLabel,
   className,
@@ -203,8 +213,12 @@ export function TopBar({
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
         ) : null}
-        {/* ワークスペースピッカー pill (切替ハンドラ未配線時は非インタラクティブ表示) */}
-        {interactive ? (
+        {/* ワークスペースピッカー pill (切替ハンドラ未配線時は非インタラクティブ表示)。
+            GAP-207: ワークスペースがまだ無いときは中身の無いピルを出さず、
+            サイドバーの代わりにロゴを置く (サイドバーごと隠れているため)。 */}
+        {hideWorkspacePill ? (
+          <BrandLockup sizeClassName="h-5" gapClassName="gap-2" className="shrink-0" />
+        ) : interactive ? (
           <WorkspacePicker
             label={wsLabel}
             icon={workspaceIcon}

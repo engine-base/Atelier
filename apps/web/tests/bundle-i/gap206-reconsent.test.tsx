@@ -157,6 +157,28 @@ describe('GAP-206 再同意の導線', () => {
     await waitFor(() => expect(screen.getByRole('region')).toBeInTheDocument());
   });
 
+  it('**一度も同意していない人**に「更新しました」と言わない (GAP-207 で発見)', async () => {
+    getJson.mockResolvedValue({
+      data: {
+        items: [
+          {
+            doc_type: 'terms_of_service',
+            current_version: '2026-08-21',
+            accepted_version: null,
+            needs_consent: true,
+          },
+        ],
+        needs_consent: true,
+      },
+    });
+    render(<ReconsentNotice />);
+    await waitFor(() => {
+      expect(screen.getByRole('region')).toHaveTextContent('同意をお願いします');
+    });
+    // 初回なのに「更新しました」は事実と違う
+    expect(screen.getByRole('region')).not.toHaveTextContent('更新しました');
+  });
+
   it('版のキーは「要同意のものだけ」から作られる', () => {
     expect(versionKey(NEEDS.items)).toBe('terms_of_service:2026-08-21');
   });

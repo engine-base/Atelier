@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 
 import { ProjectList, type ProjectRow } from './_components/ProjectList';
 import * as api from '../../../lib/auth/connector';
-import { CURRENT_WS_KEY } from '../../../lib/currentWorkspace';
+import { CURRENT_WS_KEY, notifyWorkspacesChanged } from '../../../lib/currentWorkspace';
 import { writeCurrentProject } from '../../../lib/useProjectId';
 
 interface ApiProject {
@@ -158,7 +158,12 @@ export default function SB01Page() {
     try {
       const created = await api.sendJson<WorkspaceLite>('POST', '/workspaces', { name });
       const id = (created as WorkspaceLite | undefined)?.id;
-      if (id) window.localStorage.setItem(CURRENT_WS_KEY, id);
+      if (id) {
+        window.localStorage.setItem(CURRENT_WS_KEY, id);
+        // GAP-207: シェル (サイドバー / ワークスペース名) に作成を知らせる。
+        // これが無いと、作った直後は再読み込みするまで反映されない。
+        notifyWorkspacesChanged();
+      }
       setNeedsWorkspace(false);
       await load(null);
     } catch {
