@@ -3183,6 +3183,21 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  # GAP-209: 出る口。アプリ本体にサインアウトの導線が無く、出る手段は
+  # クライアントポータルにしか無かった (共有 PC で前の人のまま使える)。
+  /auth/signout:
+    post:
+      tags: [auth]
+      summary: サインアウト (この人の refresh token を全部失効させる)
+      description: >
+        画面側は cookie と localStorage を捨てるが、盗まれた refresh token は
+        それでは生き続けるため、サーバー側でも失効させる。
+      x-implementation-path: apps/api/src/routes/auth/__init__.py::auth_signout
+      x-screen-ids: [S-U01]
+      responses:
+        '204': { description: 失効した }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /auth/account/delete:
     post:
       tags: [auth]

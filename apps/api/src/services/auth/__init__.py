@@ -1035,6 +1035,34 @@ async def confirm_password_reset(
     )
 
 
+async def sign_out(*, user_id: str, ip_address: str | None = None) -> None:
+    """GAP-209: サインアウト — **この人の refresh token を全部失効させる**。
+
+    これまでアプリ本体にサインアウトの導線が無く、出る手段はクライアント
+    ポータルにしか無かった。共有 PC で使うと前の人のセッションのまま使えて
+    しまう。cookie を捨てるだけでは、**盗まれた refresh token は生き続ける**
+    ので、サーバー側でも失効させる。
+
+    仕組みはパスワード変更時と同じ (`auth.refresh.revoked_all` を書くと、
+    それより前に発行された refresh token は `refresh_access_token` の
+    照合で弾かれる)。
+    """
+    factory = _service_session_factory()
+    async with factory() as session:
+        await AuditWriter(session).write(
+            AuditEvent(
+                action="auth.refresh.revoked_all",
+                target_type="user",
+                actor_type="user",
+                actor_id=user_id,
+                target_id=user_id,
+                ip_address=_normalize_ip(ip_address),
+                after={"reason": "sign_out"},
+            )
+        )
+        await session.commit()
+
+
 async def refresh_access_token(
     *,
     refresh_token: str,
@@ -1067,7 +1095,9 @@ async def refresh_access_token(
                     "and not exists ("
                     "  select 1 from public.audit_logs r "
                     "  where r.action = 'auth.refresh.revoked_all' "
-                    "  and r.actor_id = (after->>'user_id') "
+                    # 修飾を省くと after は内側の r.after に解決され、revoked_all 行に
+                    # user_id が無いため比較が常に NULL = 失効が一切効かなかった (GAP-209)
+                    "  and r.actor_id = (public.audit_logs.after->>'user_id') "
                     "  and r.created_at > public.audit_logs.created_at"
                     ") "
                     "order by created_at desc limit 1"

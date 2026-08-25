@@ -101,6 +101,65 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * GAP-209: サインアウト。**出る口**がアプリ本体に無かった。
+ *
+ * 出る手段はクライアントポータルにしか無く、共有 PC では前の人のセッションの
+ * まま使えてしまう状態だった。ここでは 3 つ全部やる:
+ *
+ *   1. サーバー側で refresh token を失効させる (cookie を捨てるだけでは、
+ *      盗まれた refresh token が生き続ける)
+ *   2. cookie を捨てる
+ *   3. **localStorage も捨てる** — 前の人が見ていたワークスペース/プロジェクトが
+ *      次の人の画面に出るのを防ぐ
+ *
+ * サーバーに繋がらなくても手元は必ず片付ける (出られない、を作らない)。
+ * 戻り値は「サーバー側の失効まで完了したか」。
+ */
+export async function signOut(): Promise<boolean> {
+  let revoked = false;
+  try {
+    const token = readAccessToken();
+    if (token) {
+      const res = await fetch(`${API_BASE}/auth/signout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: "include",
+      });
+      revoked = res.ok;
+    }
+  } catch {
+    /* 繋がらなくても手元は片付ける */
+  }
+  clearLocalSession();
+  return revoked;
+}
+
+/** cookie と localStorage を捨てる (サーバーに繋がらなくても必ず実行する)。 */
+export function clearLocalSession(): void {
+  if (typeof document === "undefined") return;
+  const expire = "expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  for (const name of [
+    COOKIE_NAMES.access,
+    COOKIE_NAMES.refresh,
+    COOKIE_NAMES.csrf,
+  ]) {
+    document.cookie = `${name}=; path=/; ${expire}; SameSite=Lax`;
+  }
+  try {
+    // 前の人の文脈を次の人に見せない
+    for (const key of [
+      "atelier_current_workspace",
+      "atelier_current_project",
+      "atelier.reconsent.dismissed",
+    ]) {
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    /* storage が使えなくても cookie は捨てられている */
+  }
+}
+
 /** 応答から原因コードを取り出す (無ければ null)。 */
 export function reasonOf(res: Response): string | null {
   const v = res.headers.get(REASON_HEADER);

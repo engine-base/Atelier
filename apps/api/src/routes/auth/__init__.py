@@ -285,6 +285,25 @@ async def auth_refresh(body: RefreshRequest, request: Request) -> dict[str, Refr
     return {"data": result}
 
 
+@router.post(
+    "/auth/signout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="サインアウト (この人の refresh token を全部失効させる / GAP-209)",
+)
+async def auth_signout(
+    request: Request,
+    user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> None:
+    """GAP-209: **出る口**。
+
+    アプリ本体にサインアウトの導線が無く、出る手段はクライアントポータルに
+    しか無かった。共有 PC では前の人のセッションのまま使えてしまう。
+    画面側は cookie と localStorage を捨てるが、**盗まれた refresh token は
+    それでは生き続ける**ので、ここでサーバー側でも失効させる。
+    """
+    await svc.sign_out(user_id=user.id, ip_address=_client_ip(request))
+
+
 # --------------------------------------------------------------------------- #
 # T-A-05: 退会 (30 日猶予, F-LEGAL-002)
 # --------------------------------------------------------------------------- #

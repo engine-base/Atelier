@@ -815,6 +815,50 @@ class TestPasswordResetAndRefresh:
                 == 200
             )
 
+    def test_password_change_revokes_refresh_tokens(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        """GAP-209 回帰: **パスワードを変えたら古い refresh token は死ぬ**。
+
+        照合 SQL の `after` が修飾されておらず内側の別行に解決されていたため、
+        `auth.refresh.revoked_all` を書いても失効が一切効いていなかった。
+        乗っ取られてパスワードを変えても、盗まれた token がそのまま使えた。
+        """
+        refresh, _ = _seed_audit_token(
+            sync_engine,
+            action="auth.refresh.issued",
+            email=auth_user["email"],
+            extra={"user_id": auth_user["user_id"], "origin": "test"},
+            ttl_seconds=86400,
+        )
+        reset, _ = _seed_audit_token(
+            sync_engine, action="auth.password_reset.issued", email=auth_user["email"]
+        )
+        with TestClient(app) as client:
+            # 失効前は通る (土台の確認)
+            assert client.post("/auth/refresh", json={"refresh_token": refresh}).status_code == 200
+            refreshed, _ = _seed_audit_token(
+                sync_engine,
+                action="auth.refresh.issued",
+                email=auth_user["email"],
+                extra={"user_id": auth_user["user_id"], "origin": "test"},
+                ttl_seconds=86400,
+            )
+            r = client.post(
+                "/auth/password-reset/confirm",
+                json={
+                    "email": auth_user["email"],
+                    "token": reset,
+                    "new_password": "another-strong-password-4321",
+                },
+            )
+            assert r.status_code == 200, r.text
+            after = client.post("/auth/refresh", json={"refresh_token": refreshed})
+            assert after.status_code == 401, after.text
+
     def test_refresh_rotates_token(
         self,
         app: FastAPI,
@@ -979,3 +1023,67 @@ class TestAccountDeletionAndRestore:
                 json={"email": auth_user["email"], "password": auth_user["password"]},
             )
             assert r.status_code == 404
+
+
+class TestSignOut:
+    """GAP-209: **出る口**。アプリ本体にサインアウトの導線が無かった。
+
+    cookie を捨てるだけでは、盗まれた refresh token は生き続ける。
+    サーバー側でも失効させることを固定する。
+    """
+
+    def test_signout_revokes_refresh_tokens(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        """サインアウト後は **その人の refresh token が通らない**。"""
+        plain, _ = _seed_audit_token(
+            sync_engine,
+            action="auth.refresh.issued",
+            email=auth_user["email"],
+            extra={"user_id": auth_user["user_id"], "origin": "test"},
+            ttl_seconds=86400,
+        )
+        access = _make_jwt(auth_user["user_id"])
+        with TestClient(app) as client:
+            out = client.post("/auth/signout", headers={"Authorization": f"Bearer {access}"})
+            assert out.status_code == 204, out.text
+
+            # **サインアウト後は refresh が通らない** (盗まれても使えない)
+            after = client.post("/auth/refresh", json={"refresh_token": plain})
+            assert after.status_code == 401, after.text
+
+        with sync_engine.connect() as c:
+            n = c.execute(
+                text(
+                    "select count(*) from public.audit_logs"
+                    " where action = 'auth.refresh.revoked_all'"
+                    "   and target_id::text = :u and (after->>'reason') = 'sign_out'"
+                ),
+                {"u": auth_user["user_id"]},
+            ).scalar_one()
+        assert n == 1, "サインアウトの監査記録が無い"
+
+    def test_refresh_still_works_without_signout(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        """土台の確認 — サインアウトしていなければ refresh は通る。"""
+        plain, _ = _seed_audit_token(
+            sync_engine,
+            action="auth.refresh.issued",
+            email=auth_user["email"],
+            extra={"user_id": auth_user["user_id"], "origin": "test"},
+            ttl_seconds=86400,
+        )
+        with TestClient(app) as client:
+            r = client.post("/auth/refresh", json={"refresh_token": plain})
+            assert r.status_code == 200, r.text
+
+    def test_signout_requires_auth(self, app: FastAPI) -> None:
+        with TestClient(app) as client:
+            assert client.post("/auth/signout").status_code == 401

@@ -47,6 +47,7 @@ import { CURRENT_PROJECT_KEY } from '../../lib/useProjectId';
 import { AppShell } from './AppShell';
 import { PhaseSwitcher } from './PhaseSwitcher';
 import { ReconsentNotice } from './ReconsentNotice';
+import { UserMenu } from './UserMenu';
 import type { NavItem, NavSection } from './Sidebar';
 
 const ICON = 'h-4 w-4';
@@ -85,14 +86,26 @@ function projectNav(projectId: string): readonly NavItem[] {
 
 /** プロジェクト文脈のセクション判定: PROJECT nav の match に一致するパスでは
  * ワークスペース側の同名セクション (tasks/workflow/chat 等) より project 側を active にする。 */
-const BARE_EXACT: ReadonlySet<string> = new Set(['/', '/signin', '/signup']);
+/**
+ * GAP-209: `/t-uc-35` は初回ログインのウォークスルーなので bare のまま。
+ * それ以外の `/t-uc-3x`（通知センター・プロフィール・WS 切替・PJ 切替・検索）は
+ * **アプリの中の画面**なので、シェルを付ける。
+ *
+ * これまで `/t-uc` を丸ごと bare にしていたため、TopBar から押して飛んだ先に
+ * ナビも戻る導線も無く、**ブラウザの戻るでしか帰れなかった**。
+ */
+const BARE_EXACT: ReadonlySet<string> = new Set([
+  '/',
+  '/signin',
+  '/signup',
+  '/t-uc-35',
+]);
 const BARE_PREFIXES: readonly string[] = [
   '/admin',
   '/terms',
   '/privacy',
   '/tokushoho',
   '/data-deletion',
-  '/t-uc',
 ];
 
 /** main の既定 padding を外すフルブリード画面 (自前でヘッダー/余白を持つ)。 */
@@ -188,16 +201,10 @@ function TopBarTrailing({
           ) : null}
         </Link>
       )}
-      {label ? (
-        <Link
-          href="/t-uc-37"
-          aria-label={`プロフィール: ${label}`}
-          title={label}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-surface-variant text-label-md font-semibold text-on-surface-variant transition-shadow hover:ring-2 hover:ring-primary-container"
-        >
-          {label.charAt(0).toUpperCase()}
-        </Link>
-      ) : null}
+      {/* GAP-209: アバターは **出る口** を含むメニューにする。
+          これまではプロフィールへのリンク 1 本で、サインアウトの導線が
+          アプリ本体に無かった (共有 PC で前の人のまま使えてしまう)。 */}
+      {label ? <UserMenu label={label} /> : null}
     </span>
   );
 }
