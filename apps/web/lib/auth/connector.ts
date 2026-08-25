@@ -255,22 +255,55 @@ export async function signin(
   return data;
 }
 
+/**
+ * GAP-210: **いま表示している法務文書の版**を取る。
+ *
+ * これまで登録時の同意記録には `new Date()` の日付をそのまま入れていた。
+ * つまり「その人がどの文面に同意したのか」が記録から特定できず、
+ * 「画面が見せた版を記録する」という GAP-206 の原則が signup 経路だけ
+ * 抜けていた。副作用として、版 (2026-08-22) と日付 (登録日) がずれるため
+ * **登録した直後の人に「規約を更新しました。同意をお願いします」の帯が出る**。
+ *
+ * 取得に失敗したら **登録を止める**。日付で代用すると同じ壊れ方に戻るため、
+ * 「何に同意したのか分からない記録」を作らない方を選ぶ。
+ */
+async function currentLegalVersions(): Promise<Record<string, string>> {
+  const res = await fetch(`${API_BASE}/public/legal-documents?locale=ja`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new ApiError("法務文書の版を取得できませんでした", res.status);
+  const json = (await res.json()) as {
+    data?: readonly { doc_type?: string; version?: string }[];
+  };
+  const out: Record<string, string> = {};
+  for (const d of json.data ?? []) {
+    if (d.doc_type && d.version) out[d.doc_type] = d.version;
+  }
+  return out;
+}
+
 /** 実 API signup → 続けて signin して cookie 設定。 */
 export async function signup(
   email: string,
   password: string,
 ): Promise<SigninData> {
-  const today = new Date().toISOString().slice(0, 10);
+  const versions = await currentLegalVersions();
+  const terms = versions["terms_of_service"];
+  const privacy = versions["privacy_policy"];
+  if (!terms || !privacy) {
+    throw new ApiError("法務文書の版を取得できませんでした", 500);
+  }
   const displayName = email.split("@")[0] || email;
   await postJson("/auth/signup", {
     email,
     password,
     display_name: displayName,
     consents: [
-      { type: "terms_of_service", version: today, accepted: true },
-      { type: "privacy_policy", version: today, accepted: true },
-      // AI 学習はデフォルト OFF (絶対ルール #6)
-      { type: "ai_training_optin", version: today, accepted: false },
+      { type: "terms_of_service", version: terms, accepted: true },
+      { type: "privacy_policy", version: privacy, accepted: true },
+      // AI 学習はデフォルト OFF (絶対ルール #6)。表示している規約の版に紐づける。
+      { type: "ai_training_optin", version: terms, accepted: false },
     ],
   });
   // 登録直後に自動ログインして cookie を確立

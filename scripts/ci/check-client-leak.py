@@ -188,6 +188,27 @@ def escaped_variants(text: str) -> list[str]:
     return [text, escaped, escaped.upper().replace("\\U", "\\u")]
 
 
+def check_internal_ids(problems: list[str]) -> None:
+    """GAP-210: **社内の課題番号を画面へ出さない。**
+
+    通しの検証で、新規登録の同意チェックの文言に `GAP-180/181` がそのまま
+    出ているのを見つけた。利用者には意味が分からないうえ、**同意文に
+    社内の管理番号が混じっている**状態は同意の体裁として良くない
+    (何に同意したのかが濁る)。コメントに書くのは自由だが、
+    **配られる JS に出たら落とす**。
+    """
+    hits: list[str] = []
+    for chunk in client_chunks():
+        text = chunk.read_text(encoding="utf-8", errors="ignore")
+        for m in set(re.findall(r"GAP-\d{2,4}", text)):
+            hits.append(f"{m} ({chunk.relative_to(WEB)})")
+    for h in sorted(set(hits)):
+        problems.append(
+            f"画面側 JS に社内の課題番号が出ています: {h} "
+            "— 利用者向けの文言から外してください (コード内のコメントは可)"
+        )
+
+
 def check_source_maps(problems: list[str]) -> None:
     """本番ソースマップが出ていないこと (設定と成果物の両方)。"""
     if NEXT_CONFIG.exists():
@@ -256,6 +277,8 @@ def main() -> int:
     for text, origin in leaked:
         preview = text if len(text) <= 60 else text[:57] + "…"
         problems.append(f"画面側 JS に流出: 「{preview}」 (出どころ {origin})")
+
+    check_internal_ids(problems)
 
     stale = set(allowed) - used_allowances
     for text in sorted(stale):

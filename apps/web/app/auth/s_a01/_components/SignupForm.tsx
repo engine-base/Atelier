@@ -20,7 +20,8 @@ const Schema = z
   .object({
     email: z.string().email("メール形式で入力してください"),
     password: z.string().min(8, "パスワードは 8 文字以上"),
-    confirm: z.string().min(8),
+    // GAP-210: メッセージを渡さないと zod の既定 (英語) がそのまま画面に出る
+    confirm: z.string().min(8, "パスワード確認を入力してください"),
     consent: z.literal(true, {
       errorMap: () => ({
         message: "利用規約とプライバシーポリシーへの同意が必要です",
@@ -123,8 +124,8 @@ export function SignupForm({ onSubmit, serverError }: SignupFormProps) {
               プライバシーポリシー
             </Link>
             、およびデータの一部処理が海外サーバー（Anthropic）経由となる
-            <strong>越境同意</strong>に同意します（GAP-180/181: 意味検索の埋め込みと
-            議事録の文字起こしは Atelier のサーバー内で行うため外部送信されません）。
+            <strong>越境同意</strong>に同意します（意味検索の埋め込みと議事録の
+            文字起こしは Atelier のサーバー内で行うため外部送信されません）。
           </span>
         </label>
         {form.formState.errors.consent?.message ? (
