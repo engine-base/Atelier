@@ -4,6 +4,7 @@
   - GET  /billing/plan?workspace_id      … 現在プラン (+ stripe_configured)
   - POST /billing/checkout               … Checkout Session 実作成 → {url, session_id}
   - GET  /billing/checkout/{session_id}  … Stripe 照会 + paid なら pro へ反映 (ポーリング)
+  - POST /billing/portal                 … Stripe カスタマーポータル (解約・支払方法変更)
   - POST /billing/webhook                … Stripe-Signature (HMAC v1) 検証済みイベント反映
 
 R-T08: workspace 系 endpoint は RLS session で workspace 可視性を確認し、
@@ -27,6 +28,8 @@ from src.services.billing import (
     CheckoutCreateRequest,
     CheckoutCreateResponse,
     CheckoutStatusResponse,
+    PortalCreateRequest,
+    PortalCreateResponse,
     StripeApiError,
 )
 
@@ -144,6 +147,51 @@ async def get_checkout_status(
             plan=plan.plan,
         )
     }
+
+
+@router.post(
+    "/billing/portal",
+    summary="Stripe カスタマーポータル (解約・支払方法変更・領収書) の URL を発行",
+    responses={
+        409: {"description": "有料プランの契約が無い (解約するものが無い)"},
+        503: {"description": "Stripe 未設定"},
+    },
+)
+async def create_portal(
+    body: PortalCreateRequest,
+    session: SessionDep,
+    _user: UserDep,
+) -> dict[str, PortalCreateResponse]:
+    """GAP-208: **やめる口**を用意する。
+
+    これまでは申し込む口 (checkout) だけがあり、契約したあとに製品内で解約する
+    手段が無かった。特定商取引法の観点でも、継続課金に解約手段が無いのは成立
+    しない。Stripe のカスタマーポータルへ送ることで、解約・支払方法の変更・
+    領収書の取得を本人が行える (当社が決済情報を預からずに済む)。
+    """
+    await _visible_or_404(session, body.workspace_id)
+    settings = svc.get_settings()
+    if not settings.stripe_secret_key:
+        # GAP-206: 503 は理由つきで返す。
+        raise service_unavailable(
+            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
+        )
+    customer_id = await svc.get_billing_customer_id(session, workspace_id=body.workspace_id)
+    if customer_id is None:
+        # 無料プランには解約するものが無い。**死にボタンにしないため画面側は
+        # Pro のときだけ導線を出す**が、直接叩かれたときも正直に断る。
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "有料プランのご契約がありません (無料プランに解約手続きは不要です)。",
+        )
+    try:
+        portal = await svc.create_billing_portal_session(settings, customer_id=customer_id)
+    except StripeApiError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    url = portal.get("url")
+    if not isinstance(url, str) or not url:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Stripe returned no portal url")
+    return {"data": PortalCreateResponse(url=url)}
 
 
 @router.post("/billing/webhook", summary="Stripe webhook (Stripe-Signature HMAC v1 検証)")

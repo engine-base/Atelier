@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import date
-from typing import Any
+from datetime import date, datetime
+from typing import Any, Literal, cast
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -294,6 +295,15 @@ async def delete_acquisition(*, actor_id: str, record_id: str) -> bool:
 # --------------------------------------------------------------------------- #
 # ④ プラットフォーム健全性 (実計測のみ)
 # --------------------------------------------------------------------------- #
+#: GAP-208: 画面に出す混雑実績の期間 (記録自体は 90 日で消える)。
+CAPACITY_HISTORY_DAYS = 7
+
+
+def _to_jst(value: Any) -> datetime:
+    """timestamptz を JST にして返す (画面表示は日本時間)。"""
+    return cast("datetime", value).astimezone(ZoneInfo("Asia/Tokyo"))
+
+
 async def get_health() -> list[HealthCheckRow]:
     rows: list[HealthCheckRow] = []
     async with service_session_factory()() as session:
@@ -396,6 +406,55 @@ async def get_health() -> list[HealthCheckRow]:
                         else ("逼迫" if sse.ratio >= 0.8 else "余裕あり")
                     )
                 ),
+            )
+        )
+
+        # GAP-208: **machine をまたいだ**混雑の実績。
+        #
+        # 上の行はこの要求を処理した machine の **プロセス内カウンタ**なので、
+        # 2 台目で起きた混雑は映らない。経営者判断 (2026-08-22) で通知は
+        # 入れないことにしたため、**画面がこれを見る唯一の場所**になる。
+        # 記録は 90 日で消える (GAP-206 の掃除)。
+        hist = (
+            await session.execute(
+                text(
+                    "select"
+                    "  count(*) filter (where kind = 'queued') as queued_events,"
+                    "  count(*) filter (where kind = 'rejected') as rejected_events,"
+                    "  coalesce(max(queued) filter (where kind = 'queued'), 0) as peak_queued,"
+                    "  count(distinct machine_id) as machines,"
+                    "  max(occurred_at) as last_at"
+                    " from public.capacity_events"
+                    " where occurred_at > now() - make_interval(days => :d)"
+                ),
+                {"d": CAPACITY_HISTORY_DAYS},
+            )
+        ).one()
+        queued_events = int(hist.queued_events)
+        rejected_events = int(hist.rejected_events)
+        if queued_events == 0 and rejected_events == 0:
+            history_detail = f"直近 {CAPACITY_HISTORY_DAYS} 日: 混雑なし (全 machine)"
+            history_meta = "混雑なし"
+            history_status: Literal["ok", "warn", "err"] = "ok"
+        else:
+            last = _to_jst(hist.last_at).strftime("%m/%d %H:%M") if hist.last_at else "—"
+            history_detail = (
+                f"直近 {CAPACITY_HISTORY_DAYS} 日: 順番待ち {queued_events} 回 "
+                f"(最大 {int(hist.peak_queued)} 人待ち) · お断り {rejected_events} 回 "
+                f"· {int(hist.machines)} 台で発生 · 最後 {last}"
+            )
+            history_meta = (
+                "お断りが出ている (machine を増やす判断)"
+                if rejected_events > 0
+                else "待たせただけ (断ってはいない)"
+            )
+            history_status = "err" if rejected_events > 0 else "warn"
+        rows.append(
+            HealthCheckRow(
+                name="混雑の実績 (machine 横断)",
+                status=history_status,
+                detail=history_detail,
+                meta=history_meta,
             )
         )
         # GAP-202: 押し出し (通知) が生きているか。**ここが落ちると黙って

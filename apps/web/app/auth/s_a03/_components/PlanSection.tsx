@@ -25,6 +25,9 @@ const CARD = "rounded-lg border border-border bg-white p-5";
 const SECTION_TITLE = "text-base font-bold tracking-tight text-on-surface";
 const BTN_PRIMARY =
   "inline-flex w-fit items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50";
+/** GAP-208: 解約導線は主要動作ではないので、枠線ボタン (誤操作しにくい重み)。 */
+const BTN_SECONDARY =
+  "inline-flex w-fit items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-label-lg font-semibold text-on-surface transition-colors hover:bg-surface-variant focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50";
 const BADGE =
   "inline-flex items-center rounded-sm px-2 py-0.5 text-[10.5px] font-semibold";
 
@@ -63,6 +66,7 @@ export function PlanSection({
   const queryClient = useQueryClient();
   const KEY = ["billing-plan", workspaceId] as const;
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const [checkoutResult, setCheckoutResult] = useState<CheckoutStatus | null>(
     null,
   );
@@ -125,6 +129,38 @@ export function PlanSection({
         err instanceof ApiError && err.status === 503
           ? "決済連携が未設定のためアップグレードできません。"
           : "決済ページの作成に失敗しました。時間をおいて再度お試しください。",
+      );
+    },
+  });
+
+  /**
+   * GAP-208: **やめる口**。これまで申し込む口だけがあり、契約したあとに
+   * 製品内で解約する手段が無かった。Stripe のカスタマーポータルへ送り、
+   * 解約・支払方法の変更・領収書の取得を本人が行えるようにする。
+   */
+  const portalMut = useMutation({
+    mutationFn: async () => {
+      const res = await client.post("/billing/portal", {
+        body: { workspace_id: workspaceId },
+      });
+      return ((res as { data?: { url?: string } }).data ?? {}) as {
+        url?: string;
+      };
+    },
+    onSuccess: (data) => {
+      if (!data.url) {
+        setPortalError("お手続きページの URL を取得できませんでした。");
+        return;
+      }
+      (onNavigate ?? ((url: string) => window.location.assign(url)))(data.url);
+    },
+    onError: (err) => {
+      setPortalError(
+        err instanceof ApiError && err.status === 409
+          ? "有料プランのご契約がありません。"
+          : err instanceof ApiError && err.status === 503
+            ? "決済連携が未設定のためお手続きページを開けません。"
+            : "お手続きページを開けませんでした。時間をおいて再度お試しください。",
       );
     },
   });
@@ -231,7 +267,34 @@ export function PlanSection({
                 </p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            /* GAP-208: 契約者には **やめる口** を必ず出す。
+               申し込めるのに解約できない状態を作らない。 */
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPortalError(null);
+                  portalMut.mutate();
+                }}
+                disabled={portalMut.isPending}
+                className={BTN_SECONDARY}
+              >
+                {portalMut.isPending
+                  ? "お手続きページへ移動中…"
+                  : "プランの管理・解約"}
+              </button>
+              <p className="text-body-sm text-on-surface-variant">
+                Stripe のページで、解約・お支払い方法の変更・領収書の取得ができます。
+                解約後も、いまの請求期間の終わりまではご利用いただけます。日割りでの返金はありません。
+              </p>
+              {portalError ? (
+                <p role="alert" className="text-body-sm text-error">
+                  {portalError}
+                </p>
+              ) : null}
+            </div>
+          )}
         </div>
       )}
     </section>

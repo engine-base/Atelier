@@ -752,3 +752,110 @@ class TestStripeLiveIntegration:
             assert status_data["payment_status"] == "unpaid"
             assert status_data["plan"] == "free"
             assert status_data["workspace_id"] == wid
+
+
+class TestBillingPortal:
+    """GAP-208: **やめる口**。申し込む口だけがあり、解約手段が製品内に無かった。
+
+    継続課金に解約手段が無いのは特定商取引法の観点でも成立しない。ここでは
+    「契約があれば Stripe のポータルへ送る」「契約が無ければ正直に断る」
+    「未設定なら偽の成功を出さない」を固定する。
+    """
+
+    def test_portal_returns_stripe_url_for_a_subscriber(
+        self,
+        app: FastAPI,
+        seeded_users: tuple[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        u_a, _ = seeded_users
+        monkeypatch.setattr(billing, "get_settings", _configured_settings)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.method == "POST"
+            assert request.url.path == "/v1/billing_portal/sessions"
+            return httpx.Response(
+                200, json={"url": "https://billing.stripe.com/p/session/test_123"}
+            )
+
+        seen = _mock_stripe(monkeypatch, handler)
+        with TestClient(app) as client:
+            wid = _create_workspace(client, u_a)
+            # 契約済み (checkout 完了後に webhook が書く行) を作る
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "insert into public.workspace_billing"
+                        " (workspace_id, stripe_customer_id, stripe_subscription_id,"
+                        "  plan, status)"
+                        " values (cast(:w as uuid), 'cus_test_1', 'sub_test_1', 'pro', 'active')"
+                    ),
+                    {"w": wid},
+                )
+            r = client.post("/billing/portal", json={"workspace_id": wid}, headers=_headers(u_a))
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["url"].startswith("https://billing.stripe.com/")
+            form = seen[0].content.decode()
+            assert "customer=cus_test_1" in form
+            assert "return_url" in form, "戻り先が無いとポータルから帰れない"
+
+    def test_portal_without_a_subscription_is_409(
+        self, app: FastAPI, seeded_users: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """無料プランに解約するものは無い。**黙って成功にしない**。"""
+        u_a, _ = seeded_users
+        monkeypatch.setattr(billing, "get_settings", _configured_settings)
+        with TestClient(app) as client:
+            wid = _create_workspace(client, u_a)
+            r = client.post("/billing/portal", json={"workspace_id": wid}, headers=_headers(u_a))
+            assert r.status_code == 409
+            assert "解約手続きは不要" in r.json()["detail"]
+
+    def test_portal_stripe_not_configured_503_with_reason(
+        self, app: FastAPI, seeded_users: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-206: 503 は理由つき (画面が「PC 未接続」と誤読しないため)。"""
+        u_a, _ = seeded_users
+        monkeypatch.setattr(
+            billing, "get_settings", lambda: _configured_settings(stripe_secret_key="")
+        )
+        with TestClient(app) as client:
+            wid = _create_workspace(client, u_a)
+            r = client.post("/billing/portal", json={"workspace_id": wid}, headers=_headers(u_a))
+            assert r.status_code == 503
+            assert r.headers.get("X-Atelier-Reason") == "billing_unconfigured"
+
+    def test_portal_non_member_404(
+        self, app: FastAPI, seeded_users: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        u_a, u_b = seeded_users
+        monkeypatch.setattr(billing, "get_settings", _configured_settings)
+        with TestClient(app) as client:
+            wid = _create_workspace(client, u_a)
+            r = client.post("/billing/portal", json={"workspace_id": wid}, headers=_headers(u_b))
+            assert r.status_code == 404
+
+    def test_portal_stripe_error_502(
+        self,
+        app: FastAPI,
+        seeded_users: tuple[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        u_a, _ = seeded_users
+        monkeypatch.setattr(billing, "get_settings", _configured_settings)
+        _mock_stripe(monkeypatch, lambda _req: httpx.Response(400, json={"error": {}}))
+        with TestClient(app) as client:
+            wid = _create_workspace(client, u_a)
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "insert into public.workspace_billing"
+                        " (workspace_id, stripe_customer_id, plan, status)"
+                        " values (cast(:w as uuid), 'cus_test_2', 'pro', 'active')"
+                    ),
+                    {"w": wid},
+                )
+            r = client.post("/billing/portal", json={"workspace_id": wid}, headers=_headers(u_a))
+            assert r.status_code == 502

@@ -104,6 +104,15 @@ class CheckoutCreateResponse(BaseModel):
     session_id: str
 
 
+class PortalCreateRequest(BaseModel):
+    workspace_id: str
+
+
+class PortalCreateResponse(BaseModel):
+    url: str
+    """Stripe カスタマーポータルの URL (解約・支払方法変更・領収書)。"""
+
+
 class CheckoutStatusResponse(BaseModel):
     session_id: str
     payment_status: str
@@ -182,6 +191,47 @@ async def create_checkout_session(
     if res.status_code >= 400:
         raise StripeApiError(res.status_code, res.text)
     return cast("dict[str, Any]", res.json())
+
+
+async def create_billing_portal_session(
+    settings: BillingSettings, *, customer_id: str
+) -> dict[str, Any]:
+    """Stripe カスタマーポータルの session を実作成する (GAP-208)。
+
+    **これが無いと契約者は解約できなかった。** 申し込む口 (checkout) だけがあり、
+    やめる口が製品のどこにも無い状態で、特定商取引法の観点でも成立しない。
+    Stripe のポータルへ送ることで、解約・支払方法の変更・領収書の取得を
+    利用者自身が行える (当社が決済情報を持たずに済む点でも安全)。
+    """
+    base = settings.atelier_public_base_url.rstrip("/")
+    form: dict[str, str] = {
+        "customer": customer_id,
+        "return_url": f"{base}/workspace-settings",
+    }
+    async with _http_client(settings) as client:
+        res = await client.post("/v1/billing_portal/sessions", data=form)
+    if res.status_code >= 400:
+        raise StripeApiError(res.status_code, res.text)
+    return cast("dict[str, Any]", res.json())
+
+
+async def get_billing_customer_id(session: AsyncSession, *, workspace_id: str) -> str | None:
+    """この workspace の Stripe customer id (契約が無ければ None)。"""
+    if not is_uuid(workspace_id):
+        return None
+    row = (
+        await session.execute(
+            text(
+                "select stripe_customer_id from public.workspace_billing"
+                " where workspace_id = cast(:id as uuid)"
+            ),
+            {"id": workspace_id},
+        )
+    ).first()
+    if row is None:
+        return None
+    value = row.stripe_customer_id
+    return str(value) if value else None
 
 
 async def retrieve_checkout_session(

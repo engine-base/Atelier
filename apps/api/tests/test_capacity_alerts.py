@@ -394,3 +394,43 @@ class TestRecorderIsInstalled:
         main = (pathlib.Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
         assert "set_event_recorder" in main
         assert "record_capacity_event" in main
+
+
+class TestAdminScreenShowsHistory:
+    """GAP-208: 通知を入れない判断になったので、**画面が唯一の気づく場所**になる。
+
+    S-T01 の「同時チャット」行はこの要求を処理した machine のプロセス内カウンタ
+    なので、2 台目で起きた混雑は映らない。machine 横断の実績を別の行で出す。
+    """
+
+    @pytest.mark.anyio
+    async def test_history_row_counts_across_machines(self) -> None:
+        from src.services.admin.ops import get_health
+
+        async with clean_db() as factory, factory() as s:
+            await s.execute(text(INSERT_EVENT), {"k": "queued", "m": "m1", "q": 3})
+            await s.execute(text(INSERT_EVENT), {"k": "queued", "m": "m2", "q": 9})
+            await s.execute(text(INSERT_EVENT), {"k": "rejected", "m": "m2", "q": 2000})
+            await s.commit()
+            rows = await get_health()
+
+        row = next((r for r in rows if "混雑の実績" in r.name), None)
+        assert row is not None, "混雑実績の行が画面に出ていない"
+        assert "順番待ち 2 回" in row.detail
+        assert "最大 9 人待ち" in row.detail
+        assert "お断り 1 回" in row.detail
+        assert "2 台で発生" in row.detail, "machine をまたげていない"
+        # お断りが出ているなら、待たせただけより強い表示にする
+        assert row.status == "err"
+        assert "machine を増やす" in row.meta
+
+    @pytest.mark.anyio
+    async def test_history_row_is_quiet_when_nothing_happened(self) -> None:
+        from src.services.admin.ops import get_health
+
+        async with clean_db():
+            rows = await get_health()
+        row = next((r for r in rows if "混雑の実績" in r.name), None)
+        assert row is not None
+        assert row.status == "ok"
+        assert "混雑なし" in row.detail

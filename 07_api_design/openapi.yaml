@@ -3650,6 +3650,41 @@ paths:
         '502': { description: Stripe 上流エラー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '503': { description: STRIPE_SECRET_KEY 未設定 (偽装しない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  # GAP-208: 申し込む口だけがあり、**やめる口が製品内に無かった**。
+  # 継続課金に解約手段が無いのは特定商取引法の観点でも成立しない。
+  /billing/portal:
+    post:
+      tags: [billing]
+      summary: Stripe カスタマーポータル (解約・支払方法変更・領収書) の URL を発行
+      x-implementation-path: apps/api/src/routes/billing/__init__.py::create_portal
+      x-screen-ids: [S-A03]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [workspace_id]
+              properties:
+                workspace_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: ポータル URL (遷移先で解約・支払方法変更ができる)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      url: { type: string }
+        '401': { description: 未認証, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: WS 不在 or 非メンバー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 有料プランの契約が無い (解約するものが無い), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '502': { description: Stripe 上流エラー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: STRIPE_SECRET_KEY 未設定 (偽装しない), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /billing/checkout/{session_id}:
     get:
       tags: [billing]

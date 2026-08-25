@@ -5,6 +5,9 @@
  *   - free & configured → 「Pro にアップグレード」→ POST /billing/checkout → 返却 url へ遷移
  *   - ?session_id= 戻り → GET /billing/checkout/{session_id} 照会 → 成功/未完了を誠実表示
  *   - pro → アップグレードボタンを出さない
+ *
+ * GAP-208 追加: **やめる口**。申し込む口だけがあり、契約したあとに製品内で
+ * 解約する手段が無かった (特定商取引法の観点でも成立しない)。
  */
 
 // @vitest-environment jsdom
@@ -197,6 +200,76 @@ describe("S-A03 PlanSection (GAP-021)", () => {
     expect(
       await screen.findByRole("button", { name: "Pro にアップグレード" }),
     ).toBeInTheDocument();
+  });
+
+  it("GAP-208: 契約者には解約導線を出し、Stripe のポータルへ送る", async () => {
+    const get = vi.fn(async () => ({
+      data: { plan: "pro", status: "active", stripe_configured: true },
+    }));
+    const post = vi.fn(async () => ({
+      data: { url: "https://billing.stripe.com/p/session/test_1" },
+    }));
+    const onNavigate = vi.fn();
+    renderWithQuery(
+      <PlanSection
+        workspaceId="w1"
+        client={fakeClient({ get, post })}
+        onNavigate={onNavigate}
+      />,
+    );
+
+    const button = await screen.findByRole("button", {
+      name: "プランの管理・解約",
+    });
+    fireEvent.click(button);
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post).toHaveBeenCalledWith("/billing/portal", {
+      body: { workspace_id: "w1" },
+    });
+    await waitFor(() =>
+      expect(onNavigate).toHaveBeenCalledWith(
+        "https://billing.stripe.com/p/session/test_1",
+      ),
+    );
+    // 返金条件を **押す前に** 書いておく (あとから知らせない)
+    expect(screen.getByText(/日割りでの返金はありません/)).toBeInTheDocument();
+  });
+
+  it("GAP-208: 無料プランには解約導線を出さない (死にボタンを置かない)", async () => {
+    const get = vi.fn(async () => ({
+      data: { plan: "free", status: "inactive", stripe_configured: true },
+    }));
+    renderWithQuery(
+      <PlanSection workspaceId="w1" client={fakeClient({ get })} />,
+    );
+    await screen.findByRole("button", { name: "Pro にアップグレード" });
+    expect(
+      screen.queryByRole("button", { name: "プランの管理・解約" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("GAP-208: ポータルを開けなかったら理由を出す (黙って何も起きないをやめる)", async () => {
+    const get = vi.fn(async () => ({
+      data: { plan: "pro", status: "active", stripe_configured: true },
+    }));
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 409,
+        statusText: "Conflict",
+        payload: undefined,
+        path: "/billing/portal",
+        method: "post",
+      });
+    });
+    renderWithQuery(
+      <PlanSection workspaceId="w1" client={fakeClient({ get, post })} />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "プランの管理・解約" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "有料プランのご契約がありません",
+    );
   });
 
   it("renders the current pro plan with period end and no upgrade button", async () => {
