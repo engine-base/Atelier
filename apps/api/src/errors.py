@@ -20,14 +20,20 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
-async def _record(exc: BaseException, scope: Scope) -> None:
-    """未捕捉例外を自前のエラーログに残す (best-effort — ここで失敗しても握る)。"""
+async def _record(exc: BaseException, scope: Scope) -> str | None:
+    """未捕捉例外を自前のエラーログに残し、**参照 ID を返す** (best-effort)。
+
+    返した ID は利用者に見せる文言に添える。利用者は原因を知る必要が無いが、
+    問い合わせのときに「この ID」と言えれば運営が error_log の 1 行を特定できる。
+    DB 自体が落ちている場合は記録に失敗するので None が返る — そのときは
+    ID 無しの文言だけを出す (記録できないことを理由にレスポンスを壊さない)。
+    """
     try:
         from src.observability.errors import record_exception
 
         raw_path: Any = scope.get("path", "")
         raw_method: Any = scope.get("method", "")
-        await record_exception(
+        return await record_exception(
             exc,
             source="api",
             path=str(raw_path) if raw_path else None,
@@ -36,6 +42,27 @@ async def _record(exc: BaseException, scope: Scope) -> None:
         )
     except Exception:  # pragma: no cover - 記録失敗でレスポンスを壊さない
         traceback.print_exc()
+        return None
+
+
+#: 未捕捉例外のときに利用者へ返す文言。
+#:
+#: **例外クラス名とリクエストパスを本文に載せない。** 以前は
+#: `internal server error (ConnectionRefusedError) at /auth/signin` を
+#: そのまま返しており、画面はこれを赤帯に出していた。2 つの問題がある:
+#:
+#:   1. 利用者に内部の実装 (例外クラス名・内部パス) が漏れる。
+#:   2. 読んだ人が次に何をすればいいか分からない。GAP-206 で 503 の理由を
+#:      利用者の言葉に翻訳したのに、500 だけが英語の内部語のまま残っていた。
+#:
+#: 原因の特定は traceback (サーバーログ) と error_log が担う。利用者には
+#: 「時間をおいて試す」「困ったら参照 ID を伝える」だけを渡す。
+UNHANDLED_MESSAGE = "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。"
+
+
+def unhandled_detail(ref: str | None) -> str:
+    """利用者に見せる 500 の本文を作る (参照 ID は取れたときだけ添える)。"""
+    return f"{UNHANDLED_MESSAGE}（参照 ID: {ref}）" if ref else UNHANDLED_MESSAGE
 
 
 class UnhandledErrorMiddleware:
@@ -63,14 +90,13 @@ class UnhandledErrorMiddleware:
             traceback.print_exc()
             # GAP-182: 本番で落ちたことに誰も気づけない状態をやめる。
             # 外部 SaaS には送らず自前の error_log に記録する (失敗しても無視)。
-            await _record(exc, scope)
+            ref = await _record(exc, scope)
             if response_started:
                 # 応答送信途中の失敗は差し替え不能 — そのまま伝播させる
                 raise
-            path: Any = scope.get("path", "?")
             response = JSONResponse(
                 status_code=500,
-                content={"detail": f"internal server error ({type(exc).__name__}) at {path}"},
+                content={"detail": unhandled_detail(ref)},
             )
             await response(scope, receive, send)
 
