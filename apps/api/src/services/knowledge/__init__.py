@@ -12,6 +12,7 @@ search はテキスト LIKE フォールバックする (テスト容易性 / de
 from __future__ import annotations
 
 import io
+import os
 import uuid
 import zipfile
 from typing import Any
@@ -395,6 +396,16 @@ async def search_knowledge(
         search_mode = f"semantic:{emb_model}"
         params["q"] = _embedding_to_pg_literal(query_emb)
         params["emb_model"] = emb_model
+        # GAP-231 (2026-08-26 の通し J35-02 で発見): 足切りが無く、
+        # **デタラメな検索語でも最近傍 k 件がそのまま返っていた**。
+        # 実測 (multilingual-e5-large):
+        #   「オニキス層の帳票検証手順」→ 該当ノード 0.951
+        #   「存在しない架空単語ゼブラライト」→ 無関係ノード 0.740〜0.786
+        #   「夕焼けの写真とラーメンの味」  → 無関係ノード 0.750〜0.797
+        # 該当 0.90 前後 / 無関係 0.80 弱で分離しているので、0.83 を既定の
+        # 足切りにする。これは RAG の文脈注入にも効く (無関係なナレッジを
+        # プロンプトに混ぜない)。モデルを替えたら分布も変わるので env で調整可能。
+        params["min_score"] = float(os.environ.get("ATELIER_KNOWLEDGE_MIN_SCORE", "") or "0.83")
         # operator(extensions.<=>): search_path に extensions が無い環境でも
         # 動く明示演算子構文 (裸の <=> は "No operator matches" で落ちる — e2e で実測)
         sql = (
@@ -404,6 +415,8 @@ async def search_knowledge(
             f"from public.knowledge_nodes "
             f"where {' and '.join(where)} and embedding is not null "
             f"and embedding_model = cast(:emb_model as text) "
+            f"and (1 - (embedding operator(extensions.<=>) cast(:q as extensions.vector)))"
+            f" >= :min_score "
             f"order by embedding operator(extensions.<=>) cast(:q as extensions.vector) "
             f"limit :lim"
         )

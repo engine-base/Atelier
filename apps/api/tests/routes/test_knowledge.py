@@ -350,6 +350,78 @@ class TestKnowledge:
             ).scalar_one()
             assert usage >= 1
 
+    def test_意味検索はデタラメな語で0件になる(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-231 — 2026-08-26 の通し J35-02 で発見。
+
+        意味検索に足切りが無く、**存在しない語で検索しても最近傍 k 件が
+        そのまま返っていた**。実測 (multilingual-e5-large) では該当 0.90 前後 /
+        無関係 0.80 弱に分かれるので、既定 0.83 で足切りする。
+
+        埋め込みは決定的なスタブ (2 次元) に差し替え、near (類似 1.0) と
+        far (類似 0) を仕込む — 「足切りが効く」というロジックだけを固定する。
+        """
+        from src.services import knowledge as ksvc
+
+        emb_model = "test-stub-2d"
+
+        async def _fake_embed(_text: str, *, input_type: str = "query") -> tuple[list[float], str]:
+            return [1.0, 0.0], emb_model
+
+        monkeypatch.setattr(ksvc, "_embed_text", _fake_embed)
+        far_id = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            # 「無関係」役の 2 本目を同じ WS に作る (fixture は 1 本しか持たない)
+            c.execute(
+                text(
+                    "insert into public.knowledge_nodes "
+                    "(id, account_id, account_type, scope, category, title, content_md) "
+                    "values (cast(:i as uuid), cast(:a as uuid), 'workspace', 'common', "
+                    " 'test', 'gap231 無関係ノード', '別の話題')"
+                ),
+                {"i": far_id, "a": seeded["ws_a"]},
+            )
+            # embedding 列は本物の vector 次元 (1024)。near = query と同方向 /
+            # far = 直交 (類似 0)
+            near = "[" + ",".join(["1"] + ["0"] * 1023) + "]"
+            far = "[" + ",".join(["0", "1"] + ["0"] * 1022) + "]"
+            for kid, vec in ((seeded["k_common_a"], near), (far_id, far)):
+                c.execute(
+                    text(
+                        "update public.knowledge_nodes set "
+                        "embedding = cast(:v as extensions.vector), embedding_model = :m "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"v": vec, "m": emb_model, "i": kid},
+                )
+
+        async def _fake_embed_1024(
+            _text: str, *, input_type: str = "query"
+        ) -> tuple[list[float], str]:
+            return [1.0] + [0.0] * 1023, emb_model
+
+        monkeypatch.setattr(ksvc, "_embed_text", _fake_embed_1024)
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/knowledge/search", headers=h, json={"query": "何でもいい", "limit": 10}
+            )
+            assert r.status_code == 200, r.text
+            hits = r.json()["data"]["hits"]
+            ids = {x["knowledge"]["id"] for x in hits}
+            assert seeded["k_common_a"] in ids, "類似 1.0 の行が返らない"
+            assert far_id not in ids, "類似 0 の行が返っている — 足切り (GAP-231) が外れている"
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.knowledge_nodes where id = cast(:i as uuid)"),
+                {"i": far_id},
+            )
+
     def test_search_empty_query_returns_422(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:
