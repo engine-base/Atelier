@@ -19,6 +19,7 @@ import base64
 import contextlib
 import hashlib
 import hmac
+import html
 import ipaddress
 import json
 import logging
@@ -28,6 +29,7 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
+from urllib.parse import quote
 
 import httpx
 from sqlalchemy import text
@@ -717,18 +719,74 @@ class MagicLinkError(Exception):
         self.message = message
 
 
-async def _send_magic_link_email(*, email: str, link: str) -> None:
-    """Magic Link メール送信のスタブ。ATELIER_EMAIL_DRY_RUN=1 なら no-op。
+def _public_base_url() -> str:
+    """メールに載せるリンクの土台。招待メール (client_invitations) と同じ信頼源。"""
+    return os.environ.get("ATELIER_PUBLIC_BASE_URL", "https://atelier.example.com").rstrip("/")
 
-    引数の email / link は本番経路で src.email.sender に渡される。本層は
-    抽象化レイヤであり、メール送信が未配線でもユーザー応答 (202) を変更しない。
+
+async def _send_auth_email(
+    *, email: str, subject: str, lead: str, link: str, note: str, kind: str
+) -> None:
+    """認証まわりのリンクをメールで送る (best-effort)。
+
+    GAP-223: ここは長らく **本番でも no-op のスタブ** だった。
+    `_ = email; _ = link; return` と書かれていて、鍵が設定されていようが
+    何も送らない。同じリポジトリの招待メール・商談資料・サポート・障害通知は
+    `ResendSender` で実際に送っているので、**認証まわりの 2 本だけが
+    繋ぎ忘れ**だった。結果、パスワードを忘れた人は永久に復旧できなかった。
+
+    送信に失敗しても呼び出し側の応答 (202) は変えない — 宛先が存在するか
+    どうかを応答から読み取られないようにするため (enumeration 防止)。
     """
-    if os.environ.get("ATELIER_EMAIL_DRY_RUN") == "1":
-        return
-    # 未配線時はサイレントに skip (enumeration 防止)。
-    _ = email
-    _ = link
-    return
+    from src.email.sender import EmailMessage, ResendSender
+
+    safe_link = html.escape(link)
+    body_html = (
+        f"<p>{html.escape(lead)}</p>"
+        f'<p><a href="{safe_link}">こちらのリンク</a>を開いてください。</p>'
+        f"<p>リンクが開けない場合は次の URL をブラウザに貼り付けてください:<br>{safe_link}</p>"
+        f"<p>※ {html.escape(note)}</p>"
+    )
+    body_text = f"{lead}\n\n次の URL を開いてください:\n{link}\n\n※ {note}"
+    try:
+        await ResendSender().send(
+            EmailMessage(
+                to=(email,),
+                subject=subject,
+                html=body_html,
+                text=body_text,
+                tags=(("kind", kind),),
+            )
+        )
+    except Exception:  # pragma: no cover - 送信失敗で応答を変えない
+        logger.warning("auth mail (%s) の送信に失敗した", kind, exc_info=True)
+
+
+async def _send_magic_link_email(*, email: str, link: str) -> None:
+    """サインイン用のリンクを送る。"""
+    await _send_auth_email(
+        email=email,
+        subject="【Atelier】サインイン用リンク",
+        lead="Atelier へのサインイン用リンクをお送りします。",
+        link=link,
+        note="このリンクには有効期限があり、1 回だけ使えます。",
+        kind="magic_link",
+    )
+
+
+async def _send_password_reset_email(*, email: str, link: str) -> None:
+    """パスワード再設定用のリンクを送る。"""
+    await _send_auth_email(
+        email=email,
+        subject="【Atelier】パスワード再設定のご案内",
+        lead="パスワードの再設定を受け付けました。",
+        link=link,
+        note=(
+            f"このリンクは {_PASSWORD_RESET_TTL_MINUTES} 分で切れます。"
+            "心当たりが無い場合は、このメールを破棄してください。"
+        ),
+        kind="password_reset",
+    )
 
 
 async def request_magic_link(
@@ -943,10 +1001,10 @@ async def request_password_reset(
         except Exception:
             await session.rollback()
             raise
-    # メール送信は dry-run なら no-op。本番では別経路 (Resend) に置換。
-    if os.environ.get("ATELIER_EMAIL_DRY_RUN") == "1":
-        return
-    _ = plain  # link 内に埋める想定 (本層では送信抽象化)
+    # GAP-223: ここは以前 `_ = plain` で **平文トークンを捨てていた**。
+    # 受け取る手段が無いので、パスワードを忘れた人は永久に復旧できなかった。
+    link = f"{_public_base_url()}/auth/password-reset/confirm?email={quote(email, safe='')}&token={plain}"
+    await _send_password_reset_email(email=email, link=link)
 
 
 async def confirm_password_reset(
