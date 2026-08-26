@@ -97,42 +97,41 @@ create policy workspace_memberships_select on public.workspace_memberships
     workspace_id in (select public.current_user_workspaces())
   );
 
+-- GAP-229: owner 判定も SECURITY DEFINER 関数に出す。
+-- 以前はここから下の 3 ポリシーが workspace_memberships 自身への
+-- インライン副問い合わせで owner を判定しており、Postgres が
+-- "infinite recursion detected in policy" で **必ず** 落ちた
+-- (メンバー招待・ロール変更・削除が全滅)。t-d-91 が一度直したが、
+-- dev-bootstrap の「revoke を含む migration の再適用パス」(GAP-172) が
+-- このファイルを最後にもう一度流し、壊れた定義に**戻していた**。
+-- ファイル自身を直せば、いつ何度再適用されても壊れない。
+create or replace function public.is_workspace_owner(p_workspace_id uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public, pg_catalog
+as $$
+  select exists (
+    select 1 from public.workspace_memberships
+    where workspace_id = p_workspace_id and user_id = auth.uid() and role = 'owner'
+  )
+$$;
+
+grant execute on function public.is_workspace_owner(uuid) to authenticated;
+
 -- INSERT: workspace owner のみメンバー追加可
 create policy workspace_memberships_insert_owner on public.workspace_memberships
   for insert
   to authenticated
-  with check (
-    exists (
-      select 1
-      from public.workspace_memberships m
-      where m.workspace_id = workspace_memberships.workspace_id
-        and m.user_id = auth.uid()
-        and m.role = 'owner'
-    )
-  );
+  with check (public.is_workspace_owner(workspace_id));
 
 -- UPDATE: workspace owner のみ role 変更可 (self update は禁止 — owner からの剥奪を防ぐ)
 create policy workspace_memberships_update_owner on public.workspace_memberships
   for update
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.workspace_memberships m
-      where m.workspace_id = workspace_memberships.workspace_id
-        and m.user_id = auth.uid()
-        and m.role = 'owner'
-    )
-  )
-  with check (
-    exists (
-      select 1
-      from public.workspace_memberships m
-      where m.workspace_id = workspace_memberships.workspace_id
-        and m.user_id = auth.uid()
-        and m.role = 'owner'
-    )
-  );
+  using (public.is_workspace_owner(workspace_id))
+  with check (public.is_workspace_owner(workspace_id));
 
 -- DELETE: workspace owner OR self (退会)
 create policy workspace_memberships_delete_owner_or_self on public.workspace_memberships
@@ -140,13 +139,7 @@ create policy workspace_memberships_delete_owner_or_self on public.workspace_mem
   to authenticated
   using (
     user_id = auth.uid()  -- 自分の membership は削除可 (退会)
-    or exists (
-      select 1
-      from public.workspace_memberships m
-      where m.workspace_id = workspace_memberships.workspace_id
-        and m.user_id = auth.uid()
-        and m.role = 'owner'
-    )
+    or public.is_workspace_owner(workspace_id)
   );
 
 commit;

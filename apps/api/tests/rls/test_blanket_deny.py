@@ -140,3 +140,37 @@ def test_招待をオーナー本人が読めること(engine: Engine) -> None:
         "client_invitations に全部を塞ぐ restrictive policy が残っている。"
         " これがあるとクライアント招待を 1 件も発行できない (GAP-224 の再発)"
     )
+
+
+@pytest.mark.integration
+def test_自分の表を参照するポリシーが無い() -> None:
+    """GAP-229 — ポリシーの中で自分自身の表を副問い合わせすると、Postgres は
+    "infinite recursion detected in policy" で**必ず**落とす。
+
+    2026-08-26 の通し J31-01 で、メンバー招待がこれで全滅していた
+    (INSERT/UPDATE/DELETE の owner 判定が workspace_memberships 自身への
+    インライン副問い合わせだった)。t-d-91 が一度直したのに、dev-bootstrap の
+    「revoke を含む migration の再適用パス」(GAP-172) が t-d-14 を最後に
+    もう一度流して、壊れた定義に**戻していた** — GAP-224 と同じ「復活」の 2 例目。
+
+    静的検査は適用順 (辞書順 + 再適用パス) を再現しきれないので、
+    **最終状態の DB に直接聞く**。owner 判定は SECURITY DEFINER の
+    is_workspace_owner() / current_user_workspaces() に出すこと。
+    """
+    engine = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                r"""
+                select tablename, policyname
+                from pg_policies
+                where schemaname = 'public'
+                  and (coalesce(qual, '') ~* ('from\s+(public\.)?' || tablename || '\M')
+                    or coalesce(with_check, '') ~* ('from\s+(public\.)?' || tablename || '\M'))
+                order by 1, 2
+                """
+            )
+        ).all()
+    assert not rows, "自分の表を参照するポリシーがある (必ず再帰で落ちる): " + ", ".join(
+        f"{t}/{p}" for t, p in rows
+    )
