@@ -101,15 +101,27 @@
 |---|---|
 | `build_plan.py` | **ソース**。ここを直して plan.json を再生成する |
 | `plan.json` | 82 ステップの機械可読な正本 |
-| `../../e2e-journey/journey-20260825.xlsx` | 上から生成した Excel（Plan / Roles / Summary の 3 シート） |
+| `render_xlsx.py` | **読める形**の Excel を生成する（フロー一覧 + 群ごとのタブ） |
+| `../../e2e-journey/journey-20260825.xlsx` | 生成した Excel（11 シート） |
+
+### Excel の構成（フラットな 1 シートで渡さない）
+
+| シート | 中身 |
+|---|---|
+| **フロー一覧** | 最初に開くシート。**1 フロー = 1 行**。進捗と状態が一目で分かる |
+| 第0群 土台 〜 第6群 運営が見る | 群ごとのタブ。フロー名の見出し → その配下にステップ |
+| `Plan` | 機械可読（`journey_workbook.py` の update/status が読む） |
+| `Roles` | ロール・入口・ゴール・供給/消費 |
+| `Summary` | 全体 + ロール別 / 分岐別 / 実行場所別 の内訳と `DONE?` |
 
 **完成した Excel を手で直さない**（鉄則3）。直すのは `build_plan.py` で、そこから再生成する。
 
 ```bash
-# 再生成
+# 再生成 (実行結果は --carry-status で引き継ぐので捨てない)
 python3 apps/web/.qa/test-specs/journeys/build_plan.py > apps/web/.qa/test-specs/journeys/plan.json
-python3 .claude/skills/e2e-journey-walkthrough/scripts/journey_workbook.py init \
-  --out .qa/e2e-journey/journey-<日付>.xlsx --plan apps/web/.qa/test-specs/journeys/plan.json
+python3 apps/web/.qa/test-specs/journeys/render_xlsx.py \
+  --plan apps/web/.qa/test-specs/journeys/plan.json \
+  --out .qa/e2e-journey/journey-20260825.xlsx --carry-status
 
 # 1 行を実行したら結果を書き戻す
 python3 .claude/skills/e2e-journey-walkthrough/scripts/journey_workbook.py update \
