@@ -267,6 +267,85 @@ class TestApprovals:
             assert r.status_code == 200, r.text
             assert r.json()["data"]["status"] == "rejected"
 
+    def test_インボックスの決定がタスク本体に伝わる(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-230 — 2026-08-26 の通し J32-01 で発見。
+
+        以前の decide は **inbox の行だけ** approved にして、対象タスクは
+        awaiting のまま放置していた。承認したつもりでも、タスク詳細は
+        「承認待ち」を出し続け、ディスパッチャも先へ進めない (幽霊承認)。
+        逆方向の /tasks/{id}/approve は両方更新していたので、**どちらの画面から
+        判断したかで結果が変わる**状態だった。
+
+        固定するのは 2 つ:
+          1. インボックスで承認 → タスクは done になる
+          2. インボックスで差戻 → タスクは blocked + 理由が残る (tasks 側と同じ意味)
+        """
+        ws, proj = str(uuid.uuid4()), str(uuid.uuid4())
+        task_ok, task_ng = str(uuid.uuid4()), str(uuid.uuid4())
+        inbox_ok, inbox_ng = str(uuid.uuid4()), str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.workspaces (id,owner_user_id,name) values (:w,:u,'gap230')"
+                ),
+                {"w": ws, "u": seeded["u_a"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.projects (id,workspace_id,name,project_type) "
+                    "values (:p,:w,'gap230','internal_product')"
+                ),
+                {"p": proj, "w": ws},
+            )
+            for tid, title in ((task_ok, "承認される"), (task_ng, "差し戻される")):
+                c.execute(
+                    text(
+                        "insert into public.tasks "
+                        "(id,project_id,category,title,type,estimated_hours,status,lifecycle_stage) "
+                        "values (:t,:p,'backend',:tl,'feature',1,'in_progress','awaiting')"
+                    ),
+                    {"t": tid, "p": proj, "tl": title},
+                )
+            for iid, tid in ((inbox_ok, task_ok), (inbox_ng, task_ng)):
+                c.execute(
+                    text(
+                        "insert into public.approval_inbox "
+                        "(id,user_id,type,target_type,target_id,title) "
+                        "values (:i,:u,cast('task_approval' as approval_inbox_type_enum),"
+                        " 'task',:t,'gap230')"
+                    ),
+                    {"i": iid, "u": seeded["u_a"], "t": tid},
+                )
+        try:
+            with TestClient(app) as client:
+                h = _h(seeded["u_a"])
+                r1 = client.post(
+                    f"/approval-inbox/{inbox_ok}/decide", json={"decision": "approve"}, headers=h
+                )
+                assert r1.status_code == 200, r1.text
+                r2 = client.post(
+                    f"/approval-inbox/{inbox_ng}/decide",
+                    json={"decision": "reject", "note": "やり直し"},
+                    headers=h,
+                )
+                assert r2.status_code == 200, r2.text
+            with sync_engine.connect() as c:
+                st_ok = c.execute(
+                    text("select lifecycle_stage from public.tasks where id=:t"), {"t": task_ok}
+                ).scalar_one()
+                row_ng = c.execute(
+                    text("select lifecycle_stage, blocked_reason from public.tasks where id=:t"),
+                    {"t": task_ng},
+                ).one()
+            assert st_ok == "done", f"承認がタスクに伝わっていない: {st_ok}"
+            assert row_ng.lifecycle_stage == "blocked", f"差戻が伝わっていない: {row_ng}"
+            assert row_ng.blocked_reason == "やり直し"
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(text("delete from public.workspaces where id=:w"), {"w": ws})
+
     def test_decide_already_resolved_409(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:

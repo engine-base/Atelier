@@ -106,12 +106,40 @@ async def decide_approval(
             "update public.approval_inbox "
             "set status = :st, resolved_at = now(), resolution_note = :note "
             "where id = cast(:id as uuid) and status = 'pending' "
-            "returning id"
+            "returning target_type, target_id, type"
         ),
         {"st": new_status, "note": data.note, "id": approval_id},
     )
-    if res.scalar_one_or_none() is None:
+    row = res.first()
+    if row is None:
         return None
+    # GAP-230 (2026-08-26 の通し J32-01 で発見): ここで inbox の行だけを
+    # approved にして、**対象のタスク本体には何も伝えていなかった**。
+    # 承認したつもりでも tasks.lifecycle_stage は awaiting のまま —
+    # タスク詳細は「承認待ち」を出し続け、ディスパッチャも先へ進めない
+    # (幽霊承認)。逆方向 (/tasks/{id}/approve) は両方を更新していたので、
+    # **どちらの画面から判断したかで結果が変わる**状態だった。
+    if str(row.target_type) == "task" and str(row.type) == "task_approval":
+        if new_status == "approved":
+            await session.execute(
+                text(
+                    "update public.tasks set lifecycle_stage = 'done' "
+                    "where id = cast(:tid as uuid) and deleted_at is null "
+                    "and lifecycle_stage = 'awaiting'"
+                ),
+                {"tid": str(row.target_id)},
+            )
+        else:
+            # 差戻は tasks 側 (reject_task) と同じ意味にする: awaiting → blocked
+            await session.execute(
+                text(
+                    "update public.tasks set lifecycle_stage = 'blocked', "
+                    "blocked_reason = coalesce(:note, blocked_reason) "
+                    "where id = cast(:tid as uuid) and deleted_at is null "
+                    "and lifecycle_stage = 'awaiting'"
+                ),
+                {"tid": str(row.target_id), "note": data.note},
+            )
     await AuditWriter(session).write(
         AuditEvent(
             action="approval.decide",
