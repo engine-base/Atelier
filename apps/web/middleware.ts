@@ -3,7 +3,11 @@
  *
  * - public path 以外で atelier_access cookie が無い / 期限切れなら /signin にリダイレクト
  * - /portal/* は client_portal 用の別 cookie (atelier_client_access) を要求
- * - /admin/* は通常 authenticated JWT に加えて owner role を要求 (実 role 検査は API 側)
+ * - /admin/* は通常 authenticated JWT に加えて運営 (admin) を要求。
+ *   **これは表示上の整理であって防御ではない** — ここでは署名を検証していないので、
+ *   偽のトークンを作れば通り抜けられる。実際の防御は API 側で、運営専用 API は
+ *   全て 403 を返す (GAP-219 で実測確認済み)。ここで止めるのは
+ *   「権限が無い人に運営コンソールを組み立てて見せない」ため。
  * - middleware 自体は JWT 検証はせず exp 確認のみ。検証は API 側 (T-D-22 RLS で完成)
  *
  * パスは全て「意味的URL」(例 /projects, /portal/signin) で表現する。next.config の
@@ -13,7 +17,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { COOKIE_NAMES, decodeJwtUnsafe, isExpired } from './lib/auth/cookie';
+import { COOKIE_NAMES, decodeJwtUnsafe, isExpired, isPlatformAdmin } from './lib/auth/cookie';
 
 /** middleware の処理対象外パス (公開資源: 認証前でも到達可能) */
 const PUBLIC_PATHS: readonly string[] = [
@@ -89,6 +93,24 @@ export function middleware(req: NextRequest): NextResponse {
     url.pathname = '/signin';
     url.searchParams.set('redirect', pathname);
     return NextResponse.redirect(url);
+  }
+
+  // 運営コンソールは、運営でない人には組み立てない (GAP-219)。
+  //
+  // 以前はここに検査が無く (docstring には「owner role を要求」と書いてあったが
+  // 実装されていなかった)、一般利用者が /admin を開くと 7 つのメニューを持つ
+  // 運営コンソールがそのまま描画され、各パネルが個別に API を叩いて 403 を受け、
+  // 同じ「権限がありません」が 11 件・約 7 秒間 出続けていた。
+  //
+  // redirect ではなく rewrite にしているのは、URL を書き換えて「別の場所へ
+  // 飛ばされた」と誤解させないため。開いた URL のまま、説明と戻り道を出す。
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    if (!isPlatformAdmin(decodeJwtUnsafe(token))) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/access-denied';
+      url.search = '';
+      return NextResponse.rewrite(url);
+    }
   }
 
   return NextResponse.next();

@@ -86,10 +86,28 @@ export function parseCookieHeader(header: string | null | undefined): Record<str
 const JwtPayloadSchema = z.object({
   sub: z.string(),
   exp: z.number().int(),
+  /** Postgres のロール名 (authenticated / anon)。運営かどうかとは別物。 */
   role: z.string().optional(),
   project_id: z.string().optional(),
+  /**
+   * 運営 (admin) かどうかはここに入る。信頼源は DB の
+   * `auth.users.raw_app_meta_data` で、サインイン時にトークンへ焼き込まれる。
+   */
+  app_metadata: z.object({ role: z.string().optional() }).optional(),
 });
 export type JwtPayload = z.infer<typeof JwtPayloadSchema>;
+
+/**
+ * 運営 (admin) かどうか。**画面の出し分けにだけ使う。**
+ *
+ * ここは署名を検証していない (`decodeJwtUnsafe`)。偽のトークンを作れば
+ * true を返させられるので、**これは防御ではない**。実際の防御は API 側で、
+ * 運営専用 API は全て 403 を返す。ここでやりたいのは
+ * 「権限が無い人に運営コンソールの画面を見せない」という表示上の整理だけ。
+ */
+export function isPlatformAdmin(payload: JwtPayload | null): boolean {
+  return payload?.app_metadata?.role === 'admin';
+}
 
 /** JWT を **検証なしで** decode (UI で exp を見るためだけ。検証は API 側) */
 export function decodeJwtUnsafe(token: string): JwtPayload | null {
