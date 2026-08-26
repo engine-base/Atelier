@@ -36,7 +36,7 @@ def _require_admin(user: CurrentUser) -> None:
     if isinstance(app_metadata, dict):
         role = cast("dict[str, object]", app_metadata).get("role")
     if role != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin only")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
 @router.get(

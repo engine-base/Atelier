@@ -105,16 +105,16 @@ async def create_knowledge(
     if body.scope == "employee_specific" and body.owner_employee_id is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "scope=employee_specific requires owner_employee_id",
+            "特定の AI 社員だけのナレッジには、担当の AI 社員の指定が必要です。",
         )
     if body.scope == "common" and body.owner_employee_id is not None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "scope=common must not set owner_employee_id",
+            "全体で使うナレッジには、担当の AI 社員を指定できません。",
         )
     created = await svc.create_knowledge(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create knowledge")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "ナレッジを作る権限がありません。")
     return {"data": created}
 
 
@@ -131,11 +131,13 @@ async def search_knowledge(
     query = body.get("query")
     if not isinstance(query, str) or not query.strip():
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "query (non-empty string) required"
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "検索する言葉を入力してください。"
         )
     limit_raw = body.get("limit", 10)
     if not isinstance(limit_raw, int) or limit_raw < 1 or limit_raw > 50:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "limit must be int in [1, 50]")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "件数は 1〜50 の整数で指定してください。"
+        )
     account_id = body.get("account_id")
     account_id_str: str | None = account_id if isinstance(account_id, str) else None
     # GAP-017: project_id 指定でプロジェクト設定 (跨ぎ参照) を適用
@@ -268,7 +270,7 @@ async def get_knowledge(
 ) -> dict[str, KnowledgeResponse]:
     k = await svc.get_knowledge(session, knowledge_id)
     if k is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のナレッジが見つかりません。")
     return {"data": k}
 
 
@@ -280,12 +282,12 @@ async def update_knowledge(
     user: UserDep,
 ) -> dict[str, KnowledgeResponse]:
     if await svc.get_knowledge(session, knowledge_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のナレッジが見つかりません。")
     updated = await svc.update_knowledge(
         session, actor_id=user.id, knowledge_id=knowledge_id, data=body
     )
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update knowledge")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このナレッジを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -296,9 +298,9 @@ async def update_knowledge(
 )
 async def delete_knowledge(knowledge_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_knowledge(session, knowledge_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のナレッジが見つかりません。")
     if not await svc.delete_knowledge(session, actor_id=user.id, knowledge_id=knowledge_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete knowledge")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このナレッジを削除する権限がありません。")
 
 
 # --------------------------------------------------------------------------- #
@@ -315,7 +317,7 @@ async def list_knowledge_references(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> dict[str, KnowledgeReferencesResponse]:
     if await svc.get_knowledge(session, knowledge_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のナレッジが見つかりません。")
     return {"data": await svc.list_references(session, knowledge_id=knowledge_id, limit=limit)}
 
 
@@ -340,21 +342,21 @@ async def promote_knowledge(
         confidence_score=body.confidence_score,
     )
     if code == svc.PromoteResult.NOT_FOUND:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のナレッジが見つかりません。")
     if code == svc.PromoteResult.NOT_USER_OWNED:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "only your own user-scope knowledge can be promoted",
+            "昇格できるのは、自分の個人ナレッジだけです。",
         )
     if code == svc.PromoteResult.EMPLOYEE_SPECIFIC:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "scope=employee_specific cannot be promoted to common",
+            "特定の AI 社員だけのナレッジは、全体用に昇格できません。",
         )
     if code == svc.PromoteResult.NOT_MEMBER:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "you must be a member of the target workspace to promote",
+            "昇格先のワークスペースのメンバーである必要があります。",
         )
     assert promoted is not None
     return {"data": promoted}

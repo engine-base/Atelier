@@ -83,7 +83,7 @@ async def get_legal_document(
 ) -> dict[str, LegalDocumentResponse]:
     doc = await svc.get_legal_document(session, doc_type=doc_type, locale=locale)
     if doc is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "legal document not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の法務文書が見つかりません。")
     return {"data": doc}
 
 

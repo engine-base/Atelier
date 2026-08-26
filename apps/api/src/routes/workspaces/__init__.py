@@ -46,7 +46,7 @@ async def get_workspace(
 ) -> dict[str, WorkspaceResponse]:
     ws = await svc.get_workspace(session, workspace_id)
     if ws is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": ws}
 
 
@@ -56,13 +56,15 @@ async def update_workspace(
 ) -> dict[str, WorkspaceResponse]:
     # 可視か (RLS SELECT) を先に確認: 不可視 = 404
     if await svc.get_workspace(session, workspace_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     updated = await svc.update_workspace(
         session, actor_id=user.id, workspace_id=workspace_id, data=body
     )
     # 可視だが UPDATE が 0 行 = RLS write policy 拒否 (権限なし) = 403
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update workspace")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "このワークスペースを変更する権限がありません。"
+        )
     return {"data": updated}
 
 
@@ -73,6 +75,8 @@ async def update_workspace(
 )
 async def delete_workspace(workspace_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_workspace(session, workspace_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     if not await svc.delete_workspace(session, actor_id=user.id, workspace_id=workspace_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete workspace")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "このワークスペースを削除する権限がありません。"
+        )

@@ -50,7 +50,7 @@ async def create_sales_doc(
 ) -> dict[str, SalesDocResponse]:
     created = await svc.create_sales_doc(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create sales doc")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "商談資料を作る権限がありません。")
     return {"data": created}
 
 
@@ -60,7 +60,7 @@ async def get_sales_doc(
 ) -> dict[str, SalesDocResponse]:
     doc = await svc.get_sales_doc(session, doc_id)
     if doc is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     return {"data": doc}
 
 
@@ -69,10 +69,10 @@ async def update_sales_doc(
     doc_id: str, body: SalesDocUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, SalesDocResponse]:
     if await svc.get_sales_doc(session, doc_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     updated = await svc.update_sales_doc(session, actor_id=user.id, doc_id=doc_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update sales doc")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この商談資料を変更する権限がありません。")
     return {"data": updated}
 
 
@@ -83,9 +83,9 @@ async def update_sales_doc(
 )
 async def delete_sales_doc(doc_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_sales_doc(session, doc_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     if not await svc.delete_sales_doc(session, actor_id=user.id, doc_id=doc_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete sales doc")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この商談資料を削除する権限がありません。")
 
 
 # --------------------------------------------------------------------------- #
@@ -108,7 +108,7 @@ async def generate_sales_doc(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}
 
 
@@ -120,10 +120,10 @@ async def generate_sales_doc(
 async def sales_doc_pdf(doc_id: str, session: SessionDep, _user: UserDep) -> Response:
     doc = await svc.get_sales_doc(session, doc_id)
     if doc is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     body = doc.summary or ""
     if not body.strip():
-        raise HTTPException(status.HTTP_409_CONFLICT, "sales doc has no content")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この商談資料には、まだ中身がありません。")
     label = gen_svc.DOC_TYPE_LABEL.get(doc.doc_type, doc.doc_type)
     title = (body.splitlines()[0].lstrip("# ").strip() if body else "") or label
     created = doc.created_at.strftime("%Y-%m-%d")
@@ -151,7 +151,7 @@ async def send_sales_doc(
 ) -> dict[str, SalesDocSendResponse]:
     sent = await send_svc.send_doc(session, actor_id=user.id, doc_id=doc_id, data=body)
     if sent is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     return {"data": sent}
 
 
@@ -160,5 +160,5 @@ async def list_sales_doc_sends(
     doc_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[SalesDocSendResponse]]:
     if await svc.get_sales_doc(session, doc_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "sales doc not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     return {"data": await send_svc.list_sends(session, doc_id)}

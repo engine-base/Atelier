@@ -55,7 +55,7 @@ async def create_meeting(
 ) -> dict[str, MeetingResponse]:
     created = await svc.create_meeting(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create meeting upload")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "議事録をアップロードする権限がありません。")
     return {"data": created}
 
 
@@ -89,7 +89,7 @@ async def get_meeting(
 ) -> dict[str, MeetingResponse]:
     meeting = await svc.get_meeting(session, meeting_id)
     if meeting is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     return {"data": meeting}
 
 
@@ -104,9 +104,9 @@ async def get_meeting_transcript_url(
     """RLS で可視な meeting の parse_result_path に対する署名付き閲覧 URL を返す。"""
     meeting = await svc.get_meeting(session, meeting_id)
     if meeting is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     if meeting.parse_result_path is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "transcription result is not ready yet")
+        raise HTTPException(status.HTTP_409_CONFLICT, "文字起こしがまだ終わっていません。")
     try:
         url = await create_signed_download_url(meeting.parse_result_path)
     except StorageSigningError as exc:
@@ -128,12 +128,14 @@ async def transcribe_meeting(
     user: UserDep,
 ) -> dict[str, MeetingTranscribeResponse]:
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     result = await svc.queue_transcribe(
         session, actor_id=user.id, meeting_id=meeting_id, force=body.force
     )
     if result is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to transcribe meeting")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "この議事録を文字起こしする権限がありません。"
+        )
     return {"data": result}
 
 
@@ -153,10 +155,10 @@ async def resume_meeting_analysis(
     from src.services.meetings.resume import resume_analysis
 
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     result = await resume_analysis(session, meeting_id=meeting_id)
     if result.status == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     return {"data": {"status": result.status, "message": result.message}}
 
 
@@ -188,7 +190,7 @@ async def list_adoptable_items(
     (無理にタスク化すると台帳がノイズで埋まる)。
     """
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     try:
         items = await adopt_svc.list_adoptable(session, meeting_id=meeting_id)
     except adopt_svc.AdoptError as exc:
@@ -227,7 +229,7 @@ async def adopt_items(
     全部を落とさず、できたものは残して結果を正直に返す。
     """
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     try:
         result = await adopt_svc.adopt(
             session, meeting_id=meeting_id, actor_id=user.id, keys=list(body.keys)
@@ -264,7 +266,7 @@ async def propose_phase_from_meeting(
     from src.services.workflow import proposals as proposal_svc
 
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     try:
         created = await proposal_svc.propose_from_meeting(
             session, actor_id=user.id, meeting_id=meeting_id
@@ -280,7 +282,7 @@ async def propose_phase_from_meeting(
         # GAP-206: 503 は理由つきで返す (bridge_offline / llm_unconfigured 等)。
         raise service_unavailable(exc.code, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     await session.commit()
     return {"data": created}
 
@@ -292,6 +294,6 @@ async def propose_phase_from_meeting(
 )
 async def delete_meeting(meeting_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_meeting(session, meeting_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "meeting not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     if not await svc.delete_meeting(session, actor_id=user.id, meeting_id=meeting_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete meeting")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この議事録を削除する権限がありません。")

@@ -54,7 +54,7 @@ async def get_flow(
         _raise(exc)
         raise  # unreachable — 型のため
     if flow is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": flow}
 
 
@@ -67,7 +67,7 @@ async def list_delivery_phases(
 ) -> dict[str, list[DeliveryPhaseResponse]]:
     phases = await phases_svc.list_phases(session, project_id=project_id)
     if phases is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": phases}
 
 
@@ -201,7 +201,7 @@ async def get_freeze_check(
 
     got = await freeze_check(session, project_id=project_id, phase_id=phase_id)
     if got is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズが見つかりません。")
     return {
         "data": FreezeCheckResponse(
             phase_id=got.phase_id,

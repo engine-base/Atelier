@@ -67,7 +67,7 @@ async def create_task(
 async def get_task(task_id: str, session: SessionDep, _user: UserDep) -> dict[str, TaskResponse]:
     task = await svc.get_task(session, task_id)
     if task is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": task}
 
 
@@ -76,14 +76,14 @@ async def update_task(
     task_id: str, body: TaskUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, TaskResponse]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     try:
         updated = await svc.update_task(session, actor_id=user.id, task_id=task_id, data=body)
     except ValueError as exc:
         # GAP-025: 検証担当の WS 越境 (task の workspace 外の AI 社員) は 422
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update task")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このタスクを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -92,9 +92,9 @@ async def update_task(
 )
 async def delete_task(task_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     if not await svc.delete_task(session, actor_id=user.id, task_id=task_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete task")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このタスクを削除する権限がありません。")
 
 
 @router.get("/tasks/{task_id}/acceptance-criteria", summary="受入条件取得")
@@ -103,10 +103,10 @@ async def get_acceptance_criteria(
 ) -> dict[str, AcceptanceCriteriaResponse]:
     # task 自体が不可視 (RLS) なら 404
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     ac = await svc.get_acceptance_criteria(session, task_id)
     if ac is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "acceptance criteria not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の受け入れ条件が見つかりません。")
     return {"data": ac}
 
 
@@ -115,7 +115,7 @@ async def list_executions(
     task_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[TaskExecutionResponse]]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": await svc.list_executions(session, task_id=task_id)}
 
 
@@ -124,10 +124,10 @@ async def get_execution(
     task_id: str, execution_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, TaskExecutionResponse]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     ex = await svc.get_execution(session, task_id=task_id, execution_id=execution_id)
     if ex is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task execution not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクの実行記録が見つかりません。")
     return {"data": ex}
 
 
@@ -152,10 +152,12 @@ async def approve_task(
     user: UserDep,
 ) -> dict[str, TaskResponse]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     updated = await svc.approve_task(session, actor_id=user.id, task_id=task_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "task is not awaiting (cannot approve)")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "このタスクは承認待ちではないため、承認できません。"
+        )
     return {"data": updated}
 
 
@@ -167,10 +169,12 @@ async def reject_task(
     user: UserDep,
 ) -> dict[str, TaskResponse]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     updated = await svc.reject_task(session, actor_id=user.id, task_id=task_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "task is not awaiting (cannot reject)")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "このタスクは承認待ちではないため、差し戻せません。"
+        )
     return {"data": updated}
 
 
@@ -185,10 +189,12 @@ async def retry_task(
     user: UserDep,
 ) -> dict[str, TaskResponse]:
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     updated = await svc.retry_task(session, actor_id=user.id, task_id=task_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "task is not blocked (cannot retry)")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "このタスクは停止中ではないため、やり直せません。"
+        )
     return {"data": updated}
 
 
@@ -214,16 +220,16 @@ async def play_task(
         session, actor_id=user.id, task_id=id, data=body or PlayTaskRequest()
     )
     if result == svc.PlayResult.NOT_FOUND:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     if result == svc.PlayResult.INVALID_STATE:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "task is not in a playable lifecycle (ready / blocked)",
+            "このタスクは、いま実行できる状態ではありません。",
         )
     if result == svc.PlayResult.DEPS_UNMET:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "task dependencies are not all done (use force=true to override)",
+            "先に終わらせる必要のあるタスクが残っています。",
         )
     assert payload is not None
     return {"data": payload}
@@ -238,7 +244,7 @@ async def get_task_spec_change(
 ) -> dict[str, SpecChangeResponse | None]:
     """紐づくモックに新版が出ていれば返す (無ければ data=null — カード非描画)。"""
     if await svc.get_task(session, task_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": await svc.get_spec_change(session, task_id=task_id)}
 
 
@@ -257,7 +263,7 @@ async def resolve_task_spec_change(
         latest_mock_id=body.latest_mock_id,
     )
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": result}
 
 
@@ -270,5 +276,5 @@ async def list_task_related(
 ) -> dict[str, list[RelatedResourceResponse]]:
     items = await svc.list_related_resources(session, task_id=task_id)
     if items is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": items}

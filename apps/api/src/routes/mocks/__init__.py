@@ -89,7 +89,7 @@ async def create_mock(
 async def get_mock(mock_id: str, session: SessionDep, _user: UserDep) -> dict[str, MockResponse]:
     mock = await svc.get_mock(session, mock_id)
     if mock is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": mock}
 
 
@@ -109,7 +109,7 @@ async def get_mock_content_url(
     """
     mock = await svc.get_mock(session, mock_id)
     if mock is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     if mock.html_storage_path.startswith(MOCKDB_PREFIX):
         return {"data": ContentUrlResponse(url=build_content_url(str(request.base_url), mock_id))}
     try:
@@ -139,11 +139,15 @@ async def get_mock_content(
     GAP-142: sel=1 で要素選択スクリプト (Open Design 型のクリック選択) を注入。
     """
     if not verify_content_token(mock_id, exp, sig):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "リンクが正しくないか、有効期限が切れています。"
+        )
     try:
         uuid.UUID(mock_id)
     except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock content not found") from None
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "このモックの中身がまだありません。"
+        ) from None
     factory = _content_session_factory()
     async with factory() as session:
         row = (
@@ -156,12 +160,12 @@ async def get_mock_content(
             )
         ).first()
         if row is None or not str(row.html_storage_path).startswith(MOCKDB_PREFIX):
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "mock content not found")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "このモックの中身がまだありません。")
         html = await fetch_mock_content(
             session, content_id=str(row.html_storage_path)[len(MOCKDB_PREFIX) :]
         )
     if html is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock content not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "このモックの中身がまだありません。")
     if sel == 1:
         html = inject_selection_script(html)
     return HTMLResponse(
@@ -175,14 +179,14 @@ async def update_mock(
     mock_id: str, body: MockUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, MockResponse]:
     if await svc.get_mock(session, mock_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     try:
         updated = await svc.update_mock(session, actor_id=user.id, mock_id=mock_id, data=body)
     except svc.MockPhaseFrozen as exc:
         # GAP-152: 確定フェーズの成果物は不変
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update mock")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このモックを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -191,13 +195,13 @@ async def update_mock(
 )
 async def delete_mock(mock_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_mock(session, mock_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     try:
         ok = await svc.delete_mock(session, actor_id=user.id, mock_id=mock_id)
     except svc.MockPhaseFrozen as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if not ok:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete mock")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このモックを削除する権限がありません。")
 
 
 @router.get("/mocks/{mock_id}/versions", summary="モックのバージョン履歴")
@@ -205,7 +209,7 @@ async def list_versions(
     mock_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[MockResponse]]:
     if await svc.get_mock(session, mock_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": await svc.list_versions(session, mock_id)}
 
 
@@ -223,7 +227,7 @@ async def create_version(
     except svc.MockVersionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
 
 
@@ -241,7 +245,7 @@ async def diff_mock_versions(
     to_mock = await svc.get_mock(session, mock_id)
     from_mock = await svc.get_mock(session, other_id)
     if to_mock is None or from_mock is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     if (to_mock.project_id, to_mock.screen_name) != (
         from_mock.project_id,
         from_mock.screen_name,
@@ -295,7 +299,7 @@ async def get_project_design_note(
         )
     ).first()
     if visible is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     note = await note_svc.get_design_note(session, project_id=project_id)
     return {"data": {"note": note}}
 
@@ -313,7 +317,7 @@ async def put_project_design_note(
         session, actor_id=user.id, project_id=project_id, note=body.note
     )
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": {"note": body.note[: note_svc.DESIGN_NOTE_MAX_CHARS]}}
 
 
@@ -347,7 +351,7 @@ async def generate_mock(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}
 
 
@@ -385,7 +389,7 @@ async def revise_mock(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
 
 
@@ -436,7 +440,7 @@ async def duplicate_mock_version(
     except svc.MockVersionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
 
 
@@ -452,5 +456,5 @@ async def discard_mock_version(
     except (ValueError, svc.MockPhaseFrozen) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mock not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": {"mock_id": mock_id, "status": "discarded"}}

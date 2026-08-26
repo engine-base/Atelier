@@ -44,7 +44,7 @@ def _extract_bearer(authorization: str | None) -> str:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
-            "missing client bearer token",
+            "サインインの情報がありません。招待リンクからもう一度お試しください。",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return authorization[len("bearer ") :].strip()

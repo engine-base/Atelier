@@ -69,7 +69,7 @@ async def seed_phases(
 async def get_phase(phase_id: str, session: SessionDep, _user: UserDep) -> dict[str, PhaseResponse]:
     ph = await svc.get_phase(session, phase_id)
     if ph is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズが見つかりません。")
     return {"data": ph}
 
 
@@ -78,14 +78,14 @@ async def update_phase(
     phase_id: str, body: PhaseUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, PhaseResponse]:
     if await svc.get_phase(session, phase_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズが見つかりません。")
     try:
         updated = await svc.update_phase(session, actor_id=user.id, phase_id=phase_id, data=body)
     except svc.WorkflowError as e:
         # GAP-004: 他 WS 社員の割当等は 422 (入力不正)
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, e.message) from e
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update phase")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このフェーズを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -94,9 +94,9 @@ async def update_phase(
 )
 async def delete_phase(phase_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_phase(session, phase_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズが見つかりません。")
     if not await svc.delete_phase(session, actor_id=user.id, phase_id=phase_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete phase")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このフェーズを削除する権限がありません。")
 
 
 # --------------------------------------------------------------------------- #
@@ -130,7 +130,7 @@ async def create_phase_proposal(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}
 
 
@@ -146,7 +146,7 @@ async def approve_phase_proposal(
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase proposal not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズの提案が見つかりません。")
     proposal, phase = result
     return {"data": PhaseProposalApproveResponse(proposal=proposal, phase=phase)}
 
@@ -163,7 +163,7 @@ async def reject_phase_proposal(
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if rejected is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "phase proposal not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズの提案が見つかりません。")
     return {"data": rejected}
 
 
@@ -182,7 +182,9 @@ async def analyze_impact(
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task or phase not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "対象のタスクまたはフェーズが見つかりません。"
+        )
     return {"data": result}
 
 
@@ -198,7 +200,7 @@ async def apply_impact(
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "impact analysis not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の影響分析が見つかりません。")
     return {"data": result}
 
 

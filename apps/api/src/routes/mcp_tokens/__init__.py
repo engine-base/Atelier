@@ -49,7 +49,7 @@ async def create_token(
 ) -> dict[str, McpTokenCreateResponse]:
     created = await svc.create_token(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create mcp_token")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "連携トークンを作る権限がありません。")
     return {"data": created}
 
 
@@ -59,7 +59,7 @@ async def get_token(
 ) -> dict[str, McpTokenResponse]:
     item = await svc.get_token(session, token_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mcp_token not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の連携トークンが見つかりません。")
     return {"data": item}
 
 
@@ -70,7 +70,9 @@ async def get_token(
 )
 async def revoke_token(token_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_token(session, token_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "mcp_token not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の連携トークンが見つかりません。")
     result = await svc.revoke_token(session, actor_id=user.id, token_id=token_id)
     if result is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "owner role required to revoke mcp_token")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "連携トークンを失効できるのはオーナーだけです。"
+        )

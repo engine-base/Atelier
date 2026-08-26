@@ -208,7 +208,10 @@ async def oauth_callback(
             oauth_svc.error_redirect_url(error), status_code=status.HTTP_302_FOUND
         )
     if not code or not state:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "code and state are required")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "サインインの情報が不足しています。もう一度お試しください。",
+        )
 
     # state 検証 (改竄 / 期限切れ / provider 不一致は 400)
     try:
@@ -326,7 +329,7 @@ async def account_delete(
         )
         row = res.first()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の利用者が見つかりません。")
     try:
         deleted_at, purge_at = await svc.delete_account(
             user_id=user.id,

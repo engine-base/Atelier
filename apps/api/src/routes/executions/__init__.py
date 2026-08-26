@@ -58,7 +58,7 @@ async def get_execution(
 ) -> dict[str, ExecutionResponse]:
     ex = await svc.get_execution(session, execution_id)
     if ex is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の実行記録が見つかりません。")
     return {"data": ex}
 
 
@@ -113,7 +113,7 @@ async def cancel_task_dispatch(
     except svc.DispatchOpsError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": {"task_id": task_id, "dispatch_status": ""}}
 
 
@@ -129,7 +129,7 @@ async def stop_task_dispatch(
     except svc.DispatchOpsError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": {"task_id": task_id, "dispatch_status": "reclaimed"}}
 
 
@@ -142,5 +142,5 @@ async def list_execution_tests(
 ) -> dict[str, list[ExecutionTestResult]]:
     items = await svc.list_execution_tests(session, execution_id=execution_id)
     if items is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の実行記録が見つかりません。")
     return {"data": items}

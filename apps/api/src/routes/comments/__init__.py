@@ -43,7 +43,7 @@ async def create_comment(
 ) -> dict[str, CommentResponse]:
     created = await svc.create_comment(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to comment on target")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この対象にコメントする権限がありません。")
     return {"data": created}
 
 
@@ -66,7 +66,7 @@ async def get_comment(
 ) -> dict[str, CommentResponse]:
     c = await svc.get_comment(session, comment_id)
     if c is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "comment not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のコメントが見つかりません。")
     return {"data": c}
 
 
@@ -75,10 +75,10 @@ async def update_comment(
     comment_id: str, body: CommentUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, CommentResponse]:
     if await svc.get_comment(session, comment_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "comment not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のコメントが見つかりません。")
     updated = await svc.update_comment(session, actor_id=user.id, comment_id=comment_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update comment")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このコメントを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -87,6 +87,6 @@ async def update_comment(
 )
 async def delete_comment(comment_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_comment(session, comment_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "comment not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のコメントが見つかりません。")
     if not await svc.delete_comment(session, actor_id=user.id, comment_id=comment_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete comment")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "このコメントを削除する権限がありません。")

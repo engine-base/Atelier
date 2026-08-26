@@ -44,7 +44,7 @@ async def list_skills(
 
 def _require_admin(user: CurrentUser) -> None:
     if not admin_svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
 @router.post(
@@ -73,7 +73,7 @@ async def update_skill(
     _require_admin(user)
     item = await svc.update_skill(actor_id=user.id, skill_id=skill_id, data=body)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "skill not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の能力（スキル）が見つかりません。")
     return {"data": item}
 
 
@@ -85,7 +85,7 @@ async def update_skill(
 async def delete_skill(skill_id: str, user: UserDep) -> None:
     _require_admin(user)
     if not await svc.delete_skill(actor_id=user.id, skill_id=skill_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "skill not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の能力（スキル）が見つかりません。")
 
 
 @router.post(
@@ -95,5 +95,5 @@ async def delete_skill(skill_id: str, user: UserDep) -> None:
 async def attach_skill(skill_id: str, body: SkillAttachRequest, user: UserDep) -> dict[str, bool]:
     _require_admin(user)
     if not await svc.attach_skill(actor_id=user.id, skill_id=skill_id, data=body):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai_employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     return {"data": True}

@@ -65,7 +65,7 @@ async def get_project(
 ) -> dict[str, ProjectResponse]:
     proj = await svc.get_project(session, project_id)
     if proj is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": proj}
 
 
@@ -74,10 +74,12 @@ async def update_project(
     project_id: str, body: ProjectUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, ProjectResponse]:
     if await svc.get_project(session, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     updated = await svc.update_project(session, actor_id=user.id, project_id=project_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update project")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "このプロジェクトを変更する権限がありません。"
+        )
     return {"data": updated}
 
 
@@ -88,9 +90,11 @@ async def update_project(
 )
 async def delete_project(project_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_project(session, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     if not await svc.delete_project(session, actor_id=user.id, project_id=project_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete project")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "このプロジェクトを削除する権限がありません。"
+        )
 
 
 @router.post("/projects/{project_id}/restore", summary="プロジェクト復元（30 日猶予内）")
@@ -99,7 +103,10 @@ async def restore_project(
 ) -> dict[str, ProjectResponse]:
     restored = await svc.restore_project(session, actor_id=user.id, project_id=project_id)
     if restored is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found or restore window passed")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "対象のプロジェクトが見つからないか、復元できる期間を過ぎています。",
+        )
     return {"data": restored}
 
 
@@ -109,7 +116,7 @@ async def project_dashboard(
 ) -> dict[str, ProjectDashboard]:
     dash = await svc.get_dashboard(session, project_id)
     if dash is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": dash}
 
 
@@ -118,12 +125,12 @@ async def set_project_ai_learning(
     project_id: str, body: AiLearningRequest, session: SessionDep, user: UserDep
 ) -> dict[str, ProjectResponse]:
     if await svc.get_project(session, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     updated = await svc.set_project_ai_learning(
         session, actor_id=user.id, project_id=project_id, opt_out=body.opt_out
     )
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to change ai-learning")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "AI 学習の設定を変更する権限がありません。")
     return {"data": updated}
 
 
@@ -133,7 +140,7 @@ async def set_account_ai_learning(
 ) -> dict[str, AccountAiLearning]:
     result = await svc.set_account_ai_learning(session, actor_id=user.id, opt_out=body.opt_out)
     if result is None:  # pragma: no cover - 認証済 user は users 行を持つ
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のアカウントが見つかりません。")
     return {"data": result}
 
 
@@ -155,7 +162,7 @@ async def import_project_assets(
     from src.services.mocks.artifacts import service_session_factory
 
     if await svc.get_project(session, project_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     factory = service_session_factory()
     async with factory() as service_session:
         result = await import_svc.import_files(

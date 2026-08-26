@@ -1181,6 +1181,22 @@ jobs:
               print(f"::notice::仕様書が整備されました: {', '.join(gone)} — KNOWN から外してください")
           print(f"OK: 未整備は既知の {len(missing)} 件のみ")
           EOF
+      - name: 結果列を読めない行が無いか
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess, sys
+          r = json.loads(subprocess.run(
+              ["python3", "scripts/ci/qa-coverage.py", "--json"],
+              capture_output=True, text=True, check=True).stdout)
+          bad = r["screens"]["unreadable"] + r["ai"].get("unreadable", 0)
+          if bad:
+              print(f"::error::結果列を特定できない TC 行が {bad} 件あります")
+              print("表のヘッダーに「結果」列が無いか、行の直前に空行が入って")
+              print("表が 2 つに割れています。**数えられない行は消化の証拠が残りません。**")
+              print("正本へ行を足したあとは python3 scripts/ci/qa-coverage.py で確認してください。")
+              sys.exit(1)
+          print("OK: 全 TC 行の結果列を特定できています")
+          EOF
 
   aggregate-status:
     name: "v3-gate / all 10 gates"

@@ -62,7 +62,9 @@ async def get_template(
 ) -> dict[str, AiEmployeeTemplateResponse]:
     tpl = await svc.get_template(session, template_id)
     if tpl is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee template not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "対象の AI 社員テンプレートが見つかりません。"
+        )
     return {"data": tpl}
 
 
@@ -71,7 +73,7 @@ def _require_uuid(employee_id: str) -> None:
     try:
         uuid.UUID(employee_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found") from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。") from exc
 
 
 @router.get(
@@ -85,7 +87,7 @@ async def list_employee_activities(
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> dict[str, list[EmployeeActivityResponse]]:
     if await svc.get_ai_employee(session, employee_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     return {"data": await svc.list_activities(session, employee_id=employee_id, limit=limit)}
 
 
@@ -106,7 +108,7 @@ async def create_employee_icon_upload_url(
     """
     _require_uuid(employee_id)
     if await svc.get_ai_employee(session, employee_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     try:
         result = await svc.create_icon_upload(
             employee_id=employee_id,
@@ -140,9 +142,12 @@ async def get_employee_icon_url(
     _require_uuid(employee_id)
     emp = await svc.get_ai_employee(session, employee_id)
     if emp is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     if not emp.icon or "/" not in emp.icon:
-        raise HTTPException(status.HTTP_409_CONFLICT, "employee icon is not an uploaded image")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "AI 社員のアイコンとして使えるのは、アップロードした画像だけです。",
+        )
     try:
         url = await create_signed_download_url(emp.icon)
     except StorageSigningError as exc:
@@ -159,7 +164,7 @@ async def get_ai_employee(
     _require_uuid(employee_id)
     emp = await svc.get_ai_employee(session, employee_id)
     if emp is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     return {"data": emp}
 
 
@@ -169,10 +174,10 @@ async def update_ai_employee(
 ) -> dict[str, AiEmployeeResponse]:
     _require_uuid(employee_id)
     if await svc.get_ai_employee(session, employee_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "ai employee not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の AI 社員が見つかりません。")
     updated = await svc.update_ai_employee(
         session, actor_id=user.id, employee_id=employee_id, data=body
     )
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update ai employee")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この AI 社員を変更する権限がありません。")
     return {"data": updated}

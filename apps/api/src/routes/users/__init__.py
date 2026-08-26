@@ -24,7 +24,7 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 async def get_me(session: SessionDep, user: UserDep) -> dict[str, MeResponse]:
     me = await svc.get_me(session, user.id)
     if me is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の利用者が見つかりません。")
     return {"data": me}
 
 
@@ -32,5 +32,5 @@ async def get_me(session: SessionDep, user: UserDep) -> dict[str, MeResponse]:
 async def update_me(body: MeUpdate, session: SessionDep, user: UserDep) -> dict[str, MeResponse]:
     updated = await svc.update_me(session, user_id=user.id, display_name=body.display_name)
     if updated is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の利用者が見つかりません。")
     return {"data": updated}

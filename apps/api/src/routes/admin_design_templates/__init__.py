@@ -40,7 +40,7 @@ def _service_session_factory() -> async_sessionmaker[AsyncSession]:
 
 def _require_admin(user: CurrentUser) -> None:
     if not admin_svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
 @router.get(
@@ -97,5 +97,5 @@ async def create_platform_design_template_version(
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
         await session.commit()
     if created is None:  # pragma: no cover - platform 経路は workspace 可視性に依存しない
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象が見つかりません。")
     return {"data": created}

@@ -41,7 +41,7 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 async def _visible_or_404(session: AsyncSession, workspace_id: str) -> None:
     if not await svc.workspace_visible(session, workspace_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
 
 
 @router.get("/billing/plan", summary="現在の課金プラン (行なし = free を誠実返却)")
@@ -89,13 +89,15 @@ async def create_checkout(
         )
     except StripeApiError as exc:
         raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, "Stripe checkout session creation failed"
+            status.HTTP_502_BAD_GATEWAY,
+            "決済手続きを開始できませんでした。時間をおいて、もう一度お試しください。",
         ) from exc
     session_id = str(created.get("id", ""))
     url = str(created.get("url", ""))
     if not session_id or not url:
         raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, "Stripe returned an incomplete checkout session"
+            status.HTTP_502_BAD_GATEWAY,
+            "決済手続きを開始できませんでした。時間をおいて、もう一度お試しください。",
         )
     await svc.write_checkout_audit(
         session,
@@ -123,15 +125,16 @@ async def get_checkout_status(
         checkout = await svc.retrieve_checkout_session(settings, session_id=session_id)
     except StripeApiError as exc:
         raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY, "Stripe checkout session lookup failed"
+            status.HTTP_502_BAD_GATEWAY,
+            "決済手続きの状態を確認できませんでした。時間をおいて、もう一度お試しください。",
         ) from exc
     if checkout is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "checkout session not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の決済手続きが見つかりません。")
 
     metadata = svc.as_str_dict(checkout.get("metadata"))
     workspace_id: object = metadata.get("workspace_id") or checkout.get("client_reference_id")
     if not isinstance(workspace_id, str) or not workspace_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "checkout session not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の決済手続きが見つかりません。")
     # R-T08: 自分がメンバーの workspace の session でなければ存在ごと秘匿
     await _visible_or_404(session, workspace_id)
 
@@ -190,7 +193,10 @@ async def create_portal(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     url = portal.get("url")
     if not isinstance(url, str) or not url:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Stripe returned no portal url")
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "お支払い管理の画面を開けませんでした。時間をおいて、もう一度お試しください。",
+        )
     return {"data": PortalCreateResponse(url=url)}
 
 
@@ -208,12 +214,16 @@ async def stripe_webhook(
         )
     payload = await request.body()
     if not svc.verify_webhook_signature(payload, stripe_signature, settings.stripe_webhook_secret):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid Stripe-Signature")
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "決済サービスからの通知を確認できませんでした。"
+        )
     try:
         event: object = json.loads(payload)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "malformed webhook payload") from exc
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "受け取った通知の形式が正しくありません。"
+        ) from exc
     if not isinstance(event, dict):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "malformed webhook payload")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "受け取った通知の形式が正しくありません。")
     workspace_id = await svc.handle_webhook_event(cast("dict[str, Any]", event))
     return {"received": True, "workspace_id": workspace_id}

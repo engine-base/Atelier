@@ -116,7 +116,10 @@ async def verify_bridge_token(
     タスク実行系のための任意設定であり、本人の PC を繋ぐのに必須ではない。
     """
     if not x_bridge_token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            "接続の情報が正しくありません。パソコン側で接続をやり直してください。",
+        )
     expected = os.environ.get("ATELIER_BRIDGE_TOKEN")
     if expected and hmac.compare_digest(x_bridge_token, expected):
         return BridgeIdentity(kind="instance")
@@ -125,7 +128,10 @@ async def verify_bridge_token(
     user_id = await user_tokens_svc.verify_user_token(session, raw=x_bridge_token)
     if user_id is not None:
         return BridgeIdentity(kind="user", user_id=user_id)
-    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid bridge token")
+    raise HTTPException(
+        status.HTTP_401_UNAUTHORIZED,
+        "接続の情報が正しくありません。パソコン側で接続をやり直してください。",
+    )
 
 
 BridgeAuth = Annotated[BridgeIdentity, Depends(verify_bridge_token)]

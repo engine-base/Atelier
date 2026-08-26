@@ -106,7 +106,7 @@ async def create_schedule(
     except CronExpressionError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create cron_schedule")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "自動実行の予定を作る権限がありません。")
     return {"data": created}
 
 
@@ -116,7 +116,7 @@ async def get_schedule(
 ) -> dict[str, CronScheduleResponse]:
     item = await svc.get_schedule(session, schedule_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の自動実行の予定が見つかりません。")
     return {"data": item}
 
 
@@ -128,7 +128,7 @@ async def update_schedule(
     user: UserDep,
 ) -> dict[str, CronScheduleResponse]:
     if await svc.get_schedule(session, schedule_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の自動実行の予定が見つかりません。")
     try:
         updated = await svc.update_schedule(
             session, actor_id=user.id, schedule_id=schedule_id, data=body
@@ -136,7 +136,9 @@ async def update_schedule(
     except CronExpressionError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update cron_schedule")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "この自動実行の予定を変更する権限がありません。"
+        )
     return {"data": updated}
 
 
@@ -155,10 +157,10 @@ async def run_schedule_now(
     from src.services.cron.dispatcher import run_one_now
 
     if await svc.get_schedule(session, schedule_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の自動実行の予定が見つかりません。")
     result = await run_one_now(session, schedule_id=schedule_id)
     if result.get("status") == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の自動実行の予定が見つかりません。")
     return {"data": result}
 
 
@@ -169,8 +171,8 @@ async def run_schedule_now(
 )
 async def delete_schedule(schedule_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_schedule(session, schedule_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cron_schedule not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の自動実行の予定が見つかりません。")
     if not await svc.delete_schedule(session, actor_id=user.id, schedule_id=schedule_id):
         raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "owner role required to delete cron_schedule"
+            status.HTTP_403_FORBIDDEN, "自動実行の予定を削除できるのはオーナーだけです。"
         )

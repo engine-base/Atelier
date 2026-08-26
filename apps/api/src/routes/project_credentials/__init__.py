@@ -52,7 +52,7 @@ async def create_credential(
         session, actor_id=user.id, project_id=project_id, data=body
     )
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create credential")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "シークレットを追加する権限がありません。")
     return {"data": created}
 
 
@@ -75,7 +75,7 @@ async def update_credential(
         data=body,
     )
     if updated is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "credential not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のシークレットが見つかりません。")
     return {"data": updated}
 
 
@@ -91,7 +91,7 @@ async def delete_credential(
         session, actor_id=user.id, project_id=project_id, credential_id=credential_id
     )
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "credential not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のシークレットが見つかりません。")
 
 
 @router.post(
@@ -118,5 +118,5 @@ async def reveal_credential(
         password=None if body is None else body.password,
     )
     if revealed is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "credential not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のシークレットが見つかりません。")
     return {"data": revealed}

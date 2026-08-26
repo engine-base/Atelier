@@ -84,7 +84,7 @@ async def get_output(
 ) -> dict[str, OutputResponse]:
     out = await svc.get_output(session, output_id)
     if out is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": out}
 
 
@@ -136,7 +136,7 @@ async def get_output_content_url(
     """
     out = await svc.get_output(session, output_id)
     if out is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     path = {"html": out.html_path, "json": out.json_path, "md": out.md_path}[format]
     if path is None:
         raise HTTPException(
@@ -178,11 +178,15 @@ async def get_output_content(
     dl=1 なら attachment (ダウンロード)、無指定なら inline (ブラウザ表示)。
     """
     if not verify_content_token(output_id, exp, sig):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "リンクが正しくないか、有効期限が切れています。"
+        )
     try:
         uuid_mod.UUID(output_id)
     except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found") from None
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "この成果物の中身がまだありません。"
+        ) from None
     factory = _content_session_factory()
     async with factory() as session:
         row = (
@@ -198,7 +202,7 @@ async def get_output_content(
         if path is not None and path.startswith(FILEDB_PREFIX):
             found = await fetch_file_content(session, file_id=path[len(FILEDB_PREFIX) :])
             if found is None:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "この成果物の中身がまだありません。")
             data, mime, file_name = found
             quoted = urllib.parse.quote(file_name)
             disposition = "attachment" if dl else "inline"
@@ -212,10 +216,10 @@ async def get_output_content(
                 },
             )
         if path is None or not path.startswith(MOCKDB_PREFIX):
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "この成果物の中身がまだありません。")
         html = await fetch_mock_content(session, content_id=path[len(MOCKDB_PREFIX) :])
     if html is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output content not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "この成果物の中身がまだありません。")
     return HTMLResponse(
         content=html,
         headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},
@@ -233,7 +237,7 @@ async def list_design_templates(
 
     items = await tmpl_svc.list_templates(session, workspace_id=workspace_id)
     if items is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": items}
 
 
@@ -248,7 +252,7 @@ async def list_design_template_versions(
 
     items = await tmpl_svc.list_versions(session, workspace_id=workspace_id, stage=stage)
     if items is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": items}
 
 
@@ -283,7 +287,7 @@ async def create_design_template_version(
             raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": created}
 
 
@@ -305,7 +309,7 @@ async def reset_design_template(
             raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
         raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": created}
 
 
@@ -320,7 +324,9 @@ async def get_design_template_content_url(
 
     tmpl = await tmpl_svc.get_template(session, template_id=template_id)
     if tmpl is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "design template not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "対象のデザインテンプレートが見つかりません。"
+        )
     return {
         "data": ContentUrlResponse(
             url=build_content_url(str(request.base_url), template_id, resource="design-templates")
@@ -338,21 +344,27 @@ async def get_design_template_content(
     sig: Annotated[str, Query(min_length=32, max_length=128)],
 ) -> HTMLResponse:
     if not verify_content_token(template_id, exp, sig):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "invalid or expired token")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "リンクが正しくないか、有効期限が切れています。"
+        )
     try:
         uuid_mod.UUID(template_id)
     except ValueError:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found") from None
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "このテンプレートの中身がまだありません。"
+        ) from None
     from src.services.outputs import templates as tmpl_svc
 
     factory = _content_session_factory()
     async with factory() as session:
         path = await tmpl_svc.template_html_path(session, template_id=template_id)
         if path is None or not path.startswith(MOCKDB_PREFIX):
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found")
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, "このテンプレートの中身がまだありません。"
+            )
         html = await fetch_mock_content(session, content_id=path[len(MOCKDB_PREFIX) :])
     if html is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template content not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "このテンプレートの中身がまだありません。")
     return HTMLResponse(
         content=html,
         headers={"Cache-Control": "private, max-age=60", "X-Robots-Tag": "noindex"},
@@ -366,7 +378,7 @@ async def list_output_versions(
     """同一チェーン (project + stage + phase) のバージョンを version 昇順で返す。"""
     versions = await svc.list_versions(session, output_id)
     if not versions:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": versions}
 
 
@@ -388,7 +400,7 @@ async def diff_output_versions(
     to_out = await svc.get_output(session, output_id)
     from_out = await svc.get_output(session, other_id)
     if to_out is None or from_out is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     same_chain = (
         to_out.project_id == from_out.project_id
         and to_out.stage == from_out.stage
@@ -446,7 +458,7 @@ async def restore_output_version(
     except svc.OutputVersionConflict as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": created}
 
 
@@ -461,9 +473,11 @@ async def list_output_anchors(
     """実 HTML を取得して id 属性を抽出する — 推測の位置候補は返さない。"""
     out = await svc.get_output(session, output_id)
     if out is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     if out.html_path is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "output has no rendered HTML yet")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "この成果物は、まだ表示できる形になっていません。"
+        )
     from src.services import version_diff as diff_svc
 
     try:
@@ -516,7 +530,7 @@ async def revise_output(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": created}
 
 
@@ -525,7 +539,7 @@ async def list_output_fix_proposals(
     output_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[FixProposalResponse]]:
     if await svc.get_output(session, output_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": await fix_svc.list_for_output(session, output_id)}
 
 
@@ -551,7 +565,8 @@ async def create_fix_proposal(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if created is None:
         raise HTTPException(
-            status.HTTP_404_NOT_FOUND, "comment not found or not a workflow_output comment"
+            status.HTTP_404_NOT_FOUND,
+            "対象のコメントが見つからないか、成果物へのコメントではありません。",
         )
     return {"data": created}
 
@@ -576,7 +591,7 @@ async def approve_fix_proposal(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "fix proposal not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の修正案が見つかりません。")
     proposal, new_output = result
     return {"data": FixProposalApproveResponse(proposal=proposal, new_output=new_output)}
 
@@ -593,7 +608,7 @@ async def reject_fix_proposal(
     except ValueError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if rejected is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "fix proposal not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の修正案が見つかりません。")
     return {"data": rejected}
 
 
@@ -640,7 +655,7 @@ async def create_output_share_link(
         expires_days=body.expires_days,
     )
     if link is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {
         "data": _to_share_response(
             link, share_url=_share_url(str(request.base_url), link.token or "")
@@ -672,7 +687,9 @@ async def revoke_output_share_link(
 
     link = await sharing.revoke_share_link(session, actor_id=user.id, link_id=link_id)
     if link is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "share link not found or already revoked")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "共有リンクが見つからないか、すでに取り消されています。"
+        )
     return {"data": _to_share_response(link)}
 
 
@@ -726,7 +743,7 @@ async def export_output(
 
     current = await svc.get_output(session, output_id)
     if current is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     if current.html_path is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "この成果物には書き出せる内容がありません")
     try:
@@ -805,10 +822,10 @@ async def save_output_sheet(
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
         raise HTTPException(code, exc.message) from exc
     if new_id is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     created = await svc.get_output(session, new_id)
     if created is None:  # pragma: no cover - 直前に作成済
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "output not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": created}
 
 

@@ -28,5 +28,5 @@ async def analyze_task_impact(
 ) -> dict[str, ImpactAnalysisResponse]:
     result = await svc.analyze_downstream(session, task_id=task_id)
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "task not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": result}

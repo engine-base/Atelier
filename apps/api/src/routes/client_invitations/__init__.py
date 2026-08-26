@@ -49,7 +49,7 @@ async def get_invitation(
 ) -> dict[str, InvitationResponse]:
     inv = await svc.get_invitation(session, invitation_id)
     if inv is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "invitation not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の招待が見つかりません。")
     return {"data": inv}
 
 
@@ -74,8 +74,8 @@ async def revoke_invitation(
     invitation_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, InvitationResponse]:
     if await svc.get_invitation(session, invitation_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "invitation not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の招待が見つかりません。")
     revoked = await svc.revoke_invitation(session, actor_id=user.id, invitation_id=invitation_id)
     if revoked is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "invitation already revoked")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この招待は、すでに取り消されています。")
     return {"data": revoked}

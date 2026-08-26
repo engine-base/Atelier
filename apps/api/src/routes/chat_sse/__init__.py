@@ -163,7 +163,7 @@ async def stream_chat_thread(
     user: UserDep,
 ) -> StreamingResponse:
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     # GAP-001: 添付の storage_path は本スレッド配下のみ許可 (他スレッド添付の
     # 参照持ち込み = 可視性バイパスを拒否)
     for att in body.attachments:
@@ -221,7 +221,9 @@ async def resolve_pc_approval(
             if ok:
                 await svc_session.commit()
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "pc approval not found")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "対象のパソコン操作の承認依頼が見つかりません。"
+        )
     return {"data": PcApprovalDecisionResponse(resolved=True)}
 
 
@@ -236,7 +238,7 @@ async def preview_chat_context(
     _user: UserDep,
 ) -> dict[str, ChatContextPreviewResponse]:
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     return {
         "data": await svc.preview_context(
             session,
@@ -280,7 +282,7 @@ async def get_active_run(
     job_id が返ったら、そのまま `/chat/runs/{job_id}/attach` に繋ぎ直せる。
     """
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     async with _run_session() as s:
         active = await run_svc.active_run(s, thread_id=thread_id, actor_id=user.id)
     if active is None:
@@ -345,7 +347,7 @@ async def list_queued_messages(
     thread_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, list[ChatQueuedMessageResponse]]:
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     async with _run_session() as s:
         items = await run_svc.list_queued(s, thread_id=thread_id, actor_id=user.id)
     return {
@@ -379,7 +381,7 @@ async def queue_message(
     終わったら consume で順に取り出して普通の 1 ターンとして流す。
     """
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     async with _run_session() as s:
         try:
             item = await run_svc.queue_message(
@@ -413,7 +415,7 @@ async def consume_queued_message(
     開いていても、同じ指示が 2 回流れることはない。
     """
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     async with _run_session() as s:
         item = await run_svc.consume_next(s, thread_id=thread_id, actor_id=user.id)
         await s.commit()
@@ -435,7 +437,7 @@ async def drop_queued_message(
     thread_id: str, queued_id: str, session: SessionDep, user: UserDep
 ) -> None:
     if not await _thread_visible(session, thread_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     async with _run_session() as s:
         try:
             removed = await run_svc.drop_queued(
@@ -446,4 +448,4 @@ async def drop_queued_message(
             _raise_run_error(exc)
         await s.commit()
     if not removed:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "queued message not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "順番待ちのメッセージが見つかりません。")

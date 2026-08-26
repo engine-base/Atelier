@@ -41,7 +41,7 @@ async def get_decision(
 ) -> dict[str, DecisionResponse]:
     dec = await svc.get_decision(session, decision_id)
     if dec is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "decision not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の決定事項が見つかりません。")
     return {"data": dec}
 
 
@@ -51,7 +51,7 @@ async def create_decision(
 ) -> dict[str, DecisionResponse]:
     created = await svc.create_decision(session, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create decision")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "決定事項を記録する権限がありません。")
     return {"data": created}
 
 
@@ -60,8 +60,8 @@ async def update_decision(
     decision_id: str, body: DecisionUpdate, session: SessionDep, _user: UserDep
 ) -> dict[str, DecisionResponse]:
     if await svc.get_decision(session, decision_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "decision not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の決定事項が見つかりません。")
     updated = await svc.update_decision(session, decision_id=decision_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update decision")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この決定事項を変更する権限がありません。")
     return {"data": updated}

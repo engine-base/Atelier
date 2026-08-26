@@ -52,7 +52,7 @@ async def get_approval(
 ) -> dict[str, ApprovalResponse]:
     item = await svc.get_approval(session, approval_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の承認依頼が見つかりません。")
     return {"data": item}
 
 
@@ -65,11 +65,11 @@ async def decide_approval(
 ) -> dict[str, ApprovalResponse]:
     # 不在 / 不可視 (越境) は 404
     if await svc.get_approval(session, approval_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の承認依頼が見つかりません。")
     decided = await svc.decide_approval(
         session, actor_id=user.id, approval_id=approval_id, data=body
     )
     if decided is None:
         # 既に解決済 (status != pending) → 409 Conflict
-        raise HTTPException(status.HTTP_409_CONFLICT, "approval is not pending (already resolved)")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この承認依頼は、すでに処理済みです。")
     return {"data": decided}

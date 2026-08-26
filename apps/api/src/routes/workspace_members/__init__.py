@@ -40,13 +40,18 @@ async def invite_member(
         session, actor_id=user.id, workspace_id=workspace_id, email=body.email, role=body.role
     )
     if result == "not_registered":
-        raise HTTPException(422, "user with this email is not registered")
+        raise HTTPException(422, "このメールアドレスのアカウントは登録されていません。")
     if result == "forbidden":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "only workspace owner can invite members")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "メンバーを招待できるのはワークスペースのオーナーだけです。"
+        )
     if result == "already_member":
-        raise HTTPException(status.HTTP_409_CONFLICT, "user is already a member")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この方は、すでにメンバーです。")
     if member is None:  # pragma: no cover
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "member created but not visible")
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "メンバーを追加しましたが、いま一覧に反映できませんでした。少し待って開き直してください。",
+        )
     return {"data": member}
 
 
@@ -62,7 +67,9 @@ async def update_role(
         session, actor_id=user.id, workspace_id=workspace_id, user_id=user_id, role=body.role
     )
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "not found or no permission to change role")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "対象が見つからないか、役割を変更する権限がありません。"
+        )
     return {"data": updated}
 
 
@@ -78,5 +85,5 @@ async def remove_member(
         session, actor_id=user.id, workspace_id=workspace_id, user_id=user_id
     ):
         raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "not found or no permission to remove member"
+            status.HTTP_403_FORBIDDEN, "対象が見つからないか、メンバーを外す権限がありません。"
         )

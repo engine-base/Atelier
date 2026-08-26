@@ -48,7 +48,7 @@ async def create_key(
 ) -> dict[str, ByokKeyResponse]:
     created = await svc.create_key(session, actor_id=user.id, data=body)
     if created is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to create byok_key")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "API キーを登録する権限がありません。")
     return {"data": created}
 
 
@@ -56,7 +56,7 @@ async def create_key(
 async def get_key(key_id: str, session: SessionDep, _user: UserDep) -> dict[str, ByokKeyResponse]:
     item = await svc.get_key(session, key_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "byok_key not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "登録された API キーが見つかりません。")
     return {"data": item}
 
 
@@ -65,10 +65,10 @@ async def update_key(
     key_id: str, body: ByokKeyUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, ByokKeyResponse]:
     if await svc.get_key(session, key_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "byok_key not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "登録された API キーが見つかりません。")
     updated = await svc.update_key(session, actor_id=user.id, key_id=key_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update byok_key")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この API キーを変更する権限がありません。")
     return {"data": updated}
 
 
@@ -79,6 +79,6 @@ async def update_key(
 )
 async def delete_key(key_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_key(session, key_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "byok_key not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "登録された API キーが見つかりません。")
     if not await svc.delete_key(session, actor_id=user.id, key_id=key_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete byok_key")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この API キーを削除する権限がありません。")

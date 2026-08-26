@@ -69,7 +69,7 @@ async def get_thread(
 ) -> dict[str, ThreadResponse]:
     th = await svc.get_thread(session, thread_id)
     if th is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     return {"data": th}
 
 
@@ -78,10 +78,10 @@ async def update_thread(
     thread_id: str, body: ThreadUpdate, session: SessionDep, user: UserDep
 ) -> dict[str, ThreadResponse]:
     if await svc.get_thread(session, thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     updated = await svc.update_thread(session, actor_id=user.id, thread_id=thread_id, data=body)
     if updated is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to update thread")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この会話を変更する権限がありません。")
     return {"data": updated}
 
 
@@ -92,9 +92,9 @@ async def update_thread(
 )
 async def delete_thread(thread_id: str, session: SessionDep, user: UserDep) -> None:
     if await svc.get_thread(session, thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     if not await svc.delete_thread(session, actor_id=user.id, thread_id=thread_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to delete thread")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この会話を削除する権限がありません。")
 
 
 @router.get("/chat/threads/{thread_id}/messages", summary="チャットメッセージ一覧")
@@ -102,7 +102,7 @@ async def list_messages(
     thread_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[MessageResponse]]:
     if await svc.get_thread(session, thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     return {"data": await svc.list_messages(session, thread_id=thread_id)}
 
 
@@ -115,9 +115,9 @@ async def create_message(
     thread_id: str, body: MessageCreate, session: SessionDep, user: UserDep
 ) -> dict[str, MessageResponse]:
     if await svc.get_thread(session, thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     if not await svc.can_post_to_thread(session, thread_id=thread_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この会話に投稿する権限がありません。")
     created = await svc.create_message(session, actor_id=user.id, thread_id=thread_id, data=body)
     return {"data": created}
 
@@ -134,12 +134,14 @@ async def execute_chat_command(
     コマンド原文 (user) + 実行結果 (system) をスレッドへ永続する。
     """
     if await svc.get_thread(session, thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     if not await svc.can_post_to_thread(session, thread_id=thread_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この会話に投稿する権限がありません。")
     args = body.args.strip()
     if not args:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "command args must not be blank")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "実行する内容を入力してください。"
+        )
     result = await svc.execute_command(
         session,
         actor_id=user.id,
@@ -148,7 +150,7 @@ async def execute_chat_command(
         args=args,
     )
     if result is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to execute command")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作を実行する権限がありません。")
     return {"data": result}
 
 
@@ -166,9 +168,9 @@ async def create_chat_attachment_upload_url(
     attachments (SSE stream body) で行う。
     """
     if await svc.get_thread(session, body.thread_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "thread not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の会話が見つかりません。")
     if not await svc.can_post_to_thread(session, thread_id=body.thread_id):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "no permission to post to thread")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この会話に投稿する権限がありません。")
     try:
         result = await svc.create_attachment_upload(
             thread_id=body.thread_id,
@@ -210,7 +212,7 @@ async def get_chat_attachment_url(
             raise service_unavailable(exc.code, exc.message) from exc
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のメッセージが見つかりません。")
     return {"data": result}
 
 
@@ -224,7 +226,7 @@ async def branch_thread(
 ) -> dict[str, ThreadResponse]:
     created = await svc.branch_thread_at_message(session, actor_id=user.id, message_id=message_id)
     if created is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のメッセージが見つかりません。")
     return {"data": created}
 
 
@@ -241,7 +243,7 @@ async def create_message_feedback(
 ) -> dict[str, MessageFeedbackResponse]:
     # 可視性: chat_messages_select_member RLS → 不可視なら 404
     if await svc.get_message_thread_id(session, message_id=message_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "message not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のメッセージが見つかりません。")
     created = await svc.create_message_feedback(
         session, actor_id=user.id, message_id=message_id, data=body
     )
@@ -276,9 +278,9 @@ async def execute_tool_approval(
         session, actor_id=user.id, approval_id=approval_id
     )
     if code == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の承認依頼が見つかりません。")
     if code == "already_resolved":
-        raise HTTPException(status.HTTP_409_CONFLICT, "approval already resolved")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この承認依頼は、すでに処理済みです。")
     return {"data": ToolApprovalExecuteResponse(result=result)}
 
 
@@ -291,9 +293,9 @@ async def reject_tool_approval(
 ) -> dict[str, bool]:
     code = await tools_svc.reject_tool_approval(session, actor_id=user.id, approval_id=approval_id)
     if code == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "approval not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の承認依頼が見つかりません。")
     if code == "already_resolved":
-        raise HTTPException(status.HTTP_409_CONFLICT, "approval already resolved")
+        raise HTTPException(status.HTTP_409_CONFLICT, "この承認依頼は、すでに処理済みです。")
     return {"data": True}
 
 

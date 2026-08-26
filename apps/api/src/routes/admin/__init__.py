@@ -70,7 +70,7 @@ async def list_audit_logs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> dict[str, list[AuditLogResponse]]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     items = await svc.list_audit_logs(
         session,
         workspace_id=workspace_id,
@@ -94,17 +94,17 @@ async def list_skills(
 ) -> dict[str, list[AdminSkillResponse]]:
     # GAP-144: content_md は列 revoke 済 — is_admin gate 後に service 経路で読む
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     return {"data": await svc.list_skills_admin(include_inactive=include_inactive, name=name)}
 
 
 @router.get("/admin/skills/{skill_id}", summary="運営 admin: スキル詳細")
 async def get_skill(skill_id: str, user: UserDep) -> dict[str, AdminSkillResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     item = await svc.get_skill_admin(skill_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "skill not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の能力（スキル）が見つかりません。")
     return {"data": item}
 
 
@@ -119,7 +119,7 @@ async def list_templates(
     department: Annotated[str | None, Query()] = None,
 ) -> dict[str, list[AdminTemplateResponse]]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     return {
         "data": await svc.list_templates_admin(
             session, include_inactive=include_inactive, department=department
@@ -135,10 +135,10 @@ async def get_template(
     template_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, AdminTemplateResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     item = await svc.get_template_admin(session, template_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のテンプレートが見つかりません。")
     return {"data": item}
 
 
@@ -150,12 +150,14 @@ async def update_template(
     template_id: str, body: AdminTemplateUpdate, user: UserDep
 ) -> dict[str, AdminTemplateResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     if not body.model_dump(exclude_unset=True, exclude_none=True):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "at least one field is required")
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "変更する項目を 1 つ以上指定してください。"
+        )
     item = await ops.update_template(actor_id=user.id, template_id=template_id, data=body)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のテンプレートが見つかりません。")
     return {"data": item}
 
 
@@ -167,10 +169,10 @@ async def get_template_deployment(
     template_id: str, user: UserDep
 ) -> dict[str, AdminTemplateDeploymentResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     item = await ops.get_template_deployment(template_id)
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "template not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のテンプレートが見つかりません。")
     return {"data": item}
 
 
@@ -183,7 +185,7 @@ async def get_template_deployment(
 )
 async def get_dashboard(session: SessionDep, user: UserDep) -> dict[str, AdminDashboardResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     return {"data": await svc.admin_dashboard(session)}
 
 
@@ -197,7 +199,7 @@ async def list_users(
     workspace_id: Annotated[str | None, Query()] = None,
 ) -> dict[str, list[AdminUserResponse]]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     return {"data": await svc.list_users_admin(session, workspace_id=workspace_id)}
 
 
@@ -212,7 +214,7 @@ async def send_support_contact(
     body: SupportContactRequest, user: UserDep
 ) -> dict[str, SupportContactResponse]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     result = await support_svc.send_support_contact(
         actor_id=user.id,
         user_id=body.user_id,
@@ -220,7 +222,7 @@ async def send_support_contact(
         message=body.message,
     )
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の利用者が見つかりません。")
     return {"data": result}
 
 
@@ -233,7 +235,7 @@ async def list_support_contacts(
     limit: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> dict[str, list[SupportContactItem]]:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
     return {"data": await support_svc.list_recent_contacts(limit=limit)}
 
 
@@ -244,7 +246,7 @@ async def list_support_contacts(
 # --------------------------------------------------------------------------- #
 def _require_admin(user: CurrentUser) -> None:
     if not svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
 @router.get("/admin/mission", summary="運営 admin: 事業 KPI ミッション (GAP-019)")
@@ -297,7 +299,7 @@ async def record_admin_acquisition(
 async def delete_admin_acquisition(record_id: str, user: UserDep) -> None:
     _require_admin(user)
     if not await ops.delete_acquisition(actor_id=user.id, record_id=record_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "acquisition record not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の獲得記録が見つかりません。")
 
 
 @router.get("/admin/health", summary="運営 admin: プラットフォーム健全性 実計測 (GAP-019)")
@@ -475,7 +477,9 @@ async def resolve_beta_feedback(feedback_id: str, user: UserDep) -> dict[str, Be
     _require_admin(user)
     resolved = await ops.resolve_feedback(actor_id=user.id, feedback_id=feedback_id)
     if resolved is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "feedback not found or already resolved")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, "対象のフィードバックが見つからないか、すでに対応済みです。"
+        )
     return {"data": resolved}
 
 
@@ -506,4 +510,4 @@ async def record_admin_cost(body: AdminCostCreate, user: UserDep) -> dict[str, A
 async def delete_admin_cost(cost_id: str, user: UserDep) -> None:
     _require_admin(user)
     if not await ops.delete_cost(actor_id=user.id, cost_id=cost_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "cost record not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のコスト記録が見つかりません。")

@@ -35,7 +35,7 @@ async def get_exec_logs(
 ) -> dict[str, ExecLogMeta]:
     meta = await svc.get_meta(session, execution_id)
     if meta is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "execution not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の実行記録が見つかりません。")
     return {"data": meta}
 
 

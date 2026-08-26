@@ -71,5 +71,5 @@ async def revoke_bridge_token(
 ) -> dict[str, bool]:
     ok = await svc.revoke_token(session, user_id=user.id, token_id=token_id)
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "bridge token not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の接続トークンが見つかりません。")
     return {"data": True}

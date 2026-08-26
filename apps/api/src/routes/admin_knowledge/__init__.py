@@ -50,7 +50,7 @@ def _service_session_factory() -> async_sessionmaker[AsyncSession]:
 
 def _require_admin(user: CurrentUser) -> None:
     if not admin_svc.is_admin(user):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "admin privilege required")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
 @router.get("/admin/knowledge", summary="運営 admin: 運営デフォルトナレッジ一覧（全件）")
@@ -90,7 +90,8 @@ async def create_platform_knowledge(
         await session.commit()
     if created is None:
         raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "failed to create platform knowledge"
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "運営ナレッジを作成できませんでした。時間をおいて、もう一度お試しください。",
         )
     return {"data": created}
 
@@ -98,7 +99,7 @@ async def create_platform_knowledge(
 async def _get_platform_or_404(session: AsyncSession, knowledge_id: str) -> KnowledgeResponse:
     existing = await kn.get_knowledge(session, knowledge_id)
     if existing is None or existing.account_type != "platform":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "platform knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の運営ナレッジが見つかりません。")
     return existing
 
 
@@ -114,7 +115,7 @@ async def update_platform_knowledge(
         )
         await session.commit()
     if updated is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "platform knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の運営ナレッジが見つかりません。")
     return {"data": updated}
 
 
@@ -130,7 +131,7 @@ async def delete_platform_knowledge(knowledge_id: str, user: UserDep) -> None:
         ok = await kn.delete_knowledge(session, actor_id=user.id, knowledge_id=knowledge_id)
         await session.commit()
     if not ok:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "platform knowledge not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の運営ナレッジが見つかりません。")
 
 
 # ── GAP-153: ナレッジ自動キュレーション (運営 AI 裏走 + 匿名化 + 承認ゲート) ──
