@@ -204,7 +204,7 @@ describe('DataDeletionForm (T-UC-29)', () => {
     });
     expect(onSubmit).not.toHaveBeenCalled();
     // 誤テキストでも不可
-    fireEvent.change(screen.getByLabelText(/確認のため/), {
+    fireEvent.change(screen.getByLabelText(/確認のため「削除する」と入力/), {
       target: { value: '削除' },
     });
     fireEvent.click(screen.getByRole('checkbox'));
@@ -225,7 +225,11 @@ describe('DataDeletionForm (T-UC-29)', () => {
     fireEvent.change(screen.getByLabelText(/削除を希望する理由/), {
       target: { value: '利用終了のため' },
     });
-    fireEvent.change(screen.getByLabelText(/確認のため/), {
+    // GAP-233: 退会は本人確認 (password) が必須になった
+    fireEvent.change(screen.getByLabelText(/本人確認のためパスワード/), {
+      target: { value: 'pw-123456' },
+    });
+    fireEvent.change(screen.getByLabelText(/確認のため「削除する」と入力/), {
       target: { value: '削除する' },
     });
     fireEvent.click(screen.getByRole('checkbox'));
@@ -236,6 +240,7 @@ describe('DataDeletionForm (T-UC-29)', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0]![0]).toMatchObject({
       reason: '利用終了のため',
+      password: 'pw-123456',
       confirm_text: '削除する',
       consent: true,
     });

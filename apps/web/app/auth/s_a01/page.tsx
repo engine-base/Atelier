@@ -20,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import { OAuthButtons } from './_components/OAuthButtons';
+import { RestoreForm, type RestoreValues } from './_components/RestoreForm';
 import { SigninForm, type SigninValues } from './_components/SigninForm';
 import { SignupForm, type SignupValues } from './_components/SignupForm';
 import { t } from '../../../lib/i18n';
@@ -27,12 +28,13 @@ import { cn } from '../../../lib/cn';
 import * as auth from '../../../lib/auth/connector';
 import { BrandLockup } from '../../../components/brand/BrandLockup';
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'restore';
 
 function SA01Inner() {
   const [mode, setMode] = useState<Mode>('signin');
   const [serverError, setServerError] = useState<string | null>(null);
   const [magicSent, setMagicSent] = useState(false);
+  const [restored, setRestored] = useState(false);
   const router = useRouter();
   const params = useSearchParams();
   const redirectTo = params.get('redirect') || '/projects';
@@ -56,6 +58,22 @@ function SA01Inner() {
       setMagicSent(true);
     } catch {
       setServerError('マジックリンクの送信に失敗しました。時間をおいて再度お試しください。');
+    }
+  };
+
+  // GAP-233: 退会 (soft-delete) から 30 日以内の復元。
+  // API は前からあったが UI からの導線が無く、受付表示の「キャンセル可能」が実行不能だった。
+  const onRestore = async (v: RestoreValues): Promise<void> => {
+    setServerError(null);
+    try {
+      await auth.sendJson('POST', '/auth/account/restore', {
+        email: v.email,
+        password: v.password,
+      });
+      setRestored(true);
+      setMode('signin');
+    } catch (e) {
+      setServerError(e instanceof Error ? e.message : '復元に失敗しました');
     }
   };
 
@@ -124,15 +142,50 @@ function SA01Inner() {
               登録済みのメールアドレスであれば、サインイン用リンクを送信しました。メールをご確認ください。
             </p>
           ) : null}
+          {restored && mode === 'signin' ? (
+            <p
+              role="status"
+              className="mb-4 rounded-md border-l-[3px] border-primary bg-primary-container px-3 py-2 text-xs text-on-primary-container"
+            >
+              アカウントを復元しました。そのままサインインしてください。
+            </p>
+          ) : null}
           {mode === 'signin' ? (
             <SigninForm
               onSubmit={onSignin}
               onMagicLink={(email) => void onMagicLink(email)}
               serverError={serverError}
             />
-          ) : (
+          ) : mode === 'signup' ? (
             <SignupForm onSubmit={onSignup} serverError={serverError} />
+          ) : (
+            <RestoreForm onSubmit={onRestore} serverError={serverError} />
           )}
+          <p className="mt-4 text-center text-xs text-on-surface-variant">
+            {mode === 'restore' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin');
+                  setServerError(null);
+                }}
+                className="font-semibold text-primary hover:underline"
+              >
+                サインインに戻る
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('restore');
+                  setServerError(null);
+                }}
+                className="font-semibold text-primary hover:underline"
+              >
+                退会済みアカウントの復元
+              </button>
+            )}
+          </p>
         </div>
 
         {/* フッターノート */}

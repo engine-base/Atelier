@@ -2,8 +2,17 @@
  * S-PUB04 データ削除要求 コンテナ — T-UC-29 (design-audit v2: 実 API 配線)
  *
  * 従来は onSubmit が no-op で「申請しても何も起きない偽フォーム」だった。
- * GET /me でログイン中アカウントを特定し、POST /public/data-deletion-requests に
- * 実申請する (未ログイン時はサインイン誘導)。成功時は受付番号つきの完了表示。
+ * GET /me でログイン中アカウントを特定し、未ログイン時はサインイン誘導。
+ *
+ * GAP-233 (2026-08-26 の通し J52 で発見): その是正後も、申請は
+ * POST /public/data-deletion-requests (監査ログに記録するだけ) しか呼んでおらず、
+ * **退会の本体 (T-A-05 POST /auth/account/delete = users.deleted_at を立てる)**
+ * はどの UI からも呼ばれていなかった。purge ジョブは deleted_at しか見ないため、
+ * 「申請から 30 日後にハード削除」という受付表示が嘘になっていた
+ * (実測: 受付番号は出るが deleted_at は NULL のまま = 削除は永遠に実行されない)。
+ * 今は password で本人確認したうえで /auth/account/delete を呼び、
+ * 実際の削除予定日時 (scheduled_purge_at) を受付表示に出す。
+ * 取り消しは 30 日以内に /auth/account/restore (サインイン画面の復元導線) で行う。
  */
 
 "use client";
@@ -12,7 +21,12 @@ import * as React from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { ApiError, getJson, sendJson } from "../../../../lib/auth/connector";
+import {
+  ApiError,
+  clearLocalSession,
+  getJson,
+  sendJson,
+} from "../../../../lib/auth/connector";
 import { DataDeletionForm, type DeletionValues } from "./DataDeletionForm";
 
 interface MeLite {
@@ -20,9 +34,9 @@ interface MeLite {
 }
 
 interface DeletionReceipt {
-  readonly request_id: string;
-  readonly status: string;
-  readonly requested_at: string;
+  readonly user_id: string;
+  readonly scheduled_purge_at: string;
+  readonly deleted_at: string;
 }
 
 export function DataDeletionContainer() {
@@ -50,14 +64,26 @@ export function DataDeletionContainer() {
   const submit = async (v: DeletionValues): Promise<void> => {
     setServerError(null);
     try {
+      // 退会の本体 (T-A-05): password で本人確認し users.deleted_at を立てる。
+      // これが無いと purge ジョブの対象にならず「30 日後に削除」が嘘になる (GAP-233)。
       const data = await sendJson<DeletionReceipt>(
         "POST",
-        "/public/data-deletion-requests",
-        { reason: v.reason || undefined },
+        "/auth/account/delete",
+        { password: v.password, reason: v.reason || undefined },
       );
       if (!data) throw new Error("no receipt");
       setReceipt(data);
-    } catch {
+      // 退会後のセッションは使えないので、この場で確実に手放す
+      clearLocalSession();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        setServerError("パスワードが正しくありません。");
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        setServerError("このアカウントはすでに退会手続き済みです。");
+        return;
+      }
       setServerError(
         "削除申請の送信に失敗しました。時間をおいて再度お試しください。",
       );
@@ -94,12 +120,25 @@ export function DataDeletionContainer() {
           削除申請を受け付けました
         </h1>
         <p className="mb-3 text-body-md text-on-surface">
-          受付番号: <code className="font-mono">{receipt.request_id}</code>
+          削除予定日時:{" "}
+          <code className="font-mono">
+            {new Date(receipt.scheduled_purge_at).toLocaleString("ja-JP")}
+          </code>
         </p>
         <p className="text-sm leading-[1.8] text-on-surface-variant">
-          申請から 30 日後にナレッジ匿名化と個人情報のハード削除を実行します。
+          上記の日時にナレッジ匿名化と個人情報のハード削除を実行します。
+          それまでサインインはできません。
           <br />
-          30 日以内に再ログインすると申請をキャンセルできます。
+          取り消したい場合は 30 日以内に、サインイン画面の
+          「退会済みアカウントの復元」からメールアドレスとパスワードで復元できます。
+        </p>
+        <p className="mt-4">
+          <Link
+            href="/signin"
+            className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-variant"
+          >
+            サインイン画面へ
+          </Link>
         </p>
       </section>
     );

@@ -20,6 +20,7 @@ import { Form, useAtelierForm } from "../../../../components/forms/Form";
 
 const Schema = z.object({
   reason: z.string().max(2000).optional(),
+  password: z.string().min(1, "本人確認のためパスワードを入力してください"),
   confirm_text: z
     .string()
     .refine((v): v is string => v === "削除する", {
@@ -59,6 +60,7 @@ export function DataDeletionForm({
     schema: Schema,
     defaultValues: {
       reason: "",
+      password: "",
       confirm_text: "",
       consent: false as unknown as true,
     },
@@ -113,7 +115,7 @@ export function DataDeletionForm({
             <br />
             申請から 30 日後：ナレッジ匿名化＋個人情報ハード削除
             <br />
-            申請から 30 日以内：再ログインでキャンセル可能
+            申請から 30 日以内：「退会済みアカウントの復元」でキャンセル可能（サインイン画面から）
           </div>
         </div>
       </section>
@@ -146,6 +148,18 @@ export function DataDeletionForm({
               {...form.register("reason")}
               rows={3}
               placeholder="例：サービス利用を終了したため"
+              className={FIELD_CLASS}
+            />
+          </Field>
+          <Field
+            label="本人確認のためパスワードを入力してください"
+            required
+            error={form.formState.errors.password?.message}
+          >
+            <input
+              type="password"
+              autoComplete="current-password"
+              {...form.register("password")}
               className={FIELD_CLASS}
             />
           </Field>
