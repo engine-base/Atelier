@@ -45,6 +45,24 @@ async def _record(exc: BaseException, scope: Scope) -> str | None:
         return None
 
 
+def _is_invalid_uuid_error(exc: BaseException) -> bool:
+    """例外の連鎖に「UUID の形式不正」が含まれるか (GAP-232)。
+
+    asyncpg は `invalid UUID 'xxx': length must be between 32..36` を投げ、
+    SQLAlchemy が DBAPIError に包む。文字列で判定するのは脆く見えるが、
+    ここで誤検知しても返るのは 404 (存在しない扱い) であり、実在する ID は
+    UUID として正しいので誤って 404 になることはない。
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if "invalid UUID" in str(cur):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 #: 未捕捉例外のときに利用者へ返す文言。
 #:
 #: **例外クラス名とリクエストパスを本文に載せない。** 以前は
@@ -87,6 +105,20 @@ class UnhandledErrorMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         except Exception as exc:  # 最後の受け皿 (再送出すると素の 500 に戻る)
+            # GAP-232 (2026-08-26 の通し J02 中に発見): URL や本文の ID が UUID の
+            # 形をしていないと、SQL の cast(:id as uuid) が DataError になり
+            # ここまで落ちてきて **500「サーバー側で問題が発生しました。時間を
+            # おいて…」** と嘘の案内をしていた (mocks / knowledge / tasks /
+            # admin/skills / meetings の少なくとも 5 系統で実測)。
+            # UUID になり得ない ID は**存在しない**のと同じなので 404 が正しい。
+            # 時間をおいても直らないものに「時間をおいて」と言わない。
+            # route ごとに直すと必ず漏れるので、この関所 1 か所で受ける。
+            if not response_started and _is_invalid_uuid_error(exc):
+                response = JSONResponse(
+                    status_code=404, content={"detail": "対象が見つかりません。"}
+                )
+                await response(scope, receive, send)
+                return
             traceback.print_exc()
             # GAP-182: 本番で落ちたことに誰も気づけない状態をやめる。
             # 外部 SaaS には送らず自前の error_log に記録する (失敗しても無視)。
