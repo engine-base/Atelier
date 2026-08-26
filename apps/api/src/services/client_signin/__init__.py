@@ -27,6 +27,7 @@ import json
 import math
 import os
 import time
+import uuid
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -141,6 +142,50 @@ def decode_client_token(token: str, *, now: int | None = None) -> dict[str, Any]
     if not isinstance(payload.get("project_id"), str):
         raise ClientSigninError("invalid_client_token", "missing project_id claim")
     return payload
+
+
+async def assert_invitation_active(claims: dict[str, Any]) -> None:
+    """券が有効でも、**招待そのものが今も生きているか**を毎回確かめる (GAP-227)。
+
+    2026-08-26 の通し J24-02「招待を失効させると入れなくなる」で分かったこと:
+
+      `decode_client_token` は署名と有効期限しか見ていなかった。だから招待を
+      失効させても、**すでに配られた券は 24 時間そのまま通った**。取引が終わって
+      窓口を閉じたつもりでも、相手は丸 1 日、進捗も成果物もモックも読み続けられる。
+
+    「失効させる」は、次のアクセスから効かなければ意味が無い。券は状態を持てない
+    ので、**招待の状態は毎回 DB に聞く**。1 リクエストにつき主キー 1 件の参照で、
+    これを惜しんで失効が効かないほうが高くつく。
+
+    プロジェクトごと消えた場合も同じ扱いにする (消えた案件の券が生き続けない)。
+
+    Raises:
+        ClientSigninError: invalid_client_token / invitation_revoked / expired。
+    """
+    invitation_id = str(claims.get("invitation_id", ""))
+    try:
+        uuid.UUID(invitation_id)
+    except ValueError as exc:
+        raise ClientSigninError("invalid_client_token", "missing invitation_id claim") from exc
+
+    factory = _service_session_factory()
+    async with factory() as session:
+        res = await session.execute(
+            text(
+                "select ci.revoked_at, (ci.expires_at <= now()) as is_expired, p.deleted_at "
+                "from public.client_invitations ci "
+                "join public.projects p on p.id = ci.project_id "
+                "where ci.id = cast(:i as uuid)"
+            ),
+            {"i": invitation_id},
+        )
+        row = res.first()
+    if row is None or row.deleted_at is not None:
+        raise ClientSigninError("invalid_client_token", "invitation or project is gone")
+    if row.revoked_at is not None:
+        raise ClientSigninError("invitation_revoked", "invitation was revoked")
+    if bool(row.is_expired):
+        raise ClientSigninError("expired", "invitation expired")
 
 
 async def preview_invitation(*, invitation_token: str) -> ClientInvitationPreview:

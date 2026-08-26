@@ -156,6 +156,9 @@ def two_projects(sync_engine: sqlalchemy.Engine) -> Iterator[dict[str, str]]:
     yield {
         "proj_a": proj_a,
         "proj_b": proj_b,
+        # GAP-227: 失効を「あとから」起こすテストのため、招待の id も渡す
+        "inv_a": inv_a,
+        "inv_b": inv_b,
         "token_a": token_a,
         "token_b": token_b,
         "token_expired": token_expired,
@@ -245,6 +248,70 @@ class TestClientSignin:
             assert r.status_code == 200, r.text
             assert r.json()["data"]["id"] == two_projects["proj_a"]
             assert r.json()["data"]["name"] == "Project A"
+
+    def test_失効させたら配布済みの券もその場で止まる(
+        self, app: FastAPI, two_projects: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-227 — 2026-08-26 の通し J24-02 で見つけた穴 (R-T08 隣接)。
+
+        券の検証は署名と有効期限しか見ていなかったので、招待を失効させても
+        **配布済みの券は TTL (24h) のあいだ通り続けた**。取引が終わって窓口を
+        閉じたつもりでも、相手は丸 1 日、進捗も成果物もモックも読めた。
+
+        「失効させる」は **次のアクセスから効く**のでなければ意味が無い。
+        """
+        with TestClient(app) as client:
+            tok = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
+            ).json()["data"]["client_access_token"]
+            h = {"Authorization": f"Bearer {tok}"}
+            # 失効前は読める (= 拒否が「全部ダメ」ではないことを先に示す)
+            assert (
+                client.get(f"/client/projects/{two_projects['proj_a']}", headers=h).status_code
+                == 200
+            )
+
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "update public.client_invitations set revoked_at = now() "
+                        "where id = cast(:i as uuid)"
+                    ),
+                    {"i": two_projects["inv_a"]},
+                )
+
+            # 同じ券で、同じ口を叩く
+            for path in (
+                f"/client/projects/{two_projects['proj_a']}",
+                f"/client/projects/{two_projects['proj_a']}/overview",
+                f"/client/projects/{two_projects['proj_a']}/outputs",
+                f"/client/projects/{two_projects['proj_a']}/mocks",
+                f"/client/projects/{two_projects['proj_a']}/comments",
+            ):
+                r = client.get(path, headers=h)
+                assert r.status_code == 401, f"{path} が失効後も通っている: {r.status_code}"
+                assert "取り消され" in r.json()["detail"], r.text
+
+    def test_案件ごと消えたら券も通らない(
+        self, app: FastAPI, two_projects: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-227: 案件が消えたのに、その案件の券が生き続けない。"""
+        with TestClient(app) as client:
+            tok = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
+            ).json()["data"]["client_access_token"]
+            h = {"Authorization": f"Bearer {tok}"}
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "update public.projects set deleted_at = now() where id = cast(:i as uuid)"
+                    ),
+                    {"i": two_projects["proj_a"]},
+                )
+            r = client.get(f"/client/projects/{two_projects['proj_a']}", headers=h)
+            assert r.status_code == 401, r.text
 
     def test_project_view_cross_project_403_RT08(
         self, app: FastAPI, two_projects: dict[str, str]
