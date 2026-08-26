@@ -168,18 +168,37 @@ async def _insert_mock(
     )
 
 
+class MockNameTaken(Exception):
+    """同じ project に同名の画面モックが既にある (→ 409)。
+
+    GAP-228 (2026-08-26 の通し J30-04 中に発見): 一意制約
+    `mocks_project_screen_version_uq` に当たると、ここで受け止めない限り
+    **500「サーバー側で問題が発生しました。時間をおいて…」** が返っていた。
+    原因は利用者の入力 (名前の重複) なので、時間をおいても直らない。
+    v2+ の同時改訂は既に IntegrityError → 409 にしていた (GAP-155) のに、
+    **v1 の新規作成だけが素通し**だった。"""
+
+    def __init__(self, screen_name: str) -> None:
+        super().__init__(screen_name)
+        self.screen_name = screen_name
+
+
 async def create_mock(session: AsyncSession, *, actor_id: str, data: MockCreate) -> MockResponse:
     new_id = str(uuid.uuid4())
-    await _insert_mock(
-        session,
-        mock_id=new_id,
-        project_id=data.project_id,
-        screen_name=data.screen_name,
-        html_storage_path=data.html_storage_path,
-        version=1,
-        parent_mock_id=None,
-        meta_tags=data.meta_tags,
-    )
+    try:
+        async with session.begin_nested():
+            await _insert_mock(
+                session,
+                mock_id=new_id,
+                project_id=data.project_id,
+                screen_name=data.screen_name,
+                html_storage_path=data.html_storage_path,
+                version=1,
+                parent_mock_id=None,
+                meta_tags=data.meta_tags,
+            )
+    except IntegrityError as exc:
+        raise MockNameTaken(data.screen_name) from exc
     await AuditWriter(session).write(
         AuditEvent(
             action="mock.create",

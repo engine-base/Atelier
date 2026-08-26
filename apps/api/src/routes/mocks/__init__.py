@@ -83,7 +83,15 @@ async def list_mocks(
 async def create_mock(
     body: MockCreate, session: SessionDep, user: UserDep
 ) -> dict[str, MockResponse]:
-    return {"data": await svc.create_mock(session, actor_id=user.id, data=body)}
+    try:
+        return {"data": await svc.create_mock(session, actor_id=user.id, data=body)}
+    except svc.MockNameTaken as exc:
+        # GAP-228: 名前の重複は利用者が直せる入力の問題 — 500 ではなく 409 で理由を言う
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"「{exc.screen_name}」という画面は既にあります。"
+            "別の名前にするか、既存の画面へ新しい版として追加してください。",
+        ) from exc
 
 
 @router.get("/mocks/{mock_id}", summary="モック詳細")

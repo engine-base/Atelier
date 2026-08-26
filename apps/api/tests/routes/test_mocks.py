@@ -25,6 +25,10 @@ PG_ASYNC = os.environ.get(
 PG_SYNC = PG_ASYNC.replace("+asyncpg", "+psycopg")
 JWT_SECRET = "test-jwt-secret"
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", JWT_SECRET)
+# revise の relay 経路は presence を DB に聞く。未設定だと presence 照会が
+# 設定エラーで落ち、bridge_offline (503) ではなく llm_failed (502) になる —
+# **他のテストが先に import されたときだけ通る**順序依存だった (2026-08-26 実測)。
+os.environ.setdefault("ATELIER_DB_URL", PG_ASYNC)
 
 import sqlalchemy  # noqa: E402
 from fastapi import Depends, FastAPI  # noqa: E402
@@ -366,7 +370,7 @@ class TestMocksCrud:
                 headers=h,
             ).json()["data"]["id"]
             r = client.post(f"/mocks/{mid}/revise", json={"instruction": "何か直して"}, headers=h)
-            assert r.status_code == 503
+            assert r.status_code == 503, r.text
             client.delete(f"/mocks/{mid}", headers=h)
 
     def test_revise_cross_workspace_404(
@@ -643,6 +647,34 @@ class TestGap155VersionGuard:
         # 「ほかの編集と同時に保存されたため…」)。意味は同じで、次の行動まで書く。
         assert "同時に保存された" in r.json()["detail"]
         assert "読み直して" in r.json()["detail"]
+
+    def test_同じ名前の画面を二度作ると409で理由が分かる(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-228 — 2026-08-26 の通し J30-04 中に発見。
+
+        一意制約 `mocks_project_screen_version_uq` に当たると、**500
+        「サーバー側で問題が発生しました。時間をおいて…」** が返っていた。
+        原因は利用者の入力 (名前の重複) なので、時間をおいても直らない。
+        v2+ の同時改訂は GAP-155 で 409 にしていたのに、v1 の新規作成だけが
+        素通しだった。
+        """
+        with TestClient(app) as client:
+            body = {
+                "project_id": seeded["proj_a"],
+                "screen_name": "GAP-228 重複画面",
+                "html_storage_path": "mocks/dup-1.html",
+            }
+            r1 = client.post("/mocks", json=body, headers=_h(seeded["u_a"]))
+            assert r1.status_code == 201, r1.text
+            r2 = client.post(
+                "/mocks",
+                json={**body, "html_storage_path": "mocks/dup-2.html"},
+                headers=_h(seeded["u_a"]),
+            )
+            assert r2.status_code == 409, f"500 に戻っている: {r2.status_code} {r2.text}"
+            assert "既にあります" in r2.json()["detail"]
+            assert "サーバー側で問題" not in r2.json()["detail"]
 
     def test_ingest_retries_and_takes_next_version(
         self, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
