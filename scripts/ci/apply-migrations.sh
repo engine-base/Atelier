@@ -29,14 +29,56 @@ if [ "${#files[@]}" -eq 0 ]; then
 fi
 applied=0
 skipped=0
+pending=()
 for f in "${files[@]}"; do
   if [ "$SCHEMA_ONLY" = "1" ] && head -5 "$f" | grep -q "@verification-only"; then
     echo "== skip (verification-only): $f"
     skipped=$((skipped + 1))
     continue
   fi
-  echo "== apply: $f"
-  psql "$PGURL" -v ON_ERROR_STOP=1 -q -f "$f"
-  applied=$((applied + 1))
+  pending+=("$f")
 done
-echo "== done: ${applied} applied / ${skipped} skipped (SCHEMA_ONLY=${SCHEMA_ONLY})"
+
+# GAP-220: 「依存が解けるまで」何周でも回す。
+#
+# ファイル名の辞書順と依存順は一致しない (gap-*.sql < t-d-*.sql)。1 周だけだと
+# **後から入った gap-* が土台の t-d-* より先に走って必ず失敗する**。実際 CI は
+# 2 本目の gap-131 が `relation "public.project_credentials" does not exist` で
+# 止まり、**Gate #14 (real-PG integration) と Gate #15 (browser E2E) は DB を
+# 用意できず、本体が一度も走っていなかった**。
+#
+# GAP-172 で dev-bootstrap.sh は同じ方式に直してあったが、**CI 側のこの
+# スクリプトは直し忘れていた**。同じ穴を 2 か所に空けたまま、ローカルだけ
+# 塞いでいた。
+#
+# 1 周で 1 本でも新しく通れば次の周でさらに通せる → 進捗ゼロになるまで繰り返す。
+# **最後まで通らなかったものは黙って飲み込まず、エラーを出して落とす**
+# (「skip した」で緑にすると、欠けた DB で緑になる — それが一番危ない)。
+round=0
+while [ "${#pending[@]}" -gt 0 ]; do
+  round=$((round + 1))
+  next=()
+  progress=0
+  for f in "${pending[@]}"; do
+    if psql "$PGURL" -v ON_ERROR_STOP=1 -q -f "$f" >/dev/null 2>&1; then
+      echo "== apply (round ${round}): $f"
+      applied=$((applied + 1))
+      progress=$((progress + 1))
+    else
+      next+=("$f")
+    fi
+  done
+  pending=("${next[@]+"${next[@]}"}")
+  [ "$progress" -eq 0 ] && break
+done
+
+if [ "${#pending[@]}" -gt 0 ]; then
+  echo "::error::${#pending[@]} 本の migration が適用できませんでした (${round} 周で収束せず)" >&2
+  for f in "${pending[@]}"; do
+    echo "-- $f" >&2
+    psql "$PGURL" -v ON_ERROR_STOP=1 -q -f "$f" 2>&1 >/dev/null | head -3 >&2
+  done
+  exit 1
+fi
+
+echo "== done: ${applied} applied / ${skipped} skipped (${round} 周で収束 / SCHEMA_ONLY=${SCHEMA_ONLY})"
