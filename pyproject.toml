@@ -24,6 +24,10 @@ extend-exclude = [
   "**/.next",
   "**/node_modules",
   "apps/api/src/_generated",
+  # GAP-211: .claude/skills/ はスキルの同梱物 (vendored)。中身は上流のもので、
+  # こちらのスタイル規約に合わせて書き換えると上流との差分になり、更新の取り込みが
+  # 壊れる。SKILL.md の方針だけをこちらで改訂し、同梱スクリプトは触らない。
+  ".claude/skills",
 ]
 
 [tool.ruff.lint]

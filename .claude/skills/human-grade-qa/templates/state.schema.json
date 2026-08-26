@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "human-grade-qa/state.schema.json",
+  "title": "QA Run State",
+  "type": "object",
+  "required": ["schema_version", "run_id", "project", "mode", "status", "totals", "features"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "run_id": { "type": "string" },
+    "project": { "type": "string" },
+    "mode": { "enum": ["full", "diff", "feature", "regression"] },
+    "started_at": { "type": ["string", "null"], "format": "date-time" },
+    "ended_at": { "type": ["string", "null"], "format": "date-time" },
+    "status": { "enum": ["draft", "approved", "in_progress", "paused", "completed", "aborted"] },
+    "totals": {
+      "type": "object",
+      "required": ["planned", "executed", "pass", "fail", "skip"],
+      "properties": {
+        "planned": { "type": "integer", "minimum": 0 },
+        "executed": { "type": "integer", "minimum": 0 },
+        "pass": { "type": "integer", "minimum": 0 },
+        "fail": { "type": "integer", "minimum": 0 },
+        "skip": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "status", "totals", "cases"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^F-\\d{2,}$" },
+          "name": { "type": "string" },
+          "status": { "enum": ["planned", "in_progress", "passed", "failed", "blocked", "skipped"] },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "planned": { "type": "integer" },
+              "pass": { "type": "integer" },
+              "fail": { "type": "integer" },
+              "skip": { "type": "integer" }
+            }
+          },
+          "cases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "title", "category", "severity", "status"],
+              "allOf": [
+                {
+                  "$comment": "捏造PASS防止: status=passed の TC は evidence に screenshots / network / db_checks のいずれか実体を持たねばならない。証拠の無い passed はスキーマ違反 = untested 扱いに落とす。",
+                  "if": {
+                    "properties": { "status": { "const": "passed" } },
+                    "required": ["status"]
+                  },
+                  "then": {
+                    "required": ["evidence"],
+                    "properties": {
+                      "evidence": {
+                        "type": "object",
+                        "anyOf": [
+                          { "properties": { "screenshots": { "type": "array", "minItems": 1 } }, "required": ["screenshots"] },
+                          { "properties": { "db_checks": { "type": "array", "minItems": 1 } }, "required": ["db_checks"] },
+                          { "properties": { "network": { "type": "string", "minLength": 1 } }, "required": ["network"] }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "$comment": "failed の TC は failure オブジェクトを必須化 (症状・再現が無い FAIL も無効)。",
+                  "if": {
+                    "properties": { "status": { "const": "failed" } },
+                    "required": ["status"]
+                  },
+                  "then": { "required": ["failure"] }
+                }
+              ],
+              "properties": {
+                "id": { "type": "string", "pattern": "^TC-F\\d{2,}-\\d{2,}(-FAIL-\\d{2,})?$" },
+                "title": { "type": "string", "description": "テスト項目（9列フォーマット）" },
+                "screen": { "type": "string", "description": "画面/機能（9列フォーマット）" },
+                "why": { "type": "string", "description": "なぜこのテストが必要か（リスク articulation）" },
+                "user_impact": { "type": "string", "description": "失敗時にユーザに起きる実害（例：コスト不正利用 / 表示崩れ / データ漏洩）" },
+                "root_cause_id": { "type": "string", "description": "失敗の根本原因クラスタ ID（同根の TC は同じ ID）" },
+                "category": { "enum": ["正常", "異常", "バリデーション", "境界", "権限", "復帰", "リグレ", "セキュリティ", "性能", "整合性"], "description": "テスト観点（9列フォーマット）" },
+                "preconditions": { "type": "string", "description": "前提条件（9列フォーマット）" },
+                "steps": { "type": "array", "items": { "type": "string" }, "description": "操作手順（9列フォーマット）" },
+                "expected": { "type": "string", "description": "期待結果（9列フォーマット）" },
+                "notes": { "type": "string", "description": "備考（9列フォーマット）" },
+                "severity": { "enum": ["P0", "P1", "P2"] },
+                "status": { "enum": ["planned", "running", "passed", "failed", "skipped", "blocked", "flaky"] },
+                "started_at": { "type": ["string", "null"], "format": "date-time" },
+                "ended_at": { "type": ["string", "null"], "format": "date-time" },
+                "duration_ms": { "type": ["integer", "null"] },
+                "automation": { "enum": ["chrome-mcp", "playwright", "curl", "db", "ios-sim", "android-emu", "manual", "human"] },
+                "evidence": {
+                  "type": "object",
+                  "properties": {
+                    "screenshots": { "type": "array", "items": { "type": "string" } },
+                    "network": { "type": ["string", "null"] },
+                    "db_checks": { "type": "array", "items": { "type": "string" } },
+                    "console": { "type": ["string", "null"] }
+                  }
+                },
+                "failure": {
+                  "type": ["object", "null"],
+                  "properties": {
+                    "summary": { "type": "string" },
+                    "repro_steps": { "type": "array", "items": { "type": "string" } },
+                    "expected": { "type": "string" },
+                    "actual": { "type": "string" },
+                    "hypothesis": { "type": "string" },
+                    "workaround": { "type": "string" },
+                    "screenshots": { "type": "array", "items": { "type": "string" } }
+                  }
+                },
+                "human_verified": { "type": "boolean" },
+                "notes": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "human_handoffs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^H-\\d{2,}$" },
+          "title": { "type": "string" },
+          "status": { "enum": ["pending", "requested", "answered", "skipped"] },
+          "requested_at": { "type": ["string", "null"], "format": "date-time" },
+          "answered_at": { "type": ["string", "null"], "format": "date-time" },
+          "result": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "verified"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^A-\\d{2,}$" },
+          "text": { "type": "string" },
+          "verified": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

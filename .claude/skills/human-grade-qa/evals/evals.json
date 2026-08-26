@@ -1,0 +1,41 @@
+{
+  "skill_name": "human-grade-qa",
+  "notes": "捏造PASS防止と層またぎ整合の強化を検証する。決定論的に確認できる挙動（schema/audit/render）を中心に置く。",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このプロジェクトをリリース前に徹底テストして。全機能を人間のように触って確認して。",
+      "expected_output": "full モードで起動→スキャン→9列粒度の計画を作って承認を取る。実行時は各 passed に screenshot/DB/network のいずれか証拠を残す。レポート前に scripts/audit_evidence.sh を通し、未証明PASSが無いことを確認してから final.{md,html,json} を生成する。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "（証拠ゼロの passed を含む state.json を渡して）この run のレポートを出して。",
+      "expected_output": "render_report.sh / audit_evidence.sh が未証明PASSを検出し、判定を BLOCK（信頼不可）にする。final.json.unproven_passes に該当TCが入り、final.html に⚠未証明バナーと証拠列が出る。捏造PASSを合格として通さない。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "管理画面の追加分だけテストして。",
+      "expected_output": "diff モードで影響範囲を算出しつつ、画面別TCに加えてセクションG（BE↔FE enum整合 / 全エンドポイントcurl / ナビ全リンクparam無し / リロード後セッション / フィルタ実効 / 作成→DB突合 / 集計vs実数 / マイグレーション列存在）を別建てで起こす。各passedに証拠を残す。",
+      "files": []
+    }
+  ],
+  "deterministic_checks": [
+    {
+      "name": "schema_rejects_evidenceless_pass",
+      "how": "state.schema.json は status=passed かつ evidence に screenshots/db_checks/network のいずれの実体も無いTCを拒否する（if/then + anyOf）。",
+      "verify": "ajv等で passed+evidence:{} の TC を検証 → invalid になること"
+    },
+    {
+      "name": "audit_detects_fabricated_pass",
+      "how": "scripts/audit_evidence.sh は証拠ゼロの passed を列挙し exit 2 を返す。全passedに証拠があれば exit 0。",
+      "verify": "合成 state で exit code を確認（本スキル更新時に手動実行済み: 検出=exit2 / 健全=exit0）"
+    },
+    {
+      "name": "render_blocks_on_unproven",
+      "how": "render_report.sh は未証明PASSが1件でもあると verdict=block（信頼不可）にし、final.json.unproven_passes と final.html バナーに出す。",
+      "verify": "合成 state で final.json.verdict=='block' かつ unproven_passes 非空（本更新時に確認済み）"
+    }
+  ]
+}

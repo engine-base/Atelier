@@ -1138,6 +1138,50 @@ jobs:
       - name: build + 流出検査
         run: python3 scripts/ci/check-client-leak.py --build
 
+  # ─────────────────────────────────────────────────────────
+  # Gate #17 — QA 正本の分母を守る (GAP-211)
+  #
+  # 2026-08-25、既に 834 項目あった正本を一度も開かず、自作スクリプトで 16 項目
+  # だけ実行して「一周した」と報告する事故が起きた。分母が人の頭の中にしか
+  # 無いと、「やった分」がそのまま「やるべき分」に化ける。
+  #
+  # ここが見るのは消化率そのものより **分母の健全性**:
+  #   - 画面を足したのに仕様書を足していない (= その画面は永久に検査圏外)
+  #   - 消化率が前より下がった (= 正本を消さずに実装だけ進めた)
+  # 「全部 PASS」でも分母が古ければ意味が無い、を機械で言い続けるための門。
+  # ─────────────────────────────────────────────────────────
+  gate-17-qa-coverage:
+    name: "Gate #17 — QA 正本の分母"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # 鮮度判定に git log を使う
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ env.PYTHON_VERSION }}" }
+      - name: 分母と消化率を出す
+        run: python3 scripts/ci/qa-coverage.py
+      - name: 仕様書の無い画面が増えていないか
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess, sys
+          r = json.loads(subprocess.run(
+              ["python3", "scripts/ci/qa-coverage.py", "--json"],
+              capture_output=True, text=True, check=True).stdout)
+          missing = r["screens"]["missing_spec"]
+          # 既知の未整備分。ここを増やす PR は落とす (減らす PR は歓迎)
+          KNOWN = {"IMPORT", "S-T07", "T-UC-35", "TEMPLATES"}
+          new = sorted(set(missing) - KNOWN)
+          if new:
+              print(f"::error::仕様書の無い画面が増えました: {', '.join(new)}")
+              print("画面を足したら .qa/test-specs/screens/<画面>.md も足してください。")
+              print("仕様書が無い画面は、どれだけ QA を回しても 1 行も検査されません。")
+              sys.exit(1)
+          gone = sorted(KNOWN - set(missing))
+          if gone:
+              print(f"::notice::仕様書が整備されました: {', '.join(gone)} — KNOWN から外してください")
+          print(f"OK: 未整備は既知の {len(missing)} 件のみ")
+          EOF
+
   aggregate-status:
     name: "v3-gate / all 10 gates"
     if: always()
@@ -1158,6 +1202,7 @@ jobs:
       - gate-14-real-pg
       - gate-15-browser-e2e
       - gate-16-client-leak
+      - gate-17-qa-coverage
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate gates
@@ -1179,6 +1224,7 @@ jobs:
             [gate-14-real-pg]="${{ needs.gate-14-real-pg.result }}"
             [gate-15-browser-e2e]="${{ needs.gate-15-browser-e2e.result }}"
             [gate-16-client-leak]="${{ needs.gate-16-client-leak.result }}"
+            [gate-17-qa-coverage]="${{ needs.gate-17-qa-coverage.result }}"
           )
           failed=0
           for gate in "${!results[@]}"; do
