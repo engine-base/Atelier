@@ -1621,6 +1621,8 @@ class Comment(BaseModel):
     target_element_id: str | None = None
     author_user_id: UUID | None = None
     author_invitation_id: UUID | None = None
+    author_name: str | None = None
+    is_client_author: bool | None = None
     content: str | None = None
     status: Status12 | None = None
     parent_comment_id: UUID | None = None

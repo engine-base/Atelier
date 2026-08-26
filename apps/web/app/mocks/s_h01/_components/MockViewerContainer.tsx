@@ -59,6 +59,8 @@ interface ApiComment {
   id: string;
   author_user_id?: string | null;
   author_invitation_id?: string | null;
+  author_name?: string | null;
+  is_client_author?: boolean;
   content: string;
   status?: string;
   parent_comment_id?: string | null;
@@ -422,6 +424,12 @@ export function MockViewerContainer({
     });
 
   const authorLabel = (c: ApiComment): string => {
+    // GAP-226: まず名前で呼ぶ。名前が引けたのに種別だけ出すと、窓口が 2 人いる
+    // 案件で **誰が言ったのか区別できない**。クライアント発であることは
+    // 名前のあとに添える (社内の書き込みと見分けるため)。
+    if (c.author_name) {
+      return c.is_client_author ? `${c.author_name}（クライアント）` : c.author_name;
+    }
     if (c.author_invitation_id) return "クライアント（招待）";
     if (c.author_user_id) return `メンバー ${c.author_user_id.slice(0, 8)}`;
     return "匿名";

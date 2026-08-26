@@ -19968,6 +19968,8 @@ export interface components {
             author_user_id?: string | null;
             /** Format: uuid */
             author_invitation_id?: string | null;
+            author_name?: string | null;
+            is_client_author?: boolean;
             content?: string;
             /** @enum {string} */
             status?: "open" | "resolved" | "deleted";

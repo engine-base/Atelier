@@ -1348,6 +1348,11 @@ components:
         target_element_id: { type: string, nullable: true }
         author_user_id: { type: string, format: uuid, nullable: true }
         author_invitation_id: { type: string, format: uuid, nullable: true }
+        # GAP-226: 書いた人の表示名。無いと画面は「クライアント（招待）」
+        # 「メンバー 8f3bbf48」としか出せず、窓口が複数いる案件で誰の発言か
+        # 区別できない。
+        author_name: { type: string, nullable: true }
+        is_client_author: { type: boolean }
         content: { type: string }
         status: { type: string, enum: [open, resolved, deleted] }
         parent_comment_id: { type: string, format: uuid, nullable: true }

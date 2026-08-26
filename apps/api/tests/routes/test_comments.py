@@ -218,6 +218,66 @@ class TestComments:
             )
             client.delete(f"/comments/{cid}", headers=ha)
 
+    def test_誰が書いたのかが名前で分かる(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-226 — 2026-08-26 の通し J23-02 で見つけた穴。
+
+        `/comments` は `author_user_id` / `author_invitation_id` (UUID) しか返して
+        いなかった。画面はそれを見て **「クライアント（招待）」**「メンバー
+        8f3bbf48」としか出せない。窓口が 2 人いる案件では **誰が言ったのか
+        区別できない**。
+
+        ここで固定するのは 3 つ:
+          1. 社内メンバーの書き込みは、その人の表示名で返る
+          2. クライアントの書き込みは、招待の表示名で返る
+          3. どちらの発言かを画面が見分けられる (`is_client_author`)
+        """
+        h = _h(seeded["u_a"])
+        tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set display_name = :n where id = :i"),
+                {"n": "社内の担当者", "i": seeded["u_a"]},
+            )
+        with TestClient(app) as client:
+            r = client.post("/comments", json={**tgt, "content": "社内から"}, headers=h)
+            assert r.status_code == 201, r.text
+            posted = r.json()["data"]
+            assert posted["author_name"] == "社内の担当者", posted
+            assert posted["is_client_author"] is False
+
+            got = client.get(f"/comments/{posted['id']}", headers=h).json()["data"]
+            assert got["author_name"] == "社内の担当者"
+
+            lst = client.get("/comments", params=tgt, headers=h).json()["data"]
+            mine = next(x for x in lst if x["id"] == posted["id"])
+            assert mine["author_name"] == "社内の担当者"
+            # UUID の断片で代用していない
+            assert seeded["u_a"][:8] not in (mine["author_name"] or "")
+
+    def test_名前が引けなくても行は消えない(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """名前を **left** join で引く理由を固定する。
+
+        inner join にすると「表示名が未設定の人のコメントが一覧から消える」。
+        誰の発言か分からないより、**発言そのものが消えるほうがずっと悪い**。
+        """
+        h = _h(seeded["u_a"])
+        tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set display_name = null where id = :i"),
+                {"i": seeded["u_a"]},
+            )
+        with TestClient(app) as client:
+            r = client.post("/comments", json={**tgt, "content": "名無しの書き込み"}, headers=h)
+            assert r.status_code == 201, r.text
+            assert r.json()["data"]["author_name"] is None
+            lst = client.get("/comments", params=tgt, headers=h).json()["data"]
+            assert any(x["content"] == "名無しの書き込み" for x in lst), "行が消えている"
+
     def test_unresolved_count_by_project(self, app: FastAPI, seeded: dict[str, str]) -> None:
         """GAP-005: プロジェクト横断の未解決コメント集計 (open のみ、解決/削除は除外)。"""
         ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])

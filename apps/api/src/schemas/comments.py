@@ -36,6 +36,14 @@ class CommentResponse(BaseModel):
     target_element_id: str | None
     author_user_id: str | None
     author_invitation_id: str | None
+    #: 書いた人の表示名 (GAP-226)。社内メンバーは表示名、クライアントは招待の表示名。
+    #:
+    #: これが無かったため、社内の画面は全員を **「クライアント（招待）」**、
+    #: 社内メンバーを **「メンバー 8f3bbf48」** (UUID の断片) としか出せなかった。
+    #: 1 つの案件に窓口が 2 人いると、**誰が言ったのか区別できない**。
+    author_name: str | None = None
+    #: クライアントからの書き込みか (社内の書き込みと見分けるため)。
+    is_client_author: bool = False
     content: str
     status: str
     parent_comment_id: str | None

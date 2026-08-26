@@ -21,8 +21,18 @@ from src.audit import AuditEvent, AuditWriter
 from src.schemas.comments import CommentCreate, CommentResponse, CommentUpdate
 
 _COLS = (
-    "id, target_type, target_id, target_element_id, author_user_id, author_invitation_id, "
-    "content, status, parent_comment_id, created_at, updated_at"
+    "c.id, c.target_type, c.target_id, c.target_element_id, c.author_user_id, "
+    "c.author_invitation_id, c.content, c.status, c.parent_comment_id, "
+    "c.created_at, c.updated_at, "
+    # GAP-226: 誰が書いたのかを名前で返す。無ければ null (画面が既定の呼び方に倒す)
+    "coalesce(u.display_name, i.client_display_name) as author_name"
+)
+
+#: 名前を引くための join。**left** join なので、名前が引けなくても行は消えない
+#: (消すと「誰か分からないコメントが一覧から消える」というもっと悪いことが起きる)。
+_AUTHOR_JOIN = (
+    "left join public.users u on u.id = c.author_user_id "
+    "left join public.client_invitations i on i.id = c.author_invitation_id "
 )
 
 
@@ -41,6 +51,8 @@ def _row_to_response(row: Any) -> CommentResponse:
         parent_comment_id=(None if row.parent_comment_id is None else str(row.parent_comment_id)),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        author_name=(None if row.author_name is None else str(row.author_name)),
+        is_client_author=row.author_invitation_id is not None,
     )
 
 
@@ -49,10 +61,11 @@ async def list_comments(
 ) -> list[CommentResponse]:
     res = await session.execute(
         text(
-            f"select {_COLS} from public.comments "
-            "where target_type = cast(:tt as comment_target_type_enum) "
-            "and target_id = cast(:tid as uuid) and deleted_at is null "
-            "order by created_at"
+            f"select {_COLS} from public.comments c "
+            + _AUTHOR_JOIN
+            + "where c.target_type = cast(:tt as comment_target_type_enum) "
+            "and c.target_id = cast(:tid as uuid) and c.deleted_at is null "
+            "order by c.created_at"
         ),
         {"tt": target_type, "tid": target_id},
     )
@@ -62,8 +75,9 @@ async def list_comments(
 async def get_comment(session: AsyncSession, comment_id: str) -> CommentResponse | None:
     res = await session.execute(
         text(
-            f"select {_COLS} from public.comments "
-            "where id = cast(:id as uuid) and deleted_at is null"
+            f"select {_COLS} from public.comments c "
+            + _AUTHOR_JOIN
+            + "where c.id = cast(:id as uuid) and c.deleted_at is null"
         ),
         {"id": comment_id},
     )
