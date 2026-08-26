@@ -35,6 +35,7 @@ from src.services import chat as svc
 from src.services import chat_relay as relay_status_svc
 from src.services.chat_sse import tools as tools_svc
 from src.storage_signing import StorageSigningError
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["chat"])
 
@@ -180,12 +181,12 @@ async def create_chat_attachment_upload_url(
         )
     except svc.ChatAttachmentError as exc:
         if exc.code == "unsupported_media_type":
-            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, exc.message) from exc
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -206,11 +207,11 @@ async def get_chat_attachment_url(
             session, message_id=message_id, index=attachment_index
         )
     except svc.ChatAttachmentError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のメッセージが見つかりません。")
     return {"data": result}

@@ -30,6 +30,7 @@ from src.schemas.public import (
 )
 from src.services import consents as consent_svc
 from src.services import public as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["public"])
 
@@ -137,8 +138,8 @@ async def accept_my_consent(
         )
     except consent_svc.ConsentError as exc:
         if exc.code == "version_mismatch":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, user_detail(exc)) from exc
     return {
         "data": ConsentStatusResponse(
             doc_type=status_row.doc_type,

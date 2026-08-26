@@ -11,6 +11,7 @@ JSON で encode、Content-Type: text/event-stream で配信。
 from __future__ import annotations
 
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Annotated, NoReturn
@@ -36,6 +37,9 @@ from src.schemas.chat_sse import (
 from src.services import chat_run as run_svc
 from src.services import chat_sse as svc
 from src.services.chat_sse import capacity, pc_approvals
+from src.user_messages import user_detail
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -168,9 +172,13 @@ async def stream_chat_thread(
     # 参照持ち込み = 可視性バイパスを拒否)
     for att in body.attachments:
         if not att.storage_path.startswith(f"chat-attachments/{thread_id}/"):
+            # GAP-225: 英語だったうえ、**送られてきたファイル名をそのまま返して
+            # いた** (GAP-222 と同じ、入力のエコーバック)。何が拒まれたかは
+            # サーバーログにだけ残す。
+            logger.warning("attachment outside thread %s rejected", thread_id)
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
-                f"attachment storage_path must belong to this thread: {att.file_name}",
+                "この会話に属さない添付は送信できません。",
             )
     gen = svc.stream_chat(
         session,
@@ -267,7 +275,7 @@ def _raise_run_error(exc: run_svc.RunControlError) -> NoReturn:
         "invalid_state": status.HTTP_409_CONFLICT,
         "too_many": status.HTTP_409_CONFLICT,
     }.get(exc.code, status.HTTP_400_BAD_REQUEST)
-    raise HTTPException(code, exc.message)
+    raise HTTPException(code, user_detail(exc))
 
 
 @router.get(

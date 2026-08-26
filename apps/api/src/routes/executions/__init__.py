@@ -23,6 +23,7 @@ from src.schemas.executions import (
     ExecutionTestResult,
 )
 from src.services import executions as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["executions"])
 
@@ -97,7 +98,7 @@ async def promote_dispatch(
     try:
         result = await svc.promote_next_queued(session, actor_id=user.id)
     except svc.DispatchOpsError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -111,7 +112,7 @@ async def cancel_task_dispatch(
     try:
         ok = await svc.cancel_queued_dispatch(session, actor_id=user.id, task_id=task_id)
     except svc.DispatchOpsError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": {"task_id": task_id, "dispatch_status": ""}}
@@ -127,7 +128,7 @@ async def stop_task_dispatch(
     try:
         ok = await svc.stop_dispatch(session, actor_id=user.id, task_id=task_id)
     except svc.DispatchOpsError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のタスクが見つかりません。")
     return {"data": {"task_id": task_id, "dispatch_status": "reclaimed"}}

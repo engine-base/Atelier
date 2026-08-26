@@ -104,6 +104,10 @@ async def create_schedule(
     try:
         created = await svc.create_schedule(session, actor_id=user.id, data=body)
     except CronExpressionError as exc:
+        # GAP-225: ここだけは例外の本文をそのまま返す。CronExpressionError は
+        # **利用者が書いた式のどこが悪いか**を日本語で指すために作られていて
+        # (「分の指定が空です: ''」)、置き換えると直し方が分からなくなる。
+        # 日本語であることは test_cron_messages_are_japanese.py が固定する。
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "自動実行の予定を作る権限がありません。")
@@ -134,6 +138,10 @@ async def update_schedule(
             session, actor_id=user.id, schedule_id=schedule_id, data=body
         )
     except CronExpressionError as exc:
+        # GAP-225: ここだけは例外の本文をそのまま返す。CronExpressionError は
+        # **利用者が書いた式のどこが悪いか**を日本語で指すために作られていて
+        # (「分の指定が空です: ''」)、置き換えると直し方が分からなくなる。
+        # 日本語であることは test_cron_messages_are_japanese.py が固定する。
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     if updated is None:
         raise HTTPException(

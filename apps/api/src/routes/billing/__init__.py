@@ -14,6 +14,7 @@ R-T08: workspace 系 endpoint は RLS session で workspace 可視性を確認�
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
@@ -32,6 +33,8 @@ from src.services.billing import (
     PortalCreateResponse,
     StripeApiError,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["billing"])
 
@@ -73,7 +76,8 @@ async def create_checkout(
     if not settings.stripe_secret_key:
         # GAP-206: 503 は理由つきで返す (画面が「PC 未接続」と誤読しないため)。
         raise service_unavailable(
-            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
+            "billing_unconfigured",
+            "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。",
         )
     # GAP-115: 登録済みメールを Stripe 決済画面に自動入力する (取得失敗時は
     # 未入力のまま = Stripe 側で入力させる誠実 fallback)
@@ -119,7 +123,8 @@ async def get_checkout_status(
     if not settings.stripe_secret_key:
         # GAP-206: 503 は理由つきで返す (画面が「PC 未接続」と誤読しないため)。
         raise service_unavailable(
-            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
+            "billing_unconfigured",
+            "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。",
         )
     try:
         checkout = await svc.retrieve_checkout_session(settings, session_id=session_id)
@@ -177,7 +182,8 @@ async def create_portal(
     if not settings.stripe_secret_key:
         # GAP-206: 503 は理由つきで返す。
         raise service_unavailable(
-            "billing_unconfigured", "Stripe is not configured (STRIPE_SECRET_KEY missing)"
+            "billing_unconfigured",
+            "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。",
         )
     customer_id = await svc.get_billing_customer_id(session, workspace_id=body.workspace_id)
     if customer_id is None:
@@ -190,7 +196,13 @@ async def create_portal(
     try:
         portal = await svc.create_billing_portal_session(settings, customer_id=customer_id)
     except StripeApiError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+        # GAP-225: str(exc) は "Stripe API error 500: <応答本文>"。
+        # **決済事業者の応答をそのまま利用者に見せていた**ので、ログに回す。
+        logger.error("Stripe portal session failed: %s", exc)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "決済サービスとのやり取りに失敗しました。時間をおいて、もう一度お試しください。",
+        ) from exc
     url = portal.get("url")
     if not isinstance(url, str) or not url:
         raise HTTPException(
@@ -210,7 +222,7 @@ async def stripe_webhook(
         # GAP-206: 503 は理由つきで返す。
         raise service_unavailable(
             "billing_unconfigured",
-            "Stripe webhook is not configured (STRIPE_WEBHOOK_SECRET missing)",
+            "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。",
         )
     payload = await request.body()
     if not svc.verify_webhook_signature(payload, stripe_signature, settings.stripe_webhook_secret):

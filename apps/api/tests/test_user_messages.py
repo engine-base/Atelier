@@ -16,7 +16,29 @@ from pathlib import Path
 import pytest
 
 from src.errors import UNHANDLED_MESSAGE
-from src.user_messages import LEGAL_DOC_NAMES, USER_MESSAGES, user_detail
+from src.user_messages import CLASS_MESSAGES, LEGAL_DOC_NAMES, USER_MESSAGES, user_detail
+
+#: 文言に出てよいラテン文字の語 → 画面のどこで使っているか。
+#:
+#: もともとこの検査は「ラテン文字を 1 文字も含まない」だった。内部の識別子や
+#: クラス名が紛れ込むのを防ぐための**代用**で、狙いとしては正しい。だが
+#: GAP-225 で文言を増やしたとき、**利用者が画面でそう呼んでいる語**まで弾いた
+#: (AI 社員 / PDF / Excel / Bridge)。「AI の処理に失敗しました」を
+#: 「人工知能の処理に…」と書き換えるのは、読みやすさを下げるだけで何も守らない。
+#:
+#: そこで代用をやめ、**内部の識別子そのもの**を狙って落とす形にする:
+#:   - snake_case (`byok_key` `terms_of_service` 等) は常に禁止
+#:   - 社内の管理番号 (GAP-xxx) も禁止
+#:   - それ以外のラテン語は、この表に載っているものだけ
+#: **空欄で増やさない。** 足すのは「画面にその表記で出ている語」だけ。
+_PRODUCT_WORDS: dict[str, str] = {
+    "AI": "「AI 社員」「AI の処理」— 画面・営業資料ともにこの表記",
+    "PDF": "成果物の形式。画面のダウンロード欄がこの表記",
+    "HTML": "同上",
+    "Excel": "同上",
+    "Bridge": "利用者の PC で動く常駐アプリの名前 (画面・設定でこの表記)",
+    "PC": "「お使いの PC」— 画面の案内でこの表記",
+}
 
 
 class _Exc:
@@ -69,13 +91,30 @@ def test_どの同意か分からないときは汎用文に倒す() -> None:
     assert user_detail(_Exc("consent_missing")) == USER_MESSAGES["consent_missing"]
 
 
+def _internal_words(text: str) -> list[str]:
+    """文言に混じった「内部の言葉」を返す (製品名として認めた語は除く)。"""
+    return [w for w in re.findall(r"[A-Za-z][A-Za-z_]*", text) if w not in _PRODUCT_WORDS]
+
+
 @pytest.mark.parametrize("code", sorted(USER_MESSAGES))
 def test_文言に英語の内部語が混じっていない(code: str) -> None:
     text = USER_MESSAGES[code]
     # code そのもの (snake_case の英語) が本文に出ていない
     assert code not in text
-    # ラテン文字を含まない = 内部の識別子やクラス名が紛れ込んでいない
-    assert not re.search(r"[A-Za-z]", text), f"{code}: 英字が混じっている — {text}"
+    assert not re.search(r"\b[a-z]+_[a-z_]+\b", text), f"{code}: 内部名が混じっている — {text}"
+    assert not re.search(r"\bGAP-\d+", text), f"{code}: 社内の管理番号が混じっている — {text}"
+    assert not _internal_words(text), f"{code}: 見慣れない英語が混じっている — {text}"
+
+
+@pytest.mark.parametrize(("key", "message"), sorted(CLASS_MESSAGES.items()))
+def test_クラス別の文言にも内部語が混じっていない(key: tuple[str, str], message: str) -> None:
+    assert not re.search(r"\b[a-z]+_[a-z_]+\b", message), f"{key}: 内部名が混じっている"
+    assert not _internal_words(message), f"{key}: 見慣れない英語が混じっている — {message}"
+
+
+def test_製品名の一覧に理由がある() -> None:
+    for word, reason in _PRODUCT_WORDS.items():
+        assert reason.strip(), f"{word}: 理由が空 — 空欄で許可を増やさない"
 
 
 @pytest.mark.parametrize("code", sorted(USER_MESSAGES))

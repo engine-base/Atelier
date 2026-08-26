@@ -34,6 +34,7 @@ from src.schemas.knowledge import (
     KnowledgeUpdate,
 )
 from src.services import knowledge as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["knowledge"])
 
@@ -243,7 +244,7 @@ async def approve_knowledge_candidate(
         )
     except auto_capture.CandidateError as exc:
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
-        raise HTTPException(code, exc.message) from exc
+        raise HTTPException(code, user_detail(exc)) from exc
     return {"data": {"knowledge_id": knowledge_id}}
 
 
@@ -260,7 +261,7 @@ async def reject_knowledge_candidate(
     try:
         await auto_capture.reject_candidate(session, actor_id=user.id, candidate_id=candidate_id)
     except auto_capture.CandidateError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

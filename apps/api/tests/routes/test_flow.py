@@ -356,7 +356,9 @@ def test_gap152_phase_lifecycle_freeze_and_new_round(app: FastAPI, seeded: dict[
         # confirm 無しの確定は 403 (成果物凍結 — 明示承認必須)
         r403 = client.post(f"/projects/{proj}/delivery-phases/{p1}/freeze", json={}, headers=h)
         assert r403.status_code == 403
-        assert "明示的に承認" in r403.json()["detail"]
+        # GAP-225: 文言は user_messages.py が一元管理する
+        assert "内容をご確認のうえ承認してください" in r403.json()["detail"]
+        assert "凍結" in r403.json()["detail"]
 
         # 確定 → フェーズ1 frozen + フェーズ2 active (フロー新周回も即初期化)
         r2 = client.post(

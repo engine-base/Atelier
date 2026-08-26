@@ -140,11 +140,10 @@ async def load_sheet(session: AsyncSession, *, output_id: str) -> SheetData:
             note="CSV を表として表示・編集します",
         )
     if mime == "application/pdf" or lower.endswith(".pdf"):
-        raise SheetError(
-            "unsupported",
-            "PDF はこの画面で表示できますが、直接の編集はできません。"
-            "修正は元の成果物を AI に直してもらってから出し直してください",
-        )
+        # GAP-225: 「表として扱えない」一般形と分けて持つ。route は文言を
+        # code から引くので、同じ code のままだと **PDF だけの案内 (見られるが
+        # 直せない・どう直すか) が消える**。
+        raise SheetError("pdf_view_only", "PDF は表として編集できない")
     raise SheetError("unsupported", f"この形式は表として扱えません ({mime})")
 
 
@@ -164,7 +163,7 @@ async def save_sheet(
         return None
     data = await load_sheet(session, output_id=output_id)
     if not data.editable:
-        raise SheetError("unsupported", "この成果物は編集できません")
+        raise SheetError("not_editable", "この成果物は編集できない形式")
     file_id = await store_file_service(
         data=rows_to_xlsx(sheets),
         mime=XLSX_MIME,

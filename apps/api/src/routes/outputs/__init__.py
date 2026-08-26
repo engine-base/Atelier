@@ -46,6 +46,7 @@ from src.services.mocks.artifacts import (
 from src.services.outputs import fix_proposals as fix_svc
 from src.services.outputs import revise as revise_svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["outputs"])
 
@@ -140,7 +141,7 @@ async def get_output_content_url(
     path = {"html": out.html_path, "json": out.json_path, "md": out.md_path}[format]
     if path is None:
         raise HTTPException(
-            status.HTTP_409_CONFLICT, f"output has no rendered {format.upper()} yet"
+            status.HTTP_409_CONFLICT, f"この成果物の {format.upper()} はまだ作成されていません。"
         )
     if path.startswith(MOCKDB_PREFIX) or path.startswith(FILEDB_PREFIX):
         # GAP-139/145: DB 内蔵ストア (HTML / バイナリ) は自己署名 URL で配信
@@ -155,8 +156,8 @@ async def get_output_content_url(
         url = await create_signed_download_url(path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": ContentUrlResponse(url=url)}
 
 
@@ -282,10 +283,10 @@ async def create_design_template_version(
         )
     except tmpl_svc.DesignTemplateError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise service_unavailable(exc.code, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
         if exc.code == "not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": created}
@@ -306,8 +307,8 @@ async def reset_design_template(
         )
     except tmpl_svc.DesignTemplateError as exc:
         if exc.code == "already_default":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のワークスペースが見つかりません。")
     return {"data": created}
@@ -422,12 +423,12 @@ async def diff_output_versions(
         )
     except diff_svc.VersionDiffError as exc:
         if exc.code in ("binary", "too_large"):
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {
         "data": VersionDiffResponse(
             from_id=from_out.id,
@@ -454,9 +455,16 @@ async def restore_output_version(
     try:
         created = await svc.restore_version(session, actor_id=user.id, output_id=output_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "この版は復元できません。復元できる本文があるか、すでに最新版でないかをご確認ください。",
+        ) from exc
     except svc.OutputVersionConflict as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ほかの編集と同時に保存されたため、反映できませんでした。"
+            "最新の内容を読み直してから、もう一度お試しください。",
+        ) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": created}
@@ -486,24 +494,24 @@ async def list_output_anchors(
         html = await diff_svc.load_text_content(out.html_path)
     except diff_svc.VersionDiffError as exc:
         if exc.code == "binary":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": revise_svc.extract_anchors(html)}
 
 
 def _raise_revise_error(exc: revise_svc.OutputReviseError) -> None:
     # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
     if exc.code in ("llm_unconfigured", "bridge_offline"):
-        raise service_unavailable(exc.code, exc.message) from exc
+        raise service_unavailable(exc.code, user_detail(exc)) from exc
     if exc.code == "too_large":
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, user_detail(exc)) from exc
     if exc.code == "no_html":
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-    raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+    raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
 
 
 @router.post(
@@ -521,14 +529,18 @@ async def revise_output(
         )
     except svc.OutputVersionConflict as exc:
         # GAP-155: 同時改訂の衝突は 409 で誠実に (lost update を隠さない)
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ほかの編集と同時に保存されたため、反映できませんでした。"
+            "最新の内容を読み直してから、もう一度お試しください。",
+        ) from exc
     except revise_svc.OutputReviseError as exc:
         _raise_revise_error(exc)
         raise  # unreachable — 型のため
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": created}
@@ -555,14 +567,17 @@ async def create_fix_proposal(
     try:
         created = await fix_svc.propose(session, actor_id=user.id, comment_id=comment_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "この修正案はすでに処理済みか、同じコメントに保留中の修正案があります。",
+        ) from exc
     except revise_svc.OutputReviseError as exc:
         _raise_revise_error(exc)
         raise
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
@@ -582,14 +597,18 @@ async def approve_fix_proposal(
     try:
         result = await fix_svc.approve(session, actor_id=user.id, proposal_id=proposal_id)
     except (ValueError, svc.OutputVersionConflict) as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ほかの編集と同時に保存されたため、反映できませんでした。"
+            "最新の内容を読み直してから、もう一度お試しください。",
+        ) from exc
     except revise_svc.OutputReviseError as exc:
         _raise_revise_error(exc)
         raise
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の修正案が見つかりません。")
     proposal, new_output = result
@@ -606,7 +625,10 @@ async def reject_fix_proposal(
     try:
         rejected = await fix_svc.reject(session, actor_id=user.id, proposal_id=proposal_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "この修正案はすでに処理済みか、同じコメントに保留中の修正案があります。",
+        ) from exc
     if rejected is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の修正案が見つかりません。")
     return {"data": rejected}
@@ -711,7 +733,7 @@ async def view_shared_output(token: str) -> HTMLResponse:
                 "gone": status.HTTP_410_GONE,
                 "no_html": status.HTTP_404_NOT_FOUND,
             }.get(exc.code, status.HTTP_404_NOT_FOUND)
-            raise HTTPException(code, exc.message) from exc
+            raise HTTPException(code, user_detail(exc)) from exc
         row = (
             await session.execute(
                 text(
@@ -749,7 +771,7 @@ async def export_output(
     try:
         html = await sharing.load_output_html(current.html_path)
     except sharing.ShareError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     name = (current.summary or current.stage or "output").replace("/", "_")[:60]
     if fmt == "html":
         return Response(
@@ -764,7 +786,7 @@ async def export_output(
     try:
         data = sharing.html_tables_to_xlsx(html, title=name)
     except sharing.ShareError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -791,7 +813,7 @@ async def get_output_sheet(
         data = await sheets_svc.load_sheet(session, output_id=output_id)
     except sheets_svc.SheetError as exc:
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
-        raise HTTPException(code, exc.message) from exc
+        raise HTTPException(code, user_detail(exc)) from exc
     return {
         "data": SheetResponse(
             file_name=data.file_name,
@@ -820,7 +842,7 @@ async def save_output_sheet(
         )
     except sheets_svc.SheetError as exc:
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT
-        raise HTTPException(code, exc.message) from exc
+        raise HTTPException(code, user_detail(exc)) from exc
     if new_id is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     created = await svc.get_output(session, new_id)
@@ -857,10 +879,10 @@ async def request_output_file_edit(
     except file_edit.FileEditError as exc:
         # GAP-206: 503 は理由つきで返す (画面が「未接続」と決めつけないため)。
         if exc.code == "bridge_offline":
-            raise service_unavailable(exc.code, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
         code = {
             "not_found": status.HTTP_404_NOT_FOUND,
             "unsupported": status.HTTP_409_CONFLICT,
         }.get(exc.code, status.HTTP_409_CONFLICT)
-        raise HTTPException(code, exc.message) from exc
+        raise HTTPException(code, user_detail(exc)) from exc
     return {"data": {"job_id": job_id}}

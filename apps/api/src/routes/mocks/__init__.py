@@ -39,6 +39,7 @@ from src.services.mocks.artifacts import (
     verify_content_token,
 )
 from src.storage_signing import StorageSigningError, create_signed_download_url
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["mocks"])
 
@@ -116,8 +117,8 @@ async def get_mock_content_url(
         url = await create_signed_download_url(mock.html_storage_path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": ContentUrlResponse(url=url)}
 
 
@@ -184,7 +185,10 @@ async def update_mock(
         updated = await svc.update_mock(session, actor_id=user.id, mock_id=mock_id, data=body)
     except svc.MockPhaseFrozen as exc:
         # GAP-152: 確定フェーズの成果物は不変
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。",
+        ) from exc
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "このモックを変更する権限がありません。")
     return {"data": updated}
@@ -199,7 +203,10 @@ async def delete_mock(mock_id: str, session: SessionDep, user: UserDep) -> None:
     try:
         ok = await svc.delete_mock(session, actor_id=user.id, mock_id=mock_id)
     except svc.MockPhaseFrozen as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。",
+        ) from exc
     if not ok:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "このモックを削除する権限がありません。")
 
@@ -225,7 +232,11 @@ async def create_version(
     try:
         created = await svc.create_version(session, actor_id=user.id, mock_id=mock_id, data=body)
     except svc.MockVersionConflict as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ほかの編集と同時に保存されたため、反映できませんでした。"
+            "最新の内容を読み直してから、もう一度お試しください。",
+        ) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
@@ -262,12 +273,12 @@ async def diff_mock_versions(
         )
     except diff_svc.VersionDiffError as exc:
         if exc.code in ("binary", "too_large"):
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {
         "data": VersionDiffResponse(
             from_id=from_mock.id,
@@ -348,8 +359,8 @@ async def generate_mock(
         )
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}
@@ -377,17 +388,17 @@ async def revise_mock(
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
             # GAP-138: Bridge オフラインも「実行経路が無い」— 黙って API 課金に落とさない
-            raise service_unavailable(exc.code, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
         if exc.code == "too_large":
-            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, user_detail(exc)) from exc
         if exc.code == "conflict":
             # GAP-155: 同時改訂の衝突は 409 で誠実に (lost update を隠さない)
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
@@ -438,7 +449,11 @@ async def duplicate_mock_version(
     try:
         created = await svc.duplicate_version(session, actor_id=user.id, mock_id=mock_id)
     except svc.MockVersionConflict as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "ほかの編集と同時に保存されたため、反映できませんでした。"
+            "最新の内容を読み直してから、もう一度お試しください。",
+        ) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": created}
@@ -454,7 +469,10 @@ async def discard_mock_version(
     try:
         ok = await svc.discard_version(session, actor_id=user.id, mock_id=mock_id)
     except (ValueError, svc.MockPhaseFrozen) as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。",
+        ) from exc
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     return {"data": {"mock_id": mock_id, "status": "discarded"}}

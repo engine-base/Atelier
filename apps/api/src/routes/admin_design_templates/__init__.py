@@ -22,6 +22,7 @@ from src.errors import service_unavailable
 from src.schemas.outputs import DesignTemplateCreateRequest, OutputDesignTemplateResponse
 from src.services import admin as admin_svc
 from src.services.outputs import templates as tmpl_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["admin-design-templates"])
 
@@ -91,10 +92,10 @@ async def create_platform_design_template_version(
             )
         except tmpl_svc.DesignTemplateError as exc:
             if exc.code in ("llm_unconfigured", "bridge_offline"):
-                raise service_unavailable(exc.code, exc.message) from exc
+                raise service_unavailable(exc.code, user_detail(exc)) from exc
             if exc.code == "not_found":
-                raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
-            raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+                raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
         await session.commit()
     if created is None:  # pragma: no cover - platform 経路は workspace 可視性に依存しない
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象が見つかりません。")

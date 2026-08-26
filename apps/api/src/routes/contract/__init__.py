@@ -23,6 +23,7 @@ from src.schemas.contract import (
     ScreenCoverageReport,
 )
 from src.services import contract as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["contract"])
 
@@ -67,10 +68,10 @@ async def freeze(
         result = await svc.freeze_contract(session, actor_id=user.id, note=body.note)
     except svc.ContractError as exc:
         if exc.code == "already_frozen":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
         if exc.code == "screen_coverage_lt_100":
-            raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -86,6 +87,6 @@ async def unfreeze(
         result = await svc.unfreeze_contract(session, actor_id=user.id, note=body.note)
     except svc.ContractError as exc:
         if exc.code == "not_frozen":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}

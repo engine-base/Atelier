@@ -26,6 +26,7 @@ from src.schemas.flow import (
 )
 from src.services import flow as svc
 from src.services.flow import phases as phases_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["flow"])
 
@@ -35,10 +36,10 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 def _raise(exc: svc.FlowError) -> None:
     if exc.code == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     if exc.code == "hard_gate":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, exc.message) from exc
-    raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+        raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
+    raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
 
 
 @router.get("/projects/{project_id}/flow", summary="プロジェクトフロー取得 (GAP-150)")
@@ -97,10 +98,10 @@ async def freeze_delivery_phase(
         )
     except phases_svc.PhaseError as exc:
         if exc.code == "not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
         if exc.code == "confirm_required":
-            raise HTTPException(status.HTTP_403_FORBIDDEN, exc.message) from exc
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+            raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     return {"data": phases}
 
 
@@ -184,7 +185,7 @@ async def ensure_stage_thread(
         )
     except svc.FlowError as exc:
         if exc.code == "no_employee":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
         _raise(exc)
         raise
     return {"data": {"thread_id": thread_id}}

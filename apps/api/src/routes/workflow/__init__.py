@@ -29,6 +29,7 @@ from src.schemas.workflow import (
 from src.services import workflow as svc
 from src.services.workflow import impact as impact_svc
 from src.services.workflow import proposals as proposals_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["workflow"])
 
@@ -83,7 +84,7 @@ async def update_phase(
         updated = await svc.update_phase(session, actor_id=user.id, phase_id=phase_id, data=body)
     except svc.WorkflowError as e:
         # GAP-004: 他 WS 社員の割当等は 422 (入力不正)
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, e.message) from e
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, user_detail(e)) from e
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "このフェーズを変更する権限がありません。")
     return {"data": updated}
@@ -123,12 +124,16 @@ async def create_phase_proposal(
     try:
         created = await proposals_svc.propose(session, actor_id=user.id, project_id=body.project_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "このプロジェクトには保留中のフェーズ提案がすでにあります。"
+            "先にその提案を承認または却下してください。",
+        ) from exc
     except proposals_svc.PhaseProposalError as exc:
         # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}
@@ -144,7 +149,7 @@ async def approve_phase_proposal(
     try:
         result = await proposals_svc.approve(session, actor_id=user.id, proposal_id=proposal_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, "この提案はすでに処理済みです。") from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズの提案が見つかりません。")
     proposal, phase = result
@@ -161,7 +166,7 @@ async def reject_phase_proposal(
     try:
         rejected = await proposals_svc.reject(session, actor_id=user.id, proposal_id=proposal_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, "この提案はすでに処理済みです。") from exc
     if rejected is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズの提案が見つかりません。")
     return {"data": rejected}
@@ -180,7 +185,10 @@ async def analyze_impact(
             session, actor_id=user.id, task_id=body.task_id, target_phase_id=body.target_phase_id
         )
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "移動先のフェーズが同じプロジェクトのものではありません。",
+        ) from exc
     if result is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "対象のタスクまたはフェーズが見つかりません。"
@@ -198,7 +206,7 @@ async def apply_impact(
     try:
         result = await impact_svc.apply(session, actor_id=user.id, analysis_id=analysis_id)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, "この影響分析はすでに適用済みです。") from exc
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の影響分析が見つかりません。")
     return {"data": result}

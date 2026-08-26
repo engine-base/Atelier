@@ -27,6 +27,7 @@ from src.services import sales_docs as svc
 from src.services.sales_docs import generate as gen_svc
 from src.services.sales_docs import pdf as pdf_svc
 from src.services.sales_docs import send as send_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["sales-docs"])
 
@@ -105,8 +106,8 @@ async def generate_sales_doc(
     except gen_svc.SalesDocGenerateError as exc:
         # GAP-171: Bridge 未接続も 503 — 画面 (GAP-168) が接続フローを出す条件
         if exc.code in ("llm_unconfigured", "bridge_offline"):
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のプロジェクトが見つかりません。")
     return {"data": created}

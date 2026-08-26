@@ -642,7 +642,8 @@ class TestGap155OutputsDiffRestore:
             with TestClient(app) as client:
                 r = client.get(f"/outputs/{b2}/diff/{b1}", headers=h)
                 assert r.status_code == 409
-                assert "バイナリ" in r.json()["detail"]
+                # GAP-225: 「バイナリ」は利用者の言葉ではないので使わない
+                assert "この形式のファイルは文章の差分を表示できません" in r.json()["detail"]
                 # 本文を持たない成果物 (seeded の out_a) は復元対象なし → 409
                 r2 = client.post(f"/outputs/{seeded['out_a']}/restore", headers=h)
                 assert r2.status_code == 409
@@ -1553,6 +1554,8 @@ class TestGap163SheetViewAndEdit:
                 r = client.get(f"/outputs/{oid}/sheet", headers=h)
                 assert r.status_code == 409
                 detail = r.json()["detail"]
+                # GAP-225: PDF だけの案内は他の「表として扱えない」形式と混ぜない
+                # (混ぜると「どう直すか」が消える)。code を分けて表から引く。
                 assert "PDF はこの画面で表示できます" in detail
                 assert "直接の編集はできません" in detail
                 # 表示自体は inline 配信で可能 (content-url → content)

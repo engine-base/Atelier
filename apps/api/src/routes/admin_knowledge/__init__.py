@@ -28,6 +28,7 @@ from src.schemas.knowledge_curation import (
 from src.services import admin as admin_svc
 from src.services import knowledge as kn
 from src.services.knowledge import curation as curation_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["admin-knowledge"])
 
@@ -139,12 +140,12 @@ async def delete_platform_knowledge(knowledge_id: str, user: UserDep) -> None:
 
 def _raise_curation(exc: curation_svc.CurationError) -> None:
     if exc.code == "llm_unconfigured":
-        raise service_unavailable(exc.code, exc.message) from exc
+        raise service_unavailable(exc.code, user_detail(exc)) from exc
     if exc.code == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     if exc.code in ("not_pending", "security"):
-        raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-    raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+    raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
 
 
 @router.post(

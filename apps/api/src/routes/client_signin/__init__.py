@@ -103,11 +103,7 @@ async def client_project_view(
     project_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, ClientProjectView]:
-    token = _extract_bearer(authorization)
-    try:
-        claims = svc.decode_client_token(token)
-    except svc.ClientSigninError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+    claims = await _client_claims(authorization)
     try:
         result = await svc.get_client_project(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
@@ -123,12 +119,19 @@ async def client_project_view(
 # GAP-029: S-L03 実コンテンツ (R-T08 経営者承認済)。全て client JWT 必須 +
 # project_id claim 一致 (越境 403)。read は view / 投稿は comment スコープ。
 # --------------------------------------------------------------------------- #
-def _client_claims(authorization: str | None) -> dict[str, Any]:
+async def _client_claims(authorization: str | None) -> dict[str, Any]:
+    """券を検証し、**招待が今も生きているか**まで見る (GAP-227)。
+
+    署名と有効期限だけを見ていた頃は、招待を失効させても配布済みの券が
+    24 時間通り続けた。失効は次のアクセスから効かなければ意味が無い。
+    """
     token = _extract_bearer(authorization)
     try:
-        return svc.decode_client_token(token)
+        claims = svc.decode_client_token(token)
+        await svc.assert_invitation_active(claims)
     except svc.ClientSigninError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+    return claims
 
 
 def _raise_content_error(exc: svc.ClientSigninError) -> None:
@@ -149,7 +152,7 @@ async def client_project_overview(
     project_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, ClientProjectOverview]:
-    claims = _client_claims(authorization)
+    claims = await _client_claims(authorization)
     try:
         result = await content_svc.get_overview(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
@@ -166,7 +169,7 @@ async def client_project_outputs(
     project_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, list[ClientOutputItem]]:
-    claims = _client_claims(authorization)
+    claims = await _client_claims(authorization)
     try:
         result = await content_svc.list_outputs(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
@@ -183,7 +186,7 @@ async def client_project_mocks(
     project_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, ClientMocksResponse]:
-    claims = _client_claims(authorization)
+    claims = await _client_claims(authorization)
     try:
         result = await content_svc.list_mocks(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
@@ -200,7 +203,7 @@ async def client_project_comments(
     project_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, list[ClientCommentItem]]:
-    claims = _client_claims(authorization)
+    claims = await _client_claims(authorization)
     try:
         result = await content_svc.list_comments(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
@@ -220,7 +223,7 @@ async def client_project_comment_create(
     body: ClientCommentCreate,
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict[str, ClientCommentItem]:
-    claims = _client_claims(authorization)
+    claims = await _client_claims(authorization)
     try:
         result = await content_svc.create_comment(
             claims=claims, requested_project_id=project_id, data=body

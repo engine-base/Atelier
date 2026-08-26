@@ -31,6 +31,12 @@ from sqlalchemy import event, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.auth_messages import (
+    AUTH_NOT_CONFIGURED,
+    SIGNIN_REQUIRED,
+    TOKEN_REJECTED,
+    log_token_rejection,
+)
 from src.db.session import shared_session_factory
 from src.txn_commit import current_rls_session
 
@@ -70,7 +76,8 @@ def decode_supabase_jwt(token: str, secret: str, *, now: int | None = None) -> C
     """
     parts = token.split(".")
     if len(parts) != 3:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "malformed token")
+        log_token_rejection("malformed token")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED)
     header_b64, payload_b64, sig_b64 = parts
 
     signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
@@ -78,29 +85,35 @@ def decode_supabase_jwt(token: str, secret: str, *, now: int | None = None) -> C
     try:
         provided = _b64url_decode(sig_b64)
     except (binascii.Error, ValueError) as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "malformed signature") from exc
+        log_token_rejection("malformed signature")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED) from exc
     if not hmac.compare_digest(expected, provided):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid token signature")
+        log_token_rejection("invalid signature")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED)
 
     try:
         payload: dict[str, object] = json.loads(_b64url_decode(payload_b64))
     except (ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "malformed payload") from exc
+        log_token_rejection("malformed payload")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED) from exc
 
     exp = payload.get("exp")
     current = int(time.time()) if now is None else now
     if isinstance(exp, int) and current >= exp:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "token expired")
+        log_token_rejection("expired")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED)
 
     sub = payload.get("sub")
     if not isinstance(sub, str) or not sub:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing sub claim")
+        log_token_rejection("missing sub")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED)
     role = payload.get("role")
     # R-T08: client_portal JWT (sub="client:<invitation_id>") は同一 secret で署名
     # されるため署名検証を通過してしまう。staff 経路では明示拒否しないと、後段の
     # uuid cast で 500 になる (design-audit S-L03 で検出した実バグ)。
     if role == "client_portal" or sub.startswith("client:"):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "client portal token is not valid here")
+        log_token_rejection("client portal token on staff route")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, TOKEN_REJECTED)
     return CurrentUser(
         id=sub,
         role=role if isinstance(role, str) else "authenticated",
@@ -115,13 +128,13 @@ async def get_current_user(
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
-            "missing bearer token",
+            SIGNIN_REQUIRED,
             headers={"WWW-Authenticate": "Bearer"},
         )
     token = authorization[len("bearer ") :].strip()
     secret = _auth_settings().jwt_secret
     if not secret:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "auth not configured")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, AUTH_NOT_CONFIGURED)
     return decode_supabase_jwt(token, secret)
 
 

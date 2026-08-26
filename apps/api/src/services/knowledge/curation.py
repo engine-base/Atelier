@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from typing import Any, Protocol
@@ -29,6 +30,8 @@ from src.audit import AuditEvent, AuditWriter
 from src.llm.client import LLMMessage
 from src.schemas.knowledge import KnowledgeCreate, KnowledgeResponse
 from src.schemas.knowledge_curation import CurationRunStats, KnowledgeCurationResponse
+
+logger = logging.getLogger(__name__)
 
 CURATION_MODEL = os.environ.get("ATELIER_CURATION_MODEL", "claude-sonnet-4-6")
 
@@ -184,9 +187,12 @@ async def _judge(
     if client is None and not os.environ.get("ANTHROPIC_API_KEY"):
         if os.environ.get("ATELIER_ALLOW_FAKE_LLM") == "1":
             return _fake_curation(title, content_md)
+        # GAP-225: どの env が欠けているかは**ログにだけ**書く。応答本文に
+        # 内部の識別子を載せない規則を、運営向けの画面でも同じにする。
+        logger.error("ANTHROPIC_API_KEY 未設定のためキュレーションを実行できない")
         raise CurationError(
             "llm_unconfigured",
-            "運営側の ANTHROPIC_API_KEY が未設定のためキュレーションを実行できません",
+            "運営側の AI の鍵が未設定のためキュレーションを実行できません",
         )
     if client is None:
         from src.llm.anthropic import AnthropicClient

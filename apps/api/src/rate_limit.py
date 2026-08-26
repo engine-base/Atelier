@@ -62,10 +62,16 @@ def _disabled() -> bool:
     return os.environ.get("ATELIER_RATE_LIMIT_DISABLED") == "1"
 
 
+#: 制限に掛かった人へ見せる文言 (GAP-225)。
+#: 「何秒待てばいいか」は Retry-After ヘッダで返しているが、**画面が読むのは
+#: detail** なので、待つという行動そのものを本文で伝える。
+RATE_LIMITED = "短い間に操作が集中しています。少し待ってから、もう一度お試しください。"
+
+
 def _reject(retry_after: float) -> HTTPException:
     return HTTPException(
         status.HTTP_429_TOO_MANY_REQUESTS,
-        "rate limit exceeded",
+        RATE_LIMITED,
         headers={"Retry-After": str(max(1, int(retry_after + 0.999)))},
     )
 

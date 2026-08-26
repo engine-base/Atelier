@@ -18,6 +18,7 @@ from src.schemas.client_invitations import (
     InvitationResponse,
 )
 from src.services import client_invitations as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["client-invitations"])
 
@@ -64,8 +65,8 @@ async def resend_invitation(
         resent = await svc.resend_invitation(session, actor_id=user.id, invitation_id=invitation_id)
     except svc.ResendError as e:
         if e.code == "not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, e.message) from e
-        raise HTTPException(status.HTTP_409_CONFLICT, e.message) from e
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(e)) from e
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(e)) from e
     return {"data": resent}
 
 

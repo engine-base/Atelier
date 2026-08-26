@@ -23,6 +23,7 @@ reveal はすべて audit_logs に記録する (誰がいつ復号したか)。
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from functools import lru_cache
@@ -49,6 +50,11 @@ _COLS = (
     "u.display_name AS created_by_name"
 )
 
+logger = logging.getLogger(__name__)
+
+#: 運営側の設定不備を利用者に伝える文言 (GAP-225)。原因は書かない。
+CONFIG_ERROR = "サーバー側の設定に問題があります。運営にお問い合わせください。"
+
 
 def vault_key_material(env: dict[str, str] | None = None) -> list[str]:
     """鍵素材を env から読む (先頭 = 暗号化用)。テスト可能な純粋部分。"""
@@ -68,15 +74,15 @@ def _fernet() -> MultiFernet:
     """
     keys = vault_key_material()
     if not keys:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "vault encryption key not configured"
-        )
+        # GAP-225: 利用者には「運営に連絡して」とだけ言う。どの env が
+        # 欠けているかは運営が知ればよいのでログに残す。
+        logger.error("vault の鍵 (ATELIER_VAULT_ENCRYPTION_KEY 系) が未設定")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR)
     try:
         return MultiFernet([Fernet(k.encode("ascii")) for k in keys])
     except (ValueError, TypeError) as exc:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "vault encryption key is invalid"
-        ) from exc
+        logger.error("vault の鍵の形式が不正")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR) from exc
 
 
 def encrypt_value(plaintext: str) -> str:
@@ -89,9 +95,8 @@ def decrypt_value(ciphertext: str) -> str:
     try:
         return _fernet().decrypt(ciphertext.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:  # pragma: no cover - 鍵入替や改竄の防御
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "vault decryption failed"
-        ) from exc
+        logger.error("vault の復号に失敗 (鍵の入替 or 改竄)")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR) from exc
 
 
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:

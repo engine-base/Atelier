@@ -406,7 +406,7 @@ def test_gap153_approve_publishes_platform_and_recheck(
         assert len(leaky_pending) == 1
         r409 = cl.post(f"/admin/knowledge/curation/{leaky_pending[0]['id']}/approve", headers=ha)
         assert r409.status_code == 409
-        assert "特定可能情報" in r409.json()["detail"]
+        assert "特定可能な情報" in r409.json()["detail"]
         after = cl.get(
             "/admin/knowledge/curation", params={"status": "rejected_security"}, headers=ha
         ).json()["data"]
@@ -430,4 +430,7 @@ def test_gap153_llm_unconfigured_503(
             headers=_h(seeded["admin"], admin=True),
         )
         assert r.status_code == 503
-        assert "ANTHROPIC_API_KEY" in r.json()["detail"]
+        # GAP-225: 環境変数の名前は**応答本文に載せない** (ログに残す)。
+    # 運営向けの画面でも規則を変えない — 例外を作ると検査が意味を失う。
+    assert "ANTHROPIC_API_KEY" not in r.json()["detail"]
+    assert "AI の鍵" in r.json()["detail"]

@@ -25,6 +25,7 @@ from src.storage_signing import (
     create_signed_upload_url,
     sanitize_object_filename,
 )
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["references"])
 
@@ -61,5 +62,5 @@ async def create_reference_upload_url(
         upload_url = await create_signed_upload_url(storage_path)
     except StorageSigningError as exc:
         # GAP-206: 保存先の未設定を「パソコン未接続」と誤読させないため理由を載せる。
-        raise service_unavailable(exc.code, str(exc)) from exc
+        raise service_unavailable(exc.code, user_detail(exc)) from exc
     return {"data": ReferenceUploadResponse(upload_url=upload_url, storage_path=storage_path)}

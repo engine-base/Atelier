@@ -639,7 +639,10 @@ class TestGap155VersionGuard:
                 headers=_h(seeded["u_a"]),
             )
             assert r.status_code == 409
-            assert "同時に改訂" in r.json()["detail"]
+            # GAP-225: 文言は user_messages.py が一元管理する (「同時に改訂されました」→
+        # 「ほかの編集と同時に保存されたため…」)。意味は同じで、次の行動まで書く。
+        assert "同時に保存された" in r.json()["detail"]
+        assert "読み直して" in r.json()["detail"]
 
     def test_ingest_retries_and_takes_next_version(
         self, seeded: dict[str, str], sync_engine: sqlalchemy.Engine

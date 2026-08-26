@@ -11,6 +11,7 @@ RLS は本人 (user_id = auth.uid()) のみ可視/編集可能、状態変更で
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from functools import lru_cache
@@ -26,21 +27,26 @@ from src.schemas.byok_keys import ByokKeyCreate, ByokKeyResponse, ByokKeyUpdate
 
 _COLS = "id, user_id, provider, key_label, is_active, created_at, updated_at"
 
+logger = logging.getLogger(__name__)
+
+#: 運営側の設定不備を利用者に伝える文言 (GAP-225)。原因は書かない。
+CONFIG_ERROR = "サーバー側の設定に問題があります。運営にお問い合わせください。"
+
 
 @lru_cache(maxsize=1)
 def _fernet() -> Fernet:
     """Fernet インスタンスを env から構築 (process 単位で 1 度)。"""
     raw = os.environ.get("ATELIER_BYOK_ENCRYPTION_KEY", "")
     if not raw:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "BYOK encryption key not configured"
-        )
+        # GAP-225: 利用者には「運営に連絡して」とだけ言う。**どの env が
+        # 欠けているか**は運営が知ればよいのでログに残す。
+        logger.error("ATELIER_BYOK_ENCRYPTION_KEY が未設定")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR)
     try:
         return Fernet(raw.encode("ascii"))
     except (ValueError, TypeError) as exc:
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "BYOK encryption key is invalid"
-        ) from exc
+        logger.error("ATELIER_BYOK_ENCRYPTION_KEY の形式が不正")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR) from exc
 
 
 def encrypt_key(plaintext: str) -> str:
@@ -53,9 +59,8 @@ def decrypt_key(ciphertext: str) -> str:
     try:
         return _fernet().decrypt(ciphertext.encode("ascii")).decode("utf-8")
     except InvalidToken as exc:  # pragma: no cover - 鍵入替や改竄の防御
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, "BYOK key decryption failed"
-        ) from exc
+        logger.error("BYOK の復号に失敗 (鍵の入替 or 改竄)")
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, CONFIG_ERROR) from exc
 
 
 def _row_to_response(row: Any) -> ByokKeyResponse:

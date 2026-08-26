@@ -81,7 +81,10 @@ async def update_task(
         updated = await svc.update_task(session, actor_id=user.id, task_id=task_id, data=body)
     except ValueError as exc:
         # GAP-025: 検証担当の WS 越境 (task の workspace 外の AI 社員) は 422
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "同じワークスペースの AI 社員のみ割り当てられます。",
+        ) from exc
     if updated is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "このタスクを変更する権限がありません。")
     return {"data": updated}

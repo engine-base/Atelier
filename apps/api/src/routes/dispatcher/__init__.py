@@ -55,6 +55,7 @@ from src.schemas.executions import BridgePingRequest
 from src.services import chat_relay as relay_svc
 from src.services.chat_relay import ChatRelayError
 from src.services.dispatcher import bridge_tools as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["kanban-tools"])
 
@@ -146,12 +147,18 @@ def _require_instance(identity: BridgeIdentity) -> None:
         )
 
 
-def _raise_for(code: str, message: str) -> NoReturn:
-    if code == "not_found":
-        raise HTTPException(status.HTTP_404_NOT_FOUND, message)
-    if code == "invalid_state":
-        raise HTTPException(status.HTTP_409_CONFLICT, message)
-    raise HTTPException(status.HTTP_400_BAD_REQUEST, message)
+def _raise_for(exc: svc.DispatcherError | ChatRelayError) -> NoReturn:
+    """service の失敗を HTTP にする。
+
+    GAP-225: 以前は `exc.message` をそのまま detail に入れていた。中身は
+    `task is not queued (dispatch_status=running)` のような内部の英語で、
+    Bridge の画面にそのまま出ていた。**文言は user_detail が一元管理する。**
+    """
+    if exc.code == "not_found":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc))
+    if exc.code == "invalid_state":
+        raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc))
+    raise HTTPException(status.HTTP_400_BAD_REQUEST, user_detail(exc))
 
 
 @router.post(
@@ -216,7 +223,7 @@ async def kanban_start(
             claude_code_session_id=body.claude_code_session_id,
         )
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -235,7 +242,7 @@ async def kanban_complete(
             auto_approve=body.auto_approve,
         )
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -252,7 +259,7 @@ async def kanban_request_review(
             note=body.note,
         )
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -269,7 +276,7 @@ async def kanban_request_change(
             reason=body.reason,
         )
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -281,7 +288,7 @@ async def kanban_heartbeat(
     try:
         result = await svc.heartbeat(session, task_id=body.task_id, worker_pid=body.worker_pid)
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -298,7 +305,7 @@ async def kanban_kill(
             reason=body.reason,
         )
     except svc.DispatcherError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": result}
 
 
@@ -361,7 +368,7 @@ async def chat_relay_chunks(
             kinds=list(body.kinds) if body.kinds is not None else None,
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": {"status": "ok"}}
 
 
@@ -434,7 +441,7 @@ async def chat_relay_create_approval(
             session, job_id=job_id, tool=body.tool, summary=body.summary
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": ChatRelayApprovalCreateResponse(approval_id=approval_id)}
 
 
@@ -454,7 +461,7 @@ async def chat_relay_approval_status(
             session, job_id=job_id, approval_id=approval_id
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {
         "data": ChatRelayApprovalStatusResponse(decision=decision)  # type: ignore[arg-type]
     }
@@ -483,7 +490,7 @@ async def chat_relay_workspace_seed(
             session, job_id=job_id, requester_user_id=_token.user_id
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     # GAP-169: seed には HTML (モック/mockdb 成果物) と base64 (添付・ファイル
     # 成果物 — GAP-161/166) の 2 種類が混ざる。html 決め打ちで組み立てていたため
     # base64 の項目が 1 つでも混ざると KeyError で 500 になり、**作業場 seed 全体が
@@ -532,7 +539,7 @@ async def chat_relay_artifacts(
             requester_user_id=_token.user_id,
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": [ChatRelayArtifactResult(**r) for r in results]}  # type: ignore[arg-type]
 
 
@@ -568,5 +575,5 @@ async def chat_relay_complete(
             worker_id=_token.user_id,
         )
     except ChatRelayError as exc:
-        _raise_for(exc.code, exc.message)
+        _raise_for(exc)
     return {"data": {"status": "ok"}}

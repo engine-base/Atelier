@@ -32,6 +32,7 @@ from src.schemas.workflow import PhaseProposalResponse
 from src.services import meetings as svc
 from src.services.meetings import adopt as adopt_svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["meetings"])
 
@@ -78,8 +79,8 @@ async def create_meeting_upload_url(
         )
     except svc.MeetingUploadError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -111,8 +112,8 @@ async def get_meeting_transcript_url(
         url = await create_signed_download_url(meeting.parse_result_path)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": ContentUrlResponse(url=url)}
 
 
@@ -174,7 +175,7 @@ def _raise_adopt_error(exc: adopt_svc.AdoptError) -> NoReturn:
         "invalid_state": status.HTTP_409_CONFLICT,
         "too_many": status.HTTP_409_CONFLICT,
     }.get(exc.code, status.HTTP_400_BAD_REQUEST)
-    raise HTTPException(code, exc.message)
+    raise HTTPException(code, user_detail(exc))
 
 
 @router.get(
@@ -278,9 +279,9 @@ async def propose_phase_from_meeting(
         ) from None
     except proposal_svc.PhaseProposalError as exc:
         if exc.code == "analysis_missing":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
         # GAP-206: 503 は理由つきで返す (bridge_offline / llm_unconfigured 等)。
-        raise service_unavailable(exc.code, exc.message) from exc
+        raise service_unavailable(exc.code, user_detail(exc)) from exc
     if created is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の議事録が見つかりません。")
     await session.commit()

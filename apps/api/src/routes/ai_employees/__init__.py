@@ -26,6 +26,7 @@ from src.schemas.ai_employees import (
 )
 from src.services import ai_employees as svc
 from src.storage_signing import StorageSigningError, create_signed_download_url
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["ai-employees"])
 
@@ -118,12 +119,12 @@ async def create_employee_icon_upload_url(
         )
     except svc.EmployeeIconError as exc:
         if exc.code == "unsupported_media_type":
-            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, exc.message) from exc
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, exc.message) from exc
+            raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, user_detail(exc)) from exc
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -152,8 +153,8 @@ async def get_employee_icon_url(
         url = await create_signed_download_url(emp.icon)
     except StorageSigningError as exc:
         if exc.code == "storage_unconfigured":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, user_detail(exc)) from exc
     return {"data": EmployeeIconUrlResponse(url=url)}
 
 
