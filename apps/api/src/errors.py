@@ -132,3 +132,79 @@ def service_unavailable(reason: str, message: str) -> HTTPException:
         message,
         headers={REASON_HEADER: reason},
     )
+
+
+# --------------------------------------------------------------------------- #
+# GAP-222: リクエストの形が合わないとき (422) の応答。
+#
+# FastAPI の既定は、**送られてきた本文をそのままエコーバックする**。
+# 実測 (2026-08-26 / 通し J10-02):
+#
+#   {"detail":[{"type":"missing","loc":["body","display_name"],"msg":"Field required",
+#               "input":{"email":"...","password":"Atelier-Journey-2026!"}}]}
+#
+# 登録フォームの必須項目が 1 つ欠けただけで、**利用者が入力したパスワードが
+# そのまま応答に載って返ってくる**。ブラウザの開発者ツール・プロキシ・
+# アクセスログ・エラー収集のどこに残ってもおかしくない。
+#
+# 加えて `msg` は英語 ("Field required" / "List should have at least 2 items")。
+# GAP-216/218 で route の文言は日本語に揃えたが、**この経路だけ素通りしていた**
+# — schema 検証は route に入る前に起きるので、あちらの網には掛からない。
+#
+# ここでは 3 つを守る:
+#   1. **入力値を返さない** (input / ctx を落とす)
+#   2. どの項目かは日本語の名前で伝える (利用者が直せるように)
+#   3. 何が悪いかも日本語で言う (英語の既定文をそのまま出さない)
+# --------------------------------------------------------------------------- #
+
+#: 内部のフィールド名 → 画面で使っている名前。
+#: 無いものは「入力内容」とだけ言う (内部名を出すくらいなら曖昧なほうがまし)。
+FIELD_NAMES: dict[str, str] = {
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "confirm": "パスワード確認",
+    "display_name": "表示名",
+    "consents": "同意",
+    "invitation_token": "招待リンク",
+    "name": "名前",
+    "title": "タイトル",
+    "body": "本文",
+    "reason": "理由",
+}
+
+#: pydantic の type → 日本語。網羅は狙わず、**英語を漏らさない**ことを狙う。
+_REASONS: dict[str, str] = {
+    "missing": "入力してください",
+    "string_too_short": "文字数が足りません",
+    "string_too_long": "文字数が多すぎます",
+    "too_short": "項目が足りません",
+    "too_long": "項目が多すぎます",
+    "value_error": "形式が正しくありません",
+    "string_pattern_mismatch": "形式が正しくありません",
+    "int_parsing": "数値で入力してください",
+    "bool_parsing": "はい / いいえ で指定してください",
+    "enum": "選べる値のいずれかを指定してください",
+    "json_invalid": "送信内容の形式が正しくありません",
+}
+
+
+def _field_label(loc: tuple[Any, ...] | list[Any]) -> str:
+    """`("body", "display_name")` → 「表示名」。分からなければ「入力内容」。"""
+    for part in reversed(list(loc)):
+        if isinstance(part, str) and part not in ("body", "query", "path", "header"):
+            return FIELD_NAMES.get(part, "入力内容")
+    return "入力内容"
+
+
+def validation_detail(errors: list[dict[str, Any]]) -> str:
+    """検証エラーの一覧を、利用者が読める 1 文にまとめる。"""
+    seen: list[str] = []
+    for err in errors:
+        label = _field_label(err.get("loc") or ())
+        reason = _REASONS.get(str(err.get("type") or ""), "内容を確認してください")
+        line = f"{label}: {reason}"
+        if line not in seen:
+            seen.append(line)
+    if not seen:
+        return "送信内容を確認してください。"
+    return "送信内容を確認してください（" + " / ".join(seen[:5]) + "）。"

@@ -8,19 +8,25 @@ OpenAPI 契約 (07_api_design/openapi.yaml) との drift は T-F-25 / T-F-26
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src import __version__
-from src.errors import REASON_HEADER, UnhandledErrorMiddleware
+from src.errors import REASON_HEADER, UnhandledErrorMiddleware, validation_detail
 from src.health import router as health_router
 from src.routes import api_router
 from src.txn_commit import CommitBeforeResponseMiddleware
+
+logger = logging.getLogger(__name__)
 
 # .env を os.environ に読み込む (既にある環境変数が常に優先)。
 # これまで DB 設定 (pydantic-settings) だけが .env を読み、CORS / LLM provider /
@@ -136,6 +142,27 @@ app.add_middleware(
 # yield 依存の teardown commit はレスポンス送信後のため、直後のリクエストが
 # 未コミット行を読めない race があった (S-H01 design-audit で検出)。
 app.add_middleware(CommitBeforeResponseMiddleware)
+
+
+# GAP-222: リクエストの形が合わないときの 422。
+#
+# FastAPI の既定は **送られてきた本文をそのままエコーバックする** ので、
+# 登録フォームの必須項目が 1 つ欠けただけで、利用者が入力したパスワードが
+# 応答に載って返ってくる (2026-08-26 の通し J10-02 で実測)。
+# `msg` も英語のまま — schema 検証は route に入る前に起きるので、
+# GAP-216/218 で route 側に張った網には掛からない。
+#
+# 入力値を返さず、日本語で「どの項目が・どう悪いか」だけを伝える。
+# 詳しい内容はサーバーログにだけ残す。
+@app.exception_handler(RequestValidationError)
+async def _on_validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = cast("list[dict[str, Any]]", exc.errors())
+    logger.warning("request validation failed: %s", [e.get("loc") for e in errors])
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": validation_detail(errors)},
+    )
+
 
 app.include_router(health_router)
 app.include_router(api_router)
