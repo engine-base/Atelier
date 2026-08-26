@@ -48,6 +48,10 @@ SCREEN_EXEMPT = {
 _PASS = re.compile(r"\b(PASS|FIXED)\b|完了")
 _BLOCKED = re.compile(r"\bBLOCKED\b")
 _FAIL = re.compile(r"\b(FAIL|NG)\b")
+#: GAP-211: 実行場所の分離。yes = AI 実行基盤 (Bridge + 利用者の Claude 契約) が要る行。
+#: この環境で走らせられないものを「対象外」と消さず、残件として数え続けるための印。
+_AI_YES = re.compile(r"ai_required\s*=\s*yes")
+_AI_NO = re.compile(r"ai_required\s*=\s*no")
 _TC_ROW = re.compile(r"^\|\s*([A-Z][A-Z0-9]*-[0-9v][A-Za-z0-9-]*)\s*\|")
 
 
@@ -80,7 +84,20 @@ def count_rows(paths: list[Path]) -> dict[str, int]:
     2026-08-25、決め打ちのせいで 287 行を「未判定」と誤って数え、
     「37% が未判定」という誤った報告をした。**位置ではなく名前で引く。**
     """
-    tally = {"passed": 0, "blocked": 0, "failed": 0, "planned": 0, "total": 0, "unreadable": 0}
+    tally = {
+        "passed": 0,
+        "blocked": 0,
+        "failed": 0,
+        "planned": 0,
+        "total": 0,
+        "unreadable": 0,
+        "ai_yes": 0,
+        "ai_no": 0,
+        "ai_untagged": 0,
+        "ai_yes_planned": 0,
+        "canonical": 0,
+        "supplementary": 0,
+    }
     for p in paths:
         idx: int | None = None  # 現在の表の結果列。表が変わるたびに引き直す
         for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -96,6 +113,19 @@ def count_rows(paths: list[Path]) -> dict[str, int]:
                         break
                 continue
             tally["total"] += 1
+            # 鉄則3: 納品物 (2 系統 xlsx) に載るのは 9 列の正本フォーマットの行だけ。
+            # 補助表 (5/6/7 セル) の行は検証記録としては在るが **成果物に載らない**。
+            # 「記録はしたが誰も受け取れない」を可視化するために数を分ける。
+            if len(cells) == 11:
+                tally["canonical"] += 1
+            else:
+                tally["supplementary"] += 1
+            if _AI_YES.search(line):
+                tally["ai_yes"] += 1
+            elif _AI_NO.search(line):
+                tally["ai_no"] += 1
+            else:
+                tally["ai_untagged"] += 1
             result = cells[idx] if idx is not None and idx < len(cells) else None
             if result is None:
                 # 結果列を名前で見つけられなかった表。黙って planned に混ぜず、別に数える
@@ -109,6 +139,8 @@ def count_rows(paths: list[Path]) -> dict[str, int]:
                 tally["passed"] += 1
             else:
                 tally["planned"] += 1
+                if _AI_YES.search(line):
+                    tally["ai_yes_planned"] += 1
     return tally
 
 
@@ -216,6 +248,13 @@ def main() -> int:
             f"  画面別 TC   PASS {s['passed']:4} / 未判定 {s['planned']:4}"
             f" / BLOCKED {s['blocked']:3} / FAIL {s['failed']:3}  = 全 {s['total']}"
         )
+        if s["supplementary"]:
+            print(
+                f"  ⚠ 9 列の正本フォーマットでない行が {s['supplementary']} 件"
+                f" (正本 {s['canonical']} 件)"
+            )
+            print("     → build_xlsx.py が拾わないため **納品物の xlsx に載らない**。")
+            print("        検証記録としては在るが受け取り手に届かない (鉄則3: 正本は1冊)")
         if s["unreadable"]:
             print(
                 f"  ⚠ 結果列を特定できない行が {s['unreadable']} 件 (表のヘッダーに「結果」が無い)"
@@ -230,6 +269,13 @@ def main() -> int:
             print(
                 f"  ⚠ AI 正本の最終更新以降に AI 側の変更が {a['changes_since']} commit 入っている"
             )
+        print()
+        ay = s["ai_yes_planned"] + a["ai_yes_planned"]
+        print(
+            f"  残件の実行場所   この環境で消化できる {r['denominator'] - r['consumed'] - ay:4} 件"
+            f" / AI 実行基盤が要る {ay:4} 件"
+        )
+        print("     → 後者は Mac (Bridge + 本人の Claude 契約) 側。対象外にせず BLOCKED で残す")
         print()
         print(f"  消化率  {r['consumed']} / {r['denominator']} = {r['rate']}%")
         print()

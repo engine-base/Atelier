@@ -1169,7 +1169,7 @@ jobs:
               capture_output=True, text=True, check=True).stdout)
           missing = r["screens"]["missing_spec"]
           # 既知の未整備分。ここを増やす PR は落とす (減らす PR は歓迎)
-          KNOWN = {"IMPORT", "S-T07", "T-UC-35", "TEMPLATES"}
+          KNOWN: set[str] = set()   # GAP-211 で 4 画面を整備済み。ここを増やす PR は落とす
           new = sorted(set(missing) - KNOWN)
           if new:
               print(f"::error::仕様書の無い画面が増えました: {', '.join(new)}")
