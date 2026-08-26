@@ -109,11 +109,28 @@ end $$;
 -- =============================================================================
 alter table public.client_invitations enable row level security;
 
+-- GAP-224: この default-deny は **T-D-93 が本物の policy を置くまでの仮の蓋**。
+--
+-- 条件が「同名の policy が無ければ作る」だったため、T-D-93 がこれを drop して
+-- 4 本の member policy を置いたあとに、このファイルがもう一度流れると
+-- **仮の蓋が復活して表を完全に塞いでいた**。restrictive + for all + using(false)
+-- なので、permissive な policy が何本あっても AND で全部 false になる。
+--
+-- 再適用は普通に起きる: `scripts/dev-bootstrap.sh` は列レベル REVOKE が一括 GRANT に
+-- 打ち消されるのを補うため、**revoke を含む migration を最後にもう一度流す** (GAP-172)。
+-- このファイルは revoke を含むので、その対象に入っていた。
+--
+-- 実測 (2026-08-26 / 通し J20-01): ローカル環境でクライアント招待を発行しようとすると
+-- `new row violates row-level security policy "client_invitations_default_deny"` で 500。
+-- 一覧も、service 経路では 1 件見えるのに **オーナー本人からは 0 件**だった。
+--
+-- 条件を「policy が 1 本も無いときだけ」に変える。本物の policy が既にあるなら
+-- 蓋をし直さない。本番 (`scripts/ci/apply-migrations.sh`) は再適用パスを持たないため
+-- 影響を受けていなかった。
 do $$
 begin
   if not exists (select 1 from pg_policies
     where schemaname='public' and tablename='client_invitations'
-      and policyname='client_invitations_default_deny'
   ) then
     create policy client_invitations_default_deny on public.client_invitations
       as restrictive for all to public using (false);
