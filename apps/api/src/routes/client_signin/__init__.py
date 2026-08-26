@@ -31,6 +31,7 @@ from src.schemas.client_signin import (
 )
 from src.services import client_signin as svc
 from src.services.client_signin import content as content_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["client-portal"])
 
@@ -61,10 +62,10 @@ async def client_invitation_preview(
         result = await svc.preview_invitation(invitation_token=body.invitation_token)
     except svc.ClientSigninError as exc:
         if exc.code == "invalid_token":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "expired":
-            raise HTTPException(status.HTTP_410_GONE, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_410_GONE, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -85,12 +86,12 @@ async def client_signin(
         )
     except svc.ClientSigninError as exc:
         if exc.code == "invalid_token":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "expired":
-            raise HTTPException(status.HTTP_410_GONE, exc.message) from exc
+            raise HTTPException(status.HTTP_410_GONE, user_detail(exc)) from exc
         if exc.code == "consent_required":
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -106,15 +107,15 @@ async def client_project_view(
     try:
         claims = svc.decode_client_token(token)
     except svc.ClientSigninError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
     try:
         result = await svc.get_client_project(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
         if exc.code == "cross_project":
-            raise HTTPException(status.HTTP_403_FORBIDDEN, exc.message) from exc
+            raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
         if exc.code == "project_not_found":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -127,17 +128,17 @@ def _client_claims(authorization: str | None) -> dict[str, Any]:
     try:
         return svc.decode_client_token(token)
     except svc.ClientSigninError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
 
 
 def _raise_content_error(exc: svc.ClientSigninError) -> None:
     if exc.code in ("cross_project", "forbidden_scope"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, exc.message) from exc
+        raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
     if exc.code in ("project_not_found", "target_not_found"):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+        raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     if exc.code == "invalid_client_token":
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+    raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
 
 
 @router.get(

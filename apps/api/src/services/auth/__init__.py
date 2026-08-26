@@ -63,12 +63,18 @@ def _normalize_ip(ip: str | None) -> str | None:
 
 
 class SignupError(Exception):
-    """signup 操作で構造的に失敗 (重複 email / consents 未満 / Supabase API)。"""
+    """signup 操作で構造的に失敗 (重複 email / consents 未満 / Supabase API)。
 
-    def __init__(self, code: str, message: str) -> None:
+    `subject` は「何について失敗したか」(例: 足りない同意の種類)。route が
+    利用者向けの文言を組み立てるのに使う — 英語の `message` を画面に出さず、
+    かつ「どれが足りないか」という情報だけは落とさないため (GAP-216)。
+    """
+
+    def __init__(self, code: str, message: str, subject: str | None = None) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
+        self.subject = subject
 
 
 _REQUIRED_CONSENT_TYPES = ("terms_of_service", "privacy_policy")
@@ -82,6 +88,7 @@ def _validate_consents(consents: list[ConsentEntry]) -> None:
             raise SignupError(
                 "consent_missing",
                 f"{required} must be accepted",
+                subject=required,
             )
 
 

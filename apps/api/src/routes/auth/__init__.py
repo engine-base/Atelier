@@ -45,6 +45,7 @@ from src.schemas.auth import (
 )
 from src.services import auth as svc
 from src.services.auth import oauth as oauth_svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["auth"])
 
@@ -61,10 +62,10 @@ async def signup(body: SignupRequest, request: Request) -> dict[str, SignupRespo
         result = await svc.signup(data=body, ip_address=ip, user_agent=ua)
     except svc.SignupError as exc:
         if exc.code == "consent_missing":
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.message) from exc
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, user_detail(exc)) from exc
         if exc.code == "email_taken":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -85,10 +86,10 @@ async def signin(body: SigninRequest, request: Request) -> dict[str, SigninRespo
         )
     except svc.SigninError as exc:
         if exc.code == "invalid_credentials":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "locked":
-            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -130,8 +131,8 @@ async def magic_link_verify(
         )
     except svc.MagicLinkError as exc:
         if exc.code == "invalid_token":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -148,8 +149,8 @@ async def oauth_redirect(
         )
     except svc.MagicLinkError as exc:
         if exc.code == "unknown_provider":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {
         "data": OAuthRedirectResponse(authorize_url=authorize_url, state=state, provider=provider)
     }
@@ -177,8 +178,8 @@ async def oauth_start(provider: OAuthProvider) -> RedirectResponse:
         authorize_url = oauth_svc.build_authorize_url(provider)
     except oauth_svc.OAuthError as exc:
         if exc.code == "provider_disabled":
-            raise service_unavailable(exc.code, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise service_unavailable(exc.code, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return RedirectResponse(authorize_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -199,7 +200,7 @@ async def oauth_callback(
     try:
         oauth_svc._require_enabled(provider)  # pyright: ignore[reportPrivateUsage]
     except oauth_svc.OAuthError as exc:
-        raise service_unavailable(exc.code, exc.message) from exc
+        raise service_unavailable(exc.code, user_detail(exc)) from exc
 
     # プロバイダ側でユーザーが拒否した等 → web に誠実にエラー表示
     if error:
@@ -213,7 +214,7 @@ async def oauth_callback(
     try:
         oauth_svc.verify_state(state, provider=provider)
     except oauth_svc.OAuthError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, user_detail(exc)) from exc
 
     try:
         identity = await oauth_svc.fetch_identity(provider, code=code)
@@ -221,12 +222,12 @@ async def oauth_callback(
     except oauth_svc.OAuthError as exc:
         if exc.code == "email_unverified":
             # email 不在 / 未検証で偽アカウントを作らない
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, exc.message) from exc
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, user_detail(exc)) from exc
         if exc.code in ("exchange_failed", "account_inactive"):
             return RedirectResponse(
                 oauth_svc.error_redirect_url(exc.code), status_code=status.HTTP_302_FOUND
             )
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
 
     return RedirectResponse(
         oauth_svc.complete_redirect_url(result), status_code=status.HTTP_302_FOUND
@@ -264,8 +265,8 @@ async def password_reset_confirm(
         )
     except svc.PasswordResetError as exc:
         if exc.code == "invalid_token":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -280,8 +281,8 @@ async def auth_refresh(body: RefreshRequest, request: Request) -> dict[str, Refr
         )
     except svc.PasswordResetError as exc:
         if exc.code == "invalid_refresh":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
 
@@ -337,12 +338,12 @@ async def account_delete(
     except svc.SigninError as exc:
         # password 不一致 → 401
         if exc.code == "invalid_credentials":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     except svc.AccountError as exc:
         if exc.code == "not_found_or_already_deleted":
-            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {
         "data": AccountDeleteResponse(
             user_id=user.id,
@@ -367,12 +368,12 @@ async def account_restore(
         )
     except svc.SigninError as exc:
         if exc.code == "invalid_credentials":
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     except svc.AccountError as exc:
         if exc.code == "no_pending_deletion":
-            raise HTTPException(status.HTTP_404_NOT_FOUND, exc.message) from exc
+            raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
         if exc.code == "window_expired":
-            raise HTTPException(status.HTTP_410_GONE, exc.message) from exc
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, exc.message) from exc
+            raise HTTPException(status.HTTP_410_GONE, user_detail(exc)) from exc
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": AccountRestoreResponse(user_id=uid, restored_at=restored_at)}

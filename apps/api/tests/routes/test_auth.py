@@ -226,7 +226,11 @@ class TestAuthSignup:
                 },
             )
             assert r.status_code == 422
-            assert "terms_of_service" in r.json()["detail"]
+            # GAP-216: 画面に出る文言なので内部名 (terms_of_service) は載せない。
+            # 「どの同意が足りないか」という情報は日本語の文書名で残す。
+            detail = r.json()["detail"]
+            assert "利用規約" in detail
+            assert "terms_of_service" not in detail
 
     def test_signup_terms_rejected_returns_422(
         self, app: FastAPI, created_emails: list[str]
