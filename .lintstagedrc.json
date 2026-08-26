@@ -3,8 +3,8 @@
     "pnpm --filter @atelier/web exec next lint --fix --file"
   ],
   "*.py": [
-    "uv tool run ruff check --fix",
-    "uv tool run ruff format"
+    "uv tool run ruff@0.8.4 check --fix",
+    "uv tool run ruff@0.8.4 format"
   ],
   "*.{json,md,yml,yaml}": []
 }

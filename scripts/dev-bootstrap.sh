@@ -107,11 +107,17 @@ SQL
 apply_role_grants() {
   PGPASSWORD="$DB_PASS" psql -h "$PGHOST" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -q <<'SQL'
 grant usage on schema public to authenticated, anon, service_role;
-grant all on all tables in schema public to authenticated, service_role;
+-- GAP-221: 本番 (Supabase) がアプリ用ロールに与えるのは select/insert/update/delete
+-- までで、**TRUNCATE は含まない**。ここで `grant all` を流していたため、ローカルだけ
+-- 本番より広い権限になっていた。実測で、一般利用者のロールが RLS default deny の
+-- 表を「読めないのに TRUNCATE で全消去できる」状態を確認した (TRUNCATE は RLS の
+-- 対象外)。scripts/ci/pg-bootstrap.sql と同じ範囲に揃える —
+-- **ローカルで通ったことが本番で通る保証**にするためでもある。
+grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
 grant select on all tables in schema public to anon;
-grant all on all sequences in schema public to authenticated, service_role;
-alter default privileges in schema public grant all on tables to authenticated, service_role;
-alter default privileges in schema public grant all on sequences to authenticated, service_role;
+grant usage, select, update on all sequences in schema public to authenticated, service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated, service_role;
+alter default privileges in schema public grant usage, select, update on sequences to authenticated, service_role;
 grant usage on schema auth to authenticated, anon, service_role;
 grant usage on schema extensions to authenticated, anon, service_role;
 grant execute on all functions in schema auth to authenticated, anon, service_role;

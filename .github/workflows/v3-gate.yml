@@ -53,9 +53,26 @@ jobs:
         with: { fetch-depth: 0 }
       - id: changes
         run: |
+          # GAP-221: push のとき base が「リポジトリの最初のコミット」になっていた。
+          #
+          # その結果 `git diff base...HEAD` が **これまで追加された全ファイル** になり、
+          # 「touched files 0-error」を謳う Gate #3 (pyright) と Gate #4 (coverage) が
+          # 実質「リポジトリ全体」を見る門に化けていた。既存の未整理 (pyright 60 error 等) を
+          # 毎回蒸し返して落ちるので、**2026-08-19 以降ずっと赤**。
+          #
+          # この運用は PR を経由せず main へ直接 push するため、常にこの分岐に入っていた。
+          # push では「前のコミットとの差分」を見るのが本来の意味。
           if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
             base="${{ github.event.pull_request.base.sha }}"
+          elif [ -n "${{ github.event.before }}" ] \
+            && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            base="${{ github.event.before }}"
+          elif git rev-parse -q --verify HEAD~1 >/dev/null; then
+            # 新しいブランチの初回 push 等で before が使えないとき
+            base=$(git rev-parse HEAD~1)
           else
+            # 本当に最初のコミットしか無いとき
             base=$(git rev-list --max-parents=0 HEAD | tail -1)
           fi
           echo "base_sha=$base" >> "$GITHUB_OUTPUT"
@@ -616,70 +633,14 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "${{ env.PYTHON_VERSION }}" }
       - name: RLS policy presence audit
-        run: |
-          python3 - <<'PY'
-          import re, sys
-          from pathlib import Path
-
-          root = Path(".")
-          # supabase/migrations or apps/api/migrations or migrations/
-          candidates = [
-              root / "supabase" / "migrations",
-              root / "apps" / "api" / "migrations",
-              root / "migrations",
-          ]
-          migration_dir = next((p for p in candidates if p.exists()), None)
-          if migration_dir is None:
-              print("::notice::No migrations directory yet (T-D-22 で配線予定)。Gate #10 structural-only PASS.")
-              sys.exit(0)
-
-          sql_files = sorted(migration_dir.rglob("*.sql"))
-          if not sql_files:
-              print("::notice::No SQL migrations yet. Gate #10 structural PASS.")
-              sys.exit(0)
-
-          create_table_re = re.compile(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?([\w_]+)", re.IGNORECASE)
-          policy_re = re.compile(r"CREATE\s+POLICY\s+[\w_\"]+\s+ON\s+(?:public\.)?([\w_]+)", re.IGNORECASE)
-          enable_rls_re = re.compile(r"ALTER\s+TABLE\s+(?:public\.)?([\w_]+)\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY", re.IGNORECASE)
-
-          tables = set()
-          policies_by_table = {}
-          rls_enabled = set()
-
-          for sf in sql_files:
-              text = sf.read_text(encoding="utf-8")
-              # SQL 行コメント (-- ...) を除去してから走査する。
-              # コメント内の "create table if not exists /" 等の文言に regex が
-              # 誤マッチし、幻テーブル ("if" 等) を検出する事故を防ぐ。
-              text = re.sub(r"--[^\n]*", "", text)
-              tables.update(create_table_re.findall(text))
-              for t in policy_re.findall(text):
-                  policies_by_table.setdefault(t, 0)
-                  policies_by_table[t] += 1
-              rls_enabled.update(enable_rls_re.findall(text))
-
-          # internal tables (_audit, _job_log, etc.) は exempt
-          def is_internal(t):
-              return t.startswith("_") or t in ("schema_migrations", "ar_internal_metadata")
-
-          violations = []
-          for t in sorted(tables):
-              if is_internal(t):
-                  continue
-              if t not in rls_enabled:
-                  violations.append((t, "RLS not enabled"))
-              elif policies_by_table.get(t, 0) == 0:
-                  violations.append((t, "RLS enabled but 0 policies"))
-
-          print(f"  Tables: {len(tables)} | RLS-enabled: {len(rls_enabled)} | Policies: {sum(policies_by_table.values())}")
-
-          if violations:
-              print(f"::error::Gate #10 FAIL (R-T08 致命級) — {len(violations)} table(s) without RLS policy:")
-              for t, reason in violations:
-                  print(f"  - {t}: {reason}")
-              sys.exit(1)
-          print("Gate #10 PASS — every user-facing table has RLS enabled with ≥1 policy.")
-          PY
+        # GAP-221: 判定を scripts/ci/rls-audit.py に出した。
+        #
+        # 以前はここに直接 python を書いていて、「RLS 有効なのに policy 0 本」を
+        # 一律で違反にしていた。だが **policy 0 本はいちばん強い状態 (default deny)** で、
+        # この製品は 8 つの表でそれを意図して選んでいる。結果この門は
+        # **正しい設計を違反と呼んで 2026-08-19 以降ずっと赤**になっていた。
+        # 赤が普通になった門は、本物の穴を見つけても誰も気づかない。
+        run: python3 scripts/ci/rls-audit.py
 
   # ─────────────────────────────────────────────────────────────────────────
   # Gate #14 — real-PG integration (migrations + full pytest)

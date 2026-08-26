@@ -24,9 +24,11 @@ from src.routes.search import router
 from src.schemas.search import SearchHit
 from src.services import search as search_svc
 
+# fastapi が無い環境ではこのファイルごと skip する。そのため import は
+# importorskip の**後**に置く必要があり、E402 (先頭でない import) は意図的。
 pytest.importorskip("fastapi")
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi import FastAPI  # noqa: E402 - importorskip の後に読む
+from fastapi.testclient import TestClient  # noqa: E402 - 同上
 
 PG_ASYNC = os.environ.get(
     "ATELIER_TEST_PG_URL", "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
