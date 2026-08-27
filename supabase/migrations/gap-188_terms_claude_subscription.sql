@@ -17,31 +17,56 @@
 --    差し替える (consents.version で同意済み版を突き合わせるため、旧版は残し
 --    is_current のみ更新する — T-D-25 の方針を踏襲)。
 
+-- ⚠️ 2026-08-27 是正 (GAP-238): 本 migration は「現行版を外す前に is_current=true で
+--    insert」しており、既に現行版が存在する DB (= 稼働中の本番) では
+--    legal_documents_current_uidx に必ず衝突して適用不能だった (deploy #71/#72 実測)。
+--    さらに後続の gap-208 (2026-08-22 版) が先に現行を取った DB では、この版を
+--    現行化してはならない (規約を巻き戻すことになる)。gap-204 に明文化済みの
+--    「demote → insert」の順序則 + 「より新しい現行が居たら現行化しない」条件へ是正。
+--    どの適用順・適用済み状態から再実行しても同じ最終状態に収束する (冪等)。
+
 begin;
 
--- 新 version を投入 (旧版は削除しない — 旧版に同意した記録を壊さない)
+-- 1) 自分より古い現行版を先に外す (2026-08-20 を現行化する準備。
+--    より新しい現行 (例: gap-208 の 2026-08-22) はこの条件に当たらず温存される)
+update public.legal_documents
+   set is_current = false, updated_at = now()
+ where doc_type in ('terms_of_service', 'privacy_policy')
+   and locale = 'ja'
+   and is_current
+   and version < '2026-08-20';
+
+-- 2) 新 version を投入 (旧版は削除しない — 旧版に同意した記録を壊さない)。
+--    is_current は false で入れ、現行化は 3) で「より新しい現行が居ない場合のみ」行う。
+--    on conflict では is_current に触らない (既に現行ならそのまま)。
 insert into public.legal_documents
   (doc_type, version, locale, title, body_md, effective_date, is_current)
 values
   ('terms_of_service', '2026-08-20', 'ja', '利用規約',
    E'# 利用規約\n\n本利用規約（以下「本規約」）は、ENGINE BASE（以下「当社」）が提供する Atelier（以下「本サービス」）の利用条件を定めるものです。\n\n## 第1条（適用）\n本規約は、ユーザーと当社との間の本サービスの利用に関わる一切の関係に適用されます。\n\n## 第2条（アカウント）\nユーザーは自己の責任においてアカウントを管理するものとします。\n\n## 第3条（禁止事項）\nユーザーは、法令または公序良俗に違反する行為、当社・第三者の権利を侵害する行為を行ってはなりません。\n\n## 第4条（AI 機能の実行環境とユーザー自身の Claude 契約）\n1. 本サービスの AI 機能（チャット、議事録の解析、成果物の生成・改訂、自動実行等）は、原則として **ユーザー自身のコンピュータ上で、ユーザー自身が Anthropic PBC（以下「Anthropic 社」）との間で契約する Claude（Claude Code を含む。以下「Claude」）を用いて実行されます**。当社は AI の推論そのものを提供しません。\n2. したがって、本サービスの AI 機能を利用するには、**ユーザーが有効な Claude の契約を自ら保有し、Anthropic 社の利用規約その他の条件を遵守していることが必要**です。当社は Claude の契約を代理・再販・仲介しません。\n3. AI 機能の利用にあたり Anthropic 社に対して発生する料金は、**ユーザーの負担**とします。当社の利用料金には含まれません。\n4. ユーザーは、Anthropic 社の利用規約が、業務目的での利用、自動実行、第三者ソフトウェアからの利用等について定める条件を、自らの責任で確認し遵守するものとします。当社は、ユーザーによる Anthropic 社の規約違反について責任を負いません。\n5. AI 機能を利用するため、当社が提供する連携アプリケーション（以下「Bridge」）をユーザーのコンピュータにインストールする必要があります。Bridge は、本サービスからの指示を受けて、ユーザーのコンピュータ上で Claude を実行します。\n6. ユーザーが本サービスに入力した内容および指示は、AI 機能の実行のために **ユーザー自身のコンピュータ上の Claude へ送信されます**。この送信に関する Anthropic 社での取扱いは、Anthropic 社の規約およびプライバシーポリシーに従います。\n\n## 第5条（AI 機能の可用性の制限）\n1. 当社は、Claude の内容、品質、可用性、応答速度、利用枠（レート制限）その他 Anthropic 社が提供するサービスについて、いかなる保証も行いません。\n2. ユーザーの Claude の利用枠に達した場合、Bridge が起動していない場合、またはユーザーのコンピュータが停止している場合、**AI 機能は一時的に利用できません**。本サービスはこの状態を画面上で明示し、実行を保留します。当社はこれによりユーザーに生じた損害について責任を負いません。\n3. Anthropic 社が Claude の提供条件を変更し、または提供を停止した場合、本サービスの AI 機能の全部または一部が利用できなくなることがあります。\n\n## 第6条（データの取扱い）\n顧客データは既定では AI 学習に利用しません（オプトイン時のみ）。詳細はプライバシーポリシーに従います。\n\n## 第7条（免責）\n当社は、本サービスに起因してユーザーに生じた損害について、当社の故意または重過失による場合を除き責任を負いません。\n\n## 第8条（規約の変更）\n当社は必要と判断した場合、ユーザーへの通知の上で本規約を変更できるものとします。\n',
-   date '2026-08-20', true),
+   date '2026-08-20', false),
   ('privacy_policy', '2026-08-20', 'ja', 'プライバシーポリシー',
    E'# プライバシーポリシー\n\nENGINE BASE（以下「当社」）は、Atelier（以下「本サービス」）における個人情報の取扱いについて、以下のとおりプライバシーポリシーを定めます。\n\n## 1. 取得する情報\nアカウント情報（氏名・メールアドレス）、利用ログ、ユーザーが投入したプロジェクトデータ等。\n\n## 2. 利用目的\n本サービスの提供・改善、サポート対応、法令に基づく対応のため。\n\n## 3. AI 学習への不使用\n顧客データは既定では AI モデルの学習に使用しません。学習利用はユーザーの明示的なオプトインがある場合に限ります。\n\n## 4. AI 機能における第三者（Anthropic 社）への送信\n本サービスの AI 機能は、**ユーザー自身のコンピュータ上で、ユーザー自身が契約する Claude を用いて実行されます**。このため、AI 機能の実行にあたり、ユーザーが入力した内容および処理対象のデータは、ユーザーのコンピュータから Anthropic PBC（以下「Anthropic 社」）へ送信されます。当社のサーバーは指示の中継とその結果の保存を行います。Anthropic 社における取扱いは、ユーザーと Anthropic 社との間の契約およびプライバシーポリシーに従います。\n\n## 5. 第三者提供\n法令に基づく場合を除き、本人の同意なく第三者に提供しません（前項の AI 機能に伴う送信は、ユーザー自身の指示および契約に基づく送信です）。\n\n## 6. データの保管\nデータは東京リージョンの Supabase（PostgreSQL）に保管され、テナント間はアクセス制御により分離されます。\n\n## 7. 開示・訂正・削除\nユーザーは自己の個人情報の開示・訂正・削除を請求できます。\n\n## 8. お問い合わせ\n本ポリシーに関するお問い合わせは info@engine-base.com まで。\n',
-   date '2026-08-20', true)
+   date '2026-08-20', false)
 on conflict (doc_type, version, locale) do update set
   title          = excluded.title,
   body_md        = excluded.body_md,
   effective_date = excluded.effective_date,
-  is_current     = excluded.is_current,
   updated_at     = now();
 
--- 旧版は現行から外す (同意の突き合わせ用に行は残す)
-update public.legal_documents
-   set is_current = false, updated_at = now()
- where doc_type in ('terms_of_service', 'privacy_policy')
-   and locale = 'ja'
-   and version <> '2026-08-20'
-   and is_current;
+-- 3) 現行化 — その doc_type/locale に現行版がまだ居ない場合のみ (より新しい現行が
+--    既に居る DB では 2026-08-20 は履歴として残るだけで現行化しない)
+update public.legal_documents d
+   set is_current = true, updated_at = now()
+ where d.doc_type in ('terms_of_service', 'privacy_policy')
+   and d.locale = 'ja'
+   and d.version = '2026-08-20'
+   and not d.is_current
+   and not exists (
+     select 1 from public.legal_documents c
+      where c.doc_type = d.doc_type
+        and c.locale   = d.locale
+        and c.is_current
+   );
 
 commit;

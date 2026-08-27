@@ -12,6 +12,8 @@
 | PS-02 | Supabase 生存 | auth/v1/health | 200/401（up） | **FAIL (2026-08-27 実測)**: `rgxwmdnqnlkgrgdfafih.supabase.co` が接続不能 (http 000・名前解決レベルで死) = **無料枠の自動休止が再発 (INFRA-2)**。7 月から約 6 週無活動のため。本番 API の DB 依存操作は全 500 (signin 実測 500)。deploy #71 も migration 手前で安全停止 (pooler が tenant not found)。**解除条件: Supabase ダッシュボードでプロジェクトを Restore/Resume (経営者のみ可)。90 日超休止は削除リスクがあるため早急に** |
 | PS-03 | web デプロイ鮮度 (Vercel) | 本番 `/signin` を GET し SSR HTML を検査 | AppShell の nav (`aria-label="ホーム"`) が**含まれない** (サインインは bare) — 含まれていたら本番 web が古いビルド (デプロイ乖離) | **PASS (2026-08-27 実測)**: 凍結解除 (GAP-237, main=a4b7fc9) 後の Vercel 自動デプロイで新ビルドへ切替を確認 — /signin の SSR にサイドバー 0 件。実ブラウザ再現でも `/`→`/signin` でサイドバー一瞬表示なし (旧ビルドでは実測 true だった)。経営者指摘のチラつきは解消 |
 
+| PS-04 | migration の稼働中 DB 耐性 | 「既に現行データが居る DB」への全 migration 再適用 (収束ループ) | 全 migration が適用順・適用済み状態に依存せず収束する (まっさら DB だけで検証しない — Gate #14 は fresh DB のみで、**稼働中の本番へ当てて初めて落ちる migration を検出できない**) | **FAIL→修正済 (2026-08-27)**: deploy #72 で gap-188 が「現行版を外す前に is_current=true で insert」しており legal_documents_current_uidx に衝突、4 周しても収束せず (97/98 適用・deploy 中断)。demote→insert 順序則 + 「より新しい現行が居たら現行化しない」へ是正 = GAP-238。使い捨て DB で本番順 (旧現行→gap-208→gap-188)・まっさら順 (gap-188→gap-208) の両方の収束を実証。再デプロイで PASS 化予定 |
+
 ## 認証（新規登録から）
 | ID | 対象 | 手順 | 期待 | 結果 |
 |---|---|---|---|---|
