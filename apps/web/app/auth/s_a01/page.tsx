@@ -15,7 +15,7 @@
 
 import * as React from 'react';
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import Link from 'next/link';
 
@@ -31,7 +31,11 @@ import { BrandLockup } from '../../../components/brand/BrandLockup';
 type Mode = 'signin' | 'signup' | 'restore';
 
 function SA01Inner() {
-  const [mode, setMode] = useState<Mode>('signin');
+  // GAP-234: /signup で来たらサインアップタブを開く (rewrite で URL は /signup のまま)。
+  const pathname = usePathname();
+  const [mode, setMode] = useState<Mode>(
+    pathname === '/signup' ? 'signup' : 'signin',
+  );
   const [serverError, setServerError] = useState<string | null>(null);
   const [magicSent, setMagicSent] = useState(false);
   const [restored, setRestored] = useState(false);

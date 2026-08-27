@@ -38,6 +38,11 @@ export const ROUTE_MAP: ReadonlyArray<readonly [clean: string, internal: string]
   ['/sales', '/sales/s_n01'],
   // auth / workspace
   ['/signin', '/auth/s_a01'],
+  // GAP-234: /signup は middleware / ConditionalAppShell の公開パス一覧に
+  // 載っているのに実ルートが無く 404 になっていた。サインアップ UI は S-A01 の
+  // タブなので、同じ画面へ rewrite してサインアップタブを開く (page 側で pathname
+  // を見て初期タブを決める)。
+  ['/signup', '/auth/s_a01'],
   ['/workspace-settings', '/auth/s_a03'],
   // admin
   ['/admin', '/admin/s_t01'],
