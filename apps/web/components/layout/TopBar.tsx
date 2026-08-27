@@ -73,7 +73,10 @@ function PillBody({ label, icon }: { readonly label: string; readonly icon?: str
       <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-primary text-[11px] font-bold text-on-primary">
         {display}
       </span>
-      <span className="max-w-[160px] truncate">{label}</span>
+      {/* GAP-236: 320px でヘッダーのピル群が本文ごと横スクロールしていた。
+          最小幅ではワークスペース名ラベルを畳んでアイコンのみにし、幅を回収する
+          (ドロップダウンは残るので機能は失われない)。 */}
+      <span className="hidden max-w-[160px] truncate min-[400px]:inline">{label}</span>
     </>
   );
 }
@@ -246,9 +249,9 @@ export function TopBar({
         {/* GAP-157: フェーズスイッチャー等 (プロジェクト文脈の全体切替) */}
         {projectExtra}
 
-        {/* パンくず */}
+        {/* パンくず (GAP-236: 最小幅では畳んで横スクロールを防ぐ) */}
         {breadcrumb ? (
-          <div className="flex min-w-0 items-center gap-2 text-[12.5px] text-on-surface-variant">
+          <div className="hidden min-w-0 items-center gap-2 text-[12.5px] text-on-surface-variant min-[400px]:flex">
             <span aria-hidden="true" className="text-neutral">
               /
             </span>

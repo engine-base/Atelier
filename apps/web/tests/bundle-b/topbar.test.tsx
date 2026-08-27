@@ -113,3 +113,24 @@ describe('TopBar', () => {
     expect(screen.queryByLabelText(/プロジェクト:/)).not.toBeInTheDocument();
   });
 });
+
+describe('TopBar 320px 横スクロール対策 (GAP-236)', () => {
+  it('ワークスペース名ラベルは最小幅で畳むクラスを持ち、名前は aria-label で残る', () => {
+    render(<TopBar workspaceName="通し検証ワークスペース" />);
+    // 視覚ラベルは最小幅では非表示 (min-[400px]:inline で復帰) — 幅を回収する
+    const label = screen.getByText('通し検証ワークスペース');
+    expect(label.className).toContain('hidden');
+    expect(label.className).toContain('min-[400px]:inline');
+    // 名前自体は aria-label に残り、支援技術からは常に読める
+    expect(
+      screen.getByLabelText('ワークスペース: 通し検証ワークスペース'),
+    ).toBeInTheDocument();
+  });
+
+  it('パンくずは最小幅で畳むクラスを持つ', () => {
+    render(<TopBar workspaceName="WS" breadcrumb="取り込み" />);
+    const crumb = screen.getByText('取り込み').closest('div');
+    expect(crumb?.className).toContain('hidden');
+    expect(crumb?.className).toContain('min-[400px]:flex');
+  });
+});
