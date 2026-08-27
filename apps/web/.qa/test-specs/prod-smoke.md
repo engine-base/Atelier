@@ -10,6 +10,7 @@
 | PS-00 | デプロイ鮮度 | deploy.yml 最新 run | success かつ main HEAD 反映 | **要監視** (FLY_API_TOKEN 失効で 6 週停止していた→復旧) |
 | PS-01 | API health | GET /health | 200 | PASS |
 | PS-02 | Supabase 生存 | auth/v1/health | 200/401（up） | PASS（※無料枠は 1 週無活動で自動休止=INFRA-2） |
+| PS-03 | web デプロイ鮮度 (Vercel) | 本番 `/signin` を GET し SSR HTML を検査 | AppShell の nav (`aria-label="ホーム"`) が**含まれない** (サインインは bare) — 含まれていたら本番 web が古いビルド (デプロイ乖離) | **FAIL→対処中** (2026-08-27 実測: 7/18 ビルドのまま。原因は vercel.json の main 自動デプロイ OFF (8/13 凍結)。経営者承認により凍結解除 commit 済・main 反映後に再測 = GAP-237。PS-00 は API 側しか見ておらず **web 側の鮮度は誰も監視していなかった** — 経営者の実機指摘「サインイン前に一瞬サイドバー」が検出源) |
 
 ## 認証（新規登録から）
 | ID | 対象 | 手順 | 期待 | 結果 |
