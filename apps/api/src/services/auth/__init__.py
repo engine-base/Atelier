@@ -94,6 +94,43 @@ def _validate_consents(consents: list[ConsentEntry]) -> None:
             )
 
 
+async def _assert_consent_versions_current(
+    session: AsyncSession, consents: list[ConsentEntry]
+) -> None:
+    """同意の版が、その時点の**現行版と一致する**ことをサーバー側で確かめる (GAP-235)。
+
+    GAP-210 で「登録日を版として記録する」バグは直したが、版は**クライアントが
+    送ってくる文字列**のままだった。つまり画面が古い/壊れていれば、実在しない版や
+    昔の版への同意記録が黙って残る = 「何に同意したのか分からない記録」になる。
+    同意記録は法的な証跡なので、対象が現行の公開文書であることを DB で裏取りする。
+
+    現行版が引けない (公開文書が無い) 場合も、同意の対象を確定できないので止める。
+    対象は公開文書を持つ terms_of_service / privacy_policy のみ (他は legal_documents
+    に版を持たないため検証しない)。
+    """
+    rows = (
+        await session.execute(
+            text(
+                "select doc_type, version from public.legal_documents "
+                "where is_current and locale = 'ja' "
+                "and doc_type in ('terms_of_service', 'privacy_policy')"
+            )
+        )
+    ).all()
+    current = {str(r.doc_type): str(r.version) for r in rows}
+    for c in consents:
+        if c.type not in ("terms_of_service", "privacy_policy"):
+            continue
+        want = current.get(c.type)
+        if want is None or c.version != want:
+            # 版が取れない / 現行と食い違う → 何に同意したのか確定できないので登録しない
+            raise SignupError(
+                "consent_version_stale",
+                f"consent version for {c.type} is not current",
+                subject=c.type,
+            )
+
+
 def _service_session_factory() -> async_sessionmaker[AsyncSession]:
     """GAP-197: engine はプロセスに 1 つ。
 
@@ -215,6 +252,9 @@ async def signup(
     supabase_uid: str | None = None  # 補償対象 (Supabase 経由で作成した場合のみ)
     async with factory() as session:
         try:
+            # GAP-235: 同意の版が現行版と一致することをサーバー側で裏取り
+            # (クライアントの申告を鵜呑みにせず、証跡の整合を守る)。
+            await _assert_consent_versions_current(session, data.consents)
             uid = await _create_supabase_auth_user(email=str(data.email), password=data.password)
             if uid is None:
                 uid = await _create_local_auth_user(

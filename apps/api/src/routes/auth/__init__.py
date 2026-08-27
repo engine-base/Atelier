@@ -63,6 +63,9 @@ async def signup(body: SignupRequest, request: Request) -> dict[str, SignupRespo
     except svc.SignupError as exc:
         if exc.code == "consent_missing":
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, user_detail(exc)) from exc
+        if exc.code == "consent_version_stale":
+            # GAP-235: 同意の版が現行と食い違う → 画面が古い可能性。再読込を促す。
+            raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
         if exc.code == "email_taken":
             raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc

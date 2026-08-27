@@ -46,6 +46,33 @@ def _db_available() -> bool:
         return False
 
 
+def _current_legal_versions() -> dict[str, str]:
+    """postgres 側の現行法務版を読む (GAP-235: signup は同意版が現行版と一致を要求)。"""
+    out = {"terms_of_service": "1.0.0", "privacy_policy": "1.0.0"}
+    try:
+        eng = sqlalchemy.create_engine(PG_SYNC, poolclass=NullPool)
+        try:
+            with eng.connect() as c:
+                for row in c.execute(
+                    text(
+                        "select doc_type, version from public.legal_documents "
+                        "where is_current and doc_type in "
+                        "('terms_of_service','privacy_policy')"
+                    )
+                ):
+                    out[str(row.doc_type)] = str(row.version)
+        finally:
+            eng.dispose()
+    except Exception:
+        pass
+    return out
+
+
+_LEGAL_V = _current_legal_versions()
+_TERMS_V = _LEGAL_V["terms_of_service"]
+_PRIVACY_V = _LEGAL_V["privacy_policy"]
+
+
 pytestmark = [
     pytest.mark.skipif(not _db_available(), reason="local Postgres not available"),
     # asyncpg は GC タイミングで socket close するため、ResourceWarning や
@@ -120,12 +147,12 @@ class TestAuthSignup:
                     "consents": [
                         {
                             "type": "terms_of_service",
-                            "version": "1.0.0",
+                            "version": _TERMS_V,
                             "accepted": True,
                         },
                         {
                             "type": "privacy_policy",
-                            "version": "1.0.0",
+                            "version": _PRIVACY_V,
                             "accepted": True,
                         },
                     ],
@@ -180,8 +207,8 @@ class TestAuthSignup:
                     "password": "supersecret-pw",
                     "display_name": "FourConsent",
                     "consents": [
-                        {"type": "terms_of_service", "version": "1.0.0", "accepted": True},
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "terms_of_service", "version": _TERMS_V, "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                         {"type": "data_residency", "version": "1.0.0", "accepted": True},
                         {
                             "type": "ai_training_optin",
@@ -220,7 +247,7 @@ class TestAuthSignup:
                     "password": "supersecret-pw",
                     "display_name": "NoTerms",
                     "consents": [
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                         {"type": "data_residency", "version": "1.0.0", "accepted": True},
                     ],
                 },
@@ -246,12 +273,12 @@ class TestAuthSignup:
                     "consents": [
                         {
                             "type": "terms_of_service",
-                            "version": "1.0.0",
+                            "version": _TERMS_V,
                             "accepted": False,
                         },
                         {
                             "type": "privacy_policy",
-                            "version": "1.0.0",
+                            "version": _PRIVACY_V,
                             "accepted": True,
                         },
                     ],
@@ -273,12 +300,47 @@ class TestAuthSignup:
                     "display_name": "BadVersion",
                     "consents": [
                         {"type": "terms_of_service", "version": "v1", "accepted": True},
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                     ],
                 },
             )
             assert r.status_code == 422
             assert r.status_code != 500
+
+    def test_signup_consent_version_must_be_current(
+        self, app: FastAPI, sync_engine: sqlalchemy.Engine, created_emails: list[str]
+    ) -> None:
+        """GAP-235: 同意の版が現行版と食い違うと 409 で止め、記録も作らない。
+
+        同意記録は法的な証跡なので、対象が現行の公開文書であることを
+        サーバー側で裏取りする。クライアントの申告 (実在しない/古い版) を
+        鵜呑みにして「何に同意したのか分からない記録」を残さない。
+        """
+        em = _unique_email()
+        created_emails.append(em)
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/signup",
+                json={
+                    "email": em,
+                    "password": "supersecret-pw",
+                    "display_name": "StaleConsent",
+                    # 形式は正しいが現行版ではない (画面が古い / 非 UI クライアント)
+                    "consents": [
+                        {"type": "terms_of_service", "version": "1999-01-01", "accepted": True},
+                        {"type": "privacy_policy", "version": "1999-01-01", "accepted": True},
+                    ],
+                },
+            )
+            assert r.status_code == 409, r.text
+            # 内部名や英語ではなく、次の行動 (再読込) が分かる日本語
+            detail = r.json()["detail"]
+            assert "terms_of_service" not in detail
+            assert "再読み込み" in detail
+        # 記録を作らない (ユーザーも consents も残らない)
+        with sync_engine.begin() as c:
+            exists = c.execute(text("select 1 from auth.users where email = :e"), {"e": em}).first()
+            assert exists is None
 
     def test_signup_duplicate_email_returns_409(
         self,
@@ -293,8 +355,8 @@ class TestAuthSignup:
             "password": "supersecret-pw",
             "display_name": "Dup",
             "consents": [
-                {"type": "terms_of_service", "version": "1.0.0", "accepted": True},
-                {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                {"type": "terms_of_service", "version": _TERMS_V, "accepted": True},
+                {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
             ],
         }
         with TestClient(app) as client:
@@ -312,8 +374,8 @@ class TestAuthSignup:
                     "password": "supersecret-pw",
                     "display_name": "Bad",
                     "consents": [
-                        {"type": "terms_of_service", "version": "1.0.0", "accepted": True},
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "terms_of_service", "version": _TERMS_V, "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                     ],
                 },
             )
@@ -328,8 +390,8 @@ class TestAuthSignup:
                     "password": "short",
                     "display_name": "Short",
                     "consents": [
-                        {"type": "terms_of_service", "version": "1.0.0", "accepted": True},
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "terms_of_service", "version": _TERMS_V, "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                     ],
                 },
             )
@@ -346,7 +408,7 @@ class TestAuthSignup:
                     "consents": [
                         {
                             "type": "terms_of_service",
-                            "version": "1.0.0",
+                            "version": _TERMS_V,
                             "accepted": True,
                         }
                     ],
@@ -371,8 +433,8 @@ class TestAuthSignup:
                     "password": "supersecret-pw",
                     "display_name": "IPUser",
                     "consents": [
-                        {"type": "terms_of_service", "version": "1.0.0", "accepted": True},
-                        {"type": "privacy_policy", "version": "1.0.0", "accepted": True},
+                        {"type": "terms_of_service", "version": _TERMS_V, "accepted": True},
+                        {"type": "privacy_policy", "version": _PRIVACY_V, "accepted": True},
                     ],
                 },
             )
