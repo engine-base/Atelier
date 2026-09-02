@@ -1,0 +1,23 @@
+# AI-131/132 混雑 (SSE 上限) ローカル実測 — 2026-09-02
+# 条件: uvicorn ローカル (ATELIER_SSE_MAX_CONCURRENT=2 → 列上限 4 / ATELIER_CHAT_RELAY_TIMEOUT=60) + 本人 presence 行のみ (worker 不在 = relay 待ちで席を占有)
+# 注: 1 回目の実測は検証クライアント側の誤り (http.client の close() が読み取りスレッドのバッファロックで 60 秒ブロックし切断が起きなかった)。ソケットを直接 shutdown する形に直した 2 回目が正。
+
+signup: 201
+connection-status: relay bridge_online= True
+S1: run at 0.1s (席を確保・Bridge 待ちで占有)
+S2: run at 0.1s (席を確保・Bridge 待ちで占有)
+S3: queued at 0.0s metadata={'position': 1, 'ahead': 2, 'eta_seconds': None} | 断られたか(error)=False
+S4: queued at 0.0s metadata={'position': 2, 'ahead': 3, 'eta_seconds': None}
+S5: queued at 0.0s metadata={'position': 2, 'ahead': 3, 'eta_seconds': None}  (S4 が列に残っていれば position=3)
+S3: run at 1.8s = S1 を閉じてから 0.1s 以内 events(末尾)=['queued', 'context', 'start', 'run']
+S5: latest queued metadata={'position': 1, 'ahead': 2, 'eta_seconds': 3}
+S5: run at 1.2s = S3 を閉じてから 0.1s 以内
+account delete: 200
+
+== 判定 ==
+PASS | AI-131a 3人目は断られず並ぶ
+PASS | AI-131b 4人目は 2 番目に並ぶ
+PASS | AI-132a 閉じた人が列に残らない
+PASS | AI-131c 空き次第そのまま実行に入る (閉じた席が即返る)
+PASS | AI-131d 繰り上がりが画面に流れる
+PASS | AI-132b 実行中に閉じても席が返る
