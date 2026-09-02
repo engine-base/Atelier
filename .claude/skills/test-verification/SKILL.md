@@ -31,6 +31,22 @@ builtin: true
 
 ---
 
+### パイプライン連動（自動で次へ・2026-09-02 追加）
+
+スキルの順番は **`.claude/rules/common/skill-pipeline.yaml` が正本**（各 SKILL.md のハンドオフ図は要約）。
+このスキルを終えたら、次を **必ず** 走らせ、出力の「→ 次」に進む（人が順番を覚えない・飛ばさない）:
+
+```bash
+python3 scripts/ci/pipeline-next.py                 # 成果物の有無で「次に起動するスキル」を機械判定
+python3 scripts/ci/pipeline-next.py mark <段> skip --reason "…"   # skip 可の段を飛ばすとき（理由必須）
+```
+
+- 「skip 可」と出た段だけ飛ばせる。理由なしの skip / done は書けない（`--reason` 必須）。
+- ループ段（jit-task-execution / e2e-journey-walkthrough / human-grade-qa diff / release-planning）は
+  `done_when` のゲート（`qa-ladder.py gate` / `completion_gate.sh` / `qa-coverage.py`）が PASS するまで同じ段に留まる。
+- spec-sync-orchestrator は横断（S06〜S09 の成果物が変わるたびに走らせる）。ローカルのスキル側にある。
+
+
 ## 🧠 全スキル共通：思考品質基準（必ず守ること）
 
 ---

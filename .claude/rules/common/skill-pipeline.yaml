@@ -1,0 +1,168 @@
+# =============================================================================
+# skill-pipeline.yaml — スキルの連動（「これが終わればこのスキル」）の正本
+# -----------------------------------------------------------------------------
+# 2026-09-02: 各 SKILL.md の「ハンドオフ」節にバラバラに書かれていた流れを 1 か所に集約し、
+# `scripts/ci/pipeline-next.py` が **成果物の有無で機械判定**して「次に起動するスキル」を出す。
+# 各スキルは完了時に pipeline-next.py を走らせ、出力の次スキルへ進む（人が順番を覚えない）。
+#
+# 各 stage:
+#   id / skill / mode      … 起動するスキル（Skill ツール名）とモード
+#   produces               … このスキルが出す成果物（1 つでも欠ければ「未完了」）
+#   done_when              … 追加の完了条件（コマンド。exit 0 で完了）
+#   skip_if                … 自動 skip の条件（成果物が既にある / プロジェクト種別 / 明示 skip）
+#   optional               … true なら pipeline-next は「skip 可」と表示し、無くても先へ進める
+#   repeat                 … per_task / per_wave / per_release（ループする段）
+#   ladder                 … テスト・ラダーの段（.claude/rules/common/test-ladder.md）
+# 明示の done / skip は `.claude/state/pipeline.json`（pipeline-next.py mark で書く。理由必須）。
+# =============================================================================
+version: 1.0
+project: Atelier
+state_file: .claude/state/pipeline.json
+
+stages:
+  # ── 0. 発見〜受注（受託でなければ skip 可） ──────────────────────────────
+  - id: S00
+    skill: hearing
+    title: ヒアリング
+    produces: [01_hearing/hearing_summary.md]
+    optional: true
+    skip_if: {any_exists: [02_requirements/]}
+
+  - id: S01
+    skill: requirements-definition
+    title: 要件定義
+    produces: [02_requirements/]
+
+  - id: S02
+    skill: proposal
+    title: 提案書・見積（受託の場合）
+    produces: [C_営業/提案/, 02_requirements/estimate.md]
+    optional: true
+    skip_if: {project_flag: internal_product}
+
+  # ── 1. 設計 ──────────────────────────────────────────────────────────────
+  - id: S03
+    skill: architecture-design
+    title: アーキ設計（staging 定義を含む）
+    produces: [03_architecture/selected-stack.json, 03_architecture/foundation_gates.json]
+    done_when: python3 scripts/ci/pipeline-next.py check-staging   # environments.staging が確定していること (GAP-246)
+    ladder: staging
+
+  - id: S04
+    skill: design-md
+    title: デザインシステム（DESIGN.md）
+    produces: [05_design/DESIGN-*.md]
+    skip_if: {any_exists: [05_design/DESIGN-*.md]}
+
+  - id: S05
+    skill: ui-mockup
+    title: 画面モック（mock-contract-hints）
+    produces: [06_mockups/index.html]
+    skip_if: {any_exists: [06_mockups/index.html]}
+
+  - id: S06
+    skill: functional-breakdown
+    title: 機能・画面・エンティティ分解
+    produces: [04_functional_breakdown/features.json, 04_functional_breakdown/screens.json, 04_functional_breakdown/entities.json]
+
+  - id: S07
+    skill: api-design
+    title: API 設計（OpenAPI・契約）
+    produces: [07_api_design/openapi.yaml, 07_api_design/screen-api-coverage.json]
+
+  - id: S07b
+    skill: spec-sync-orchestrator
+    title: 仕様間の整合同期（台帳・カバレッジ・廃止用語）
+    produces: []
+    done_when: python3 scripts/ci/pipeline-next.py check-spec-sync   # spec-validator が PASS
+    repeat: on_spec_change
+    note: S06〜S09 のどれかが変わるたびに走らせる（silent-miss 検出）。ローカルのスキルにある。
+
+  # ── 2. 分解（ここでテストを作る = テスト・ラダー L1/L2） ────────────────────
+  - id: S08
+    skill: feature-decomposition
+    title: 機能分解（Wave / 流れ候補 J-xx / 組み合わせ観点）
+    produces: [04_functional_breakdown/feature-decomposition.json, 04_functional_breakdown/DAG.md]
+    ladder: L2-candidates
+
+  - id: S09
+    skill: task-decomposition
+    title: タスク分解（qa_rows.l1 / runnable_after を同時に書く）
+    produces: [07_tasks/tickets.json, apps/web/.qa/test-specs/journeys/plan.json]
+    done_when: bash 09_dispatch/scripts/validate.sh   # 内部で qa-ladder validate
+    ladder: L1+L2
+
+  - id: S10
+    skill: acceptance-criteria
+    title: 受け入れ基準（3-tier AC・G-11〜G-15）
+    produces: []
+    optional: true
+    skip_if: {tickets_have: acceptance_criteria_inline}
+    note: task-decomposition が 3-tier AC を tickets に書けていれば skip。観点が薄いときだけ単独起動。
+
+  - id: S11
+    skill: test-verification
+    title: テスト戦略・CI gate（qa-ladder を gate に配線）
+    produces: [.github/workflows/v3-gate.yml]
+    skip_if: {any_exists: [.github/workflows/v3-gate.yml]}
+    note: 既存プロジェクトでは gate の追加（qa-ladder validate/gate）だけを diff で行う。
+
+  - id: S12
+    skill: distributed-dev
+    title: "実装パッケージ（JIT: dispatch.sh が代替）"
+    produces: [09_dispatch/CLAUDE.md.template, 09_dispatch/scripts/dispatch.sh]
+    skip_if: {any_exists: [09_dispatch/scripts/dispatch.sh]}
+
+  - id: S13
+    skill: sprint-planning
+    title: Wave 編成（qa_scope = L3 対象）
+    produces: [08_schedule/wave-schedule.json]
+    ladder: L3-scope
+
+  # ── 3. 実装（ループ） ───────────────────────────────────────────────────────
+  - id: S14
+    skill: jit-task-execution
+    title: タスク実装（1 タスク = 1 ブランチ = 1 PR、STEP 4.5 で L1 + 解禁 L2 を staging で消化）
+    repeat: per_task
+    done_when: python3 scripts/ci/qa-ladder.py gate --task $TASK
+    ladder: L1+L2
+
+  - id: S15
+    skill: e2e-journey-walkthrough
+    title: 揃った流れの通し（L2）— 揃えた最後のタスクが merge 前に
+    repeat: per_flow
+    done_when: python3 scripts/ci/qa-ladder.py gate --task $TASK
+    ladder: L2
+
+  # ── 4. 締め ─────────────────────────────────────────────────────────────────
+  - id: S16
+    skill: human-grade-qa
+    mode: diff
+    title: Wave 締めの回帰（L3）
+    repeat: per_wave
+    done_when: bash .claude/skills/human-grade-qa/scripts/completion_gate.sh apps/web/.qa/test-specs
+    ladder: L3
+
+  - id: S17
+    skill: release-planning
+    title: リリース計画（L4 = staging full + 本番スモーク）
+    produces: [10_release/]
+    repeat: per_release
+    done_when: python3 scripts/ci/qa-coverage.py
+    ladder: L4
+
+  - id: S18
+    skill: human-grade-qa
+    mode: full
+    title: 製品全体の回帰と正本の鮮度監査（L5）
+    repeat: yearly
+    done_when: python3 scripts/ci/qa-coverage.py
+    ladder: L5
+
+# 横断（stage ではない）
+cross_cutting:
+  - skill: spec-sync-orchestrator
+    when: S06〜S09 の成果物が変わったとき
+  - skill: retrospective
+    when: Wave / リリースの締め（S16 / S17 の後）
+    optional: true

@@ -31,6 +31,22 @@ handoff_flow: "requirements-definition → architecture-design → design-md →
 
 ---
 
+### パイプライン連動（自動で次へ・2026-09-02 追加）
+
+スキルの順番は **`.claude/rules/common/skill-pipeline.yaml` が正本**（各 SKILL.md のハンドオフ図は要約）。
+このスキルを終えたら、次を **必ず** 走らせ、出力の「→ 次」に進む（人が順番を覚えない・飛ばさない）:
+
+```bash
+python3 scripts/ci/pipeline-next.py                 # 成果物の有無で「次に起動するスキル」を機械判定
+python3 scripts/ci/pipeline-next.py mark <段> skip --reason "…"   # skip 可の段を飛ばすとき（理由必須）
+```
+
+- 「skip 可」と出た段だけ飛ばせる。理由なしの skip / done は書けない（`--reason` 必須）。
+- ループ段（jit-task-execution / e2e-journey-walkthrough / human-grade-qa diff / release-planning）は
+  `done_when` のゲート（`qa-ladder.py gate` / `completion_gate.sh` / `qa-coverage.py`）が PASS するまで同じ段に留まる。
+- spec-sync-orchestrator は横断（S06〜S09 の成果物が変わるたびに走らせる）。ローカルのスキル側にある。
+
+
 ## 全スキル共通：思考品質基準（必ず守ること）
 
 ---
@@ -964,29 +980,21 @@ functional-breakdown の `features.json` から必要な「用途」を逆算し
 
 ## ハンドオフ (標準フロー連携)
 
-このスキルは以下の標準ワークフロー内に位置する。完了時に「次は **design-md** へ進みますか?」とユーザーに確認する。
+**順番の正本は `.claude/rules/common/skill-pipeline.yaml`**（`python3 scripts/ci/pipeline-next.py` が次を出す）。要約:
 
 ```
-[1] requirements-definition (要件定義)
-  ↓
-[2] architecture-design (アーキ設計)
-  ↓
-[3] design-md (デザインシステム / DESIGN.md)
-  ↓
-[4] functional-breakdown (機能・画面・エンティティ徹底分解)
-  ↓
-[5] feature-decomposition (Phase × Wave 機能分解)
-  ↓
-[6] task-decomposition (タスクカード化)
-  ↓
-[7] human-grade-qa【test-plan モード / 実装前】★ 画面別+フロー+RLS の3軸でテスト仕様書を完璧に作る
-  ↓
-[★] 実装期間 (テスト仕様書を満たすように作る = TDD 風)
-  ↓
-[8] human-grade-qa【full / diff / feature / regression モード / 実装後】★ 実機で潰す
-  ↓
-完了
+S00 hearing (skip 可) → S01 requirements-definition → S02 proposal/estimate (受託のみ)
+ → S03 architecture-design (staging 定義まで) → S04 design-md → S05 ui-mockup
+ → S06 functional-breakdown → S07 api-design → [S07b spec-sync-orchestrator: 仕様が変わるたび]
+ → S08 feature-decomposition (流れ候補 J-xx) → S09 task-decomposition (★ここで L1/L2 のテストを書く)
+ → S10 acceptance-criteria (tickets に 3-tier AC が揃っていれば skip) → S11 test-verification (gate 配線)
+ → S12 distributed-dev (JIT なら dispatch.sh) → S13 sprint-planning (Wave の qa_scope)
+ → ↻ S14 jit-task-execution (1 タスク = 1 PR。STEP 4.5 で L1 + 解禁 L2 を staging で消化・gate PASS)
+ → ↻ S15 e2e-journey-walkthrough (揃った流れ = L2) → ↻ S16 human-grade-qa diff (Wave 締め = L3)
+ → ↻ S17 release-planning (L4: staging full + 本番スモーク) → S18 human-grade-qa full (L5: 年次)
 ```
+
+旧図（「実装前に human-grade-qa test-plan でまとめて仕様書を作る」）は **廃止**。テストは S09 で各タスクに付く。
 
 ### このスキルの位置
 - **前段スキル**: `requirements-definition`

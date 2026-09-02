@@ -64,6 +64,22 @@ Rule 10（動作実証 8 点）は「作った機能が動く」の自己申告�
 JIT (Just-In-Time) 設計プロジェクトで **1 タスク = 1 ブランチ = 1 PR** を仕様徹底で実装する
 ためのスキル。実装者 (AI / 人間) が手抜きしても**構造的に漏れない**フローを提供する。
 
+### パイプライン連動（自動で次へ・2026-09-02 追加）
+
+スキルの順番は **`.claude/rules/common/skill-pipeline.yaml` が正本**（各 SKILL.md のハンドオフ図は要約）。
+このスキルを終えたら、次を **必ず** 走らせ、出力の「→ 次」に進む（人が順番を覚えない・飛ばさない）:
+
+```bash
+python3 scripts/ci/pipeline-next.py                 # 成果物の有無で「次に起動するスキル」を機械判定
+python3 scripts/ci/pipeline-next.py mark <段> skip --reason "…"   # skip 可の段を飛ばすとき（理由必須）
+```
+
+- 「skip 可」と出た段だけ飛ばせる。理由なしの skip / done は書けない（`--reason` 必須）。
+- ループ段（jit-task-execution / e2e-journey-walkthrough / human-grade-qa diff / release-planning）は
+  `done_when` のゲート（`qa-ladder.py gate` / `completion_gate.sh` / `qa-coverage.py`）が PASS するまで同じ段に留まる。
+- spec-sync-orchestrator は横断（S06〜S09 の成果物が変わるたびに走らせる）。ローカルのスキル側にある。
+
+
 ## このスキルが必要な理由
 
 JIT 設計 (tickets.json 信頼源 + dispatcher.sh JIT 生成 + CI 10 gate) はそれ自体は完璧。
@@ -264,31 +280,21 @@ GitHub Issue を `escalation,blocking,human-required` ラベルで自動起票�
 
 ## ハンドオフ (標準フロー連携)
 
-このスキルは以下の標準ワークフロー内に位置する。完了時に「次は **human-grade-qa (full/diff モード)** へ進みますか?」とユーザーに確認する。
+**順番の正本は `.claude/rules/common/skill-pipeline.yaml`**（`python3 scripts/ci/pipeline-next.py` が次を出す）。要約:
 
 ```
-[1] requirements-definition (要件定義)
-  ↓
-[2] architecture-design (アーキ設計)
-  ↓
-[3] design-md (デザインシステム / DESIGN.md)
-  ↓
-[3.5] ui-mockup (画面HTMLモックアップ / mock-contract-hints.json)
-  ↓
-[4] functional-breakdown (機能・画面・エンティティ徹底分解)
-  ↓
-[5] feature-decomposition (Phase × Wave 機能分解)
-  ↓
-[6] task-decomposition (タスクカード化)
-  ↓
-[7] human-grade-qa【test-plan モード / 実装前】★ 画面別+フロー+RLS の3軸でテスト仕様書を完璧に作る
-  ↓
-[★ ここ] jit-task-execution (実装期間 / 1タスク=1ブランチ=1PR)
-  ↓
-[8] human-grade-qa【full / diff / feature / regression モード / 実装後】★ 実機で潰す
-  ↓
-完了
+S00 hearing (skip 可) → S01 requirements-definition → S02 proposal/estimate (受託のみ)
+ → S03 architecture-design (staging 定義まで) → S04 design-md → S05 ui-mockup
+ → S06 functional-breakdown → S07 api-design → [S07b spec-sync-orchestrator: 仕様が変わるたび]
+ → S08 feature-decomposition (流れ候補 J-xx) → S09 task-decomposition (★ここで L1/L2 のテストを書く)
+ → S10 acceptance-criteria (tickets に 3-tier AC が揃っていれば skip) → S11 test-verification (gate 配線)
+ → S12 distributed-dev (JIT なら dispatch.sh) → S13 sprint-planning (Wave の qa_scope)
+ → ↻ S14 jit-task-execution (1 タスク = 1 PR。STEP 4.5 で L1 + 解禁 L2 を staging で消化・gate PASS)
+ → ↻ S15 e2e-journey-walkthrough (揃った流れ = L2) → ↻ S16 human-grade-qa diff (Wave 締め = L3)
+ → ↻ S17 release-planning (L4: staging full + 本番スモーク) → S18 human-grade-qa full (L5: 年次)
 ```
+
+旧図（「実装前に human-grade-qa test-plan でまとめて仕様書を作る」）は **廃止**。テストは S09 で各タスクに付く。
 
 ### このスキルの位置
 - **前段スキル**: `human-grade-qa (test-plan モード)` (実装前テスト仕様書)
