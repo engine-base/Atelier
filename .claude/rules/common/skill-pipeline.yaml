@@ -82,7 +82,9 @@ stages:
   - id: S08
     skill: feature-decomposition
     title: 機能分解（Wave / 流れ候補 J-xx / 組み合わせ観点）
-    produces: [04_functional_breakdown/feature-decomposition.json, 04_functional_breakdown/DAG.md]
+    # Atelier では Wave/DAG は tickets.json (waves) と features.json に載っている。v3.2 の journey_candidates /
+    # combination_points / external_resources は後追い (GAP-247)。無い間は L2 の流れは journeys/README.md が正本
+    produces: [04_functional_breakdown/features.json, 07_tasks/tickets.json]
     ladder: L2-candidates
 
   - id: S09
@@ -116,7 +118,8 @@ stages:
   - id: S13
     skill: sprint-planning
     title: Wave 編成（qa_scope = L3 対象）
-    produces: [08_schedule/wave-schedule.json]
+    produces: [08_schedule/schedule.json]
+    note: v3.2 の qa_scope (L3 対象) は後追い。schedule.json に qa_scope が無い Wave は締めゲートを持たない
     ladder: L3-scope
 
   # ── 3. 実装（ループ） ───────────────────────────────────────────────────────
