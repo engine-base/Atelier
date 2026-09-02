@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -134,8 +135,25 @@ def status_of(stage: dict, state: dict) -> tuple[str, str]:
     if not ok:
         return "todo", "無い成果物: " + ", ".join(missing)
     if stage.get("done_when"):
-        return "gate", f"成果物あり。完了条件: {stage['done_when']}"
+        cmd = str(stage["done_when"])
+        if "$" in cmd:  # per-task 等、引数が要る完了条件はここでは走らせない
+            return "gate", f"成果物あり。完了条件: {cmd}"
+        ok = _run_gate(cmd)
+        if ok:
+            return "done", f"成果物あり・完了条件 PASS: {cmd}"
+        return "gate", f"成果物あり・完了条件 FAIL: {cmd}"
     return "done", "成果物あり"
+
+
+def _run_gate(cmd: str) -> bool:
+    """done_when を実際に走らせる (exit 0 = PASS)。成果物の有無だけで done にしない。"""
+    try:
+        r = subprocess.run(
+            cmd, shell=True, cwd=ROOT, capture_output=True, text=True, timeout=180, check=False
+        )
+        return r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def cmd_status(pipe: dict, state: dict) -> int:
