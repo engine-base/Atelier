@@ -629,7 +629,7 @@
       "owner": "実装者"
     },
     "staging": {
-      "decision": "proposed",
+      "decision": "approved",
       "decided_by": "経営者 (ADR-021 の承認で approved にする)",
       "recommended_option": "A",
       "options": {
@@ -668,7 +668,21 @@
         "L3 Wave 締め",
         "L4 の full (本番はスモークだけ)"
       ],
-      "adr": "ADR-021"
+      "adr": "ADR-021",
+      "adopted_option": "A",
+      "approved_by": "経営者",
+      "approved_at": "2026-09-02",
+      "approval_note": "AskUserQuestion で A を選択 (推奨どおり)。資源の用意は docs/staging-setup.md §1 (経営者・約 1 時間)。用意できたら resources に project ref / Fly app / preview URL を記入",
+      "resources": {
+        "supabase_project_ref": "",
+        "fly_app": "atelier-api-staging",
+        "vercel_preview_url": "",
+        "github_secrets": [
+          "STAGING_DATABASE_URL",
+          "STAGING_FLY_APP_NAME"
+        ],
+        "ready": false
+      }
     },
     "production": {
       "purpose": "L4 のスモーク (prod-smoke.md) だけ。通し・ジャーニー・破壊的テストは流さない",

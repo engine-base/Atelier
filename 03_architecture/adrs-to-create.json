@@ -222,7 +222,8 @@
         "B: Supabase Branching (Pro $25+)",
         "C: セルフホスト Docker (条件 2 違反で不採用)"
       ],
-      "status": "proposed"
+      "status": "accepted",
+      "decided_at": "2026-09-02"
     }
   ],
   "decision_record_skill_handoff": "decision-record スキルへ各 ADR の起票を委譲する。フォルダ: docs/adr/<id>-<slug>.md"

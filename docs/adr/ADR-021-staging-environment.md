@@ -1,6 +1,6 @@
 # ADR-021: staging 環境の定義（本番と同じ migration / deploy で作る別インスタンス）
 
-- **Status**: Proposed（経営者の承認で Accepted。承認したら `03_architecture/selected-stack.json` の `environments.staging.decision` を `approved` にする）
+- **Status**: Accepted（2026-09-02 経営者が A を承認。`selected-stack.json` の `environments.staging.decision = approved`）
 - **Date**: 2026-09-02
 - **Decider**: 経営者 + 実装 AI
 - **Category**: infrastructure / quality
@@ -50,8 +50,8 @@ staging を「どの DB・どの認証・どの保存先・どの API/Web で」
 
 ## 決定（承認後に記入）
 
-- 採用: ____（A / B / C）
-- 承認日: ____
+- 採用: **A**（本番と同じ SaaS の別インスタンス）
+- 承認日: 2026-09-02
 - 用意した資源: Supabase project ref ____ / Fly app ____ / Vercel preview URL ____
 
 ## 結果・影響
