@@ -1,0 +1,19 @@
+PS-22 本番実測 (2026-09-02) — サンドボックスからヘッドレス Bridge を本番 API に接続し、
+本人サブスク経路で実 AI 応答をストリーム受信した SSE 全文 (POST /chat/threads/{id}/stream)。
+stream: 200 (6.44s) / bridge log: [bridge:chat-relay] completed
+
+data: {"type": "context", "metadata": {"history_count": 0, "rag_hit_ids": [], "user_message_id": "c3ba57b2-16f5-42d6-b0a4-ab747b192bb8"}}
+
+data: {"type": "start"}
+
+data: {"type": "run", "metadata": {"job_id": "3d4218f9-6947-4e76-9199-d2ef60b59519"}}
+
+data: {"type": "delta", "content": "こ"}
+
+data: {"type": "delta", "content": "んにちは、営業・契約部長のトニーです。提案書や見積、商談フォローのメール作成など、案件を"}
+
+data: {"type": "delta", "content": "前に進めるお手伝いをいたします。\n\n「QA Bridge 案件」について、何かお手伝いできることはござい"}
+
+data: {"type": "delta", "content": "ますか？"}
+
+data: {"type": "end", "metadata": {"assistant_message_id": "c0fa1442-e410-4a68-993b-bc754c5b3316", "user_message_id": "c3ba57b2-16f5-42d6-b0a4-ab747b192bb8", "total_chars": 101}}
