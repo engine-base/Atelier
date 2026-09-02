@@ -1,0 +1,135 @@
+# AI 実動マトリクス batch4 (2026-09-02 本番 / サンドボックス Bridge・approve モード)
+[harness] bridge pid=9987 token_id=ed84d6bd-91bb-4d76-a0b2-21099bb31e92
+##### AI-102: 実行前に経路が分かる (GET /chat/connection-status) — Bridge 起動中 #####
+{"data":{"mode":"relay","bridge_online":true,"workers":[{"host_label":"vm","version":"0.1.0","last_seen_at":"2026-09-02T05:15:12.559266Z"},{"host_label":"vm","version":"0.1.0","last_seen_at":"2026-09-02T05:15:02.653470Z"}],"last_job":{"status":"done","error":null,"created_at":"2026-09-02T04:59:24.578210Z","finished_at":"2026-09-02T04:59:26.233744Z"},"plan":{"status":"allowed","five_hour_utilization":null,"five_hour_resets_at":"2026-09-02T08:30:00Z","seven_day_utilization":null,"seven_day_resets_at":null,"observed_at":"2026-09-02T04:52:55.137524Z"}}}
+
+##### AI-140: 成果物として着地 (approve/allow で提案書 HTML を作らせる) #####
+--- before ---
+outputs: 0
+mocks: 0
+[  1.1s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "5d7ce4e5-7c9e-4d6d-8ec9-4066a9069719"}
+[  1.2s] run: 2055cd16-ddb6-48e4-b025-0256ab8c63f8
+[  5.1s] tool: {}
+[  5.1s] tool: {}
+[  8.0s] tool: {}
+[  8.0s] tool: {}
+[  9.1s] tool: {}
+[ 15.9s] pc_approval: {"id": "c32cdd43-8365-4eee-8d52-2ccc89f3707c", "tool": "Write", "summary": "/root/AtelierChatWork/proposal-qa.html"}
+[ 16.5s] -> decision allow: http 200
+[ 16.5s] tool: {}
+[ 16.5s] pc_approval_resolved: {"id": "c32cdd43-8365-4eee-8d52-2ccc89f3707c", "decision": "allow"}
+TEXT: skill一覧に該当がないため、直接HTMLファイルを作成します。作業フォルダを確認して保存します。`proposal-qa.html` を作業フォルダに保存いたしました。
+SUMMARY: {"events": ["context", "start", "run", "tool", "tool", "delta", "delta", "tool", "tool", "tool", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "artifact", "end"], "approvals": ["c32cdd43-8365-4eee-8d52-2ccc89f3707c"], "error": null, "status": 200, "job_id": "2055cd16-ddb6-48e4-b025-0256ab8c63f8", "cancel": null, "queue": null, "elapsed_s": 19.5}
+--- after ---
+outputs: 1
+  - proposal | None | mockdb://f706fcc6-242b-4633-b487-e872dbc0aeb0 | v 1
+mocks: 0
+-rw-r--r-- 1 root root 1396 Sep  2 05:15 /root/AtelierChatWork/proposal-qa.html
+
+##### AI-141: 種類の違う出力 (ログイン画面モック) → mocks 側へ仕分けられる #####
+[  1.0s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "42e72283-21c8-400b-8e73-c410becaeb14"}
+[  1.1s] run: 7eb82a37-9253-41d2-ba56-e626fb9e5e72
+[  6.8s] tool: {}
+[ 12.7s] pc_approval: {"id": "48d85b36-10bc-4acf-8b31-12d0a85cb6d9", "tool": "Write", "summary": "/root/AtelierChatWork/mock-login-qa.html"}
+[ 13.1s] -> decision allow: http 200
+[ 13.1s] tool: {}
+[ 13.2s] pc_approval_resolved: {"id": "48d85b36-10bc-4acf-8b31-12d0a85cb6d9", "decision": "allow"}
+TEXT: `mock-login-qa.html` を作業フォルダに保存しました。
+SUMMARY: {"events": ["context", "start", "run", "tool", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "artifact", "end"], "approvals": ["48d85b36-10bc-4acf-8b31-12d0a85cb6d9"], "error": null, "status": 200, "job_id": "7eb82a37-9253-41d2-ba56-e626fb9e5e72", "cancel": null, "queue": null, "elapsed_s": 16.2}
+--- after ---
+outputs: 1
+  - proposal | None | mockdb://f706fcc6-242b-4633-b487-e872dbc0aeb0 | v 1
+mocks: 1
+  - ログイン画面モック | mockdb://e610c0bc-2987-449d-ba83-7e15a037883e | v 1
+
+##### AI-142: 部分改訂で全面書き換えにならない #####
+[  0.9s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "6c00a5b7-b7fe-457f-b9af-2af079aab921"}
+[  1.0s] run: 64acc591-37ca-4e12-adab-8e7b34695226
+[  4.9s] tool: {}
+[  5.8s] tool: {}
+[  6.9s] tool: {}
+[  7.3s] tool: {}
+[  8.1s] tool: {}
+[  9.0s] pc_approval: {"id": "202b77ad-60b0-4407-8b16-db76fb0ae472", "tool": "Edit", "summary": "/root/AtelierChatWork/proposal-qa.html"}
+[  9.6s] -> decision allow: http 200
+[  9.6s] tool: {}
+[  9.7s] pc_approval_resolved: {"id": "202b77ad-60b0-4407-8b16-db76fb0ae472", "decision": "allow"}
+TEXT: `<h1>` の文言を「ご提案書（改訂版）」に変更しました。他の行は変更していません。
+SUMMARY: {"events": ["context", "start", "run", "tool", "tool", "tool", "tool", "tool", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "artifact", "end"], "approvals": ["202b77ad-60b0-4407-8b16-db76fb0ae472"], "error": null, "status": 200, "job_id": "64acc591-37ca-4e12-adab-8e7b34695226", "cancel": null, "queue": null, "elapsed_s": 13.4}
+--- diff (変更行だけ出ること) ---
+8c8
+< <h1>ご提案書</h1>
+---
+> <h1>ご提案書（改訂版）</h1>
+changed lines: 2 / total lines: 31
+--- outputs (改訂で version が上がるか) ---
+outputs: 2
+  - proposal | None | mockdb://f6f101db-2f6d-42de-95b4-1b68b6e0676e | v 2
+  - proposal | None | mockdb://f706fcc6-242b-4633-b487-e872dbc0aeb0 | v 1
+
+##### AI-143: 途中で中断しても半端を残さない (delta 2 個目で cancel) #####
+[  0.7s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "c3249f24-7af4-47ef-b5f8-941ebeb55be2"}
+[  0.9s] run: 392b229f-d549-4344-bc36-c700dec0a05b
+[  7.4s] cancel -> http 200 {"data": {"status": "cancelled", "message": "実行を止めました。ここまでの内容はスレッドに残しています。", "assistant_message_id": "48c0e66b-925e-4f6d-88cd-6c0ae4f27f48", "saved_chars": 424}}
+[  7.5s] cancelled: {"assistant_message_id": "48c0e66b-925e-4f6d-88cd-6c0ae4f27f48", "user_message_id": "c3249f24-7af4-47ef-b5f8-941ebeb55be2", "total_chars": 424}
+TEXT: 1 ⏎ 2 ⏎ 3 ⏎ 4 ⏎ 5 ⏎ 6 ⏎ 7 ⏎ 8 ⏎ 9 ⏎ 10 ⏎ 11 ⏎ 12 ⏎ 13 ⏎ 14 ⏎ 15 ⏎ 16 ⏎ 17 ⏎ 18 ⏎ 19 ⏎ 20 ⏎ 21 ⏎ 22 ⏎ 23 ⏎ 24 ⏎ 25 ⏎ 26 ⏎ 27 ⏎ 28 ⏎ 29 ⏎ 30 ⏎ 31 ⏎ 32 ⏎ 33 ⏎ 34 ⏎ 35 ⏎ 36 ⏎ 37 ⏎ 38 ⏎ 39 ⏎ 40 ⏎ 41 ⏎ 42 ⏎ 43 ⏎ 44 ⏎ 45 ⏎ 46 ⏎ 47 ⏎ 48 ⏎ 49 ⏎ 50 ⏎ 51 ⏎ 52 ⏎ 53 ⏎ 54 ⏎ 55 ⏎ 56 ⏎ 57 ⏎ 58 ⏎ 59 ⏎ 60 ⏎ 61 ⏎ 62 ⏎ 63 ⏎ 64 ⏎ 65 ⏎ 66 ⏎ 67 ⏎ 68 ⏎ 69 ⏎ 70 ⏎ 71 ⏎ 72 ⏎
+SUMMARY: {"events": ["context", "start", "run", "delta", "delta", "delta", "cancelled"], "approvals": [], "error": null, "status": 200, "job_id": "392b229f-d549-4344-bc36-c700dec0a05b", "cancel": {"http": 200, "at_s": 7.4, "body": {"status": "cancelled", "message": "実行を止めました。ここまでの内容はスレッドに残しています。", "assistant_message_id": "48c0e66b-925e-4f6d-88cd-6c0ae4f27f48", "saved_chars": 424}}, "queue": null, "elapsed_s": 7.5}
+--- DB 側: スレッドのメッセージ (assistant 断片の扱い) ---
+  - user | status= None | len= 46 | 1 から 200 までの数を、1 行に 1 つずつ、間に何も挟まず順番に書き出してください。
+  - assistant | status= None | len= 424 | 1⏎2⏎3⏎4⏎5⏎6⏎7⏎8⏎9⏎10⏎11⏎12⏎13⏎14⏎15⏎16⏎17⏎18⏎19⏎20⏎21⏎22⏎23⏎24⏎25⏎26⏎27⏎28⏎29⏎30
+--- run 状態 ---
+{"data":{"job_id":null,"status":null,"tools_mode":null,"started_at":null}}
+[harness] token revoke: 200
+[harness] bridge log tail:
+[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+
+
+##### AI-102②: Bridge 停止後 (harness 終了・トークン失効済) の connection-status #####
+{"data":{"mode":"relay","bridge_online":true,"workers":[{"host_label":"vm","version":"0.1.0","last_seen_at":"2026-09-02T05:16:24.370327Z"}],"last_job":{"status":"cancelled","error":null,"created_at":"2026-09-02T05:16:23.659887Z","finished_at":"2026-09-02T05:16:30.161588Z"},"plan":{"status":"allowed","five_hour_utilization":null,"five_hour_resets_at":"2026-09-02T08:30:00Z","seven_day_utilization":null,"seven_day_resets_at":null,"observed_at":"2026-09-02T05:16:17.213479Z"}}}
+# batch5
+[harness] bridge pid=10631 token_id=b8c7b2e3-f3d9-4794-9baa-bea409fc633f
+##### AI-130: 実行中に指示を差し込む (approve=常駐経路・run 開始 4 秒後に queued を投げる) #####
+[  0.7s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "09576e00-9ebe-486b-8f1e-86199208254f"}
+[  0.8s] run: dbffe802-b6df-459e-bbbd-29cc10d96029
+[  4.9s] tool: {}
+[  5.3s] queued -> http 201
+[  5.4s] pc_approval: {"id": "abe4241f-ebbb-4628-85eb-4bae30494ce7", "tool": "Write", "summary": "/root/AtelierChatWork/notes-a.txt"}
+[  5.9s] -> decision allow: http 200
+[  5.9s] tool: {}
+[  6.0s] pc_approval_resolved: {"id": "abe4241f-ebbb-4628-85eb-4bae30494ce7", "decision": "allow"}
+[  8.2s] pc_approval: {"id": "62116c57-ed28-4a90-84a4-361126af4eb9", "tool": "Write", "summary": "/root/AtelierChatWork/notes-b.txt"}
+[  8.6s] -> decision allow: http 200
+[  8.6s] tool: {}
+[  8.6s] tool: {}
+[  8.7s] pc_approval_resolved: {"id": "62116c57-ed28-4a90-84a4-361126af4eb9", "decision": "allow"}
+TEXT: notes-a.txt を作成します。 ⏎  ⏎ --- ⏎ （実行中に追加で伝えました）追加の指示です: notes-c.txt は作らないでください。代わりに最後に『追加指示を反映しました』と述べてください。 ⏎ --- ⏎ notes-b.txt を作成します。notes-a.txt と notes-b.txt を作成しました。ご指示により notes-c.txt は作成しません。 ⏎  ⏎ 追加指示を反映しました。
+SUMMARY: {"events": ["context", "start", "run", "delta", "delta", "tool", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "pc_approval", "delta", "tool", "tool", "pc_approval_resolved", "delta", "delta", "end"], "approvals": ["abe4241f-ebbb-4628-85eb-4bae30494ce7", "62116c57-ed28-4a90-84a4-361126af4eb9"], "error": null, "status": 200, "job_id": "dbffe802-b6df-459e-bbbd-29cc10d96029", "cancel": null, "queue": {"http": 201, "at_s": 5.3, "id": "d41e8cb7-237c-4470-aeec-6e0222d73391"}, "elapsed_s": 11.5}
+--- ファイル実在 (a,b はある・c は無いのが理想 = 止めずに反映) ---
+/root/AtelierChatWork/notes-a.txt
+/root/AtelierChatWork/notes-b.txt
+--- 追い足しキューの残り (常駐へ注入済みなら消費済みで 0 件) ---
+{"data":[]}
+
+##### AI-114: モードの途中切替 — 実行中に off モードの指示を queue → 実行後に consume → 次ターンは承認なしで通る #####
+[  0.9s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "2fc8ee0a-7313-4568-8b35-c8620a4ec445"}
+[  1.0s] run: f54daf9d-d76c-4f39-ba25-a804b76b8094
+[  2.7s] queued -> http 201
+[  4.2s] tool: {}
+[  4.9s] pc_approval: {"id": "06da53ab-e807-43cf-9099-9d04c0a20d61", "tool": "Bash", "summary": "echo -n \"A\" > mode-a.txt && cat mode-a.txt"}
+[  5.5s] -> decision allow: http 200
+[  5.5s] tool: {}
+[  5.5s] pc_approval_resolved: {"id": "06da53ab-e807-43cf-9099-9d04c0a20d61", "decision": "allow"}
+TEXT:  ⏎  ⏎ --- ⏎ （実行中に追加で伝えました）こんにちは。今のモードでは何ができるか一言で教えてください。 ⏎ --- ⏎ mode-a.txt を作成しました（中身: A）。 ⏎  ⏎ 現在のモードでは、営業部長トニーとして提案書・見積・営業メールの作成をお手伝いできます。
+SUMMARY: {"events": ["context", "start", "run", "tool", "delta", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "delta", "end"], "approvals": ["06da53ab-e807-43cf-9099-9d04c0a20d61"], "error": null, "status": 200, "job_id": "f54daf9d-d76c-4f39-ba25-a804b76b8094", "cancel": null, "queue": {"http": 201, "at_s": 2.7, "id": "0a069987-5caa-46e8-b09a-cdd87b33e3de"}, "elapsed_s": 8.8}
+--- consume (実行が終わった画面が次に流す 1 件) ---
+{"data":null}
+[harness] token revoke: 200
+[harness] bridge log tail:
+[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+
