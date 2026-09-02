@@ -137,3 +137,25 @@ downstream_coverage:
         remediation: >-
           未チケット化の F-xxx は task-decomposition スキルで分解・起票する。
           （warn: overall を fail させず warnings に記録）
+
+# -----------------------------------------------------------------------------
+# G. テスト・ラダー / パイプラインのゲート（2026-09-02 追加・v3.2）
+#    コマンドの exit 0 を PASS とする。spec-validator の A〜F と同じ run で必ず走らせ、
+#    結果を .qa/spec-sync/<日付>/result.json の checks[] に載せる。
+# -----------------------------------------------------------------------------
+ladder_gates:
+  - kind: qa_ladder_bidirectional
+    description: >-
+      tickets.json の qa_rows (l1 / l2_flows) と test-specs のタスク列 / journeys の
+      runnable_after が両方向に一致すること（片方にしか無い ID は FAIL）。
+    command: python3 scripts/ci/qa-ladder.py validate
+  - kind: staging_defined
+    description: >-
+      03_architecture/selected-stack.json の environments.staging に
+      provisioned_by / data_policy / owner が確定していること（GAP-246）。
+    command: python3 scripts/ci/pipeline-next.py check-staging
+  - kind: journey_candidates_covered
+    description: >-
+      feature-decomposition の journey_candidates (J-xx) が全部 journeys/plan.json に
+      行として存在すること（無い流れは silent-miss）。
+    command: python3 scripts/ci/qa-ladder.py levels

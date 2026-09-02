@@ -30,7 +30,7 @@ python3 scripts/ci/pipeline-next.py check-spec-sync
 
 ### spec-dependencies.yaml への追記（assets）
 
-`references` に次の 2 種を足す（Atelier 固有の値）:
+`ladder_gates`（新設の節。A〜F と同じ run で必ず走らせる）に次を置く（Atelier 固有の値）— assets/spec-dependencies.yaml に反映済み:
 
 ```yaml
   - kind: qa_ladder_bidirectional
