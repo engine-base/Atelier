@@ -196,7 +196,13 @@ def cmd_check_staging() -> int:
             f"✗ environments.staging に {missing} が無い（本番同一の migration/deploy で作れること・データ方針・誰が用意するか）"
         )
         return 2
-    print(f"✓ staging 確定: {json.dumps(env, ensure_ascii=False)[:200]}")
+    if str(env.get("decision", "")).lower() != "approved":
+        print(
+            f"✗ staging は提案止まり (decision={env.get('decision')!r})。経営者が ADR-021 を承認して "
+            "decision を approved にするまで S03 は完了しない"
+        )
+        return 2
+    print(f"✓ staging 確定: {env.get('recommended_option', '')} / owner={env.get('owner', '')}")
     return 0
 
 

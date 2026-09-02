@@ -30,6 +30,12 @@ on:
   # 初回 deploy は workflow_dispatch で実機検証済 (https://atelier-api-eb.fly.dev/health 200 OK)。
   workflow_dispatch:
     inputs:
+      environment:
+        description: "デプロイ先 (production | staging)。staging は ADR-021 — 本番と同じ手順で別インスタンスへ (GAP-246)"
+        required: false
+        type: choice
+        options: [production, staging]
+        default: production
       app:
         description: "Fly.io app to deploy"
         required: false
@@ -56,12 +62,14 @@ permissions:
 
 jobs:
   fly:
-    name: "Fly.io (production)"
+    name: "Fly.io (${{ inputs.environment || 'production' }})"
     runs-on: ubuntu-latest
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-      FLY_APP_NAME: ${{ inputs.app || secrets.FLY_APP_NAME }}
-      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      # ADR-021: environment=staging なら STAGING_* の secrets を使う (手順は同じ = 本番と同じコードで作る)
+      FLY_APP_NAME: ${{ inputs.app || (inputs.environment == 'staging' && secrets.STAGING_FLY_APP_NAME || secrets.FLY_APP_NAME) }}
+      PROD_DATABASE_URL: ${{ inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || secrets.PROD_DATABASE_URL }}
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
       SKIP_MIGRATIONS: ${{ inputs.skip_migrations }}
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +99,7 @@ jobs:
           if [ "$SKIP_MIGRATIONS" = "true" ]; then
             echo "::warning::migration を明示的に skip しています。スキーマ変更を含む deploy では使わないでください。"
           fi
-          echo "::notice::deploying to app=$FLY_APP_NAME"
+          echo "::notice::deploying to environment=$DEPLOY_ENVIRONMENT app=$FLY_APP_NAME"
       # INFRA-3 恒久対策: 本番 DB スキーマを deploy 前に同期する。
       # スキーマ用 migration は冪等 (if not exists / drop policy if exists) なので
       # 部分適用済みの本番へ再適用しても安全。@verification-only (RLS 越境試験の
