@@ -611,6 +611,32 @@ export function classifyRunFailure(run: {
     : `claude 実行失敗 (exit=${run.exitCode})`;
 }
 
+/**
+ * GAP-241: stream-json でない行を失敗原因の証拠として末尾だけ保持する。
+ *
+ * CLI は起動条件を満たさないとき (root での `--dangerously-skip-permissions`
+ * 拒否など) JSON を 1 行も出さず、生のメッセージだけ書いて exit 0 で終わる。
+ * 認識しない種別の JSON 行は正常な流れの一部なので証拠に含めない。
+ */
+export function appendRawStdout(tail: string, line: string): string {
+  const trimmed = line.trim();
+  if (trimmed === '') return tail;
+  try {
+    JSON.parse(trimmed);
+    return tail;
+  } catch {
+    return `${tail}${tail === '' ? '' : '\n'}${trimmed}`.slice(-2000);
+  }
+}
+
+/**
+ * GAP-241: result を受けず本文も無いまま終わった = 応答なし。
+ * exit 0 でも成功にしない (画面に空の応答を「完了」として出さない)。
+ */
+function noResultDetail(rawTail: string, how: string): string {
+  return rawTail !== '' ? `${how} (result 未受信): ${rawTail}` : `${how} (result 未受信・出力なし)`;
+}
+
 interface PendingChunk {
   readonly text: string;
   readonly chunkKind: ChatRelayChunkKind;
@@ -1018,15 +1044,27 @@ export class ChatRelayWorker {
       let assistantText = '';
       let resultOk: boolean | null = null;
       let resultDetail = '';
+      let rawTail = '';
+      /** undefined = まだ生きている。 */
+      let exitCode: number | null | undefined;
 
       const finish = (): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         unsubscribe();
+        unsubscribeExit();
+        // GAP-241: result も本文も無いまま終わった = 応答なし (exit 0 でも失敗)
+        const noResult = resultOk === null && !sawDelta && assistantText === '';
+        if (noResult && !timedOut && resultDetail === '') {
+          resultDetail = noResultDetail(
+            rawTail,
+            `常駐 claude が応答を返さずに終了しました (exit=${exitCode ?? '?'})`,
+          );
+        }
         resolve({
-          ok: !timedOut && resultOk !== false,
-          exitCode: timedOut ? null : 0,
+          ok: !timedOut && resultOk !== false && !noResult,
+          exitCode: timedOut ? null : (exitCode ?? 0),
           timedOut,
           assistantText: sawDelta ? '' : assistantText,
           spawnFailed: false,
@@ -1036,12 +1074,22 @@ export class ChatRelayWorker {
         });
       };
 
+      // GAP-241: result を出さずにプロセスが死んだら、タイムアウトまで待たせず
+      // その場で失敗として返す (以前は job timeout まで宙に浮いていた)。
+      const unsubscribeExit = live.onExit((code) => {
+        exitCode = code;
+        finish();
+      });
+
       const unsubscribe = live.onLine((line) => {
         for (const d of extractToolDetails(line)) {
           onItem({ kind: 'tool_detail', tool: d.tool, summary: d.summary });
         }
         const item = parseStreamLine(line);
-        if (item === null) return;
+        if (item === null) {
+          rawTail = appendRawStdout(rawTail, line);
+          return;
+        }
         if (item.kind === 'delta') {
           sawDelta = true;
           onItem(item);
@@ -1164,6 +1212,7 @@ export class ChatRelayWorker {
       let resultOk: boolean | null = null;
       let resultDetail = '';
       let stderrTail = '';
+      let rawTail = '';
       let buffer = '';
       const handleLine = (line: string): void => {
         // GAP-148: tool_use の実入力要約 (assistant 完成メッセージ由来) —
@@ -1172,7 +1221,11 @@ export class ChatRelayWorker {
           onItem({ kind: 'tool_detail', tool: d.tool, summary: d.summary });
         }
         const item = parseStreamLine(line);
-        if (item === null) return;
+        if (item === null) {
+          // GAP-241: JSON でない行は「CLI が流れに入れずに落ちた」証拠として残す
+          rawTail = appendRawStdout(rawTail, line);
+          return;
+        }
         if (item.kind === 'delta') {
           sawDelta = true;
           onItem(item);
@@ -1221,8 +1274,18 @@ export class ChatRelayWorker {
       child.on('close', (code) => {
         clearTimeout(timer);
         if (buffer !== '') handleLine(buffer);
+        // GAP-241: result も本文も無いまま終わった = 応答なし。exit 0 でも成功にしない
+        // (実測: root で auto モードを拒否した CLI は生メッセージ 1 行 + exit 0 で終わり、
+        // 以前はそれが「空の応答・完了」として画面に出ていた)
+        const noResult = resultOk === null && !sawDelta && assistantText === '';
+        if (noResult && !timedOut && resultDetail === '') {
+          resultDetail = noResultDetail(
+            rawTail,
+            `claude が応答を返さずに終了しました (exit=${code})`,
+          );
+        }
         resolve({
-          ok: !timedOut && code === 0 && resultOk !== false,
+          ok: !timedOut && code === 0 && resultOk !== false && !noResult,
           exitCode: code,
           timedOut,
           // partial を受けた場合は assistantText を使わない (二重返送防止)

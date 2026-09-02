@@ -27,6 +27,7 @@ import {
   canResumeSession,
   chatRelayEnabled,
   chatWorkspaceDir,
+  appendRawStdout,
   classifyRunFailure,
   collectNewArtifacts,
   extractToolDetails,
@@ -164,6 +165,26 @@ const ASSISTANT = JSON.stringify({
 });
 const RESULT_OK = JSON.stringify({ type: 'result', subtype: 'success', result: 'done' });
 const RESULT_ERR = JSON.stringify({ type: 'result', subtype: 'error_during_execution' });
+/** GAP-241: 実 CLI が root で auto モードを拒否したときの生メッセージ (JSON でない・exit 0)。 */
+const ROOT_REFUSAL =
+  '--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons';
+
+/** 何も読まずに出力して即終了する fake-claude (常駐経路で「result を出さずに死ぬ」再現)。 */
+function makeExitingFakeClaude(lines: readonly string[], exitCode = 0): string {
+  const dir = mkdtempSync(join(tmpdir(), 'fake-exit-'));
+  const path = join(dir, 'fake-claude.mjs');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env node',
+      ...lines.map((l) => `console.log(${JSON.stringify(l)});`),
+      `process.exit(${exitCode});`,
+      '',
+    ].join('\n'),
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
 
 function makeWorker(sender: FakeSender, command: string): ChatRelayWorker {
   return new ChatRelayWorker(sender, {
@@ -379,6 +400,31 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(sender.completes[0]?.ok).toBe(false);
   });
 
+  it('result も本文も無いまま exit 0 で終わったら failed + 生メッセージを証拠に残す (GAP-241)', async () => {
+    // 実測 (2026-09-02): root で auto モードを起動した CLI は JSON を 1 行も出さず
+    // この 1 行 + exit 0 で終わる。以前はそれが「空の応答・完了」として画面に出ていた。
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
+    const worker = makeWorker(sender, makeFakeClaude([ROOT_REFUSAL], 0));
+    expect(await worker.runOnce()).toBe('failed');
+    expect(sender.completes[0]?.ok).toBe(false);
+    expect(sender.completes[0]?.error).toContain('応答を返さずに終了');
+    expect(sender.completes[0]?.error).toContain('cannot be used with root');
+    // 空の本文を「応答」として送らない
+    expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toBe('');
+  });
+
+  it('認識しない JSON 行だけで result が無い場合も failed (証拠は「出力なし」)', async () => {
+    const sender = new FakeSender();
+    sender.picked = { jobId: 'j1', systemPrompt: 'SYS', prompt: 'PROMPT', toolsMode: 'off' };
+    const worker = makeWorker(
+      sender,
+      makeFakeClaude([JSON.stringify({ type: 'system', subtype: 'init' })], 0),
+    );
+    expect(await worker.runOnce()).toBe('failed');
+    expect(sender.completes[0]?.error).toContain('result 未受信・出力なし');
+  });
+
   it('rate_limit_event を window 別の最新値で complete に同送する (GAP-119)', async () => {
     const rl = (type: string, utilization: number) =>
       JSON.stringify({
@@ -402,6 +448,22 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(sent).toHaveLength(2);
     expect(sent.find((o) => o.rate_limit_type === 'five_hour')?.utilization).toBe(0.5);
     expect(sent.find((o) => o.rate_limit_type === 'seven_day')?.utilization).toBe(0.1);
+  });
+});
+
+describe('appendRawStdout (GAP-241 — JSON でない行だけを証拠に残す)', () => {
+  it('生メッセージは残し、stream-json の行と空行は残さない', () => {
+    let tail = '';
+    tail = appendRawStdout(tail, '');
+    tail = appendRawStdout(tail, JSON.stringify({ type: 'system', subtype: 'init' }));
+    expect(tail).toBe('');
+    tail = appendRawStdout(tail, ROOT_REFUSAL);
+    tail = appendRawStdout(tail, '  second line  ');
+    expect(tail).toBe(`${ROOT_REFUSAL}\nsecond line`);
+  });
+  it('末尾 2000 文字に丸める', () => {
+    const tail = appendRawStdout('', 'x'.repeat(5000));
+    expect(tail).toHaveLength(2000);
   });
 });
 
@@ -1069,10 +1131,11 @@ describe('GAP-191 常駐プロセスと実行中の追い足し', () => {
   function makePersistentWorker(
     sender: FakeSender,
     env: Record<string, string | undefined> = {},
+    command: string = makePersistentFakeClaude(),
   ): ChatRelayWorker {
     return new ChatRelayWorker(sender, {
       workerId: 'test#persist',
-      command: makePersistentFakeClaude(),
+      command,
       timeoutMs: 10_000,
       env: {
         PATH: process.env.PATH,
@@ -1151,6 +1214,29 @@ describe('GAP-191 常駐プロセスと実行中の追い足し', () => {
       auditHome: mkdtempSync(join(tmpdir(), 'g191-audit-')),
     });
     expect(await worker.runOnce()).toBe('completed');
+    expect(ChatRelayWorker.sessions.size).toBe(0);
+  });
+
+  it('常駐 claude が result を出さずに死んだら、タイムアウトを待たず失敗として返す (GAP-241)', async () => {
+    // 実測 (2026-09-02): root で auto モードを起動 → CLI は生メッセージ 1 行 + exit 0。
+    // 以前は result 行でしか finish できず、job timeout (既定 3 分超) まで宙に浮いていた。
+    const sender = new FakeSender();
+    sender.picked = {
+      jobId: 'j-persist-exit',
+      systemPrompt: 'SYS',
+      prompt: 'ファイルを作って',
+      toolsMode: 'auto',
+      sessionId: PLAN_SESSION,
+    };
+    const worker = makePersistentWorker(sender, {}, makeExitingFakeClaude([ROOT_REFUSAL], 0));
+    const started = Date.now();
+    expect(await worker.runOnce()).toBe('failed');
+    // timeoutMs=10_000 より十分早く返る (終了を購読しているので待たされない)
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(sender.completes[0]?.ok).toBe(false);
+    expect(sender.completes[0]?.error).toContain('応答を返さずに終了');
+    expect(sender.completes[0]?.error).toContain('cannot be used with root');
+    // 死んだプロセスは台帳に残さない (次のターンで作り直す)
     expect(ChatRelayWorker.sessions.size).toBe(0);
   });
 

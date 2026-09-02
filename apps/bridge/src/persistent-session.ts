@@ -70,6 +70,8 @@ export class PersistentSession {
   private handlers: LineHandler[] = [];
   private idleTimer: NodeJS.Timeout | null = null;
   private stderrTail = '';
+  /** GAP-241: ターン単位で「プロセスが死んだ」を知りたい側の購読。 */
+  private exitHandlers: Array<(code: number | null) => void> = [];
   /** 実行中に投げ込まれた追い足しの本文 (画面へ返すため記録する)。 */
   readonly injected: string[] = [];
 
@@ -108,6 +110,7 @@ export class PersistentSession {
       this.child = null;
       this.clearIdleTimer();
       this.opts.onExit?.(code);
+      this.notifyExit(code);
     });
     // spawn 自体の失敗 (claude 不在 / 実行権限なし) をここで受ける。
     // 受けないと unhandled 'error' でプロセスごと落ちる。
@@ -115,6 +118,7 @@ export class PersistentSession {
       this.child = null;
       this.clearIdleTimer();
       this.opts.onExit?.(127);
+      this.notifyExit(127);
     });
     this.touch();
   }
@@ -147,6 +151,25 @@ export class PersistentSession {
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
     };
+  }
+
+  /**
+   * GAP-241: プロセス終了の購読 (解除関数を返す)。
+   *
+   * 実行中のターンは result 行でしか終われないため、result を出さずに
+   * プロセスが死ぬと (root での `--dangerously-skip-permissions` 拒否など)
+   * ターンがタイムアウトまで宙に浮く。終了を購読できれば、その場で失敗として
+   * 返せる。
+   */
+  onExit(handler: (code: number | null) => void): () => void {
+    this.exitHandlers.push(handler);
+    return () => {
+      this.exitHandlers = this.exitHandlers.filter((h) => h !== handler);
+    };
+  }
+
+  private notifyExit(code: number | null): void {
+    for (const handler of [...this.exitHandlers]) handler(code);
   }
 
   /** この PC 上の claude を**実際に**止める (GAP-189 と同じ二段構え)。 */
