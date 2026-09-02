@@ -1,0 +1,100 @@
+{
+  "skill_name": "task-decomposition",
+  "version": "v3-2026-05-16-generalized",
+  "description": "並列開発のためのタスク分解スキルのテスト (v3 汎用版: 3-tier AC / Foundation→Backend→UI / Vertical Slice / Wave 並列 / file mutex / pre-flight audit MD / CI gate auto-merge / Phase gate 機械判定)",
+  "evals": [
+    {
+      "id": "td-generic-1",
+      "title": "汎用 prompt: STEP 1 タスク分解方針 (BF 言及なし)",
+      "prompt": "BtoC EC サイトの開発で、機能分解 (features.json 8件 / screens.json 11件 / entities.json 9件 / roles.json 3件) と API 設計 (OpenAPI 22 endpoint) が終わりました。次にタスク分解に入りたいです。チームは Claude Code 並列セッション 20 で、3 ヶ月で MVP 公開予定。STEP 1 をお願いします。",
+      "expected_behavior": [
+        "STEP 1 形式で出力 (会話的前置きなし、'##' から開始)",
+        "受け取った成果物表 (features/screens/entities/roles + OpenAPI) を提示",
+        "汎用 v3 概念に言及 (3-tier AC / Foundation→Backend→UI / Vertical Slice / Wave / file mutex / pre-flight audit MD)",
+        "deliverable_layer (foundation/backend/ui/polish) の付与方針を明示",
+        "汎用 Group A-E (Foundation/Backend/UI/Integration/Polish) を提示",
+        "Foundation phase (project-defined naming) を必ず先行と明示",
+        "並列度 20 セッション (project-defined parallel capacity) に合わせた構成",
+        "プロジェクト profile 適用有無を確認",
+        "STEP 2 で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / 高本まさと / scripts/lint-mock.sh / Phase 0/1/1.5/2 / 30-50 並列 / bf_meta / lint #17-19 / 43 screens / 187 tasks の語が出ない"},
+        {"id": "v3_core_concepts", "check": "3-tier AC / Foundation→Backend→UI / Vertical Slice / Wave / file mutex / pre-flight audit MD のいずれか言及"},
+        {"id": "foundation_backend_ui_flow", "check": "Foundation → Backend → UI の順序を明示 (deliverable_layer 言及含む)"},
+        {"id": "generic_group_set", "check": "汎用 Group A-E (Foundation/Backend/UI/Integration/Polish) または同等の汎用 group を提示"},
+        {"id": "profile_question", "check": "プロジェクト profile 適用有無を確認している"},
+        {"id": "stops_at_step1", "check": "STEP 1 で止まり STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "td-generic-2",
+      "title": "汎用 prompt: STEP 2 で 1 タスク分解 + 3-tier AC + deliverable_layer",
+      "prompt": "STEP 2 へ。Group B (Backend) のうち、ユーザーログイン機能 (POST /api/auth/login) を Vertical Slice で 1 タスクに落としてほしい。screen は S-001 login、entity は E-001 User / E-007 Session、role は guest/member。",
+      "expected_behavior": [
+        "1 タスクに 3-tier AC (structural / functional / regression) すべて付与",
+        "EARS 5 形式 (UBIQUITOUS / EVENT-DRIVEN / STATE-DRIVEN / OPTIONAL / UNWANTED) で記述",
+        "deliverable_layer フィールドが foundation/backend/ui/polish のいずれか付与",
+        "files_changed に new/modify/delete サフィックス",
+        "depends_on に Foundation tasks を含む",
+        "audit_md_path がプレースホルダ <audit_dir> 形式で生成",
+        "BF 固有値 (scripts/lint-mock.sh / pyright / Supabase RLS / 30-50 並列) は出さない (汎用 placeholder)"
+      ],
+      "assertions": [
+        {"id": "three_tier_ac_present", "check": "structural / functional / regression の 3 配列が全て出現"},
+        {"id": "ears_format_used", "check": "EARS 5 形式のうち最低 3 形式 (EVENT-DRIVEN / STATE-DRIVEN / UNWANTED 等) が使われる"},
+        {"id": "deliverable_layer_field", "check": "deliverable_layer: backend (or ui) のフィールドが付与"},
+        {"id": "no_bf_jargon", "check": "scripts/lint-mock.sh / pyright --strict / Supabase RLS / 30-50 並列 / lint #17-19 が出ない"},
+        {"id": "placeholder_paths", "check": "<lint_runner> / <ac_validator> / <test_runner> / <audit_dir> 等の placeholder または project-agnostic な汎用名 (test runner / type checker 等) が使われる"},
+        {"id": "depends_on_foundation", "check": "depends_on に Foundation tasks が含まれる"},
+        {"id": "audit_md_path", "check": "audit_md_path フィールドが付与される"}
+      ]
+    },
+    {
+      "id": "td-generic-3",
+      "title": "汎用 prompt: STEP 3 Wave 構成で Foundation → Backend → UI 順序",
+      "prompt": "STEP 3 へ。Group A (Foundation) 5件 / B (Backend Vertical Slice) 12件 / C (UI) 8件 / D (Integration test) 3件 / E (Polish) 4件 を分解しました。Claude Code 20 並列で並列実行プランをお願いします。",
+      "expected_behavior": [
+        "Wave 0 = Foundation (Group A) で固定",
+        "Wave 1+ = Backend phase (Group B/D)",
+        "Wave N = UI phase (Group C)",
+        "Wave M = Polish phase (Group E)",
+        "deliverable_layer 順序 (foundation → backend → ui → polish) が Wave に反映",
+        "並列度 ≤ 20 の制約を守る",
+        "file-level mutex 設計に言及",
+        "失敗時 retry プロトコル + Phase gate 機械判定 言及",
+        "BF 固有 phase 名 (Phase 0/1/1.5/2) は出さない"
+      ],
+      "assertions": [
+        {"id": "wave0_foundation", "check": "Wave 0 = Foundation phase (Group A) が固定"},
+        {"id": "deliverable_layer_order", "check": "Wave の並びが foundation → backend → ui → polish の順"},
+        {"id": "parallel_capacity_respected", "check": "各 Wave の並列度が 20 以下"},
+        {"id": "file_mutex_mentioned", "check": "file-level mutex / work-package boundary に言及"},
+        {"id": "phase_gate_mechanical", "check": "Phase gate 機械判定 / mechanical / observable に言及"},
+        {"id": "retry_protocol", "check": "失敗時 retry プロトコル (N 回連続失敗 → human エスカ) 言及"},
+        {"id": "no_bf_phase_names", "check": "Phase 0/1/1.5/2 / dogfood / SaaS 公開 の語が出ない"}
+      ]
+    },
+    {
+      "id": "td-bf-profile-1",
+      "title": "BF profile 適用 prompt: 旧 BF 固有挙動と同等",
+      "prompt": "Build-Factory profile (references/profiles/build-factory.md) を適用してください。Build-Factory プロジェクトの v3 タスク分解の STEP 1 を出してほしい。functional-breakdown は docs/functional-breakdown/2026-05-09_v1/ にあり screens 43 / features 30 / entities 43 / roles 6。Claude Code 30-50 並列前提。8 CI gate auto-merge 前提。",
+      "expected_behavior": [
+        "Build-Factory profile の値が反映 (script path / phase 名 / 並列数 / Group A-J 細分化)",
+        "scripts/lint-mock.sh / scripts/validate-tickets.py / scripts/verify-rls-coverage.py 等の実 script path が出る",
+        "Phase 0 / Phase 1 (dogfood) / Phase 1.5 / Phase 2 の名称が使われる",
+        "30-50 並列 / 8 CI gate の数値が出る",
+        "Group A-J の 10 group 細分化が使われる (Build-Factory 固有)",
+        "v3 汎用概念 (3-tier AC / Foundation→Backend→UI / Vertical Slice) は保持"
+      ],
+      "assertions": [
+        {"id": "profile_applied_paths", "check": "scripts/lint-mock.sh / scripts/validate-tickets.py 等の Build-Factory 固有 path が出る"},
+        {"id": "profile_applied_phase_names", "check": "Phase 0 / Phase 1 / Phase 1.5 / Phase 2 の名称が使われる"},
+        {"id": "profile_applied_parallel", "check": "30-50 並列 / 8 CI gate の Build-Factory 値が反映"},
+        {"id": "profile_applied_groups", "check": "Group A-J の 10 group 細分化が出る"},
+        {"id": "v3_core_preserved", "check": "汎用 v3 概念 (3-tier AC / Foundation→Backend→UI / Vertical Slice) も保持"}
+      ]
+    }
+  ]
+}

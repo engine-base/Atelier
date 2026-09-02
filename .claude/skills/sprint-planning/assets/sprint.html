@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スプリント計画書 — {{PROJECT_NAME}}</title>
+  <style>
+    :root {
+      --color-bg: #ffffff;
+      --color-surface: #f8f9fa;
+      --color-border: #e2e8f0;
+      --color-accent: #2563eb;
+      --color-accent-light: #eff6ff;
+      --color-text: #1e293b;
+      --color-text-muted: #64748b;
+      --color-p0: #dc2626;
+      --color-p0-bg: #fef2f2;
+      --color-p1: #d97706;
+      --color-p1-bg: #fffbeb;
+      --color-p2: #16a34a;
+      --color-p2-bg: #f0fdf4;
+      --color-done: #16a34a;
+      --color-warn: #d97706;
+      --color-danger: #dc2626;
+      --font: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: #e2e8f0;
+      color: var(--color-text);
+      -webkit-font-smoothing: antialiased;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      background: var(--color-bg);
+      margin: 24px auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+      overflow: hidden;
+    }
+
+    /* Header */
+    .page-header {
+      background: var(--color-accent);
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .page-header .title-group h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .page-header .title-group .subtitle {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-top: 2px;
+    }
+    .page-header .sprint-badge {
+      background: rgba(255,255,255,0.18);
+      border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 6px;
+      padding: 8px 20px;
+      text-align: center;
+    }
+    .page-header .sprint-badge .sprint-num {
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .page-header .sprint-badge .sprint-label {
+      font-size: 10px;
+      opacity: 0.75;
+      margin-top: 2px;
+    }
+
+    /* Meta bar */
+    .meta-bar {
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      padding: 10px 32px;
+      display: flex;
+      gap: 32px;
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+    .meta-bar span strong {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    /* Body */
+    .page-body {
+      padding: 24px 32px 32px;
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      gap: 24px;
+    }
+
+    /* Section */
+    .section {
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--color-accent-light);
+    }
+
+    /* Goal box */
+    .goal-box {
+      background: var(--color-accent-light);
+      border-left: 4px solid var(--color-accent);
+      border-radius: 0 6px 6px 0;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text);
+    }
+
+    /* Task table */
+    .task-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .task-table th {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 7px 10px;
+      text-align: left;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      font-size: 11px;
+    }
+    .task-table td {
+      border: 1px solid var(--color-border);
+      padding: 8px 10px;
+      vertical-align: middle;
+    }
+    .task-table tr:nth-child(even) td {
+      background: #fafafa;
+    }
+    .task-table tr:hover td {
+      background: var(--color-accent-light);
+    }
+
+    /* Priority badges */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .badge-p0 { background: var(--color-p0-bg); color: var(--color-p0); }
+    .badge-p1 { background: var(--color-p1-bg); color: var(--color-p1); }
+    .badge-p2 { background: var(--color-p2-bg); color: var(--color-p2); }
+
+    /* Points */
+    .points-chip {
+      display: inline-block;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Capacity sidebar */
+    .sidebar {}
+
+    .capacity-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .capacity-card .card-label {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-bottom: 4px;
+    }
+    .capacity-card .card-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1;
+    }
+    .capacity-card .card-unit {
+      font-size: 13px;
+      color: var(--color-text-muted);
+      margin-left: 2px;
+    }
+
+    /* Progress bar */
+    .progress-wrap {
+      margin-top: 12px;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-bottom: 4px;
+    }
+    .progress-bar {
+      height: 8px;
+      background: var(--color-border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--color-accent);
+      width: {{CAPACITY_PERCENT}}%;
+      transition: width 0.3s ease;
+    }
+    .progress-fill.warn { background: var(--color-warn); }
+    .progress-fill.danger { background: var(--color-danger); }
+
+    /* Stats grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat-item {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 3px;
+    }
+
+    /* Events */
+    .event-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      padding: 6px 10px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 5px;
+    }
+    .event-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      flex-shrink: 0;
+    }
+    .event-name { font-weight: 600; color: var(--color-text); }
+    .event-date { color: var(--color-text-muted); margin-left: auto; }
+
+    /* DoD */
+    .dod-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .dod-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+    .dod-list li::before {
+      content: "☐";
+      color: var(--color-accent);
+      font-size: 14px;
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+
+    /* Risk */
+    .risk-tag {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 12px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .risk-high { background: var(--color-p0-bg); color: var(--color-p0); }
+    .risk-med { background: var(--color-p1-bg); color: var(--color-p1); }
+    .risk-low { background: var(--color-p2-bg); color: var(--color-p2); }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--color-border);
+      padding: 10px 32px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      background: var(--color-surface);
+    }
+
+    /* Print */
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; width: 100%; }
+      @page { size: A4 landscape; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="title-group">
+      <h1>{{PROJECT_NAME}} — スプリント計画書</h1>
+      <div class="subtitle">{{START_DATE}} 〜 {{END_DATE}}</div>
+    </div>
+    <div class="sprint-badge">
+      <div class="sprint-num">Sprint {{SPRINT_NUMBER}}</div>
+      <div class="sprint-label">SPRINT</div>
+    </div>
+  </div>
+
+  <!-- Meta bar -->
+  <div class="meta-bar">
+    <span>作成日: <strong>{{CREATED_DATE}}</strong></span>
+    <span>作成者: <strong>{{CREATED_BY}}</strong></span>
+    <span>チーム: <strong>{{TEAM_SIZE}}名</strong></span>
+    <span>スプリント期間: <strong>{{SPRINT_DAYS}}日</strong></span>
+    <span>キャパシティ: <strong>{{TOTAL_POINTS}}pt</strong></span>
+  </div>
+
+  <!-- Body -->
+  <div class="page-body">
+
+    <!-- Main content -->
+    <div class="main-content">
+
+      <!-- Goal -->
+      <div class="section">
+        <div class="section-title">スプリント目標</div>
+        <div class="goal-box">{{SPRINT_GOAL}}</div>
+      </div>
+
+      <!-- Task table -->
+      <div class="section">
+        <div class="section-title">スプリントバックログ ({{SPRINT_TOTAL_POINTS}}pt / {{TOTAL_POINTS}}pt)</div>
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th style="width:36px">#</th>
+              <th>タスク名</th>
+              <th style="width:80px">担当</th>
+              <th style="width:60px">ポイント</th>
+              <th style="width:60px">優先度</th>
+              <th style="width:80px">依存</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{TASK_ROWS_HTML}}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- DoD -->
+      <div class="section">
+        <div class="section-title">完了定義 (Definition of Done)</div>
+        <ul class="dod-list">
+          {{DOD_ITEMS_HTML}}
+        </ul>
+      </div>
+
+      <!-- Events -->
+      <div class="section">
+        <div class="section-title">スプリントイベント</div>
+        <div class="event-list">
+          <div class="event-item">
+            <div class="event-dot"></div>
+            <span class="event-name">スプリントプランニング</span>
+            <span class="event-date">{{PLANNING_DATE}}</span>
+          </div>
+          <div class="event-item">
+            <div class="event-dot"></div>
+            <span class="event-name">デイリースクラム</span>
+            <span class="event-date">毎日 {{STANDUP_TIME}}</span>
+          </div>
+          <div class="event-item">
+            <div class="event-dot"></div>
+            <span class="event-name">スプリントレビュー</span>
+            <span class="event-date">{{REVIEW_DATE}}</span>
+          </div>
+          <div class="event-item">
+            <div class="event-dot"></div>
+            <span class="event-name">レトロスペクティブ</span>
+            <span class="event-date">{{RETRO_DATE}}</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Capacity -->
+      <div class="capacity-card">
+        <div class="card-label">総キャパシティ</div>
+        <div class="card-value">{{TOTAL_POINTS}}<span class="card-unit">pt</span></div>
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>使用: {{SPRINT_TOTAL_POINTS}}pt</span>
+            <span>{{CAPACITY_PERCENT}}%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill {{CAPACITY_STATUS}}"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="section">
+        <div class="section-title">内訳</div>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value">{{P0_COUNT}}</div>
+            <div class="stat-label">P0 タスク</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{P1_COUNT}}</div>
+            <div class="stat-label">P1 タスク</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{P2_COUNT}}</div>
+            <div class="stat-label">P2 タスク</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">{{TOTAL_TASKS}}</div>
+            <div class="stat-label">合計タスク</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risks -->
+      <div class="section">
+        <div class="section-title">リスク・注意点</div>
+        <div style="font-size:12px; line-height:1.7; color: var(--color-text);">
+          {{RISKS_HTML}}
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+  </div><!-- /page-body -->
+
+  <!-- Footer -->
+  <div class="page-footer">
+    <span>{{PROJECT_NAME}} / Sprint {{SPRINT_NUMBER}}</span>
+    <span>{{START_DATE}} 〜 {{END_DATE}}</span>
+    <span>作成: {{CREATED_DATE}}</span>
+  </div>
+
+</div><!-- /page -->
+
+</body>
+</html>

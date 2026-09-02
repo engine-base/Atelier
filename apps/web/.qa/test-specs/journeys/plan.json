@@ -24,6 +24,7 @@
       "expected": "500 や白画面にならず、空の状態として表示される。空だからと例外で落ちない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -41,6 +42,7 @@
       "expected": "例外ではなく「該当なし」として正しく断られる。存在の有無が漏れない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -58,6 +60,7 @@
       "expected": "運営としてサインインでき、運営画面に入れる。「認証はできるが権限が無い」で詰まらない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -75,6 +78,7 @@
       "expected": "手動補正なしでサインインが成立する。seed が必須項目 (パスワード等) を落としていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / seed 済み DB では原理的に出ないバグ"
     },
     {
@@ -92,6 +96,7 @@
       "expected": "版が 1 つ生まれ、プレビューに出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -109,6 +114,7 @@
       "expected": "運営の既定が最初から入っている",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -126,6 +132,7 @@
       "expected": "上書き済みの見た目は変わらない。勝手に上書きし返さない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -143,6 +150,7 @@
       "expected": "各操作が一覧に反映され、削除したものが復活しない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / 「整備済みを確認」で済ませず実際に 1 件回す"
     },
     {
@@ -160,6 +168,7 @@
       "expected": "装着が一覧に出て、対象の AI 社員から参照できる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -177,6 +186,7 @@
       "expected": "スキル本文が読めない。画面側 JS にも含まれない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T06"
     },
     {
@@ -194,6 +204,7 @@
       "expected": "現行が 1 件だけになる。旧版は消えず残る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / 順序を誤ると一意制約で失敗する"
     },
     {
@@ -211,6 +222,7 @@
       "expected": "改訂した内容が読める。ダミーの連絡先や存在しないプランが残っていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -228,6 +240,7 @@
       "expected": "各ケースで日本語のエラーが出て送信されない。英語の既定メッセージが出ない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-210"
     },
     {
@@ -245,6 +258,7 @@
       "expected": "サーバーが拒否する。画面だけの防御になっていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -262,6 +276,7 @@
       "expected": "登録が通り、サインイン画面から抜けて中の画面に着地する",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -279,6 +294,7 @@
       "expected": "記録された版が現行版と一致する。登録日など別の値になっていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-210"
     },
     {
@@ -296,6 +312,7 @@
       "expected": "サイドバー・検索・通知など、押しても何も起きない導線が出ていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-207"
     },
     {
@@ -313,6 +330,7 @@
       "expected": "再読み込みせずにサイドバーとワークスペース名が出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-207"
     },
     {
@@ -330,6 +348,7 @@
       "expected": "サインイン画面に着地し、cookie と手元の文脈が消える",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-209"
     },
     {
@@ -347,6 +366,7 @@
       "expected": "サインインへ戻される。古いトークンも通らない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-209"
     },
     {
@@ -364,6 +384,7 @@
       "expected": "作ったものが残っている",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -382,6 +403,7 @@
       "expected": "「更新しました。同意をお願いします」の帯が出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-206"
     },
     {
@@ -399,6 +421,7 @@
       "expected": "帯が消え、再読み込みしても出ない。旧版の記録は消えず新版が増える",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-206"
     },
     {
@@ -416,6 +439,7 @@
       "expected": "同意していない扱いのまま。版が変わればまた出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -433,6 +457,7 @@
       "expected": "新しいパスワードでサインインでき、古いパスワードでは入れない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -450,6 +475,7 @@
       "expected": "通らない。パスワードを変えたのに古いセッションが生き続けない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-209 で見つけた回帰"
     },
     {
@@ -467,6 +493,7 @@
       "expected": "招待が一覧に出て、リンクが得られる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -484,6 +511,7 @@
       "expected": "クライアント用の画面に入れる。社内用の cookie とは別系統である",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -501,6 +529,7 @@
       "expected": "拒否される",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -518,6 +547,7 @@
       "expected": "自分の案件の内容が読める。社内専用の情報 (原価/他案件/内部メモ) が出ない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -535,6 +565,7 @@
       "expected": "参照も投稿も拒否される。1 件も他人の情報が出ない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08 致命級。ここが破れたら公開不可"
     },
     {
@@ -552,6 +583,7 @@
       "expected": "拒否される。系統をまたげない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -569,6 +601,7 @@
       "expected": "コメントが自分の画面に出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -586,6 +619,7 @@
       "expected": "クライアントのコメントが、誰のものか分かる形で出ている",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -603,6 +637,7 @@
       "expected": "入れず、期限切れであることが日本語で分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -620,6 +655,7 @@
       "expected": "入れない。既に入っている人のアクセスも断たれる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -637,6 +673,7 @@
       "expected": "一覧に出て、開ける",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -654,6 +691,7 @@
       "expected": "9 工程が並び、先頭が進行中になっている",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -671,6 +709,7 @@
       "expected": "次の工程が進行中になり、前の工程が完了になる。画面とデータの両方で一致",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -688,6 +727,7 @@
       "expected": "変えられないか、変えるには明示の操作が要る。黙って書き換わらない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -705,6 +745,7 @@
       "expected": "招待が一覧に出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -722,6 +763,7 @@
       "expected": "参加でき、割り当てられた範囲が見える",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -739,6 +781,7 @@
       "expected": "権限が無いことが日本語で分かる。白画面や生のエラーにしない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -756,6 +799,7 @@
       "expected": "一覧から消え、データ上も承認済みになる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -773,6 +817,7 @@
       "expected": "却下として記録され、承認済みと区別できる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -790,6 +835,7 @@
       "expected": "各ファイルの結果が出て、どこへ仕分けられたか分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -807,6 +853,7 @@
       "expected": "壊れた方は理由つきで残り、正常な方は取り込まれる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -824,6 +871,7 @@
       "expected": "確定した工程だけが進む。確定していないものは動かない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -841,6 +889,7 @@
       "expected": "アップロードが完了し、処理中であることが分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -858,6 +907,7 @@
       "expected": "本文が読める",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -875,6 +925,7 @@
       "expected": "タスクや工程に反映され、元の議事録から辿れる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -892,6 +943,7 @@
       "expected": "各操作が一覧に反映され、削除したものが復活しない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -909,6 +961,7 @@
       "expected": "該当が出る。存在しない語では 0 件になり、壊れない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -926,6 +979,7 @@
       "expected": "1 件も出ない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -943,6 +997,7 @@
       "expected": "採用したものだけが正式なナレッジになる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -960,6 +1015,7 @@
       "expected": "「本人の PC が未接続」であることと接続の導線が出る。未設定と混同しない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-168/206"
     },
     {
@@ -977,6 +1033,7 @@
       "expected": "接続済みとして画面に出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -994,6 +1051,7 @@
       "expected": "利用者自身の契約で動くことが実行前に分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-178"
     },
     {
@@ -1012,6 +1070,7 @@
       "expected": "応答が返り、オウム返しや定型文でない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -1029,6 +1088,7 @@
       "expected": "仕込んだ固有名を踏まえて答える。知らないまま喋らない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -1046,6 +1106,7 @@
       "expected": "説明し直さずに解決する",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -1063,6 +1124,7 @@
       "expected": "画面とデータの両方に実体がある。会話だけで終わらない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-139"
     },
     {
@@ -1080,6 +1142,7 @@
       "expected": "指示した箇所以外の作り込みが保たれる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-147 回帰"
     },
     {
@@ -1097,6 +1160,7 @@
       "expected": "添付ありでは中身に基づき答え、添付なしでは作り話をしない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-161"
     },
     {
@@ -1114,6 +1178,7 @@
       "expected": "承認するまで実行されない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-130"
     },
     {
@@ -1131,6 +1196,7 @@
       "expected": "副作用が起きていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -1148,6 +1214,7 @@
       "expected": "承認した操作だけが実行される。ついでに別の操作をしない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac"
     },
     {
@@ -1165,6 +1232,7 @@
       "expected": "断られず順番待ちになり、空き次第そのまま実行に入る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-203"
     },
     {
@@ -1182,6 +1250,7 @@
       "expected": "席が戻る。列に残り続けない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=mac / GAP-203 回帰"
     },
     {
@@ -1199,6 +1268,7 @@
       "expected": "入力欄に文章が戻り、押し直すだけで再送できる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1216,6 +1286,7 @@
       "expected": "手続き画面へ進むか、進めない理由が出る。黙って何も起きない、にならない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1233,6 +1304,7 @@
       "expected": "契約中として表示される",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1250,6 +1322,7 @@
       "expected": "期間末まで使えること・日割り返金が無いことが押す前に書いてある",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -1267,6 +1340,7 @@
       "expected": "手続き画面へ進むか、進めない理由が出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -1284,6 +1358,7 @@
       "expected": "解約の導線が出ていない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1301,6 +1376,7 @@
       "expected": "受け付けられ、猶予期間があることが分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1318,6 +1394,7 @@
       "expected": "元の状態に戻り、作ったものが残っている",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1335,6 +1412,7 @@
       "expected": "入れない。理由が日本語で分かる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1352,6 +1430,7 @@
       "expected": "順番待ちやお断りが起きていれば、機械をまたいで集計されて出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -1369,6 +1448,7 @@
       "expected": "現在の余裕と、増やす前に必要な作業が出る",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / GAP-205"
     },
     {
@@ -1386,6 +1466,7 @@
       "expected": "実行者・対象・時刻が特定できる",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud"
     },
     {
@@ -1403,6 +1484,7 @@
       "expected": "見られない",
       "status": "TODO",
       "evidence": "",
+      "runnable_after": [],
       "note": "場所=cloud / R-T08"
     }
   ]

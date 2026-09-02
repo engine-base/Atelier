@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>リリース計画書 — {{PROJECT_NAME}} v{{VERSION}}</title>
+  <style>
+    :root {
+      --color-bg: #ffffff;
+      --color-surface: #f8f9fa;
+      --color-border: #e2e8f0;
+      --color-text: #1e293b;
+      --color-text-muted: #64748b;
+      --color-accent: #0f766e;
+      --color-accent-light: #f0fdfa;
+      --color-accent-border: #99f6e4;
+      --color-warn: #d97706;
+      --color-warn-bg: #fffbeb;
+      --color-danger: #dc2626;
+      --color-danger-bg: #fef2f2;
+      --color-done: #16a34a;
+      --color-done-bg: #f0fdf4;
+      --font: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: #e2e8f0;
+      color: var(--color-text);
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      background: var(--color-bg);
+      margin: 24px auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+      overflow: hidden;
+    }
+
+    /* Header */
+    .page-header {
+      background: var(--color-accent);
+      color: #fff;
+      padding: 22px 32px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .page-header h1 { font-size: 18px; font-weight: 700; }
+    .page-header .sub { font-size: 11px; opacity: 0.75; margin-top: 4px; }
+    .version-badge {
+      background: rgba(255,255,255,0.18);
+      border: 1.5px solid rgba(255,255,255,0.4);
+      border-radius: 6px;
+      padding: 6px 16px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .version-badge .ver { font-size: 20px; font-weight: 700; line-height: 1; }
+    .version-badge .ver-label { font-size: 10px; opacity: 0.7; margin-top: 2px; }
+
+    /* Meta table */
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .meta-table td {
+      padding: 8px 16px;
+      font-size: 12px;
+      border-right: 1px solid var(--color-border);
+    }
+    .meta-table td:last-child { border-right: none; }
+    .meta-table .meta-label { color: var(--color-text-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; display: block; }
+    .meta-table .meta-value { font-weight: 600; color: var(--color-text); }
+
+    /* Body */
+    .page-body { padding: 22px 32px 32px; }
+
+    /* Section */
+    .section { margin-bottom: 24px; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid var(--color-accent-light);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Change summary chips */
+    .change-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .change-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+    }
+    .chip-added { background: var(--color-done-bg); border-color: #bbf7d0; color: var(--color-done); }
+    .chip-changed { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
+    .chip-fixed { background: var(--color-warn-bg); border-color: #fde68a; color: var(--color-warn); }
+    .chip-security { background: var(--color-danger-bg); border-color: #fecaca; color: var(--color-danger); }
+    .chip-count { font-size: 13px; font-weight: 700; }
+
+    /* Checklist */
+    .checklist-group {
+      margin-bottom: 16px;
+    }
+    .checklist-group-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 6px;
+      padding: 6px 10px;
+      background: var(--color-surface);
+      border-radius: 4px;
+      border-left: 3px solid var(--color-accent);
+    }
+    .checklist-items {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-left: 8px;
+    }
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 5px 8px;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      background: #fff;
+      font-size: 12px;
+    }
+    .check-item input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: var(--color-accent);
+    }
+    .check-item .check-label { flex: 1; }
+    .check-item .check-owner {
+      font-size: 10px;
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+    }
+
+    /* Steps */
+    .steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .step-item {
+      display: flex;
+      gap: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: var(--color-surface);
+    }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--color-accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-content {}
+    .step-title { font-weight: 600; font-size: 12px; }
+    .step-cmd {
+      margin-top: 4px;
+      font-family: "SFMono-Regular", "Consolas", "Menlo", monospace;
+      font-size: 11px;
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .step-note { font-size: 11px; color: var(--color-text-muted); margin-top: 3px; }
+
+    /* Rollback */
+    .rollback-box {
+      background: var(--color-danger-bg);
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .rollback-box .rb-title {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--color-danger);
+      margin-bottom: 6px;
+    }
+    .rollback-box .rb-criteria {
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    /* Monitor table */
+    .monitor-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .monitor-table th {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      padding: 6px 10px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+    }
+    .monitor-table td {
+      border: 1px solid var(--color-border);
+      padding: 7px 10px;
+    }
+
+    /* Changelog */
+    .changelog-block {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .changelog-block .cl-version {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .changelog-section { margin-bottom: 10px; }
+    .changelog-section .cl-type {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .cl-added { color: var(--color-done); }
+    .cl-changed { color: #2563eb; }
+    .cl-fixed { color: var(--color-warn); }
+    .cl-security { color: var(--color-danger); }
+    .cl-removed { color: var(--color-text-muted); }
+    .changelog-section ul {
+      list-style: none;
+      padding-left: 4px;
+    }
+    .changelog-section ul li {
+      font-size: 12px;
+      padding: 2px 0;
+      display: flex;
+      gap: 6px;
+    }
+    .changelog-section ul li::before {
+      content: "–";
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+    }
+
+    /* Footer */
+    .page-footer {
+      border-top: 1px solid var(--color-border);
+      padding: 10px 32px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--color-text-muted);
+      background: var(--color-surface);
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { margin: 0; box-shadow: none; width: 100%; }
+      @page { size: A4 portrait; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div>
+      <h1>リリース計画書 — {{PROJECT_NAME}}</h1>
+      <div class="sub">{{RELEASE_DATE}} リリース予定 / 担当: {{RELEASE_OWNER}}</div>
+    </div>
+    <div class="version-badge">
+      <div class="ver">v{{VERSION}}</div>
+      <div class="ver-label">VERSION</div>
+    </div>
+  </div>
+
+  <!-- Meta -->
+  <table class="meta-table">
+    <tr>
+      <td><span class="meta-label">リリース日時</span><span class="meta-value">{{RELEASE_DATE}}</span></td>
+      <td><span class="meta-label">リリース担当</span><span class="meta-value">{{RELEASE_OWNER}}</span></td>
+      <td><span class="meta-label">承認者</span><span class="meta-value">{{APPROVER}}</span></td>
+      <td><span class="meta-label">監視担当</span><span class="meta-value">{{MONITOR_OWNER}}</span></td>
+      <td><span class="meta-label">停止ウィンドウ</span><span class="meta-value">{{MAINTENANCE_WINDOW}}</span></td>
+    </tr>
+  </table>
+
+  <div class="page-body">
+
+    <!-- Change summary -->
+    <div class="section">
+      <div class="section-title">変更内容サマリー</div>
+      <div class="change-chips">
+        <div class="change-chip chip-added"><span class="chip-count">{{ADDED_COUNT}}</span> Added</div>
+        <div class="change-chip chip-changed"><span class="chip-count">{{CHANGED_COUNT}}</span> Changed</div>
+        <div class="change-chip chip-fixed"><span class="chip-count">{{FIXED_COUNT}}</span> Fixed</div>
+        <div class="change-chip chip-security"><span class="chip-count">{{SECURITY_COUNT}}</span> Security</div>
+      </div>
+      <div style="font-size:12px; line-height:1.7;">{{CHANGE_DESCRIPTION}}</div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="section">
+      <div class="section-title">リリース前チェックリスト</div>
+
+      <div class="checklist-group">
+        <div class="checklist-group-title">機能確認</div>
+        <div class="checklist-items">
+          {{FEATURE_CHECKLIST_HTML}}
+        </div>
+      </div>
+
+      <div class="checklist-group">
+        <div class="checklist-group-title">品質確認</div>
+        <div class="checklist-items">
+          {{QUALITY_CHECKLIST_HTML}}
+        </div>
+      </div>
+
+      <div class="checklist-group">
+        <div class="checklist-group-title">インフラ確認</div>
+        <div class="checklist-items">
+          {{INFRA_CHECKLIST_HTML}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Deploy steps -->
+    <div class="section">
+      <div class="section-title">本番デプロイ手順</div>
+      <div class="steps-list">
+        {{DEPLOY_STEPS_HTML}}
+      </div>
+    </div>
+
+    <!-- Rollback -->
+    <div class="section">
+      <div class="section-title">ロールバック手順</div>
+      <div class="rollback-box">
+        <div class="rb-title">ロールバック判断基準</div>
+        <div class="rb-criteria">{{ROLLBACK_CRITERIA}}</div>
+      </div>
+      <div class="steps-list">
+        {{ROLLBACK_STEPS_HTML}}
+      </div>
+    </div>
+
+    <!-- Monitor -->
+    <div class="section">
+      <div class="section-title">リリース後監視設定</div>
+      <table class="monitor-table">
+        <thead>
+          <tr>
+            <th>監視項目</th>
+            <th>閾値・設定値</th>
+            <th>確認担当</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{MONITOR_ROWS_HTML}}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Changelog -->
+    <div class="section">
+      <div class="section-title">CHANGELOG</div>
+      <div class="changelog-block">
+        <div class="cl-version">v{{VERSION}} — {{RELEASE_DATE}}</div>
+        {{CHANGELOG_HTML}}
+      </div>
+    </div>
+
+  </div>
+
+  <div class="page-footer">
+    <span>{{PROJECT_NAME}} v{{VERSION}} リリース計画書</span>
+    <span>リリース日: {{RELEASE_DATE}}</span>
+    <span>作成: {{CREATED_DATE}}</span>
+  </div>
+
+</div>
+
+<script>
+  // Print-friendly checkbox state persistence
+  document.querySelectorAll('input[type="checkbox"]').forEach(function(cb, i) {
+    var key = 'release-check-' + i;
+    cb.checked = localStorage.getItem(key) === 'true';
+    cb.addEventListener('change', function() {
+      localStorage.setItem(key, cb.checked);
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "skill_name": "jit-task-execution",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "T-F-07 を実装したい。JIT で進めて。",
+      "expected_output": "validate.sh → dispatcher.sh --preview → dispatcher.sh → /goal text 生成 → ブランチ作成の 5 STEP を順に提示。CLAUDE.md.task を root に配置するコマンド、generate_goal.py 実行、git checkout -b feat/t-f-07-... のコマンドを含む。selected-stack 確定済技術と files_changed_predicted 厳守の chant-check を明示。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "次のタスクを placeholder でとりあえず動くようにしたい",
+      "expected_output": "STOP を発動。「placeholder で逃げる」「動けばいい」は Rule 7 違反であることを指摘。tickets.json を更新する別 PR を先行するよう誘導。AC threshold を下げない / selected-stack を曲げない原則を再確認。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "T-F-29 のタスクを開始する。dispatcher で /goal 用テキストを出力してほしい",
+      "expected_output": "python3 ~/.claude/skills/jit-task-execution/scripts/generate_goal.py T-F-29 を実行する形で、tickets.json から該当 task を読み /goal テキストを生成。editable / shared_read / forbidden / 3-tier AC / test_scenarios を含むテンプレートを出力。",
+      "files": []
+    }
+  ]
+}

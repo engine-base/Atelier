@@ -1,0 +1,5 @@
+Name,Status,Priority,Phase,Estimated Hours,Dependencies,Done Criteria,Tags
+"[TASK-001] 認証API - ログインエンドポイント","Not Started","High","Phase 1","4","なし","ログインAPIが200を返す / 不正パスワードで401 / テストカバレッジ80%+","auth,backend"
+"[TASK-002] 認証API - サインアップエンドポイント","Not Started","High","Phase 1","3","なし","サインアップAPIが201を返す / 重複メールで409 / メール認証フロー","auth,backend"
+"[TASK-003] ユーザープロフィールAPI","Not Started","Medium","Phase 1","2","TASK-001","GET /users/meが200を返す / 認証なしで401","users,backend"
+"[TASK-004] フロントエンド - ログイン画面","Not Started","High","Phase 1","6","TASK-001","ログインフォームが動作する / バリデーションエラー表示 / リダイレクト動作","auth,frontend"

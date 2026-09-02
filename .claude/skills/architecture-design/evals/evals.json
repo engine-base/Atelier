@@ -1,0 +1,172 @@
+{
+  "skill_name": "architecture-design",
+  "version": "v3-2026-05-16-generalized",
+  "description": "アーキテクチャ設計スキル v3 汎用化版のテスト (generic prompt + Build-Factory profile prompt の 2 系統)",
+  "evals": [
+    {
+      "id": "ad-generic-1",
+      "title": "汎用 prompt (BF 言及なし) — STEP 1 で Foundation phase gate / parallel capacity / ADR を確認",
+      "prompt": "BtoB SaaS のアーキテクチャ設計をお願いします。技術スタックは Next.js 15 + FastAPI + PostgreSQL で確定 (selected-stack.json あり)。チーム 2 名 + AI agent 並列セッション medium capacity (10-30)。3 ヶ月で MVP リリース。STEP 1 から始めてください。",
+      "expected_behavior": [
+        "STEP 1 形式で出力 (会話的前置きなし)",
+        "プロジェクト概要 + 制約条件 + 優先事項を整理",
+        "v3: Foundation phase gate 要件 (lint runner / 3-tier AC validator / type checker / coverage gate / mock-impl-diff 等) を制約に追加",
+        "v3: parallel capacity (small/medium/large/massive) 対応の必要性を確認 (monorepo / worktree / branch 命名)",
+        "v3: ADR 起票要否 (auth strategy / naming convention / root screen) を確認",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / scripts/lint-mock.sh / Phase 0/1/1.5/2 / 30-50 並列 / bf_meta / lint #17-19 / 43 screens / 187 tasks の語が出ない"},
+        {"id": "v3_foundation_gates_listed", "check": "Foundation phase gate (lint / AC validator / type checker / coverage 等) を制約として明示"},
+        {"id": "v3_parallel_capacity_check", "check": "parallel capacity (small/medium/large/massive) 対応の必要性 (monorepo / worktree) を確認"},
+        {"id": "v3_adr_intake_asked", "check": "ADR 起票 (auth / 命名 / root screen) を確認"},
+        {"id": "stops_at_step1", "check": "STEP 1 で止まり STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "ad-generic-2",
+      "title": "汎用 prompt — STEP 3 DB 設計で access control framework が出る (RLS 一択ではない)",
+      "prompt": "STEP 3 で DB 設計お願いします。PostgreSQL を採用予定、entities が 20 件、multi-tenancy は organization_scoped。access control framework は project requirement に応じて選定したい。",
+      "expected_behavior": [
+        "DB 設計方針 (PK type / soft delete / migration tool / 命名規約)",
+        "v3: access control framework 選択肢を提示 (RLS / RBAC / ACL / policy-based のいずれかを選ぶ)",
+        "v3: 選んだ framework に応じた設計テンプレ (default_enable / auth_provider / tenant_isolation_pattern / policy_naming_convention / predicates_lib)",
+        "v3: table naming セクション (entity case → table case / forbidden prefixes / reserved word 戦略)",
+        "v3: predicates_lib (self_only / owner_only / tenant_member 等) を提供",
+        "v3: entity-table-naming lint への言及",
+        "STEP 4 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / lint #19 / bf_ prefix / scripts/verify-rls-coverage.py が出ない"},
+        {"id": "v3_access_control_framework_choice", "check": "access control framework として RLS / RBAC / ACL / policy-based の選択を提示 (RLS 一択ではない)"},
+        {"id": "v3_table_naming_section", "check": "table naming (entity case → table case / forbidden prefixes) が明示"},
+        {"id": "v3_predicates_lib", "check": "predicates_lib に self_only / owner_only / tenant_member 等が含まれる"},
+        {"id": "stops_at_step3", "check": "STEP 4 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "ad-generic-3",
+      "title": "汎用 prompt — STEP 4 で N CI gate + v3-gate.yml template が出る (8 固定でなく project-defined)",
+      "prompt": "STEP 4 でインフラ・セキュリティ・CI/CD 方針お願いします。GitHub Actions + Vercel + AWS + PostgreSQL + Sentry。AI agent 並列セッション medium capacity (10-30) 対応必須。CI gate 数は project requirement に応じて決めたい。",
+      "expected_behavior": [
+        "環境構成 (development / staging / production)",
+        "CI/CD パイプライン (GitHub Actions)",
+        "v3: N merge gate (project-defined) を明示。最低限 lint / AC validator / test+coverage / type checker は推奨",
+        "v3: v3-gate.yml の GitHub Actions テンプレート (steps が gate に対応 / placeholder で記述)",
+        "v3: parallel capacity 対応 (worktree / branch 命名 '<agent>/<task_id>' / squash + auto-merge)",
+        "v3: 失敗 retry プロトコル (N 回失敗で human エスカレーション、N は project-defined)",
+        "v3: foundation_gates.json の出力予告",
+        "セキュリティ方針 + 監視・ログ",
+        "STEP 5 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / scripts/lint-mock.sh / Oracle Cloud / Cloudflare Tunnel / 8 CI gate を必須とする記述が出ない"},
+        {"id": "v3_n_gates_project_defined", "check": "N merge gate を project-defined と明示し、固定 8 ではない (推奨最低限を提示)"},
+        {"id": "v3_yml_template_placeholder", "check": "v3-gate.yml テンプレに placeholder (<lint_runner>, <ac_validator> 等) が使われる"},
+        {"id": "v3_parallel_strategy", "check": "parallel capacity 対応の worktree / branch 命名 / squash + auto-merge を明示"},
+        {"id": "v3_retry_protocol", "check": "N 回失敗で human エスカレーションのプロトコル (N は project-defined)"},
+        {"id": "v3_foundation_gates_json_announced", "check": "foundation_gates.json の出力予告"},
+        {"id": "stops_at_step4", "check": "STEP 5 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "ad-generic-4",
+      "title": "汎用 prompt — STEP 2 で Vertical Slice 適合性 + monorepo 設計 (BF 言及なし)",
+      "prompt": "STEP 2 でアーキパターン選定お願いします。要件: 1 機能 = 画面+API+test+access policy を 1 PR で完結したい。AI agent 並列セッション medium capacity。Next.js + FastAPI + PostgreSQL 採用。",
+      "expected_behavior": [
+        "アーキパターン推奨 (Modular Monolith)",
+        "v3: Vertical Slice 適合性検証 (5 項目: ディレクトリ構造 / monorepo ビルド / 型同期 / migration / test 一括)",
+        "v3: monorepo tool 候補比較 (pnpm workspaces / Turborepo / Nx) と推奨",
+        "v3: ディレクトリ構造案 (frontend/backend/migrations/scripts/.github/workflows)",
+        "v3: 型同期戦略 (例: OpenAPI → openapi-typescript)",
+        "v3: Foundation → Backend → UI → Polish の対応付けを明示",
+        "STEP 3 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / Phase 0 / Supabase RLS / 30-50 並列 が必須語として出ない"},
+        {"id": "v3_vertical_slice_check", "check": "Vertical Slice 適合性 5 項目を検証"},
+        {"id": "v3_monorepo_tools_compared", "check": "monorepo tool 候補 (pnpm workspaces / Turborepo / Nx) を比較し推奨"},
+        {"id": "v3_dir_structure", "check": "ディレクトリ構造案を提示"},
+        {"id": "v3_type_sync_strategy", "check": "型同期戦略を提示"},
+        {"id": "v3_phase_mapping", "check": "Foundation → Backend → UI → Polish 対応付けに言及"},
+        {"id": "stops_at_step2", "check": "STEP 3 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "ad-bf-profile-1",
+      "title": "BF profile 適用 prompt — 旧 BF 固有挙動と同等",
+      "prompt": "Build-Factory profile (references/profiles/build-factory.md) を適用してアーキ設計を進めて。BtoB SaaS、Next.js 15 + FastAPI + Supabase で確定 (selected-stack.json あり)。チーム 2 名 + Claude Code 30-50 並列。3 ヶ月で Phase 1 dogfood リリース。STEP 1 から始めてください。",
+      "expected_behavior": [
+        "STEP 1 形式で出力",
+        "BF profile が適用され、parallel capacity = large (30-50) / N CI gate = 8 / scripts/lint-mock.sh が反映",
+        "Phase 0 = Foundation phase / Phase 1 = Backend+UI / Phase 1.5/2 = Polish の mapping を反映",
+        "Foundation phase gate 8 件 (lint #1-19 / 3-tier AC validator / pyright/coverage gate 等)",
+        "ADR 起票 (ADR-013 AUTH / ADR-014 命名 / ADR-015 root画面) を確認",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "profile_applied_capacity", "check": "BF profile の値 (30-50 並列 / large capacity) が反映"},
+        {"id": "profile_applied_gates", "check": "BF profile の 8 CI gate / scripts/lint-mock.sh / pyright strict 等が反映"},
+        {"id": "profile_applied_phases", "check": "Phase 0/1/1.5/2 を Foundation/Backend/UI/Polish に対応付け"},
+        {"id": "v3_core_concepts", "check": "汎用 v3 概念 (Foundation gate / Vertical Slice / parallel capacity) も保持"},
+        {"id": "stops_at_step1", "check": "STEP 1 で止まる"}
+      ]
+    },
+    {
+      "id": "ad-bf-profile-2",
+      "title": "BF profile 適用 prompt — RLS strategy + entity-table-naming",
+      "prompt": "Build-Factory profile を適用して STEP 3 DB 設計お願いします。Supabase + pgvector + pg_trgm + pgsodium 採用、43 entity / 想定 RLS policy 43 件、multi-tenancy は account_scoped + workspace_scoped の 2 階層。",
+      "expected_behavior": [
+        "DB 設計方針",
+        "BF profile から framework = RLS, auth_provider = Supabase Auth (GoTrue), tenant_isolation = account_scoped + workspace_scoped を反映",
+        "predicates_lib (self_only / owner_only / account_member / workspace_member) を BF 値で提示",
+        "table naming (PascalCase entity → snake_case_plural / forbidden_prefixes = [bf_, tmp_, old_])",
+        "lint #19 entity-table-naming への言及",
+        "STEP 4 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "profile_applied_rls", "check": "BF profile の framework=RLS / auth_provider=Supabase Auth / 2 階層 tenant が反映"},
+        {"id": "profile_applied_predicates", "check": "predicates_lib に self_only / owner_only / account_member / workspace_member の BF 値が含まれる"},
+        {"id": "profile_applied_naming", "check": "BF profile の forbidden_prefixes = [bf_, tmp_, old_] が反映"},
+        {"id": "profile_applied_lint_19", "check": "lint #19 entity-table-naming への言及 (BF 番号)"},
+        {"id": "stops_at_step3", "check": "STEP 4 を勝手に開始しない"}
+      ]
+    }
+  ],
+  "inline_assertion_test": {
+    "id": "ad-inline-test-1",
+    "title": "inline test: SKILL.md の汎用化 verification",
+    "checks": [
+      {
+        "name": "SKILL.md description has no Build-Factory mention",
+        "method": "grep -c 'Build-Factory\\|ENGINE BASE\\|scripts/lint-mock.sh\\|Phase 0/1\\|30-50 並列\\|bf_meta\\|lint #1[0-9]\\|43 screens\\|187 tasks' skills/architecture-design/SKILL.md",
+        "expected": 0
+      },
+      {
+        "name": "SKILL.md mentions v3-core.md and profiles/build-factory.md",
+        "method": "grep -c 'v3-core.md\\|profiles/build-factory.md' skills/architecture-design/SKILL.md",
+        "expected_min": 2
+      },
+      {
+        "name": "v3-core.md exists and contains Foundation→Backend→UI→Polish flow",
+        "method": "grep -c 'Foundation phase\\|Backend phase\\|UI phase\\|Polish phase' skills/architecture-design/references/v3-core.md",
+        "expected_min": 4
+      },
+      {
+        "name": "profile contains BF-specific values",
+        "method": "grep -c 'Build-Factory\\|ENGINE BASE\\|scripts/lint-mock.sh\\|30-50' skills/architecture-design/references/profiles/build-factory.md",
+        "expected_min": 4
+      },
+      {
+        "name": "SKILL.md uses access control framework (not RLS only)",
+        "method": "grep -c 'RLS / RBAC / ACL\\|access control framework\\|project-defined' skills/architecture-design/SKILL.md",
+        "expected_min": 3
+      }
+    ]
+  }
+}

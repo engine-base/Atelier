@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{PROJECT_NAME}} — ER図 / データベース設計書</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --accent:        #1a6648;
+      --accent-mid:    #144f37;
+      --accent-light:  #e6f4ee;
+      --accent-border: #b3d9c8;
+      --highlight:     #00c97a;
+
+      --color-surface:   #ffffff;
+      --color-surface-2: #f8faf9;
+      --color-surface-3: #f0f7f4;
+      --color-border:    #e2ece8;
+      --color-text:      #0d1f18;
+      --color-text-muted:#4a6b5c;
+      --color-text-subtle:#8aad9c;
+
+      --sidebar-width: 260px;
+      --header-height: 64px;
+
+      --text-xs:   0.75rem;
+      --text-sm:   0.875rem;
+      --text-base: 1rem;
+      --text-lg:   1.125rem;
+      --text-xl:   1.25rem;
+      --text-2xl:  1.5rem;
+      --text-3xl:  1.875rem;
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-10: 2.5rem;
+      --space-12: 3rem;
+
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.04);
+
+      --mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --font: 'Noto Sans JP', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--color-surface-2);
+      color: var(--color-text);
+      font-size: var(--text-sm);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Header ── */
+    .header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--header-height);
+      background: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-6);
+      gap: var(--space-4);
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      text-decoration: none;
+    }
+    .header-logo-mark {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -0.5px;
+    }
+    .header-project {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .header-subtitle {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-left: var(--space-1);
+    }
+    .header-meta {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      padding: 2px var(--space-2);
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      border-radius: 999px;
+      font-size: var(--text-xs);
+      font-weight: 600;
+    }
+    .btn-print {
+      padding: var(--space-2) var(--space-4);
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 150ms;
+    }
+    .btn-print:hover { background: var(--accent-mid); }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      width: var(--sidebar-width);
+      height: calc(100vh - var(--header-height));
+      background: var(--color-surface);
+      border-right: 1px solid var(--color-border);
+      overflow-y: auto;
+      padding: var(--space-6) 0;
+      z-index: 90;
+    }
+    .sidebar-section-label {
+      padding: 0 var(--space-5);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--color-text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: var(--space-2);
+      margin-top: var(--space-4);
+    }
+    .sidebar-section-label:first-child { margin-top: 0; }
+    .sidebar-link {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-5);
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-decoration: none;
+      border-radius: 0;
+      transition: background 120ms, color 120ms;
+      border-left: 3px solid transparent;
+    }
+    .sidebar-link:hover {
+      background: var(--color-surface-3);
+      color: var(--color-text);
+    }
+    .sidebar-link.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+    .sidebar-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* ── Main ── */
+    .main {
+      margin-left: var(--sidebar-width);
+      padding-top: calc(var(--header-height) + var(--space-8));
+      padding-right: var(--space-8);
+      padding-bottom: var(--space-12);
+      padding-left: var(--space-8);
+      max-width: 1100px;
+    }
+
+    /* ── Page title ── */
+    .page-title-wrap {
+      margin-bottom: var(--space-8);
+      padding-bottom: var(--space-6);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .page-title {
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      color: var(--color-text);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: var(--space-2);
+    }
+    .page-title span {
+      color: var(--accent);
+    }
+    .page-meta-row {
+      display: flex;
+      gap: var(--space-4);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .page-meta-item {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+    .page-meta-item strong {
+      color: var(--color-text);
+      font-weight: 600;
+    }
+
+    /* ── Section ── */
+    .section {
+      margin-bottom: var(--space-10);
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-5);
+    }
+    .section-num {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      color: white;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: var(--text-xl);
+      font-weight: 700;
+      color: var(--color-text);
+      letter-spacing: -0.02em;
+    }
+
+    /* ── ER Diagram card ── */
+    .diagram-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .diagram-card-header {
+      padding: var(--space-4) var(--space-6);
+      background: var(--color-surface-3);
+      border-bottom: 1px solid var(--color-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .diagram-card-title {
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .diagram-card-body {
+      padding: var(--space-8);
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+    }
+    .diagram-card-body .mermaid {
+      min-width: 400px;
+    }
+
+    /* ── Table ── */
+    .table-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--space-5);
+    }
+    .table-card-header {
+      padding: var(--space-3) var(--space-5);
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .table-name {
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: white;
+      font-family: var(--mono);
+    }
+    .table-description {
+      font-size: var(--text-xs);
+      color: rgba(255,255,255,0.75);
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-xs);
+    }
+    thead {
+      background: var(--color-surface-3);
+    }
+    th {
+      padding: var(--space-2) var(--space-4);
+      text-align: left;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.7rem;
+      border-bottom: 1px solid var(--color-border);
+      white-space: nowrap;
+    }
+    td {
+      padding: var(--space-2) var(--space-4);
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--color-surface-2); }
+    .col-name {
+      font-family: var(--mono);
+      font-weight: 500;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .col-type {
+      font-family: var(--mono);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+    }
+    .constraint-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      font-family: var(--mono);
+      margin-right: 3px;
+      white-space: nowrap;
+    }
+    .badge-pk   { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .badge-fk   { background: var(--accent-light); color: var(--accent-mid); border: 1px solid var(--accent-border); }
+    .badge-uk   { background: #ede9fe; color: #5b21b6; border: 1px solid #ddd6fe; }
+    .badge-nn   { background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; }
+    .badge-idx  { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+    .badge-null { background: var(--color-surface-3); color: var(--color-text-muted); border: 1px solid var(--color-border); }
+
+    /* ── Index table ── */
+    .index-section {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    .index-section .table-card-header {
+      background: var(--accent-mid);
+    }
+
+    /* ── Relations ── */
+    .relations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: var(--space-3);
+    }
+    .relation-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      box-shadow: var(--shadow-sm);
+    }
+    .relation-icon {
+      width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      background: var(--accent-light);
+      border: 1px solid var(--accent-border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .relation-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--color-text);
+      font-family: var(--mono);
+      margin-bottom: 2px;
+    }
+    .relation-desc {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Summary stats ── */
+    .stats-row {
+      display: flex;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-6);
+    }
+    .stat-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4) var(--space-5);
+      flex: 1;
+      min-width: 120px;
+      box-shadow: var(--shadow-sm);
+    }
+    .stat-value {
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: var(--space-1);
+    }
+    .stat-label {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+    }
+
+    /* ── Print ── */
+    @media print {
+      .header, .sidebar, .btn-print { display: none !important; }
+      .main {
+        margin-left: 0;
+        padding: var(--space-6);
+        max-width: 100%;
+      }
+      .diagram-card, .table-card, .index-section {
+        break-inside: avoid;
+        box-shadow: none;
+      }
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent-border); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="header">
+  <a class="header-logo" href="#">
+    <div class="header-logo-mark">EB</div>
+    <div>
+      <div class="header-project">{{PROJECT_NAME}}</div>
+      <div class="header-subtitle">ER図 / データベース設計書</div>
+    </div>
+  </a>
+  <div class="header-meta">
+    <span class="badge">v{{VERSION}}</span>
+    <span style="font-size:var(--text-xs);color:var(--color-text-muted);">{{ISSUE_DATE}}</span>
+    <button class="btn-print" onclick="window.print()">🖨 印刷 / PDF</button>
+  </div>
+</header>
+
+<!-- ── Sidebar ── -->
+<nav class="sidebar">
+  <div class="sidebar-section-label">概要</div>
+  <a class="sidebar-link active" href="#overview">
+    <span class="sidebar-dot"></span>ER図
+  </a>
+  <a class="sidebar-link" href="#stats">
+    <span class="sidebar-dot"></span>サマリー
+  </a>
+  <a class="sidebar-link" href="#relations">
+    <span class="sidebar-dot"></span>リレーション一覧
+  </a>
+
+  <div class="sidebar-section-label">テーブル定義</div>
+  <!-- JS で動的生成 -->
+  <div id="sidebar-tables"></div>
+
+  <div class="sidebar-section-label">設計情報</div>
+  <a class="sidebar-link" href="#indexes">
+    <span class="sidebar-dot"></span>インデックス設計
+  </a>
+  <a class="sidebar-link" href="#notes">
+    <span class="sidebar-dot"></span>設計メモ
+  </a>
+</nav>
+
+<!-- ── Main ── -->
+<main class="main">
+
+  <!-- Page title -->
+  <div class="page-title-wrap">
+    <h1 class="page-title">ER図 / <span>データベース設計書</span></h1>
+    <div class="page-meta-row">
+      <span class="page-meta-item"><strong>プロジェクト:</strong> {{PROJECT_NAME}}</span>
+      <span class="page-meta-item"><strong>バージョン:</strong> v{{VERSION}}</span>
+      <span class="page-meta-item"><strong>作成日:</strong> {{ISSUE_DATE}}</span>
+      <span class="page-meta-item"><strong>担当:</strong> ENGINE BASE / 高本 聖斗</span>
+      <span class="page-meta-item"><strong>DB:</strong> {{DB_TYPE}}</span>
+    </div>
+  </div>
+
+  <!-- 1. ER図 -->
+  <section class="section" id="overview">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <h2 class="section-title">エンティティ関係図（ER図）</h2>
+    </div>
+    <div class="diagram-card">
+      <div class="diagram-card-header">
+        <span class="diagram-card-title">{{PROJECT_NAME}} — エンティティ関係図</span>
+        <span class="badge">Mermaid ER</span>
+      </div>
+      <div class="diagram-card-body">
+        <div class="mermaid">
+{{MERMAID_ER_CODE}}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. サマリー -->
+  <section class="section" id="stats">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <h2 class="section-title">サマリー</h2>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-value">{{TABLE_COUNT}}</div>
+        <div class="stat-label">テーブル数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{RELATION_COUNT}}</div>
+        <div class="stat-label">リレーション数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{INDEX_COUNT}}</div>
+        <div class="stat-label">インデックス数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="font-size:var(--text-lg);">{{DB_TYPE}}</div>
+        <div class="stat-label">データベース</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" style="font-size:var(--text-lg);">{{ORM_TYPE}}</div>
+        <div class="stat-label">ORM</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. リレーション一覧 -->
+  <section class="section" id="relations">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <h2 class="section-title">リレーション一覧</h2>
+    </div>
+    <div class="relations-grid">
+      {{RELATIONS_CARDS_HTML}}
+    </div>
+  </section>
+
+  <!-- 4. テーブル定義 -->
+  <section class="section" id="tables">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <h2 class="section-title">テーブル定義</h2>
+    </div>
+    {{TABLE_DEFINITIONS_HTML}}
+  </section>
+
+  <!-- 5. インデックス設計 -->
+  <section class="section" id="indexes">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <h2 class="section-title">インデックス設計</h2>
+    </div>
+    <div class="index-section">
+      <div class="table-card-header">
+        <span class="table-name">indexes</span>
+        <span class="table-description">全テーブルのインデックス一覧</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>テーブル</th>
+              <th>インデックス名</th>
+              <th>対象カラム</th>
+              <th>種別</th>
+              <th>理由</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{INDEX_TABLE_ROWS}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. 設計メモ -->
+  <section class="section" id="notes">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <h2 class="section-title">設計メモ・判断ログ</h2>
+    </div>
+    <div class="table-card">
+      <div class="table-card-header">
+        <span class="table-name">design_notes</span>
+        <span class="table-description">設計上の判断・注意事項</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>項目</th>
+              <th>内容</th>
+              <th>判断理由</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{DESIGN_NOTES_ROWS}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  // Mermaid init
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+      primaryColor: '#e6f4ee',
+      primaryTextColor: '#0d1f18',
+      primaryBorderColor: '#1a6648',
+      lineColor: '#1a6648',
+      secondaryColor: '#f0f7f4',
+      tertiaryColor: '#ffffff',
+      edgeLabelBackground: '#ffffff',
+      fontSize: '14px'
+    },
+    er: {
+      diagramPadding: 30,
+      layoutDirection: 'TB',
+      minEntityWidth: 100,
+      minEntityHeight: 75,
+      entityPadding: 15,
+      useMaxWidth: true
+    }
+  });
+
+  // サイドバーのテーブルリンクを自動生成
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebarTables = document.getElementById('sidebar-tables');
+    document.querySelectorAll('.table-card').forEach(card => {
+      const nameEl = card.querySelector('.table-name');
+      if (!nameEl) return;
+      const name = nameEl.textContent.trim();
+      const id = 'table-' + name;
+      card.id = id;
+      const link = document.createElement('a');
+      link.className = 'sidebar-link';
+      link.href = '#' + id;
+      link.innerHTML = `<span class="sidebar-dot"></span>${name}`;
+      sidebarTables.appendChild(link);
+    });
+
+    // アクティブリンクの追跡
+    const links = document.querySelectorAll('.sidebar-link');
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(l => l.classList.remove('active'));
+          const id = entry.target.id;
+          const active = document.querySelector(`.sidebar-link[href="#${id}"]`);
+          if (active) active.classList.add('active');
+        }
+      });
+    }, { threshold: 0.3, rootMargin: '-64px 0px 0px 0px' });
+
+    document.querySelectorAll('section[id], .table-card[id]').forEach(el => observer.observe(el));
+  });
+</script>
+
+</body>
+</html>

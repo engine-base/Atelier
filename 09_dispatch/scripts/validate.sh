@@ -125,3 +125,8 @@ if fail:
     sys.exit(1)
 print(f"\n✓ PASS: tickets.json is JIT-ready ({len(tasks)}/{len(tasks)})")
 PY
+
+# --- test-ladder (L1〜L5): 正本 ↔ tickets.json の両方向整合 (.claude/rules/common/test-ladder.md §3) ---
+if [ -f "$ROOT/scripts/ci/qa-ladder.py" ]; then
+  python3 "$ROOT/scripts/ci/qa-ladder.py" validate --tickets "$ROOT/07_tasks/tickets.json" || { echo "→ exit 1: 正本と tickets.json の参照が食い違っています (qa-ladder validate)"; exit 1; }
+fi

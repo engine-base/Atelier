@@ -21,7 +21,27 @@ description: |
   (.qa/test-specs/screens/*.md と ai-runtime-matrix.md)を読み、今回消化する TC ID を
   分母として宣言してから触る。完了系の語(完了/完璧/一周した/通した/done/100%)は
   完了ゲートの出力を貼ってからしか書けない。
+  v3.2 (2026-09-02): テスト・ラダー L1〜L5 (.claude/rules/common/test-ladder.md) 対応 — テストはタスク分解時に作り、staging で流す。
 ---
+
+## 🪜 テスト・ラダー（L1〜L5）— このスキルの責務（2026-09-02 追加・必須・省略不可）
+
+> 規約の正本: `.claude/rules/common/test-ladder.md`（ここと矛盾したら規約が勝つ）。
+> 由来: 2026-09-02、本番実走で 5 件（保存先バケット未作成 / AI の無言終了 / Bridge 終了後 90 秒の誤表示 /
+> モード切替の無視 / 退会後もセッション有効）が出た。5 件とも正本に観点が無く、**実装が全部終わってから
+> 「全体」を対象にテストを書いたため細部が抜けた**のが共通原因。テストは **タスク分解の時点で・タスク単位で**
+> 作り（L1）、流れ（L2）は揃った瞬間に、Wave / リリース / 全体（L3〜L5）は締めで流す。
+
+### ジャーニーは L2。「揃った流れから、揃えた人が流す」
+
+1. **ジャーニー行は task-decomposition の時点で作る**（`journeys/plan.json` の `runnable_after` = 揃うべきタスク ID 群）。実装後に思い出して足さない。feature-decomposition の `journey_candidates` が元。
+2. **流すのは、`runnable_after` の最後のタスクを merge する人が、merge 前に。** `python3 scripts/ci/qa-ladder.py runnable --task T-x-y` が「このタスクで揃った流れ」を示す。揃っていない流れは **未実行（待ち）** として Excel に残す（黙って消さない）。
+3. **[1.5] 分母の宣言**は `qa-ladder.py levels` の「L2 ジャーニー行」の数字と、今回流す流れ ID（J-xx）で行う。
+4. **実行環境は staging**。実データ・実メール・実プロバイダ（テストモード）を伴うので、本番で流さない。staging が無ければ BLOCKED（理由: staging 未整備）。
+5. 各行の判定は正本の期待結果から（[3.0]）。加えて流れの中で **G-12（切替の瞬間）・G-13（組み合わせ）・G-14（口座状態の波及）** を意識して枝を足す — 流れでしか出ない類型。
+6. Wave 締め（L3）・リリース（L4）ではこのスキルを **回帰**として再実行する（sprint-planning / release-planning の指示で）。
+
+
 
 # e2e-journey-walkthrough（通し / リアル・ドッグフーディング）
 

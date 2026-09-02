@@ -16,6 +16,17 @@
 **`action` / `expected` 列が空**で何をやったか復元できず、**ロールは owner と client だけで
 運営を一度も演じていない**。記録は残っても、次の人が使える正本にはなっていなかった。
 
+## 段と実行条件（test-ladder L2 — 2026-09-02 追加）
+
+ジャーニーは **L2（機能の流れ）** の正本。規約は `.claude/rules/common/test-ladder.md`。
+
+- 各行は `runnable_after`（揃うべきタスク ID 群）を持つ。**流れは、依存タスクの最後の 1 つを
+  merge する人が、merge 前に staging で流す**（`python3 scripts/ci/qa-ladder.py runnable --task T-x-y`
+  がその人に「この流れが揃った」と示す）。
+- 新しい流れは **task-decomposition の時点で**ここに足す（実装後に思い出して足さない）。
+  機能 ↔ 流れの対応は feature-decomposition が出す。
+- 揃っていない流れは「未実行（待ち）」として残す。黙って消さない。
+
 ## ロール（絶対原則4: 管理者を飛ばさない）
 
 | ロール | 入口 | この人のゴール | 供給するもの | 消費するもの |

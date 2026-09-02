@@ -82,6 +82,19 @@
 
 {{TEST_SCENARIOS}}
 
+## 5.5 テスト・ラダー（L1 行と、このタスクで解禁される L2 流れ）
+
+> 規約: `.claude/rules/common/test-ladder.md`。**このタスクの L1 行を staging で全部流し、
+> 結果を正本 (apps/web/.qa/test-specs) に書き戻してから push する。** 揃った L2 流れも同じ。
+> `python3 scripts/ci/qa-ladder.py gate --task {{TASK_ID}}` が PASS しない限り PR を出せない。
+
+{{QA_ROWS}}
+
+```bash
+python3 scripts/ci/qa-ladder.py runnable --task {{TASK_ID}}   # 今流すべき行と流れ
+python3 scripts/ci/qa-ladder.py gate     --task {{TASK_ID}}   # PR 前の関門
+```
+
 ## 6. 実装手順
 
 ```bash

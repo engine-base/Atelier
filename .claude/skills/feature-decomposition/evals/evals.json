@@ -1,0 +1,146 @@
+{
+  "skill_name": "feature-decomposition",
+  "version": "v3-2026-05-16-generalized",
+  "description": "並列開発のための機能分解 + Sprint/Wave 設計スキルのテスト (v3 汎用化版: Foundation先行 / Group A-E / Vertical Slice / functional-breakdown pull / project-defined CI gate / project-defined parallel capacity)",
+  "evals": [
+    {
+      "id": "fd-generic-1",
+      "title": "汎用 prompt: 大分類 + Group A-E マッピング (BF 言及なし)",
+      "prompt": "functional-breakdown が終わった (出力 dir: docs/functional-breakdown/2026-05-16_v1/ に screens.json 11件 / features.json 8件 / roles.json 3件 / entities.json 9件)。BtoC EC サイト構築、3 ヶ月で初回リリース目標。10 並列セッションで開発したい。STEP 1 の大分類をお願いします。",
+      "expected_behavior": [
+        "STEP 1 形式で出力 (会話的前置きなし)",
+        "functional-breakdown の 4 JSON path を入力情報として明示",
+        "大分類カテゴリ表に含まれる機能数",
+        "v3: Group A-E (汎用 5 group) マッピングが含まれる",
+        "v3: Foundation phase 必須先行を明記",
+        "v3: drift 検知出力の取り込み有無を確認",
+        "並列度 10 / project-defined parallel capacity を反映",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / scripts/lint-mock.sh / Phase 0/1/1.5/2 / 30-50 並列 / bf_meta / lint #17-19 / 43 screens / 187 tasks の語が出ない"},
+        {"id": "v3_core_concepts", "check": "3-tier AC / Foundation→Backend→UI / Vertical Slice / Wave / file mutex / pre-flight audit MD のいずれか言及"},
+        {"id": "foundation_backend_ui_flow", "check": "Foundation → Backend → UI の順序を明示"},
+        {"id": "input_paths_listed", "check": "functional-breakdown の 4 JSON path を listing"},
+        {"id": "v3_group_a_e_mapping", "check": "Group A-E (汎用 5 group) マッピング表または列挙が含まれる"},
+        {"id": "v3_foundation_first", "check": "Foundation phase / Group A 必須先行を明示"},
+        {"id": "v3_drift_intake_asked", "check": "drift 検知出力の取り込み有無を確認している"},
+        {"id": "stops_at_step1", "check": "STEP 1 で止まり STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "fd-generic-2",
+      "title": "汎用 prompt: STEP 2 機能分解 + Vertical Slice (Backend → UI 順序)",
+      "prompt": "STEP 2 で Group B (Backend) の認証機能を分解してほしい。features.json から認証の api_endpoints (login/logout/signup/mfa/oauth/password-reset 6 件) と ears_ac_seed が来ている。screens S-001〜S-005 5件 + entities E-001 User / E-038 AuthSession 紐付き。",
+      "expected_behavior": [
+        "F-V3-AUTH-XX 形式で命名 (Group B)",
+        "vertical_slice_components が必須 (entities/api_endpoints/access_control_policies/tests/middleware/screens の Backend → UI 順序)",
+        "各機能に screen_ids / entity_ids / api_endpoints / access_control_policies / ears_ac_seed を必須付与",
+        "1 機能の estimated_days が 0.5-2 day 程度",
+        "依存関係に Group A (Foundation) の機能が depends_on に含まれる",
+        "Risk flags が明示",
+        "STEP 3 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "v3_naming_convention", "check": "F-V3-AUTH-XX 形式の命名"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / Phase 1.5 / RLS-only 用語 / 8 CI gate / 30-50 並列 を含まない (RLS は generic な access control の例として 1 度だけなら可)"},
+        {"id": "v3_vertical_slice_components", "check": "vertical_slice_components が各機能に存在 (entities/api_endpoints/access_control_policies/tests/screens を含む)"},
+        {"id": "backend_ui_order_in_slice", "check": "Vertical Slice 内が entities → api → ... → screens の Backend → UI 順序"},
+        {"id": "v3_pull_from_fb", "check": "screen_ids / entity_ids / api_endpoints / access_control_policies / ears_ac_seed を必須付与"},
+        {"id": "v3_estimate_size", "check": "estimated_days が 0.5-2 day 程度"},
+        {"id": "v3_depends_on_group_a", "check": "depends_on に Group A 機能 (lint / AC validator / CI gate) が含まれる"},
+        {"id": "risk_flags", "check": "risk フィールドが空でない"},
+        {"id": "stops_at_step2", "check": "STEP 3 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "fd-generic-3",
+      "title": "汎用 prompt: STEP 3 依存 DAG + project-defined parallel capacity Wave 構成",
+      "prompt": "STEP 3 で依存マップと Wave 構成お願いします。今 Group A 8件 / B 6件 / C 9件 / D 3件 / E 5件 全部分解済み。並列セッション capacity 10、2 日で完走したい。",
+      "expected_behavior": [
+        "Foundation phase (Group A) を Wave 0 で固定",
+        "Group B/C/D/E の依存解禁順序 (Backend → UI → Integration → Polish) を明示",
+        "並列度 10 を超えないこと",
+        "各 Wave の所要時間目安",
+        "DAG 図 (ASCII or Mermaid)",
+        "Sprint 0/1/2/3 と Wave / Phase の対応",
+        "Risk flags (ボトルネック機能 / 連続失敗時の retry プロトコル)",
+        "Wave 内も Backend → UI 順序維持",
+        "STEP 4 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "v3_wave0_foundation_fixed", "check": "Wave 0 = Foundation phase = Group A 固定"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / 30-50 並列 / Phase 0/1/1.5/2 の固定値を含まない (project-defined naming / capacity が使われる)"},
+        {"id": "v3_dependency_unlock_order", "check": "Backend → UI → Integration → Polish の解禁順序を明示"},
+        {"id": "v3_parallel_limit", "check": "各 Wave の並列数が 10 以下 (project-defined capacity を尊重)"},
+        {"id": "v3_wave_duration", "check": "各 Wave の所要時間目安 (h/day) 表示"},
+        {"id": "v3_dag_diagram", "check": "DAG 図が含まれる"},
+        {"id": "v3_sprint_wave_phase_map", "check": "Sprint と Wave / Phase の対応表"},
+        {"id": "v3_risk_flags", "check": "Risk flags + retry プロトコル言及"},
+        {"id": "wave_internal_order", "check": "Wave 内も Backend → UI 順序維持を明示"},
+        {"id": "stops_at_step3", "check": "STEP 4 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "fd-generic-4",
+      "title": "汎用 prompt: drift 入力 → Group D / E 機能化",
+      "prompt": "functional-breakdown の drift 検知モードで legacy_drift_notes 5 件出てきた: S-006 h1 mismatch / S-040 section drift / POST /api/auth/login 不在 / users table 命名違反 / E-007 access policy 不足。これを v3 機能分解の Group D / E に取り込みたい。STEP 2 を Group D / E のみスコープでお願いします。",
+      "expected_behavior": [
+        "Group D / E スコープで F-V3-DRIFT-XX 命名",
+        "5 件の drift それぞれが 1 機能になる",
+        "各機能の drift_origin フィールドが埋まる (source_screen_id / diff_severity / recommendation)",
+        "vertical_slice_components が drift 修正に必要なコンポーネントを含む",
+        "Group D / E 機能の Wave 配置を明示",
+        "下流 task-decomposition で T-V3-DRIFT-XX に展開される旨を明示"
+      ],
+      "assertions": [
+        {"id": "v3_drift_naming", "check": "F-V3-DRIFT-XX 形式の命名"},
+        {"id": "no_bf_jargon", "check": "BF 固有値が含まれない"},
+        {"id": "v3_drift_origin_populated", "check": "各機能の drift_origin フィールド (source_screen_id / diff_severity) が埋まる"},
+        {"id": "v3_drift_count_5", "check": "drift 5 件に対応する機能が出力される"},
+        {"id": "v3_drift_vertical_slice", "check": "各 drift 機能に vertical_slice_components が定義"},
+        {"id": "v3_drift_wave_placement", "check": "Group D / E の Wave 配置を明示 (Integration / Polish phase)"},
+        {"id": "v3_drift_handoff_task_dec", "check": "下流 task-decomposition で T-V3-DRIFT-XX に展開される旨を明示"}
+      ]
+    },
+    {
+      "id": "fd-bf-profile-1",
+      "title": "BF profile 適用 prompt: STEP 1 大分類 (旧 BF 固有挙動と同等)",
+      "prompt": "references/profiles/build-factory.md を適用して、Build-Factory の機能分解を STEP 1 でお願いします。functional-breakdown 出力は docs/functional-breakdown/2026-05-09_v1/ に screens 43 件 / features 30 件 / roles 6 件 / entities 43 件。30-50 並列セッション、Phase 1 dogfood リリース目標。drift 検知出力 4 件あり。",
+      "expected_behavior": [
+        "STEP 1 形式で出力",
+        "BF profile の値 (30-50 並列 / 8 CI gate / Phase 0/1/1.5/2 / Group A-J 細分化) が反映",
+        "汎用 v3 概念 (Foundation→Backend→UI / Vertical Slice / Wave / pre-flight audit) も保持",
+        "Group A-J 細分化マッピング (Group B-1/B-2/C/D/E/F/G/H/I/J) が profile から適用される",
+        "scripts/lint-mock.sh / scripts/validate-tickets.py 等の BF script path が使われる",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "profile_applied_parallel_count", "check": "30-50 並列の数値が反映"},
+        {"id": "profile_applied_phase_naming", "check": "Phase 0 / Phase 1 (dogfood) / Phase 1.5 (REFACTOR) / Phase 2 命名が表示"},
+        {"id": "profile_applied_group_subdivision", "check": "Group A-J 細分化 (B-1, B-2, F, G, H, I, J) が表示"},
+        {"id": "profile_applied_script_paths", "check": "scripts/lint-mock.sh / scripts/validate-tickets.py / scripts/verify-rls-coverage.py 等の BF script path が表示"},
+        {"id": "v3_core_concepts", "check": "汎用 v3 概念 (Foundation→Backend→UI / Vertical Slice / Wave / 3-tier AC) も保持"},
+        {"id": "stops_at_step1", "check": "STEP 1 で止まる"}
+      ]
+    },
+    {
+      "id": "fd-bf-profile-2",
+      "title": "BF profile 適用 prompt: 8 CI gate 適合チェック (旧 BF 固有挙動)",
+      "prompt": "references/profiles/build-factory.md を適用して、Group B の認証機能 (login/signup/mfa) を STEP 4 で開発単位化 + 8 CI gate 適合確認お願いします。",
+      "expected_behavior": [
+        "BF profile の 8 CI gate (lint #1-19 / 3-tier AC validator / RLS coverage / audit MD validator / pytest cov 70% / pyright / tsc / mock-impl-diff) を 8 列で表示",
+        "lint #17 / lint #18 / lint #19 の rule_id が表示",
+        "Build-Factory 値が反映されつつ、汎用 v3 概念も保持"
+      ],
+      "assertions": [
+        {"id": "profile_applied_8_gates", "check": "8 列の CI gate (lint / AC validator / audit / RLS / pytest / pyright / tsc / mock-impl-diff) が表示"},
+        {"id": "profile_applied_lint_rule_ids", "check": "lint #17 / #18 / #19 の rule_id が表示"},
+        {"id": "profile_applied_pytest_threshold", "check": "pytest coverage 70% threshold が表示"},
+        {"id": "v3_core_concepts", "check": "Vertical Slice / Foundation→Backend→UI 概念も保持"}
+      ]
+    }
+  ]
+}

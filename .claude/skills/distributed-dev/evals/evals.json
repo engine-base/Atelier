@@ -1,0 +1,121 @@
+{
+  "skill_name": "distributed-dev",
+  "version": "v3-2026-05-16-generalized",
+  "description": "ブランチ実装パッケージ生成スキルのテスト (v3 汎用化版: 3-tier AC + N CI gate + file mutex + pre-flight audit MD + Wave 連携 + Wave 内 backend-first 順序維持)。generic + bf-profile の 2 系統で eval。",
+  "evals": [
+    {
+      "id": "dd-generic-1",
+      "title": "汎用 prompt: STEP 1 で上流出力 pull + work_package_boundary 4 区分確認 (BF 言及なし)",
+      "prompt": "あるサンプル SaaS プロジェクトで、認証 endpoint (POST /api/auth/login) を実装するブランチパッケージを STEP 1 で作って。task-decomposition の tickets.json (3-tier AC + work_package_boundary 入り) と schedule-design の wave-schedule.json (Wave 1 / 並列 N セッション / Backend group / backend layer) と api-design の ears-ac-seed.json (4 AC) が出ている前提。",
+      "expected_behavior": [
+        "STEP 1 形式で出力 (会話的前置きなし)",
+        "上流出力 path を listing (tickets.json + wave-schedule.json + ears-ac-seed.json + entities.json + screens.json)",
+        "work_package_boundary を 4 区分 (editable / shared_no_concurrent_edit / readonly / forbidden) で明示",
+        "Wave ID + depends_on_waves + parallel_session_count_target + group + layer を継承",
+        "pre-flight audit MD path を明示",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / 高本 / scripts/lint-mock.sh / Phase 0/1/1.5/2 / 30-50 並列 / bf_meta / lint #16-19 / 8 CI gate (固定数) の語が出ない"},
+        {"id": "v3_input_paths_listed", "check": "tickets.json + wave-schedule.json + ears-ac-seed.json + entities.json + screens.json の path 列挙"},
+        {"id": "v3_4_boundary_zones", "check": "work_package_boundary が editable/shared_no_concurrent_edit/readonly/forbidden の 4 区分"},
+        {"id": "v3_wave_inherited", "check": "Wave ID + depends_on_waves + parallel_session_count_target + group + layer を継承"},
+        {"id": "v3_pre_flight_audit_path", "check": "pre-flight audit MD path を明示"},
+        {"id": "v3_layer_aware_audit", "check": "pre-flight audit MD に foundation/backend/UI gate passed? の layer-aware 項目がある"},
+        {"id": "v3_core_concepts", "check": "3-tier AC / Foundation→Backend→UI / Vertical Slice / Wave / file mutex / pre-flight audit MD のいずれかに言及"},
+        {"id": "stops_at_step1", "check": "STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "dd-generic-2",
+      "title": "汎用 prompt: STEP 2 で CLAUDE.md に 7 path + Wave 情報 + 3-tier AC + EARS AC 逐語コピー",
+      "prompt": "STEP 2 へ。実装仕様を CLAUDE.md に埋めて。",
+      "expected_behavior": [
+        "CLAUDE.md '0. 上流出力' に 7 path を列挙 (task / mock / api / ears_ac_seed / entities / wave / pre_flight_audit)",
+        "'1. Wave / 起動情報' に wave_id / depends_on_waves / parallel_session_count_target / group / layer",
+        "'3. work-package boundary' に 4 区分の file mutex",
+        "'4. 実装仕様' に EARS AC seed を逐語コピー (EVENT-DRIVEN + UNWANTED)",
+        "型定義は openapi.yaml から自動生成された types ファイルを参照 (人手 edit 禁止を明示)",
+        "STEP 3 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / scripts/lint-mock.sh / Phase 0/1/1.5/2 / 30-50 並列 の語が出ない"},
+        {"id": "v3_upstream_7_paths", "check": "CLAUDE.md '0. 上流出力' に 7 path"},
+        {"id": "v3_wave_info_block", "check": "'1. Wave / 起動情報' に wave_id/depends_on_waves/parallel_session_count_target/group/layer"},
+        {"id": "v3_4_boundary_in_claude_md", "check": "'3. work-package boundary' に 4 区分の file mutex"},
+        {"id": "v3_ears_ac_verbatim", "check": "EARS AC seed を逐語コピー (EVENT-DRIVEN + UNWANTED)"},
+        {"id": "v3_types_no_edit", "check": "openapi 自動生成 / 人手 edit 禁止を明示"},
+        {"id": "stops_at_step2", "check": "STEP 3 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "dd-generic-3",
+      "title": "汎用 prompt: STEP 3 で Done Criteria に 3-tier AC + N CI gate (project-defined) + Wave 内 layer 順序チェック",
+      "prompt": "STEP 3 へ。Done Criteria を。",
+      "expected_behavior": [
+        "Done Criteria を 3 セクション (Tier 1 structural / Tier 2 functional / Tier 3 regression) で構成",
+        "Tier 1: mock-impl-diff",
+        "Tier 2: EARS AC + access control matrix + contract test (Schemathesis 等)",
+        "Tier 3: backend test cov + 型 checker + lint + AC validator + audit MD commit",
+        "N CI gate auto-merge セクション (project-defined gate set / 連続 N 失敗で human エスカ)",
+        "Wave 内 layer 順序チェック (UI layer の場合 backend gate pass 確認)",
+        "STEP 4 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / 8 CI gate (固定数) / lint #16-19 / 30-50 並列 / pytest cov ≥70% (固定値) の固定値表現が出ない"},
+        {"id": "v3_done_3tier", "check": "Done Criteria が Tier 1/2/3 で構成"},
+        {"id": "v3_tier1_mock_impl_diff", "check": "Tier 1 に mock-impl-diff"},
+        {"id": "v3_tier2_ears_access_contract", "check": "Tier 2 に EARS AC + access control matrix + contract test"},
+        {"id": "v3_tier3_items", "check": "Tier 3 に test cov + 型 checker + lint + AC validator + audit MD"},
+        {"id": "v3_n_gate_section", "check": "N CI gate auto-merge セクション (project-defined)"},
+        {"id": "v3_layer_order_check", "check": "Wave 内 layer 順序チェック (backend gate pass 確認)"},
+        {"id": "stops_at_step3", "check": "STEP 4 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "dd-generic-4",
+      "title": "汎用 prompt: STEP 4 で 5 形式出力 (audit-md-template.md + start-cmd.sh + done-cmd.sh 含む)",
+      "prompt": "STEP 4 へ。最終出力を。",
+      "expected_behavior": [
+        "出力① ブランチ作業手順 (Markdown)",
+        "出力② CLAUDE.md (エージェント指示書)",
+        "出力③ 管理 JSON",
+        "出力④ audit-md-template.md (pre-flight 監査テンプレ / layer-aware 項目入り)",
+        "出力⑤ start-cmd.sh / done-cmd.sh",
+        "start-cmd.sh が branch 切替 + audit MD 生成 + Wave mutex check + CLAUDE.md 表示を実行",
+        "done-cmd.sh が N gate 実行 + work-package boundary check + push を実行 (gate set は project-defined)"
+      ],
+      "assertions": [
+        {"id": "no_bf_jargon", "check": "Build-Factory / scripts/lint-mock.sh / scripts/check-wave-mutex.py / claude/<task_id> branch 命名 / 8 CI gate 固定数 / 30-50 並列 が直接出ない"},
+        {"id": "output_count_5", "check": "出力 5 形式すべて言及"},
+        {"id": "v3_audit_md_template_layer_aware", "check": "audit-md-template.md に foundation/backend/UI layer-aware 項目"},
+        {"id": "v3_start_cmd_actions", "check": "start-cmd.sh が branch 切替 + audit MD 生成 + Wave mutex check + CLAUDE.md 表示"},
+        {"id": "v3_done_cmd_n_gate", "check": "done-cmd.sh が N gate 実行 + boundary check + push (gate set は project-defined)"}
+      ]
+    },
+    {
+      "id": "dd-bf-profile-1",
+      "title": "BF profile 適用 prompt: 旧 BF 固有挙動と同等 (30-50 並列 / 8 CI gate / scripts/lint-mock.sh / claude/t-001-01)",
+      "prompt": "Build-Factory profile (references/profiles/build-factory.md) を適用して、T-001-01 (FastAPI 認証 endpoint 実装) のブランチパッケージを STEP 1〜4 まで一気に作って。tickets.json + wave-schedule.json (W1, 30-50 並列, Phase 1 Backend group) + ears-ac-seed.json (POST /api/auth/login の 4 AC) が出ている。",
+      "expected_behavior": [
+        "BF profile の値が反映される: parallel_session_count_target = 30-50",
+        "BF profile の値が反映される: 8 CI gate が固定数で列挙 (lint-mock.sh / validate-tickets.py / verify-rls-coverage.py / audit-md-check.sh / pytest cov ≥70% / pyright / tsc / lint-mock-impl-diff.py)",
+        "BF profile の値が反映される: branch 名 claude/t-001-01",
+        "BF profile の値が反映される: audit MD path docs/audit/<date>_v3/T-001-01.md",
+        "BF profile の値が反映される: lint #16 work-package-boundary / lint #17 mock-impl-diff",
+        "BF profile の値が反映される: RLS 4 ロール × 7 操作 = 28 マトリクス",
+        "汎用 v3 概念も保持: 3-tier AC / Wave 内 backend-first / file mutex 4 区分"
+      ],
+      "assertions": [
+        {"id": "profile_parallel_30_50", "check": "parallel_session_count_target が 30-50 で表示"},
+        {"id": "profile_8_gate_specific", "check": "8 CI gate が固定数で具体名 (lint-mock.sh / validate-tickets.py / verify-rls-coverage.py / audit-md-check.sh / pytest --cov-fail-under=70 / pyright / tsc / lint-mock-impl-diff.py) が列挙"},
+        {"id": "profile_branch_naming", "check": "ブランチ名 claude/t-001-01"},
+        {"id": "profile_audit_path", "check": "audit MD path に docs/audit/<date>_v3/T-001-01.md"},
+        {"id": "profile_lint_numbers", "check": "lint #16 (work-package-boundary) / lint #17 (mock-impl-diff) のいずれか言及"},
+        {"id": "profile_rls_4x7", "check": "RLS 4 ロール × 7 操作 マトリクス言及"},
+        {"id": "v3_core_preserved", "check": "汎用 v3 概念 (3-tier AC / file mutex 4 区分 / Wave 内 backend-first) も保持"}
+      ]
+    }
+  ]
+}

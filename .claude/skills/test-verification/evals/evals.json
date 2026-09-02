@@ -1,0 +1,143 @@
+{
+  "skill_name": "test-verification",
+  "version": "v3-2026-05-16-generalized",
+  "description": "テスト戦略設計スキルのテスト (v3 汎用化版: 3-tier AC マッピング + EARS 自動生成 + N CI gate Foundation/Backend/UI/Polish 段階構成 + role × operation matrix + Schemathesis/Pact)。generic eval (project-agnostic) と build-factory profile eval の 2 系統。",
+  "evals": [
+    {
+      "id": "tv-generic-1",
+      "title": "汎用 STEP 1 (BF 言及なし) — 上流出力 pull + 3-tier AC マッピング",
+      "prompt": "STEP 1 でテスト戦略を設計してほしい。task-decomposition の tickets.json (3-tier AC 込み) と api-design の ears-ac-seed.json が出ている。CI gate を Foundation → Backend → UI → Polish の段階で構成したい。技術スタックは pytest + Schemathesis + Pact + Playwright を想定。",
+      "expected_behavior": [
+        "STEP 1 形式で出力 (会話的前置きなし、'##' から開始)",
+        "上流出力 path として tickets.json + ears-ac-seed.json + entities.json + roles.json + foundation_gates.json を listing",
+        "3-tier AC (structural / functional / regression) を test レベルに 1:1 マッピング",
+        "structural → mock-impl drift lint",
+        "functional → unit + contract + access-control",
+        "regression → CI gate 自動化",
+        "Foundation → Backend → UI → Polish の段階明示",
+        "EARS 自動生成方針 (EVENT-DRIVEN → 正常 / UNWANTED → 異常)",
+        "Build-Factory / scripts/lint-mock.sh / 8 CI gate / 4 ロール (owner/admin/member/guest) / 7 操作 / 70% といった BF 固有値を出さない",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "format_no_preface", "check": "応答冒頭が '##' で始まる"},
+        {"id": "no_bf_jargon", "check": "Build-Factory / ENGINE BASE / scripts/lint-mock.sh / scripts/verify-rls-coverage.py / 8 CI gate / 4 ロール / owner/admin/member/guest / 7 操作 / 70% 閾値 / Phase 0/1/1.5/2 / 30-50 並列 / lint #17/#18/#19 / 187 task / 43 screens の語が出ない"},
+        {"id": "v3_input_paths_listed", "check": "tickets.json + ears-ac-seed.json + entities.json + roles.json + foundation_gates.json の path を listing"},
+        {"id": "v3_3tier_mapping", "check": "structural / functional / regression を test レベルに 1:1 マッピング"},
+        {"id": "v3_structural_drift_lint", "check": "structural → mock-impl drift lint を明示"},
+        {"id": "v3_functional_unit_contract_access", "check": "functional → unit + contract + access-control を明示"},
+        {"id": "v3_regression_ci_gate", "check": "regression → CI gate 自動化を明示"},
+        {"id": "v3_foundation_backend_ui_polish", "check": "Foundation → Backend → UI → Polish の段階を明示"},
+        {"id": "v3_ears_auto_gen", "check": "EARS 自動生成方針 (EVENT-DRIVEN → 正常 / UNWANTED → 異常)"},
+        {"id": "stops_at_step1", "check": "STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "tv-generic-2",
+      "title": "汎用 STEP 2 — EARS → test 自動生成 + role × operation matrix",
+      "prompt": "STEP 2 へ。テスト設計を。プロジェクトの role / operation 構成は project-defined で、抽象的なまま設計してほしい (具体 role 名は profile に任せる)。",
+      "expected_behavior": [
+        "EARS AC → test case 自動生成スクリプトを placeholder 形式で明示 (<ears_test_generator>)",
+        "EVENT-DRIVEN → test_<endpoint>_<event>() 命名規則",
+        "UNWANTED → test_<endpoint>_<condition>_rejected() 命名規則",
+        "STATE-DRIVEN → parametrize 経由",
+        "Access control test: role × operation matrix (project-defined roles e.g., 3-10 × operations e.g., 5-8)",
+        "<access_control_verifier> placeholder で entity ごとに網羅検証",
+        "Schemathesis (OpenAPI fuzz) + Pact (consumer/provider) を contract test に採用",
+        "BF 固有値 (4 ロール固定 / 7 操作固定 / scripts/verify-rls-coverage.py / owner-admin-member-guest) を出さない",
+        "STEP 3 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "v3_ears_gen_placeholder", "check": "ears_test_generator placeholder を明示 (固定 path 不可)"},
+        {"id": "v3_event_driven_pattern", "check": "EVENT-DRIVEN → test_<endpoint>_<event>() 命名規則"},
+        {"id": "v3_unwanted_pattern", "check": "UNWANTED → test_<endpoint>_<condition>_rejected() 命名規則"},
+        {"id": "v3_role_op_matrix_generic", "check": "role × operation matrix が project-defined と明示 (固定数なし)"},
+        {"id": "v3_access_control_verifier_placeholder", "check": "access_control_verifier placeholder を明示"},
+        {"id": "v3_schemathesis_pact", "check": "Schemathesis + Pact を contract test に採用"},
+        {"id": "no_bf_role_names", "check": "owner / admin / member / guest を固定 4 ロールとして言及しない"},
+        {"id": "stops_at_step2", "check": "STEP 3 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "tv-generic-3",
+      "title": "汎用 STEP 3 — N CI gate を 4 段階で構成 + auto-merge",
+      "prompt": "STEP 3 へ。CI gate を Foundation → Backend → UI → Polish の段階で構成したい。gate 数は project-defined で、coverage 閾値も project-defined。",
+      "expected_behavior": [
+        "N gate を 4 段階 (Foundation / Backend / UI / Polish) に分けて列挙",
+        "段階間の block 関係を明示 (前段階 fail → 次段階 skip)",
+        "auto-merge job が 全 gate 全 pass で発動",
+        "連続 N 失敗 (project-defined) で human エスカ",
+        "coverage 閾値が project-defined (e.g., 70-90%) と明示",
+        "BF 固有値 (8 gate 固定 / 70% 固定 / scripts/lint-mock.sh / pytest --cov-fail-under=70) を出さない",
+        "STEP 4 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "v3_n_gates_4_stages", "check": "N gate を Foundation / Backend / UI / Polish の 4 段階で列挙"},
+        {"id": "v3_stage_block_relation", "check": "段階間の block 関係 (前段階 fail → 次段階 skip)"},
+        {"id": "v3_auto_merge_all_gates", "check": "auto-merge が全 gate pass で発動"},
+        {"id": "v3_consecutive_failure_n", "check": "連続 N 失敗 (project-defined) で human エスカ"},
+        {"id": "v3_coverage_project_defined", "check": "coverage 閾値が project-defined (70-90% 等の範囲) と明示"},
+        {"id": "no_8_gates_fixed", "check": "8 gate 固定数として言及しない"},
+        {"id": "no_70_pct_fixed", "check": "70% を固定値として言及しない"},
+        {"id": "stops_at_step3", "check": "STEP 4 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "tv-generic-4",
+      "title": "汎用 STEP 4 — 4 形式同時出力 (gate-config.yml + ears-test-mapping.json)",
+      "prompt": "STEP 4 へ。最終出力を。",
+      "expected_behavior": [
+        "出力① テスト計画書 (Markdown)",
+        "出力② テスト設計 JSON",
+        "出力③ gate-config.yml (Foundation/Backend/UI/Polish 4 段階 + auto-merge)",
+        "出力④ ears-test-mapping.json (EARS AC ↔ test ID 対応)",
+        "gate-config.yml の job needs で段階間 block を表現",
+        "ears-test-mapping.json に ears_ac_id / test_id / test_file / test_function / gate を含む",
+        "BF 固有値 (gate-1-lint-mock 等の固定 job 名 / scripts/* / 70 固定) を出さない (placeholder 使用)"
+      ],
+      "assertions": [
+        {"id": "output_count_4", "check": "出力 4 形式 (Markdown + JSON + gate-config.yml + ears-test-mapping.json) すべて言及"},
+        {"id": "v3_gate_config_4_stages", "check": "gate-config.yml が 4 段階 (Foundation/Backend/UI/Polish) + auto-merge"},
+        {"id": "v3_gate_config_block_with_needs", "check": "needs: で段階間 block を表現"},
+        {"id": "v3_ears_test_mapping_json", "check": "ears-test-mapping.json に ears_ac_id / test_id / test_file / test_function / gate を含む"},
+        {"id": "gate_config_uses_placeholders", "check": "gate-config.yml が <lint_runner> / <ac_validator> 等の placeholder を使用"}
+      ]
+    },
+    {
+      "id": "tv-bf-profile-1",
+      "title": "BF profile 適用 STEP 1 — 旧 BF 固有挙動と同等",
+      "prompt": "Build-Factory profile (references/profiles/build-factory.md) を適用して STEP 1 でテスト戦略を設計してほしい。task-decomposition の tickets.json (187 件 / 3-tier AC 込み) と api-design の ears-ac-seed.json (24 endpoint / 96 AC) が出ている。8 CI gate 設定済。",
+      "expected_behavior": [
+        "Build-Factory profile の値を反映 (8 gate / 4 ロール owner/admin/member/guest / 7 操作 / scripts/lint-mock.sh / scripts/verify-rls-coverage.py / 70% 閾値)",
+        "汎用 v3 概念 (3-tier AC / Foundation→Backend→UI→Polish / EARS 自動生成) も保持",
+        "STEP 2 へ で止まる"
+      ],
+      "assertions": [
+        {"id": "profile_applied_8_gate", "check": "8 CI gate を反映"},
+        {"id": "profile_applied_4_roles", "check": "owner/admin/member/guest 4 ロールを反映"},
+        {"id": "profile_applied_7_operations", "check": "7 操作 (SELECT own/others, INSERT, UPDATE own/others, DELETE own/others) を反映"},
+        {"id": "profile_applied_scripts", "check": "scripts/lint-mock.sh / scripts/verify-rls-coverage.py を反映"},
+        {"id": "profile_applied_coverage_70", "check": "pytest --cov-fail-under=70 を反映"},
+        {"id": "v3_core_concepts_kept", "check": "汎用 v3 概念 (3-tier AC / Foundation→Backend→UI→Polish / EARS 自動生成) を保持"},
+        {"id": "stops_at_step1", "check": "STEP 2 を勝手に開始しない"}
+      ]
+    },
+    {
+      "id": "tv-bf-profile-2",
+      "title": "BF profile 適用 STEP 4 — gate-config.yml が 8 gate 構成",
+      "prompt": "Build-Factory profile を適用したまま STEP 4 へ。最終出力。",
+      "expected_behavior": [
+        "gate-config.yml が gate-1-lint-mock / gate-2-ac-validator / gate-3-rls-coverage / gate-4-audit-md / gate-5-pytest-cov / gate-6-pyright / gate-7-tsc / gate-8-mock-impl-diff の 8 job を含む",
+        "auto-merge job が 8 gate 全 pass で発動",
+        "ears-test-mapping.json の gate field が gate-5-pytest-cov 等の BF 具体値を含む",
+        "汎用 v3 概念 (Foundation/Backend/UI/Polish 段階分類) は profile 適用後も整合"
+      ],
+      "assertions": [
+        {"id": "bf_8_jobs_listed", "check": "gate-config.yml に 8 job が列挙"},
+        {"id": "bf_auto_merge_8_gates", "check": "auto-merge needs に 8 gate 全列挙"},
+        {"id": "bf_ears_mapping_gate_specific", "check": "ears-test-mapping.json の gate field に BF 具体値 (gate-5-pytest-cov 等)"},
+        {"id": "v3_4_stages_consistent_with_profile", "check": "Foundation/Backend/UI/Polish 段階分類 (Foundation: gate #1/#2/#6, Backend: gate #3/#5, UI: gate #7/#8, Polish: gate #4) が profile 適用後も整合"}
+      ]
+    }
+  ]
+}

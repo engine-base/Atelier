@@ -68,6 +68,16 @@ for i,s in enumerate(ts, 1):
     test_sect_lines.append("```")
 test_sect = "\n".join(test_sect_lines) if test_sect_lines else "（test_scenarios_inline が空）"
 
+# test-ladder: qa_rows (L1 行 / L2 流れ)
+qa = t.get("qa_rows") or {}
+qa_l1 = qa.get("l1") or []
+qa_l2 = qa.get("l2_flows") or []
+qa_lines = []
+qa_lines.append(f"- L1 行 ({len(qa_l1)}): " + (", ".join(qa_l1) if qa_l1 else "**（未定義 — task-decomposition で qa_rows.l1 を書いてから着手する。ui/backend/integration 層は gate が BLOCK する）**"))
+qa_lines.append(f"- L2 流れ ({len(qa_l2)}): " + (", ".join(qa_l2) if qa_l2 else "（このタスクで揃う流れなし。runnable で機械判定する）"))
+qa_lines.append("- G-11〜G-15 (外部リソース実在 / 切替の瞬間 / 組み合わせ / 口座状態の波及 / 信号なし終了) の該当・N/A は L1 行側に書いてある。無ければ書いてから着手")
+qa_sect = "\n".join(qa_lines)
+
 # Screen mocks
 scr = t.get("screen_ids") or []
 screen_mocks = ", ".join([f"\`06_mockups/.../{s}.html\`" for s in scr]) if scr else "（UI 無し）"
@@ -104,7 +114,8 @@ subs = {
   "{{TIER_1}}": tier1,
   "{{TIER_2}}": tier2,
   "{{TIER_3}}": tier3,
-  "{{TEST_SCENARIOS}}": test_sect
+  "{{TEST_SCENARIOS}}": test_sect,
+  "{{QA_ROWS}}": qa_sect
 }
 for k,v in subs.items():
     out = out.replace(k, str(v))

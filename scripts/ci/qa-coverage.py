@@ -116,7 +116,8 @@ def count_rows(paths: list[Path]) -> dict[str, int]:
             # 鉄則3: 納品物 (2 系統 xlsx) に載るのは 9 列の正本フォーマットの行だけ。
             # 補助表 (5/6/7 セル) の行は検証記録としては在るが **成果物に載らない**。
             # 「記録はしたが誰も受け取れない」を可視化するために数を分ける。
-            if len(cells) == 11:
+            # 9 列 (=11 セル) / test-ladder の 11 列 (=13 セル) の両方が正本フォーマット
+            if len(cells) in (11, 13):
                 tally["canonical"] += 1
             else:
                 tally["supplementary"] += 1

@@ -2,10 +2,12 @@
 """build_xlsx.py — テスト仕様書を「2系統の Excel」で決定論生成する（鉄則3+鉄則4の実体）。
 
 - 入力: 画面別 spec（`<spec-dir>/screens/*.md`。各 md 先頭 `# <ID> <日本語画面名> 画面別...`、
-  本文に 9 列表 `| ID | 画面 | テスト観点 | テスト項目 | 前提条件 | 操作手順 | 期待結果 | 結果 | 備考 |`）。
+  本文に 9 列表 `| ID | 画面 | テスト観点 | テスト項目 | 前提条件 | 操作手順 | 期待結果 | 結果 | 備考 |`、
+  または test-ladder (L1〜L5) 対応の 11 列表 `… | 備考 | タスク | 実行条件 |`。9 列の旧行も読める）。
 - 出力（必ず 2 冊）:
   1. `<out>/テスト仕様書_クライアント版.xlsx` … 画面で操作・目視できる TC のみ・平易日本語・日本語画面名タブ・結果=完了/空。
-  2. `<out>/テスト仕様書_エンジニア版.xlsx` … 全 TC・原文・結果ステータス色分け・概要タブ。
+  2. `<out>/テスト仕様書_エンジニア版.xlsx` … 全 TC・原文・結果ステータス色分け・概要タブ・
+     **実行計画タブ**（段 L1〜L5 × 担当タスク × 実行条件。test-ladder.md §3）。
 - クライアント版は「画面で見えない技術専用 TC」を除外し、除外件数を概要タブに明示（完全性の証明）。
 
 使い方:
@@ -104,7 +106,8 @@ def load(spec_dir):
                 continue
             c = [x.strip() for x in ln.split('|')[1:-1]]
             if len(c) >= 9:
-                rows.append(c[:9])
+                # 11 列 (タスク / 実行条件) は test-ladder。9 列の旧行は空で埋める
+                rows.append((c[:11] + ['', ''])[:11])
         if rows:
             data.append((jp, sid, rows))
     return data
@@ -157,10 +160,11 @@ def build_eng(data, path):
         b = sum(1 for r in rows if 'BLOCKED' in r[7])
         ov.append([f'{jp}({sid})', len(rows), p, b, len(rows) - p - b])
         ws = wb.create_sheet(sheetname(f'{sid}_{jp}'))
-        ws.append(['ID', '画面', 'テスト観点', 'テスト項目', '前提条件', '操作手順', '期待結果', '結果', '備考'])
+        ws.append(['ID', '画面', 'テスト観点', 'テスト項目', '前提条件', '操作手順', '期待結果', '結果', '備考',
+                   'タスク', '実行条件'])
         for r in rows:
             ws.append(r)
-        style(ws, [10, 10, 12, 26, 18, 24, 28, 16, 16])
+        style(ws, [10, 10, 12, 26, 18, 24, 28, 16, 16, 12, 14])
         for row in ws.iter_rows(min_row=2):
             v = str(row[7].value)
             if done(v):
@@ -171,7 +175,49 @@ def build_eng(data, path):
                     c.fill = BLK_FILL
     style(ov, [22, 8, 8, 10, 10])
     ov['A1'].font = Font(bold=True, size=13, color='4E3A67')
+    build_plan_sheet(wb, data)
     wb.save(path)
+
+
+def level_of(cond):
+    m = re.search(r'\bL([1-5])\b', cond or '')
+    return int(m.group(1)) if m else 1
+
+
+def build_plan_sheet(wb, data):
+    """実行計画タブ: 段 (L1〜L5) × 担当タスク × 実行条件 で全行を並べ直す (test-ladder.md §3)。
+
+    画面タブは「1 画面が正しいか」を見る形。ここは「誰が・いつ流すか」を見る形。
+    タスク列が空の L1 行は『未割当』として先頭に集め、後追い適用の残りが一目で分かるようにする。
+    """
+    ws = wb.create_sheet('実行計画', 1)
+    ws.append(['段', 'タスク', '実行条件', 'ID', '画面', 'テスト項目', '結果', '備考'])
+    flat = []
+    for jp, sid, rows in data:
+        for r in rows:
+            task = r[9] or '（未割当）'
+            cond = r[10] or 'L1'
+            flat.append((level_of(cond), task == '（未割当）' and ' ' or task, cond, r[0], jp, r[3], r[7], r[8]))
+    flat.sort(key=lambda x: (x[0], x[1], x[3]))
+    for lv, task, cond, rid, jp, item, res, biko in flat:
+        ws.append([f'L{lv}', task.strip() or '（未割当）', cond, rid, jp, item, res, biko])
+    style(ws, [5, 12, 16, 12, 12, 30, 16, 16])
+    for row in ws.iter_rows(min_row=2):
+        v = str(row[6].value)
+        if done(v):
+            for c in row:
+                c.fill = DONE_FILL
+        elif 'BLOCKED' in v:
+            for c in row:
+                c.fill = BLK_FILL
+    # 段別サマリを概要タブに足す
+    ov = wb['概要']
+    ov.append([])
+    ov.append(['段', '行数', 'PASS', 'タスク未割当'])
+    for lv in range(1, 6):
+        rs = [x for x in flat if x[0] == lv]
+        if rs:
+            ov.append([f'L{lv}', len(rs), sum(1 for x in rs if done(x[6])), sum(1 for x in rs if not x[1].strip())])
 
 
 def main():

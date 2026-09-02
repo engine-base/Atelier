@@ -10,7 +10,21 @@ import json
 rows = []
 
 
-def R(id, order, role, phase, cond, branch, dep, action, steps, expected, place, note=""):
+def R(
+    id,
+    order,
+    role,
+    phase,
+    cond,
+    branch,
+    dep,
+    action,
+    steps,
+    expected,
+    place,
+    note="",
+    runnable_after=None,
+):
     rows.append(
         {
             "id": id,
@@ -25,6 +39,9 @@ def R(id, order, role, phase, cond, branch, dep, action, steps, expected, place,
             "expected": expected,
             "status": "TODO",
             "evidence": "",
+            # test-ladder L2: この行が流せるようになる条件 = 揃うべきタスク ID 群
+            # (.claude/rules/common/test-ladder.md §3)。空 = 既存機能のみで流せる
+            "runnable_after": list(runnable_after or []),
             "note": (f"場所={place}" + (f" / {note}" if note else "")),
         }
     )
