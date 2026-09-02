@@ -94,6 +94,16 @@ class BridgePingRequest(BaseModel):
     worker_pid: int | None = None
 
 
+class BridgeByeRequest(BaseModel):
+    """GAP-243: Bridge 終了時の presence 抹消 (BridgeAuth)。
+
+    presence は 90 秒の鮮度で判定するため、終了を伝えないと最長 90 秒は画面が
+    「接続中」のままになり、その間の送信は誰にも拾われない。
+    """
+
+    worker_id: str = Field(min_length=1, max_length=200)
+
+
 class DispatchControlResponse(BaseModel):
     """「すべて一時停止」の現在状態 (GAP-026②)。"""
 

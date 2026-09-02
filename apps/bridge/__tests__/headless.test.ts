@@ -73,6 +73,73 @@ describe('runHeadless --loop', () => {
   });
 });
 
+describe('runHeadless — 終了時に presence を落とす (GAP-243)', () => {
+  it('shutdownBridgeLoop でループが止まり、goodbye が 1 回だけ送られる', async () => {
+    const { shutdownBridgeLoop } = await import('../src/headless.js');
+    const goodbyes: number[] = [];
+    let cycles = 0;
+    const done = runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
+      argv: ['--loop'],
+      makeRunner: () => ({
+        async runOnce() {
+          cycles += 1;
+          return 'no-task' as const;
+        },
+      }),
+      makeGoodbye: () => async () => {
+        goodbyes.push(Date.now());
+      },
+      sleepMs: 5,
+    });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(cycles).toBeGreaterThan(0);
+    const before = goodbyes.length;
+    await shutdownBridgeLoop();
+    // 終了要求の時点で presence 抹消が送られている (ループの自然終了を待たない)
+    expect(goodbyes.length).toBe(before + 1);
+    expect(await done).toBe(0);
+    // 自然終了側で二重に送らない
+    expect(goodbyes.length).toBe(before + 1);
+  });
+
+  it('ループが auth-error で自然終了しても goodbye を送る', async () => {
+    const goodbyes: number[] = [];
+    const code = await runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
+      argv: ['--loop'],
+      makeRunner: () => runnerOf(['auth-error']),
+      makeGoodbye: () => async () => {
+        goodbyes.push(Date.now());
+      },
+      sleepMs: 0,
+    });
+    expect(code).toBe(2);
+    expect(goodbyes).toHaveLength(1);
+  });
+
+  it('goodbye が失敗しても終了は妨げない', async () => {
+    const { shutdownBridgeLoop } = await import('../src/headless.js');
+    const done = runHeadless({
+      env: { ATELIER_BRIDGE_TOKEN: 'tk', ATELIER_BRIDGE_CHAT_RELAY: '0' },
+      argv: ['--loop'],
+      makeRunner: () => runnerOf(['no-task', 'no-task', 'no-task']),
+      makeGoodbye: () => async () => {
+        throw new Error('network down');
+      },
+      sleepMs: 5,
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    await expect(shutdownBridgeLoop()).resolves.toBeUndefined();
+    expect(await done).toBe(0);
+  });
+
+  it('ループが走っていなければ shutdownBridgeLoop は何もしない', async () => {
+    const { shutdownBridgeLoop } = await import('../src/headless.js');
+    await expect(shutdownBridgeLoop()).resolves.toBeUndefined();
+  });
+});
+
 describe('runHeadless — chat relay (GAP-114)', () => {
   it('既定 ON: 単発モードでチャット中継を 1 回試行する', async () => {
     const calls: string[] = [];

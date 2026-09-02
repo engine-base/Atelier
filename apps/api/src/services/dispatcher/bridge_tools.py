@@ -531,3 +531,25 @@ async def record_ping(
         ),
         {"i": worker_id, "h": host_label, "v": version, "p": worker_pid, "u": user_id},
     )
+
+
+async def forget_worker(
+    session: AsyncSession, *, worker_id: str, user_id: str | None = None
+) -> bool:
+    """GAP-243: Bridge が終了するときに presence を即時に消す。
+
+    presence は last_seen_at の鮮度 (90 秒) で判定するため、終了を伝えないと
+    最長 90 秒は「接続中」のまま — その間に送ったチャットは enqueue されて
+    誰にも拾われず、制限時間まで無応答になる (本番実測)。
+
+    user トークンは **本人の worker 行しか消せない** (他人の presence を落とせない)。
+    インスタンス トークン (user_id None) は id だけで消す。消せたら True。
+    """
+    res = await session.execute(
+        text(
+            "delete from public.bridge_workers where id = :i "
+            "and (cast(:u as uuid) is null or user_id = cast(:u as uuid)) returning id"
+        ),
+        {"i": worker_id, "u": user_id},
+    )
+    return res.first() is not None

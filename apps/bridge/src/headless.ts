@@ -56,6 +56,55 @@ export interface HeadlessOptions {
   readonly makePinger?: (token: string) => PresencePinger;
   /** GAP-183: 自動実行の見張り (テスト注入用。省略時は実 ApiClient)。 */
   readonly makeScheduleTicker?: (token: string) => ScheduleTickerApi;
+  /** GAP-243: 終了時に presence を落とす関数 (テスト注入用。省略時は実 ApiClient.bye)。 */
+  readonly makeGoodbye?: (token: string) => () => Promise<void>;
+}
+
+/** GAP-243: 今走っているループの「終了して presence を落とす」入口 (1 つだけ)。 */
+let activeShutdown: (() => Promise<void>) | null = null;
+
+/**
+ * GAP-243: Bridge を止める。ループの停止フラグを立て、サーバーへ「終了した」と伝える。
+ *
+ * presence の鮮度 (90 秒) を待たずに画面の接続表示を落とすため、終了経路
+ * (SIGINT/SIGTERM・Electron の before-quit) は必ずここを通す。ループが走って
+ * いなければ何もしない。伝達に失敗しても投げない (終了を妨げない)。
+ */
+export async function shutdownBridgeLoop(): Promise<void> {
+  const fn = activeShutdown;
+  activeShutdown = null;
+  if (fn === null) return;
+  await fn();
+}
+
+/** GAP-243: 実 ApiClient で presence を落とす関数。 */
+export function makeDefaultGoodbye(
+  token: string,
+  env: Readonly<Record<string, string | undefined>>,
+): () => Promise<void> {
+  const api = new ApiClient({
+    baseUrl: env.ATELIER_API_URL ?? 'http://127.0.0.1:8000',
+    token,
+  });
+  return () => api.bye(`${hostname()}#${process.pid}`);
+}
+
+/** 最長 ms まで待ち、超えたら諦める (終了処理をサーバー応答待ちで固めない)。 */
+function withTimeout(p: Promise<void>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+    p.then(
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+    );
+  });
 }
 
 export function makeDefaultRunner(
@@ -181,6 +230,16 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
   // (チャットは応答レイテンシが体感を決めるため、タスクの 10s 間隔に縛らない)。
   let chatLoopStop = false;
   let chatLoopDone: Promise<void> = Promise.resolve();
+  // GAP-243: 終了要求 (SIGINT/SIGTERM・アプリ終了)。ループを止めて presence を落とす。
+  let stopRequested = false;
+  let scheduleLoopStop = false;
+  const goodbye = (opts.makeGoodbye ?? ((t) => makeDefaultGoodbye(t, env)))(token);
+  activeShutdown = async () => {
+    stopRequested = true;
+    chatLoopStop = true;
+    scheduleLoopStop = true;
+    await withTimeout(goodbye(), 3_000);
+  };
   if (chatRelayEnabled(opts.env)) {
     const chat = (opts.makeChatRelay ?? ((t) => makeDefaultChatRelay(t, opts.env)))(token);
     const chatSleep = opts.sleepMs !== undefined ? Math.min(opts.sleepMs, 1_000) : 1_000;
@@ -210,7 +269,6 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
 
   // GAP-183: 自動実行の見張り (既定 ON)。クラウドに毎分 cron を置かずに済ませる
   // ための時計。起動直後に 1 回動かすので、スリープ中に過ぎた分はここで走る。
-  let scheduleLoopStop = false;
   let scheduleLoopDone: Promise<void> = Promise.resolve();
   if (scheduleTickerEnabled(env)) {
     const ticker = (opts.makeScheduleTicker ?? ((t) => makeDefaultScheduleTicker(t, env)))(token);
@@ -263,19 +321,32 @@ export async function runHeadless(opts: HeadlessOptions): Promise<number> {
         if (!loop) return 0;
         await new Promise((r) => setTimeout(r, opts.sleepMs ?? 10_000));
       }
-    } while (loop);
+    } while (loop && !stopRequested);
     return 0;
   } finally {
     chatLoopStop = true;
     scheduleLoopStop = true;
     await chatLoopDone;
     await scheduleLoopDone;
+    // GAP-243: ループが自然に終わった場合 (auth-error 等) も presence を落とす。
+    // 終了要求経由なら shutdownBridgeLoop が既に送っている (二重送信しない)。
+    if (activeShutdown !== null) {
+      activeShutdown = null;
+      await withTimeout(goodbye(), 3_000);
+    }
   }
 }
 
 // 直接実行時のみ起動 (vitest import 時は走らない)
 /* v8 ignore start -- process.exit を伴う実行時エントリはユニットテスト対象外 */
 if (process.argv[1]?.endsWith('headless.js')) {
+  // GAP-243: Ctrl-C / kill で止めるときも presence を落としてから終了する
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.once(signal, () => {
+      console.log(`[bridge] ${signal}: 終了します (接続状態をサーバーへ伝えます)`);
+      void shutdownBridgeLoop().finally(() => process.exit(0));
+    });
+  }
   runHeadless({ env: process.env, argv: process.argv }).then(
     (code) => process.exit(code),
     (err) => {

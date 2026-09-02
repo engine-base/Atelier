@@ -12204,6 +12204,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bridge/bye": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bridge presence 抹消（GAP-243 / BridgeAuth）
+         * @description Bridge アプリが終了するときに送る。presence は 90 秒の鮮度で判定するため、
+         *     終了を伝えないと最長 90 秒は画面が「接続中」のままになり、その間の送信は
+         *     誰にも拾われない。user トークンでは本人の worker 行しか消せない。
+         *
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BridgeByeRequest"];
+                };
+            };
+            responses: {
+                /** @description presence 抹消 (forgotten=false は該当行なし・他人の worker) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                status?: string;
+                                forgotten?: boolean;
+                            };
+                        };
+                    };
+                };
+                /** @description Bridge token 不正 */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/chat-relay/pick": {
         parameters: {
             query?: never;
@@ -20490,6 +20550,9 @@ export interface components {
             host_label: string;
             version: string;
             worker_pid?: number | null;
+        };
+        BridgeByeRequest: {
+            worker_id: string;
         };
         DispatchControl: {
             paused: boolean;

@@ -139,6 +139,13 @@ export interface BridgeApi {
     workerPid?: number;
   }): Promise<void>;
   /**
+   * GAP-243: 終了するときに presence を即時に落とす。
+   *
+   * presence は 90 秒の鮮度で判定されるため、黙って終わると最長 90 秒は画面が
+   * 「接続中」のまま — その間の送信は誰にも拾われず制限時間まで無応答になる。
+   */
+  bye(workerId: string): Promise<void>;
+  /**
    * GAP-183: 自動実行の「見張り役」。発火時刻を過ぎたスケジュールを実行させる。
    *
    * クラウドに毎分の cron を置くと Fly.io のアイドル停止が効かず運営に固定費が
@@ -281,6 +288,10 @@ export class ApiClient implements BridgeApi {
       version: info.version,
       worker_pid: info.workerPid ?? null,
     });
+  }
+
+  async bye(workerId: string): Promise<void> {
+    await this.post('/bridge/bye', { worker_id: workerId });
   }
 
   async runDueSchedules(): Promise<ScheduleTickResult> {

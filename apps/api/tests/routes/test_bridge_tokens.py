@@ -305,6 +305,52 @@ def test_user_token_scope_and_revocation(
 
 
 @pytest.mark.integration
+def test_bye_drops_presence_immediately_and_only_for_own_worker(
+    app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+) -> None:
+    """GAP-243: 終了を伝えたら 90 秒待たずに presence が消える / 他人の worker は消せない。"""
+    headers_a = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+    headers_b = {"Authorization": f"Bearer {_mint_jwt(seeded['u_b'])}"}
+    with TestClient(app) as client:
+        tok_a = client.post("/bridge-tokens", json={}, headers=headers_a).json()["data"]["token"]
+        tok_b = client.post("/bridge-tokens", json={}, headers=headers_b).json()["data"]["token"]
+        hdr_a = {"X-Bridge-Token": tok_a}
+        hdr_b = {"X-Bridge-Token": tok_b}
+        ping = {"worker_id": "bye-w1", "host_label": "my-pc", "version": "1.0.0"}
+        assert client.post("/bridge/ping", json=ping, headers=hdr_a).status_code == 200
+        assert client.get("/chat/connection-status", headers=headers_a).json()["data"][
+            "bridge_online"
+        ]
+
+        # 他人 (u_b) は A の presence を落とせない
+        r_b = client.post("/bridge/bye", json={"worker_id": "bye-w1"}, headers=hdr_b)
+        assert r_b.status_code == 200
+        assert r_b.json()["data"]["forgotten"] is False
+        with sync_engine.connect() as c:
+            assert (
+                c.execute(
+                    text("select count(*) from public.bridge_workers where id='bye-w1'")
+                ).scalar_one()
+                == 1
+            )
+
+        # 本人が bye → その場で offline (鮮度 90 秒を待たない)
+        r_a = client.post("/bridge/bye", json={"worker_id": "bye-w1"}, headers=hdr_a)
+        assert r_a.status_code == 200
+        assert r_a.json()["data"]["forgotten"] is True
+        status = client.get("/chat/connection-status", headers=headers_a).json()["data"]
+        assert status["bridge_online"] is False
+        assert status["workers"] == []
+        # 2 回目は「無かった」と正直に返す (冪等)
+        assert (
+            client.post("/bridge/bye", json={"worker_id": "bye-w1"}, headers=hdr_a).json()["data"][
+                "forgotten"
+            ]
+            is False
+        )
+
+
+@pytest.mark.integration
 def test_user_token_works_without_instance_token(
     app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

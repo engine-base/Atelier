@@ -2211,6 +2211,10 @@ class BridgePingRequest(BaseModel):
     worker_pid: int | None = None
 
 
+class BridgeByeRequest(BaseModel):
+    worker_id: Annotated[str, Field(max_length=200, min_length=1)]
+
+
 class DispatchControl(BaseModel):
     paused: bool
     paused_at: AwareDatetime | None = None
@@ -2608,8 +2612,8 @@ class RelatedResource(BaseModel):
     href: str | None = None
 
 
-class ChatRelayPickRequest(BaseModel):
-    worker_id: Annotated[str, Field(max_length=200, min_length=1)]
+class ChatRelayPickRequest(BridgeByeRequest):
+    pass
 
 
 class ToolsMode4(StrEnum):

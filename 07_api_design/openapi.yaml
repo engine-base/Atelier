@@ -1896,6 +1896,12 @@ components:
         version: { type: string, minLength: 1, maxLength: 50 }
         worker_pid: { type: integer, nullable: true }
 
+    BridgeByeRequest:
+      type: object
+      required: [worker_id]
+      properties:
+        worker_id: { type: string, minLength: 1, maxLength: 200 }
+
     DispatchControl:
       type: object
       required: [paused]
@@ -7980,6 +7986,39 @@ paths:
             schema: { $ref: '#/components/schemas/BridgePingRequest' }
       responses:
         '200': { description: presence 記録 (bridge_workers upsert) }
+        '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /bridge/bye:
+    post:
+      tags: [kanban-tools]
+      summary: Bridge presence 抹消（GAP-243 / BridgeAuth）
+      description: |
+        Bridge アプリが終了するときに送る。presence は 90 秒の鮮度で判定するため、
+        終了を伝えないと最長 90 秒は画面が「接続中」のままになり、その間の送信は
+        誰にも拾われない。user トークンでは本人の worker 行しか消せない。
+      security:
+        - bridgeToken: []
+      x-implementation-path: apps/api/src/routes/dispatcher/__init__.py::bridge_bye
+      x-screen-ids: [S-I03]
+      x-feature-ids: [F-BRIDGE01]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BridgeByeRequest' }
+      responses:
+        '200':
+          description: presence 抹消 (forgotten=false は該当行なし・他人の worker)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status: { type: string }
+                      forgotten: { type: boolean }
         '401': { description: Bridge token 不正, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /chat-relay/pick:

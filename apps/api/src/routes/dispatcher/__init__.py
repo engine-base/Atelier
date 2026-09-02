@@ -51,7 +51,7 @@ from src.schemas.dispatcher import (
     KanbanResponse,
     KanbanStartRequest,
 )
-from src.schemas.executions import BridgePingRequest
+from src.schemas.executions import BridgeByeRequest, BridgePingRequest
 from src.services import chat_relay as relay_svc
 from src.services.chat_relay import ChatRelayError
 from src.services.dispatcher import bridge_tools as svc
@@ -323,6 +323,18 @@ async def bridge_ping(
         user_id=_token.user_id,
     )
     return {"data": {"status": "ok"}}
+
+
+@router.post("/bridge/bye", summary="Bridge presence 抹消 (GAP-243 / BridgeAuth)")
+async def bridge_bye(
+    body: BridgeByeRequest, session: BridgeSession, _token: BridgeAuth
+) -> dict[str, dict[str, str | bool]]:
+    """Bridge アプリが終了するときに送る。接続バッジを 90 秒待たずに落とす。
+
+    user トークンでは本人の worker しか消せない (他人の接続表示を落とせない)。
+    """
+    forgotten = await svc.forget_worker(session, worker_id=body.worker_id, user_id=_token.user_id)
+    return {"data": {"status": "ok", "forgotten": forgotten}}
 
 
 # ── GAP-114: チャットのローカル実行リレー (BridgeAuth) ────────────

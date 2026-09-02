@@ -28,7 +28,7 @@ import {
 } from './deep-link.js';
 import { runDoctor } from './doctor.js';
 import { needsOriginChangeApproval } from './security.js';
-import { runHeadless } from './headless.js';
+import { runHeadless, shutdownBridgeLoop } from './headless.js';
 import { createBridge } from './main.js';
 import { BRIDGE_VERSION, checkForUpdate } from './updates.js';
 
@@ -211,4 +211,15 @@ if (!gotLock) {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// GAP-243: アプリを閉じるときは presence を落としてから終了する。
+// 黙って終わると最長 90 秒は画面が「接続中」のままで、その間の送信は
+// 誰にも拾われない。1 回目の quit を止めて伝達 (最長 3 秒) → 改めて quit。
+let goodbyeSent = false;
+app.on('before-quit', (event) => {
+  if (goodbyeSent) return;
+  goodbyeSent = true;
+  event.preventDefault();
+  void shutdownBridgeLoop().finally(() => app.quit());
 });
