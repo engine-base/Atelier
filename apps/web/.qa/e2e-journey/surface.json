@@ -1,0 +1,240 @@
+{
+ "screens": [
+  {
+   "screen": "apps/web/app",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/access-denied",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t04",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t05",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t06",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/admin/s_t07",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/approvals/s_j01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/auth/oauth-complete",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/auth/s_a01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/auth/s_a03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/chat/s_e01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/client/s_l01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/client/s_l02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/client/s_l03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/cron/s_o01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/employees/s_c01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/employees/s_c02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/import",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/knowledge/s_k01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/knowledge/s_k02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/mocks/s_h01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/outputs/s_g01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/projects/s_b01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/projects/s_b02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/projects/s_b03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/projects/s_b04",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/public/s_pub01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/public/s_pub02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/public/s_pub03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/public/s_pub04",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/sales/s_n01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-35",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-36",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-37",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-38",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-39",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/t-uc-40",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/tasks/s_i01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/tasks/s_i02",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/tasks/s_i03",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/templates",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/upload/s_m01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/workflow/s_f01",
+   "ops": []
+  },
+  {
+   "screen": "apps/web/app/workflow/s_f02",
+   "ops": []
+  }
+ ],
+ "entities": [
+  "acceptance_criteria",
+  "ai_employee_templates",
+  "ai_employees",
+  "approval_inbox",
+  "audit_logs",
+  "auth",
+  "chat_messages",
+  "chat_threads",
+  "client_invitations",
+  "comments",
+  "consents",
+  "cron_schedules",
+  "external_uploads",
+  "knowledge_nodes",
+  "legal_documents",
+  "mocks",
+  "phases",
+  "projects",
+  "public",
+  "skills",
+  "task_executions",
+  "tasks",
+  "users",
+  "workflow_outputs",
+  "workspace_memberships",
+  "workspaces"
+ ],
+ "api_routes": [],
+ "branch_kinds": [
+  "happy",
+  "validation",
+  "permission",
+  "empty",
+  "limit",
+  "conflict",
+  "cancel",
+  "isolation"
+ ],
+ "counts": {
+  "screens": 47,
+  "screen_ops": 0,
+  "screens_without_ops": 47,
+  "entities": 26,
+  "api_routes": 0
+ },
+ "min_rows": 55,
+ "rationale": "(画面,操作) 0 + 操作なし画面 47 + 分岐種別 8 = 55。行数は感覚で決めず、この下限以上にする。 1行に複数操作を潰すと通しではなく要約になる。"
+}
