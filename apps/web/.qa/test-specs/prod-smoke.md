@@ -23,7 +23,7 @@
 | PS-13 | サインイン | POST /auth/signin | 200・access_token 発行 | **PASS (2026-09-02 再測 200・token 発行)** |
 | PS-14 | 認証ガード | 無認証で保護 API | 401 | **PASS (2026-09-02 再測 401)** |
 | PS-15 | 画面描画 | S-A01 を本番 API 相手に表示 | サインイン/新規登録が正常描画 | **PASS (2026-09-02 実ブラウザ再測)**: フォーム描画・実サインイン→/projects 着地・復元導線 (GAP-233) と特商法同意文言も表示 |
-| PS-16 | 退会/復元の step-up | ログイン済で POST /auth/account/delete (正 password) → 退会受付 → signin 拒否 → restore → 復活 | 正しい password で受付・全周が回る | **FAIL→修正済 (2026-09-02)**: 本番で正 password でも 401 = **誰も退会できなかった** (GAP-239 — step-up が dev/test 用 sha256 スタブ検証を無条件使用。bcrypt を持つ本番 Supabase では必ず不一致)。signin 同一経路 (Supabase 優先/stub フォールバック) へ修正・回帰テスト 2 本。**再デプロイ後に本番再測して PASS 化する** |
+| PS-16 | 退会/復元の step-up | ログイン済で POST /auth/account/delete (正 password) → 退会受付 → signin 拒否 → restore → 復活 | 正しい password で受付・全周が回る | **FAIL→修正済 (2026-09-02)**: 本番で正 password でも 401 = **誰も退会できなかった** (GAP-239 — step-up が dev/test 用 sha256 スタブ検証を無条件使用。bcrypt を持つ本番 Supabase では必ず不一致)。signin 同一経路 (Supabase 優先/stub フォールバック) へ修正・回帰テスト 2 本。**PASS (2026-09-02 deploy #74 後に本番全周再測)**: 誤 pw 401 → 正 pw 200 (deleted_at + scheduled_purge_at=30日後) → signin 401 (存在秘匿) → restore 200 → signin 200 → 再退会 200。QA アカウントは退会状態で終了 (30 日後自動削除) |
 
 ## 主要フロー（実 AI まで）
 | ID | 対象 | 手順 | 期待 | 結果 |
