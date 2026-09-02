@@ -473,6 +473,36 @@ class TestFollowUpDuringRun:
         items = await chat_run.list_queued(session, thread_id=thread, actor_id=uid)
         assert [i["content"] for i in items] == ["あとで"]
 
+    async def test_instruction_sent_in_another_mode_waits_for_the_next_turn(
+        self, session: AsyncSession
+    ) -> None:
+        """GAP-244: モードを切り替えて送った追い足しは、今のターンへ流し込まない。
+
+        本番実測 (AI-114): approve の実行中に off で送った指示が approve のターンへ
+        そのまま注入され、「切替後の規則が次から効く」が捨てられていた。
+        """
+        uid = await _seed_user(session)
+        thread = await _seed_thread(session, owner=uid)
+        job = await _running_job(session, owner=uid, thread=thread)  # enqueue 既定 = off
+        await chat_run.queue_message(
+            session, thread_id=thread, actor_id=uid, content="承認つきで", tools_mode="approve"
+        )
+        await chat_run.queue_message(
+            session, thread_id=thread, actor_id=uid, content="同じモード", tools_mode="off"
+        )
+        await session.commit()
+
+        # 先頭 (approve) は飛ばし、同じモード (off) のものだけが流し込まれる
+        picked = await chat_run.consume_next_for_job(session, job_id=job)
+        await session.commit()
+        assert picked is not None
+        assert picked["content"] == "同じモード"
+        # モードの違う追い足しは**消えていない** — 実行後に自分のモードで流れる
+        items = await chat_run.list_queued(session, thread_id=thread, actor_id=uid)
+        assert [(i["content"], i["tools_mode"]) for i in items] == [("承認つきで", "approve")]
+        nxt = await chat_run.consume_next(session, thread_id=thread, actor_id=uid)
+        assert nxt is not None and nxt["tools_mode"] == "approve"
+
     async def test_system_job_without_thread_gets_nothing(self, session: AsyncSession) -> None:
         uid = await _seed_user(session)
         job = await _running_job(session, owner=uid, thread=None)

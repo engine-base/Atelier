@@ -471,12 +471,20 @@ async def list_queued(
 
 
 async def consume_next(
-    session: AsyncSession, *, thread_id: str, actor_id: str
+    session: AsyncSession,
+    *,
+    thread_id: str,
+    actor_id: str,
+    tools_mode: str | None = None,
 ) -> dict[str, Any] | None:
     """待ちの先頭を 1 件取り出して消費済みにする (無ければ None)。
 
     `for update skip locked` で二重消費を防ぐ — 同じスレッドを 2 つの画面で
     開いていても、同じ指示が 2 回流れることはない。
+
+    GAP-244: tools_mode を渡すと **そのモードで送られた追い足しだけ** を取り出す
+    (実行中のターンへ流し込む経路用)。モードの違う追い足しは先頭にあっても
+    飛ばさず、そのまま列に残す (次のターンで自分のモードで流れる)。
     """
     thread_id = _uuid_or_error(thread_id, "スレッド")
     res = await session.execute(
@@ -484,12 +492,14 @@ async def consume_next(
             "with picked as ("
             "  select id from public.chat_queued_messages "
             "  where thread_id = cast(:t as uuid) and requested_by = cast(:u as uuid) "
-            "  and consumed_at is null order by created_at limit 1 for update skip locked"
+            "  and consumed_at is null "
+            "  and (cast(:m as text) is null or tools_mode = :m) "
+            "  order by created_at limit 1 for update skip locked"
             ") update public.chat_queued_messages q set consumed_at = now() "
             "where q.id in (select id from picked) "
             "returning q.id, q.content, q.tools_mode, q.attachments"
         ),
-        {"t": thread_id, "u": actor_id},
+        {"t": thread_id, "u": actor_id, "m": tools_mode},
     )
     row = res.first()
     if row is None:
@@ -510,12 +520,18 @@ async def consume_next_for_job(session: AsyncSession, *, job_id: str) -> dict[st
 
     ジョブが走っていない (完了済み・中断済み) 場合は None — 終わった実行へ
     追い足しを流し込まない (次のターンとして普通に流れる)。
+
+    GAP-244: 追い足しに付いた tools_mode が**走っているジョブのモードと違う**
+    場合も流し込まない。本番実測で、approve モードの実行中に off モードで送った
+    指示がそのまま approve のターンへ注入され、切替後の規則が捨てられていた
+    (auto 実行中に off で送った指示なら承認なしで PC 操作に使われうる)。
+    モードの違う追い足しは列に残し、実行が終わってから自分のモードで流す。
     """
     row = (
         await session.execute(
             text(
-                "select thread_id, requested_by, status from public.chat_relay_jobs "
-                "where id = cast(:i as uuid)"
+                "select thread_id, requested_by, status, tools_mode "
+                "from public.chat_relay_jobs where id = cast(:i as uuid)"
             ),
             {"i": job_id},
         )
@@ -524,7 +540,12 @@ async def consume_next_for_job(session: AsyncSession, *, job_id: str) -> dict[st
         return None
     if str(row.status) != "running":
         return None
-    return await consume_next(session, thread_id=str(row.thread_id), actor_id=str(row.requested_by))
+    return await consume_next(
+        session,
+        thread_id=str(row.thread_id),
+        actor_id=str(row.requested_by),
+        tools_mode=str(row.tools_mode),
+    )
 
 
 async def drop_queued(
