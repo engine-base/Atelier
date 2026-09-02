@@ -18,7 +18,9 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import time
+import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from functools import lru_cache
@@ -39,6 +41,61 @@ from src.auth_messages import (
 )
 from src.db.session import shared_session_factory
 from src.txn_commit import current_rls_session
+
+logger = logging.getLogger(__name__)
+
+#: GAP-245: 「退会していない」と確認した結果を覚えておく秒数。
+#: 毎リクエストの DB 往復を避けつつ、退会後に既存セッションが生き残る窓を
+#: この秒数以内に抑える (同一プロセスでは退会時に即座に捨てるので 0 秒)。
+ACTIVE_USER_CACHE_SECONDS = 30.0
+_active_user_checked_at: dict[str, float] = {}
+
+
+def forget_active_user(user_id: str) -> None:
+    """GAP-245: 退会/復活のときに呼ぶ — 次のリクエストで必ず DB を見直す。"""
+    _active_user_checked_at.pop(user_id, None)
+
+
+async def ensure_account_active(user_id: str) -> None:
+    """GAP-245: 退会 (soft delete) 済みの利用者は、期限内の JWT でも通さない。
+
+    本番実測: 退会 (200) 後も同じ JWT で GET /workspaces が 200・チャット実行まで
+    通っていた。signin は 401 (存在秘匿) なのに、**発行済みのセッションだけが
+    退会後も生き残る** (盗まれたトークンも退会で切れない)。JWT はサーバー側に
+    状態を持たないので、ここで public.users.deleted_at を見る。
+
+    DB に届かないときは判定しない (後段の DB 操作がどのみち失敗する。ここで
+    落とすと DB 不要の経路まで巻き添えになる)。
+    """
+    try:
+        uuid.UUID(user_id)
+    except ValueError:
+        return  # public.users に居ない形の sub (テスト用等) は対象外
+    now = time.monotonic()
+    checked = _active_user_checked_at.get(user_id)
+    if checked is not None and now - checked < ACTIVE_USER_CACHE_SECONDS:
+        return
+    try:
+        factory = shared_session_factory()
+        async with factory() as session:
+            row = (
+                await session.execute(
+                    text("select deleted_at from public.users where id = cast(:i as uuid)"),
+                    {"i": user_id},
+                )
+            ).first()
+    except Exception:
+        logger.warning("退会済み判定を行えませんでした (DB 不達)", exc_info=True)
+        return
+    if row is not None and row.deleted_at is not None:
+        forget_active_user(user_id)
+        log_token_rejection("account deleted")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            SIGNIN_REQUIRED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    _active_user_checked_at[user_id] = now
 
 
 class AuthSettings(BaseSettings):
@@ -135,7 +192,10 @@ async def get_current_user(
     secret = _auth_settings().jwt_secret
     if not secret:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, AUTH_NOT_CONFIGURED)
-    return decode_supabase_jwt(token, secret)
+    user = decode_supabase_jwt(token, secret)
+    # GAP-245: 署名・期限が正しくても、退会済みなら通さない
+    await ensure_account_active(user.id)
+    return user
 
 
 def _session_factory() -> async_sessionmaker[AsyncSession]:

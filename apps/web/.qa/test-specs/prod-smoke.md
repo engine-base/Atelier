@@ -25,6 +25,7 @@
 | PS-14 | 認証ガード | 無認証で保護 API | 401 | **PASS (2026-09-02 再測 401)** |
 | PS-15 | 画面描画 | S-A01 を本番 API 相手に表示 | サインイン/新規登録が正常描画 | **PASS (2026-09-02 実ブラウザ再測)**: フォーム描画・実サインイン→/projects 着地・復元導線 (GAP-233) と特商法同意文言も表示 |
 | PS-16 | 退会/復元の step-up | ログイン済で POST /auth/account/delete (正 password) → 退会受付 → signin 拒否 → restore → 復活 | 正しい password で受付・全周が回る | **FAIL→修正済 (2026-09-02)**: 本番で正 password でも 401 = **誰も退会できなかった** (GAP-239 — step-up が dev/test 用 sha256 スタブ検証を無条件使用。bcrypt を持つ本番 Supabase では必ず不一致)。signin 同一経路 (Supabase 優先/stub フォールバック) へ修正・回帰テスト 2 本。**PASS (2026-09-02 deploy #74 後に本番全周再測)**: 誤 pw 401 → 正 pw 200 (deleted_at + scheduled_purge_at=30日後) → signin 401 (存在秘匿) → restore 200 → signin 200 → 再退会 200。QA アカウントは退会状態で終了 (30 日後自動削除) |
+| PS-17 | 退会でセッションが終わる | 退会 (200) の直後に、退会前に発行された JWT で保護 API (GET /workspaces 等) と Bridge トークン (POST /chat-relay/pick) を叩く | **どちらも 401** — 退会したのに既存のブラウザ/PC 接続だけ生き残らない (signin の 401 と整合)。復活 (restore) 後は再び通る | **FAIL→修正済 (2026-09-02)**: 本番で退会 200 の後も同じ JWT で `GET /workspaces` 200・`GET /chat/threads` 200・**チャット実行 (Bridge 経由) まで成功** = 退会後も既存セッションが有効 (GAP-245)。JWT はサーバー側に状態を持たず deleted_at を見ていなかった。`get_current_user` で `public.users.deleted_at` を確認 (30 秒キャッシュ・退会時に即時破棄・DB 不達時は判定しない) + 退会時に Bridge トークンを全失効。統合テスト 1 本 (退会前 200 → 退会後 401/Bridge 401 → 復活後 200)。**再デプロイ後に本番で再測** |
 
 ## 主要フロー（実 AI まで）
 | ID | 対象 | 手順 | 期待 | 結果 |

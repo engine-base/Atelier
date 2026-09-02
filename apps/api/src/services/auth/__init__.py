@@ -1300,6 +1300,15 @@ async def delete_account(
             )
             if res.scalar_one_or_none() is None:
                 raise AccountError("not_found_or_already_deleted", "no active account")
+            # GAP-245: 退会 = 本人の PC 接続 (Bridge トークン) も全部失効させる。
+            # 発行済みの JWT は dependencies 側 (退会済み判定) で即座に拒否される。
+            await session.execute(
+                text(
+                    "update public.bridge_user_tokens set revoked_at = now() "
+                    "where user_id = cast(:i as uuid) and revoked_at is null"
+                ),
+                {"i": user_id},
+            )
             # 全 refresh_token 失効
             await AuditWriter(session).write(
                 AuditEvent(
@@ -1332,6 +1341,10 @@ async def delete_account(
         except Exception:
             await session.rollback()
             raise
+    # GAP-245: 「有効な利用者」として覚えている分を捨て、次のリクエストから拒否する
+    from src.dependencies import forget_active_user
+
+    forget_active_user(user_id)
     return now, purge_at
 
 

@@ -1005,6 +1005,63 @@ class TestAccountDeletionAndRestore:
             r = client.post("/auth/account/delete", headers=h, json={"password": "WRONG-PW"})
             assert r.status_code == 401
 
+    def test_existing_sessions_stop_working_after_delete(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        auth_user: dict[str, str],
+    ) -> None:
+        """GAP-245: 退会したら、発行済みの JWT と Bridge トークンはその場で使えなくなる。
+
+        本番実測: 退会 (200) 後も同じ JWT で GET /workspaces が 200・チャット実行まで
+        通っていた。signin は 401 (存在秘匿) なのに、既存のセッションだけ生き残る
+        (盗まれたトークンも退会で切れない)。
+        """
+        from src import dependencies
+
+        h = {"Authorization": f"Bearer {_make_jwt(auth_user['user_id'])}"}
+        with TestClient(app) as client:
+            # 退会前: 通る + Bridge トークンも発行できる
+            assert client.get("/workspaces", headers=h).status_code == 200
+            raw = client.post("/bridge-tokens", json={}, headers=h).json()["data"]["token"]
+            assert (
+                client.post(
+                    "/chat-relay/pick",
+                    json={"worker_id": "g245"},
+                    headers={"X-Bridge-Token": raw},
+                ).status_code
+                == 200
+            )
+            r = client.post(
+                "/auth/account/delete", headers=h, json={"password": auth_user["password"]}
+            )
+            assert r.status_code == 200, r.text
+            # 退会後: 期限内の JWT でも 401 (キャッシュを待たず即座に)
+            assert client.get("/workspaces", headers=h).status_code == 401
+            assert client.get("/projects", headers=h).status_code == 401
+            # Bridge トークンも失効している
+            assert (
+                client.post(
+                    "/chat-relay/pick",
+                    json={"worker_id": "g245"},
+                    headers={"X-Bridge-Token": raw},
+                ).status_code
+                == 401
+            )
+            # 復活すれば同じ JWT が (期限内なら) また通る
+            rr = client.post(
+                "/auth/account/restore",
+                json={"email": auth_user["email"], "password": auth_user["password"]},
+            )
+            assert rr.status_code == 200, rr.text
+            assert client.get("/workspaces", headers=h).status_code == 200
+        dependencies.forget_active_user(auth_user["user_id"])
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.bridge_user_tokens where user_id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            )
+
     def test_delete_succeeds(
         self,
         app: FastAPI,
