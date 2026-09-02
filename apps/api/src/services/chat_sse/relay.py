@@ -38,7 +38,15 @@ _DEFAULT_TIMEOUT_SECONDS = 180.0
 
 
 class RelayUnavailable(Exception):
-    """Bridge worker がオフライン (presence 鮮度切れ) で中継できない。"""
+    """Bridge worker がオフライン (presence 鮮度切れ) で中継できない。
+
+    GAP-240: reason で「未接続 (トークン未発行)」と「接続済みだが今は起動していない」を
+    区別する — 案内文が別物になる (AI-103)。
+    """
+
+    def __init__(self, reason: str = "offline") -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 class RelayFailed(Exception):
@@ -150,8 +158,12 @@ async def relay_stream_chunks(
     factory = _session_factory()
 
     async with factory() as session:
-        if not await chat_relay.worker_online(session):
-            raise RelayUnavailable
+        # GAP-240: 本人の Bridge だけを見る (他人の Bridge がオンラインでも本人の
+        # ジョブは誰にも拾われない)。未接続と未起動は案内を分ける。
+        if not await chat_relay.worker_online(session, user_id=actor_id):
+            if await chat_relay.user_has_bridge_token(session, user_id=actor_id):
+                raise RelayUnavailable("offline")
+            raise RelayUnavailable("not_connected")
 
         # GAP-190: スレッドは「同じ Claude セッション」で走らせる。
         #   - prompt      … 新しい発言だけ (セッションを再開できたとき用)

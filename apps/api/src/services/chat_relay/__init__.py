@@ -63,18 +63,50 @@ async def _audit(
     )
 
 
-async def worker_online(session: AsyncSession) -> bool:
+async def worker_online(session: AsyncSession, *, user_id: str | None = None) -> bool:
     """Bridge presence が鮮度内 (90 秒) の worker を 1 つでも持つか。
 
     relay モードで worker 不在のまま enqueue しても誰も拾わないため、
     chat_sse は送信前にこれで誠実にエラーを返す (黙って待たせない)。
+
+    GAP-240: user_id を渡すと **本人の Bridge** (bridge_workers.user_id) だけを見る。
+    以前は全利用者横断で見ていたため、誰か 1 人の Bridge がオンラインなら
+    未接続の利用者のジョブまで enqueue され、誰にも拾われずに制限時間まで
+    無応答になっていた (job の pick は本人限定なので他人の PC には流れないが、
+    案内が一切出ない)。user_id 省略時は従来どおり全体 (インスタンス worker 用)。
+    """
+    if user_id is None:
+        res = await session.execute(
+            text(
+                "select 1 from public.bridge_workers "
+                "where last_seen_at > now() - make_interval(secs => :fresh) limit 1"
+            ),
+            {"fresh": PRESENCE_FRESH_SECONDS},
+        )
+    else:
+        res = await session.execute(
+            text(
+                "select 1 from public.bridge_workers "
+                "where user_id = cast(:u as uuid) "
+                "and last_seen_at > now() - make_interval(secs => :fresh) limit 1"
+            ),
+            {"fresh": PRESENCE_FRESH_SECONDS, "u": user_id},
+        )
+    return res.first() is not None
+
+
+async def user_has_bridge_token(session: AsyncSession, *, user_id: str) -> bool:
+    """GAP-240: 本人が有効な Bridge 接続トークンを 1 つでも持つか。
+
+    「まだ接続していない (トークン未発行)」と「接続済みだが今は起動していない」を
+    区別して案内するために使う。
     """
     res = await session.execute(
         text(
-            "select 1 from public.bridge_workers "
-            "where last_seen_at > now() - make_interval(secs => :fresh) limit 1"
+            "select 1 from public.bridge_user_tokens "
+            "where user_id = cast(:u as uuid) and revoked_at is null limit 1"
         ),
-        {"fresh": PRESENCE_FRESH_SECONDS},
+        {"u": user_id},
     )
     return res.first() is not None
 

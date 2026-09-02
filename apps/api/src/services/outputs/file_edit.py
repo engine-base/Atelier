@@ -117,7 +117,7 @@ async def request_file_edit(
     # 認可 (どの成果物を触れるか) は上の RLS セッションで確定済み。
     # ジョブ行は service セッションで積む (chat の relay 経路と同じ)。
     async with job_session_factory()() as job_session:
-        if not await worker_online(job_session):
+        if not await worker_online(job_session, user_id=actor_id):
             raise FileEditError(
                 "bridge_offline",
                 "お使いの PC の Bridge がオフラインのため実行できません。"

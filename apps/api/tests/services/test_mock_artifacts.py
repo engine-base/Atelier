@@ -113,7 +113,7 @@ async def test_relay_adapter_maps_artifact_chunks(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(sse_relay, "_session_factory", lambda: _FakeSession)
     patch_relay_notifier(monkeypatch, sse_relay)
 
-    async def _online(_s: Any) -> bool:
+    async def _online(_s: Any, **_kw: Any) -> bool:
         return True
 
     async def _enqueue(_s: Any, **_k: Any) -> str:

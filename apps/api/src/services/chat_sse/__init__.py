@@ -1040,10 +1040,17 @@ async def stream_chat(
             )
             return
         if isinstance(exc, RelayUnavailable):
-            message = (
-                "ローカル実行 (Bridge) がオフラインのため応答できません。"
-                "お使いの PC で Bridge を起動してから再送してください。"
-            )
+            # GAP-240: 「まだ接続していない」と「接続済みだが起動していない」で案内を分ける
+            if getattr(exc, "reason", "offline") == "not_connected":
+                message = (
+                    "お使いの PC がまだ接続されていません。"
+                    "設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"
+                )
+            else:
+                message = (
+                    "ローカル実行 (Bridge) がオフラインのため応答できません。"
+                    "お使いの PC で Bridge を起動してから再送してください。"
+                )
         elif isinstance(exc, RelayTimeout):
             message = "ローカル実行が制限時間内に完了しませんでした。再送してください。"
         elif isinstance(exc, RelayFailed):
