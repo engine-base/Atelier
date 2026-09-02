@@ -7,14 +7,11 @@
 実 DB で固定する。
 """
 
-# ruff: noqa: F811  - test_auth の fixture (app/auth_user/created_emails/sync_engine) を再利用する
-
 from __future__ import annotations
 
 import asyncio
 import uuid
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
 
 import pytest
 import sqlalchemy
@@ -56,10 +53,18 @@ pytestmark = [
     pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning"),
 ]
 
-T = TypeVar("T")
+
+def _quiesce_other_workers(sync_engine: sqlalchemy.Engine) -> None:
+    """同じ DB を使う他のテストが残した presence (インスタンス worker 等) を鮮度切れにする。
+
+    presence は「鮮度 90 秒内の行があるか」で判定するので、直前の route テストが
+    ping した worker が残っていると本テストの判定が汚染される。
+    """
+    with sync_engine.begin() as c:
+        c.execute(text("update public.bridge_workers set last_seen_at = now() - interval '1 hour'"))
 
 
-def _run(fn: Callable[[AsyncSession], Awaitable[T]]) -> T:
+def _run[T](fn: Callable[[AsyncSession], Awaitable[T]]) -> T:
     async def _go() -> T:
         engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
         try:
@@ -78,6 +83,7 @@ def test_presence_is_scoped_to_the_requesting_user(
     user_a = auth_user["user_id"]
     user_b = str(uuid.uuid4())  # 未接続の別利用者 (worker も token も無い)
     worker_id = f"qa-presence-{uuid.uuid4()}"
+    _quiesce_other_workers(sync_engine)
     with sync_engine.begin() as c:
         c.execute(
             text(
@@ -92,15 +98,30 @@ def test_presence_is_scoped_to_the_requesting_user(
         assert _run(lambda s: chat_relay.worker_online(s, user_id=user_b)) is False
         # 省略時は従来どおり全体 (インスタンス worker 用)
         assert _run(lambda s: chat_relay.worker_online(s)) is True
+        # インスタンス worker (user_id null = 運営/セルフホストの共有 Bridge) は
+        # 誰のジョブでも拾うので、未接続の B から見てもオンライン
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.bridge_workers (id, host_label, version, last_seen_at) "
+                    "values (:i, 'qa-instance', '0.1.0', now())"
+                ),
+                {"i": f"{worker_id}-instance"},
+            )
+        assert _run(lambda s: chat_relay.worker_online(s, user_id=user_b)) is True
     finally:
         with sync_engine.begin() as c:
-            c.execute(text("delete from public.bridge_workers where id = :i"), {"i": worker_id})
+            c.execute(
+                text("delete from public.bridge_workers where id in (:i, :j)"),
+                {"i": worker_id, "j": f"{worker_id}-instance"},
+            )
 
 
 def test_not_connected_vs_offline_are_distinguishable(
     sync_engine: sqlalchemy.Engine, auth_user: dict[str, str]
 ) -> None:
     user_a = auth_user["user_id"]
+    _quiesce_other_workers(sync_engine)
     # トークン未発行 = 未接続
     assert _run(lambda s: chat_relay.user_has_bridge_token(s, user_id=user_a)) is False
     with sync_engine.begin() as c:

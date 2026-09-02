@@ -69,11 +69,12 @@ async def worker_online(session: AsyncSession, *, user_id: str | None = None) ->
     relay モードで worker 不在のまま enqueue しても誰も拾わないため、
     chat_sse は送信前にこれで誠実にエラーを返す (黙って待たせない)。
 
-    GAP-240: user_id を渡すと **本人の Bridge** (bridge_workers.user_id) だけを見る。
-    以前は全利用者横断で見ていたため、誰か 1 人の Bridge がオンラインなら
-    未接続の利用者のジョブまで enqueue され、誰にも拾われずに制限時間まで
-    無応答になっていた (job の pick は本人限定なので他人の PC には流れないが、
-    案内が一切出ない)。user_id 省略時は従来どおり全体 (インスタンス worker 用)。
+    GAP-240: user_id を渡すと **本人の Bridge** (bridge_workers.user_id) と
+    **インスタンス worker** (user_id が null = 運営/セルフホストの共有 Bridge。
+    pick も無差別に拾う) だけを見る。以前は全利用者横断で見ていたため、他人の
+    Bridge がオンラインなら未接続の利用者のジョブまで enqueue され、誰にも
+    拾われずに制限時間まで無応答になっていた (job の pick は本人限定なので
+    他人の PC には流れないが、案内が一切出ない)。user_id 省略時は従来どおり全体。
     """
     if user_id is None:
         res = await session.execute(
@@ -87,7 +88,7 @@ async def worker_online(session: AsyncSession, *, user_id: str | None = None) ->
         res = await session.execute(
             text(
                 "select 1 from public.bridge_workers "
-                "where user_id = cast(:u as uuid) "
+                "where (user_id = cast(:u as uuid) or user_id is null) "
                 "and last_seen_at > now() - make_interval(secs => :fresh) limit 1"
             ),
             {"fresh": PRESENCE_FRESH_SECONDS, "u": user_id},
