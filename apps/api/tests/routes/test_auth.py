@@ -1153,3 +1153,69 @@ class TestSignOut:
     def test_signout_requires_auth(self, app: FastAPI) -> None:
         with TestClient(app) as client:
             assert client.post("/auth/signout").status_code == 401
+
+
+@pytest.mark.integration
+class TestStepUpUsesSigninEquivalentPath:
+    """GAP-239 回帰: 退会/復元の step-up 再認証が signin と同一経路であること。
+
+    以前は _verify_password_local (sha256 スタブ) を無条件に使っており、
+    本番 (bcrypt は Supabase 側が持つ) では正しいパスワードでも必ず 401
+    = 誰も退会できなかった。Supabase 検証が成功を返す状況を再現し、
+    ローカル stub のハッシュが一致しなくても受け付けることを検証する
+    (スタブ専用経路が残っていればこのテストは 401 で落ちる)。
+    """
+
+    def test_delete_accepts_supabase_verified_password(
+        self,
+        app: FastAPI,
+        monkeypatch: pytest.MonkeyPatch,
+        auth_user: dict[str, str],
+    ) -> None:
+        from src.services import auth as auth_svc
+
+        async def _fake_supabase_ok(*, email: str, password: str) -> str:
+            return auth_user["user_id"]
+
+        monkeypatch.setattr(auth_svc, "_verify_password_supabase", _fake_supabase_ok)
+        h = {"Authorization": f"Bearer {_make_jwt(auth_user['user_id'])}"}
+        with TestClient(app) as client:
+            # ローカル stub の sha256 とは一致しない password でも、
+            # Supabase 側が本人と言えば受け付ける (本番経路の再現)
+            r = client.post(
+                "/auth/account/delete",
+                headers=h,
+                json={"password": "supabase-only-Password-1!"},
+            )
+            assert r.status_code == 200, r.text
+
+    def test_restore_accepts_supabase_verified_password(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+        auth_user: dict[str, str],
+    ) -> None:
+        from src.services import auth as auth_svc
+
+        async def _fake_supabase_ok(*, email: str, password: str) -> str:
+            return auth_user["user_id"]
+
+        monkeypatch.setattr(auth_svc, "_verify_password_supabase", _fake_supabase_ok)
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set deleted_at = now() where id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                "/auth/account/restore",
+                json={"email": auth_user["email"], "password": "supabase-only-Password-1!"},
+            )
+            assert r.status_code == 200, r.text
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select deleted_at from public.users where id = cast(:i as uuid)"),
+                {"i": auth_user["user_id"]},
+            ).first()
+            assert row is not None and row.deleted_at is None

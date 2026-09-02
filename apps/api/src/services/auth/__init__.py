@@ -1282,8 +1282,12 @@ async def delete_account(
     factory = _service_session_factory()
     async with factory() as session:
         try:
-            # password 再確認
-            await _verify_password_local(session, email=email, password=password)
+            # password 再確認 — signin と同一経路 (Supabase Auth 優先 / local stub は
+            # フォールバック)。GAP-239: 以前は _verify_password_local (sha256 スタブ) を
+            # 無条件に使っており、本番 (bcrypt は Supabase 側) では正しいパスワードでも
+            # 必ず 401 = 誰も退会できなかった。
+            if await _verify_password_supabase(email=email, password=password) is None:
+                await _verify_password_local(session, email=email, password=password)
             now = datetime.now(UTC)
             purge_at = now + timedelta(days=_ACCOUNT_GRACE_DAYS)
             res = await session.execute(
@@ -1345,7 +1349,9 @@ async def restore_account(
     factory = _service_session_factory()
     async with factory() as session:
         try:
-            await _verify_password_local(session, email=email, password=password)
+            # GAP-239: delete_account と同じく signin 同一経路で検証する
+            if await _verify_password_supabase(email=email, password=password) is None:
+                await _verify_password_local(session, email=email, password=password)
             res = await session.execute(
                 text("select id, deleted_at from public.users where email = :e"),
                 {"e": email},
