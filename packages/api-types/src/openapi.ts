@@ -19597,12 +19597,17 @@ export interface components {
             /** Format: date-time */
             updated_at?: string;
         };
-        /** @description 認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。 */
+        /** @description 認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。
+         *     GAP-320 (R-T06): 内部のスキル名・版は運営 (admin) にだけ返し、一般利用者には null。
+         *     画面は description だけを使う。
+         *      */
         SkillLite: {
             /** Format: uuid */
             id?: string;
-            name?: string;
-            version?: string;
+            /** @description 運営にだけ返す (一般利用者は null) */
+            name?: string | null;
+            /** @description 運営にだけ返す (一般利用者は null) */
+            version?: string | null;
             description?: string | null;
             is_active?: boolean;
         };

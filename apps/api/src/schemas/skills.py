@@ -18,8 +18,10 @@ class SkillLiteResponse(BaseModel):
     """認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only)。"""
 
     id: str
-    name: str
-    version: str
+    # GAP-320 (通し J37-02 再測 / R-T06): 内部のスキル名・版は運営だけに返す。
+    # 画面 (S-C01/S-C02) は description しか使わないので、一般利用者には null。
+    name: str | None
+    version: str | None
     description: str | None
     is_active: bool
 

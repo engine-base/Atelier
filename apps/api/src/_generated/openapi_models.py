@@ -770,11 +770,20 @@ class AdminSkill(BaseModel):
 class SkillLite(BaseModel):
     """
     認証ユーザー向けスキルカタログ (S-C01/S-C02 表示用 read-only。RLS skills_select_all)。
+    GAP-320 (R-T06): 内部のスキル名・版は運営 (admin) にだけ返し、一般利用者には null。
+    画面は description だけを使う。
+
     """
 
     id: UUID | None = None
     name: str | None = None
+    """
+    運営にだけ返す (一般利用者は null)
+    """
     version: str | None = None
+    """
+    運営にだけ返す (一般利用者は null)
+    """
     description: str | None = None
     is_active: bool | None = None
 

@@ -249,7 +249,7 @@ async def attach_skill(*, actor_id: str, skill_id: str, data: SkillAttachRequest
 
 
 async def list_skills(
-    session: AsyncSession, *, active_only: bool = True, limit: int = 100
+    session: AsyncSession, *, active_only: bool = True, limit: int = 100, reveal: bool = False
 ) -> list[SkillLiteResponse]:
     """認証ユーザー向けスキルカタログ一覧 (RLS セッション / skills_select_all)。
 
@@ -266,8 +266,8 @@ async def list_skills(
     return [
         SkillLiteResponse(
             id=str(r.id),
-            name=r.name,
-            version=r.version,
+            name=(r.name if reveal else None),
+            version=(r.version if reveal else None),
             description=r.description,
             is_active=r.is_active,
         )

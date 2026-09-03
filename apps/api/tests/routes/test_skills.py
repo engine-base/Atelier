@@ -193,6 +193,26 @@ def _create_body() -> dict[str, Any]:
     }
 
 
+def test_gap320_skill_names_are_admin_only(app: FastAPI, seeded: dict[str, str]) -> None:
+    """GAP-320 (通し J37-02 再測 / R-T06): 一般利用者向け GET /skills は
+    内部のスキル名・版を返さない (画面は description しか使わない)。運営には返す。"""
+    with TestClient(app) as cl:
+        created = cl.post(
+            "/admin/skills", json=_create_body(), headers=_h(seeded["admin"], admin=True)
+        )
+        assert created.status_code == 201, created.text
+        sid = created.json()["data"]["id"]
+        listed = cl.get("/skills", headers=_h(seeded["admin"]))
+        assert listed.status_code == 200, listed.text
+        mine = next(x for x in listed.json()["data"] if x["id"] == sid)
+        assert mine["name"] is None, mine
+        assert mine["version"] is None, mine
+        assert mine["description"] == "営業提案"  # 利用者向けの説明は返る
+        as_admin = cl.get("/skills", headers=_h(seeded["admin"], admin=True)).json()["data"]
+        mine_admin = next(x for x in as_admin if x["id"] == sid)
+        assert mine_admin["name"] and mine_admin["version"]
+
+
 def test_create_skill_admin(app: FastAPI, seeded: dict[str, str]) -> None:
     with TestClient(app) as cl:
         r = cl.post("/admin/skills", json=_create_body(), headers=_h(seeded["admin"], admin=True))
@@ -358,19 +378,22 @@ def test_list_skills_unauthenticated_401(app: FastAPI) -> None:
 def test_list_skills_member_can_read_catalog(app: FastAPI, seeded: dict[str, str]) -> None:
     """一般メンバーでもカタログを読める (RLS skills_select_all)。
 
-    admin write で 1 件登録 → member の GET /skills に名前が出る。
+    admin write で 1 件登録 → member の GET /skills にその行が出る。
     重量級カラム (content_md) は返さない。
+    GAP-320: 内部のスキル名・版は member には返さない (id と説明で識別する)。
     """
     body = _create_body()
     with TestClient(app) as cl:
         r = cl.post("/admin/skills", json=body, headers=_h(seeded["admin"], admin=True))
         assert r.status_code == 201, r.text
+        sid = r.json()["data"]["id"]
         r2 = cl.get("/skills", headers=_h(seeded["member"]))
         assert r2.status_code == 200, r2.text
         rows = r2.json()["data"]
-        mine = [s for s in rows if s["name"] == body["name"]]
+        mine = [s for s in rows if s["id"] == sid]
         assert len(mine) == 1
-        assert mine[0]["version"] == "1.0.0"
+        assert mine[0]["name"] is None and mine[0]["version"] is None
+        assert mine[0]["description"] == body["description"]
         assert "content_md" not in mine[0]
 
 
@@ -388,17 +411,17 @@ def test_list_skills_active_only_filter(app: FastAPI, seeded: dict[str, str]) ->
             ).status_code
             == 200
         )
-        names_default = [
-            s["name"] for s in cl.get("/skills", headers=_h(seeded["member"])).json()["data"]
+        ids_default = [
+            s["id"] for s in cl.get("/skills", headers=_h(seeded["member"])).json()["data"]
         ]
-        assert body["name"] not in names_default
-        names_all = [
-            s["name"]
+        assert sid not in ids_default
+        ids_all = [
+            s["id"]
             for s in cl.get(
                 "/skills", params={"active_only": "false"}, headers=_h(seeded["member"])
             ).json()["data"]
         ]
-        assert body["name"] in names_all
+        assert sid in ids_all
 
 
 def test_admin_create_skill_duplicate_409(app: FastAPI, seeded: dict[str, str]) -> None:

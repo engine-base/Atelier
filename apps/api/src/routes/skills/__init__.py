@@ -36,11 +36,16 @@ UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 @router.get("/skills", summary="スキルカタログ一覧（認証ユーザー read-only）")
 async def list_skills(
     session: SessionDep,
-    _user: UserDep,
+    user: UserDep,
     active_only: Annotated[bool, Query()] = True,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> dict[str, list[SkillLiteResponse]]:
-    return {"data": await svc.list_skills(session, active_only=active_only, limit=limit)}
+    # GAP-320 (R-T06): スキル名・版は運営だけ。一般利用者には description だけ返す
+    return {
+        "data": await svc.list_skills(
+            session, active_only=active_only, limit=limit, reveal=admin_svc.is_admin(user)
+        )
+    }
 
 
 def _require_admin(user: CurrentUser) -> None:
