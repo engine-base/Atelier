@@ -626,12 +626,16 @@ class TestAuthSignin:
             r = client.post("/auth/signin", json={"email": "bad", "password": "whatever"})
             assert r.status_code == 422
 
-    def test_signin_soft_deleted_user_401(
+    def test_signin_soft_deleted_user_403_says_pending_deletion(
         self,
         app: FastAPI,
         sync_engine: sqlalchemy.Engine,
         signin_user: dict[str, str],
     ) -> None:
+        """GAP-269 (通し J52-03): 退会中 + 正しいパスワード → 「退会手続き中」(403)。
+
+        「パスワードが違う」(401) だと本人が復元導線にたどり着けない。
+        パスワードが違う場合は従来通り 401 のまま (存在を漏らさない)。"""
         with sync_engine.begin() as c:
             c.execute(
                 text("update public.users set deleted_at = now() where id = cast(:i as uuid)"),
@@ -642,7 +646,15 @@ class TestAuthSignin:
                 "/auth/signin",
                 json={"email": signin_user["email"], "password": signin_user["password"]},
             )
-            assert r.status_code == 401
+            assert r.status_code == 403, r.text
+            assert "退会手続き中" in r.json()["detail"]
+            assert "復元" in r.json()["detail"]
+            bad = client.post(
+                "/auth/signin",
+                json={"email": signin_user["email"], "password": "wrong-password-xx"},
+            )
+            assert bad.status_code == 401
+            assert "退会" not in bad.json()["detail"]
 
 
 # --------------------------------------------------------------------------- #

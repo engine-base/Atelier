@@ -618,6 +618,11 @@ async def signin(
                     )
                 )
                 await session.commit()
+                if row is not None:
+                    # GAP-269 (通し J52-03): パスワードは合っている (上で検証済) ので
+                    # 「退会手続き中」と伝えてよい。「パスワードが違う」と返すと本人が
+                    # 復元 (30 日猶予) の導線にたどり着けない。
+                    raise SigninError("account_deleting", "account is pending deletion")
                 raise SigninError("invalid_credentials", "invalid email or password")
 
             app_meta = await _load_app_metadata(session, user_id=str(row.id))

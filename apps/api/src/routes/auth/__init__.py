@@ -92,6 +92,9 @@ async def signin(body: SigninRequest, request: Request) -> dict[str, SigninRespo
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "locked":
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, user_detail(exc)) from exc
+        if exc.code == "account_deleting":
+            # GAP-269: 認証は通っている。403 で「退会手続き中 → 復元へ」を伝える
+            raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, user_detail(exc)) from exc
     return {"data": result}
 
