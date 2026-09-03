@@ -161,3 +161,56 @@ recent_activities で観測できたものだけ「記録された」とする�
 
 ## J48-21 (再測 GAP-304) 複数タスクを一括で着手可にする — 準備中カード 3 件のうち 2 件を画面で選択 → 選択バーの一括操作
   準備中タスクを 3 件作成: G=2e72202d H=35fe3525 I=db7240c3 (いずれも lifecycle_stage=triage)
+  操作前の列={"G":"準備中","H":"準備中","I":"準備中"}; 画面の選択チェックボックス 3 個 (準備中カード G/H/I の分=3 個) ["QA-R4 タスク Nebula-9 一括G を選択","QA-R4 タスク Nebula-10 一括H を選択","QA-R4 タスク Nebula-11 一括I (選ばない) を選択"]
+  選択できなかったカード=[]; 選択バー=1 件、またはまとめて複数選択します; 選択バー系ボタン=["QA-R4 タスク Nebula-9 一括G を着手可にする","QA-R4 タスク Nebula-10 一括H を着手可にする","QA-R4 タスク Nebula-11 一括I (選ばない) を着手可にする"]
+  画面の一括「着手可にする」: 「QA-R4 タスク Nebula-9 一括G を着手可にする」を押す → ["PATCH 200 /tasks/2e72202d-8291-4ba0-afd5-0d4734139 {\"data\":{\"id\":\"2e72202d-8291-4ba0-afd5-0d473413903d\",\"project_id\":\"b8c3a76e-f304-4c5a-a7d2-320459a387a7\",\"phase\":null,\"category\":\"hearing\",\""]
+  操作後の状態: G=ready H=triage I=triage (選ばなかった I が不変か=true)
+  操作後の画面の列={"G":"着手可","H":"準備中","I":"準備中"}; 監査=[]
+  => J48-21: FAIL — 期待: 2 件選んで一括操作で選んだ分だけ着手可 / 実測: 準備中カードの選択チェックボックス 3 個 (選択失敗 0 件)、選択バー=1 件、またはまとめて複数選択します、一括ボタン=QA-R4 タスク Nebula-9 一括G を着手可にする、押した結果=["PATCH 200 /tasks/2e72202d-8291-4ba0-afd5-0d4734139 {\"data\":{\"id\":\"2e72202d-8291-4ba0-afd5-0d473413903d\",\"project_id\":\"b8c3a76e-f304-4c5a-a7d2-320459a387a7\",\"phase\":null,\"category\":\"hearing\",\""]、状態 G=ready H=triage I=triage、画面の列 {"G":"着手可","H":"準備中","I":"準備中"}
+
+## J48-21 (再測 GAP-304) 複数タスクを一括で着手可にする — 準備中カード 3 件のうち 2 件を画面で選択 → 選択バーの一括操作
+  準備中タスクを 3 件作成: G=e96f3e75 H=e84b7af3 I=ec6951bd (いずれも lifecycle_stage=triage)
+  操作前の列={"G":"準備中","H":"準備中","I":"準備中"}; 画面の選択チェックボックス 6 個 (準備中カード G/H/I の分=3 個) ["QA-R4 タスク Nebula-12 一括J を選択","QA-R4 タスク Nebula-13 一括K を選択","QA-R4 タスク Nebula-14 一括L (選ばない) を選択"]
+  選択できなかったカード=[]; 選択バー=準備中のタスク 2 件を選択中; 選択バーの一括ボタン=["着手可にする2"]
+  画面の一括「着手可にする」: 「着手可にする2」を押す → ["POST 200 /tasks/bulk/lifecycle {\"data\":{\"requested\":2,\"updated\":2,\"updated_task_ids\":[\"e84b7af3-76ef-40b2-b73f-56ca0ed247e6\",\"e96f3e75-0324-4039-95c4-c1da18191dbb\"],\"skipp"]
+  操作後の状態: G=ready H=ready I=triage (選ばなかった I が不変か=true)
+  操作後の画面の列={"G":"着手可","H":"着手可","I":"準備中"}; 監査=["task.bulk_lifecycle:task:e96f3e75","task.bulk_lifecycle:task:e84b7af3"]
+  => J48-21: PASS — 準備中カード 3 件のうち 2 件 (G/H) を画面のチェックボックスで選択 → 選択バー「準備中のタスク 2 件を選択中」の「着手可にする2」を押す → POST 200 /tasks/bulk/lifecycle。選んだ G/H だけ ready、選ばなかった I は triage のまま。画面の列 {"G":"着手可","H":"着手可","I":"準備中"}、監査 ["task.bulk_lifecycle:task:e96f3e75","task.bulk_lifecycle:task:e84b7af3"] (GAP-304 解消)
+
+## J46-18 (再測 GAP-311) 閲覧者 (viewer) は成果物を編集できない — revise / restore / sheet が 403 で、503・409 が先に出ないこと。閲覧とコメントはできる
+  PATCH /workspaces/78bbc005-c001-4489-af39-cecfc55471af/members/e65e703e-2cef-4b90-a1a7-bfcb828fc026 (body {"role": "viewer"}) -> 200 {"data": {"workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "user_id": "e65e703e-2cef-4b90-a1a7-bfcb828fc026", "email": "qa-jR4-20260903-2@example.com", "display_name": "QA-R4 member", "role": "viewer", "joined_at": "2026-09-03T10:31:06.731866Z"}}
+  ロール変更 -> 200 role=viewer
+  再取得 members: qa-jR4-20260903-2@example.com role=viewer
+  要件定義書 v2 を import -> 200 [('requirements', 2, '115e1ee9-2f96-46fa-873c-d937cb9553d9')]
+  操作前の版数: xlsx=1 件, 要件定義=2 件 [1, 2]
+  viewer の閲覧: GET /outputs/{req} -> 200, GET /outputs/{xlsx} -> 200; コメント: POST /comments -> 201, GET /comments -> 200 1 件
+  viewer POST /outputs/{xlsx}/sheet x3 -> [403, 403, 403] {"detail": "この操作を行う権限がありません。"}
+  viewer POST /outputs/{req v1 = 旧版}/restore (v2 が最新) x3 -> [403, 403, 403] {"detail": "この成果物を変更する権限がありません。"}
+  viewer POST /outputs/{req v2 = 最新版}/restore (前提エラー 409 が権利判定より先に出ないか) x3 -> [403, 403, 403] {"detail": "この成果物を変更する権限がありません。"}
+  viewer POST /outputs/{req}/share-links x3 -> [403, 403, 403] {"detail": "共有リンクを発行する権限がありません。"}
+  viewer POST /outputs/{req}/revise (Bridge 未接続。503 が権限判定より先に出ないか) x3 -> [403, 403, 403] {"detail": "この成果物を変更する権限がありません。"}
+  viewer POST /outputs/{xlsx}/ai-file-edit x3 -> [503, 503, 503] {"detail": "お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"}
+  操作後の版数: xlsx=1→1, 要件定義=2→2 (成果物が変わらない=True)
+  owner 側の共有リンク一覧 = 0 件 (viewer 発行分が無いこと)
+
+  (画面側) viewer で S-G01 を開き、編集系の見え方と「保存」の失敗理由を見る
+  viewer の画面 (xlsx 成果物): 表セクション=1、閲覧者にも見える編集系ボタン=["編集","新しい版として保存","AI に修正を依頼","共有リンクを発行","HTML で保存","Excel で保存","投稿"]
+  viewer が画面で 1 セル書き換えて「保存」→ POST /sheet 403 {"detail":"この操作を行う権限がありません。"}
+  そのときの画面の表示: ["保存に失敗しました。","権限がありません。\n×"]
+  viewer の画面が受けた 4xx/5xx: POST 403 /outputs/22e2e578-5241-448b-9652-14bc29ae4487/sheet {"detail"
+  => J46-18: FAIL — 期待: 403 で拒否され成果物は変わらない・閲覧とコメントはできる / 実測: PATCH role=viewer 後、viewer の GET /outputs {req,xlsx}=[200,200] (閲覧可)・POST /comments 201・GET /comments 200 (コメント可)。編集系 (各 3 回): sheet [403,403,403] / restore 旧版 [403,403,403] / restore 最新版 [403,403,403] / share-links [403,403,403] / revise [403,403,403] = すべて 403 で、R2 で先に出ていた 503 (revise) と 409 (restore) は解消 (GAP-311)。ただし **POST /outputs/{id}/ai-file-edit だけは [503,503,503]** で、Bridge 判定 (bridge_offline) が権限判定より先に出る (routes/outputs/__init__.py の request_output_file_edit に _can_write_output が無い) = GAP-311 と同じ壊れ方が同じ画面の「AI に修正を依頼」に残っている。版数 xlsx 1→1・要件定義 2→2 (成果物は不変)、viewer が発行した共有リンク 0 件 (owner 側一覧 0 件)。画面: 閲覧者にも編集系 ["編集","新しい版として保存","AI に修正を依頼","共有リンクを発行","HTML で保存","Excel で保存","投稿"] が出たまま。1 セル書き換えて「保存」→ POST /sheet 403 {"detail":"この操作を行う権限がありません。"} だが画面の表示は ["保存に失敗しました。","権限がありません。\n×"] で、失敗理由が権限だと分からない (SheetEditor.tsx は 409 のときだけサーバーの日本語 detail を出し、403 は既定の「保存に失敗しました。」)
+
+  (判定の訂正) 画面の「保存」失敗時のトーストに「権限がありません。」が出ることを確認したため、J46-18 の FAIL 理由は ai-file-edit の 503 の 1 点に絞る。
+
+## J47-07 (補足) 論理削除であることの実測 — 削除済みの行が DB に残っているかを version 採番で確認する
+  削除後の一覧 1 件: [('estimate', 1)]
+  削除した見積 v2 のあとに新しい見積を作る -> 201 version=3
+  next_version は deleted_at で絞らない max(version)+1 (services/sales_docs/__init__.py:118) ので、
+  version=3 は削除済みの v2 の行が DB に残っている (= 物理削除ではなく deleted_at を立てる論理削除) ことを示す
+  併せて services/sales_docs/__init__.py:215 delete_sales_doc は 'update ... set deleted_at = now()' + AuditWriter(action='sales_doc.delete') を書いている
+  ただし監査行 (target_type=workflow_output) は GET /projects/{id}/dashboard の recent_activities の絞り込み (project / task / comment のみ, services/projects/__init__.py:395) に入らないため、運営 API なしでは読めない
+  採番テスト用のドラフトを片付け -> DELETE 204
+
+## CLEANUP 後片付け: 共有リンク失効 → 退会 (member / owner) → 既存 JWT と再サインインが無効になることの確認 (G-14)
+  member (qa-jR4-20260903-2@example.com) 退会 -> 200; 退会後の signin -> 403 (401 なら OK); 退会後の既存 JWT で GET /workspaces -> 401 (401 なら失効 = G-14)
+  owner (qa-jR4-20260903-1@example.com) 退会 -> 200; 退会後の signin -> 403 (401 なら OK); 退会後の既存 JWT で GET /workspaces -> 401 (401 なら失効 = G-14)
