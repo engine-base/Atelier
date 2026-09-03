@@ -1,0 +1,93 @@
+# 担当 R1 (再計測) 2026-09-03 本番 prod(pre-launch) — deploy #82 (main 193832c) 後。API https://atelier-api-eb.fly.dev / Web https://atelier-web-coral.vercel.app
+# 対象: 前回 FAIL の 31 行のみ。アカウント qa-jR1-20260903-{1,2,3}@example.com (秘密は本ファイルに書かない)
+
+## SETUP アカウント・WS・案件・成果物の準備 (API)
+  POST /auth/signup -> 201 {"data":{"user_id":"f498afdd-0681-42de-8113-e1d786b31331","email":"qa-jR1-20260903-1@example.com","display_name":"QA jR1 オーナー","consents_recorded":2,"created_at":"2026-09-03T07:22:24.287570Z"}}
+  signup qa-jR1-20260903-1@example.com -> 201
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T15:22:25Z","user_id":"f498afdd-0681-42de-8113-e1d786b31331","email":"qa-jR1-20260903-1@example.com","display_name":"QA jR1 オーナー","refresh_token":null}}
+  signin qa-jR1-20260903-1@example.com -> 200 uid=f498afdd-0681-42de-8113-e1d786b31331
+  POST /auth/signup -> 201 {"data":{"user_id":"2a9e4d56-7885-4fe1-a29c-74b5f289a234","email":"qa-jR1-20260903-2@example.com","display_name":"QA jR1 メンバー","consents_recorded":2,"created_at":"2026-09-03T07:22:26.218245Z"}}
+  signup qa-jR1-20260903-2@example.com -> 201
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T15:22:26Z","user_id":"2a9e4d56-7885-4fe1-a29c-74b5f289a234","email":"qa-jR1-20260903-2@example.com","display_name":"QA jR1 メンバー","refresh_token":null}}
+  signin qa-jR1-20260903-2@example.com -> 200 uid=2a9e4d56-7885-4fe1-a29c-74b5f289a234
+  POST /workspaces -> 201 {"data":{"id":"7cdbe5d0-409b-4674-b412-e6a0851657b8","name":"QA jR1 WS1","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T07:22:27.511565Z","updated_at":"2026-09-03T07:22:27.511565Z"}}
+  POST /projects -> 201 {"data":{"id":"5b96f032-7196-472a-9742-0f2558e1e41e","workspace_id":"7cdbe5d0-409b-4674-b412-e6a0851657b8","name":"QA jR1 案件 Orion","client_name":null,"description":null,"type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","dele
+  GET flow -> 200 stages=hearing:pending proposal:pending estimate:pending contract:pending(hg) requirements:pending architecture:pending design:pending implementation:pending verification:pending delivery:pending(hg)
+  GET delivery-phases -> 200 phase1=9d33db90-9bc5-4dab-8e58-afac01ba54c8 n=1
+  POST import -> 200 requirements-qa-r1.html: type=output stage=requirements v=1 id=0fda96a0-9b37-46ed-a59d-3006430e3282 err= | 納品物_最終版.html: type=mock stage=design v=1 id=34e82704-815d-4b5d-891e-9c61d46a3eca err=
+  GET /outputs -> 200 requirements v1 要件定義書 QA-R1 id=0fda96a0-9b37-46ed-a59d-3006430e3282
+  AI 社員 10 名 tony=3a0f6e33-87d9-43e8-85c7-e2a823b1c3e0
+
+## SETUP-2 納品工程の成果物を md で取り込む
+  import md -> 200 納品物_最終版.md: type=output stage=delivery v=1 id=70340471-0ee1-4216-83b8-4b8d3f86b1a3 err=
+
+## J37-04 編集禁止の項目を変えようとする (API 直)
+  前: display_name=トニー tone=polite attached_skills=["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"] keys=id,workspace_id,template_id,name,display_name,icon,role,department,tone_preset,custom_tone_text,attached_skills,attached_knowledge_cats,is_default,archived,created_at,updated_at
+  PATCH /ai-employees/3a0f6e33-87d9-43e8-85c7-e2a823b1c3e0 -> 422 {"detail":"送信内容を確認してください（指示文: この項目は変更できません）。"}
+  PATCH /ai-employees/3a0f6e33-87d9-43e8-85c7-e2a823b1c3e0 -> 422 {"detail":"送信内容を確認してください（スキル: この項目は変更できません）。"}
+  PATCH /ai-employees/3a0f6e33-87d9-43e8-85c7-e2a823b1c3e0 -> 422 {"detail":"送信内容を確認してください（指示文: この項目は変更できません）。"}
+  system_prompt → 422 / attached_skills → 422 / 混在 → 422 / GET 後: display_name=トニー attached_skills=["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"] 不変=true
+  => J37-04: PASS — system_prompt=422 / attached_skills=422 / 混在 (display_name+system_prompt)=422 で拒否 (detail: "送信内容を確認してください（指示文: この項目は変更できません）。") 。GET 再取得で display_name「トニー」attached_skills も不変・注入文字列の混入なし
+
+## J36-06 最後の owner を除名しようとする (API 直。UI はあとで確認)
+  DELETE /workspaces/7cdbe5d0-409b-4674-b412-e6a0851657b8/members/f498afdd-0681-42de-8113-e1d786b31331 -> 409 {"detail":"最後の owner は外せません。先に別のメンバーを owner にしてください。"}
+  members 前=1 [owner] / DELETE self → 409 {"detail":"最後の owner は外せません。先に別のメンバーを owner にしてください。"} / 後=1 [owner]
+
+## J31-08 期限切れ (7 日) の招待リンクは使えない
+  POST /workspaces/7cdbe5d0-409b-4674-b412-e6a0851657b8/members -> 422 {"detail":"このメールアドレスのアカウントは登録されていません。"}
+  GET /workspaces/7cdbe5d0-409b-4674-b412-e6a0851657b8/invitations -> 404 {"detail":"Not Found"}
+  未登録メールの招待 → 422 {"detail":"このメールアドレスのアカウントは登録されていません。"} / メンバー行の keys=workspace_id,user_id,email,display_name,role,joined_at (expires_at/token 無し) / GET /workspaces/{id}/invitations → 404
+  => J31-08: FAIL — 期待: 期限切れ (7 日) の招待リンクが拒否される / 実測: WS 招待にリンク・expires_at を持つ招待エンティティが依然として無い (未登録メールは 422「このメールアドレスのアカウントは登録されていません。」で招待自体が作れず、メンバー行の keys=workspace_id,user_id,email,display_name,role,joined_at に期限は無い。GET /workspaces/{id}/invitations は 404)。GAP-281 で「招待リンク / 有効期限は仕様未確定のため別途 (T-A-30)」と保留のまま = 期限切れの対象が存在しない
+
+## J35-01 ナレッジを 1 件作る (API。画面は後で)
+  POST /knowledge -> 201 {"data":{"id":"5161f1ad-abad-4a1f-9218-d49ed349d316","account_id":"7cdbe5d0-409b-4674-b412-e6a0851657b8","account_type":"workspace","scope":"common","owner_employee_id":null,"parent_id":null,"visible_in_tree":true,"category":"qa","title":"QA jR1 ナレッジ 1","content_md":"# QA jR1\n\nOrion 案件の定例は毎週火曜。担当は
+  GET /embedding-status -> 200 {"data":{"provider":"none","state":"unavailable","reason":"意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)","payer":"費用なし","model_tag":null,"next_steps":["サーバーで `uv sync` を実行して fastembed を導入する","導入後は API 再起動でモデルの準備が自動で始まります"],"warnings":["VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_ALLOW_VOYAGE=1) 
+  POST /knowledge → 201 id=5161f1ad-abad-4a1f-9218-d49ed349d316 / 一覧に出る=true (一覧 200 1 件) / embedding-status: provider=none state=unavailable indexed=undefined/undefined semantic=false reason=意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)
+
+## J35-07 意味検索の準備状態 (API。画面は後で)
+  POST /embedding-status/prepare -> 503 {"detail":"意味検索の準備を開始できません: 意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)（サーバーで `uv sync` を実行して fastembed を導入する / 導入後は API 再起動でモデルの準備が自動で始まります）"}
+  prepare → 503 {"detail":"意味検索の準備を開始できません: 意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)（サーバーで `uv sync` を実行して fastembed を導入する / 導入後は API 再起動でモデルの準備が自動で始まります）"} / 直後 state=unavailable provider=none
+
+## J34-06 対応していない形式 (.exe) を上げる (API。画面は後で)
+  POST /meetings/upload-url -> 422 {"detail":"対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。"}
+  POST /meetings -> 422 {"detail":"対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。"}
+  upload-url(.exe) → 422 / POST /meetings(.exe) → 422 / 一覧 0→0 exe あり=false
+
+## J20-05 招待を再送する (使用済み招待の再送 → ローテーション → 旧リンク無効)
+  POST /client-invitations -> 201 {"data":{"id":"eed6ee5f-b9eb-4345-bc26-b6c36a681ac7","project_id":"5b96f032-7196-472a-9742-0f2558e1e41e","email":"qa-jR1-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T07:25:15.733264Z","used_at":null,"revoked_at":null,"client_display_name":"QA クライアント R1","use_coun
+  POST /client/auth/preview -> 200 {"data":{"project_name":"QA jR1 案件 Orion","workspace_name":"QA jR1 WS1","inviter_name":"QA jR1 オーナー","invited_email":"qa-jR1-client-20260903@example.com","expires_at":"2026-09-10T07:25:15.733264Z","remaining_days":7}}
+  POST /client/auth/signin -> 200 {"data":{"client_access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-04T07:25:16Z","project":{"id":"5b96f032-7196-472a-9742-0f2558e1e41e","name":"QA jR1 案件 Orion"},"scopes":["view","comment"]}}
+  使用後: used_at=2026-09-03T07:25:16.632177Z use_count=1
+  POST /client-invitations/eed6ee5f-b9eb-4345-bc26-b6c36a681ac7/resend -> 200 {"data":{"id":"eed6ee5f-b9eb-4345-bc26-b6c36a681ac7","project_id":"5b96f032-7196-472a-9742-0f2558e1e41e","email":"qa-jR1-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T07:25:15.733264Z","used_at":"2026-09-03T07:25:16.632177Z","revoked_at":null,"client_display_name"
+  POST /client/auth/preview -> 401 {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  POST /client/auth/signin -> 401 {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  POST /client/auth/preview -> 200 {"data":{"project_name":"QA jR1 案件 Orion","workspace_name":"QA jR1 WS1","inviter_name":"QA jR1 オーナー","invited_email":"qa-jR1-client-20260903@example.com","expires_at":"2026-09-10T07:25:15.733264Z","remaining_days":7}}
+  POST /client/auth/signin -> 200 {"data":{"client_access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-04T07:25:19Z","project":{"id":"5b96f032-7196-472a-9742-0f2558e1e41e","name":"QA jR1 案件 Orion"},"scopes":["view","comment"]}}
+  resend → 200 token 変化=true / 旧リンク preview=401 signin=401 / 新リンク preview=200 signin=200 / (G-12) 再送前に発行済みの券で GET /client/projects → 200
+  => J20-05: PASS — 使用済み (used_at 有) の招待で再送 200 → token がローテーション (旧≠新)。旧リンク preview 401 / signin 401 で無効、新リンク preview 200 / signin 200。メール送信の痕跡は利用者向け API に露出せず未観測 (受信箱なし)。付記 (G-12): 再送前に発行済みのクライアント券は GET /client/projects → 200
+
+## J21-05 成果物が更新されるとクライアントにメールが届く (新版 = 要件定義 v2 取込)
+  import v2 → 200 requirements-qa-r1.html stage=requirements v=2 id=f5201737-7d4f-429e-9d71-9682f0645fbb keys=file_name,type,title,stage,version,target_id,error
+  versions → 200 {"data":[{"id":"0fda96a0-9b37-46ed-a59d-3006430e3282","project_id":"5b96f032-7196-472a-9742-0f2558e1e41e","phase_id":null,"stage":"requirements","html_path":"mockdb://1b3c5ef0-666a-46dc-97f3-4b4bcca9a
+  GET output keys=id,project_id,phase_id,stage,html_path,json_path,md_path,summary,version,delivery_phase_id,meta,deleted_at,created_at,updated_at
+  dashboard recent_activities 前=["project.import","project.import","project.flow.init","workflow.phases.seed","project.create"] 後=["project.import","project.import","project.import","project.flow.init","workflow.phases.seed","project.create"] client_notified あり=false
+  => J21-05: BLOCKED — 新版 (要件定義 v2) の作成は 200。送信の実装 (services/outputs/client_notify.py) は入ったが、監査ログ output.client_notified_of_update は target=workflow_output で書かれ、利用者が読める API (dashboard recent_activities は project/task/comment 対象のみ) に出ない。import 応答 (keys=file_name,type,title,stage,version,target_id,error) にも送信結果が無く、受信箱も無い / 解除条件: 運営の /admin/audit-logs で action=output.client_notified_of_update を照会するか、dashboard の監査に成果物対象を含める
+
+## J23-01 クライアントがコメントする
+  client outputs → 200 requirements v2 要件定義書 QA-R1 id=f5201737-7d4f-429e-9d71-9682f0645fbb | delivery v1 納品物_最終版 id=70340471-0ee1-4216-83b8-4b8d3f86b1a3
+  POST /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments -> 201 {"data":{"id":"590c6348-3977-45cb-85f8-96c90a358e25","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_label":"要件定義書","content":"【クライアント R1】要件定義 v2 の 2 章、商談一覧に絞込を足してほしいです。","author_name":null,"is_client_author":true,"created_at":"2026-09-03T07:25:24.505199Z"}
+  POST client comment → 201 id=590c6348-3977-45cb-85f8-96c90a358e25 / 自分の一覧 0→1 自分の投稿あり=true is_client_author=true / owner dashboard activities=["client.comment.staff_notified","client.comment.create","project.import","project.import","project.import","project.flow.init","workflow.phases.seed","project.create"]
+  => J23-01: PASS — POST /client/projects/{id}/comments 201 → 自分の一覧に出る (is_client_author=true)。担当者 (WS owner) への通知は監査ログ client.comment.staff_notified が owner のダッシュボード recent_activities に記録された (client.comment.staff_notified,client.comment.create) = 送信 (dry-run 含む) の痕跡。受信箱は無いので実受信は未確認
+
+## J23-03 自分のコメントだけ編集・削除できる (API 部分。UI は後で)
+  POST /comments -> 201 {"data":{"id":"5ff909e7-c9a6-4552-bf78-14605425aee5","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_element_id":null,"author_user_id":"f498afdd-0681-42de-8113-e1d786b31331","author_invitation_id":null,"author_name":"QA jR1 オーナー","is_client_author":false,"c
+  POST /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments -> 201 {"data":{"id":"830e1336-030c-4fe7-ba6c-25ef7329e914","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_label":"要件定義書","content":"【クライアント R1】削除するコメント","author_name":null,"is_client_author":true,"created_at":"2026-09-03T07:25:26.809019Z"}}
+  PATCH /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments/590c6348-3977-45cb-85f8-96c90a358e25 -> 200 {"data":{"id":"590c6348-3977-45cb-85f8-96c90a358e25","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_label":"要件定義書","content":"【クライアント R1・修正】要件定義 v2 の 2 章、商談一覧に絞込と並び替えを足してほしいです。","author_name":null,"is_client_author":true,"created_at":"2026-09-03T07:25:24.5
+  DELETE /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments/830e1336-030c-4fe7-ba6c-25ef7329e914 -> 204 
+  PATCH /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments/5ff909e7-c9a6-4552-bf78-14605425aee5 -> 404 {"detail":"対象のコメントが見つからないか、すでに取り消されています。"}
+  DELETE /client/projects/5b96f032-7196-472a-9742-0f2558e1e41e/comments/5ff909e7-c9a6-4552-bf78-14605425aee5 -> 404 {"detail":"対象のコメントが見つからないか、すでに取り消されています。"}
+  自分: PATCH=200 DELETE=204 → 一覧: cc1 content 修正済=true cc2 残存=false / 他人 (社内メモ): PATCH=404 DELETE=404 content 不変=true / activities=["client.comment.delete","client.comment.update","client.comment.staff_notified","client.comment.create","comment.create","client.comment.staff_notified","client.comment.create","project.import","project.import","project.import"]
+
+## J23-04(前提) 社内が返信する
+  POST /comments -> 201 {"data":{"id":"0e1fe245-30cd-473c-9ae0-dcc896316b7b","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_element_id":null,"author_user_id":"f498afdd-0681-42de-8113-e1d786b31331","author_invitation_id":null,"author_name":"QA jR1 オーナー","is_client_author":false,"c
+  reply → 201 parent=590c6348-3977-45cb-85f8-96c90a358e25

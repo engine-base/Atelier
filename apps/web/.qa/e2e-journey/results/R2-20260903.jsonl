@@ -1,0 +1,1 @@
+{"id":"J44-01","status":"FAIL","evidence":"apps/web/.qa/evidence/shots/journeys/J44-01-r2.png","note":"期待: 画面表示が GET /cron-actions と一致 / 実測: 6 種中 欠け 6 [\"task_replay\",\"knowledge_organize\",\"industry_extract\",\"report_summary\",\"daily_digest\",\"weekly_burndown\"]、旧文言残存 [\"着手可のタスクを再生する\",\"ナレッジを整理する\",\"横断パターンを抽出する\",\"プラン枠\",\"無料\"]"}
