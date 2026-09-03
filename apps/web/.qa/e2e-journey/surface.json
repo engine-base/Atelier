@@ -2,7 +2,9 @@
  "screens": [
   {
    "screen": "apps/web/app",
-   "ops": []
+   "ops": [
+    "GET /public/legal-documents/{}"
+   ]
   },
   {
    "screen": "apps/web/app/access-denied",
@@ -10,27 +12,72 @@
   },
   {
    "screen": "apps/web/app/admin/s_t01",
-   "ops": []
+   "ops": [
+    "DELETE /admin/acquisitions/{record_id}",
+    "DELETE /admin/costs/{cost_id}",
+    "GET /admin/acquisitions",
+    "GET /admin/audit-logs",
+    "GET /admin/beta-feedback",
+    "GET /admin/costs",
+    "GET /admin/dashboard",
+    "GET /admin/health",
+    "GET /admin/mission",
+    "GET /admin/platform-stats",
+    "GET /admin/trends",
+    "GET /admin/users",
+    "POST /admin/acquisitions",
+    "POST /admin/beta-feedback/{feedback_id}/resolve",
+    "POST /admin/costs",
+    "PUT /admin/goal"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t02",
-   "ops": []
+   "ops": [
+    "DELETE /admin/skills/{skill_id}",
+    "GET /admin/skills",
+    "PATCH /admin/skills/{skill_id}",
+    "POST /admin/skills",
+    "POST /admin/skills/reimport",
+    "POST /admin/skills/{skill_id}/attach"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t03",
-   "ops": []
+   "ops": [
+    "GET /admin/ai-employee-templates",
+    "GET /admin/ai-employee-templates/{template_id}/deployment",
+    "GET /admin/skills",
+    "PATCH /admin/ai-employee-templates/{template_id}"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t04",
-   "ops": []
+   "ops": [
+    "GET /admin/support-contacts",
+    "GET /admin/users",
+    "POST /admin/support-contact"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t05",
-   "ops": []
+   "ops": [
+    "GET /admin/alerts",
+    "GET /admin/audit-logs",
+    "GET /admin/errors",
+    "GET /admin/uptime"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t06",
-   "ops": []
+   "ops": [
+    "DELETE /admin/knowledge/{knowledge_id}",
+    "GET /admin/knowledge",
+    "GET /admin/knowledge/curation",
+    "PATCH /admin/knowledge/{knowledge_id}",
+    "POST /admin/knowledge",
+    "POST /admin/knowledge/curation/run"
+   ]
   },
   {
    "screen": "apps/web/app/admin/s_t07",
@@ -38,7 +85,12 @@
   },
   {
    "screen": "apps/web/app/approvals/s_j01",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /approval-inbox",
+    "GET /projects",
+    "POST /approval-inbox/{approval_id}/decide"
+   ]
   },
   {
    "screen": "apps/web/app/auth/oauth-complete",
@@ -46,19 +98,61 @@
   },
   {
    "screen": "apps/web/app/auth/s_a01",
-   "ops": []
+   "ops": [
+    "GET /auth/oauth/providers",
+    "POST /auth/account/restore",
+    "POST /auth/magic-link/request"
+   ]
   },
   {
    "screen": "apps/web/app/auth/s_a03",
-   "ops": []
+   "ops": [
+    "DELETE /mcp-tokens/{token_id}",
+    "DELETE /workspaces/{workspace_id}",
+    "DELETE /workspaces/{workspace_id}/members/{user_id}",
+    "GET /billing/plan",
+    "GET /mcp-tokens",
+    "GET /me",
+    "GET /projects",
+    "GET /workspaces/{workspace_id}",
+    "GET /workspaces/{workspace_id}/members",
+    "PATCH /workspaces/{workspace_id}",
+    "PATCH /workspaces/{workspace_id}/members/{user_id}",
+    "POST /account/ai-learning",
+    "POST /billing/checkout",
+    "POST /billing/portal",
+    "POST /mcp-tokens",
+    "POST /workspaces/{workspace_id}/members"
+   ]
   },
   {
    "screen": "apps/web/app/chat/s_e01",
-   "ops": []
+   "ops": [
+    "DELETE /chat/threads/{}",
+    "GET /ai-employees",
+    "GET /chat/connection-status",
+    "GET /chat/threads/{}",
+    "GET /decisions",
+    "GET /knowledge",
+    "GET /projects",
+    "GET /projects/{}/delivery-phases",
+    "GET /projects/{}/flow{}",
+    "GET /workflow/phases",
+    "PATCH /chat/threads/{}",
+    "PATCH /decisions/{}",
+    "POST /chat/threads",
+    "POST /projects/{}/flow/{}/thread",
+    "POST /projects/{}/flow/{}/{}"
+   ]
   },
   {
    "screen": "apps/web/app/client/s_l01",
-   "ops": []
+   "ops": [
+    "GET /client-invitations",
+    "POST /client-invitations",
+    "POST /client-invitations/{invitation_id}/resend",
+    "POST /client-invitations/{invitation_id}/revoke"
+   ]
   },
   {
    "screen": "apps/web/app/client/s_l02",
@@ -70,47 +164,157 @@
   },
   {
    "screen": "apps/web/app/cron/s_o01",
-   "ops": []
+   "ops": [
+    "DELETE /cron-schedules/{schedule_id}",
+    "GET /cron-actions",
+    "GET /cron-platform-jobs",
+    "GET /cron-runs",
+    "GET /cron-schedules",
+    "PATCH /cron-schedules/{schedule_id}",
+    "POST /cron-schedules",
+    "POST /cron-schedules/{schedule_id}/run-now"
+   ]
   },
   {
    "screen": "apps/web/app/employees/s_c01",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /ai-employees/templates",
+    "GET /skills"
+   ]
   },
   {
    "screen": "apps/web/app/employees/s_c02",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /ai-employees/templates",
+    "GET /ai-employees/{employee_id}",
+    "GET /ai-employees/{employee_id}/activities",
+    "GET /ai-employees/{employee_id}/icon-url",
+    "GET /skills",
+    "PATCH /ai-employees/{employee_id}",
+    "POST /ai-employees/{employee_id}/icon-upload-url"
+   ]
   },
   {
    "screen": "apps/web/app/import",
-   "ops": []
+   "ops": [
+    "POST /projects/{project_id}/flow/{stage_key}/complete",
+    "POST /projects/{project_id}/import"
+   ]
   },
   {
    "screen": "apps/web/app/knowledge/s_k01",
-   "ops": []
+   "ops": [
+    "DELETE /knowledge/{knowledge_id}",
+    "GET /ai-employees",
+    "GET /embedding-status",
+    "GET /knowledge",
+    "GET /knowledge/candidates",
+    "GET /knowledge/graph",
+    "GET /knowledge/vault-export",
+    "GET /knowledge/{knowledge_id}",
+    "GET /knowledge/{knowledge_id}/references",
+    "GET /projects",
+    "GET /workspaces",
+    "PATCH /knowledge/{knowledge_id}",
+    "POST /embedding-status/prepare",
+    "POST /knowledge",
+    "POST /knowledge/candidates/{candidate_id}/approve",
+    "POST /knowledge/candidates/{candidate_id}/reject",
+    "POST /knowledge/search",
+    "POST /knowledge/{knowledge_id}/promote"
+   ]
   },
   {
    "screen": "apps/web/app/knowledge/s_k02",
-   "ops": []
+   "ops": [
+    "DELETE /knowledge/{knowledge_id}",
+    "GET /knowledge",
+    "GET /workspaces",
+    "PATCH /knowledge/{knowledge_id}",
+    "POST /knowledge/{knowledge_id}/promote"
+   ]
   },
   {
    "screen": "apps/web/app/mocks/s_h01",
-   "ops": []
+   "ops": [
+    "GET /comments",
+    "GET /mocks",
+    "GET /mocks/{mock_id}",
+    "GET /mocks/{mock_id}/content-url",
+    "GET /mocks/{mock_id}/diff/{other_id}",
+    "GET /mocks/{mock_id}/versions",
+    "GET /projects/{project_id}/delivery-phases",
+    "GET /projects/{project_id}/design-note",
+    "PATCH /comments/{comment_id}",
+    "POST /comments",
+    "POST /mocks/generate",
+    "POST /mocks/{mock_id}/discard",
+    "POST /mocks/{mock_id}/duplicate",
+    "POST /mocks/{mock_id}/revise",
+    "PUT /projects/{project_id}/design-note"
+   ]
   },
   {
    "screen": "apps/web/app/outputs/s_g01",
-   "ops": []
+   "ops": [
+    "GET /comments",
+    "GET /outputs/{output_id}",
+    "GET /outputs/{output_id}/anchors",
+    "GET /outputs/{output_id}/content-url",
+    "GET /outputs/{output_id}/diff/{other_id}",
+    "GET /outputs/{output_id}/fix-proposals",
+    "GET /outputs/{output_id}/share-links",
+    "GET /outputs/{output_id}/sheet",
+    "GET /outputs/{output_id}/versions",
+    "PATCH /comments/{comment_id}",
+    "POST /comments",
+    "POST /comments/{comment_id}/fix-proposal",
+    "POST /output-fix-proposals/{proposal_id}/approve",
+    "POST /output-fix-proposals/{proposal_id}/reject",
+    "POST /outputs/{output_id}/ai-file-edit",
+    "POST /outputs/{output_id}/restore",
+    "POST /outputs/{output_id}/revise",
+    "POST /outputs/{output_id}/share-links",
+    "POST /outputs/{output_id}/sheet",
+    "POST /share-links/{link_id}/revoke"
+   ]
   },
   {
    "screen": "apps/web/app/projects/s_b01",
-   "ops": []
+   "ops": [
+    "GET /projects",
+    "GET /workspaces",
+    "POST /projects",
+    "POST /workspaces"
+   ]
   },
   {
    "screen": "apps/web/app/projects/s_b02",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /approval-inbox",
+    "GET /chat/threads",
+    "GET /comments/unresolved-count",
+    "GET /decisions",
+    "GET /outputs",
+    "GET /projects/{project_id}",
+    "GET /projects/{project_id}/dashboard",
+    "GET /workflow/phases",
+    "POST /approval-inbox/{approval_id}/decide"
+   ]
   },
   {
    "screen": "apps/web/app/projects/s_b03",
-   "ops": []
+   "ops": [
+    "DELETE /projects/{project_id}",
+    "GET /outputs",
+    "GET /outputs/{output_id}/content-url",
+    "GET /projects/{project_id}",
+    "PATCH /projects/{project_id}",
+    "POST /projects/{project_id}/ai-learning"
+   ]
   },
   {
    "screen": "apps/web/app/projects/s_b04",
@@ -130,11 +334,23 @@
   },
   {
    "screen": "apps/web/app/public/s_pub04",
-   "ops": []
+   "ops": [
+    "GET /me",
+    "POST /auth/account/delete"
+   ]
   },
   {
    "screen": "apps/web/app/sales/s_n01",
-   "ops": []
+   "ops": [
+    "DELETE /sales-docs/{doc_id}",
+    "GET /sales-docs",
+    "GET /sales-docs/{doc_id}/sends",
+    "GET /sales-docs/{}/pdf",
+    "PATCH /sales-docs/{doc_id}",
+    "POST /sales-docs",
+    "POST /sales-docs/generate",
+    "POST /sales-docs/{doc_id}/send"
+   ]
   },
   {
    "screen": "apps/web/app/t-uc-35",
@@ -142,51 +358,137 @@
   },
   {
    "screen": "apps/web/app/t-uc-36",
-   "ops": []
+   "ops": [
+    "GET /approval-inbox"
+   ]
   },
   {
    "screen": "apps/web/app/t-uc-37",
-   "ops": []
+   "ops": [
+    "GET /me",
+    "PATCH /me"
+   ]
   },
   {
    "screen": "apps/web/app/t-uc-38",
-   "ops": []
+   "ops": [
+    "GET /workspaces"
+   ]
   },
   {
    "screen": "apps/web/app/t-uc-39",
-   "ops": []
+   "ops": [
+    "GET /projects"
+   ]
   },
   {
    "screen": "apps/web/app/t-uc-40",
-   "ops": []
+   "ops": [
+    "GET /search"
+   ]
   },
   {
    "screen": "apps/web/app/tasks/s_i01",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /projects/{project_id}/delivery-phases",
+    "GET /tasks",
+    "PATCH /tasks/{task_id}",
+    "POST /tasks",
+    "POST /tasks/{id}/play",
+    "POST /tasks/{task_id}/retry"
+   ]
   },
   {
    "screen": "apps/web/app/tasks/s_i02",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /comments",
+    "GET /executions/{execution_id}/tests",
+    "GET /tasks",
+    "GET /tasks/{task_id}",
+    "GET /tasks/{task_id}/acceptance-criteria",
+    "GET /tasks/{task_id}/executions",
+    "GET /tasks/{task_id}/related",
+    "GET /tasks/{task_id}/spec-changes",
+    "POST /comments",
+    "POST /tasks/{task_id}/spec-changes/resolve",
+    "POST /tasks/{task_id}/{}"
+   ]
   },
   {
    "screen": "apps/web/app/tasks/s_i03",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /bridge/status",
+    "GET /executions-events",
+    "GET /tasks",
+    "GET /tasks/{task_id}/executions",
+    "POST /dispatch/promote",
+    "POST /tasks/{task_id}/dispatch-cancel",
+    "POST /tasks/{task_id}/dispatch-stop",
+    "POST /tasks/{task_id}/{}"
+   ]
   },
   {
    "screen": "apps/web/app/templates",
-   "ops": []
+   "ops": [
+    "GET /admin/design-templates",
+    "GET /admin/design-templates/{stage}/versions",
+    "GET /design-templates/{template_id}/content-url",
+    "GET /workspaces",
+    "GET /workspaces/{workspace_id}/design-templates",
+    "GET /workspaces/{workspace_id}/design-templates/{stage}/versions",
+    "POST /admin/design-templates/{stage}",
+    "POST /workspaces/{workspace_id}/design-templates/{stage}",
+    "POST /workspaces/{workspace_id}/design-templates/{stage}/reset-to-default"
+   ]
   },
   {
    "screen": "apps/web/app/upload/s_m01",
-   "ops": []
+   "ops": [
+    "DELETE /meetings/{meeting_id}",
+    "GET /meetings",
+    "GET /meetings/{meeting_id}",
+    "GET /meetings/{meeting_id}/transcript-url",
+    "POST /meetings",
+    "POST /meetings/upload-url",
+    "POST /meetings/{meeting_id}/resume-analysis",
+    "POST /meetings/{meeting_id}/transcribe"
+   ]
   },
   {
    "screen": "apps/web/app/workflow/s_f01",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /chat/threads",
+    "GET /decisions",
+    "GET /knowledge",
+    "GET /outputs",
+    "GET /projects/{project_id}",
+    "GET /tasks",
+    "GET /workflow/phases",
+    "PATCH /workflow/phases/{phase_id}",
+    "POST /workflow/phases/seed"
+   ]
   },
   {
    "screen": "apps/web/app/workflow/s_f02",
-   "ops": []
+   "ops": [
+    "GET /ai-employees",
+    "GET /projects/{project_id}",
+    "GET /tasks",
+    "GET /workflow/impact-stats",
+    "GET /workflow/phase-proposals",
+    "GET /workflow/phase-task-stats",
+    "GET /workflow/phases",
+    "PATCH /workflow/phases/{phase_id}",
+    "POST /workflow/impact-analysis",
+    "POST /workflow/impact-analysis/{analysis_id}/apply",
+    "POST /workflow/phase-proposals",
+    "POST /workflow/phase-proposals/{proposal_id}/approve",
+    "POST /workflow/phase-proposals/{proposal_id}/reject"
+   ]
   }
  ],
  "entities": [
@@ -217,7 +519,347 @@
   "workspace_memberships",
   "workspaces"
  ],
- "api_routes": [],
+ "api_routes": [
+  "DELETE /admin/acquisitions/{record_id}",
+  "DELETE /admin/costs/{cost_id}",
+  "DELETE /admin/knowledge/{knowledge_id}",
+  "DELETE /admin/skills/{skill_id}",
+  "DELETE /byok/keys/{key_id}",
+  "DELETE /chat/threads/{thread_id}",
+  "DELETE /chat/threads/{thread_id}/queued/{queued_id}",
+  "DELETE /comments/{comment_id}",
+  "DELETE /cron-schedules/{schedule_id}",
+  "DELETE /knowledge/{knowledge_id}",
+  "DELETE /mcp-tokens/{token_id}",
+  "DELETE /meetings/{meeting_id}",
+  "DELETE /mocks/{mock_id}",
+  "DELETE /projects/{project_id}",
+  "DELETE /projects/{project_id}/credentials/{credential_id}",
+  "DELETE /sales-docs/{doc_id}",
+  "DELETE /tasks/{task_id}",
+  "DELETE /workflow/phases/{phase_id}",
+  "DELETE /workspaces/{workspace_id}",
+  "DELETE /workspaces/{workspace_id}/members/{user_id}",
+  "GET /admin/acquisitions",
+  "GET /admin/ai-employee-templates",
+  "GET /admin/ai-employee-templates/{template_id}",
+  "GET /admin/ai-employee-templates/{template_id}/deployment",
+  "GET /admin/alerts",
+  "GET /admin/audit-logs",
+  "GET /admin/beta-feedback",
+  "GET /admin/circuit-breaker",
+  "GET /admin/costs",
+  "GET /admin/dashboard",
+  "GET /admin/design-templates",
+  "GET /admin/design-templates/{stage}/versions",
+  "GET /admin/errors",
+  "GET /admin/health",
+  "GET /admin/knowledge",
+  "GET /admin/knowledge/curation",
+  "GET /admin/mission",
+  "GET /admin/platform-stats",
+  "GET /admin/skills",
+  "GET /admin/skills/{skill_id}",
+  "GET /admin/support-contacts",
+  "GET /admin/trends",
+  "GET /admin/uptime",
+  "GET /admin/users",
+  "GET /ai-employees",
+  "GET /ai-employees/templates",
+  "GET /ai-employees/templates/{template_id}",
+  "GET /ai-employees/{employee_id}",
+  "GET /ai-employees/{employee_id}/activities",
+  "GET /ai-employees/{employee_id}/icon-url",
+  "GET /approval-inbox",
+  "GET /approval-inbox/{approval_id}",
+  "GET /auth/oauth/providers",
+  "GET /auth/oauth/{provider}/callback",
+  "GET /auth/oauth/{provider}/redirect-url",
+  "GET /auth/oauth/{provider}/start",
+  "GET /billing/checkout/{session_id}",
+  "GET /billing/plan",
+  "GET /bridge-tokens",
+  "GET /bridge/status",
+  "GET /byok/keys",
+  "GET /byok/keys/{key_id}",
+  "GET /chat-relay/{job_id}/approvals/{approval_id}",
+  "GET /chat-relay/{job_id}/control",
+  "GET /chat-relay/{job_id}/follow-up",
+  "GET /chat-relay/{job_id}/workspace",
+  "GET /chat/connection-status",
+  "GET /chat/messages/{message_id}/attachments/{attachment_index}/url",
+  "GET /chat/runs/{job_id}/attach",
+  "GET /chat/threads",
+  "GET /chat/threads/{thread_id}",
+  "GET /chat/threads/{thread_id}/messages",
+  "GET /chat/threads/{thread_id}/queued",
+  "GET /chat/threads/{thread_id}/run",
+  "GET /chat/tool-approvals",
+  "GET /client-invitations",
+  "GET /client-invitations/{invitation_id}",
+  "GET /client/projects/{project_id}",
+  "GET /client/projects/{project_id}/comments",
+  "GET /client/projects/{project_id}/mocks",
+  "GET /client/projects/{project_id}/outputs",
+  "GET /client/projects/{project_id}/overview",
+  "GET /comments",
+  "GET /comments/unresolved-count",
+  "GET /comments/{comment_id}",
+  "GET /contract/freeze-status",
+  "GET /contract/screen-coverage",
+  "GET /cron-actions",
+  "GET /cron-platform-jobs",
+  "GET /cron-runs",
+  "GET /cron-schedules",
+  "GET /cron-schedules/{schedule_id}",
+  "GET /decisions",
+  "GET /decisions/{decision_id}",
+  "GET /design-templates/{template_id}/content",
+  "GET /design-templates/{template_id}/content-url",
+  "GET /embedding-status",
+  "GET /executions",
+  "GET /executions-events",
+  "GET /executions/{execution_id}",
+  "GET /executions/{execution_id}/logs",
+  "GET /executions/{execution_id}/logs/stream",
+  "GET /executions/{execution_id}/tests",
+  "GET /health",
+  "GET /impact/tasks/{task_id}",
+  "GET /knowledge",
+  "GET /knowledge/candidates",
+  "GET /knowledge/graph",
+  "GET /knowledge/vault-export",
+  "GET /knowledge/{knowledge_id}",
+  "GET /knowledge/{knowledge_id}/references",
+  "GET /mcp-tokens",
+  "GET /mcp-tokens/{token_id}",
+  "GET /me",
+  "GET /me/consents",
+  "GET /meetings",
+  "GET /meetings/{meeting_id}",
+  "GET /meetings/{meeting_id}/adoptable",
+  "GET /meetings/{meeting_id}/transcript-url",
+  "GET /mocks",
+  "GET /mocks/{mock_id}",
+  "GET /mocks/{mock_id}/content",
+  "GET /mocks/{mock_id}/content-url",
+  "GET /mocks/{mock_id}/diff/{other_id}",
+  "GET /mocks/{mock_id}/versions",
+  "GET /outputs",
+  "GET /outputs/{output_id}",
+  "GET /outputs/{output_id}/anchors",
+  "GET /outputs/{output_id}/content",
+  "GET /outputs/{output_id}/content-url",
+  "GET /outputs/{output_id}/diff/{other_id}",
+  "GET /outputs/{output_id}/export",
+  "GET /outputs/{output_id}/fix-proposals",
+  "GET /outputs/{output_id}/share-links",
+  "GET /outputs/{output_id}/sheet",
+  "GET /outputs/{output_id}/versions",
+  "GET /projects",
+  "GET /projects/{project_id}",
+  "GET /projects/{project_id}/credentials",
+  "GET /projects/{project_id}/dashboard",
+  "GET /projects/{project_id}/delivery-phases",
+  "GET /projects/{project_id}/delivery-phases/{phase_id}/freeze-check",
+  "GET /projects/{project_id}/design-note",
+  "GET /projects/{project_id}/flow",
+  "GET /public/bridge-latest",
+  "GET /public/legal-documents",
+  "GET /public/legal-documents/{doc_type}",
+  "GET /sales-docs",
+  "GET /sales-docs/{doc_id}",
+  "GET /sales-docs/{doc_id}/pdf",
+  "GET /sales-docs/{doc_id}/sends",
+  "GET /search",
+  "GET /share/{token}",
+  "GET /skills",
+  "GET /tasks",
+  "GET /tasks/{task_id}",
+  "GET /tasks/{task_id}/acceptance-criteria",
+  "GET /tasks/{task_id}/executions",
+  "GET /tasks/{task_id}/executions/{execution_id}",
+  "GET /tasks/{task_id}/related",
+  "GET /tasks/{task_id}/spec-changes",
+  "GET /workflow/impact-stats",
+  "GET /workflow/phase-proposals",
+  "GET /workflow/phase-task-stats",
+  "GET /workflow/phases",
+  "GET /workflow/phases/{phase_id}",
+  "GET /workspaces",
+  "GET /workspaces/{workspace_id}",
+  "GET /workspaces/{workspace_id}/design-templates",
+  "GET /workspaces/{workspace_id}/design-templates/{stage}/versions",
+  "GET /workspaces/{workspace_id}/members",
+  "GET /x/x",
+  "PATCH /admin/ai-employee-templates/{template_id}",
+  "PATCH /admin/knowledge/{knowledge_id}",
+  "PATCH /admin/skills/{skill_id}",
+  "PATCH /ai-employees/{employee_id}",
+  "PATCH /byok/keys/{key_id}",
+  "PATCH /chat/threads/{thread_id}",
+  "PATCH /comments/{comment_id}",
+  "PATCH /cron-schedules/{schedule_id}",
+  "PATCH /decisions/{decision_id}",
+  "PATCH /knowledge/{knowledge_id}",
+  "PATCH /me",
+  "PATCH /mocks/{mock_id}",
+  "PATCH /projects/{project_id}",
+  "PATCH /projects/{project_id}/credentials/{credential_id}",
+  "PATCH /sales-docs/{doc_id}",
+  "PATCH /tasks/{task_id}",
+  "PATCH /workflow/phases/{phase_id}",
+  "PATCH /workspaces/{workspace_id}",
+  "PATCH /workspaces/{workspace_id}/members/{user_id}",
+  "POST /account/ai-learning",
+  "POST /admin/acquisitions",
+  "POST /admin/beta-feedback/{feedback_id}/resolve",
+  "POST /admin/circuit-breaker/poll-pids",
+  "POST /admin/circuit-breaker/reset",
+  "POST /admin/costs",
+  "POST /admin/design-templates/{stage}",
+  "POST /admin/knowledge",
+  "POST /admin/knowledge/curation/run",
+  "POST /admin/knowledge/curation/{curation_id}/approve",
+  "POST /admin/knowledge/curation/{curation_id}/reject",
+  "POST /admin/skills",
+  "POST /admin/skills/reimport",
+  "POST /admin/skills/{skill_id}/attach",
+  "POST /admin/support-contact",
+  "POST /ai-employees/{employee_id}/icon-upload-url",
+  "POST /approval-inbox/{approval_id}/decide",
+  "POST /auth/account/delete",
+  "POST /auth/account/restore",
+  "POST /auth/magic-link/request",
+  "POST /auth/magic-link/verify",
+  "POST /auth/password-reset/confirm",
+  "POST /auth/password-reset/request",
+  "POST /auth/refresh",
+  "POST /auth/signin",
+  "POST /auth/signout",
+  "POST /auth/signup",
+  "POST /beta-feedback",
+  "POST /billing/checkout",
+  "POST /billing/portal",
+  "POST /billing/webhook",
+  "POST /bridge-tokens",
+  "POST /bridge-tokens/{token_id}/revoke",
+  "POST /bridge/bye",
+  "POST /bridge/ping",
+  "POST /bridge/run-due-schedules",
+  "POST /byok/keys",
+  "POST /chat-relay/pick",
+  "POST /chat-relay/{job_id}/approvals",
+  "POST /chat-relay/{job_id}/artifacts",
+  "POST /chat-relay/{job_id}/chunks",
+  "POST /chat-relay/{job_id}/complete",
+  "POST /chat/attachments/upload-url",
+  "POST /chat/messages/{message_id}/branch",
+  "POST /chat/messages/{message_id}/feedback",
+  "POST /chat/pc-approvals/{approval_id}",
+  "POST /chat/runs/{job_id}/cancel",
+  "POST /chat/threads",
+  "POST /chat/threads/{thread_id}/commands",
+  "POST /chat/threads/{thread_id}/context-preview",
+  "POST /chat/threads/{thread_id}/messages",
+  "POST /chat/threads/{thread_id}/queued",
+  "POST /chat/threads/{thread_id}/queued/consume",
+  "POST /chat/threads/{thread_id}/stream",
+  "POST /chat/tool-approvals/{approval_id}/execute",
+  "POST /chat/tool-approvals/{approval_id}/reject",
+  "POST /client-errors",
+  "POST /client-invitations",
+  "POST /client-invitations/{invitation_id}/resend",
+  "POST /client-invitations/{invitation_id}/revoke",
+  "POST /client/auth/preview",
+  "POST /client/auth/signin",
+  "POST /client/projects/{project_id}/comments",
+  "POST /comments",
+  "POST /comments/{comment_id}/fix-proposal",
+  "POST /contract/freeze",
+  "POST /contract/unfreeze",
+  "POST /cron-schedules",
+  "POST /cron-schedules/{schedule_id}/run-now",
+  "POST /decisions",
+  "POST /dispatch/pause",
+  "POST /dispatch/promote",
+  "POST /dispatch/resume",
+  "POST /embedding-status/prepare",
+  "POST /kanban/complete",
+  "POST /kanban/heartbeat",
+  "POST /kanban/kill",
+  "POST /kanban/pick",
+  "POST /kanban/request-change",
+  "POST /kanban/request-review",
+  "POST /kanban/start",
+  "POST /knowledge",
+  "POST /knowledge/candidates/{candidate_id}/approve",
+  "POST /knowledge/candidates/{candidate_id}/reject",
+  "POST /knowledge/patterns/extract",
+  "POST /knowledge/search",
+  "POST /knowledge/{knowledge_id}/promote",
+  "POST /mcp-tokens",
+  "POST /me/consents",
+  "POST /meetings",
+  "POST /meetings/upload-url",
+  "POST /meetings/{meeting_id}/adopt",
+  "POST /meetings/{meeting_id}/propose-phase",
+  "POST /meetings/{meeting_id}/resume-analysis",
+  "POST /meetings/{meeting_id}/transcribe",
+  "POST /mocks",
+  "POST /mocks/generate",
+  "POST /mocks/{mock_id}/discard",
+  "POST /mocks/{mock_id}/duplicate",
+  "POST /mocks/{mock_id}/revise",
+  "POST /mocks/{mock_id}/revise/stream",
+  "POST /mocks/{mock_id}/versions",
+  "POST /output-fix-proposals/{proposal_id}/approve",
+  "POST /output-fix-proposals/{proposal_id}/reject",
+  "POST /outputs/{output_id}/ai-file-edit",
+  "POST /outputs/{output_id}/restore",
+  "POST /outputs/{output_id}/revise",
+  "POST /outputs/{output_id}/share-links",
+  "POST /outputs/{output_id}/sheet",
+  "POST /projects",
+  "POST /projects/{project_id}/ai-learning",
+  "POST /projects/{project_id}/credentials",
+  "POST /projects/{project_id}/credentials/{credential_id}/reveal",
+  "POST /projects/{project_id}/delivery-phases/{phase_id}/freeze",
+  "POST /projects/{project_id}/flow/{stage_key}/complete",
+  "POST /projects/{project_id}/flow/{stage_key}/reopen",
+  "POST /projects/{project_id}/flow/{stage_key}/skip",
+  "POST /projects/{project_id}/flow/{stage_key}/thread",
+  "POST /projects/{project_id}/import",
+  "POST /projects/{project_id}/restore",
+  "POST /public/data-deletion-requests",
+  "POST /reference-uploads",
+  "POST /sales-docs",
+  "POST /sales-docs/generate",
+  "POST /sales-docs/{doc_id}/send",
+  "POST /share-links/{link_id}/revoke",
+  "POST /tasks",
+  "POST /tasks/bulk/lifecycle",
+  "POST /tasks/{id}/play",
+  "POST /tasks/{task_id}/approve",
+  "POST /tasks/{task_id}/dispatch-cancel",
+  "POST /tasks/{task_id}/dispatch-stop",
+  "POST /tasks/{task_id}/reject",
+  "POST /tasks/{task_id}/retry",
+  "POST /tasks/{task_id}/spec-changes/resolve",
+  "POST /workflow/impact-analysis",
+  "POST /workflow/impact-analysis/{analysis_id}/apply",
+  "POST /workflow/phase-proposals",
+  "POST /workflow/phase-proposals/{proposal_id}/approve",
+  "POST /workflow/phase-proposals/{proposal_id}/reject",
+  "POST /workflow/phases",
+  "POST /workflow/phases/seed",
+  "POST /workspaces",
+  "POST /workspaces/{workspace_id}/design-templates/{stage}",
+  "POST /workspaces/{workspace_id}/design-templates/{stage}/reset-to-default",
+  "POST /workspaces/{workspace_id}/members",
+  "PUT /admin/goal",
+  "PUT /projects/{project_id}/design-note"
+ ],
  "branch_kinds": [
   "happy",
   "validation",
@@ -230,11 +872,11 @@
  ],
  "counts": {
   "screens": 47,
-  "screen_ops": 0,
-  "screens_without_ops": 47,
+  "screen_ops": 265,
+  "screens_without_ops": 10,
   "entities": 26,
-  "api_routes": 0
+  "api_routes": 339
  },
- "min_rows": 55,
- "rationale": "(画面,操作) 0 + 操作なし画面 47 + 分岐種別 8 = 55。行数は感覚で決めず、この下限以上にする。 1行に複数操作を潰すと通しではなく要約になる。"
+ "min_rows": 283,
+ "rationale": "(画面,操作) 265 + 操作なし画面 10 + 分岐種別 8 = 283。行数は感覚で決めず、この下限以上にする。 1行に複数操作を潰すと通しではなく要約になる。"
 }

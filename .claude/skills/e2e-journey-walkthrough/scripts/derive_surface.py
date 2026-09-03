@@ -31,6 +31,18 @@ SKILL.md [1] は「代表業務を1本、依存順のジャーニー行に落と
 汎用性: Next.js(app/pages) / Vite-React / Vue / Svelte / Rails view / Django template
 を拾う。取れなくても落ちず、拾えた分だけを根拠として出す(0 なら plan_gate は
 「手動で表面積を宣言せよ」と促す)。
+
+検出の前提 (GAP-248 で広げた):
+  - 画面 = Next app router の `page.*` (ディレクトリが画面)。画面が呼ぶ操作は
+    page.* 本体だけでなく、**その画面ディレクトリ配下の同居コンポーネント**
+    (`_components/` 等) からも拾う。app router は操作をほぼ同居コンポーネントに置くので、
+    page.* だけを見ると (画面,操作)=0 と数えてしまう。
+  - 画面側の操作 = `fetch()` / `axios.<m>()` に加え、任意の API クライアント
+    `<obj>.get|post|put|patch|delete("/path")` と `getJson("/path")` /
+    `sendJson("POST", "/path")` 形式。path は `/` 始まりか URL のみ (Map.get("id") 等を弾く)。
+  - サーバ側ルート = Next route handlers (`export function GET`) に加え、
+    FastAPI/Flask 系デコレータ `@router.<m>("/path")` (APIRouter(prefix=) を連結) と
+    Express/Fastify 系 `app|router.<m>("/path", handler)`。
 """
 
 from __future__ import annotations
@@ -61,10 +73,36 @@ OP_RE = (
 FETCH_RE = re.compile(
     r'fetch\(\s*[`"\']([^`"\'\n]+)[`"\'][^)]{0,200}?method:\s*[`"\'](\w+)[`"\']', re.S)
 FETCH_GET_RE = re.compile(r'fetch\(\s*[`"\'](/[^`"\'\n]+)[`"\']')
+# fetch(`${API_BASE}/path`) — ベース URL をテンプレートで前置する書き方
+FETCH_TPL_RE = re.compile(r'fetch\(\s*`\$\{[^}]*\}(/[^`\n]+)`')
 AXIOS_RE = re.compile(r'axios\.(get|post|put|patch|delete)\(\s*[`"\']([^`"\'\n]+)[`"\']')
+# 任意の API クライアント: client.get("/x") / api.post(`/x/${id}`) / http.delete("/x")。
+# path が `/` 始まり (または絶対 URL) のものだけ。Map.get("id") / params.get("q") を弾く。
+# サーバ側ルータ (app/router/fastify) は SERVER_CALL_RE の担当なので除外する。
+CLIENT_CALL_RE = re.compile(
+    r'\b(?!(?:app|router|server|fastify|express)\b)[A-Za-z_$][\w$]*'
+    r'\.(get|post|put|patch|delete|del)\(\s*[`"\']((?:/|https?://)[^`"\'\n]*)[`"\']')
+# getJson("/x") / fetchJson("/x") / useSWR("/x") → GET
+JSON_GET_RE = re.compile(
+    r'\b(?:getJson|fetchJson|useSWR|useFetch|swrFetch)(?:<[^>]*>)?\(\s*[`"\']((?:/|https?://)[^`"\'\n]*)[`"\']')
+# sendJson("POST", "/x") / request("delete", "/x") → 明示メソッド
+JSON_SEND_RE = re.compile(
+    r'\b(?:sendJson|request|mutateJson|callApi)(?:<[^>]*>)?\(\s*["\'](get|post|put|patch|delete)["\']\s*,\s*'
+    r'[`"\']((?:/|https?://)[^`"\'\n]*)[`"\']', re.I)
 
 # サーバ側ルート (Next route handlers / Express / FastAPI / Rails)
 ROUTE_EXPORT_RE = re.compile(r'export\s+(?:async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE)\b')
+# FastAPI / Flask / Litestar 系デコレータ: @router.get("/x") / @app.post(\n  "/x", ...)
+PY_DECOR_RE = re.compile(
+    r'@[A-Za-z_][\w.]*\.(get|post|put|patch|delete)\(\s*["\']([^"\'\n]+)["\']')
+# APIRouter(prefix="/x") / Blueprint(..., url_prefix="/x") → 同一ファイルのルートに連結
+PY_PREFIX_RE = re.compile(r'(?:APIRouter|Blueprint)\([^)]*?(?:url_)?prefix\s*=\s*["\']([^"\']+)["\']', re.S)
+# Express / Fastify / Koa-router / Hono: app.get("/x", handler) — 第 2 引数がある呼び出しのみ
+SERVER_CALL_RE = re.compile(
+    r'\b(?:app|router|server|fastify|express|[A-Za-z_]\w*Router)'
+    r'\.(get|post|put|patch|delete)\(\s*[`"\'](/[^`"\'\n]*)[`"\']\s*,')
+# テスト・モックのファイルは表面積に数えない
+TEST_FILE_RE = re.compile(r'(?:^|/)(?:__tests__|tests?|__mocks__|e2e)/|\.(?:test|spec|stories)\.[cm]?[jt]sx?$|_test\.py$|(?:^|/)test_[^/]*\.py$')
 
 # エンティティ (drizzle / prisma / SQL / Django model)
 DRIZZLE_RE = re.compile(r'export\s+const\s+(\w+)\s*=\s*pg(?:Table|View)\(\s*["\'](\w+)["\']')
@@ -111,7 +149,14 @@ def _ops_in(text: str) -> list[str]:
         found.append(f"{m.group(2).upper()} {m.group(1)}")
     for m in AXIOS_RE.finditer(text):
         found.append(f"{m.group(1).upper()} {m.group(2)}")
-    for m in FETCH_GET_RE.finditer(text):
+    for m in CLIENT_CALL_RE.finditer(text):
+        method = "DELETE" if m.group(1).lower() == "del" else m.group(1).upper()
+        found.append(f"{method} {m.group(2)}")
+    for m in JSON_SEND_RE.finditer(text):
+        found.append(f"{m.group(1).upper()} {m.group(2)}")
+    for m in JSON_GET_RE.finditer(text):
+        found.append(f"GET {m.group(1)}")
+    for m in list(FETCH_GET_RE.finditer(text)) + list(FETCH_TPL_RE.finditer(text)):
         candidate = f"GET {m.group(1)}"
         if not any(c.endswith(m.group(1)) for c in found):
             found.append(candidate)
@@ -122,30 +167,62 @@ def _ops_in(text: str) -> list[str]:
     return sorted(set(norm))
 
 
+def _server_routes_in(path: Path, root: Path, text: str) -> set[str]:
+    routes: set[str] = set()
+    # Next route handlers / controllers
+    if path.name.startswith("route.") or "/controllers/" in str(path):
+        methods = set(ROUTE_EXPORT_RE.findall(text))
+        if methods:
+            rel = str(path.parent.relative_to(root))
+            for method in sorted(methods):
+                routes.add(f"{method} /{rel}")
+    # FastAPI / Flask 系デコレータ (prefix を連結)
+    if path.suffix == ".py":
+        prefix = ""
+        pm = PY_PREFIX_RE.search(text)
+        if pm:
+            prefix = pm.group(1).rstrip("/")
+        for m in PY_DECOR_RE.finditer(text):
+            routes.add(f"{m.group(1).upper()} {prefix}{m.group(2)}")
+    # Express / Fastify 系
+    if path.suffix in {".ts", ".js", ".mjs", ".cjs"}:
+        for m in SERVER_CALL_RE.finditer(text):
+            routes.add(f"{m.group(1).upper()} {m.group(2)}")
+    return routes
+
+
+def _nearest_screen(path: Path, screen_dirs: dict[Path, str]) -> str | None:
+    """path を含む最も深い画面ディレクトリ (app router の同居コンポーネント帰属)."""
+    for parent in path.parents:
+        if parent in screen_dirs:
+            return screen_dirs[parent]
+    return None
+
+
 def derive(root: Path) -> dict:
     screens: dict[str, list[str]] = {}
     api_routes: set[str] = set()
     entities: set[str] = set()
 
+    sources: list[tuple[Path, str]] = []
     for path in _walk(root):
         suffix = path.suffix.lower()
+        if suffix not in {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".py", ".sql", ".prisma"}:
+            continue
         try:
-            if suffix in {".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte", ".py", ".sql", ".prisma"}:
-                text = path.read_text(encoding="utf-8", errors="ignore")
-            else:
-                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
+        sources.append((path, text))
 
-        # サーバ側ルート
-        if path.name.startswith("route.") or "/controllers/" in str(path):
-            methods = set(ROUTE_EXPORT_RE.findall(text))
-            if methods:
-                rel = str(path.parent.relative_to(root))
-                for method in sorted(methods):
-                    api_routes.add(f"{method} /{rel}")
+    # パス 1: 画面・サーバルート・エンティティ
+    screen_dirs: dict[Path, str] = {}
+    for path, text in sources:
+        rel_str = str(path.relative_to(root))
+        if TEST_FILE_RE.search(rel_str):
+            continue
+        api_routes |= _server_routes_in(path, root, text)
 
-        # エンティティ
         for m in DRIZZLE_RE.finditer(text):
             entities.add(m.group(2))
         for m in PRISMA_RE.finditer(text):
@@ -155,11 +232,25 @@ def derive(root: Path) -> dict:
         for m in DJANGO_RE.finditer(text):
             entities.add(m.group(1))
 
-        # 画面と、その画面が呼ぶ操作
         if _is_screen(path) and "/api/" not in str(path):
             key = _screen_key(path, root)
             screens.setdefault(key, [])
             screens[key].extend(_ops_in(text))
+            if path.name.startswith("page."):
+                screen_dirs[path.parent] = key
+
+    # パス 2: 画面ディレクトリ配下の同居コンポーネント (_components 等) の操作を
+    # 最寄りの画面へ帰属させる。app router は page.* に fetch を書かないことが多い。
+    for path, text in sources:
+        rel_str = str(path.relative_to(root))
+        if TEST_FILE_RE.search(rel_str) or _is_screen(path) or "/api/" in str(path):
+            continue
+        if path.suffix.lower() not in {".ts", ".tsx", ".js", ".jsx", ".vue", ".svelte"}:
+            continue
+        key = _nearest_screen(path, screen_dirs)
+        if key is None:
+            continue
+        screens[key].extend(_ops_in(text))
 
     for key in screens:
         screens[key] = sorted(set(screens[key]))
