@@ -152,7 +152,11 @@ export default function SB01Page() {
 
   const createWorkspace = useCallback(async (): Promise<void> => {
     const name = wsName.trim();
-    if (!name) return;
+    if (!name) {
+      // GAP-263 (通し J10-07): 空のまま送信しても黙って何も起きない、ではなく理由を言う
+      setError('ワークスペース名を入力してください。');
+      return;
+    }
     setCreatingWs(true);
     setError(null);
     try {
@@ -247,7 +251,7 @@ export default function SB01Page() {
           ) : null}
           <button
             type="submit"
-            disabled={!wsName.trim() || creatingWs}
+            disabled={creatingWs}
             className="inline-flex h-11 items-center justify-center rounded-md bg-primary px-4 text-label-lg font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50"
           >
             {creatingWs ? '作成中…' : 'ワークスペースを作成'}
