@@ -1,0 +1,10 @@
+# SI02-307 再定義後の実測 (社内メンバー 2 人が同じタスクにコメント) 2026-09-03T10:29:38Z
+member 招待 (B を WS へ): 422
+task=
+comment by A -> 404
+comment by B -> 404
+--- GET /comments?target_type=task
+--- クライアントは task にコメントできない (設計)
+client comment (no auth) -> 404 (401 = 券が要る。券があっても target_type は workflow_output|mock のみ = 422)
+cleanup delete -> 200
+cleanup delete -> 200

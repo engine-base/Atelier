@@ -1,0 +1,163 @@
+# L2 ジャーニー再計測証拠 — 担当 R4 — 2026-09-03 — prod(pre-launch) (ADR-021 改訂: 本番を staging 共用)
+API: https://atelier-api-eb.fly.dev (deploy #83)   Web: https://atelier-web-coral.vercel.app (meta atelier-build=833fee5205f2 = main 833fee5)
+分母 (今回再計測する行 = R2 で FAIL のまま残った 9 行): J44-01 J46-01 J46-19 J46-16 J48-21 J47-06 J47-07 J46-18 J43-03
+対応する修正: GAP-292 / 294 / 300 / 302 / 304 / 305 / 306 / 310 / 311
+場所=mac (Bridge / 実 AI) が必須の部分は BLOCKED。AI 応答が不要で API/画面だけで判定できる行は実走。
+秘密 (JWT / パスワード / Bridge トークン raw / 共有 URL のトークン) は本ファイルに書かない。<redacted> と記す。
+アカウント: qa-jR4-20260903-1 (owner) / qa-jR4-20260903-2 (member -> viewer) @example.com — QA 専用・最後に退会
+判定は plan.json の expected 列そのまま。監査ログは運営 API でしか読めないため、GET /projects/{id}/dashboard の
+recent_activities で観測できたものだけ「記録された」とする。
+成果物・モックは AI (Bridge) 無しでは生成できないため、POST /projects/{id}/import で HTML/MD/XLSX を投入して実データを作る (通し D / R2 と同じ経路)。
+
+## SETUP アカウント・WS・案件の準備
+  POST /auth/signup -> 409 {"detail": "このメールアドレスは既に登録されています。サインインをお試しください。"}
+  signup qa-jR4-20260903-1@example.com -> 409 (既存なら signin で継続)
+  POST /auth/signup -> 409 {"detail": "このメールアドレスは既に登録されています。サインインをお試しください。"}
+  signup qa-jR4-20260903-2@example.com -> 409 (既存なら signin で継続)
+  POST /workspaces (body {"name": "QA-R4 WS 20260903"}) -> 201 {"data": {"id": "78bbc005-c001-4489-af39-cecfc55471af", "name": "QA-R4 WS 20260903", "description": null, "icon": null, "member_count": 1, "project_count": 0, "plan": "free", "deleted_at": null, "created_at": "2026-09-03T10:31:04.225120Z", "updated_at": "2026-09-03T10:31:04.225120Z"}}
+  POST /projects (body {"workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "name": "QA-R4 案件 (再計測)", "type": "client_project"}) -> 201 {"data": {"id": "b8c3a76e-f304-4c5a-a7d2-320459a387a7", "workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "name": "QA-R4 案件 (再計測)", "client_name": null, "description": null, "type": "client_project", "status": "draft", "ai_learning_opt_out": true, "cross_project_knowledge": true, "current_phase": "hearing", "deleted_at": null, "created_at": "2026-09-03T10:31:04.927377Z", "updated_at": "2026-
+  POST /projects (body {"workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "name": "QA-R4 空案件 (成果物 0 件)", "type": "client_project"}) -> 201 {"data": {"id": "41697e93-a5ef-49a8-a11f-de83c2ff98da", "workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "name": "QA-R4 空案件 (成果物 0 件)", "client_name": null, "description": null, "type": "client_project", "status": "draft", "ai_learning_opt_out": true, "cross_project_knowledge": true, "current_phase": "hearing", "deleted_at": null, "created_at": "2026-09-03T10:31:05.864877Z", "updated_at": "
+  POST /workspaces/78bbc005-c001-4489-af39-cecfc55471af/members (body {"email": "qa-jR4-20260903-2@example.com", "role": "member"}) -> 201 {"data": {"workspace_id": "78bbc005-c001-4489-af39-cecfc55471af", "user_id": "e65e703e-2cef-4b90-a1a7-bfcb828fc026", "email": "qa-jR4-20260903-2@example.com", "display_name": "QA-R4 member", "role": "member", "joined_at": "2026-09-03T10:31:06.731866Z"}}
+  GET /ai-employees -> 200 10 名
+  POST /chat/threads (body {"project_id": "b8c3a76e-f304-4c5a-a7d2-320459a387a7", "ai_employee_id": "c8d285e2-1d29-40f9-b7c8-b35fb0f51ae7", "title": "QA-R4 再計測スレッド"}) -> 201 {"data": {"id": "12a770f1-7dc3-41db-b12b-e7695595ac15", "project_id": "b8c3a76e-f304-4c5a-a7d2-320459a387a7", "ai_employee_id": "c8d285e2-1d29-40f9-b7c8-b35fb0f51ae7", "title": "QA-R4 再計測スレッド", "archived": false, "deleted_at": null, "created_at": "2026-09-03T10:31:08.363937Z", "updated_at": "2026-09-03T10:31:08.363937Z", "message_count": 0, "phase_id": null, "last_message_preview": null}}
+
+## SETUP-IMPORT 成果物の実データ投入 (POST /projects/{id}/import)
+   - requirements-qa-r4.html: type=output stage=requirements v=1 id=a7b2adb5-2437-4f33-9a97-f1a456da494e err=None
+   - test-spec-qa-r4.html: type=output stage=verification v=1 id=a46aba2a-b6e3-41c9-aa65-e7b87b455036 err=None
+   - 議事録-qa-r4.md: type=output stage=hearing v=1 id=ce517e3e-5e24-44d1-8c56-1bdcf5650466 err=None
+   - estimate-qa-r4.xlsx: type=file stage=estimate v=1 id=22e2e578-5241-448b-9652-14bc29ae4487 err=None
+   - lp-top.html: type=mock stage=design v=1 id=da82fe90-eb2a-436b-b80e-0807d2f94384 err=None
+  成果物一覧 4 件: estimate v1 estimate-qa-r4.xlsx, hearing v1 議事録-qa-r4, requirements v1 要件定義書 QA-R4, verification v1 テスト仕様書 QA-R4
+
+## SETUP-SALES 営業ドラフト (J47-02 相当) と送信履歴 (J47-05 相当) の前提データ
+  POST /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/send (body {"to_email": "qa-jR4-20260903-1@example.com", "subject": "【見積書ドラフト】商談管理刷新"}) -> 201 {"data": {"id": "b8246376-91a9-4ed0-bec2-eec9f34576a5", "doc_id": "b7eafb25-1c3d-4b91-8cd4-edda88bf4d44", "to_email": "qa-jR4-20260903-1@example.com", "subject": "【見積書ドラフト】商談管理刷新", "dry_run": true, "created_at": "2026-09-03T10:31:12.036977Z"}}
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/sends -> 200 {"data": [{"id": "b8246376-91a9-4ed0-bec2-eec9f34576a5", "doc_id": "b7eafb25-1c3d-4b91-8cd4-edda88bf4d44", "to_email": "qa-jR4-20260903-1@example.com", "subject": "【見積書ドラフト】商談管理刷新", "dry_run": true, "created_at": "2026-09-03T10:31:12.036977Z"}]}
+
+## J44-01 自動実行の種類とコストが出る (S-O01 ↔ GET /cron-actions)
+  GET /cron-actions -> 200 {"data":[{"action":"task_replay","title":"タスク自動再生","description":"「着手可」のタスクを実行キューに投入します。実際にコードを書くのはあなたの PC の Claude Code なので、PC が落ちていても投入は行われ、起動した時点で順に実行されます。","group":"impl","staff":"ソー（実装）","requires_bridge":false,"cost_label":"本人の Claude プラン枠","cost_note":"実行はあなたの PC / あなたの Claude プラン。API 課金は発生しません。"},{"action":"knowledge_organize","title":"ナレッジ整理","description":"カテゴリやタグが未整備のナレッジに、分類とタグを付けます（1 
+  GET /cron-actions 6 種: task_replay[title=タスク自動再生 / cost=本人の Claude プラン枠 / staff=ソー（実装） / bridge=false] ; knowledge_organize[title=ナレッジ整理 / cost=本人の Claude プラン枠 / staff=ティチャラ / bridge=true] ; industry_extract[title=業界パターン抽出 / cost=コスト無料 / staff=ティチャラ / bridge=false] ; report_summary[title=進捗レポート配信 / cost=本人の Claude プラン枠 / staff=スティーブ / bridge=true] ; daily_digest[title=日次ダイジェスト / cost=コスト無料 / staff=スティーブ / bridge=false] ; weekly_burndown[title=週次バーンダウン / cost=コスト無料 / staff=バックエンドのみ / bridge=false]
+  画面の「2. 何をする？」抜粋: 2. 何をする？（AI 社員が必要な場合は能力名も表示） | タスク自動再生 | ソー（実装）: 「着手可」のタスクを実行キューに投入します。実際にコードを書くのはあなたの PC の Claude Code なので、PC が落ちていても投入は行われ、起動した時点で順に実行されます。 | 本人の Claude プラン枠 | ナレッジ整理 | ティチャラ: カテゴリやタグが未整備のナレッジに、分類とタグを付けます（1 回あたり最大 10 件）。（PC 接続が必要） | 本人の Claude プラン枠 | 業界パターン抽出 | ティチャラ: 複数のナレッジに共通するタグ構成を検出し、共通ナレッジへの昇格を「ナレッジ候補」として承認待ちに提案します。自動では取り込みません。 | コスト無料 | 進捗レポート配信 | スティーブ: DB の実数値を材料に関係者向けの進捗レポートを作成し、「進捗レポート」スレッドへ投稿します。（PC 接続が必要） | 本人の Claude プラン枠 | 日次ダイジェスト | スティーブ: その日のタスク状況・フェーズ・実行結果を集計して投稿します。 | コスト無料 | 週次バーンダウン | バックエンドのみ: 残タスクと直近 7 日の消化ペースを集計し、完了見込みを出します。 | コスト無料 | 
+  種類ごとの一致 (title/cost/staff/desc 先頭 20 字): [{"action":"task_replay","title":true,"cost":true,"staff":true,"desc":true},{"action":"knowledge_organize","title":true,"cost":true,"staff":true,"desc":true},{"action":"industry_extract","title":true,"cost":true,"staff":true,"desc":true},{"action":"report_summary","title":true,"cost":true,"staff":true,"desc":true},{"action":"daily_digest","title":true,"cost":true,"staff":true,"desc":true},{"action":"weekly_burndown","title":true,"cost":true,"staff":true,"desc":true}]
+  API に無い旧文言の残存: ["プラン枠","無料"]
+  => J44-01: FAIL — 期待: 画面表示が GET /cron-actions と一致 / 実測: 6 種中 欠け 0 []、旧文言残存 ["プラン枠","無料"]
+
+## J44-01 (再測) 自動実行の種類とコストが出る (S-O01 ↔ GET /cron-actions)。前回の「旧文言残存 プラン枠/無料」は API の cost_label の部分文字列を完全一致で見ていたハーネス側の誤検出だったので、部分文字列を考慮して判定し直す
+  GET /cron-actions -> 200 {"data":[{"action":"task_replay","title":"タスク自動再生","description":"「着手可」のタスクを実行キューに投入します。実際にコードを書くのはあなたの PC の Claude Code なので、PC が落ちていても投入は行われ、起動した時点で順に実行されます。","group":"impl","staff":"ソー（実装）","requires_bridge":false,"cost_label":"本人の Claude プラン枠","cost_note":"実行はあなたの PC / あなたの Claude プラン。API 課金は発生しません。"},{"action":"knowledge_organize","title":"ナレッジ整理","description":"カテゴリやタグが未整備のナレッジに、分類とタグを付けます（1 
+  GET /cron-actions 6 種: task_replay[title=タスク自動再生 / cost=本人の Claude プラン枠 / staff=ソー（実装） / bridge=false] ; knowledge_organize[title=ナレッジ整理 / cost=本人の Claude プラン枠 / staff=ティチャラ / bridge=true] ; industry_extract[title=業界パターン抽出 / cost=コスト無料 / staff=ティチャラ / bridge=false] ; report_summary[title=進捗レポート配信 / cost=本人の Claude プラン枠 / staff=スティーブ / bridge=true] ; daily_digest[title=日次ダイジェスト / cost=コスト無料 / staff=スティーブ / bridge=false] ; weekly_burndown[title=週次バーンダウン / cost=コスト無料 / staff=バックエンドのみ / bridge=false]
+  画面の「2. 何をする？」抜粋: 2. 何をする？（AI 社員が必要な場合は能力名も表示） | タスク自動再生 | ソー（実装）: 「着手可」のタスクを実行キューに投入します。実際にコードを書くのはあなたの PC の Claude Code なので、PC が落ちていても投入は行われ、起動した時点で順に実行されます。 | 本人の Claude プラン枠 | ナレッジ整理 | ティチャラ: カテゴリやタグが未整備のナレッジに、分類とタグを付けます（1 回あたり最大 10 件）。（PC 接続が必要） | 本人の Claude プラン枠 | 業界パターン抽出 | ティチャラ: 複数のナレッジに共通するタグ構成を検出し、共通ナレッジへの昇格を「ナレッジ候補」として承認待ちに提案します。自動では取り込みません。 | コスト無料 | 進捗レポート配信 | スティーブ: DB の実数値を材料に関係者向けの進捗レポートを作成し、「進捗レポート」スレッドへ投稿します。（PC 接続が必要） | 本人の Claude プラン枠 | 日次ダイジェスト | スティーブ: その日のタスク状況・フェーズ・実行結果を集計して投稿します。 | コスト無料 | 週次バーンダウン | バックエンドのみ: 残タスクと直近 7 日の消化ペースを集計し、完了見込みを出します。 | コスト無料 | 
+  種類ごとの一致 (title/cost/staff/desc 先頭 30 字): [{"action":"task_replay","title":true,"cost":true,"staff":true,"desc":true},{"action":"knowledge_organize","title":true,"cost":true,"staff":true,"desc":true},{"action":"industry_extract","title":true,"cost":true,"staff":true,"desc":true},{"action":"report_summary","title":true,"cost":true,"staff":true,"desc":true},{"action":"daily_digest","title":true,"cost":true,"staff":true,"desc":true},{"action":"weekly_burndown","title":true,"cost":true,"staff":true,"desc":true}]
+  画面に出た旧文言候補=["プラン枠","無料"]; そのうち API のどの文言にも含まれない (= 本当の旧ハードコード)=[]
+  画面の種類カード見出し (抜粋)=[]; API に無い見出し=[]
+  => J44-01: PASS — GET /cron-actions 6 種 (task_replay=本人の Claude プラン枠, knowledge_organize=本人の Claude プラン枠/PC接続要, industry_extract=コスト無料, report_summary=本人の Claude プラン枠/PC接続要, daily_digest=コスト無料, weekly_burndown=コスト無料) の title・cost_label・staff・説明が S-O01「2. 何をする？」に全て一致して出る (欠け 0)。API に無い種類カード 0 件、旧ハードコード文言 0 件 (画面の「プラン枠」「無料」は API の cost_label「本人の Claude プラン枠」「コスト無料」の一部)
+
+## J43-03 (再測 GAP-294/310) 失敗しても打った文章が消えない — Bridge 未接続で送信 → 発言が DB に残らず入力欄に本文が戻り、送信ボタンを押し直せる
+  GET /chat/connection-status -> 200 {"data":{"mode":"relay","bridge_online":false,"workers":[],"last_job":null,"plan":null}}
+  GET /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/messages -> 200 {"data":[]}
+  GET /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/messages -> 200 {"data":[]}
+  connection-status: mode=relay bridge_online=false
+  送信時の API: ["POST 200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/stream data: {\"type\": \"error\", \"content\": \"お使いのパソコン (Bridge) が未接続のため AI 実行ができません。Bridge アプリを起動してから再送してください。\", \"metadata\": {\"code\": \"bridge_offline\"}}\n\n","POST 200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/queued/consume {\"data\":null}"]
+  画面 alert: ["お使いのパソコン (Bridge) が未接続のため AI 実行ができません。Bridge アプリを起動してから再送してください。"]
+  入力欄の値: "QA-R4: PC 未接続のまま送る文章 (消えないこと)" (元の文章と一致=true) / 本文中に発言として残る (楽観表示)=false
+  DB: GET messages 0→0 件 (user=0, assistant=0)
+  押し直し前: 送信ボタン=1 個 disabled=false
+  GET /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/messages -> 200 {"data":[]}
+  押し直し: API=["200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/stream","200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/queued/consume"]; 入力欄="QA-R4: PC 未接続のまま送る文章 (消えないこと)" (一致=true); alert=["お使いのパソコン (Bridge) が未接続のため AI 実行ができません。Bridge アプリを起動してから再送してください。"]; DB messages=0
+  => J43-03: PASS — Bridge 未接続 (mode=relay bridge_online=false) で送信 → POST 200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/stream, POST 200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/queued/consume、画面 alert「お使いのパソコン (Bridge) が未接続のため AI 実行ができません。Bridge アプリを起動してから再送してください。」、入力欄に元の文章がそのまま戻る (一致)、DB の messages は 0→0 件 (応答なしの user 発言を残さない = GAP-310)。送信ボタンは押せる状態 (disabled=false) で、押し直すと再送 (200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/stream, 200 /chat/threads/12a770f1-7dc3-41db-b12b-e7695595ac15/queued/consume) され、再び未接続の案内・入力欄に文章が残り DB も 0 件のまま
+
+## J46-01 (再測 GAP-302) 成果物一覧と三層タブを見る (S-G01 ピッカー / S-F01 工程別 / 表示形式タブ)
+  GET /outputs 5 件: estimate v2 # 商談管理刷新
+
+顧客: Nebula 株式会社
+
+# 見積書 Nebula 商談管理刷新
+
+設計 350,000 円
+実装 1,000,000 円
+保守 600,000 円
+合計 1,950,000 円 / estimate v1 estimate-qa-r4.xlsx / hearing v1 議事録-qa-r4 / requirements v1 要件定義書 QA-R4 / verification v1 テスト仕様書 QA-R4
+  S-G01 (?output 無し): 「成果物を選ぶ」セクション=1 個、行=4 個 ["見積書v2 · # 商談管理刷新 顧客: Nebula 株式会社 # 見積書 Nebula 商談管理刷新 設計 350,","ヒアリングサマリーv1 · 議事録-qa-r4開く","要件定義書v1 · 要件定義書 QA-R4開く","検証レポートv1 · テスト仕様書 QA-R4開く"]
+  S-G01 本文抜粋: メインコンテンツへスキップ | ワークスペース · QA-R4 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R4 WS 20260903 | Q | 成果物を選ぶ | 見積書 | v2 · # 商談管理刷新 顧客: Nebula 株式会社 # 見積書 Nebula 商談管理刷新 設計 350,000 円 実装 1,000,000 円 保守 600,000 円 合計 1,950,000 円 | 開く | ヒアリングサマリー | v1 · 議事録-qa-r4 | 開く | 要件定義書 | v1 · 要件定義書 QA-R4 | 開く | 検証レポート | v1 · テスト仕様書 QA-R4 | 開く
+  ピッカーの 1 行目を開く → URL=/outputs?output=b7eafb25-1c3d-4b91-8cd4-edda88bf4d44
+  工程 9 件: ヒアリング / 要件定義 / アーキ設計 / デザイン / 機能分解 / タスク分解 / 実装 / 検証 / 納品
+  S-F01 工程ごとの成果物欄: [{"phase":"ヒアリング","clicked":0,"shown":[]},{"phase":"要件定義","clicked":1,"shown":[]},{"phase":"アーキ設計","clicked":0,"shown":[]},{"phase":"デザイン","clicked":0,"shown":[]},{"phase":"機能分解","clicked":0,"shown":[]},{"phase":"タスク分解","clicked":0,"shown":[]}]
+  表示形式タブ=["HTML"]; 切替結果=[{"name":"HTML","iframeText":"1. 目的  QA-R4 案件の要件定義書 v1。Nebula 商談管理の刷新。  2. 機能一覧 ID\t機能\t優先度 F-1\t商談一覧\t高 F-2\t見積作成\t","pre":"","alerts":["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"],"mixed":0}]
+  対象成果物のメタ: html_path=true json_path=null md_path=null (import 経由の成果物は HTML 層しか持たない — JSON / MD 層は AI 実行 (Bridge) が生成する)
+  => J46-01: FAIL — 期待: 工程ごとの成果物が一覧に出て三層が表示される / 実測: GET /outputs 5 件、S-G01 ピッカー 4 行 (セクション=1)、開く=/outputs?output=b7eafb25-1c3d-4b91-8cd4-edda88bf4d44、S-F01 工程別=false [{"phase":"ヒアリング","clicked":0,"shown":[]},{"phase":"要件定義","clicked":1,"shown":[]},{"phase":"アーキ設計","clicked":0,"shown":[]},{"phase":"デザイン","clicked":0,"shown":[]},{"phase":"機能分解","clicked":0,"shown":[]},{"phase":"タスク分解","clicked":0,"shown":[]}]、表示形式タブ=["HTML"]
+
+## J46-19 (再測 GAP-302) 成果物が 0 件の案件でビューアを開く
+  空案件 GET /outputs=0 件
+  空案件 S-G01 本文: メインコンテンツへスキップ | ワークスペース · QA-R4 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R4 WS 20260903 | Q |  | この案件にはまだ成果物がありません。工程を進めるかチャットで作成すると、ここに並びます。
+  alert=[] / JS エラー=[] / API 4xx・5xx=なし
+  空案件 S-F01 の成果物欄: 成果物 0 件) / 成果物 0 件) / 成果物
+  => J46-19: PASS — 成果物 0 件の案件で S-G01 を開くと「この案件にはまだ成果物がありません。工程を進めるかチャットで作成すると、ここに並びます。」と 0 件の案内が出る (GAP-302)。alert 0 件・JS エラー 0 件・API 4xx/5xx 0 件、S-F01 の成果物欄も「成果物 0 件)」でエラーにならない
+
+## J46-16 (再測 GAP-300) 成果物を html / xlsx で書き出す — 画面の「HTML で保存」「Excel で保存」でファイルが得られるか + 監査 output_downloaded
+  書き出しの要素: [{"tag":"BUTTON","t":"共有リンクを発行","href":null,"dl":null},{"tag":"BUTTON","t":"HTML で保存","href":null,"dl":null},{"tag":"BUTTON","t":"Excel で保存","href":null,"dl":null}]
+
+## J46-01 (再測 GAP-302) 成果物一覧と三層タブを見る (S-G01 ピッカー / S-F01 工程別 / 表示形式タブ)
+  GET /outputs 5 件: estimate v2 # 商談管理刷新
+
+顧客: Nebula 株式会社
+
+# 見積書 Nebula 商談管理刷新
+
+設計 350,000 円
+実装 1,000,000 円
+保守 600,000 円
+合計 1,950,000 円 / estimate v1 estimate-qa-r4.xlsx / hearing v1 議事録-qa-r4 / requirements v1 要件定義書 QA-R4 / verification v1 テスト仕様書 QA-R4
+  S-G01 (?output 無し): 「成果物を選ぶ」セクション=1 個、行=4 個 ["見積書v2 · # 商談管理刷新 顧客: Nebula 株式会社 # 見積書 Nebula 商談管理刷新 設計 350,","ヒアリングサマリーv1 · 議事録-qa-r4開く","要件定義書v1 · 要件定義書 QA-R4開く","検証レポートv1 · テスト仕様書 QA-R4開く"]
+  S-G01 本文抜粋: メインコンテンツへスキップ | ワークスペース · QA-R4 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R4 WS 20260903 | Q | 成果物を選ぶ | 見積書 | v2 · # 商談管理刷新 顧客: Nebula 株式会社 # 見積書 Nebula 商談管理刷新 設計 350,000 円 実装 1,000,000 円 保守 600,000 円 合計 1,950,000 円 | 開く | ヒアリングサマリー | v1 · 議事録-qa-r4 | 開く | 要件定義書 | v1 · 要件定義書 QA-R4 | 開く | 検証レポート | v1 · テスト仕様書 QA-R4 | 開く
+  ピッカーの 1 行目を開く → URL=/outputs?output=b7eafb25-1c3d-4b91-8cd4-edda88bf4d44
+  工程 9 件: ヒアリング / 要件定義 / アーキ設計 / デザイン / 機能分解 / タスク分解 / 実装 / 検証 / 納品
+  S-F01 工程ごとの成果物欄: [{"phase":"ヒアリング","clicked":0,"shown":[]},{"phase":"要件定義","clicked":1,"shown":[]},{"phase":"アーキ設計","clicked":0,"shown":[]},{"phase":"デザイン","clicked":0,"shown":[]},{"phase":"機能分解","clicked":0,"shown":[]},{"phase":"タスク分解","clicked":0,"shown":[]}]
+  表示形式タブ=["HTML"]; 切替結果=[{"name":"HTML","iframeText":"1. 目的  QA-R4 案件の要件定義書 v1。Nebula 商談管理の刷新。  2. 機能一覧 ID\t機能\t優先度 F-1\t商談一覧\t高 F-2\t見積作成\t","pre":"","alerts":["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"],"mixed":0}]
+  対象成果物のメタ: html_path=true json_path=null md_path=null (import 経由の成果物は HTML 層しか持たない — JSON / MD 層は AI 実行 (Bridge) が生成する)
+  => J46-01: FAIL — 期待: 工程ごとの成果物が一覧に出て三層が表示される / 実測: GET /outputs 5 件、S-G01 ピッカー 4 行 (セクション=1)、開く=/outputs?output=b7eafb25-1c3d-4b91-8cd4-edda88bf4d44、S-F01 工程別=false [{"phase":"ヒアリング","clicked":0,"shown":[]},{"phase":"要件定義","clicked":1,"shown":[]},{"phase":"アーキ設計","clicked":0,"shown":[]},{"phase":"デザイン","clicked":0,"shown":[]},{"phase":"機能分解","clicked":0,"shown":[]},{"phase":"タスク分解","clicked":0,"shown":[]}]、表示形式タブ=["HTML"]
+
+## J46-19 (再測 GAP-302) 成果物が 0 件の案件でビューアを開く
+  空案件 GET /outputs=0 件
+  空案件 S-G01 本文: メインコンテンツへスキップ | ワークスペース · QA-R4 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R4 WS 20260903 | Q |  | この案件にはまだ成果物がありません。工程を進めるかチャットで作成すると、ここに並びます。
+  alert=[] / JS エラー=[] / API 4xx・5xx=なし
+  空案件 S-F01 の成果物欄: 成果物 0 件) / 成果物 0 件) / 成果物
+  => J46-19: PASS — 成果物 0 件の案件で S-G01 を開くと「この案件にはまだ成果物がありません。工程を進めるかチャットで作成すると、ここに並びます。」と 0 件の案内が出る (GAP-302)。alert 0 件・JS エラー 0 件・API 4xx/5xx 0 件、S-F01 の成果物欄も「成果物 0 件)」でエラーにならない
+
+## J46-16 (再測 GAP-300) 成果物を html / xlsx で書き出す — 画面の「HTML で保存」「Excel で保存」でファイルが得られるか + 監査 output_downloaded
+  書き出しの要素: [{"tag":"BUTTON","t":"共有リンクを発行","href":null,"dl":null},{"tag":"BUTTON","t":"HTML で保存","href":null,"dl":null},{"tag":"BUTTON","t":"Excel で保存","href":null,"dl":null}]
+  UI クリック結果: [{"name":"HTML で保存","download":null,"response":{"status":404,"ct":"text/html; charset=utf-8","auth":true},"url":"/outputs?project=b8c3a76e-f304-4c5a-a7d2-320459a387a7&output=a7b2adb5-","alerts":["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。","書き出しに失敗しました。時間をおいてもう一度お試しください。"]},{"name":"Excel で保存","download":null,"response":{"status":404,"ct":"text/html; charset=utf-8","auth":true},"url":"/outputs?project=b8c3a76e-f304-4c5a-a7d2-320459a387a7&output=a7b2adb5-","alerts":["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。","書き出しに失敗しました。時間をおいてもう一度お試しください。"]}]
+  API (Bearer) export html -> 200 / xlsx -> 409 79 bytes
+  監査 output_downloaded: dashboard recent_activities の増分=[]
+  => J46-16: FAIL — 期待: ファイルが得られ監査ログ output_downloaded が記録される / 実測 (ファイル): HTML で保存 → HTTP 404 (Authorization あり) 遷移=/outputs?project=b8c3a76e-f304-4c5a-a7d2-320459a387a7&output=a7b2adb5- / Excel で保存 → HTTP 404 (Authorization あり) 遷移=/outputs?project=b8c3a76e-f304-4c5a-a7d2-320459a387a7&output=a7b2adb5- = ファイルが得られない。実測 (監査): dashboard recent_activities の増分=[] で output_downloaded は記録されず、API 実装 (apps/api/src/routes/outputs/__init__.py の export_output) にも監査書き込みが無い (grep "output_downloaded" → 0 件) = 未実装
+
+## J46-01 (再測 2 回目 GAP-302) S-F01 の工程タブを aria-label で正しく切り替えて工程別かを見る + S-G01 ピッカー + 三層タブ
+  S-G01 ピッカー 4 行 ["見積書v2 · # 商談管理刷新 顧客: Nebula 株式会社 # 見積書 Nebula 商談管理","ヒアリングサマリーv1 · 議事録-qa-r4開く","要件定義書v1 · 要件定義書 QA-R4開く","検証レポートv1 · テスト仕様書 QA-R4開く"]; 3 行目 (要件定義書) を開く → /outputs?output=a7b2adb5-2437-4f33-9a97-f1a456da494e 本文に「要件定義書 QA-R4」
+  S-F01 工程ごと: [{"phase":"ヒアリング","tab":"成果物1","shown":["hearing"],"三層タブ":["HTML","JSON(無効)","MD(無効)"]},{"phase":"要件定義","tab":"成果物1","shown":["requirements"],"三層タブ":["HTML","JSON(無効)","MD(無効)"]},{"phase":"アーキ設計","tab":"成果物0","shown":[],"三層タブ":[]},{"phase":"デザイン","tab":"成果物0","shown":[],"三層タブ":[]},{"phase":"検証","tab":"成果物1","shown":["verification"],"三層タブ":["HTML","JSON(無効)","MD(無効)"]},{"phase":"納品","tab":"成果物0","shown":[],"三層タブ":[]}]
+  S-G01 表示形式タブ=["HTML"]; HTML 層の iframe 本文「1. 目的  QA-R4 案件の要件定義書 v1。Nebula 商談管理の刷新。  2. 機能一覧 ID	機能	優先度 」
+  対象成果物のメタ: html_path=true json_path=null md_path=null
+  S-F01 の三層タブは output.json_path / md_path が無いと disabled (PhaseDetail.tsx OutputPreviewCard の available)。S-G01 の表示形式タブも同条件 (OutputViewerContainer.tsx formats)
+  => J46-01: BLOCKED — 一覧は満たす (GAP-302 解消): S-G01 に「成果物を選ぶ」一覧が 4 行 (stage 毎の最新版 = 見積書v2 / ヒアリングサマリーv1 / 要件定義書v1 / 検証レポートv1) 出て、3 行目を開くと /outputs?output=a7b2adb5-2437-4f33-9a97-f1a456da494e で要件定義書が表示される。S-F01 は工程ごとに中身が変わる: ヒアリング=成果物1(hearing) / 要件定義=成果物1(requirements) / アーキ設計=成果物0 / デザイン=成果物0 / 検証=成果物1(verification) / 納品=成果物0。三層は判定不能 / 理由: 場所=mac — JSON 層 (json_path) と MD 層 (md_path) は AI 実行 (Bridge) が生成するもので、この環境で作れる成果物 (POST /projects/{id}/import) は html_path のみ (対象成果物 json_path=null md_path=null)。そのため S-G01 の表示形式タブは ["HTML"] の 1 層だけ、S-F01 の HTML/JSON/MD も JSON・MD が disabled。解除条件: Mac の Bridge で AI に成果物を生成させ json_path / md_path を持つ成果物で開く
+
+## J46-16 (再測 2 回目 GAP-300) 書き出しが叩く URL を実測する (404 の出所)
+  UI クリックが実際に叩いた URL と結果: [{"name":"HTML で保存","requested":["WEB/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=html"],"response":{"url":"WEB オリジン/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=html","status":404,"ct":"text/html; charset=utf-8"},"download":null,"alerts":["書き出しに失敗しました。時間をおいてもう一度お試しください。"]},{"name":"Excel で保存","requested":["WEB/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=xlsx"],"response":{"url":"WEB オリジン/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=xlsx","status":404,"ct":"text/html; charset=utf-8"},"download":null,"alerts":["書き出しに失敗しました。時間をおいてもう一度お試しください。"]}]
+  対照: API を Bearer で直接 → export?format=html 200 544 bytes / format=xlsx 200 4988 bytes (同じ成果物 out_req)
+  監査: dashboard recent_activities の増分=[]; リポジトリ全体で "output_downloaded" を grep → 0 件 (API に監査書き込みが無い)
+  => J46-16: FAIL — 期待: ファイルが得られ、監査ログ output_downloaded が記録される / 実測 (ファイル): 画面の「HTML で保存」「Excel で保存」は認証付き fetch (GAP-300) になったが、叩き先が ["WEB オリジン/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=html","WEB オリジン/outputs/a7b2adb5-2437-4f33-9a97-f1a456da494e/export?format=xlsx"] = **API ではなく web オリジン** で 404 (text/html の Next.js 404 ページ) を返し、ダウンロードは発生せず alert「書き出しに失敗しました。時間をおいてもう一度お試しください。」。原因: ShareExportPanel.tsx の apiBase が `process.env.NEXT_PUBLIC_API_URL ?? ""` で、他の全 API 呼び出しが使う lib/auth/connector.ts の API_BASE (未設定なら本番は https://atelier-api-eb.fly.dev) の本番フォールバックを持たないため、Vercel で NEXT_PUBLIC_API_URL 未設定だと相対 URL になる。対照: 同じ成果物に API を Bearer で直接叩くと html 200 544 bytes / xlsx 200 4988 bytes で得られる (API 側は正常)。実測 (監査): dashboard の増分=[] で output_downloaded は記録されず、API 実装 (routes/outputs/__init__.py export_output) にも監査書き込みが無い = 未実装
+
+## J47-06 宛先が不正な送信は拒否される (UI + API) — 日本語のエラー・送信履歴が増えない
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/sends -> 200 {"data":[{"id":"b8246376-91a9-4ed0-bec2-eec9f34576a5","doc_id":"b7eafb25-1c3d-4b91-8cd4-edda88bf4d44","to_email":"qa-jR4-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T10:31:12.036977Z"}]}
+  UI form noValidate=null; 試行=[{"bad":"not-an-email","post":null,"errs":["宛先メールアドレスの形式が正しくありません（例: client@example.com）。"],"validity":{"type":"email","valid":false,"msg":"Please include an '@' in the email address. 'not-an-email' is missing an '@'.","ariaInvalid":"true"}},{"bad":"foo@","post":null,"errs":["宛先メールアドレスの形式が正しくありません（例: client@example.com）。"],"validity":{"type":"email","valid":false,"msg":"Please enter a part following '@'. 'foo@' is incomplete.","ariaInvalid":"true"}}]
+  POST /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/send -> 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"}
+  POST /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/send -> 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"}
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/sends -> 200 {"data":[{"id":"b8246376-91a9-4ed0-bec2-eec9f34576a5","doc_id":"b7eafb25-1c3d-4b91-8cd4-edda88bf4d44","to_email":"qa-jR4-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T10:31:12.036977Z"}]}
+  API: 'not-an-email' → 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"} / 'foo@' → 422; 送信履歴 1→1; 画面の送信履歴件数表示=送信履歴
+  => J47-06: PASS — UI: 宛先 'not-an-email' → POST 未送信、アプリのエラー文言=["宛先メールアドレスの形式が正しくありません（例: client@example.com）。"] / 'foo@' → POST 未送信、アプリのエラー文言=["宛先メールアドレスの形式が正しくありません（例: client@example.com）。"]; API: 'not-an-email' → 422 "送信内容を確認してください（入力内容: 形式が正しくありません）。"、'foo@' → 422; 送信履歴 1→1 (増えない)
+
+## J47-07 ドラフトを削除する (UI 2 段階) → 一覧から消え、論理削除、送信履歴は残る
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/sends -> 200 {"data":[{"id":"b8246376-91a9-4ed0-bec2-eec9f34576a5","doc_id":"b7eafb25-1c3d-4b91-8cd4-edda88bf4d44","to_email":"qa-jR4-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T10:31:12.036977Z"}]}
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44 -> 404 {"detail":"対象の商談資料が見つかりません。"}
+  GET /sales-docs/b7eafb25-1c3d-4b91-8cd4-edda88bf4d44/sends -> 200 {"data":[{"id":"b8246376-91a9-4ed0-bec2-eec9f34576a5","doc_id":"b7eafb25-1c3d-4b91-8cd4-edda88bf4d44","to_email":"qa-jR4-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T10:31:12.036977Z"}]}
+  UI 削除 (確認=なし) → DELETE 204; 一覧 2→1; GET detail 404 deleted_at=undefined; GET sends 200 {"data":[{"id":"b8246376-91a9-4ed0-bec2-eec9f34576a5","doc_id":"b7eafb25-1c3d-4b91-8cd4-edda88bf4d44","to_email":"qa-jR4-20260903-1@example.com","subject":"【見積書; 削除前の送信履歴 1 件; 画面に「見積書 Nebula」残存=false 画面に送信履歴 (宛先) が残る=false
+  監査 (論理削除): dashboard recent_activities の増分=[] (sales_doc 対象の監査は運営 API のみで観測不能)
+  => J47-07: PASS — UI「v2 を削除」→ 確認 → DELETE /sales-docs/{id} 204、一覧 2→1 件・画面から消える、GET detail 404。送信履歴: 削除前 1 件 → 削除後 GET /sales-docs/{id}/sends 200 1 件。論理削除の監査は運営 API のみで観測不能 (dashboard 増分=[])
+
+## J48-21 (再測 GAP-304) 複数タスクを一括で着手可にする — 準備中カード 3 件のうち 2 件を画面で選択 → 選択バーの一括操作
+  準備中タスクを 3 件作成: G=2e72202d H=35fe3525 I=db7240c3 (いずれも lifecycle_stage=triage)

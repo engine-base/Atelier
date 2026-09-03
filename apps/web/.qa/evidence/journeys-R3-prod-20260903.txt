@@ -1,0 +1,255 @@
+# 担当 R3 (再計測) 2026-09-03 本番 prod(pre-launch) — 本番 web = main 833fee5 (meta atelier-build=833fee5205f2) / API deploy #83 (main e1a13ba)
+# 対象 18 行: J10-07 J15-01 J15-03 J15-05 J23-03 J23-05 J30-05 J30-10 J30-15 J36-01 J36-07 J37-02 J37-05 J38-03 J38-04 J38-06 J31-07 J34-06
+# アカウント qa-jR3-20260903-{1,2,3}@example.com (秘密は本ファイルに書かない)
+
+## SETUP アカウント・WS・案件・成果物の準備 (API)
+  POST /auth/signup -> 201 {"data":{"user_id":"b2c25afe-ad5f-4ac5-af04-d2a7ce08f475","email":"qa-jR3-20260903-1@example.com","display_name":"QA jR3 オーナー","consents_recorded":2,"created_at":"2026-09-03T10:29:42.992591Z"}}
+  signup qa-jR3-20260903-1@example.com -> 201
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T18:29:43Z","user_id":"b2c25afe-ad5f-4ac5-af04-d2a7ce08f475","email":"qa-jR3-20260903-1@example.com","display_name":"QA jR3 オーナー","refresh_token":null}}
+  signin qa-jR3-20260903-1@example.com -> 200 uid=b2c25afe-ad5f-4ac5-af04-d2a7ce08f475
+  POST /auth/signup -> 201 {"data":{"user_id":"50f4507b-37a1-4294-a8f8-17b1ac8e1022","email":"qa-jR3-20260903-2@example.com","display_name":"QA jR3 メンバー","consents_recorded":2,"created_at":"2026-09-03T10:29:44.526503Z"}}
+  signup qa-jR3-20260903-2@example.com -> 201
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T18:29:45Z","user_id":"50f4507b-37a1-4294-a8f8-17b1ac8e1022","email":"qa-jR3-20260903-2@example.com","display_name":"QA jR3 メンバー","refresh_token":null}}
+  signin qa-jR3-20260903-2@example.com -> 200 uid=50f4507b-37a1-4294-a8f8-17b1ac8e1022
+  POST /workspaces -> 201 {"data":{"id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","name":"QA jR3 WS1","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T10:29:46.105534Z","updated_at":"2026-09-03T10:29:46.105534Z"}}
+  POST /projects -> 201 {"data":{"id":"7a161b63-e786-4d8f-9faa-5f47015e4834","workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","name":"QA jR3 案件 Orion","client_name":null,"description":null,"type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","dele
+  GET flow -> 200 stages=hearing:pending proposal:pending estimate:pending contract:pending(hg) requirements:pending architecture:pending design:pending implementation:pending verification:pending delivery:pending(hg)
+  GET delivery-phases -> 200 phase1=ee9cf814-1369-4a7a-91e2-1972c1dd1da5 n=1
+  POST import -> 200 requirements-qa-r3.html: type=output stage=requirements v=1 id=e820f201-4bc3-4fbb-86d1-537f49e12c9d err= | 納品物_最終版.md: type=output stage=delivery v=1 id=e551044a-98cc-442c-9752-10749bc83caf err=
+  GET /outputs -> 200 requirements v1 要件定義書 QA-R3 id=e820f201-4bc3-4fbb-86d1-537f49e12c9d | delivery v1 納品物_最終版 id=e551044a-98cc-442c-9752-10749bc83caf
+  AI 社員 10 名 tony=cb591327-463f-440f-b4b6-fd4ab01ef1e1
+  POST /tasks -> 201 {"data":{"id":"db450d8f-7b1a-4f2a-beff-45c4693cccb7","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","phase":null,"category":"design","title":"QA jR3 タスク A","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_emp
+  task A -> 201 id=db450d8f-7b1a-4f2a-beff-45c4693cccb7
+  POST /tasks -> 201 {"data":{"id":"e619e0a3-ffe3-420b-8ef3-e3c9bbb11f7d","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","phase":null,"category":"design","title":"QA jR3 タスク B (未完了)","description":null,"type":"feature","estimated_hours":3,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assign
+  task B -> 201 id=e619e0a3-ffe3-420b-8ef3-e3c9bbb11f7d
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/flow/hearing/complete -> 200 {"data":[{"id":"cf6258e8-cea6-40f1-822a-727bfe2ead41","stage_key":"hearing","seq":1,"title":"商談・ヒアリング","department":"product","status":"done","skippable":false,"hard_gate":false,"skip_reason":null,"completed_at":"2026-09-03T10:29:52.243867Z","current":false,"employee_id":"d977ce8a-8372-4bc8-9c16-a05
+  hearing complete -> 200
+  flow=hearing:done proposal:pending estimate:pending contract:pending requirements:pending architecture:pending design:pending implementation:pending verification:pending delivery:pending
+  POST /projects -> 201 {"data":{"id":"9aedbc5f-64d1-4509-ab49-7883385e6197","workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","name":"QA jR3 案件 Sirius (アーカイブ用)","client_name":null,"description":null,"type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hear
+  P2 -> 201 id=9aedbc5f-64d1-4509-ab49-7883385e6197
+  POST /workspaces -> 201 {"data":{"id":"a6e16efb-e72b-4c5d-9b3b-d15322cac49c","name":"QA jR3 WS2","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T10:29:54.367861Z","updated_at":"2026-09-03T10:29:54.367861Z"}}
+  WS2 -> 201 id=a6e16efb-e72b-4c5d-9b3b-d15322cac49c
+  POST /projects -> 201 {"data":{"id":"258fe7cc-fc5a-43e8-8e3a-c5c5f42eb7a5","workspace_id":"a6e16efb-e72b-4c5d-9b3b-d15322cac49c","name":"QA jR3 WS2 案件 Vega","client_name":null,"description":null,"type":"self_product","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","del
+  P3 (WS2) -> 201 id=258fe7cc-fc5a-43e8-8e3a-c5c5f42eb7a5
+  POST /chat/threads -> 201 {"data":{"id":"5a38dbe4-898f-439f-8d14-9a24344a5a8e","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","ai_employee_id":"cb591327-463f-440f-b4b6-fd4ab01ef1e1","title":"QA jR3 トニー スレッド","archived":false,"deleted_at":null,"created_at":"2026-09-03T10:29:55.673144Z","updated_at":"2026-09-03T10:29:55.6
+  thread -> 201 id=5a38dbe4-898f-439f-8d14-9a24344a5a8e
+
+## SETUP-2 メンバー招待 / クライアント招待・サインイン / コメント・返信 / シークレット / .exe (API)
+  POST /workspaces/8f3d59c1-337a-4fda-ba18-fac32c490d08/members -> 201 {"data":{"workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","user_id":"50f4507b-37a1-4294-a8f8-17b1ac8e1022","email":"qa-jR3-20260903-2@example.com","display_name":"QA jR3 メンバー","role":"member","joined_at":"2026-09-03T10:30:21.040562Z"}}
+  member 招待 -> 201
+  POST /client-invitations -> 201 {"data":{"id":"f3f424b1-812a-4596-839d-4c85049882a0","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","email":"qa-jR3-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T10:30:21.654335Z","used_at":null,"revoked_at":null,"client_display_name":"QA クライアント R3","use_coun
+  POST /client/auth/signin -> 200 {"data":{"client_access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-04T10:30:22Z","project":{"id":"7a161b63-e786-4d8f-9faa-5f47015e4834","name":"QA jR3 案件 Orion"},"scopes":["view","comment"]}}
+  client-invitations -> 201 / client signin -> 200 token=あり
+  client outputs -> 200 requirements v1 要件定義書 QA-R3 id=e820f201-4bc3-4fbb-86d1-537f49e12c9d | delivery v1 納品物_最終版 id=e551044a-98cc-442c-9752-10749bc83caf
+  POST /client/projects/7a161b63-e786-4d8f-9faa-5f47015e4834/comments -> 201 {"data":{"id":"d26fb043-9705-4a9d-a7fe-7df9b0e2ac70","target_type":"workflow_output","target_id":"e820f201-4bc3-4fbb-86d1-537f49e12c9d","target_label":"要件定義書","content":"【クライアント R3】要件定義 v1 の 2 章、商談一覧に絞込を足してほしいです。","author_name":null,"is_client_author":true,"created_at":"2026-09-03T10:30:23.206144Z"}
+  client comment 1 -> 201 id=d26fb043-9705-4a9d-a7fe-7df9b0e2ac70
+  POST /client/projects/7a161b63-e786-4d8f-9faa-5f47015e4834/comments -> 201 {"data":{"id":"3e140129-1e47-4c46-9a86-19c313e4bc48","target_type":"workflow_output","target_id":"e820f201-4bc3-4fbb-86d1-537f49e12c9d","target_label":"要件定義書","content":"【クライアント R3】削除するコメント","author_name":null,"is_client_author":true,"created_at":"2026-09-03T10:30:23.785378Z"}}
+  client comment 2 -> 201 id=3e140129-1e47-4c46-9a86-19c313e4bc48
+  POST /comments -> 201 {"data":{"id":"c4710697-b867-4601-8f82-ee4fe4f8ae8f","target_type":"workflow_output","target_id":"e820f201-4bc3-4fbb-86d1-537f49e12c9d","target_element_id":null,"author_user_id":"b2c25afe-ad5f-4ac5-af04-d2a7ce08f475","author_invitation_id":null,"author_name":"QA jR3 オーナー","is_client_author":false,"c
+  社内メモ -> 201 id=c4710697-b867-4601-8f82-ee4fe4f8ae8f
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/credentials -> 201 {"data":{"id":"ac99f3b7-c64b-48fe-80e8-47640d8fcb51","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","name":"QA jR3 顧客 API キー","kind":"api_key","last4":"4321","created_by_name":"QA jR3 オーナー","created_at":"2026-09-03T10:30:24.926996Z","updated_at":"2026-09-03T10:30:24.926996Z"}}
+  credential -> 201 id=ac99f3b7-c64b-48fe-80e8-47640d8fcb51 last4=4321
+  POST /meetings/upload-url -> 422 {"detail":"対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。"}
+  POST /meetings -> 422 {"detail":"対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。"}
+  upload-url(.exe) -> 422 / POST /meetings(.exe) -> 422 / 一覧 0->0 exe あり=false
+
+## DEPLOY-CHECK 本番 web バンドルに今回の web 修正が入っているか (文字列で確認)
+  本番 web meta atelier-build=833fee5205f2
+  /projects が読み込む JS 11 本: atelier_walkthrough_done=無し | ワークスペース名を入力してください=無し | atelier:me-changed=有り | atelier:workspaces-changed=有り | 削除済みのプロジェクトはありません=無し | アクティブに戻す=無し | ai-employee-icon-url=無し
+  /projects 一覧: メインコンテンツへスキップ / ワークスペース · QA JR3 WS1 / プロジェクト / AI社員 / ナレッジ / テンプレート / 承認待ち / WS設定 / Q / QA jR3 WS1 / / / プロジェクト / Q / プロジェクト / 2 件のアクティブプロジェクト / 新規プロジェクト / プロジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / ヒアリング中 / QA jR3 案件 Orion / — / 工程 1 / 9 / 2 分前更新 / アー
+
+## J15-03 プロフィールの表示名を変える
+  PATCH /me=200 / 保存前ヘッダー「Q QA jR3 WS1 Q」 保存直後ヘッダー「Q QA jR3 WS1 Q」直後反映=false / 再読み込み後ヘッダー「Q QA jR3 WS1 Q」 入力値=QA jR3 改名太郎 / GET /me display_name=QA jR3 改名太郎
+  => J15-03: FAIL — 期待: 保存直後にヘッダー反映・再読み込みでも残る / 実測: PATCH=200 直後反映=false (ヘッダー「Q QA jR3 WS1 Q」) 再読み込み後=false
+
+## J36-01 ワークスペース名を変える
+  PATCH=200 / 直後 header「Q QA jR3 WS1 改名 / WS設定 Q」 side「ワークスペース · QA JR3 WS1 改名 プロジェクト AI社員 ナレッジ テンプレート 承認待ち WS設定」 直後反映=true / 再読み込み後 header「Q QA jR3 WS1 改名 / WS設定 Q」 / GET name=QA jR3 WS1 改名 / dashboard activities に workspace.update=false
+  => J36-01: PASS — PATCH /workspaces 200 → 保存直後 (再読み込みなし) にサイドバー/ヘッダーが「QA jR3 WS1 改名」に変わり (GAP-270)、GET も新名。監査ログ workspace.update は WS 対象で利用者向け API (dashboard) に出ず未観測
+
+## J15-05 ワークスペースを切り替える (WS2 = QA jR3 WS2 / 案件 Vega)
+  t-uc-38 UI=["a=WS設定","button:button{ワークスペース: QA jR3 WS1 改名}=Q\nQA jR3 WS1 改名","button:button#_r_0_=ワークスペース:\nQA jR3 WS1 改名"]
+  !! J15-05 例外: WS2 の選択肢が無い
+  => J15-05: BLOCKED — 実走中に例外: WS2 の選択肢が無い / 解除条件: 再実行
+
+## J37-02 AI 社員の詳細で「できること」が能力として出る (R-T06)
+  画面: 名前=true 口調=true できること=true スキル語=[] 「できること」節=「できること / この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。 / 営業メール作成 / 提案書作成 / 見積作成 / 担当範囲 / 役職 / 部長 / 所属 / 営業・契約部 / レポート対象 / ジャービス / 直属の部下 / メンバー 2 名 / 変更はありません / キャンセル / 保存」 / 画面の API=["GET /me","GET /me/consents","GET /projects/7a161b63-e786-4d8f-9faa-5f47015e4834","GET /approval-inbox","GET /workspaces","GET /skills","GET /ai-employees","GET /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1","GET /ai-employees/templates","GET /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/activities"] GET /skills 呼出=1 / 画面 API 応答に skill 名・system_prompt=false / templates/{id}: system_prompt=null default_skills=[]
+  => J37-02: FAIL — 期待: 名前・口調・できることが出てスキル名/本文は画面にも API にも無い / 実測: 名前=true 口調=true できること=true 画面スキル語=[] GET /skills=1 API漏れ=false templates system_prompt=null default_skills=0
+
+## J37-05 アイコン画像を差し替える (署名 URL → PUT → PATCH → 組織図・チャット)
+  POST /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/icon-upload-url -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください）。"}
+  PATCH /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1 -> 200 {"data":{"id":"cb591327-463f-440f-b4b6-fd4ab01ef1e1","workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー","icon":"T","role":"lead","department":"sales","tone_preset":"polite","custom_tone_text":null,"attached_sk
+  GET /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/icon-url -> 409 {"detail":"AI 社員のアイコンとして使えるのは、アップロードした画像だけです。"}
+  upload-url=422 / PUT=- / PATCH icon=200 / icon-url=409 / 実体 fetch=- (G-11) / 組織図 img=0 icon-url 呼出=[] / チャット img=0 icon-url 呼出=[]
+  => J37-05: FAIL — 期待: 画像が組織図とチャットに反映・Storage に実体 / 実測: upload=422 PUT=- PATCH=200 実体=- 組織図 img=0 (icon-url []) チャット img=0 (icon-url [])
+
+## J30-05 案件ダッシュボードが実数を映す
+  GET /approval-inbox?project_id=7a161b63-e786-4d8f-9faa-5f47015e4834 -> 200 {"data":[]}
+  GET /comments/unresolved-count?project_id=7a161b63-e786-4d8f-9faa-5f47015e4834 -> 200 {"data":{"project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","count":3}}
+  API: flow done=1/10 inbox=0 unresolved=3 outputs=2 最新=要件定義書 QA-R3 dashboard status=draft current_phase=hearing project.current_phase=hearing
+  画面: 進捗=全体進捗率 / 10% / 工程 1/10 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 ·  | INBOX=未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 · チ | コメント=未解決コメント / 3 / 確定 0 · 未確認 0 件 / 工程の流れ（10 工程） / 工程 | 成果物=最新成果物 / 要件定義書 QA-R3 / HTML / 納品物_最終版 / HTML / AI 社員アクティビティ / ト / トニー / 3 分前 / チャットで依頼する / フェーズ管理を開く | 見出し=メインコンテンツへスキップ / ワークスペース · QA JR3 WS1 改名 / ← ワークスペース全体へ / プロジェクト · QA JR3 案件 ORION / ダッシュボード / 工程 / タスク / 進行 / 議事録 / スケジュール / 営業ドラフト / モック / 取り込み / シークレット / 設定 / Q / QA jR3 WS1 改名 / QA jR3 案件 Ori
+  一致: inbox=true comments=true latestOutput=true progress(工程 1/10)=true
+  => J30-05: PASS — S-B02: 工程進捗「工程 1/10」(flow の done 数と一致・GAP-279)、承認待ち 0 (GET /approval-inbox と一致)、未解決コメント 3 (unresolved-count と一致)、最新成果物「要件定義書 QA-R3」が実データと一致。project.current_phase=hearing
+
+## J30-10 フェーズ確定前のチェックが実数を出す
+  GET /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/delivery-phases/ee9cf814-1369-4a7a-91e2-1972c1dd1da5/freeze-check -> 200 {"data":{"phase_id":"ee9cf814-1369-4a7a-91e2-1972c1dd1da5","phase_name":"フェーズ1","pending_stages":["提案","見積","契約","要件定義","アーキ設計","デザイン・モック","タスク分解・実装","検証","納品・請求"],"open_tasks":2,"unresolved_comments":3,"output_count":2,"mock_count":0,"warnings":["未完了の工程が 9 つあります（提案、見積、契約）","完了していないタスクが 2 件あります","未解
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/delivery-phases/ee9cf814-1369-4a7a-91e2-1972c1dd1da5/freeze -> 409 {"detail":"残っている作業があるため確定できません（未完了の工程が 9 つあります（提案、見積、契約） / 完了していないタスクが 2 件あります / 未解決のコメントが 3 件あります）。片付けるか、残件を確認した上で確定してください。"}
+  API freeze-check: pending_stages=9 open_tasks=2 unresolved_comments=3 / 残件ありで freeze confirm=true → 409 {"detail":"残っている作業があるため確定できません（未完了の工程が 9 つあります（提案、見積、契約） / 完了していないタスクが 2 件あります / 未解決のコメントが 3 件あります）。片付けるか、残件を確認した上で確定してください。"} / phases=[[1,"active"]]
+  UI 確認事項=["・未完了の工程が 9 つあります（提案、見積、契約）","・完了していないタスクが 2 件あります","・未解決のコメントが 3 件あります"] 確定ボタン enabled=false UI=["input:checkbox=on","button:button=確定して次フェーズへ(disabled)"]
+  => J30-10: PASS — 確定前チェックに未完了工程 9 / タスク 2 / 未解決コメント 3 の実数 (API freeze-check と一致) が出て、確定ボタンは無効 (残件を承知するチェックまで押せない・GAP-280)。API も残件ありの confirm=true は 409「残っている作業があるため確定できません（未完了の工程が 9 つあります（提案、見積、契約） / 完了していないタスクが 2 件あります / 」で確定できない (フェーズは active のまま)
+
+## J38-06 案件をアーカイブして戻す (P2 Sirius)
+  タブ=["すべて","進行中","アーカイブ","削除済み","アーカイブ","アーカイブ"] / カードの「アーカイブ」ボタン=0 PATCH=[] / アーカイブ後「すべて」に Sirius=true 「アーカイブ」タブに=false / 「アクティブに戻す」ボタン=0 → 「すべて」に復帰=true / API status=draft
+  => J38-06: FAIL — 期待: 一覧からアーカイブ→アクティブ一覧から消えアーカイブ一覧に出る→戻すと復帰 / 実測: アーカイブ導線=0 すべてに残存=true アーカイブ表示=false 戻す導線=0 復帰=true タブ=["すべて","進行中","アーカイブ","削除済み","アーカイブ","アーカイブ"]
+
+## J34-06 対応していない形式 (.exe) を上げる (UI)
+  UI accept="audio/*,video/*,.txt,.md,.docx,text/plain" 画面文言=「対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。 | エラー | 解析に失敗したため、結果を表示できません。」 画面に setup.exe=false API 往復=["POST /meetings/upload-url 422"] / 一覧 exe=false (0 件) / API 直: upload-url=422「対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。」 POST /meetings=422 / 内部英語文言の混入=false
+  => J34-06: PASS — .exe を選んで送ると画面に「対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。 | エラー | 解析に失敗したため、結果を表示できません。」と日本語だけで拒否され (GAP-314: 内部の英語メソッド/パス/status は出ない)、一覧に増えない (0 件のまま)。API 直でも upload-url / POST /meetings とも 422「対応していない形式です (.exe)。音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録」
+
+# (再実行 2) J15-03 / J15-05 / J37-02 / J37-05 / J38-06 — セレクタと API 引数を正した上での実測
+
+## J15-03 プロフィールの表示名を変える (ヘッダー = アバターの aria-label / メニューの氏名行で判定)
+  PATCH /me=200 / 保存前 アバター aria-label「アカウント: QA jR3 改名太郎」 / 保存直後「アカウント: QA jR3 改名花子」 メニュー「QA jR3 改名花子 / プロフィール / サインアウト」 直後反映=true / 再読み込み後「アカウント: QA jR3 改名花子」 入力値=QA jR3 改名花子 / GET /me display_name=QA jR3 改名花子
+  => J15-03: PASS — T-UC-37 で表示名を保存 (PATCH /me 200) → 再読み込みなしでヘッダーのアカウント表示が「アカウント: QA jR3 改名花子」に変わり (GAP-270 の atelier:me-changed でシェルが /me を読み直す)、メニューの氏名行も新名。再読み込み後も「アカウント: QA jR3 改名花子」・GET /me も同じ。監査ログは利用者向け API に露出せず未観測
+
+## J15-05 ワークスペースを切り替える (t-uc-38 の dropdown を開いて WS2 を選ぶ)
+  選択肢=["Q\nQA jR3 WS1 改名","Q\nQA jR3 WS2"] → WS2 選択後「メインコンテンツへスキップ / ワークスペース · QA JR3 WS2 / プロジェクト / AI社員 / ナレッジ / テンプレート / 承認待ち / WS設定 / Q / QA jR3 WS2 / Q / ワークスペース切替 / 所属」 localStorage ws=WS2 project=(解除) / GET /projects 呼び出し=["/projects?limit=20&include_deleted=true&workspace_id=a6e16efb-e72b-4c5d-9b3b-d15322cac49c"] / 一覧: Vega=true Orion=false Sirius=false header「Q QA jR3 WS2 / プロジェクト Q」 / 再読み込み後: Vega=true Orion=false Sirius=false ls ws=WS2 project=(解除)
+  => J15-05: PASS — t-uc-38 の切替で WS2 を選ぶと現在 WS が WS2 になり (ヘッダーも WS2)、/projects は GET /projects?limit=20&include_deleted=true&workspace_id=a6e16ef で WS2 の Vega だけ (WS1 の Orion / Sirius は出ない = GAP-271)。現在案件も旧 WS の Orion から解除。再読み込み後も WS2・Vega のまま
+
+## J37-02 AI 社員の詳細で「できること」が能力として出る (R-T06) — 画面と API 応答の両方を見る
+  画面: 名前=true 口調=true できること=true 画面のスキル名=[] 「できること」節=「できること / この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。 / 営業メール作成 / 提案書作成 / 見積作成 / 担当範囲 / 役職 / 部長 / 所属 / 営業・契約部 / レポート対象 / ジャービス / 直属の部下 / メンバー 2 名 / 変更はありません / キャンセル / 保存」
+  画面が呼ぶ GET /skills=1 回 / その応答 (再取得) は 23 件・keys=id,name,version,description,is_active・スキル名を含む=acceptance-criteria,api-design,architecture-design,brand-voice,business-contract,cross-learning… / この社員の attached_skills=3 件 → 名前 ["sales-email","proposal","estimate"] / templates/{id}: system_prompt=null default_skills=0
+  => J37-02: FAIL — 期待: 名前・口調・できること が出て、スキル名や本文は画面と API 応答のどちらにも含まれない / 実測: 画面は改善 (名前=true 口調=true できること=true、チップは説明文「成 / 提案書作成 / 見積作成 / 担当範囲 / 役職 / 部長 / 所属 / 営業・契約部 / レポート対象 / ジャービス / 直属の部下 / メンバー 」でスキル名の露出=0 個・GAP-274 の web 側は反映済) だが、**この画面は今も GET /skills を 1 回呼び、その応答 (200, 23 件, keys=id,name,version,description,is_active) に内部スキル名が入っている** (この社員の attached_skills 3 件 = ["sales-email","proposal","estimate"])。= API 応答にスキル名が含まれる状態のまま (R-T06)。templates 側は system_prompt=null / default_skills=0 で秘匿済み
+
+## J37-05 アイコン画像を差し替える (icon-upload-url は file_name / mime_type / file_size_bytes)
+  POST /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/icon-upload-url -> 200 {"data":{"upload_url":"<redacted>","storage_path":"avatars/ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/3d65c928-7573-48ed-b468-0a29eb002044/qa-icon-r3.png"}}
+  PATCH /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1 -> 200 {"data":{"id":"cb591327-463f-440f-b4b6-fd4ab01ef1e1","workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー","icon":"avatars/ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/3d65c928-7573-48ed-b468-0a29eb002044/qa
+  GET /ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/icon-url -> 200 {"data":{"url":"<redacted>"}}
+  upload-url=200 storage_path=avatars/ai-employees/cb591327-463f-440f-b4b6-fd4ab01ef1e1/3d65c928-7573-48ed-b468-0a29eb002044/qa-icon-r3.png / PUT=200 / PATCH icon=200 / icon-url=200 / 実体 fetch=200 image/png 70B (G-11) / 組織図 img 合計=3 署名 URL=1 icon-url 呼出=[200] / チャット img 合計=0 署名 URL=0 icon-url 呼出=[200]
+  => J37-05: FAIL — 期待: 画像が組織図とチャットに反映・Storage に実体 / 実測: upload-url=200 PUT=200 PATCH=200 icon-url=200 実体=200 image/png 70B 組織図 署名img=1/3 (icon-url [200]) チャット 署名img=0/0 (icon-url [200])
+
+## J38-06 案件をアーカイブして戻す (P2 Sirius / カード操作は aria-label「<案件名> をアーカイブ」)
+  案件名「QA jR3 案件 Sirius (アーカイブ用)」 タブ=["すべて","進行中","アーカイブ","削除済み"] / 「アーカイブ」操作=1 PATCH=[200] / アーカイブ後「すべて」に Sirius=false 「アーカイブ」タブに=true / 「アクティブに戻す」=1 PATCH=[200] → 「すべて」に復帰=true / API status=in_progress
+  => J38-06: PASS — 一覧カードの「アーカイブ」(PATCH 200) で Sirius がアクティブ (すべて) から消え「アーカイブ」タブに出る。「アクティブに戻す」(PATCH 200) で「すべて」に復帰 (API status=in_progress) — GAP-277 の web 側が反映済
+  PATCH /workspaces/8f3d59c1-337a-4fda-ba18-fac32c490d08/members/50f4507b-37a1-4294-a8f8-17b1ac8e1022 -> 200 {"data":{"workspace_id":"8f3d59c1-337a-4fda-ba18-fac32c490d08","user_id":"50f4507b-37a1-4294-a8f8-17b1ac8e1022","email":"qa-jR3-20260903-2@example.com","display_name":"QA jR3 メンバー","role":"viewer","joined_at":"2026-09-03T10:30:21.040562Z"}}
+  (前提 J31-05) role → viewer: 200 role=viewer
+
+## J31-07 閲覧者がシークレットの追加と reveal を試みる
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/credentials -> 403 {"detail":"シークレットを追加する権限がありません。"}
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/credentials/ac99f3b7-c64b-48fe-80e8-47640d8fcb51/reveal -> 403 {"detail":"シークレットの値を表示する権限がありません。"}
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/credentials/ac99f3b7-c64b-48fe-80e8-47640d8fcb51/reveal -> 403 {"detail":"シークレットの値を表示する権限がありません。"}
+  GET /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/credentials -> 200 {"data":[{"id":"ac99f3b7-c64b-48fe-80e8-47640d8fcb51","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","name":"QA jR3 顧客 API キー","kind":"api_key","last4":"4321","created_by_name":null,"created_at":"2026-09-03T10:30:24.926996Z","updated_at":"2026-09-03T10:30:24.926996Z"}]}
+  viewer (role=viewer) API: 追加 → 403「シークレットを追加する権限がありません。」 / reveal (本人PW) → 403「シークレットの値を表示する権限がありません。」 / reveal (PW なし) → 403 / 一覧 GET → 200 (1 件) 値漏れ=false / owner 一覧 1 件 (閲覧者の追加が増えていない=true) / 監査 credential.* が dashboard に=無し
+  閲覧者の画面 S-B04: 「表示」ボタン=1 追加フォーム (#cred-value)=1 画面に平文=false UI=["button:button{フェーズ切替（表示中: フェーズ1）}=フェーズ1","input:text#cred-name(例: 顧客 Slack Bot Token)=","select:select-one#cred-kind=API キー\nパスワード\nトークン\n接続文字列\nその他","input:password#cred-value(ここに貼り付け（保存時に暗号化）)=","button:submit=暗号化して保存","button:button=表示","button:button{QA jR3 顧客 API キー を削除}="] 本文抜粋「メインコンテンツへスキップ / ワークスペース · QA JR3 WS1 改名 / ← ワークスペース全体へ / プロジェクト · QA JR3 案件 ORION / ダッシュボード / 工程 / タスク / 進行 / 議事録 / スケジュール / 営業ドラフト / モック / 取り込み / シークレット / 設定 / Q / QA jR3 WS1 改名 / QA jR3 案件 Orion / フ」
+  => J31-07: FAIL — 期待: 追加・reveal とも 403・値漏れ無し・監査に拒否 / 実測: 追加=403 reveal=403 (PWなし 403) 値漏れ=false 画面「表示」=1 追加フォーム=1
+
+## J30-15 納品工程を完了し、案件を納品済みにする
+    complete proposal → 200
+    complete estimate → 200
+    complete contract → 200
+    complete requirements → 200
+    complete architecture → 200
+    complete design → 200
+    complete implementation → 200
+    complete verification → 200
+  POST /outputs/e551044a-98cc-442c-9752-10749bc83caf/share-links -> 201 {"data":{"id":"046a1f57-4297-42e5-9222-e49f3113890d","output_id":"e551044a-98cc-442c-9752-10749bc83caf","label":"QA jR3 納品共有","expires_at":"2026-09-17T10:40:39.859125Z","revoked_at":null,"view_count":0,"last_viewed_at":null,"created_at":"2026-09-03T10:40:39.859125Z","share_url":"https://atelier-api-
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/flow/delivery/complete -> 403 {"detail":"この工程は重要な確認が必要です。内容をご確認のうえ承認してください。"}
+  POST /projects/7a161b63-e786-4d8f-9faa-5f47015e4834/flow/delivery/complete -> 200 {"data":[{"id":"cf6258e8-cea6-40f1-822a-727bfe2ead41","stage_key":"hearing","seq":1,"title":"商談・ヒアリング","department":"product","status":"done","skippable":false,"hard_gate":false,"skip_reason":null,"completed_at":"2026-09-03T10:29:52.243867Z","current":false,"employee_id":"d977ce8a-8372-4bc8-9c16-a05
+  共有リンク発行 → 201 (一覧 1 件) 公開 GET share_url → - 本文に納品物=false / delivery complete confirm=false → 403 / confirm=true → 200 / flow=hearing:done proposal:done estimate:done contract:done requirements:done architecture:done design:done implementation:done verification:done delivery:done / GET project status=draft current_phase=delivery / 一覧 API status=draft current_phase=delivery / dashboard status=draft current_phase=delivery / クライアント outputs=requirements v1,delivery v1
+  画面: 一覧カード「ト / Q / プロジェクト / 2 件のアクティブプロジェクト / 新規プロジェクト / プロジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / 納品済 / QA jR3 案件 Orion / — / 工程 9 / 9 / 10 分前更新 / アーカイブ / クライアント案件 / ヒアリング中 / QA jR3 案件 Sirius (アーカイブ用) / — / 工」 / ダッシュボード見出し「プロジェクトダッシュボード / QA jR3 案件 Orion · クライアント案件 · 第 10 段階 納品・請求中 / 全体進捗率 / 100% / 工程 10/10 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 · チャット 1 / 未解決コメント / 3 / 確定 0 · 未確認 0 件 / 工程の流れ（10 工程） / 工程画」 進捗「全体進捗率 / 100% / 工程 10/10 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 」
+  => J30-15: FAIL — 期待: 納品工程 done・案件が納品済みとして一覧とダッシュボードに反映・クライアントに最終版 / 実測: delivery complete confirm=false→403 confirm=true→200 flow delivery=done API current_phase=delivery/delivery/delivery status=draft (API 納品済み=true) / 画面 一覧カード「ト / Q / プロジェクト / 2 件のアクティブプロジェクト / 新規プロジェクト / プロジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアン」 ダッシュボード「プロジェクトダッシュボード / QA jR3 案件 Orion · クライアント案件 · 第 10 段階 納品・請求中 / 全体進捗率 / 100% / 工程 10/10 完了 /」 進捗「全体進捗率 / 100% / 工程 10/10 完了 / 未承認 INBOX 件数 / 0 / すべ」 (画面 納品済み=true) / クライアント delivery=true / 共有リンク公開 GET=-
+
+## J30-15 (補足) 共有リンクの公開取得を share_url で確認し直し、判定を確定する
+  share-links 一覧 keys=id,output_id,label,expires_at,revoked_at,view_count,last_viewed_at,created_at,share_url
+  共有リンク公開 GET (認証なし) (URL 無し) → - 本文に納品物=false / flow delivery=done / current_phase 詳細=delivery 一覧=delivery dashboard=delivery status=draft / クライアント outputs=requirements v1,delivery v1
+  画面: 一覧カード「ジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / 納品済 / QA jR3 案件 Orion / — / 工程 9 / 9 / 12 分前更新 / アーカイブ / クライアント案件 / ヒアリング中 / Q」 ダッシュボード「プロジェクトダッシュボード / QA jR3 案件 Orion · クライアント案件 · 第 10 段階 納品・請求中 / 全体進捗率 / 100% / 工程 10/10 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 」
+  => J30-15: FAIL — 期待: 納品工程 done・納品済みとして一覧とダッシュボードに反映・クライアントに最終版 / 実測: API 納品済み=true (flow delivery=done current_phase=delivery/delivery/delivery) 画面 納品済み=true (カード「ジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / 納品済 / QA jR3 案件 Orion / — / 工程 9 / 9 / 12 分前更新 / アーカイブ / クライアント案件 / ヒアリング中 / Q」 ダッシュボード「プロジェクトダッシュボード / QA jR3 案件 Orion · クライアント案件 · 第 10 段階 納品・請求中 / 全体進捗率 / 100% / 工程 10/10 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 3 / タスク 2 」) クライアント delivery=true 共有リンク公開 GET=-
+
+## J30-15 (補足 2) 共有リンクは POST 応答の share_url でしか URL を返さない (GET 一覧は null)。発行し直して公開取得する
+  POST share-links → 201 / 認証なしの公開 GET → 200 text/html; charset=utf-8 本文に納品物=true / 発行済み共有リンク 2 件 (GET 一覧の share_url は null で返る = 一覧からは URL を再取得できない)
+  => J30-15: PASS — (ui3 / ui3b の FAIL 行を上書き) 納品成果物の共有リンクを発行済み (計 2 件・認証なしの公開 GET 200 text/html; charset=utf-8・本文に納品物=true) を確認し、納品工程を確認つきで完了 (confirm なし 403「重要な確認が必要です」/ confirm あり 200) → flow delivery=done。current_phase=delivery が API 詳細・一覧・ダッシュボードで一致 (GAP-279)。画面も 一覧カードに「納品済」バッジ、ダッシュボード「第 10 段階 納品・請求中 / 全体進捗率 100% / 工程 10/10 完了」で納品済みとして反映。クライアント (J21/J23) 側 outputs に delivery v1 が見える。※付記: 一覧カードの工程表記は「工程 9 / 9」でダッシュボードの「工程 10/10」と分母が食い違う (画面間の不一致・正本に無い観点)
+
+## J23-04(前提) 社内がクライアントのコメントに返信する
+  POST /comments -> 201 {"data":{"id":"65fe2d6b-6045-4b06-b753-3b2b62c4af72","target_type":"workflow_output","target_id":"e820f201-4bc3-4fbb-86d1-537f49e12c9d","target_element_id":null,"author_user_id":"b2c25afe-ad5f-4ac5-af04-d2a7ce08f475","author_invitation_id":null,"author_name":"QA jR3 改名花子","is_client_author":false,"c
+  reply → 201 parent=d26fb043-9705-4a9d-a7fe-7df9b0e2ac70
+
+## PORTAL クライアントポータルへ招待リンクでサインイン
+  ポータル url=/portal?project=7a161b63-e786-4d8f-9faa-5f47015e4834
+
+## J23-05 クライアントが返信と納品成果物を確認する
+  GET /client/projects/7a161b63-e786-4d8f-9faa-5f47015e4834/outputs/e551044a-98cc-442c-9752-10749bc83caf/content-url?format=html -> 200 {"data":{"url":"<redacted>","kind":"html","file_name":null,"mime":null}}
+  自分のコメントの下に社内の返信=false (自分 idx=613 返信 idx=483) / 納品成果物の行=true 「開く」ボタン=2 ["要件定義書 を HTML で開く","納品書 を HTML で開く"] 押下=別タブ https://atelier-api-eb.fly.dev/outputs/e551044a-98cc-44… (status 確認は下の実体 fetch) 本文に納品物=true content-url 呼出=["200 51044a-98cc-442c-9752-10749bc83caf/content-url"] / API 直: client content-url → 200 実体 200 本文に納品物あり
+  => J23-05: FAIL — 期待: 返信が自分のコメントの下・納品最終版が閲覧できる / 実測: 返信の表示=false 納品成果物の行=true 「開く」=2 ["要件定義書 を HTML で開く","納品書 を HTML で開く"] content-url 呼出=["200 51044a-98cc-442c-9752-10749bc83caf/content-url"] API 直 content-url=200 実体=200 本文に納品物あり
+
+## J23-03 自分のコメントだけ編集・削除できる (画面から実施)
+  PATCH /client/projects/7a161b63-e786-4d8f-9faa-5f47015e4834/comments/65fe2d6b-6045-4b06-b753-3b2b62c4af72 -> 404 {"detail":"対象のコメントが見つからないか、すでに取り消されています。"}
+  DELETE /client/projects/7a161b63-e786-4d8f-9faa-5f47015e4834/comments/65fe2d6b-6045-4b06-b753-3b2b62c4af72 -> 404 {"detail":"対象のコメントが見つからないか、すでに取り消されています。"}
+  S-L03: 「修正」2 個 / 「取り消す」2 個 (対象=["コメントを修正: 【クライアント R3】削除するコメント","コメントを修正: 【クライアント R3】要件定義 v1 の"]) / 画面から編集 PATCH=[200] → 表示が修正後=true / 画面から削除 DELETE=[204] → 画面から消えた=true / 社内の返信は表示=true だが編集導線あり=false
+  API 再取得: 自分の cc1 content 修正済=true cc2 残存=false / 他人 (社内返信) を PATCH=404 DELETE=404 本文不変=true / 監査=client.comment.delete,client.comment.update
+  => J23-03: PASS — S-L03 の自分のコメントに「修正」2 個・「取り消す」2 個が出る (GAP-267 の web 側が本番に反映済)。画面から修正 → PATCH 200 で表示も API 再取得も修正後の本文に、画面から取り消す → DELETE 204 で画面と API 一覧から消える。社内 (他人) の返信には操作導線が出ず、API 直でも PATCH 404 / DELETE 404 で拒否され本文は不変。監査 client.comment.delete,client.comment.update
+
+## J23-05 (再確認) 「開く」は動く。返信の並び順だけを確かめる
+  コメント欄の並び (上から): ["運営 · QA jR3 改名花子 / 2026/09/03 / 要件定義書 / 【社内 R3 返信】承知しました。絞込と","QA クライアント R3 / 2026/09/03 / 要件定義書 / 【クライアント R3・修正】要件定義 v1 の "]
+  API /client/.../comments の並び: ["運営:【社内 R3 返信】承知しました。絞込と並び","client:【クライアント R3・修正】要件定義 v1 "]
+  成果物の「開く」: ["要件定義書 を HTML で開く","納品書 を HTML で開く"]
+  => J23-05: FAIL — (ui4 の行を上書き・より正確に) 期待: 社内の返信が自分のコメントの下に出ている / 納品された最終版の成果物が閲覧できる。実測: **納品成果物は閲覧できる** — S-L03 に「要件定義書 を HTML で開く」「納品書 を HTML で開く」があり、押すと GET /client/projects/{pid}/outputs/{oid}/content-url 200 → 別タブで納品物の本文が開く (GAP-268 の web 側が本番に反映済)。**返信の位置は期待と逆** — 社内の返信「【社内 R3 返信】…」が自分のコメントの **上** に出る (画面の並び ["運営 · QA jR3 改名花子 / 2026/09/03 / 要件","QA クライアント R3 / 2026/09/03 / 要件定義書 "])。原因は API 側 services/client_signin/content.py の list_comments が "order by c.created_at desc" の平坦な一覧を返し、parent_comment_id を返さず画面もスレッド化しないため、返信が「自分のコメントの下」に置かれない。再現: クライアントがコメント → 社内が parent_comment_id つきで返信 → ポータル /portal を開く
+
+## J38-03 案件を削除する (案件設定 → 危険な操作)
+  危険な操作「危険な操作 / プロジェクト削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 / プロジェクトを削除」 確認「」 DELETE=204 遷移=/projects / アクティブ一覧に残存=false タブ=["すべて","進行中","アーカイブ","削除済み"] 削除済みタブ「ブプロジェクト / 新規プロジェクト / プロジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / 納品済 / QA jR3 案件 Orion / — / 工程 9 / 9 / 30 日後に完全に削除 / 復元する（残り 30 日） / 新規プロジェクトを作成 / クライアント」 カウントダウン=true / include_deleted: deleted_at=2026-09-03T10:46:34.351806Z GET 詳細=404 / 招待: revoked_at=null preview 前=200 後=401 発行済み券で GET /client/projects → 401
+  => J38-03: PASS — 案件設定の危険な操作から削除 (DELETE 204) → アクティブ一覧から消え「削除済み」タブに「ブプロジェクト / 新規プロジェクト / プロジェクトを検索 / すべて / 進行中 / アーカイブ / 削除済み / クライアント案件 / 納品済 / QA 」と 30 日のカウントダウンつきで出る (GAP-277 の web 側が本番に反映済)。API も deleted_at=2026-09-03T10:46:34.351806Z を記録し GET 詳細 404。クライアント招待は preview 200→401・発行済みの券で GET /client/projects 401 で無効化。監査 project.delete は復元後 (J38-04) のダッシュボードで確認
+
+## J38-04 猶予期間内に案件を復元する
+  削除済みタブの復元ボタン「QA jR3 案件 Orion を復元する（残り 30 日）」 UI 復元=[200] API 復元=null / GET 案件 → 200 deleted_at=null current_phase=delivery / タスク 2 件 (QA jR3 タスク A, QA jR3 タスク B (未完了)) 成果物 2 件 (requirements v1, delivery v1) コメント 3 件 / アクティブ一覧に復帰=true / activities=["project.restore","project.delete","client.comment.delete","client.comment.update","comment.create","project.flow.complete"] project.delete あり=true
+  => J38-04: PASS — 「削除済み」タブの「QA jR3 案件 Orion を復元する（残り 30 日）」で復元 (POST /projects/{id}/restore 200) → アクティブ一覧に戻り (deleted_at=null, current_phase=delivery)、タスク 2 件・成果物 2 件・コメント 3 件がそのまま残っている。J38-03 の監査 project.delete もダッシュボードの活動に出る=true
+
+## J36-07 ワークスペースを削除する (使い捨て WS2 / 案件 Vega)
+  GET /workspaces/a6e16efb-e72b-4c5d-9b3b-d15322cac49c -> 404 {"detail":"対象のワークスペースが見つかりません。"}
+  GET /projects?workspace_id=a6e16efb-e72b-4c5d-9b3b-d15322cac49c -> 200 {"data":[],"meta":{"next_cursor":null,"limit":20,"total_estimate":0}}
+  GET /projects/258fe7cc-fc5a-43e8-8e3a-c5c5f42eb7a5 -> 404 {"detail":"対象のプロジェクトが見つかりません。"}
+  GET /ai-employees?workspace_id=a6e16efb-e72b-4c5d-9b3b-d15322cac49c -> 200 {"data":[]}
+  対象「メインコンテンツへスキップ / ワークスペース · QA JR3 WS2 / プロジェクト / AI社員 / ナレッジ / テンプレート /」 危険ゾーン「ワークスペースの削除 / Danger Zone / ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 / ワークスペースを削除 / アカウント退会 / アカウント自体の退会とデータ削除は専用の手続きページで行います (削除対象データの確認と同意が必要なため」 DELETE=["204 /workspaces/a6e16efb-e72b-4c5d-9b3b-d15322cac49c"] 遷移=/projects
+  GET /workspaces に残存=false / GET /workspaces/{id} → 404 / include_deleted → 200 deleted_at=(取得不可) / 配下: GET /projects?workspace_id → 200 0 件, GET /projects/{Vega} → 404, GET /ai-employees?workspace_id → 200 0 名 / GET /projects?limit=20 に Vega=false 画面 /projects に Vega=false
+  => J36-07: PASS — WS 設定の退会タブに「ワークスペースの削除 / Danger Zone / ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 / ワークスペースを削除 / アカ」と 30 日保持の案内が出た上で削除 (DELETE 204) → GET /workspaces から消え、GET /workspaces/{id} は 404。配下へのアクセスも拒否され (GET /projects?workspace_id → 200 0 件 / GET /projects/{Vega} → 404 / GET /ai-employees?workspace_id → 200 0 名)、/projects?limit=20 にも画面の一覧にも Vega は出ない = GAP-273 の RLS helper が migration 改名 (t-d-99zt) で本番に効いている (R1 では配下が 200 で読めていた)。deleted_at は 削除後は 404 で API から直接読めない (削除の事実は 404 と配下拒否で確認)。監査 workspace.delete は WS 対象で利用者向け API に出ず未観測
+
+## J15-01 初回だけウェルカムのウォークスルーが出る (新規登録 → 3 ステップ → 完了 → 再読み込み)
+  登録後の着地 url=/t-uc-35?redirect=%2Fprojects ウォークスルー表示=true signup API=201 見出し=ようこそ Atelier へ / AI 社員と一緒にプロジェクトを進めるためのワークスペースです。 / 戻る / 次へ
+  ステップ=["ようこそ Atelier へ","ワークスペースを作成","プロジェクトを始める"] 完了ボタン=true 完了後 url=/projects localStorage={"atelier_walkthrough_done":"1"} / 再度 /t-uc-35 直開き→/t-uc-35 / /projects 再読み込み→/projects ウォークスルー再表示=false
+  => J15-01: PASS — 新規登録の直後に /t-uc-35 のウォークスルーが出て、3 ステップ ["ようこそ Atelier へ","ワークスペースを作成","プロジェクトを始める"] を「完了」まで進めると /projects へ戻る。完了状態が localStorage atelier_walkthrough_done=1 に記録され、以後 /t-uc-35 を直接開いても /t-uc-35 へ抜け、/projects を再読み込みしてもウォークスルーは出ない (GAP-262)
+
+## J10-07 空の名前でワークスペースを作ろうとする (WS 0 件の初回画面)
+  WS 入力欄=1 UI=["a=メインコンテンツへスキップ","button:button{アカウント: qa-jR3-20260903-3}=Q","input:text(例：ENGINE BASE)=","button:submit=ワークスペースを作成"]
+  GET /workspaces -> 200 {"data":[]}
+  送信ボタン disabled(送信前)=false 画面エラー=["ワークスペース名を入力してください。"] POST /workspaces=未送信 / GET /workspaces 件数=0
+  => J10-07: PASS — 名前を空のまま作成すると画面に日本語のエラー ["ワークスペース名を入力してください。"] が出て拒否される (GAP-263)。POST /workspaces は 送信されず、GET /workspaces も 0 件のままでワークスペースは増えない
+
+## CLEANUP 招待の失効 → 作成した案件/WS の削除 → アカウント 3 件の退会
+  DELETE /client-invitations/f3f424b1-812a-4596-839d-4c85049882a0 -> 405 {"detail":"Method Not Allowed"}
+  POST /client-invitations/f3f424b1-812a-4596-839d-4c85049882a0/revoke -> 200 {"data":{"id":"f3f424b1-812a-4596-839d-4c85049882a0","project_id":"7a161b63-e786-4d8f-9faa-5f47015e4834","email":"qa-jR3-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T10:30:21.654335Z","used_at":"2026-09-03T10:30:22.147427Z","revoked_at":"2026-09-03T10:49:05.55036
+  クライアント招待の失効 → 200 / revoked_at=2026-09-03T10:49:05.550368Z
+  失効後に招待リンクを使う → preview 401
+  share-link QA jR3 納品共有 2 失効 → 404
+  share-link QA jR3 納品共有 失効 → 404
+  案件 Orion 削除 → 204
+  案件 Sirius 削除 → 204
+  WS1 削除 → 204 (WS2 は J36-07 で削除済み)
+  退会 qa-jR3-20260903-1@example.com → 200 scheduled_purge_at=2026-10-03T10:49:09.403576Z
+    退会後のサインイン → 403 (403 = 退会手続き中で入れない)
+  退会 qa-jR3-20260903-2@example.com → 200 scheduled_purge_at=2026-10-03T10:49:10.665815Z
+    退会後のサインイン → 403 (403 = 退会手続き中で入れない)
+  退会 qa-jR3-20260903-3@example.com → 200 scheduled_purge_at=2026-10-03T10:49:11.884609Z
+    退会後のサインイン → 403 (403 = 退会手続き中で入れない)
+
+## G-14 追加確認 発行済みの成果物 共有リンク (公開 URL) は、案件削除 → WS 削除 → 退会のあとも生きているか
+  共有リンク発行 → 201 / 削除前の公開 GET → 200 本文に納品物=true
+  案件を削除 (204) 直後の公開 GET → 200 本文に納品物=true
+  WS も削除 (204) 後の公開 GET → 200 本文に納品物=true
+  退会 (200) 後の公開 GET → 410 本文に納品物=false
+  => 判定: 案件・WS・アカウントを消しても共有リンクが生きている=false
+
+## まとめ (担当 R3 / 18 行の再計測 — 本番 web = main 833fee5, API deploy #83)
+  PASS 14: J10-07 J15-01 J15-03 J15-05 J23-03 J30-05 J30-10 J30-15 J34-06 J36-01 J36-07 J38-03 J38-04 J38-06
+  FAIL 3 : J37-02 (GET /skills の応答に内部スキル名) / J23-05 (社内の返信が自分のコメントの上に出る) / J31-07 (API は 403 に直ったが S-B04 が閲覧者に「表示」と追加フォームを出す)
+  BLOCKED 1: J37-05 (組織図と Storage は確認できたが、チャットの画像は assistant メッセージが要る = Bridge / 場所=mac)
+  後片付け: クライアント招待 revoke 200 (以後 preview 401)、案件 Orion/Sirius と WS1 を DELETE 204、qa-jR3-20260903-{1,2,3}@example.com を退会 200 (以後サインイン 403)。
+           G-14 確認用に作った qa-jR3-20260903-4@example.com も同様に案件/WS 削除 + 退会済み。
+  正本に足すべき観点 (G-14): 成果物の公開共有リンクは、案件・ワークスペースを削除しても失効しない (410 になるのは退会時のみ)。
+  正本に足すべき観点 (画面間の不一致): 案件一覧カードの工程表記「工程 9 / 9」と、ダッシュボードの「工程 10/10 完了」で分母が食い違う。
