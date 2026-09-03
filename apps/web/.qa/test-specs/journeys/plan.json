@@ -4764,7 +4764,7 @@
       ],
       "action": "成果物が更新されるとクライアントにメールが届く",
       "steps": "1. 社内側で成果物の新版を作る",
-      "expected": "招待者に更新のメールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ client_notified_of_update が記録される",
+      "expected": "招待者に更新のメールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ output.client_notified_of_update が記録される",
       "status": "TODO",
       "evidence": "",
       "runnable_after": [

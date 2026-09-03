@@ -2764,7 +2764,7 @@ r(
     ["J21-02"],
     "成果物が更新されるとクライアントにメールが届く",
     "1. 社内側で成果物の新版を作る",
-    f"招待者に更新のメールが届く {MAIL}。監査ログ client_notified_of_update が記録される",
+    f"招待者に更新のメールが届く {MAIL}。監査ログ output.client_notified_of_update が記録される",
     "F-CUC03",
     order=548,
 )
