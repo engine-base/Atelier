@@ -86,6 +86,41 @@ describe("S-L03 ClientProjectViewContainer (T-UC-22)", () => {
       "権限がありません",
     );
   });
+
+  it("shows the API reason on 401 instead of a fixed session-expired text (GAP-252)", async () => {
+    const fetchProject = vi.fn(async () => {
+      throw new ClientPortalError(
+        "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。",
+        401,
+      );
+    });
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={fetchProject}
+      />,
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("取り消されています");
+    expect(alert).not.toHaveTextContent("セッションの有効期限");
+  });
+
+  it("falls back to the session-expired text when the 401 carries no reason", async () => {
+    const fetchProject = vi.fn(async () => {
+      throw new ClientPortalError("HTTP 401", 401);
+    });
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={fetchProject}
+      />,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "セッションの有効期限が切れました",
+    );
+  });
 });
 
 // --------------------------------------------------------------------------- //

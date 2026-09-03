@@ -167,12 +167,20 @@ export function ClientProjectViewContainer({
     );
   }
   if (status === 401) {
+    // GAP-252: 401 を全部「セッション切れ」にしない。招待の取り消し (再サインインでは直らない) は
+    // API の detail がその理由を言うので、それを出す。detail が無いときだけ従来文言
+    const detail =
+      query.error instanceof ClientPortalError &&
+      /[\u3040-\u30ff\u4e00-\u9fff]/.test(query.error.message)
+        ? query.error.message.trim()
+        : null;
     return (
       <p
         role="alert"
         className="mx-auto w-full max-w-[1100px] px-6 py-8 text-body-md text-error"
       >
-        セッションの有効期限が切れました。再度サインインしてください。
+        {detail ??
+          "セッションの有効期限が切れました。再度サインインしてください。"}
       </p>
     );
   }
