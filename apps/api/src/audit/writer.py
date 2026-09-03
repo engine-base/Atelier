@@ -22,6 +22,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
+
+def _json_default(value: object) -> str:
+    """GAP-257: before/after に datetime / UUID / Decimal が混ざっても audit を落とさない。
+
+    本番実走 (S-O01) で PATCH /cron-schedules {enabled:true} が 500 になった。update_schedule が
+    next_run_at (datetime) を after に入れ、json.dumps が TypeError → 業務 request ごと落ちていた
+    (writer の try/except は execute だけを囲んでいた)。
+    """
+    iso = getattr(value, "isoformat", None)
+    if callable(iso):
+        return str(iso())
+    return str(value)
+
+
 AUDIT_TABLE = "audit_logs"
 
 ActorType = Literal["ai", "user", "system", "anonymous"]
@@ -95,10 +109,14 @@ class AuditWriter:
             "target_type": event.target_type,
             "target_id": event.target_id,
             "before": (
-                json.dumps(event.before, ensure_ascii=False) if event.before is not None else None
+                json.dumps(event.before, ensure_ascii=False, default=_json_default)
+                if event.before is not None
+                else None
             ),
             "after": (
-                json.dumps(event.after, ensure_ascii=False) if event.after is not None else None
+                json.dumps(event.after, ensure_ascii=False, default=_json_default)
+                if event.after is not None
+                else None
             ),
             "ip_address": event.ip_address,
         }

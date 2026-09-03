@@ -70,6 +70,27 @@ class TestAuditWriter:
         assert ok is False
 
     @pytest.mark.asyncio
+    async def test_gap257_datetime_in_after_does_not_raise(self) -> None:
+        """GAP-257: after に datetime (cron の next_run_at) が入っても json.dumps で落ちない。
+        本番で PATCH /cron-schedules {enabled:true} が 500 になっていた。"""
+        from datetime import UTC, datetime
+
+        session = MagicMock(spec=AsyncSession)
+        session.execute = AsyncMock()
+        writer = AuditWriter(session)
+        when = datetime(2026, 9, 3, 1, 46, tzinfo=UTC)
+        ok = await writer.write(
+            AuditEvent(
+                action="cron_schedule.update",
+                target_type="cron_schedule",
+                after={"enabled": True, "next_run_at": when},
+            )
+        )
+        assert ok is True
+        params = session.execute.await_args.args[1]
+        assert "2026-09-03T01:46:00+00:00" in params["after"]
+
+    @pytest.mark.asyncio
     async def test_write_serializes_before_after_as_json(self) -> None:
         session = MagicMock(spec=AsyncSession)
         session.execute = AsyncMock()
