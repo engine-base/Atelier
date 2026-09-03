@@ -1,0 +1,61 @@
+== setup ==
+02:37:05
+signup 201
+WS=94662381-464a-40db-b543-cc4b74887ef3 P1=20af3e6e-0f02-4316-a040-db8e8135ebe6 P2=ce8eb343-e1f2-4df2-aa86-a4802c586741
+
+##### SL03-212: 削除済み案件の招待リンクでは preview も signin も 401・案件名なし #####
+  DELETE /projects/P2: 204
+  preview: http 401 | 案件名ZULUを含む: 0 | 券発行: 0 | body: {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  signin: http 401 | 案件名ZULUを含む: 0 | 券発行: 0 | body: {"detail":"リンクが正しくないか、有効期限が切れています。"}
+
+##### SL02-207 (API): 取り消した招待の preview / signin は「取り消され」と分かる #####
+  失効前 overview: 200
+  revoke: 200
+  preview: http 401 | {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください
+  signin: http 401 | {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください
+##### SL03-210 (API): 失効直後、配布済みの券で overview → 401 + 理由 #####
+  overview: http 401 | {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください
+
+##### SG01-217: 表の保存に基底版 → 古い版で保存すると 409 #####
+  import: {"data":{"results":[{"file_name":"qa-remeasure.csv","type":"file","title":"qa-remeasure.csv","stage":"delivery","version":1,"target_id":"7eed4e76-3e19-46de-9247
+  output=7eed4e76-3e19-46de-9247-8f0f10b450bd
+  GET sheet version=1
+  タブ1 保存 (base=1): http 201 -> v 2
+  タブ2 保存 (同じ古い base=1): http 409 | {"detail":"この成果物は他のメンバーが先に新しい版を保存しました。最新の版を開き直し、差分を確認し   期待 409
+
+##### SH01-212 / SH01-215 / SG01-221(API): 確定済みフェーズのモックは revise も discard も 409 で理由 #####
+  mock=a20fb2e2-5652-4834-9a3b-6424fb89010a
+  freeze PH1: 200
+  revise: http 409 | {"detail":"確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行�   期待 409 確定済み
+  discard: http 409 | {"detail":"確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行�   期待 409 確定済み
+  revise/stream 先頭イベント: data: {"error": {"code": "phase_frozen", "message": "「フェーズ1」は確定済みのため変更できません。追加・修正は現在のフェーズで行ってください"}}  
+
+##### SO01-406 / SO01-407: run-now が落ちない + 履歴 / 有効化トグル #####
+  run-now: http 200 | {"data":{"status":"done","message":"実行しました。","detail":{"proposed":"0"}}}
+  cron-runs: 1 rows [('success', 'qa-remeasure-runnow')]
+  PATCH enabled=true: http 200 next_run_at=2026-09-03T18:00:00Z
+  PATCH enabled=false: http 200 next_run_at=None
+##### SO01-408: 毎分の予定を有効化して発火を待つ (後で観測) #####
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/python3.11/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/json/decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+  created: {'id': 'ae1fb79b-f47d-4a8d-8b23-2a3af924... next_run_at= at 02:37:32
+SL02-207 {"alerts":["この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"],"token_input_type":"password","raw_token_visible_in_text":false}
+SL03-210 {"alerts":["この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"],"has_session_expired":false}
+signin {"url":"/projects"}
+SO01-405 {"alerts":["入力内容を確認してください: cron 式は「分 時 日 月 曜日」の 5 項目で指定してください (受け取り: '3 * * *')"]}
+SH01-212 {"discard_button_found":1,"alerts":["確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。","モック本体の取得に失敗しました。"]}
+SG01-221-prep {"api_new_version_http":409,"base":1}
+SG01-221 {"cell_found":1,"alerts":["この成果物は他のメンバーが先に新しい版を保存しました。最新の版を開き直し、差分を確認してから保存し直してください。"]}
