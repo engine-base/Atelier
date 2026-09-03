@@ -47,6 +47,9 @@ class ProjectResponse(BaseModel):
     # GAP-017: プロジェクト跨ぎナレッジ参照 (false で RAG/検索を自プロジェクト+共通に限定)
     cross_project_knowledge: bool
     current_phase: str
+    #: GAP-322: 呼び出し元のこの案件での役割 (owner / member / viewer)。
+    #: 画面はこれを見て閲覧者に編集操作を出さない。所属が無ければ null。
+    my_role: str | None = None
     deleted_at: datetime | None
     created_at: datetime
     updated_at: datetime

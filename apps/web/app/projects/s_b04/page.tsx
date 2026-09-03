@@ -23,6 +23,9 @@ function SB04Inner() {
   const projectId = params.get('project') ?? '';
 
   const [rows, setRows] = useState<CredentialRow[]>([]);
+  // GAP-322 (通し J31-07 再測): 閲覧者 (viewer) に「表示」「保存」「削除」を出さない。
+  // API は 403 で守っているが、押せてしまうと理由が分からないまま失敗する。
+  const [myRole, setMyRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +41,14 @@ function SB04Inner() {
     setError(null);
     try {
       const res = await api.getJson<CredentialRow[]>(base);
+      try {
+        const proj = await api.getJson<{ my_role?: string | null }>(
+          `/projects/${projectId}`,
+        );
+        setMyRole(proj.data?.my_role ?? null);
+      } catch {
+        setMyRole(null); // 役割が取れないときは既定 (表示する) — 実操作は API が 403 で守る
+      }
       setRows(res.data);
     } catch (e) {
       if (e instanceof api.ApiError && e.status === 401) {
@@ -99,9 +110,20 @@ function SB04Inner() {
         </p>
       </div>
 
-      <div className="mb-6">
-        <CredentialForm onSubmit={onCreate} />
-      </div>
+      {myRole === 'viewer' ? (
+        <p
+          role="status"
+          className="mb-6 rounded-lg border border-border bg-surface-variant p-4 text-sm text-on-surface-variant"
+        >
+          あなたはこのワークスペースの<strong className="font-bold">閲覧者</strong>です。
+          シークレットの追加・表示・削除はできません（値は表示されません）。
+          必要な場合はワークスペースの所有者に依頼してください。
+        </p>
+      ) : (
+        <div className="mb-6">
+          <CredentialForm onSubmit={onCreate} />
+        </div>
+      )}
 
       <section className="rounded-lg border border-border bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
@@ -119,7 +141,12 @@ function SB04Inner() {
         ) : loading ? (
           <p className="py-12 text-center text-on-surface-variant">読み込み中…</p>
         ) : (
-          <CredentialList rows={rows} onReveal={onReveal} onDelete={onDelete} />
+          <CredentialList
+            rows={rows}
+            {...(myRole === 'viewer'
+              ? {}
+              : { onReveal, onDelete })}
+          />
         )}
 
         <p className="mt-4 flex items-center gap-1.5 text-sm text-on-surface-variant">

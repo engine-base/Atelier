@@ -20,6 +20,41 @@ from tests.routes.test_tasks import _h, app, seeded, sync_engine  # noqa: F401
 pytestmark = pytest.mark.integration
 
 
+def test_gap322_project_reports_my_role_so_the_screen_can_hide_write_actions(
+    app: FastAPI, sync_engine: sqlalchemy.Engine, seeded: dict[str, str]
+) -> None:
+    """GAP-322 (通し J31-07 再測): 案件は呼び出し元の役割 (my_role) を返す。
+
+    画面 (S-B04 等) はこれを見て閲覧者に「表示」「保存」を出さない。
+    無いと、押して 403 になるまで分からない。
+    """
+    with sync_engine.begin() as c:
+        c.execute(
+            text(
+                "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                "values (cast(:w as uuid), cast(:u as uuid), 'viewer') on conflict do nothing"
+            ),
+            {"w": seeded["ws_a"], "u": seeded["u_b"]},
+        )
+    try:
+        with TestClient(app) as client:
+            owner = client.get(f"/projects/{seeded['proj_a']}", headers=_h(seeded["u_a"]))
+            assert owner.status_code == 200, owner.text
+            assert owner.json()["data"]["my_role"] == "owner"
+            viewer = client.get(f"/projects/{seeded['proj_a']}", headers=_h(seeded["u_b"]))
+            assert viewer.status_code == 200, viewer.text
+            assert viewer.json()["data"]["my_role"] == "viewer"
+    finally:
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "delete from public.workspace_memberships where workspace_id = cast(:w as uuid) "
+                    "and user_id = cast(:u as uuid)"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
+
+
 def test_gap278_viewer_gets_403_even_when_vault_key_is_missing(
     app: FastAPI,
     sync_engine: sqlalchemy.Engine,

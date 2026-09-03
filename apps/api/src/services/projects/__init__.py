@@ -70,6 +70,11 @@ _VALID_PHASES = {
 
 _SELECT_COLS = (
     "p.id, p.workspace_id, p.name, p.client_name, p.project_type, p.status, p.ai_training_optout, "
+    # GAP-322 (通し J31-07 再測): 画面が「自分は閲覧者か」を判断できるようにする。
+    # これが無いと、閲覧者にも編集・表示のボタンを出してしまい、押して 403 で
+    # 初めて分かる (何が悪いのかも伝わらない)。
+    "(select m.role::text from public.workspace_memberships m "
+    " where m.workspace_id = p.workspace_id and m.user_id = auth.uid()) as my_role, "
     "p.settings ->> 'description' AS description, "
     "coalesce((p.settings ->> 'cross_project_knowledge')::boolean, true) AS cross_project_knowledge, "
     "p.created_at, p.updated_at, p.deleted_at, "
@@ -124,6 +129,7 @@ def _row_to_response(row: Any) -> ProjectResponse:
         ai_learning_opt_out=bool(row.ai_training_optout),
         cross_project_knowledge=bool(row.cross_project_knowledge),
         current_phase=phase if phase in _VALID_PHASES else "hearing",
+        my_role=(None if getattr(row, "my_role", None) is None else str(row.my_role)),
         deleted_at=row.deleted_at,
         created_at=row.created_at,
         updated_at=row.updated_at,

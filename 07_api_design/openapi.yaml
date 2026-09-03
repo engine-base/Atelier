@@ -418,6 +418,7 @@ components:
         ai_learning_opt_out: { type: boolean }
         # GAP-017: プロジェクト跨ぎナレッジ参照 (既定 true)
         cross_project_knowledge: { type: boolean }
+        my_role: { type: string, nullable: true, enum: [owner, member, viewer, null], description: "呼び出し元のこの案件での役割 (GAP-322)。画面は閲覧者に編集操作を出さない" }
         current_phase:
           type: string
           enum: [hearing, requirements, architecture, design, breakdown, tasks, implementation, verification, delivery]

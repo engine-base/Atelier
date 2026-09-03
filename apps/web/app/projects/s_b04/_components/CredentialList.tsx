@@ -40,8 +40,9 @@ const KIND_LABEL: Record<string, string> = {
 
 interface CredentialListProps {
   readonly rows: readonly CredentialRow[];
-  readonly onReveal: (id: string, password?: string) => Promise<string>;
-  readonly onDelete: (id: string) => void;
+  /** GAP-322: 閲覧者 (viewer) には渡さない = 「表示」「削除」を出さない。 */
+  readonly onReveal?: (id: string, password?: string) => Promise<string>;
+  readonly onDelete?: (id: string) => void;
 }
 
 export function CredentialList({
@@ -64,7 +65,7 @@ export function CredentialList({
     setPwError(null);
     try {
       const value =
-        password === undefined ? await onReveal(id) : await onReveal(id, password);
+        password === undefined ? await onReveal!(id) : await onReveal!(id, password);
       setRevealed((p) => ({ ...p, [id]: value }));
       setPwPromptId(null);
       setPw("");
@@ -153,7 +154,10 @@ export function CredentialList({
                   {dateLabel(r.created_at)}
                 </td>
                 <td className={`${tdClass} whitespace-nowrap text-right`}>
-                  {shown ? (
+                  {/* GAP-322: 閲覧者 (onReveal / onDelete 無し) には操作を出さない */}
+                  {!onReveal && !onDelete ? (
+                    <span className="text-sm text-on-surface-variant">閲覧のみ</span>
+                  ) : shown ? (
                     <>
                       <button
                         type="button"
@@ -227,13 +231,13 @@ export function CredentialList({
                       {busy === r.id ? "復号中…" : "表示"}
                     </button>
                   )}
-                  {confirming === r.id ? (
+                  {!onDelete ? null : confirming === r.id ? (
                     <span className="inline-flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => {
                           setConfirming(null);
-                          onDelete(r.id);
+                          onDelete?.(r.id);
                         }}
                         className={cn(ghostBtn, "font-semibold text-error")}
                       >

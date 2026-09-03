@@ -19283,6 +19283,11 @@ export interface components {
             status?: "in_progress" | "draft" | "paused" | "archived";
             ai_learning_opt_out?: boolean;
             cross_project_knowledge?: boolean;
+            /**
+             * @description 呼び出し元のこの案件での役割 (GAP-322)。画面は閲覧者に編集操作を出さない
+             * @enum {string|null}
+             */
+            my_role?: "owner" | "member" | "viewer" | null;
             /** @enum {string} */
             current_phase?: "hearing" | "requirements" | "architecture" | "design" | "breakdown" | "tasks" | "implementation" | "verification" | "delivery";
             /** Format: date-time */

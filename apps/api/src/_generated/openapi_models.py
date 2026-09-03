@@ -327,6 +327,23 @@ class Status(StrEnum):
     archived = "archived"
 
 
+class MyRoleEnum(StrEnum):
+    """
+    呼び出し元のこの案件での役割 (GAP-322)。画面は閲覧者に編集操作を出さない
+    """
+
+    owner = "owner"
+    member = "member"
+    viewer = "viewer"
+
+
+class MyRole(RootModel[MyRoleEnum | None]):
+    root: MyRoleEnum | None = None
+    """
+    呼び出し元のこの案件での役割 (GAP-322)。画面は閲覧者に編集操作を出さない
+    """
+
+
 class CurrentPhase(StrEnum):
     hearing = "hearing"
     requirements = "requirements"
@@ -349,6 +366,10 @@ class Project(BaseModel):
     status: Status | None = None
     ai_learning_opt_out: bool | None = None
     cross_project_knowledge: bool | None = None
+    my_role: MyRole | None = None
+    """
+    呼び出し元のこの案件での役割 (GAP-322)。画面は閲覧者に編集操作を出さない
+    """
     current_phase: CurrentPhase | None = None
     deleted_at: AwareDatetime | None = None
     created_at: AwareDatetime | None = None
