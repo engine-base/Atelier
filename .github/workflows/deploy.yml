@@ -67,8 +67,12 @@ jobs:
     env:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # ADR-021: environment=staging なら STAGING_* の secrets を使う (手順は同じ = 本番と同じコードで作る)
+      # 注意: `cond && A || B` は A が空だと B (= 本番) に落ちる。staging の secrets 未登録で本番へ流れる事故を
+      # 防ぐため、staging 用は別の env に取り、Verify で「staging なのに空」を fail にする (下)。
       FLY_APP_NAME: ${{ inputs.app || (inputs.environment == 'staging' && secrets.STAGING_FLY_APP_NAME || secrets.FLY_APP_NAME) }}
       PROD_DATABASE_URL: ${{ inputs.environment == 'staging' && secrets.STAGING_DATABASE_URL || secrets.PROD_DATABASE_URL }}
+      STAGING_FLY_APP_NAME: ${{ secrets.STAGING_FLY_APP_NAME }}
+      STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
       SKIP_MIGRATIONS: ${{ inputs.skip_migrations }}
     steps:
@@ -77,6 +81,17 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
       - name: Verify required secrets
         run: |
+          if [ "$DEPLOY_ENVIRONMENT" = "staging" ]; then
+            # staging の secrets が無いと上の式は本番の値に落ちる。ここで止める (本番へ誤デプロイしない)
+            if [ -z "$STAGING_FLY_APP_NAME" ] || [ -z "$STAGING_DATABASE_URL" ]; then
+              echo "::error::environment=staging but STAGING_FLY_APP_NAME / STAGING_DATABASE_URL are not set (scripts/staging-bootstrap.sh を先に実行)"
+              exit 1
+            fi
+            if [ -z "${{ inputs.app }}" ] && [ "$FLY_APP_NAME" != "$STAGING_FLY_APP_NAME" ]; then
+              echo "::error::environment=staging resolved to app=$FLY_APP_NAME (not staging). refusing"
+              exit 1
+            fi
+          fi
           if [ -z "$FLY_API_TOKEN" ]; then
             echo "::error::FLY_API_TOKEN secret is not set"
             exit 1
