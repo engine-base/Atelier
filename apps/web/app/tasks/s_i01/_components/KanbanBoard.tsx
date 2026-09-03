@@ -64,6 +64,8 @@ export type BoardGrouping = "none" | "category" | "assignee" | "phase";
 export interface KanbanBoardProps {
   readonly tasks: readonly TaskCard[];
   readonly onPlay?: (taskId: string) => void;
+  /** GAP-304: 選択した準備中タスクを一括で着手可にする (POST /tasks/bulk/lifecycle)。 */
+  readonly onReadySelected?: (taskIds: readonly string[]) => void;
   /** 選択した着手可タスクの一括再生 (モックの「選択を再生する」)。 */
   readonly onPlaySelected?: (taskIds: readonly string[]) => void;
   /** 要対応カードの再試行 (POST /tasks/{id}/retry)。 */
@@ -135,7 +137,9 @@ function TaskCardItem({
   readonly selected: boolean;
   readonly onToggleSelect?: (taskId: string) => void;
 }) {
-  const selectable = task.stage === "ready" && Boolean(onToggleSelect);
+  // GAP-304 (通し J48-21): 準備中カードも選択して一括で「着手可にする」
+  const selectable =
+    (task.stage === "ready" || task.stage === "backlog") && Boolean(onToggleSelect);
   const canPlay =
     Boolean(onPlay) && (task.stage === "ready" || task.stage === "blocked");
   return (
@@ -305,6 +309,7 @@ export function KanbanBoard({
   tasks,
   onPlay,
   onPlaySelected,
+  onReadySelected,
   onRetry,
   onReady,
   onAddTask,
@@ -339,6 +344,9 @@ export function KanbanBoard({
   const selected = tasks.filter(
     (t) => selectedIds.has(t.id) && t.stage === "ready",
   );
+  const selectedBacklog = tasks.filter(
+    (t) => selectedIds.has(t.id) && t.stage === "backlog",
+  );
   const selectedHours = selected.reduce(
     (sum, t) => sum + (t.estimatedHours ?? 0),
     0,
@@ -356,6 +364,29 @@ export function KanbanBoard({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* GAP-304: 準備中の選択バー — 一括で着手可にする */}
+      {selectedBacklog.length > 0 && onReadySelected ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface-variant px-4 py-3">
+          <p className="min-w-0 flex-1 text-[13px] font-bold text-on-surface">
+            準備中のタスク {selectedBacklog.length} 件を選択中
+          </p>
+          <button
+            type="button"
+            disabled={playing}
+            onClick={() => {
+              onReadySelected(selectedBacklog.map((t) => t.id));
+              setSelectedIds(new Set());
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary-container px-4 py-2 text-[13px] font-bold text-on-primary-container hover:bg-primary hover:text-on-primary disabled:opacity-50"
+          >
+            <Play aria-hidden="true" className="h-3.5 w-3.5" />
+            着手可にする
+            <span className="rounded-full bg-white/40 px-1.5 text-[11px] tabular-nums">
+              {selectedBacklog.length}
+            </span>
+          </button>
+        </div>
+      ) : null}
       {/* 選択バー (モック .selection-bar) — 選択があるときのみ */}
       {selected.length > 0 && onPlaySelected ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary bg-primary-container/50 px-4 py-3">

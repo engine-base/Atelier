@@ -183,6 +183,14 @@ export function TaskBoardContainer({
   // 準備中 (triage) → 着手可 (ready)。e2e 通しで検出した UI 断線の是正:
   // 人が作ったタスクは triage で生まれるが、ready へ進める UI が無く
   // 再生 (dispatch) に永遠に到達できなかった。PATCH /tasks/{id} は実在。
+  // GAP-304: 準備中 → 着手可 を一括で (API bulk/lifecycle)
+  const readySelectedMut = useMutation({
+    mutationFn: (taskIds: readonly string[]) =>
+      client.post("/tasks/bulk/lifecycle", {
+        body: { task_ids: [...taskIds], target_stage: "ready" },
+      }),
+    onSettled: invalidate,
+  });
   const readyMut = useMutation({
     mutationFn: (taskId: string) =>
       client.patch("/tasks/{task_id}", {
@@ -290,6 +298,7 @@ export function TaskBoardContainer({
         onPlaySelected={(ids) => playSelectedMut.mutate(ids)}
         onRetry={(id) => retryMut.mutate(id)}
         onReady={(id) => readyMut.mutate(id)}
+        onReadySelected={(ids) => readySelectedMut.mutate(ids)}
         onAddTask={() => setAdding(true)}
         playing={playSelectedMut.isPending || playMut.isPending}
       />

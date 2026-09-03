@@ -65,6 +65,30 @@ describe('KanbanBoard (T-UC-14)', () => {
   });
 });
 
+describe('KanbanBoard 一括で着手可にする (GAP-304 / 通し J48-21)', () => {
+  it('準備中カードも選択でき、選択バーの「着手可にする」が onReadySelected に選択 ID を渡す', () => {
+    const onReadySelected = vi.fn();
+    const onPlaySelected = vi.fn();
+    render(
+      <KanbanBoard
+        tasks={[
+          { id: 'b1', title: 'B1', stage: 'backlog' },
+          { id: 'b2', title: 'B2', stage: 'backlog' },
+          { id: 'r1', title: 'R1', stage: 'ready' },
+        ]}
+        onReadySelected={onReadySelected}
+        onPlaySelected={onPlaySelected}
+      />,
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'B1 を選択' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'B2 を選択' }));
+    expect(screen.getByText('準備中のタスク 2 件を選択中')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /着手可にする 2/ }));
+    expect(onReadySelected).toHaveBeenCalledWith(['b1', 'b2']);
+    expect(onPlaySelected).not.toHaveBeenCalled();
+  });
+});
+
 describe('KanbanBoard onReady (e2e 通し是正)', () => {
   it('shows 着手可にする only on backlog cards and fires onReady', () => {
     const onReady = vi.fn();
