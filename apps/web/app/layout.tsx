@@ -4,6 +4,7 @@ import { Noto_Sans_JP } from "next/font/google";
 
 import { ConditionalAppShell } from "../components/layout/ConditionalAppShell";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import { GlobalErrorReporter } from "../components/GlobalErrorReporter";
 import "./globals.css";
 
 /** GAP-204: 権利者表示。契約主体と一致させること。 */
@@ -54,6 +55,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
         {/* GAP-182: 画面が壊れたら自前のエラーログに記録する (外部 SaaS へは送らない)。
             以前は ErrorBoundary がどこからも使われておらず、白画面が誰にも届かなかった。 */}
         <ErrorBoundary>
+          {/* GAP-297: 描画エラー以外 (イベント / 非同期 / 未処理の Promise) も記録する */}
+          <GlobalErrorReporter />
           <ConditionalAppShell>{children}</ConditionalAppShell>
         </ErrorBoundary>
       </body>
