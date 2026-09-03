@@ -78,6 +78,21 @@ function SE01Inner() {
       ),
     [employeesQuery.data, thread?.ai_employee_id],
   );
+  // GAP-276 (通し J37-05): アップロード画像 (storage path) は署名 URL を引いて描画する
+  const employeeIconPath =
+    employee?.icon && employee.icon.includes("/") ? employee.icon : null;
+  const iconUrlQuery = useQuery({
+    queryKey: ["ai-employee-icon-url", employee?.id ?? "", employeeIconPath ?? ""],
+    enabled: Boolean(employee?.id && employeeIconPath),
+    queryFn: async () =>
+      (
+        await api.getJson<{ url: string }>(
+          `/ai-employees/${employee?.id ?? ""}/icon-url`,
+        )
+      ).data.url,
+    retry: false,
+    staleTime: 10 * 60 * 1000,
+  });
 
   const phasesQuery = useQuery({
     queryKey: ["chat-phases", projectId ?? "none"],
@@ -225,6 +240,7 @@ function SE01Inner() {
                     ? {
                         name: employeeName(employee) ?? "AI 社員",
                         color: employeeColor(employee),
+                        ...(iconUrlQuery.data ? { iconSrc: iconUrlQuery.data } : {}),
                       }
                     : undefined
                 }

@@ -43,6 +43,8 @@ export interface OrgNode {
   readonly skills?: readonly string[];
   /** ai_employees.icon (S-C02 で選んだ lucide 名)。頭文字の代わりに描画。 */
   readonly iconName?: string;
+  /** GAP-276: アップロード画像の署名 URL。あれば画像を描画。 */
+  readonly iconSrc?: string;
 }
 
 export interface OrgChartProps {
@@ -122,7 +124,8 @@ function EmployeeCard({ node, tone, size = "md", onSelect }: EmployeeCardProps) 
       <EmployeeIcon
         employeeId={node.id}
         size={size}
-        {...(node.iconName ? { iconName: node.iconName } : {})}
+        {...(node.iconSrc ? { src: node.iconSrc } : {})}
+        {...(node.iconName && !node.iconSrc ? { iconName: node.iconName } : {})}
       />
       <span className={cn("text-[15px] font-bold leading-tight", t.name)}>
         {node.displayName}

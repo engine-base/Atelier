@@ -134,7 +134,9 @@ function richGet() {
   return vi.fn(async (path: string) => {
     if (path === "/ai-employees/{employee_id}") return { data: RICH_EMP };
     if (path === "/skills")
-      return { data: [{ id: "s1", name: "sales-email" }] };
+      return {
+        data: [{ id: "s1", name: "sales-email", description: "営業メールの下書きを書く" }],
+      };
     if (path === "/ai-employees")
       return {
         data: [
@@ -168,7 +170,9 @@ describe("S-C02 v2: 実データ表示 + アイコンピッカー", () => {
     );
     await screen.findByLabelText(/表示名/);
     // できること: uuid ではなく実スキル名
-    expect(screen.getByText("sales-email")).toBeInTheDocument();
+    // GAP-274 (R-T06): 「できること」は説明文だけ。スキル名 (内部識別子) は出さない
+    expect(screen.getByText("営業メールの下書きを書く")).toBeInTheDocument();
+    expect(screen.queryByText("sales-email")).not.toBeInTheDocument();
     // 担当範囲: 表示ラベル + 組織関係の実算出
     expect(screen.getByText("営業・契約部")).toBeInTheDocument();
     expect(screen.getAllByText("部長").length).toBeGreaterThan(0); // ヘッダバッジ + 担当範囲

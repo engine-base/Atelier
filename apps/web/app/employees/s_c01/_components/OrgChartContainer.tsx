@@ -14,7 +14,7 @@
 import * as React from "react";
 import { Loading } from "../../../../components/Loading";
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
@@ -129,6 +129,28 @@ export function OrgChartContainer({
     retry: false,
   });
 
+  // GAP-276: icon が storage path (「/」を含む) の社員だけ icon-url を引く (react-query でキャッシュ)
+  const imageEmployees = (list.data ?? []).filter((e) => e.icon && e.icon.includes("/"));
+  const iconQueries = useQueries({
+    queries: imageEmployees.map((e) => ({
+      queryKey: ["ai-employee-icon-url", e.id, e.icon ?? ""],
+      queryFn: async () => {
+        const res = await client.get("/ai-employees/{employee_id}/icon-url", {
+          params: { path: { employee_id: e.id } },
+        });
+        const data = (res as { data?: { url?: string } }).data;
+        return data?.url ?? null;
+      },
+      retry: false,
+      staleTime: 10 * 60 * 1000,
+    })),
+  });
+  const iconSrcById = new Map<string, string>();
+  imageEmployees.forEach((e, idx) => {
+    const url = iconQueries[idx]?.data;
+    if (url) iconSrcById.set(e.id, url);
+  });
+
   if (isForbidden(list.error)) {
     return (
       <p role="alert" className="text-body-md text-error">
@@ -182,6 +204,8 @@ export function OrgChartContainer({
       ...(skillsQuery.data !== undefined ? { skills } : {}),
       ...(e.tone_preset ? { tonePreset: e.tone_preset } : {}),
       ...(e.icon ? { iconName: e.icon } : {}),
+      // GAP-276 (通し J37-05): アップロード画像 (storage path) は署名 URL で描画する
+      ...(iconSrcById.get(e.id) ? { iconSrc: iconSrcById.get(e.id) } : {}),
     };
   });
 

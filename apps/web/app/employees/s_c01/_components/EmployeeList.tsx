@@ -67,7 +67,8 @@ export function EmployeeList({ rows, onSelect }: EmployeeListProps) {
                     <EmployeeIcon
                       employeeId={r.id}
                       size="sm"
-                      {...(r.iconName ? { iconName: r.iconName } : {})}
+                      {...(r.iconSrc ? { src: r.iconSrc } : {})}
+                      {...(r.iconName && !r.iconSrc ? { iconName: r.iconName } : {})}
                     />
                   ) : null}
                   <span>

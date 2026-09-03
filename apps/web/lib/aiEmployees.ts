@@ -26,6 +26,8 @@ export interface EmployeeLike {
   readonly display_name?: string;
   readonly role?: string;
   readonly department?: string;
+  /** ai_employees.icon (lucide 名 or アップロード画像の storage path)。 */
+  readonly icon?: string | null;
 }
 
 export function employeeName(e: EmployeeLike | undefined): string | undefined {
