@@ -64,6 +64,8 @@ export interface ChatMessage {
 export interface ChatEmployeeInfo {
   readonly name: string;
   readonly color: string;
+  /** GAP-276: アップロード画像の署名 URL (あれば頭文字の代わりに描画)。 */
+  readonly iconSrc?: string;
 }
 
 export interface MentionCandidate {
@@ -93,6 +95,8 @@ function formatWait(seconds: number): string {
 export interface ChatPanelProps {
   readonly messages: readonly ChatMessage[];
   readonly onSend: (text: string) => void;
+  /** GAP-294: 送れなかった本文 (Bridge 未接続) を入力欄に戻す。 */
+  readonly restoreDraft?: string | null;
   readonly disabled?: boolean;
   /** 対話相手の AI 社員 (アバター/名前/placeholder 用)。 */
   readonly employee?: ChatEmployeeInfo;
@@ -452,13 +456,24 @@ function MessageRow({
   const name = employee?.name ?? "AI 社員";
   return (
     <li className="flex w-full max-w-[760px] gap-3">
-      <span
-        aria-hidden="true"
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
-        style={{ backgroundColor: employee?.color ?? colors.primary }}
-      >
-        {name.charAt(0)}
-      </span>
+      {employee?.iconSrc ? (
+        // GAP-276 (通し J37-05): アップロードしたアイコン画像をチャットでも出す
+        // eslint-disable-next-line @next/next/no-img-element -- 署名付き外部 URL (最適化対象外)
+        <img
+          src={employee.iconSrc}
+          alt=""
+          aria-hidden="true"
+          className="h-8 w-8 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
+          style={{ backgroundColor: employee?.color ?? colors.primary }}
+        >
+          {name.charAt(0)}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2">
           <span className="text-[12.5px] font-bold text-on-surface">{name}</span>
@@ -565,6 +580,7 @@ export function ChatPanel({
   savedArtifacts,
   pcApprovals,
   onPcApprovalDecision,
+  restoreDraft,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
 
@@ -635,6 +651,11 @@ export function ChatPanel({
     onSend(v);
     setInput("");
   };
+
+  // GAP-294 (通し J43-03): Bridge 未接続で送れなかった本文を入力欄に戻す
+  useEffect(() => {
+    if (restoreDraft) setInput((cur) => (cur.trim() ? cur : restoreDraft));
+  }, [restoreDraft]);
 
   const placeholder = employee
     ? `${employee.name}にメッセージ… · @ で他のAI社員をメンション`

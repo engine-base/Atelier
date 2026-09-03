@@ -786,50 +786,6 @@ async def stream_chat(
         attachments=attachments,
     )
 
-    user_msg_id = await _insert_message(
-        session,
-        thread_id=thread_id,
-        role="user",
-        content=user_message,
-        attachments=attachments,
-    )
-    await AuditWriter(session).write(
-        AuditEvent(
-            action="chat.message.create",
-            target_type="chat_message",
-            actor_type="user",
-            actor_id=actor_id,
-            target_id=user_msg_id,
-            after={"thread_id": thread_id, "role": "user"},
-        )
-    )
-
-    yield _sse_event(
-        {
-            "type": "context",
-            "metadata": {
-                "history_count": len(history),
-                "rag_hit_ids": rag_ids,
-                "user_message_id": user_msg_id,
-            },
-        }
-    )
-    yield _sse_event({"type": "start"})
-
-    # GAP-201: **ここで確定して DB 接続をいったん手放す**。
-    #
-    # この先は本人の PC (Bridge) の実行待ちで、長いと数分かかる。以前はその間
-    # ずっとリクエストの DB 接続を握ったままだったので、「同時に喋れる人数 =
-    # DB 接続の本数」になっていた (GAP-198 で実測)。
-    #
-    # commit すると接続はプールへ返り、次に SQL を投げた時に取り直される。
-    # role / claims は transaction-local なので普通なら消えるが、GAP-201 で
-    # `after_begin` に貼り直しを仕込んだので RLS は効いたまま。
-    #
-    # 副産物として **ユーザーの発言がこの時点で確定する** — 生成に失敗しても
-    # 「送ったのに消えた」が起きない。
-    await session.commit()
-
     # GAP-113: ATELIER_LLM_PROVIDER=agent_sdk でオーナーの Claude サブスク
     # (Agent SDK 認証) 経路に切替 (セルフホスト個人インスタンス専用 opt-in)。
     # GAP-114: 同 =relay で各ユーザー PC の Bridge (= 本人のプラン) へ中継。
@@ -892,6 +848,55 @@ async def stream_chat(
             }
         )
         return
+
+    # GAP-294 (通し J43-03): 実行経路が無いときは **発言を保存しない**。
+    # 以前はここより前に保存していたため、Bridge 未接続で送った文章が「送ったのに
+    # 応答が無い」メッセージとして残り、入力欄も空になって再送できなかった。
+    # 画面は bridge_offline を受けたら本文を入力欄に戻す。
+    user_msg_id = await _insert_message(
+        session,
+        thread_id=thread_id,
+        role="user",
+        content=user_message,
+        attachments=attachments,
+    )
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="chat.message.create",
+            target_type="chat_message",
+            actor_type="user",
+            actor_id=actor_id,
+            target_id=user_msg_id,
+            after={"thread_id": thread_id, "role": "user"},
+        )
+    )
+
+    yield _sse_event(
+        {
+            "type": "context",
+            "metadata": {
+                "history_count": len(history),
+                "rag_hit_ids": rag_ids,
+                "user_message_id": user_msg_id,
+            },
+        }
+    )
+    yield _sse_event({"type": "start"})
+
+    # GAP-201: **ここで確定して DB 接続をいったん手放す**。
+    #
+    # この先は本人の PC (Bridge) の実行待ちで、長いと数分かかる。以前はその間
+    # ずっとリクエストの DB 接続を握ったままだったので、「同時に喋れる人数 =
+    # DB 接続の本数」になっていた (GAP-198 で実測)。
+    #
+    # commit すると接続はプールへ返り、次に SQL を投げた時に取り直される。
+    # role / claims は transaction-local なので普通なら消えるが、GAP-201 で
+    # `after_begin` に貼り直しを仕込んだので RLS は効いたまま。
+    #
+    # 副産物として **ユーザーの発言がこの時点で確定する** — 生成に失敗しても
+    # 「送ったのに消えた」が起きない。
+    await session.commit()
+
     # agentic ツール実行 (既定 ON) 用の文脈: thread→project→workspace。
     # ATELIER_CHAT_TOOLS_ENABLED="0" の明示 OFF 時のみ文脈を作らず従来動作に退避する。
     # GAP-113/114 v1 制限: サブスク/リレーモードでは Atelier ツール (agentic

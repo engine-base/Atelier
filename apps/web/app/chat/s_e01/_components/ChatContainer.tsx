@@ -412,6 +412,9 @@ export function ChatContainer({
     }
   }, [fetchMessagesFn, threadId]);
 
+  // GAP-294: Bridge 未接続で送れなかった本文 (ChatPanel が入力欄に戻す)
+  const [restoreDraft, setRestoreDraft] = useState<string | null>(null);
+
   const handleSend = useCallback(
     async (text: string) => {
       // GAP-002: 先頭 /コマンド の解釈 (/決定・/タスク化 はサーバー実行、
@@ -482,6 +485,7 @@ export function ChatContainer({
       setPendingFiles([]);
       setSending(true);
       setError(null);
+      setRestoreDraft(null);
       setPendingId(assistantId);
       setPendingStage("context");
       setToolActivity([]);
@@ -632,6 +636,15 @@ export function ChatContainer({
           setBusyQueue({ position, etaSeconds: eta });
         } else if (chunk.type === "error") {
           setError(chunk.content ?? "ストリーミング中にエラーが発生しました");
+          // GAP-294 (通し J43-03): Bridge 未接続はサーバーが発言を保存しない。
+          // 楽観表示の 2 行を消し、本文を入力欄に戻して押し直せるようにする
+          const code = (chunk.metadata as { code?: unknown } | undefined)?.code;
+          if (code === "bridge_offline") {
+            setMessages((prev) =>
+              prev.filter((m) => m.id !== userMsg.id && m.id !== assistantId),
+            );
+            setRestoreDraft(text);
+          }
         }
         if (chunk.type !== "queued") setBusyQueue(null);
       };
@@ -961,6 +974,7 @@ export function ChatContainer({
         <ChatPanel
           messages={messages}
           onSend={handleSubmit}
+          restoreDraft={restoreDraft}
           queueNotice={busyQueue}
           restoredDraft={restoredDraft}
           disabled={uploadingAttachments}
