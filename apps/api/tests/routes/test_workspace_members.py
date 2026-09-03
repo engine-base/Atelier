@@ -203,6 +203,26 @@ class TestWorkspaceMembers:
                 == 204
             )
 
+    def test_gap272_last_owner_cannot_be_removed(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-272 (通し J36-06): 唯一の owner の除名は 409 で拒否、membership は残る。"""
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+        with TestClient(app) as client:
+            r = client.delete(f"/workspaces/{seeded['ws_a']}/members/{seeded['u_a']}", headers=h)
+            assert r.status_code == 409, r.text
+            assert "最後の owner" in r.json()["detail"]
+        with sync_engine.begin() as c:
+            n = c.execute(
+                text(
+                    "select count(*) from public.workspace_memberships "
+                    "where workspace_id = cast(:w as uuid) and user_id = cast(:u as uuid) "
+                    "and role = 'owner'"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_a"]},
+            ).scalar_one()
+            assert n == 1
+
     def test_invite_unregistered_email_422(self, app: FastAPI, seeded: dict[str, str]) -> None:
         ha = _h(seeded["u_a"])
         with TestClient(app) as client:

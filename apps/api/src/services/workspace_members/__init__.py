@@ -122,9 +122,27 @@ async def update_role(
     return next((m for m in members if m.user_id == user_id), None)
 
 
+class LastOwnerError(Exception):
+    """GAP-272: 最後の owner は外せない (外すと誰も WS を管理できなくなる)。"""
+
+
 async def remove_member(
     session: AsyncSession, *, actor_id: str, workspace_id: str, user_id: str
 ) -> bool:
+    # GAP-272 (通し J36-06): 唯一の owner の除名は「静かに何もしない 204」ではなく
+    # 明示的に拒否する。owner が 0 人の WS は誰も管理できない。
+    owners = (
+        await session.execute(
+            text(
+                "select count(*) filter (where role = 'owner') as owners, "
+                "bool_or(user_id = cast(:uid as uuid) and role = 'owner') as target_is_owner "
+                "from public.workspace_memberships where workspace_id = cast(:wid as uuid)"
+            ),
+            {"wid": workspace_id, "uid": user_id},
+        )
+    ).one()
+    if bool(owners.target_is_owner) and int(owners.owners) <= 1:
+        raise LastOwnerError("cannot remove the last owner")
     res = await session.execute(
         text(
             "delete from public.workspace_memberships "

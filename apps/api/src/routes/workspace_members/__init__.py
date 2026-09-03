@@ -81,9 +81,17 @@ async def update_role(
 async def remove_member(
     workspace_id: str, user_id: str, session: SessionDep, user: UserDep
 ) -> None:
-    if not await svc.remove_member(
-        session, actor_id=user.id, workspace_id=workspace_id, user_id=user_id
-    ):
+    try:
+        removed = await svc.remove_member(
+            session, actor_id=user.id, workspace_id=workspace_id, user_id=user_id
+        )
+    except svc.LastOwnerError:
+        # GAP-272: LAST_OWNER — 先に別のメンバーを owner にしてから外す
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "最後の owner は外せません。先に別のメンバーを owner にしてください。",
+        ) from None
+    if not removed:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "対象が見つからないか、メンバーを外す権限がありません。"
         )
