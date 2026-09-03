@@ -108,7 +108,9 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           set -euo pipefail
-          names="$(flyctl secrets list -a "$FLY_APP_NAME" --json | python3 -c 'import json,sys; print("\n".join(str(x.get("Name") or x.get("name") or "") for x in json.load(sys.stdin)))')"
+          # 表形式の 1 列目 = secret 名 (flyctl の版に依存しない。値は一切出力されない)
+          names="$(flyctl secrets list -a "$FLY_APP_NAME" | awk 'NR>1 {print $1}')"
+          echo "secrets present: $(printf '%s' "$names" | wc -l | tr -d ' ') names"
           missing=""
           has() { printf '%s\n' "$names" | grep -qx "$1"; }
           has ATELIER_VAULT_ENCRYPTION_KEYS || has ATELIER_VAULT_ENCRYPTION_KEY || missing="$missing ATELIER_VAULT_ENCRYPTION_KEYS"
