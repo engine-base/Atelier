@@ -1,0 +1,28 @@
+== signup ==
+signup: 201
+signin: ok (jwt len 239)
+ws=d7accc64-feb6-47dd-9b5c-e6128aff052c project=c8601211-702e-47d1-98a5-ca328e37207e employee=d02b5a1a-eada-4270-be5b-b0aaf2e4ad2d thread=e51eaf07-10ee-4e4c-bec2-55a8f0d4b4c7
+== PS-05: 署名 URL 発行 → PUT (3 バケット) ==
+  chat-attachments: 署名 URL ok / PUT 200
+  avatars: 署名 URL ok / PUT 200
+  meetings: 署名 URL ok / PUT 200
+== PS-17: 退会 → 旧 JWT / Bridge トークンが 401 ==
+  bridge token 発行: id=43f6cce3-6bcc-4f9a-afea-6a4c44a79cbe (raw は出力しない)
+  退会前 pick: 401  (401 以外なら認証は通っている)
+  退会前 GET /projects: 200
+  退会: 200
+  退会直後 GET /projects (旧 JWT): 401   期待 401
+  退会直後 pick (Bridge トークン): 401   期待 401
+  退会直後 signin: 401   期待 401
+  restore: 200   期待 200
+  復活後 GET /projects (新 JWT): 200   期待 200
+  後片付け: bridge token revoke 200 / 再退会 200
+== PS-17 (再: X-Bridge-Token ヘッダ) ==
+  restore: 200
+  退会前 pick: 200   期待 200/204 (認証が通ること)
+  退会: 200
+  退会直後 pick (Bridge トークン): 401   期待 401
+  退会直後 GET /projects (旧 JWT): 401   期待 401
+  restore: 200
+  復活後 pick (退会前に発行したトークン): 401   期待 401 (退会で失効したまま = 再発行が要る)
+  後片付け: revoke 200 / 再退会 200
