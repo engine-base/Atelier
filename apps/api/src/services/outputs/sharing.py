@@ -185,10 +185,16 @@ async def resolve_share_token(session: AsyncSession, *, token: str) -> tuple[str
     if row.expires_at is not None and row.expires_at <= datetime.now(UTC):
         raise ShareError("gone", "この共有リンクは期限切れです")
 
+    # GAP-319 (通し R3 所見 / G-14): 成果物そのものが生きていても、**案件やワークスペースが
+    # 削除されていれば外部に開いたままにしない**。以前は workflow_outputs.deleted_at しか
+    # 見ておらず、案件を削除しても WS を削除しても公開 URL が 200 で中身を返していた。
     out = (
         await session.execute(
             text(
-                "select html_path from public.workflow_outputs where id = :o and deleted_at is null"
+                "select o.html_path from public.workflow_outputs o "
+                "join public.projects p on p.id = o.project_id and p.deleted_at is null "
+                "join public.workspaces w on w.id = p.workspace_id and w.deleted_at is null "
+                "where o.id = :o and o.deleted_at is null"
             ),
             {"o": row.output_id},
         )

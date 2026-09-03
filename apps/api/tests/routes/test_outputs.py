@@ -1368,6 +1368,19 @@ class TestGap162ShareAndExport:
                 )
                 # 存在しないトークンは 404
                 assert client.get("/share/nonexistent-token").status_code == 404
+
+                # GAP-319 (通し R3 所見 / G-14): **案件を削除したら共有リンクも辿れない**。
+                # 以前は workflow_outputs.deleted_at しか見ておらず、案件・WS を消しても
+                # 外部の公開 URL が 200 で中身を返し続けていた。
+                link2 = client.post(
+                    f"/outputs/{oid}/share-links",
+                    headers=h,
+                    json={"label": "案件削除の検証", "expires_days": 7},
+                ).json()["data"]
+                token2 = str(link2["share_url"]).rsplit("/share/", 1)[1]
+                assert client.get(f"/share/{token2}").status_code == 200
+                assert client.delete(f"/projects/{seeded['proj_a']}", headers=h).status_code == 204
+                assert client.get(f"/share/{token2}").status_code == 404
         finally:
             asyncio.run(test_engine.dispose())
             with sync_engine.begin() as c:
