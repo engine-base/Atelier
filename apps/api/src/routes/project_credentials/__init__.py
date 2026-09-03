@@ -112,7 +112,14 @@ async def reveal_credential(
     """GAP-131: パスワード再認証必須 (成功後 TTL の間は省略可)。
 
     403 detail: "reauth_required" (パスワード未入力) / "invalid_password"。
+
+    GAP-313 (通し J31-07 再測 / R-T06): 閲覧者 (viewer) は再認証しても値を取れない。
+    追加は GAP-278 で 403 にしたが、reveal が素通りで owner の登録した値が平文で漏れた。
     """
+    if not await svc.can_write_project(session, project_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "シークレットの値を表示する権限がありません。"
+        )
     revealed = await svc.reveal_credential(
         session,
         actor_id=user.id,

@@ -7,6 +7,7 @@ fixture は test_tasks (app / sync_engine / seeded) を再利用する。
 from __future__ import annotations
 
 import os
+import uuid
 
 import pytest
 import sqlalchemy
@@ -47,6 +48,14 @@ def test_gap278_viewer_gets_403_even_when_vault_key_is_missing(
             )
             assert r.status_code == 403, r.text
             assert "権限" in r.json()["detail"]
+            # GAP-313 (通し J31-07 再測 / R-T06): viewer は再認証しても値を復号できない
+            rv = client.post(
+                f"/projects/{seeded['proj_a']}/credentials/{uuid.uuid4()}/reveal",
+                json={"password": "whatever"},
+                headers=_h(seeded["u_b"]),
+            )
+            assert rv.status_code == 403, rv.text
+            assert "表示する権限" in rv.json()["detail"]
     finally:
         with sync_engine.begin() as c:
             c.execute(
