@@ -270,6 +270,7 @@ async def revise_output(
             "revised_from_version": current.version,
             "model": used_model,
         },
+        actor_id=actor_id,
     )
     await AuditWriter(session).write(
         AuditEvent(

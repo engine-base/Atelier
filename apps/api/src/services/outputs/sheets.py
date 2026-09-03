@@ -199,6 +199,7 @@ async def save_sheet(
             "file_name": data.file_name,
             "note": "表の値を編集",
         },
+        actor_id=actor_id,
     )
     await AuditWriter(session).write(
         AuditEvent(

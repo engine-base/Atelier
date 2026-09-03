@@ -9,6 +9,7 @@ RLS が効く AsyncSession を受け取り workflow_outputs を読む。可視�
 from __future__ import annotations
 
 import json
+import logging
 import uuid as uuid_mod
 from typing import Any, cast
 
@@ -18,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.outputs import OutputResponse
+
+logger = logging.getLogger(__name__)
 
 
 class OutputVersionConflict(Exception):
@@ -149,8 +152,12 @@ async def insert_version(
     src: OutputResponse,
     html_path: str,
     meta: dict[str, object],
+    actor_id: str | None = None,
 ) -> OutputResponse:
     """チェーンの次バージョン行を追加する (revise 専用 — 既存行は不変)。
+
+    actor_id (操作した利用者) を渡すと、招待済みクライアントへ更新通知を送る (GAP-265)。
+    監査ログは利用者の RLS セッションで書くため actor = その利用者でなければ入らない。
 
     改訂は HTML に対して行われるため json/md は「未生成」(null) で正直に持つ
     (旧版の json/md を新版の内容として見せない)。
@@ -195,7 +202,16 @@ async def insert_version(
             "この成果物は他のメンバーが同時に改訂しました。"
             "最新バージョンを確認して再実行してください"
         ) from exc
-    return _row_to_response(row)
+    created = _row_to_response(row)
+    # GAP-265 (通し J21-05): 招待済みクライアントへ更新を知らせる (best-effort・監査ログつき)
+    from src.services.outputs.client_notify import notify_clients_of_new_version
+
+    if actor_id is not None:
+        try:
+            await notify_clients_of_new_version(session, output=created, actor_id=actor_id)
+        except Exception:  # pragma: no cover - 通知の失敗で版の作成を落とさない
+            logger.exception("client notify failed for output %s", created.id)
+    return created
 
 
 _RESTORE_PRESERVED_META_KEYS = ("file_name", "file_kind", "mime", "source")
@@ -240,7 +256,9 @@ async def restore_version(
         k: src.meta[k] for k in _RESTORE_PRESERVED_META_KEYS if k in src.meta
     }
     meta.update({"author": "restore", "restored_from_version": src.version})
-    created = await insert_version(session, src=src, html_path=src.html_path, meta=meta)
+    created = await insert_version(
+        session, src=src, html_path=src.html_path, meta=meta, actor_id=actor_id
+    )
     await AuditWriter(session).write(
         AuditEvent(
             action="output.restore",

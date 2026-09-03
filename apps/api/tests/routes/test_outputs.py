@@ -1576,6 +1576,67 @@ class TestGap163SheetViewAndEdit:
                     {"p": seeded["proj_a"]},
                 )
 
+    def test_gap265_new_version_notifies_invited_clients(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-265 (通し J21-05): 成果物に新版が積まれたら、招待済み (未失効) のクライアントへ
+        更新メールを送り、監査ログ client_notified_of_update を残す。失効した招待には送らない。"""
+        monkeypatch.delenv("ATELIER_EMAIL_API_KEY", raising=False)  # dry-run
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_xlsx_output(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        try:
+            with TestClient(app) as client:
+                inv = client.post(
+                    "/client-invitations",
+                    json={"project_id": seeded["proj_a"], "email": "notify@ext.example"},
+                    headers=h,
+                )
+                assert inv.status_code == 201, inv.text
+                revoked = client.post(
+                    "/client-invitations",
+                    json={"project_id": seeded["proj_a"], "email": "revoked@ext.example"},
+                    headers=h,
+                ).json()["data"]["id"]
+                assert (
+                    client.post(f"/client-invitations/{revoked}/revoke", headers=h).status_code
+                    == 200
+                )
+                saved = client.post(
+                    f"/outputs/{oid}/sheet",
+                    headers=h,
+                    json={"sheets": [{"name": "明細", "rows": [["項目", "金額"], ["設計", "1"]]}]},
+                )
+                assert saved.status_code == 201, saved.text
+                new_id = saved.json()["data"]["id"]
+            with sync_engine.connect() as c:
+                rows = c.execute(
+                    text(
+                        "select after from public.audit_logs where action='output.client_notified_of_update' "
+                        "and target_id = cast(:t as uuid)"
+                    ),
+                    {"t": new_id},
+                ).all()
+            assert len(rows) == 1, rows  # 失効した招待には送らない
+            after = rows[0][0] if isinstance(rows[0][0], dict) else json.loads(rows[0][0])
+            assert after["version"] == 2
+            assert after["dry_run"] is True
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs where project_id = cast(:p as uuid) "
+                        "and summary = '見積明細'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )
+
     def test_pdf_is_viewable_but_edit_is_honestly_refused(
         self,
         app: FastAPI,
