@@ -35,7 +35,7 @@ echo "== 1/6 Supabase プロジェクト $PROJECT_NAME ($REGION, Free) =="
 if supabase projects list 2>/dev/null | grep -q " $PROJECT_NAME "; then
   echo "   既にある → 再利用"
 else
-  supabase projects create "$PROJECT_NAME" --org-id "$ORG_ID" --region "$REGION" --db-password "$DB_PASS" --size free >/dev/null
+  supabase projects create "$PROJECT_NAME" --org-id "$ORG_ID" --region "$REGION" --db-password "$DB_PASS" >/dev/null
 fi
 REF=$(supabase projects list --output json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(p['id'] for p in d if p['name']=='$PROJECT_NAME'))")
 echo "   project ref = $REF"
