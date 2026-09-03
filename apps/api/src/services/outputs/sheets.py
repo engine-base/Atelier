@@ -48,6 +48,8 @@ class SheetData:
     #: [{"name": str, "rows": [[str, ...], ...]}]
     sheets: list[dict[str, object]]
     note: str = ""
+    #: GAP-254: この表の版 (保存時に base_version として返してもらう)
+    version: int = 1
 
 
 def _rows_from_xlsx(data: bytes) -> list[dict[str, object]]:
@@ -104,7 +106,7 @@ async def load_sheet(session: AsyncSession, *, output_id: str) -> SheetData:
     row = (
         await session.execute(
             text(
-                "select html_path from public.workflow_outputs "
+                "select html_path, version from public.workflow_outputs "
                 "where id = cast(:i as uuid) and deleted_at is null"
             ),
             {"i": output_id},
@@ -125,6 +127,7 @@ async def load_sheet(session: AsyncSession, *, output_id: str) -> SheetData:
     lower = file_name.lower()
     if mime == XLSX_MIME or lower.endswith((".xlsx", ".xlsm")):
         return SheetData(
+            version=int(row.version),
             file_name=file_name,
             mime=XLSX_MIME,
             editable=True,
@@ -133,6 +136,7 @@ async def load_sheet(session: AsyncSession, *, output_id: str) -> SheetData:
         )
     if mime == CSV_MIME or lower.endswith(".csv"):
         return SheetData(
+            version=int(row.version),
             file_name=file_name,
             mime=CSV_MIME,
             editable=True,
@@ -153,14 +157,28 @@ async def save_sheet(
     actor_id: str,
     output_id: str,
     sheets: list[dict[str, object]],
+    base_version: int | None = None,
 ) -> str | None:
-    """編集内容を **新バージョン** として保存する (元の版は残す)。返り値 = 新 output id。"""
+    """編集内容を **新バージョン** として保存する (元の版は残す)。返り値 = 新 output id。
+
+    GAP-254: base_version (編集を始めた時点の版) がチェーンの最新と違えば version_conflict (→ 409)。
+    2 つのタブで同じ成果物を編集して両方保存すると、後から保存した古い内容が黙って最新版になっていた。
+    """
     from src.services.mocks.artifacts import FILEDB_PREFIX, store_file_service
-    from src.services.outputs import get_output, insert_version
+    from src.services.outputs import get_output, insert_version, list_versions
 
     current = await get_output(session, output_id)
     if current is None:
         return None
+    if base_version is not None:
+        latest = max(
+            (v.version for v in await list_versions(session, output_id)), default=current.version
+        )
+        if base_version != latest:
+            raise SheetError(
+                "version_conflict",
+                f"base_version={base_version} but latest is v{latest}",
+            )
     data = await load_sheet(session, output_id=output_id)
     if not data.editable:
         raise SheetError("not_editable", "この成果物は編集できない形式")

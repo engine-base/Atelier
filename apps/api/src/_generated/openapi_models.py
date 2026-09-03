@@ -1428,6 +1428,10 @@ class OutputSheet(BaseModel):
     GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない)
     """
 
+    version: Annotated[int | None, Field(ge=1)] = None
+    """
+    GAP-254: 編集の基底版。保存時に base_version として返す
+    """
     file_name: str | None = None
     mime: str | None = None
     editable: bool | None = None

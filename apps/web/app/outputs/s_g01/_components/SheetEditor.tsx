@@ -23,6 +23,7 @@ import { BridgeOfflineNotice } from "../../../../components/bridge/BridgeOffline
 import { cn } from "../../../../lib/cn";
 
 export interface SheetPayload {
+  readonly version?: number;
   readonly file_name: string;
   readonly mime: string;
   readonly editable: boolean;
@@ -147,6 +148,12 @@ function AiFileEdit({
   );
 }
 
+/** API の detail (利用者向けの日本語) を取り出す。無ければ undefined。 */
+function apiDetail(e: ApiError): string | undefined {
+  const d = (e.payload as { detail?: unknown } | undefined)?.detail;
+  return typeof d === "string" && d.trim() ? d : undefined;
+}
+
 export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
   const [sheets, setSheets] = useState<{ name: string; rows: string[][] }[] | null>(null);
   const [active, setActive] = useState(0);
@@ -184,7 +191,8 @@ export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
     mutationFn: async () => {
       const res = await client.post("/outputs/{output_id}/sheet", {
         params: { path: { output_id: outputId } },
-        body: { sheets: sheets ?? [] },
+        // GAP-254: 編集を始めた時点の版を添える。他のタブ/メンバーが先に保存していれば API が 409 で止める
+        body: { sheets: sheets ?? [], base_version: sheet.data?.version ?? null },
       });
       return (res as { data?: { id: string; version: number } }).data ?? null;
     },
@@ -197,7 +205,12 @@ export function SheetEditor({ outputId, client, onSaved }: SheetEditorProps) {
       });
       if (created) onSaved?.(created.id);
     },
-    onError: () => setNotice({ kind: "error", text: "保存に失敗しました。" }),
+    onError: (e) =>
+      setNotice({
+        kind: "error",
+        // GAP-254: 409 (同時編集 / 編集不可) は API が理由を言う。固定文で潰さない
+        text: (e instanceof ApiError && e.status === 409 && apiDetail(e)) || "保存に失敗しました。",
+      }),
   });
 
   if (sheet.isLoading) return <Loading className="py-md" />;

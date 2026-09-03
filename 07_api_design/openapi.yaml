@@ -1199,6 +1199,7 @@ components:
       type: object
       description: GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない)
       properties:
+        version: { type: integer, minimum: 1, description: "GAP-254: 編集の基底版。保存時に base_version として返す" }
         file_name: { type: string }
         mime: { type: string }
         editable: { type: boolean }
@@ -6343,6 +6344,7 @@ paths:
               type: object
               required: [sheets]
               properties:
+                base_version: { type: integer, minimum: 1, nullable: true, description: "GAP-254: GET /sheet の version。チェーンの最新と違えば 409 (同時編集の検知)" }
                 sheets:
                   type: array
                   minItems: 1

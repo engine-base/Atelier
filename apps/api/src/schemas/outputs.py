@@ -103,9 +103,14 @@ class SheetResponse(BaseModel):
     editable: bool
     sheets: list[dict[str, Any]]
     note: str = ""
+    #: GAP-254: 編集の基底版。保存時に base_version としてそのまま返す (同時編集の検知)
+    version: int = Field(ge=1)
 
 
 class SheetSaveRequest(BaseModel):
     """編集後の表 (新バージョンとして保存する)。"""
 
     sheets: list[dict[str, Any]] = Field(min_length=1, max_length=20)
+    #: GAP-254: 編集を始めた時点の版 (GET /sheet の version)。チェーンの最新と違えば 409 —
+    #: 相手の編集を含まない古い内容が黙って最新版になるのを防ぐ。省略時は検知しない (旧クライアント互換)
+    base_version: int | None = Field(default=None, ge=1)

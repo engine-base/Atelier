@@ -821,6 +821,7 @@ async def get_output_sheet(
             editable=data.editable,
             sheets=data.sheets,
             note=data.note,
+            version=data.version,
         )
     }
 
@@ -829,7 +830,11 @@ async def get_output_sheet(
     "/outputs/{output_id}/sheet",
     status_code=status.HTTP_201_CREATED,
     summary="表の編集を新バージョンとして保存 (GAP-163 — 元の版は残る)",
-    responses={409: {"description": "編集できない形式"}},
+    responses={
+        409: {
+            "description": "編集できない形式 / 他のメンバーが先に新しい版を保存した (GAP-254: base_version が最新でない)"
+        }
+    },
 )
 async def save_output_sheet(
     output_id: str, body: SheetSaveRequest, session: SessionDep, user: UserDep
@@ -838,7 +843,11 @@ async def save_output_sheet(
 
     try:
         new_id = await sheets_svc.save_sheet(
-            session, actor_id=user.id, output_id=output_id, sheets=body.sheets
+            session,
+            actor_id=user.id,
+            output_id=output_id,
+            sheets=body.sheets,
+            base_version=body.base_version,
         )
     except sheets_svc.SheetError as exc:
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_409_CONFLICT

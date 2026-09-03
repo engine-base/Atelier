@@ -8085,6 +8085,8 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
+                        /** @description GAP-254: GET /sheet の version。チェーンの最新と違えば 409 (同時編集の検知) */
+                        base_version?: number | null;
                         sheets: {
                             name?: string;
                             rows?: string[][];
@@ -19855,6 +19857,8 @@ export interface components {
         };
         /** @description GAP-163 — Excel / CSV 成果物の表データ (値のみ。数式・書式は保持しない) */
         OutputSheet: {
+            /** @description GAP-254: 編集の基底版。保存時に base_version として返す */
+            version?: number;
             file_name?: string;
             mime?: string;
             editable?: boolean;

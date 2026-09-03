@@ -1521,6 +1521,61 @@ class TestGap163SheetViewAndEdit:
                     {"p": seeded["proj_a"]},
                 )
 
+    def test_gap254_stale_base_version_is_409_not_silent_overwrite(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-254 (本番実走 SG01-217): 2 つのタブで同じ表を編集し両方保存 → 両方 201 で、
+        相手の編集を含まない古い内容が最新版になっていた。基底版 (GET /sheet の version) を
+        添えて保存し、最新と違えば 409 で止める。"""
+        test_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        _patch_service_factory(monkeypatch, test_engine)
+        oid = self._seed_xlsx_output(sync_engine, seeded["proj_a"])
+        h = _h(seeded["u_a"])
+        rows_a = [["項目", "金額"], ["設計", "111"]]
+        rows_b = [["項目", "金額"], ["設計", "222"]]
+        try:
+            with TestClient(app) as client:
+                got = client.get(f"/outputs/{oid}/sheet", headers=h).json()["data"]
+                assert got["version"] == 1  # 編集の基底版を画面に渡す
+                # タブ 1: v1 を基底に保存 → v2
+                r1 = client.post(
+                    f"/outputs/{oid}/sheet",
+                    headers=h,
+                    json={"sheets": [{"name": "明細", "rows": rows_a}], "base_version": 1},
+                )
+                assert r1.status_code == 201, r1.text
+                assert r1.json()["data"]["version"] == 2
+                # タブ 2: まだ v1 を基底にしたまま保存 → 409 (黙って v3 にしない)
+                r2 = client.post(
+                    f"/outputs/{oid}/sheet",
+                    headers=h,
+                    json={"sheets": [{"name": "明細", "rows": rows_b}], "base_version": 1},
+                )
+                assert r2.status_code == 409, r2.text
+                assert "先に新しい版を保存" in r2.json()["detail"], r2.text
+                # 開き直して最新 (v2) を基底にすれば保存できる
+                r3 = client.post(
+                    f"/outputs/{oid}/sheet",
+                    headers=h,
+                    json={"sheets": [{"name": "明細", "rows": rows_b}], "base_version": 2},
+                )
+                assert r3.status_code == 201, r3.text
+                assert r3.json()["data"]["version"] == 3
+        finally:
+            asyncio.run(test_engine.dispose())
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workflow_outputs where project_id = cast(:p as uuid) "
+                        "and summary = '見積明細'"
+                    ),
+                    {"p": seeded["proj_a"]},
+                )
+
     def test_pdf_is_viewable_but_edit_is_honestly_refused(
         self,
         app: FastAPI,

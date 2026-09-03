@@ -75,6 +75,37 @@ describe("SheetEditor (GAP-163)", () => {
     expect(onSaved).toHaveBeenCalledWith("o2");
   });
 
+  it("保存には編集の基底版を添え、他のメンバーが先に保存していた 409 は API の理由を出す (GAP-254)", async () => {
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 409,
+        statusText: "Conflict",
+        payload: {
+          detail:
+            "この成果物は他のメンバーが先に新しい版を保存しました。最新の版を開き直し、差分を確認してから保存し直してください。",
+        },
+        path: "/outputs/{output_id}/sheet",
+        method: "post",
+      });
+    });
+    const client = {
+      get: vi.fn(async () => ({ data: { ...SHEET, version: 3 } })),
+      post,
+      put: vi.fn(),
+      patch: vi.fn(),
+      delete: vi.fn(),
+      request: vi.fn(),
+    } as unknown as ApiClient;
+    renderWithQuery(<SheetEditor outputId="o1" client={client} />);
+    const cell = await screen.findByLabelText("明細 2行 2列");
+    fireEvent.change(cell, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "新しい版として保存" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    const [, init] = post.mock.calls[0]! as unknown as [string, { body: { base_version: number } }];
+    expect(init.body.base_version).toBe(3);
+    expect(await screen.findByRole("alert")).toHaveTextContent("他のメンバーが先に新しい版を保存しました");
+  });
+
   it("PDF 等 (409) は API が返す理由をそのまま出す — 編集できるふりをしない", async () => {
     const client = {
       get: vi.fn(async () => {

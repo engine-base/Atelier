@@ -180,6 +180,11 @@ CLASS_MESSAGES: dict[tuple[str, str], str] = {
         "修正は元の成果物を AI に直してもらってから出し直してください。"
     ),
     ("SheetError", "not_editable"): "この成果物は編集できません。",
+    # GAP-254: 同時編集。相手の編集を含まない古い内容で上書きさせない
+    ("SheetError", "version_conflict"): (
+        "この成果物は他のメンバーが先に新しい版を保存しました。"
+        "最新の版を開き直し、差分を確認してから保存し直してください。"
+    ),
     ("SheetError", "unsupported"): (
         "この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"
     ),
