@@ -200,6 +200,8 @@ export interface ClientCommentItemData {
   readonly author_name: string | null;
   readonly is_client_author: boolean;
   readonly created_at: string;
+  /** GAP-321: 返信なら親コメントの id (自分の発言の下に入れ子で並べる)。 */
+  readonly parent_comment_id?: string | null;
 }
 
 export interface ClientCommentCreateInput {

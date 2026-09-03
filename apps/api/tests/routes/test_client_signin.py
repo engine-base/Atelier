@@ -848,10 +848,20 @@ class TestClientPortalContent:
                 headers=h,
             )
             assert r2.status_code == 200
-            contents = [i["content"] for i in r2.json()["data"]]
+            rows = r2.json()["data"]
+            contents = [i["content"] for i in rows]
             assert "§2 の内訳を確認したいです" in contents
             assert "運営からの返信です" in contents  # 自分のコメントへの返信は見える
             assert "社内メモ" not in contents  # 無関係な社内コメントは見えない
+            # GAP-321 (通し J23-05 再測): 返信は **自分の発言の下** に並び、
+            # どれへの返事かを画面が入れ子にできるよう parent_comment_id も返る
+            assert contents.index("§2 の内訳を確認したいです") < contents.index(
+                "運営からの返信です"
+            )
+            reply = next(i for i in rows if i["content"] == "運営からの返信です")
+            mine = next(i for i in rows if i["content"] == "§2 の内訳を確認したいです")
+            assert reply["parent_comment_id"] == mine["id"]
+            assert mine["parent_comment_id"] is None
 
     def test_content_cross_project_403_RT08(
         self, app: FastAPI, portal_content: dict[str, str]

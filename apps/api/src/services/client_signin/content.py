@@ -316,19 +316,26 @@ async def list_comments(
         if not await _project_exists(session, project_id):
             raise ClientSigninError("project_not_found", "project not found")
         res = await session.execute(
+            # GAP-321 (通し J23-05 再測): **返信が自分のコメントの上に並んでいた**。
+            # 平坦な created_at desc だと「運営の返信 → 自分の発言」の順になり、
+            # どれへの返事なのか読めない。スレッド (親の新しい順 → 親の直下に返信を
+            # 古い順) で返し、parent_comment_id も返して画面が入れ子にできるようにする。
             text(
                 "select c.id, c.target_type, c.target_id, c.content, c.created_at, "
-                "c.author_invitation_id, u.display_name as staff_name, "
-                "wo.stage as output_stage, m.screen_name as mock_screen "
+                "c.author_invitation_id, c.parent_comment_id, u.display_name as staff_name, "
+                "wo.stage as output_stage, m.screen_name as mock_screen, "
+                "coalesce(root.created_at, c.created_at) as thread_at "
                 "from public.comments c " + _COMMENT_TARGET_SQL + "left join public.users u "
                 "  on u.id = c.author_user_id and u.deleted_at is null "
+                "left join public.comments root on root.id = c.parent_comment_id "
                 "where c.deleted_at is null "
                 "and coalesce(wo.project_id, m.project_id) = cast(:p as uuid) "
                 "and (c.author_invitation_id = cast(:inv as uuid) "
                 "     or c.parent_comment_id in (select id from public.comments "
                 "        where author_invitation_id = cast(:inv as uuid) "
                 "        and deleted_at is null)) "
-                "order by c.created_at desc limit 100"
+                "order by thread_at desc, "
+                "  (c.parent_comment_id is not null), c.created_at asc limit 100"
             ),
             {"p": project_id, "inv": invitation_id},
         )
@@ -354,6 +361,9 @@ async def list_comments(
                 author_name=(None if r.staff_name is None else str(r.staff_name)),
                 is_client_author=is_client,
                 created_at=r.created_at,
+                parent_comment_id=(
+                    None if r.parent_comment_id is None else str(r.parent_comment_id)
+                ),
             )
         )
     return items

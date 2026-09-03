@@ -464,3 +464,29 @@ describe("S-L03 GAP-267 自分のコメントの修正・取り消し (通し J2
     expect(within(section).queryByRole("button", { name: /^コメントを取り消す:/ })).not.toBeInTheDocument();
   });
 });
+
+describe("S-L03 返信は自分の発言の下に入れ子で出る (GAP-321 / 通し J23-05)", () => {
+  it("parent_comment_id のあるコメントに「あなたのコメントへの返信」を出す", async () => {
+    const threaded = [
+      COMMENTS[0]!,
+      { ...COMMENTS[1]!, parent_comment_id: COMMENTS[0]!.id },
+    ];
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        fetchComments={vi.fn(async () => threaded)}
+      />,
+    );
+    const section = await screen.findByRole("region", { name: "あなたのコメント" });
+    const items = within(section).getAllByRole("listitem");
+    // 並びは「自分の発言 → その返信」
+    expect(items[0]!.textContent).toContain(COMMENTS[0]!.content);
+    expect(items[1]!.textContent).toContain("あなたのコメントへの返信");
+    expect(items[1]!.textContent).toContain(COMMENTS[1]!.content);
+    // 自分の発言には返信ラベルを出さない
+    expect(items[0]!.textContent).not.toContain("あなたのコメントへの返信");
+  });
+});

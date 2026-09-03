@@ -461,8 +461,15 @@ export function ClientProjectView({
                         className={cn(
                           "rounded-md border border-border p-3",
                           !c.is_client_author && "bg-surface-variant",
+                          // GAP-321 (通し J23-05): 返信は自分の発言の下に入れ子で出す
+                          c.parent_comment_id ? "ml-4 border-l-[3px] border-l-primary" : "",
                         )}
                       >
+                        {c.parent_comment_id ? (
+                          <p className="mb-1 text-[10.5px] font-semibold text-primary">
+                            あなたのコメントへの返信
+                          </p>
+                        ) : null}
                         <p className="mb-1 flex items-center justify-between gap-2 text-[11px] text-on-surface-variant">
                           <span className="font-bold">
                             {c.is_client_author

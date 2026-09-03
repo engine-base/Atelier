@@ -169,3 +169,5 @@ class ClientCommentItem(BaseModel):
     author_name: str | None
     is_client_author: bool
     created_at: datetime
+    #: GAP-321: 返信なら親コメントの id (画面が自分の発言の下に入れ子で並べる)
+    parent_comment_id: str | None = None
