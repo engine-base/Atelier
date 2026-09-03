@@ -33,6 +33,19 @@ class PhaseError(Exception):
         self.message = message
 
 
+def open_items_message(items: list[str]) -> str:
+    """GAP-280: 「残っているから確定できない」の本文。
+
+    汎用文言だけだと「何が残っているのか」が分からず片付けられないので、
+    残件を **そのまま名指しで** 並べる (件数も中身も実データ)。
+    """
+    return (
+        "残っている作業があるため確定できません（"
+        + " / ".join(items)
+        + "）。片付けるか、残件を確認した上で確定してください。"
+    )
+
+
 @dataclass(frozen=True)
 class ActivePhase:
     id: str
@@ -196,11 +209,7 @@ async def freeze_phase(
         [] if check is None else [w for w in check.warnings if "まだ成果物もモックも" not in w]
     )
     if open_items and not acknowledge_open_items:
-        raise PhaseError(
-            "open_items",
-            "残っている作業があるため確定できません（" + " / ".join(open_items) + "）。"
-            "片付けるか、残件を確認した上で確定してください。",
-        )
+        raise PhaseError("open_items", open_items_message(open_items))
     # GAP-165: 何を確定したのかを実データから書き起こして残す
     # (人が書いた note があればそれを先頭に置く)。後から人も AI も参照できる。
     auto_summary = await build_freeze_summary(session, phase_id=phase_id)

@@ -202,6 +202,24 @@ _HIDDEN_OK: dict[str, str] = {
     "user_detail": "code → 日本語の表から引く (GAP-216)。表の中身は test_user_messages.py が固定",
     "unhandled_detail": "文言 + 参照 ID。文言は test_unhandled_error_message.py が固定",
     "validation_detail": "項目名 + 理由を組み立てる。中身は test_validation_error_response.py が固定",
+    # GAP-280: 残件の **実数と中身** を本文に載せる。汎用文言だけでは「何が残って
+    # いるのか」が分からず、利用者が片付けられない。PhaseError.message は
+    # services/flow/phases.py で日本語を組み立てている。
+    "routes/flow/__init__.py: Attribute(...)": (
+        "PhaseError(open_items).message — 残件の実数を載せる (GAP-280)。"
+        "日本語であることは test_phase_freeze_open_items.py が固定する"
+    ),
+    # GAP-285: 意味検索が使えない理由 + 次にやることを繋げる。
+    # 前半は f 文字列の定数、後半は次にやること (可変数) の連結。
+    "routes/knowledge/__init__.py: BinOp(...)": (
+        "「準備を開始できません: <理由>（<次にやること>）」を組み立てる (GAP-285)。"
+        "理由と次の手順は embeddings/route.py の日本語を使う"
+    ),
+    # GAP-284: 対応していない形式の **拡張子** を本文に出す。
+    "routes/meetings/__init__.py: Name(...)": (
+        "unsupported_file_reason() の戻り値 (日本語)。拡張子を含めて返す (GAP-284)。"
+        "日本語であることは test_meetings_unsupported_format.py が固定する"
+    ),
 }
 
 

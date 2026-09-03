@@ -203,14 +203,17 @@ async def client_project_output_content_url(
         )
     except svc.ClientSigninError as exc:
         if exc.code == "format_not_available":
+            # 文言は user_messages の表から引く (route の中だけに日本語を置くと、
+            # 足し忘れを機械で検出できない)。形式名はここでしか分からないので添える。
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                f"この成果物の {format.upper()} はまだ作成されていません。",
+                f"この成果物の {format.upper()} はまだ作成されていません。"
+                "運営に作成を依頼してください。",
             ) from exc
         if exc.code == "storage_unavailable":
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
-                "成果物の保存先に接続できません。時間をおいてもう一度お試しください。",
+                user_detail(exc),
             ) from exc
         _raise_content_error(exc)
         raise

@@ -101,6 +101,10 @@ USER_MESSAGES: dict[str, str] = {
     # 同じ code を多くの service が使う。**どの種類のものが見つからないか**は
     # CLASS_MESSAGES で個別に言う (下)。ここはその既定値。
     "not_found": "対象が見つかりません。",
+    # GAP-268: クライアントポータルの成果物ダウンロード。どの形式かは
+    # route が添える (ここは形式に依らない既定)。
+    "format_not_available": "この形式はまだ作成されていません。運営に作成を依頼してください。",
+    "storage_unavailable": ("成果物の保存先に接続できません。時間をおいてもう一度お試しください。"),
     "invalid_state": "いまの状態ではこの操作を行えません。画面を再読み込みしてお試しください。",
     "already_decided": "この候補はすでに判断済みです。",
     "already_default": "すでに運営の既定を引き継いでいます。",
@@ -215,6 +219,25 @@ CLASS_MESSAGES: dict[tuple[str, str], str] = {
     ),
     ("CurationError", "security"): (
         "特定可能な情報が残っているため公開できません。匿名化してから、もう一度お試しください。"
+    ),
+    # GAP-268: クライアントポータルの成果物ダウンロード。表に載せて、
+    # 「route の中だけに日本語がある」= 足し忘れが検出されない状態にしない。
+    ("ClientSigninError", "format_not_available"): (
+        "この形式はまだ作成されていません。運営に作成を依頼してください。"
+    ),
+    ("ClientSigninError", "storage_unavailable"): (
+        "成果物の保存先に接続できません。時間をおいてもう一度お試しください。"
+    ),
+    # GAP-315: ワークスペース招待リンク。「無効です」だけだと、受け取った人には
+    # 期限切れなのか取り消されたのか宛先違いなのか分からず、次の行動が決まらない。
+    ("InvitationError", "not_found"): "この招待リンクは無効です。",
+    ("InvitationError", "expired"): (
+        "この招待リンクは期限切れです。招待した人にもう一度送ってもらってください。"
+    ),
+    ("InvitationError", "revoked"): "この招待は取り消されています。",
+    ("InvitationError", "already_accepted"): "この招待はすでに使われています。",
+    ("InvitationError", "email_mismatch"): (
+        "この招待は別のメールアドレス宛です。招待されたアドレスでサインインしてください。"
     ),
     ("PhaseProposalError", "rate_limited"): (
         "フェーズ提案は少し時間をおいてからでないと実行できません。"

@@ -129,20 +129,55 @@ class TestDeployWorkflow:
         raw = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
         return cast("dict[Any, Any]", yaml.safe_load(raw))
 
-    def test_server_ai_is_explicit_opt_in(self) -> None:
+    def test_gap285_server_ai_is_on_by_default_and_opt_out_is_explicit(self) -> None:
+        """GAP-285: 既定を「入れる」に変えた。
+
+        以前は明示 opt-in だったため、push での自動 deploy には一度も効かず、
+        本番の意味検索がずっと unavailable のままだった (通し J35-01 / J35-07)。
+        外すのは **明示的に false を選んだときだけ** にする。
+        """
         wf = self._wf()
         # PyYAML は `on:` を True (bool) として解釈する
         triggers = cast("dict[str, Any]", wf.get("on") or wf[True])
         inputs = triggers["workflow_dispatch"]["inputs"]
-        assert inputs["server_ai"]["default"] is False
-        assert inputs["server_ai"]["type"] == "boolean"
+        # 空 = 既定 (on)。"false" を選んだときだけ外れる
+        assert inputs["server_ai"]["default"] == ""
+        assert "false" in inputs["server_ai"]["options"]
+
+    def test_gap285_default_is_resolved_before_the_vm_check(self) -> None:
+        """push での自動 deploy にも効かせるため、入力ではなく解決済みの値を使う。"""
+        wf = self._wf()
+        steps = cast("list[dict[str, Any]]", wf["jobs"]["fly"]["steps"])
+        names = [s.get("name") for s in steps]
+        assert "Resolve server-side AI setting" in names
+        assert names.index("Resolve server-side AI setting") < names.index(
+            "Verify VM size for server-side AI"
+        )
+        resolve = next(s for s in steps if s.get("name") == "Resolve server-side AI setting")
+        assert 'VALUE="true"' in resolve["run"]
+        assert '"$INPUT" = "false"' in resolve["run"]
+
+    def test_gap285_deploy_verifies_the_parts_are_actually_there(self) -> None:
+        """「入れたつもりで入っていない」を本番の最初のユーザーが踏む前に落とす (G-11)。"""
+        wf = self._wf()
+        steps = cast("list[dict[str, Any]]", wf["jobs"]["fly"]["steps"])
+        names = [s.get("name") for s in steps]
+        assert "Verify server-side AI is actually present" in names
+        check = next(
+            s for s in steps if s.get("name") == "Verify server-side AI is actually present"
+        )
+        assert "/health/capabilities" in check["run"]
+        assert '"embeddings":true' in check["run"]
+        assert "exit 1" in check["run"]
 
     def test_build_arg_is_passed(self) -> None:
         wf = self._wf()
         steps = cast("list[dict[str, Any]]", wf["jobs"]["fly"]["steps"])
         deploy = next(s for s in steps if s.get("name") == "Deploy")
         assert "INSTALL_LOCALRAG=$LOCALRAG" in deploy["run"]
-        assert "LOCALRAG=0" in deploy["run"]  # 既定は入れない
+        # GAP-285: 既定は入れる。外すのは明示的に false を選んだときだけ
+        assert "LOCALRAG=1" in deploy["run"]
+        assert 'if [ "$SERVER_AI" = "false" ]' in deploy["run"]
 
     def test_vm_size_is_verified_before_deploy(self) -> None:
         """メモリ不足のまま有効化すると OOM で落ちるだけになる。"""
@@ -153,13 +188,14 @@ class TestDeployWorkflow:
         assert names.index("Verify VM size for server-side AI") < names.index("Deploy")
         verify = next(s for s in steps if s.get("name") == "Verify VM size for server-side AI")
         assert "exit 1" in verify["run"]
-        assert verify["if"].strip().startswith("${{ inputs.server_ai")
+        # GAP-285: 入力そのものではなく、解決済みの値で判定する
+        assert "steps.server_ai.outputs.value" in verify["if"]
 
-    def test_vm_check_only_runs_when_opted_in(self) -> None:
+    def test_vm_check_runs_whenever_server_ai_is_on(self) -> None:
         wf = self._wf()
         steps = cast("list[dict[str, Any]]", wf["jobs"]["fly"]["steps"])
         verify = next(s for s in steps if s.get("name") == "Verify VM size for server-side AI")
-        assert "server_ai == true" in verify["if"]
+        assert "steps.server_ai.outputs.value == 'true'" in verify["if"]
 
 
 class TestPrefetchScript:
@@ -191,6 +227,11 @@ def test_fly_memory_and_server_ai_stay_consistent() -> None:
     large = any(f'memory = "{m}"' in text for m in ("1024mb", "2048mb", "4096mb"))
     assert small or large, "fly.toml の memory が想定外の値です"
     if small:
-        # サーバー実行は既定 OFF。Dockerfile 側も 0 のままであること。
+        # 小さい VM ならサーバー実行はできない。Dockerfile の既定も 0 のままであること。
         docker = (ROOT / "apps" / "api" / "Dockerfile").read_text(encoding="utf-8")
         assert "ARG INSTALL_LOCALRAG=0" in docker
+    else:
+        # GAP-285: VM を上げたのは、サーバー実行へ寄せたから。実測の上振れ
+        # (埋め込み 1,554MB) が入りきる大きさであること。1GB は「ふだんは動くが
+        # 長い文章の日に OOM」= 一番たちの悪い壊れ方になる。
+        assert 'memory = "2048mb"' in text or 'memory = "4096mb"' in text

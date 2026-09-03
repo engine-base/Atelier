@@ -22,6 +22,7 @@ from src.schemas.workspace_members import (
 )
 from src.services import workspace_invitations as inv_svc
 from src.services import workspace_members as svc
+from src.user_messages import user_detail
 
 router = APIRouter(tags=["workspace-members"])
 
@@ -163,7 +164,8 @@ async def preview_invitation(token: str) -> dict[str, InvitationPreviewResponse]
     except inv_svc.InvitationError as exc:
         # 期限切れ / 失効 / 使用済みは 410 (「無い」ではなく「もう使えない」)
         code = status.HTTP_404_NOT_FOUND if exc.code == "not_found" else status.HTTP_410_GONE
-        raise HTTPException(code, exc.message) from exc
+        # 文言は user_messages の表から引く (route の中だけに日本語を置くと足し忘れが検出できない)
+        raise HTTPException(code, user_detail(exc)) from exc
     return {
         "data": InvitationPreviewResponse(
             workspace_name=s.workspace_name,
@@ -184,7 +186,7 @@ async def accept_invitation(token: str, user: UserDep) -> dict[str, InvitationAc
             "not_found": status.HTTP_404_NOT_FOUND,
             "email_mismatch": status.HTTP_403_FORBIDDEN,
         }.get(exc.code, status.HTTP_410_GONE)
-        raise HTTPException(code, exc.message) from exc
+        raise HTTPException(code, user_detail(exc)) from exc
     return {
         "data": InvitationAcceptResponse(
             workspace_id=s.workspace_id,
