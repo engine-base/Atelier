@@ -95,12 +95,16 @@ async def freeze_delivery_phase(
             phase_id=phase_id,
             confirm=body.confirm,
             note=body.note,
+            acknowledge_open_items=body.acknowledge_open_items,
         )
     except phases_svc.PhaseError as exc:
         if exc.code == "not_found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
         if exc.code == "confirm_required":
             raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
+        if exc.code == "open_items":
+            # GAP-280: 何が残っているか (実数) を本文に載せる — 汎用文言だけでは片付けられない
+            raise HTTPException(status.HTTP_409_CONFLICT, exc.message) from exc
         raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     return {"data": phases}
 
@@ -196,11 +200,11 @@ async def ensure_stage_thread(
     summary="確定前チェック (GAP-165 — 未完了工程・タスク・未解決コメントの実数)",
 )
 async def get_freeze_check(
-    project_id: str, phase_id: str, session: SessionDep, _user: UserDep
+    project_id: str, phase_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, FreezeCheckResponse]:
     from src.services.flow.phases import freeze_check
 
-    got = await freeze_check(session, project_id=project_id, phase_id=phase_id)
+    got = await freeze_check(session, project_id=project_id, phase_id=phase_id, actor_id=user.id)
     if got is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のフェーズが見つかりません。")
     return {

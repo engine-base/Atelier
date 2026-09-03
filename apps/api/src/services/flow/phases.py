@@ -162,6 +162,7 @@ async def freeze_phase(
     phase_id: str,
     confirm: bool = False,
     note: str | None = None,
+    acknowledge_open_items: bool = False,
 ) -> list[DeliveryPhaseResponse]:
     """フェーズ確定 (凍結) — confirm 必須 (hard gate と同じ明示承認運用)。
 
@@ -187,6 +188,18 @@ async def freeze_phase(
             "confirm_required",
             f"「{row.name}」を確定すると成果物が凍結され、以後の追加は次フェーズに"
             "なります。内容を確認のうえ明示的に承認してください",
+        )
+    # GAP-280 (通し J30-10): 残件が 0 でない間は確定できない。
+    # 「承知の上で確定」は acknowledge_open_items=true の明示だけが通る (監査に残す)。
+    check = await freeze_check(session, project_id=project_id, phase_id=phase_id, actor_id=actor_id)
+    open_items = (
+        [] if check is None else [w for w in check.warnings if "まだ成果物もモックも" not in w]
+    )
+    if open_items and not acknowledge_open_items:
+        raise PhaseError(
+            "open_items",
+            "残っている作業があるため確定できません（" + " / ".join(open_items) + "）。"
+            "片付けるか、残件を確認した上で確定してください。",
         )
     # GAP-165: 何を確定したのかを実データから書き起こして残す
     # (人が書いた note があればそれを先頭に置く)。後から人も AI も参照できる。
@@ -220,7 +233,12 @@ async def freeze_phase(
             actor_type="user",
             actor_id=actor_id,
             target_id=project_id,
-            after={"phase": str(row.name), "seq": int(row.seq), "next_seq": next_seq},
+            after={
+                "phase": str(row.name),
+                "seq": int(row.seq),
+                "next_seq": next_seq,
+                "open_items_acknowledged": open_items,
+            },
         )
     )
     phases = await list_phases(session, project_id=project_id)
@@ -355,9 +373,18 @@ class FreezeCheck:
 
 
 async def freeze_check(
-    session: AsyncSession, *, project_id: str, phase_id: str
+    session: AsyncSession, *, project_id: str, phase_id: str, actor_id: str | None = None
 ) -> FreezeCheck | None:
-    """確定前チェック — 未完了の工程・進行中タスク・未解決コメントを実数で返す。"""
+    """確定前チェック — 未完了の工程・進行中タスク・未解決コメントを実数で返す。
+
+    GAP-289 (通し B 派生 / G-12): 一度も GET /flow を叩いていない案件は
+    project_flow_stages が未生成で pending が 0 に見える。actor_id があれば
+    先に工程を初期化してから数える。
+    """
+    if actor_id is not None:
+        from . import get_flow
+
+        await get_flow(session, actor_id=actor_id, project_id=project_id)
     row = (
         await session.execute(
             text(

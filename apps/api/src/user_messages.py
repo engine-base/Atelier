@@ -108,6 +108,9 @@ USER_MESSAGES: dict[str, str] = {
     "already_frozen": "この契約内容はすでに確定済みです。",
     "not_frozen": "先に契約内容を確定してください。",
     "not_active": "この工程はすでに確定済みです。",
+    "open_items": (
+        "残っている作業があるため確定できません。片付けるか、残件を確認した上で確定してください。"
+    ),
     "not_pending": "この依頼はすでに処理済みです。",
     "not_skippable": "この工程は飛ばせません。",
     "no_queued": "順番待ちの作業がありません。",

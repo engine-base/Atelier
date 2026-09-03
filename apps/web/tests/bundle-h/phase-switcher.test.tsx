@@ -145,13 +145,54 @@ describe("PhaseSwitcher 確定前チェック (GAP-165)", () => {
     fireEvent.change(screen.getByPlaceholderText(/初期スコープ/), {
       target: { value: "要件と見積まで。決済連携は次フェーズ" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "確定して次フェーズへ" }));
+    // GAP-280: 残件がある間は確定ボタンが押せない。確認チェックで初めて押せる
+    const freezeBtn = screen.getByRole("button", { name: "確定して次フェーズへ" });
+    expect(freezeBtn).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: /残っている作業を確認した上で確定する/ }));
+    expect(freezeBtn).not.toBeDisabled();
+    fireEvent.click(freezeBtn);
     await waitFor(() =>
       expect(freezePhaseFn).toHaveBeenCalledWith(
         "p1",
         "ph2",
         "要件と見積まで。決済連携は次フェーズ",
+        true,
       ),
+    );
+  });
+
+  it("GAP-280: 残件が無ければ確認チェック無しで確定できる (承知フラグは送らない)", async () => {
+    const freezePhaseFn = vi.fn(async () => TWO);
+    const freezeCheckFn = vi.fn(async () => ({
+      phase_name: "フェーズ2",
+      pending_stages: [],
+      open_tasks: 0,
+      unresolved_comments: 0,
+      output_count: 0,
+      mock_count: 0,
+      warnings: ["このフェーズにはまだ成果物もモックもありません"],
+    }));
+    render(
+      <PhaseSwitcher
+        projectId="p1"
+        getPhasesFn={async () => TWO}
+        freezePhaseFn={freezePhaseFn}
+        freezeCheckFn={freezeCheckFn}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /フェーズ切替（表示中: フェーズ2）/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "「フェーズ2」を確定して次フェーズへ…" }),
+    );
+    await waitFor(() => expect(freezeCheckFn).toHaveBeenCalled());
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    const freezeBtn = screen.getByRole("button", { name: "確定して次フェーズへ" });
+    await waitFor(() => expect(freezeBtn).not.toBeDisabled());
+    fireEvent.click(freezeBtn);
+    await waitFor(() =>
+      expect(freezePhaseFn).toHaveBeenCalledWith("p1", "ph2", undefined),
     );
   });
 });

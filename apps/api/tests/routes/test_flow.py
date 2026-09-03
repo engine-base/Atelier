@@ -231,7 +231,7 @@ def test_flow_autoinit_and_lifecycle(app: FastAPI, seeded: dict[str, str]) -> No
         # confirm=true なら完了できる (ユーザーの明示承認)
         r6 = client.post(
             f"/projects/{seeded['proj']}/flow/contract/complete",
-            json={"confirm": True},
+            json={"confirm": True, "acknowledge_open_items": True},
             headers=h,
         )
         assert r6.status_code == 200
@@ -360,10 +360,20 @@ def test_gap152_phase_lifecycle_freeze_and_new_round(app: FastAPI, seeded: dict[
         assert "内容をご確認のうえ承認してください" in r403.json()["detail"]
         assert "凍結" in r403.json()["detail"]
 
-        # 確定 → フェーズ1 frozen + フェーズ2 active (フロー新周回も即初期化)
-        r2 = client.post(
+        # GAP-280: 未完了工程が残っている間は confirm だけでは確定できない (409)
+        r409o = client.post(
             f"/projects/{proj}/delivery-phases/{p1}/freeze",
             json={"confirm": True},
+            headers=h,
+        )
+        assert r409o.status_code == 409, r409o.text
+        assert "残っている作業" in r409o.json()["detail"]
+        assert "未完了の工程" in r409o.json()["detail"]
+
+        # 確定 (残件を確認した上で) → フェーズ1 frozen + フェーズ2 active (フロー新周回も即初期化)
+        r2 = client.post(
+            f"/projects/{proj}/delivery-phases/{p1}/freeze",
+            json={"confirm": True, "acknowledge_open_items": True},
             headers=h,
         )
         assert r2.status_code == 200
@@ -393,7 +403,7 @@ def test_gap152_phase_lifecycle_freeze_and_new_round(app: FastAPI, seeded: dict[
         # 確定済みフェーズの再確定は 409
         r409 = client.post(
             f"/projects/{proj}/delivery-phases/{p1}/freeze",
-            json={"confirm": True},
+            json={"confirm": True, "acknowledge_open_items": True},
             headers=h,
         )
         assert r409.status_code == 409
@@ -403,7 +413,7 @@ def test_gap152_phase_lifecycle_freeze_and_new_round(app: FastAPI, seeded: dict[
         assert (
             client.post(
                 f"/projects/{proj}/delivery-phases/{uuid.uuid4()}/freeze",
-                json={"confirm": True},
+                json={"confirm": True, "acknowledge_open_items": True},
                 headers=h,
             ).status_code
             == 404
@@ -470,7 +480,7 @@ def test_gap152_stamping_filters_and_frozen_guard(
         # フェーズ1 を確定
         r = client.post(
             f"/projects/{proj}/delivery-phases/{p1}/freeze",
-            json={"confirm": True},
+            json={"confirm": True, "acknowledge_open_items": True},
             headers=h,
         )
         assert r.status_code == 200
@@ -559,15 +569,17 @@ class TestGap165FreezeJudgement:
     def test_freeze_check_lists_what_is_left(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:
-        """確定前に「未完了の工程・タスク・未解決コメント」を実数で出す。"""
+        """確定前に「未完了の工程・タスク・未解決コメント」を実数で出す。
+
+        GAP-289: GET /flow を一度も叩いていなくても (工程未生成でも) pending が 0 に
+        ならない — freeze-check 自身が工程を初期化してから数える。"""
         h = _h(seeded["u"])
         with TestClient(app) as client:
             phases = client.get(f"/projects/{seeded['proj']}/delivery-phases", headers=h).json()[
                 "data"
             ]
             active = next(p for p in phases if p["status"] == "active")
-            # 工程を初期化 (pending が立つ)
-            client.get(f"/projects/{seeded['proj']}/flow", headers=h)
+            # 工程は初期化しない (GAP-289 の再現条件)
 
             got = client.get(
                 f"/projects/{seeded['proj']}/delivery-phases/{active['id']}/freeze-check",
@@ -633,7 +645,11 @@ class TestGap165FreezeJudgement:
             frozen = client.post(
                 f"/projects/{seeded['proj']}/delivery-phases/{phase1['id']}/freeze",
                 headers=h,
-                json={"confirm": True, "note": "初期スコープの見積まで"},
+                json={
+                    "confirm": True,
+                    "acknowledge_open_items": True,
+                    "note": "初期スコープの見積まで",
+                },
             )
             assert frozen.status_code == 200, frozen.text
             after = frozen.json()["data"]
@@ -674,7 +690,7 @@ class TestGap165FreezeJudgement:
             client.post(
                 f"/projects/{seeded['proj']}/delivery-phases/{active['id']}/freeze",
                 headers=h,
-                json={"confirm": True, "note": "スコープ A まで"},
+                json={"confirm": True, "acknowledge_open_items": True, "note": "スコープ A まで"},
             )
         from src.services.flow.phases import phase_history_block
 

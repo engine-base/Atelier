@@ -64,6 +64,9 @@ class PhaseFreezeRequest(BaseModel):
     """フェーズ確定は confirm=true (明示承認) 必須 — 成果物が凍結されるため。"""
 
     confirm: bool = False
+    # GAP-280 (通し J30-10): 未完了の工程・タスク・未解決コメントが残っている間は
+    # 確定できない。残件を確認した上でどうしても確定するときだけ true を送る。
+    acknowledge_open_items: bool = False
     note: str | None = Field(default=None, max_length=500)
 
 

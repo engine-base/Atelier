@@ -35,6 +35,8 @@ export interface PhaseSwitcherProps {
     projectId: string,
     phaseId: string,
     note?: string,
+    /** GAP-280: 残件を確認した上で確定するときだけ true。 */
+    acknowledgeOpenItems?: boolean,
   ) => Promise<readonly PhaseLite[]>;
   /** GAP-165: 確定前チェック (未完了の工程・タスク・未解決コメント)。 */
   readonly freezeCheckFn?: (projectId: string, phaseId: string) => Promise<FreezeCheck>;
@@ -70,13 +72,24 @@ async function defaultFreezePhase(
   projectId: string,
   phaseId: string,
   note?: string,
+  acknowledgeOpenItems?: boolean,
 ): Promise<readonly PhaseLite[]> {
   const res = await api.sendJson<PhaseLite[]>(
     "POST",
     `/projects/${projectId}/delivery-phases/${phaseId}/freeze`,
-    { confirm: true, ...(note ? { note } : {}) },
+    {
+      confirm: true,
+      ...(note ? { note } : {}),
+      ...(acknowledgeOpenItems ? { acknowledge_open_items: true } : {}),
+    },
   );
   return res ?? [];
+}
+
+/** GAP-280: 「まだ成果物もモックもありません」は残件ではなく注意なので数えない。 */
+function openItemsOf(check: FreezeCheck | null): readonly string[] {
+  if (!check) return [];
+  return check.warnings.filter((w) => !w.includes("まだ成果物もモックも"));
 }
 
 export function PhaseSwitcher({
@@ -91,6 +104,8 @@ export function PhaseSwitcher({
   // GAP-165: 確定していいかの判断材料 (実データ)。null = 取得中
   const [check, setCheck] = useState<FreezeCheck | null>(null);
   const [freezeNote, setFreezeNote] = useState("");
+  // GAP-280 (通し J30-10): 残件が 0 でない間は確定できない。確認した上でだけ進める
+  const [ackOpenItems, setAckOpenItems] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -199,6 +214,7 @@ export function PhaseSwitcher({
                 onClick={() => {
                   setFreezeConfirm(true);
                   setCheck(null);
+                  setAckOpenItems(false);
                   freezeCheckFn(projectId, active.id)
                     .then(setCheck)
                     .catch(() => setCheck(null));
@@ -243,6 +259,23 @@ export function PhaseSwitcher({
                   )}
                 </div>
 
+                {openItemsOf(check).length > 0 ? (
+                  <label className="mt-1.5 flex items-start gap-1.5 text-[11px] text-on-surface">
+                    <input
+                      type="checkbox"
+                      checked={ackOpenItems}
+                      onChange={(e) => setAckOpenItems(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      残っている作業を確認した上で確定する
+                      <span className="block text-[10.5px] text-on-surface-variant">
+                        確認するまで確定できません。残件は次フェーズには引き継がれません
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
+
                 <label className="mt-1.5 block">
                   <span className="text-[10.5px] font-semibold text-on-surface-variant">
                     このフェーズで確定した範囲 (任意 — 後から人も AI も参照します)
@@ -264,11 +297,20 @@ export function PhaseSwitcher({
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || (openItemsOf(check).length > 0 && !ackOpenItems)}
                     onClick={() => {
                       setBusy(true);
                       setError(null);
-                      freezePhaseFn(projectId, active.id, freezeNote.trim() || undefined)
+                      const ack = openItemsOf(check).length > 0 && ackOpenItems;
+                      (ack
+                        ? freezePhaseFn(
+                            projectId,
+                            active.id,
+                            freezeNote.trim() || undefined,
+                            true,
+                          )
+                        : freezePhaseFn(projectId, active.id, freezeNote.trim() || undefined)
+                      )
                         .then((next) => {
                           setPhases(next);
                           setFreezeConfirm(false);
