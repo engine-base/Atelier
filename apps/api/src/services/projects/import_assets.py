@@ -253,7 +253,7 @@ async def _suggest_stage_keys(
     rows = (
         await session.execute(
             text(
-                "select fs.stage_key from public.project_flow_stages fs "
+                "select fs.stage_key, fs.hard_gate from public.project_flow_stages fs "
                 "join public.delivery_phases dp on dp.id = fs.delivery_phase_id "
                 "where fs.project_id = cast(:p as uuid) and dp.status = 'active' "
                 "and fs.status = 'pending' order by fs.seq"
@@ -261,4 +261,7 @@ async def _suggest_stage_keys(
             {"p": project_id},
         )
     ).all()
-    return [str(r.stage_key) for r in rows if str(r.stage_key) in seen]
+    # GAP-288 (通し B 派生 / G-13): 致命工程 (契約・納品 = hard_gate) は資料の種類だけで
+    # 「完了済みでは？」と提案しない。工程名の無い md が既定で「納品」に仕分けられ、
+    # ヒアリング未着手のまま取り込み画面から納品を完了できていた。
+    return [str(r.stage_key) for r in rows if str(r.stage_key) in seen and not bool(r.hard_gate)]

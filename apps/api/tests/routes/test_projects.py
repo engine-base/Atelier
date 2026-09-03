@@ -440,11 +440,16 @@ class TestGap156Import:
                     },
                     # 非対応形式は per-file の honest エラー (全体は落とさない)
                     {"file_name": "archive.zip", "content_b64": enc("dummy")},
+                    # GAP-288: 工程語の無い md は既定で delivery に仕分けられるが、
+                    # 致命工程 (納品) は資料だけで「完了済みでは？」と提案しない
+                    {"file_name": "ヒアリングメモ2.md", "content_b64": enc("- 雑談\n- 次回")},
                 ]
                 r = client.post(f"/projects/{proj}/import", json={"files": files}, headers=h)
                 assert r.status_code == 200, r.text
                 d = r.json()["data"]
-                assert d["imported"] == 4 and d["failed"] == 1
+                assert d["imported"] == 5 and d["failed"] == 1
+                assert "delivery" not in d["suggested_stage_keys"]
+                assert "contract" not in d["suggested_stage_keys"]
                 by_name = {x["file_name"]: x for x in d["results"]}
                 assert by_name["top-page.html"]["type"] == "mock"
                 assert by_name["見積書.html"]["type"] == "output"
@@ -460,7 +465,12 @@ class TestGap156Import:
                 mocks = client.get("/mocks", params={"project_id": proj}, headers=h).json()["data"]
                 assert [m["screen_name"] for m in mocks] == ["トップページ"]
                 outs = client.get("/outputs", params={"project_id": proj}, headers=h).json()["data"]
-                assert {o["stage"] for o in outs} == {"estimate", "requirements", "design"}
+                assert {o["stage"] for o in outs} == {
+                    "estimate",
+                    "requirements",
+                    "design",
+                    "delivery",
+                }
 
                 # ユーザー確定でフロー反映 (提案は自動反映しない)
                 flow = client.get(f"/projects/{proj}/flow", headers=h).json()["data"]
