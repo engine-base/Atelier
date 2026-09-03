@@ -11,6 +11,14 @@
 
 ## 1. 経営者がやること（権限が要るもの）
 
+> **1-1〜1-3 と 1-4 の一部は 1 コマンドで自動化してあります**（Mac で、supabase / flyctl / gh にログイン済みなら）:
+> ```bash
+> supabase orgs list                                   # org-id を控える
+> bash scripts/staging-bootstrap.sh <org-id>           # プロジェクト作成 → キー取得 → Fly app + secrets → GitHub secrets → staging ブランチ
+> ```
+> 残るのは JWT secret・Vercel の env・Site URL の 3 つだけ（スクリプトの最後に手順が出ます）。以下は手動で行う場合の詳細。
+
+
 ### 1-1. Supabase: staging プロジェクトを作る
 1. https://supabase.com/dashboard → New project → 名前 `atelier-staging`、Region **Tokyo (ap-northeast-1)**、Free。
 2. Settings → Database → **Session pooler** の接続文字列（`postgresql://postgres.<ref>:<pw>@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres`）を控える。
