@@ -149,3 +149,256 @@ API: https://atelier-api-eb.fly.dev   Web: https://atelier-web-coral.vercel.app
 
 ## J12-03 「あとで」は同意にならないことを見る
   => J12-03: BLOCKED — J12-01 (新版投入) が BLOCKED のため帯が出せず未実行 / 解除条件: J12-01 と同じ
+
+## J13-03 パスワードを 5 回間違えるとロックされる (再実行: 1 分あたり 2 回に間引いてレート制限 5/min/ip を避ける)
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  round 0: 失敗累計 2 (直近: 401:メールアドレスまたはパス / 401:メールアドレスまたはパス)
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  round 1: 失敗累計 4 (直近: 401:メールアドレスまたはパス / 401:メールアドレスまたはパス)
+
+## J15-02 通知センターに自分宛の承認待ちが出る
+  GET /approval-inbox?status=pending -> 200 {"data":[]}
+  GET /approval-inbox → 0 件 / t-uc-36 本文先頭="メインコンテンツへスキップ\nワークスペース · QA JA2 WS1\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA jA2 WS1\nQ\n通知センター\n未読 0\nすべて\n未読のみ\n通知はありません" バッジ=["未読 0"]
+  => J15-02: BLOCKED — 依存 J32-02 (承認待ちの発生) は AI 実行 (Bridge) が要る (承認は chat-relay の AI ジョブからしか生まれない) ため、自分宛の承認待ちを作れない。観測できた部分: 承認待ち 0 件の状態で t-uc-36 は ["未読 0","通知はありません"] と表示しエラー無し、GET /approval-inbox=0 件 / 解除条件: Mac の Bridge で J32-02 を先に流す
+
+## J15-03 プロフィールの表示名を変える
+  UI: ["input:text[name=display_name]#_r_0_=QA jA2 1","input:email#_r_3_=qa-jA2-20260903-1@example.com","button:submit=保存"]
+  GET /me -> 200 {"data":{"id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","email":"qa-jA2-20260903-1@example.com","display_name":"QA jA2 改名太郎","ai_learning_opt_out":true}}
+  PATCH /me → 200 / 保存直後ヘッダー=アカウント: QA jA2 1 / 再読み込み後 入力値=QA jA2 改名太郎 ヘッダー=アカウント: QA jA2 改名太郎 / GET /me display_name=QA jA2 改名太郎
+  => J15-03: FAIL — 期待: 保存後ヘッダーに反映し再読み込みでも残る / 実測: PATCH=200 直後ヘッダー=アカウント: QA jA2 1 再読み込み後=QA jA2 改名太郎/アカウント: QA jA2 改名太郎 GET /me=QA jA2 改名太郎
+
+## J15-04 表示名を空で保存しようとする
+  PATCH /me -> 422 {"detail":"送信内容を確認してください（表示名: 文字数が足りません）。"}
+  画面: errors=["入力必須"] native={"noValidate":true,"vm":"","req":false} PATCH=未送信 / API 直接 PATCH /me {display_name:""} → 422 / GET /me display_name=QA jA2 改名太郎
+  => J15-04: PASS — 日本語エラー ["入力必須"] で拒否 (画面 PATCH=未送信)、API 直接でも 422、GET /me の表示名は「QA jA2 改名太郎」のまま
+
+## J15-05 ワークスペースを切り替える
+  POST /workspaces -> 201 {"data":{"id":"f2c82875-b048-4150-acd1-ca5c78694a39","name":"QA jA2 WS2","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:08:19.810793Z","updated_at":"2026-09-03T05:08:19.810793Z"}}
+  POST /projects -> 201 {"data":{"id":"7acf0e55-3b5b-4a89-9f83-4c072ea60e65","workspace_id":"f2c82875-b048-4150-acd1-ca5c78694a39","name":"QA jA2 WS2 案件 Vega","client_name":null,"description":null,"type":"self_product","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","del
+  UI: ["a=WS設定","button:button{ワークスペース: QA jA2 WS1}=Q\nQA jA2 WS1","button:button#_r_0_=ワークスペース:\nQA jA2 WS1"]
+  POST /auth/signin -> 429 {"detail":"サインインの失敗が続いたため、一時的に受け付けを止めています。しばらく時間をおいてからお試しください。"}
+  正しいパスワード → 429 "サインインの失敗が続いたため、一時的に受け付けを止めています。しばらく時間をおいてからお試しください。"
+  失敗応答の内訳: [401,401,401,401] / 未登録メール → 401 同一文言=true
+  => J13-03: PASS — 誤パスワードを累計 5 回 (401「メールアドレスまたはパスワードが違います。」= 未登録メールの応答と同一で存在は漏れない) の後、正しいパスワードでも 429「サインインの失敗が続いたため、一時的に受け付けを止めています。しばらく時間をおいてからお試しください。」でロック。ロック判定は audit_logs の auth.signin_failed を直近 15 分で数える実装のため、ロックが効いた事実 = login_failed 5 件が記録された証拠 (rate_limited 「短い間に…」とは別文言)
+
+## J15-05 ワークスペースを切り替える
+  UI: ["a=WS設定","button:button{ワークスペース: QA jA2 WS1}=Q\nQA jA2 WS1","button:button#_r_0_=ワークスペース:\nQA jA2 WS1"]
+  展開後 UI: ["button:button=Q\nQA jA2 WS2"]
+  選択後 localStorage=WS2 / 案件一覧: Vega=true Nebula=true WS2 名表示=true / 再読み込み後: Vega=true Nebula=true localStorage=WS2
+  => J15-05: FAIL — 期待: 選んだ WS が現在 WS になり案件一覧が切り替わり再読み込み後も残る / 実測: localStorage=f2c82875-b048-4150-acd1-ca5c78694a39 Vega=true Nebula=true WS2名=true 再読み込み後 Vega=true Nebula=true ls=f2c82875-b048-4150-acd1-ca5c78694a39
+
+## J15-06 案件を切り替える
+  POST /projects -> 201 {"data":{"id":"58224686-b3c6-4788-88d3-c18781f3738d","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件2 Sirius","client_name":null,"description":null,"type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","de
+  UI: ["button:button#_r_0_=プロジェクト:\nQA jA2 案件1 Nebula"]
+  展開後 UI: []
+  [J15-05 追加観測 probe39] WS2 を現在 WS にして /projects を開いたときの API: GET /workspaces, GET /projects/64619201-…(Nebula 詳細), GET /projects?limit=20 (workspace_id 無し)
+  main 領域: 「3 件のアクティブプロジェクト」 QA jA2 案件1 Nebula / QA jA2 WS2 案件 Vega / QA jA2 案件2 Sirius (WS1 と WS2 が混在)  header: QA jA2 WS2 / プロジェクト
+  => J15-05 判定を更新: FAIL — 一覧が現在 WS に絞られない (GET /projects に workspace_id が付かない)。ヘッダー現在案件も WS1 の Nebula のまま
+
+## J15-06 案件を切り替える
+  UI: ["button:button#_r_0_=プロジェクト:\nQA jA2 案件1 Nebula"]
+  展開後 UI: ["li=QA jA2 案件2 Sirius"]
+  選択後 localStorage=Sirius / 工程画面: Sirius=true Nebula=false / チャット画面: Sirius=true Nebula=false
+  => J15-06: PASS — t-uc-39 で「案件2 Sirius」を選ぶと現在案件が Sirius になり、工程 (/workflow) とチャット (/chat) の文脈が Sirius に切り替わる (Nebula は出ない)
+
+## J15-07 横断検索で案件・タスク・ナレッジ・AI 社員を引く
+  POST /knowledge -> 201 {"data":{"id":"00ba7348-5c1f-4a97-9c1b-09a39dfb0418","account_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","account_type":"workspace","scope":"common","owner_employee_id":null,"parent_id":null,"visible_in_tree":true,"category":"qa","title":"QA jA2 ナレッジ Aurora","content_md":"本文にしか無い語: ZEPHYRWORD-A2 を含む
+  POST /knowledge -> 201 {"data":{"id":"2d11e038-797d-41b2-b03f-d286935c518c","account_id":"a9c79c64-5a4e-4090-819d-a2e277352623","account_type":"workspace","scope":"common","owner_employee_id":null,"parent_id":null,"visible_in_tree":true,"category":"qa","title":"QA jA2 別テナント ナレッジ ORION","content_md":"別テナントの本文 XTENANT-SECRE
+  POST /tasks -> 201 {"data":{"id":"3b3b6561-c19e-49eb-bd0a-08d53af1c63e","project_id":"64619201-f5b5-4054-b6e5-ae34752cecb5","phase":null,"category":"qa","title":"QA jA2 タスク Nebula-TASK-1","description":"検索用","type":"feature","estimated_hours":1,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"ass
+  POST /tasks -> 201 {"data":{"id":"980fb1de-d4fa-4c25-b598-8b24a6d97900","project_id":"5d6cb8c5-5020-476d-90ba-736acde7bb0a","phase":null,"category":"qa","title":"QA jA2 別テナント タスク XTENANT-SECRET-ORION","description":null,"type":"feature","estimated_hours":1,"priority":"medium","lifecycle_stage":"triage","dispatch_statu
+  API /search: "Nebula" → ["project:QA jA2 案件1 Nebula","task:QA jA2 タスク Nebula-TASK-1"] / 本文語 "ZEPHYRWORD-A2" → ["knowledge:QA jA2 ナレッジ Aurora"] / "トニー" → ["employee:トニー","employee:トニー"] / 別テナント語 "XTENANT-SECRET-ORION" → [] / "ORION" → []
+  画面 "Nebula": 案件=true タスク=true 種別ボタン=["button:button{メニュー}=","button:button{ワークスペース: QA jA2 WS1}=Q\nQA jA2 WS1","button:button{アカウント: QA jA2 改名太郎}=Q","button:button=すべて","button:button=プロジェクト","button:button=タスク","button:button=ナレッジ","button:button=AI 社員"]
+  画面 本文語 → ナレッジ Aurora=true / 画面 別テナント語 → ORION 表示=false
+  => J15-07: PASS — 案件名の一部 "Nebula" → project/task が種別つきで出る、本文にしか無い語 "ZEPHYRWORD-A2" → knowledge「Aurora」、"トニー" → employee。別テナント (別ユーザーの WS) の案件/タスク/ナレッジ語 "XTENANT-SECRET-ORION" は API・画面とも 0 件 (R-T08)
+
+## J15-08 該当しない語で検索する
+  GET /search?q=%E5%AD%98%E5%9C%A8%E3%81%97%E3%81%AA%E3%81%84%E8%AA%9EQWXZ9 -> 200 {"data":[]}
+  画面案内=[] errs=[] / API → 200 0 件
+  => J15-08: FAIL — 期待: 0 件の案内・壊れない / 実測: 案内=[] API=200/0 errs=[]
+
+## J36-01 ワークスペース名を変える
+  基本情報 UI: ["input:text[name=name]#_r_0_=QA jA2 WS1","button:submit=保存","input:text(例：小松 太郎)=","input:email(client@example.com)=","button:submit=招待を発行(disabled)","input:checkbox[name=aiLearningOptIn]=on"]
+  [J15-08 追加観測 probe40] GET /search?q=存在しない語QWXZ9&kind=all → 200 / main 本文: 「…AI 社員 / ヒットなし」 (0 件案内の文言は「ヒットなし」)
+  => J15-08 判定を更新: PASS — 0 件の案内「ヒットなし」が出て壊れない
+
+## J36-01 ワークスペース名を変える
+  基本情報 UI: ["input:text[name=name]#_r_0_=QA jA2 WS1","button:submit=保存","input:text(例：小松 太郎)=","input:email(client@example.com)=","button:submit=招待を発行(disabled)","input:checkbox[name=aiLearningOptIn]=on"]
+  GET /workspaces/3adaebaa-1a52-41c9-8305-b1da3af958d0 -> 200 {"data":{"id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 WS1 改名","description":null,"icon":null,"member_count":1,"project_count":2,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:01:15.955721Z","updated_at":"2026-09-03T05:13:39.089697Z"}}
+  PATCH → 200 / サイドバーに新名=false / GET /workspaces/{id} name=QA jA2 WS1 改名
+  => J36-01: FAIL — 期待: サイドバーに反映 / 実測: PATCH=200 サイドバー=false GET name=QA jA2 WS1 改名
+
+## J36-02 空の名前で保存しようとする
+  PATCH /workspaces/3adaebaa-1a52-41c9-8305-b1da3af958d0 -> 422 {"detail":"送信内容を確認してください（名前: 文字数が足りません）。"}
+  画面: errors=["2 文字以上で入力してください","退会手続きへ進む"] native={"noValidate":true,"vm":"","req":false} PATCH=未送信 / API 直接 name:"" → 422 / GET name=QA jA2 WS1 改名
+  => J36-02: PASS — 日本語エラー ["2 文字以上で入力してください","退会手続きへ進む"] で拒否 (画面 PATCH=未送信 / API 直接 422)、DB の名前は「QA jA2 WS1 改名」のまま
+
+## J36-03 アカウントの AI 学習設定が既定 OFF で、切替が効く
+  既定: checkbox checked=false (GET /me ai_learning_opt_out=true) 文言="AI 学習設定  デフォルト OFF。 このワークスペースのデータは Anthropic / Voyage の AI 学習に使用されません。ON にすると、改善のためのモデル学習に匿名データが利用されます。  AI 学習への利用を許可する（推奨：OFF） 保存"
+  ON にして保存: POST /account/ai-learning → 200 {"data":{"user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","ai_learning_opt_out":false}} / GET /me opt_out=false / 再読み込み後 checked=true
+  OFF に戻す: GET /me opt_out=true
+  => J36-03: BLOCKED — 観測できた部分は全て期待どおり: 既定は OFF (checkbox 未チェック・GET /me ai_learning_opt_out=true)、ON で保存 → POST /account/ai-learning 200・GET /me opt_out=false・再読み込み後も ON、OFF に戻すと opt_out=true。監査ログ ai_training_optin_changed は運営でしか読めず未観測 / 解除条件: 運営アカウント
+
+## J36-04 MCP トークンを発行する
+  UI: ["button:button#ws-tab-tokens=MCPトークン","button:submit=招待を発行(disabled)","button:button=発行"]
+  GET /mcp-tokens/86b2cf22-a65c-4e67-956c-6f79bdcf2036 -> 200 {"data":{"id":"86b2cf22-a65c-4e67-956c-6f79bdcf2036","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 Claude Desktop","scopes":["read","write"],"expires_at":null,"revoked_at":null,"last_used_at":null,"created_at":"2026-09-03T05:13:58.174485Z","updated_at":"2026-09-03T05:13:58.174
+  POST /mcp-tokens → 201 / 発行直後に平文 (32+ 文字) 表示=true 一覧に名前=true / 再読み込み後 平文表示=false 一覧に名前=true / GET 一覧・詳細に token フィールド=false
+  => J36-04: BLOCKED — 観測できた部分は全て期待どおり: 発行 (POST /mcp-tokens 201) 直後に平文が 1 度表示され一覧に「QA jA2 Claude Desktop」が出る。再読み込み後は平文が出ず、GET 一覧/詳細にも token フィールド無し。監査ログ mcp_token_issued は運営でしか読めず未観測 / 解除条件: 運営アカウント
+
+## J36-05 MCP トークンを取り消す
+  GET /mcp-tokens?workspace_id=3adaebaa-1a52-41c9-8305-b1da3af958d0&include_revoked=true -> 200 {"data":[{"id":"86b2cf22-a65c-4e67-956c-6f79bdcf2036","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 Claude Desktop","scopes":["read","write"],"expires_at":null,"revoked_at":"2026-09-03T05:14:05.287337Z","last_used_at":null,"created_at":"2026-09-03T05:13:58.174485Z","updated_at
+  DELETE → 204 / 画面: [] / API: revoked_at=2026-09-03T05:14:05.287337Z active 一覧に残存=false
+  => J36-05: BLOCKED — 観測できた部分は期待どおり: DELETE /mcp-tokens 204、一覧に失効として反映 (active 一覧から消える)、API revoked_at 記録。未観測: 「そのトークンでの MCP 接続が拒否される」は MCP 接続を受ける側 (Bridge/MCP サーバ) が API 側に無く本環境で試せない、監査ログ mcp_token_revoked は運営限定 / 解除条件: Mac の Bridge (MCP 接続) + 運営アカウント
+
+## J36-06 最後の owner を除名しようとする
+  GET /workspaces/3adaebaa-1a52-41c9-8305-b1da3af958d0/members -> 200 {"data":[{"workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","email":"qa-jA2-20260903-1@example.com","display_name":"QA jA2 改名太郎","role":"owner","joined_at":"2026-09-03T05:01:15.955721Z"}]}
+  メンバー UI: ["button:button=ワークスペースを削除"]
+  DELETE /workspaces/3adaebaa-1a52-41c9-8305-b1da3af958d0/members/4846ffcd-2e30-4bde-8abf-95511a5eb01b -> 204 
+  UI 削除ボタン=0 → DELETE 未送信 alert=[] / API 直接 DELETE → 204 "" / メンバー数 1 → 1 (owner 残存=true)
+  => J36-06: FAIL — 期待: LAST_OWNER で拒否・一覧不変 / 実測: API=204 "" UI=undefined alert=[] メンバー 1→1
+
+## J36-07 ワークスペースを削除する
+  POST /workspaces -> 201 {"data":{"id":"c7de906e-c343-4f2c-ae7c-abe6853ec954","name":"QA jA2 使い捨て WS","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:14:10.697455Z","updated_at":"2026-09-03T05:14:10.697455Z"}}
+  POST /projects -> 201 {"data":{"id":"3d32cf68-6121-4d30-adf8-b0405f67f7e9","workspace_id":"c7de906e-c343-4f2c-ae7c-abe6853ec954","name":"QA jA2 使い捨て案件","client_name":null,"description":null,"type":"personal","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","deleted_at":
+  Danger zone UI: ["button:button#ws-tab-leave=退会","button:button=ワークスペースを削除","a=退会手続きへ進む"] 文言="ワークスペースの削除 Danger Zone  ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。  ワークスペースを削除"
+  GET /workspaces -> 200 {"data":[{"id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 WS1 改名","description":null,"icon":null,"member_count":1,"project_count":2,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:01:15.955721Z","updated_at":"2026-09-03T05:13:54.703995Z"},{"id":"f2c82875-b048-4150-acd1-ca5c786
+  GET /workspaces/c7de906e-c343-4f2c-ae7c-abe6853ec954 -> 404 {"detail":"対象のワークスペースが見つかりません。"}
+  GET /projects?workspace_id=c7de906e-c343-4f2c-ae7c-abe6853ec954 -> 200 {"data":[{"id":"3d32cf68-6121-4d30-adf8-b0405f67f7e9","workspace_id":"c7de906e-c343-4f2c-ae7c-abe6853ec954","name":"QA jA2 使い捨て案件","client_name":null,"description":null,"type":"personal","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","deleted_at"
+  GET /projects/3d32cf68-6121-4d30-adf8-b0405f67f7e9 -> 200 {"data":{"id":"3d32cf68-6121-4d30-adf8-b0405f67f7e9","workspace_id":"c7de906e-c343-4f2c-ae7c-abe6853ec954","name":"QA jA2 使い捨て案件","client_name":null,"description":null,"type":"personal","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","deleted_at":
+  GET /ai-employees?workspace_id=c7de906e-c343-4f2c-ae7c-abe6853ec954 -> 200 {"data":[{"id":"5c3cb4fc-acb0-4bc0-bbb6-9d05194934a8","workspace_id":"c7de906e-c343-4f2c-ae7c-abe6853ec954","template_id":"89af0dd3-d5b6-45b6-99ab-fdc5f09a340e","name":"jarvis","display_name":"ジャービス","icon":"J","role":"coo","department":"executive","tone_preset":"polite","custom_tone_text":null,"att
+  確認文言="ワークスペースの削除 Danger Zone  ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。  本当に削除しますか？ 削除を確定 キャンセル" / DELETE → 204 / 遷移=/projects 30日案内=true / GET /workspaces に残存=false / GET /workspaces/{id} → 404 deleted_at=undefined / 配下 projects → 200 1 件, project 詳細 → 200, ai-employees → 200 10 件
+  => J36-07: FAIL — 期待: 30 日案内・一覧から消える・deleted_at 記録・配下データへのアクセス拒否 / 実測: DELETE=204 30日案内=true 一覧から消えた=true GET ws=404 deleted_at=undefined 配下 projects=200/1 詳細=200 employees=200/10
+  [J36-01 追加観測 probe3601] 保存前 header=ワークスペース: QA jA2 WS1 改名 / 保存後 (PATCH 200, POST /account/ai-learning 200, GET /workspaces/{id} 200) header=ワークスペース: QA jA2 WS1 改名 (旧名のまま) / 再読み込み後 header=ワークスペース: QA jA2 WS1 再改名
+  => J36-01 判定: FAIL — 保存直後にサイドバー/ヘッダーへ反映されない (再読み込みで反映)
+  [J36-06 再確認] DELETE /workspaces/{ws1}/members/{u1} → 204 "" / members 1 → 1 ["owner"] (no-op)
+  AI 社員 10 名: ジャービス(jarvis),トニー(tony),ナターシャ(natasha),スティーブ(steve),ピーター(peter),ストレンジ(strange),ワンダ(wanda),ヴィジョン(vision),ソー(thor),ティチャラ(tchalla) / tony=2fd8c87c-011a-4419-9d32-6d0be141f908 vision=f5037aa1-b53b-4775-82c3-183521461997
+
+## J37-01 AI 社員の組織図とリストを見る
+  UI: ["a{検索}=","a{通知センター (未処理の承認待ち 0 件)}=","button:button=組織図","button:button=リスト","button:button{ジャービス の詳細}=JA\nジャービス\nJarvis\nCOO · 全社統括\n2 s","button:button{ジャービス の詳細}=JA\nジャービス\nJarvis\nCOO · 全社統括\n2 s","button:button{ジャービス の詳細}=JA\nジャービス\nJarvis\nCOO · 全社統括\n2 s","button:button{トニー の詳細}=TO\nトニー\nTony\n部長\n3 skills · sale","button:button{トニー の詳細}=TO\nトニー\nTony\n部長\n3 skills · sale","button:button{トニー の詳細}=TO\nトニー\nTony\n部長\n3 skills · sale","button:button{ナターシャ の詳細}=NA\nナターシャ\nNatasha\nメンバー\n2 skills","button:button{ナターシャ の詳細}=NA\nナターシャ\nNatasha\nメンバー\n2 skills","button:button{ナターシャ の詳細}=NA\nナターシャ\nNatasha\nメンバー\n2 skills","button:button{スティーブ の詳細}=ST\nスティーブ\nSteve\n部長\n2 skills · h","button:button{スティーブ の詳細}=ST\nスティーブ\nSteve\n部長\n2 skills · h","button:button{スティーブ の詳細}=ST\nスティーブ\nSteve\n部長\n2 skills · h","button:button{ピーター の詳細}=PE\nピーター\nPeter\nメンバー\n2 skills · ","button:button{ピーター の詳細}=PE\nピーター\nPeter\nメンバー\n2 skills · ","button:button{ピーター の詳細}=PE\nピーター\nPeter\nメンバー\n2 skills · ","button:button{ストレンジ の詳細}=ST\nストレンジ\nStrange\n部長\n2 skills ·","button:button{ストレンジ の詳細}=ST\nストレンジ\nStrange\n部長\n2 skills ·","button:button{ストレンジ の詳細}=ST\nストレンジ\nStrange\n部長\n2 skills ·","button:button{ワンダ の詳細}=WA\nワンダ\nWanda\n部長\n3 skills · des","button:button{ワンダ の詳細}=WA\nワンダ\nWanda\n部長\n3 skills · des","button:button{ワンダ の詳細}=WA\nワンダ\nWanda\n部長\n3 skills · des","button:button{ヴィジョン の詳細}=VI\nヴィジョン\nVision\nメンバー\n2 skills ","button:button{ヴィジョン の詳細}=VI\nヴィジョン\nVision\nメンバー\n2 skills ","button:button{ヴィジョン の詳細}=VI\nヴィジョン\nVision\nメンバー\n2 skills ","button:button{ソー の詳細}=TH\nソー\nThor\n部長\n2 skills · distr","button:button{ソー の詳細}=TH\nソー\nThor\n部長\n2 skills · distr"]
+  組織図に出る名前 10/10 / リストに出る名前 10/10 / 雇用・追加・削除の導線=[]
+  => J37-01: PASS — 運営固定の 10 名 (ジャービス,トニー,ナターシャ,スティーブ,ピーター,ストレンジ,ワンダ,ヴィジョン,ソー,ティチャラ) が組織図・リストの両方に出る (ビュー切替で確認)。雇用/追加/削除の導線は 0 件 (固定編成)
+
+## J37-02 AI 社員の詳細で「できること」が能力として出る
+  GET /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908 -> 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー","icon":"T","role":"lead","department":"sales","tone_preset":"polite","custom_tone_text":null,"attached_sk
+  GET /ai-employees/templates/b0112872-61d6-4301-8686-6509fd8512eb -> 200 {"data":{"id":"b0112872-61d6-4301-8686-6509fd8512eb","default_name":"tony","default_display_name":"トニー","default_icon":"T","department":"sales","role":"lead","default_skills":["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"],"defau
+  画面: 名前=true 口調=true できること=true スキル語を含む行=["この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。"] / API attached_skills=["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"] 漏れそうなキー=["system_prompt"] / template 応答キー=["id","default_name","default_display_name","default_icon","department","role","default_skills","default_knowledge_cats","system_prompt","specialty","version","is_active","created_at","updated_at"]
+  => J37-02: FAIL — 期待: 名前・口調・できることが出てスキル名/本文は画面にも API にも無い / 実測: 名前=true 口調=true できること=true 画面スキル行=["この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。"] API attached_skills=["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"] keys=["system_prompt"]
+
+## J37-03 表示名と口調を編集して保存する
+  UI: ["input:text[name=display_name]#_r_0_=トニー","input:file{アイコン画像を選択}=","input:radio[name=tone_preset]=polite","input:radio[name=tone_preset]=friendly","input:radio[name=tone_preset]=casual","input:radio[name=tone_preset]=concise","input:radio[name=tone_preset]=coaching","button:submit=保存"]
+  [J37-02 追加観測 probe3702] GET /ai-employees/{tony} keys=id,…,attached_skills(ID×3),… system_prompt 無し / GET /ai-employees/templates/{tpl} system_prompt="あなたは営業・契約部の部長トニーです。提案・見積・営業コミュニケーションを主導します。" default_skills=ID×3 specialty="営業・提案・見積" / GET /ai-employees/templates (一覧) にも system_prompt あり
+  画面 main: 「できること / この AI 社員に付与されているスキルです。運営側で整えられているため変更できません。 / sales-email / proposal / estimate」 (画面が GET /skills?limit=200 を呼びスキル名を解決)
+  => J37-02 判定: FAIL — スキル名 (画面) と system_prompt 本文 (templates API) が利用者に見える
+  AI 社員 10 名: ジャービス(jarvis),トニー(tony),ナターシャ(natasha),スティーブ(steve),ピーター(peter),ストレンジ(strange),ワンダ(wanda),ヴィジョン(vision),ソー(thor),ティチャラ(tchalla) / tony=2fd8c87c-011a-4419-9d32-6d0be141f908 vision=f5037aa1-b53b-4775-82c3-183521461997
+
+## J37-03 表示名と口調を編集して保存する
+  UI: ["input:text[name=display_name]#_r_0_=トニー","input:file{アイコン画像を選択}=","input:radio[name=tone_preset]=polite","input:radio[name=tone_preset]=friendly","input:radio[name=tone_preset]=casual","input:radio[name=tone_preset]=concise","input:radio[name=tone_preset]=coaching","button:submit=保存"]
+  POST /chat/threads -> 201 {"data":{"id":"656534cf-9a88-4230-8a31-3aa54e1efcf3","project_id":"64619201-f5b5-4054-b6e5-ae34752cecb5","ai_employee_id":"2fd8c87c-011a-4419-9d32-6d0be141f908","title":"QA jA2 スレッド","archived":false,"deleted_at":null,"created_at":"2026-09-03T05:19:12.056349Z","updated_at":"2026-09-03T05:19:12.05634
+  PATCH → 200 / GET display_name=トニー改 tone=casual (前=polite) / 組織図に「トニー改」=true リスト=true チャット画面=true
+  => J37-03: BLOCKED — 観測できた部分は全て期待どおり: 表示名「トニー改」・口調 polite→casual を下部バーで保存 (PATCH 200)、一覧・組織図・チャット画面 (スレッドの発言者名) に反映。監査ログ ai_employee_customized は運営でしか読めず未観測 / 解除条件: 運営アカウント
+
+## J37-04 編集禁止の項目を変えようとする
+  PATCH /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908 -> 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー改","icon":"T","role":"lead","department":"sales","tone_preset":"casual","custom_tone_text":null,"attached_s
+  PATCH /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908 -> 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー改","icon":"T","role":"lead","department":"sales","tone_preset":"casual","custom_tone_text":null,"attached_s
+  PATCH /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908 -> 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー改","icon":"T","role":"lead","department":"sales","tone_preset":"casual","custom_tone_text":null,"attached_s
+  system_prompt → 200 / attached_skills → 200 / 混在 → 200 / GET 後: attached_skills=["8c50ffc6-16da-4166-950e-37ee38d4cd12","d80f5c09-72a7-467c-8fa2-eb575aee00e5","412195ec-996b-49b5-97c0-158dd6b8c65e"] injected 文字列の混入=false
+  => J37-04: FAIL — 期待: FORBIDDEN_FIELD で拒否・DB 不変 / 実測: 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af / 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af / 200 / 注入混入=false
+
+## J37-05 アイコン画像を差し替える
+  POST /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908/icon-upload-url -> 200 {"data":{"upload_url":"<redacted>","storage_path":"avatars/ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908/caf861aa-6002-4cc3-b1af-407a07f9865d/qa-icon.png"}}
+  PATCH /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908 -> 200 {"data":{"id":"2fd8c87c-011a-4419-9d32-6d0be141f908","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","template_id":"b0112872-61d6-4301-8686-6509fd8512eb","name":"tony","display_name":"トニー改","icon":"avatars/ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908/caf861aa-6002-4cc3-b1af-407a07f9865d/q
+  GET /ai-employees/2fd8c87c-011a-4419-9d32-6d0be141f908/icon-url -> 200 {"data":{"url":"<redacted>"}}
+  upload-url → 200 / PUT → 200 / PATCH icon → 200 / icon-url → 200 / 実体 fetch → 200 image/png 79B (G-11) / 組織図 img=[] / チャット img=[]
+  => J37-05: FAIL — 期待: 署名付き URL でアップロードした画像が組織図・チャットに反映され Storage に実体がある / 実測: upload-url=200 {"data":{"upload_url":"https://rgxwmdnqnlkgrgdfafih.supabase.co/storage/v1/object/upload/sign/avatars/ai-employees/2fd8c PUT=200 PATCH=200 icon-url=200 fetch=200/image/png/79 組織図img=[] チャットimg=[]
+
+## J37-06 AI 社員の活動履歴が実作業を映す
+  => J37-06: BLOCKED — 依存 J46-05 (成果物の修正提案) は AI 実行 (Mac の Bridge) が要り本環境では作れない / 解除条件: Mac の Bridge で J46-05 を先に流す
+
+## J37-07 何もしていない AI 社員の活動履歴を見る
+  GET /ai-employees/f5037aa1-b53b-4775-82c3-183521461997/activities -> 200 {"data":[]}
+  GET activities → 200 0 件 / タブ=["button:button=活動履歴 0"] / 画面案内=["まだ活動がありません。タスク割当・チャット・確定事項がここに並びます。","変更はありません"] errs=[]
+  => J37-07: PASS — 未使用の「ヴィジョン」の活動履歴: API 200 / 0 件、画面は「まだ活動がありません。タスク割当・チャット・確定事項がここに並びます。」の案内でエラー無し
+
+## J37-08 運営がテンプレを改訂しても利用者の編集が残る
+  => J37-08: BLOCKED — 運営権限なし: テンプレ改訂は /admin/ai-employee-templates (運営) が要る / 解除条件: 運営アカウント (scripts/grant-admin.sh)
+
+## J39-01 案件のシークレットを 1 件登録する
+  UI: ["input:text#cred-name(例: 顧客 Slack Bot Token)=","select:select-one#cred-kind=API キー\nパスワード\nトークン\n接続文字列\nその他","input:password#cred-value(ここに貼り付け（保存時に暗号化）)=","button:submit=暗号化して保存"]
+  GET /projects/64619201-f5b5-4054-b6e5-ae34752cecb5/credentials -> 200 {"data":[]}
+  POST → 500 応答に平文=false / GET 一覧に平文=false last4=undefined / 画面: 名前あり・平文なし・マスク=false / dashboard recent_activities=["project.flow.init","task.create","workflow.phases.seed","project.create"]
+  => J39-01: FAIL — 期待: マスク表示・応答に平文無し / 実測: POST=500 一覧=false 応答平文=false GET平文=false 画面マスク=false
+
+## J39-02 値を一時的に表示する (reveal)
+  [J37-05 追加観測 probe39] GET /ai-employees/{tony}.icon = avatars/ai-employees/<id>/<uuid>/qa-icon.png (保存済) / 組織図ノード html: <span role="img" aria-label="AI 社員 Tony">TO</span> (img 無し, icon-url 呼び出し無し) / チャット: img 0 枚・頭文字「ト」
+  => J37-05 判定: FAIL — Storage には実体があるが画面 (組織図・チャット) に画像が反映されない
+  [J39-01 追加観測 probe39] POST /projects/{p1}/credentials (api_key) → 500 {"detail":"サーバー側の設定に問題があります。運営にお問い合わせください。"} / (password, "short") → 500 同文言 / GET 一覧 → 200 []
+  => J39-01 判定: FAIL — 本番のサーバー設定不備で登録不可 (G-11)
+## J39-02 / J39-03 / J39-04
+  => BLOCKED — J39-01 が 500 で 1 件も登録できないため未実行 / 解除条件: 本番 API に暗号化鍵を設定
+
+## J38-01 案件の名前と説明を変える
+  UI: ["input:text[name=name]#_r_0_=QA jA2 案件1 Nebula","input:text[name=client_name]#_r_3_=","textarea:textarea[name=description]#_r_6_=ジャーニー A 本体案件","select:select-one[name=type]#_r_9_=自社プロダクト\nクライアント案件\n個人開発","select:select-one[name=lifecycle]#_r_c_=進行中\n下書き\n一時停止\nアーカイブ","button:submit=保存","input:checkbox{AI 学習への利用を許可}=on","input:checkbox{プロジェクト跨ぎナレッジ参照}=on"]
+  GET /projects/64619201-f5b5-4054-b6e5-ae34752cecb5 -> 200 {"data":{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula 改","client_name":"","description":"説明を更新 (J38-01)","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"
+  PATCH → 200 / GET name=QA jA2 案件1 Nebula 改 desc=説明を更新 (J38-01) / 一覧に新名=true / ダッシュボード見出し="プロジェクトダッシュボード|工程の流れ（9 工程）|最新の活動" 新名=false / recent_activities=["project.update","project.flow.init","task.create","workflow.phases.seed","project.create"]
+  => J38-01: FAIL — 期待: 一覧と見出しに反映・監査 project_updated / 実測: PATCH=200 name=QA jA2 案件1 Nebula 改 一覧=true 見出し=false activities=["project.update","project.flow.init","task.create","workflow.phases.seed","project.create"]
+
+## J38-02 案件単位の AI 学習設定が既定 OFF で、切替が効く
+
+## J38-02 案件単位の AI 学習設定が既定 OFF で、切替が効く
+  既定 checked=false (ラベル「」) GET opt_out=true / ON 保存: POST ai-learning → 200 GET opt_out=false 再読み込み checked=true / activities=["project.update","project.ai_learning_set","project.update","project.flow.init","task.create","workflow.phases.seed","project.create"] / OFF に戻す → opt_out=true
+  => J38-02: PASS — 既定 OFF (未チェック・ai_learning_opt_out=true)。ON で保存 → POST /projects/{id}/ai-learning 200・GET opt_out=false・再読み込み後も ON、監査 project.ai_learning_set を recent_activities で確認。OFF に戻すと opt_out=true
+
+## J38-03 案件を削除する
+  POST /client-invitations -> 201 {"data":{"id":"f11337c7-f35b-4ec8-a4a3-f2b6a476ea75","project_id":"64619201-f5b5-4054-b6e5-ae34752cecb5","email":"qa-jA2-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T05:23:48.974264Z","used_at":null,"revoked_at":null,"client_display_name":"QA クライアント","use_count":
+  招待作成 → 201 id=f11337c7-f35b-4ec8-a4a3-f2b6a476ea75 token 付与=true keys=["id","project_id","email","scopes","expires_at","used_at","revoked_at","client_display_name","use_count","created_at","updated_at","token"]
+  POST /comments -> 201 {"data":{"id":"5db239ce-9a38-449c-9647-deccabbd58ca","target_type":"task","target_id":"3b3b6561-c19e-49eb-bd0a-08d53af1c63e","target_element_id":null,"author_user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","author_invitation_id":null,"author_name":"QA jA2 改名太郎","is_client_author":false,"content":"QA
+  POST /client/auth/preview -> 200 {"data":{"project_name":"QA jA2 案件1 Nebula 改","workspace_name":"QA jA2 WS1 再改名","inviter_name":"QA jA2 改名太郎","invited_email":"qa-jA2-client-20260903@example.com","expires_at":"2026-09-10T05:23:48.974264Z","remaining_days":7}}
+  Danger zone: "DANGER ZONE 危険な操作  プロジェクト削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。  プロジェクトを削除"
+  GET /projects?workspace_id=3adaebaa-1a52-41c9-8305-b1da3af958d0&include_deleted=true -> 200 {"data":[{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula 改","client_name":"","description":"説明を更新 (J38-01)","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":
+  GET /projects/64619201-f5b5-4054-b6e5-ae34752cecb5 -> 404 {"detail":"対象のプロジェクトが見つかりません。"}
+  GET /client-invitations/f11337c7-f35b-4ec8-a4a3-f2b6a476ea75 -> 200 {"data":{"id":"f11337c7-f35b-4ec8-a4a3-f2b6a476ea75","project_id":"64619201-f5b5-4054-b6e5-ae34752cecb5","email":"qa-jA2-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T05:23:48.974264Z","used_at":null,"revoked_at":null,"client_display_name":"QA クライアント","use_count":
+  POST /client/auth/preview -> 401 {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  確認文言="DANGER ZONE 危険な操作  プロジェクト削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。  本当に削除しますか？ 削除を確定 キャンセル" / DELETE → 204 / アクティブ一覧に残存=false / 削除済フィルタ=0 文言=[] / include_deleted: deleted_at=2026-09-03T05:23:54.048144Z / GET 詳細 → 404 / 招待: 削除前 preview 200 → 削除後 preview 401, GET 招待 revoked_at=null / dashboard → 404 activities=[]
+  => J38-03: FAIL — 期待: 30 日カウントダウン付きで一覧から消え deleted_at 記録・招待無効化・監査 project_deleted / 実測: DELETE=204 一覧残存=false deleted_at=2026-09-03T05:23:54.048144Z 30日案内=true 招待 preview 前=200 後=401 revoked_at=null activities(404)=[]
+
+## J38-04 猶予期間内に案件を復元する
+  POST /projects/64619201-f5b5-4054-b6e5-ae34752cecb5/restore -> 200 {"data":{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula 改","client_name":"","description":"説明を更新 (J38-01)","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"
+  GET /projects/64619201-f5b5-4054-b6e5-ae34752cecb5 -> 200 {"data":{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula 改","client_name":"","description":"説明を更新 (J38-01)","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"
+  UI 復元=null API 復元=200 / GET 案件 → 200 deleted_at=null status=draft / タスク → 200 QA jA2 タスク Nebula-TASK-1 / コメント → 200 残存=true / 一覧に復帰=true
+  => J38-04: PASS — 復元 (画面に削除済み一覧/復元導線が無く API POST /projects/{id}/restore 200) で deleted_at が消え一覧に戻る。タスク「QA jA2 タスク Nebula-TASK-1」とコメントが残っている ※画面には復元導線が無い (観点候補)
+
+## J38-05 30 日を過ぎた案件は復元できない
+  => J38-05: BLOCKED — deleted_at を 31 日前に書き換える DB 直接操作と日次ジョブの手動起動が本番では不可 / 解除条件: staging で DB 書換権限 + purge ジョブの手動起動手段
+
+## J38-06 案件をアーカイブして戻す
+  UI (アーカイブ関連): ["button:button{メニュー}=","button:button=アーカイブ"]
+  PATCH /projects/58224686-b3c6-4788-88d3-c18781f3738d -> 200 {"data":{"id":"58224686-b3c6-4788-88d3-c18781f3738d","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件2 Sirius","client_name":null,"description":null,"type":"client_project","status":"archived","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing",
+  PATCH /projects/58224686-b3c6-4788-88d3-c18781f3738d -> 200 {"data":{"id":"58224686-b3c6-4788-88d3-c18781f3738d","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件2 Sirius","client_name":null,"description":null,"type":"client_project","status":"in_progress","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearin
+  UI アーカイブ=null API=200 / アクティブ一覧に Sirius=true / アーカイブ絞込に Sirius=true / 戻す PATCH → 200 / アクティブ一覧に復帰=true
+  => J38-06: FAIL — 期待: アクティブ一覧から消えアーカイブ一覧に出て、戻すと復帰 / 実測: UI=null API=200 アクティブ残存=true アーカイブ表示=true 戻す=200 復帰=true
+  PATCH /projects/58224686-b3c6-4788-88d3-c18781f3738d -> 200 {"data":{"id":"58224686-b3c6-4788-88d3-c18781f3738d","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件2 Sirius","client_name":null,"description":null,"type":"client_project","status":"archived","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing",
+  PATCH /projects/58224686-b3c6-4788-88d3-c18781f3738d -> 200 {"data":{"id":"58224686-b3c6-4788-88d3-c18781f3738d","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件2 Sirius","client_name":null,"description":null,"type":"client_project","status":"in_progress","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearin
+  [J38 追加観測 probe38] ダッシュボード main: 「プロジェクトダッシュボード / QA jA2 案件1 Nebula 改 · クライアント案件 · 第 1 段階 ヒアリング中」 → J38-01 判定を PASS に更新
+  PATCH status=archived (Sirius) → API 一覧 default: [Nebula 改:draft, Sirius:archived] / status=archived: [Sirius] / UI 「すべて」: Nebula 改, Vega, Sirius, 使い捨て案件 (削除 WS の案件も表示・見出し「3 件のアクティブプロジェクト」) / 「進行中」: Sirius 無し / 「アーカイブ」: Sirius / カードの操作: アーカイブ導線なし → J38-06 FAIL (導線なし・「すべて」と件数が変わらない)
+  J38-04: 画面に削除済み一覧/復元導線なし → FAIL に更新 (API restore は 200・データは残る)
+
+## CLEANUP 後片付け (招待失効・アカウント退会)
+  POST /client-invitations/f11337c7-f35b-4ec8-a4a3-f2b6a476ea75/revoke -> 200 {"data":{"id":"f11337c7-f35b-4ec8-a4a3-f2b6a476ea75","project_id":"64619201-f5b5-4054-b6e5-ae34752cecb5","email":"qa-jA2-client-20260903@example.com","scopes":["view","comment"],"expires_at":"2026-09-10T05:23:48.974264Z","used_at":null,"revoked_at":"2026-09-03T05:26:04.445741Z","client_display_name"
+  招待 revoke → 200
+  POST /auth/account/delete -> 200 {"data":{"user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","scheduled_purge_at":"2026-10-03T05:26:05.246225Z","deleted_at":"2026-09-03T05:26:05.246225Z"}}
+  qa-jA2-1 退会 → 200
+  POST /auth/account/delete -> 200 {"data":{"user_id":"ad7da30f-c4ee-4a23-954a-20b332964cf4","scheduled_purge_at":"2026-10-03T05:26:06.085639Z","deleted_at":"2026-09-03T05:26:06.085639Z"}}
+  qa-jA2-3 退会 → 200
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T13:26:06Z","user_id":"fd66068c-d503-43e7-a95a-c4516a13f2b0","email":"qa-jA2-20260903-2@example.com","display_name":"QA jA2 2","refresh_token":null}}
+  POST /auth/account/delete -> 200 {"data":{"user_id":"fd66068c-d503-43e7-a95a-c4516a13f2b0","scheduled_purge_at":"2026-10-03T05:26:07.544193Z","deleted_at":"2026-09-03T05:26:07.544193Z"}}
+  qa-jA2-2 退会 → 200
+  POST /auth/account/delete -> 200 {"data":{"user_id":"f5e91e52-a38b-4531-a7fa-61f754609b9f","scheduled_purge_at":"2026-10-03T05:26:08.363040Z","deleted_at":"2026-09-03T05:26:08.363040Z"}}
+  qa-jA-20260903-1 (前回分) 退会 → 200
+  GET /me -> 401 {"detail":"サインインが必要です。サインインしてから、もう一度お試しください。"}
+  退会後 GET /me (jA2-1) → 401
+
+## 集計 (担当 A, 2026-09-03, prod(pre-launch)) — 55 行: PASS 18 / FAIL 15 / BLOCKED 22
+後片付け: 招待 f11337c7… revoke 200 / 退会 200: qa-jA2-20260903-1, -2, -3, qa-jA-20260903-1 (前回分)。退会直後の旧 JWT で GET /me → 401 (G-14 正)
+※ 秘密 (JWT / パスワード / MCP トークン平文 / 招待 token / シークレット値) は本ファイル・jsonl に一切含めていない

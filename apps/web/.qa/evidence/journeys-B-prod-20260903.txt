@@ -66,3 +66,212 @@
   [J30-06] errs=[] api>=400=[]
 [J30-06] => FAIL: S-B02 空案件: "0 件" 表記 1 箇所, 生エラー表示=false, JS エラー=0, API 4xx/5xx=0
   [J30-06 訂正] 上の FAIL はスクリプトの判定式 ("0 件" 文字列の個数) の誤り。画面は全カードが 0 件状態 (すべて処理済み / 成果物はまだありません / まだ活動がありません) で正常描画 → PASS に訂正
+  [J33-01] 取り込み結果画面: 取り込み結果（成功 3 / 失敗 0） / ヒアリング議事録.md / 成果物 / → 「ヒアリング議事録」 v1（商談・ヒアリング） / 提案書.md / 成果物 / → 「提案書」 v1（提案） / 要件定義書.md / 成果物 / → 「要件定義書」 v1（要件定義） / フローの現在地を合わせる / 取り込めた資料から、次の工程はすでに完了済みと推定されます。 チェックした工程を完了として反映します（あなたの確定操作 — 自動では反映しません）。 / 商談・ヒアリング / 提案 / 要件定義 / 3 工程を完了として反映
+  [J33-01] GET /outputs 件数=3 stages=["proposal","hearing","requirements"] summaries=["提案書","ヒアリング議事録","要件定義書"]
+  [J33-01] api>=400=[] errs=[]
+[J33-01] => PASS: UI: 成功 3/失敗 0 表示=true, 3 ファイル各行の結果表示=3/3 (仕分け=成果物 / 工程 ["proposal","hearing","requirements"]); 再取得 GET /outputs=3 件。※場所=mac 行だが分類は規則ベースで AI 不要のため実走
+  [J33-04] 提案チェック数=3 全部外した後の反映ボタン disabled=true ボタン文言=0 工程を完了として反映
+  [J33-04] flow before=hearing:pending,proposal:pending,estimate:pending,contract:pending,requirements:pending,architecture:pending,design:pending,implementation:pending,verification:pending,delivery:pending
+  [J33-04] flow after =hearing:pending,proposal:pending,estimate:pending,contract:pending,requirements:pending,architecture:pending,design:pending,implementation:pending,verification:pending,delivery:pending outputs=3
+[J33-04] => PASS: 提案 3 件を全部外す → 反映ボタン disabled=true; 画面を離れた後 flow 不変=true (全 pending), 取り込んだ成果物 3 件はそのまま残る
+  [J33-02] 結果画面: 取り込み結果（成功 1 / 失敗 1） / 見積書.md / 成果物 / → 「見積書」 v1（見積） / 壊れたデータ.xyz / → 壊れたデータ.xyz: 対応していない形式です / フローの現在地を合わせる / 取り込めた資料から、次の工程はすでに完了済みと推定されます。 チェックした工程を完了として反映します（あなたの確定操作 — 自動では反映しません）。 / 見積 / 1 工程を完了として反映
+  [J33-02] GET /outputs 件数=4 (前 3)
+[J33-02] => PASS: UI: 成功 1/失敗 1=true; 壊れ側の理由表示="壊れたデータ.xyz / → 壊れたデータ.xyz: 対応していない形式です"; 正常側 (見積書) は取り込まれ GET /outputs 3→4
+  [J33-03] 提案された工程=["提案","要件定義","納品・請求"]
+  [J33-03] ボタン="2 工程を完了として反映" 結果="2 工程を完了として反映しました"
+  [J33-03] flow before=hearing:pending,proposal:pending,estimate:pending,contract:pending,requirements:pending,architecture:pending,design:pending,implementation:pending,verification:pending,delivery:pending
+  [J33-03] flow after =hearing:pending,proposal:done,estimate:pending,contract:pending,requirements:pending,architecture:pending,design:pending,implementation:pending,verification:pending,delivery:done
+  [J33-03] recent_activities=["project.flow.complete","project.flow.complete","project.import","project.import","project.import","project.flow.init","workflow.phases.seed","project.create"]
+[J33-03] => FAIL: 提案 ["提案","要件定義","納品・請求"] のうち要件定義を外して適用 (2 工程を完了として反映) → hearing=pending, proposal=done, requirements=pending (未確定は動かない), estimate=pending; 監査 ["project.flow.complete","project.flow.complete","project.import"]。※場所=mac 行だが AI 不要のため実走
+  [J33-03 訂正] 期待列は「確定した工程だけ done / 未確定は動かない」→ 実測どおり (proposal, delivery のみ done) で PASS。FAIL 判定はスクリプトが hearing=done を前提にした誤り。懸念: 名前に工程語が無い md (ヒアリングメモ2.md) は既定で delivery に仕分けられ「納品・請求 完了済み?」が提案される。hearing 未着手でも納品 (hard gate) を取り込み画面から done にできた
+  fixture: reopen delivery -> 200 {"data": [{"id": "c1ca48c8-b06a-4eb4-82e2-247bd2abf77e", "stage_key": "hearing", "seq": 1, "title": "商談・ヒアリング", "departm
+  fixture: complete hearing -> 200 {"data": [{"id": "c1ca48c8-b06a-4eb4-82e2-247bd2abf77e", "stage_key": "hearing", "seq": 1, "title": "商談・ヒアリング", "departm
+  fixture flow={'hearing': 'done', 'proposal': 'done', 'estimate': 'pending', 'contract': 'pending', 'requirements': 'pending', 'architecture': 'pending', 'design': 'pending', 'implementation': 'pending', 'verification': 'pending', 'delivery': 'pending'}
+  POST /tasks トップページ構成案の作成 -> 201 {"data": {"id": "6b529f69-b1f8-4fd0-8e2a-f6e2777e190d", "project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "phase": null, "category": "design", "title": "トップ
+  POST /tasks CMS 選定 -> 201 {"data": {"id": "0449b7a9-ae16-407c-8d45-eef7190fcb1f", "project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "phase": null, "category": "design", "title": "CMS
+  POST /comments (output) -> 201 {"data": {"id": "c7a1f861-cffc-437b-8e8c-1e9749117223", "target_type": "workflow_output", "target_id": "6e210fdc-01c8-4def-b9d2-8936618100f9", "target_element_id": null, "author_user_id": "18391284-b2
+  GET unresolved-count -> 200 {"data": {"project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "count": 1}}
+  POST /decisions -> 201 {"data": {"id": "373bf159-8e00-4ace-ac80-3553aabdd938", "project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "phase_id": null, "status": "unresolved", "body": "トップページのヒーロー画像は動画にするか静止画にするか", "reflecte
+  PATCH /decisions decided -> 200 {"data": {"id": "373bf159-8e00-4ace-ac80-3553aabdd938", "project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "phase_id": null, "status": "decided", "body": "トップページのヒーロー画像は動画にするか静止画にするか", "reflected_t
+  GET /decisions -> 200 [[true, "decided"]]
+  GET freeze-check (main) -> 200 {"data": {"phase_id": "5cb77630-b1cb-45e6-8ab6-49df8c688500", "phase_name": "フェーズ1", "pending_stages": ["見積", "契約", "要件定義", "アーキ設計", "デザイン・モック", "タスク分解・実装", "検証", "納品・請求"], "open_tasks": 2, "unresolved_comments": 1, "output_count": 7, "mock_count": 0, "warnings": ["未完了の工程が 8 つあります（見積、契約、要件定義）", "完了していないタスクが 2 件あります", "未解決のコメントが 1 件あります"]}}
+  GET freeze-check (捨て案件) -> 200 {"data": {"phase_id": "e8ae8f52-9881-4906-bfa2-51b129309a74", "phase_name": "フェーズ1", "pending_stages": [], "open_tasks": 1, "unresolved_comments": 0, "output_count": 0, "mock_count": 0, "warnings": ["完了していないタスクが 1 件あります", "このフェーズにはまだ成果物もモックもありません"]}}
+  POST freeze confirm=false (残件あり) -> 403 {"detail": "確定すると成果物が凍結され、以後の追加は次のフェーズになります。内容をご確認のうえ承認してください。"}
+  POST freeze confirm=true (残件あり) -> 200 {"data": [{"id": "e8ae8f52-9881-4906-bfa2-51b129309a74", "project_id": "a55f941f-408d-4c45-b769-3bf5f69ce2dc", "seq": 1, "name": "フェーズ1", "status": "frozen", "note": null, "frozen_at": "2026-09-03T05:07:10.689179Z", "mock_count": 0, "output_count": 0, "task_count": 1, "stages_done": 0, "stages_total
+  GET delivery-phases (捨て案件 after) -> 200 [[1, "frozen"], [2, "active"]]
+  [J30-13] chat 画面 主力決定タブ: 本文あり=true 確定表記=true 抜粋=参照 / 送信 / 外部の学習には使いません · 社内ナレッジには残ります / Enter で送信 · Shift + Enter で改行 / 主力決定 / 1 / コンテキスト / 参照 / 0 / この会話で確定したこと / 1 / 確定 · 05:07 / ピン留め / トップページのヒーロー画像は動画にするか静止画にするか / 現在のトピック / ヒアリング 工程 / 見積 / 工程 1 / 9
+  [J30-13] タブ周辺=· Shift + Enter で改行 / 主力決定 / 1 / コンテキスト / 参照 / 0 / この会話で確定したこと / 1 / 確定 · 05:07 / ピン留め / トップページのヒーロー画像は動画にするか静止画にするか / 現在のトピック / ヒアリング 工程 / 見積 / 工程 1 / 9 errs=[]
+[J30-13] => PASS: API: 作成→PATCH decided→GET /decisions に (自分の件, decided) で一覧=[[true,"decided"]]; チャット S-E01 文脈パネル「主力決定」タブに本文あり=true, 確定表記=true (context-preview の system_prompt には入らないが画面パネルには反映)
+  [J30-05] API: task_counts={"triage":2,"ready":0,"in_progress":0,"blocked":0,"awaiting":0,"done":0,"total":2} inbox pending=0 unresolved=1 outputs=7 (最新 要件定義書v2) flow done=2/10
+  [J30-05] 画面: 進捗=全体進捗率 / 0% / 工程 0/9 完了 / 未承認 INBOX 件数 / 0 / すべて処理済 | INBOX=未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 8 / タスク 2 · チ | コメント=未解決コメント / 1 / 確定 1 · 未確認 0 件 / 工程の流れ（9 工程） / 工程画 | 成果物=最新成果物 / 要件定義書v2 / HTML / ヒアリングメモ2 / HTML / 提案書v2 / HTML / 見積書 / HTML / AI 社員アクティビティ / ト / トニー / たった今 / チャットで依頼する / フェーズ管理を開く | 活動=今日の活動 / 8 / タスク 2 · チャット 1 / 未解決コメント / 1 / 確定 1 · 
+  [J30-05] 一致: inbox=true comments=true latestOutput=true progress=false タスク表記=タスク / 進行 / 議事録 / スケジュール / 営業ドラフト / モック / 取り込み / シークレット
+[J30-05] => FAIL: S-B02: 承認待ち 0 (GET /approval-inbox と一致=true), 未解決コメント 1 (一致=true), 最新成果物「要件定義書v2」表示=true, 工程進捗 2/10 表示=false; API task_counts={"triage":2,"ready":0,"in_progress":0,"blocked":0,"awaiting":0,"done":0,"total":2}
+  [J30-10] UI 確認事項=["・未完了の工程が 8 つあります（見積、契約、要件定義）","・完了していないタスクが 2 件あります","・未解決のコメントが 1 件あります"] 確定ボタン enabled=true
+  [J30-10] API freeze-check(main)=pending 8 / open_tasks 2 / unresolved 1; 捨て案件: 残件(タスク1)ありで confirm=true → 200 → phases=[[1,"frozen"],[2,"active"]]
+[J30-10] => FAIL: 実数表示=true (未完了工程 8 / タスク 2 / 未解決コメント 1 が UI 確認事項と API freeze-check で一致) ; しかし「0 でない間は確定できない」は不成立: UI の確定ボタンは enabled=true、API も残件ありで confirm=true → 200 (捨て案件でフェーズ1 frozen/フェーズ2 active に遷移)
+  fixture: POST credentials -> 500 id=undefined
+  [J31-01] 招待後の画面 (メンバー節): メンバー・MCPトークン・退会設定。 / 基本情報 / メンバー / 招待管理 / MCPトークン / AI学習 / プラン / 退会 / メンバー（2） / Q / QA-B2 オーナー / qa-jB2-20260903-1@example.com / オーナー / Q / QA-B2 メンバー / qa-jB2-20260903-2@example.com / qa-jB2-20260903-2@example.com のロール / メンバー / 閲覧者 / メンバー招待
+  [J31-01] API 往復=["201 /workspaces/7eb5ba25-9be4-4e1a-808a-22f853d46cf1/members","200 /workspaces/7eb5ba25-9be4-4e1a-808a-22f853d46cf1/members"] members before=1 after=2 招待した人={"workspace_id":"7eb5ba25-9be4-4e1a-808a-22f853d46cf1","user_id":"8a0f24cf-8699-4048-b3d2-358b6f3f3170","email":"qa-jB2-20260903-2@example.com","display_name":"QA-B2 メンバー","role":"member","joined_at":"2026-09-03T05:11:30.163244Z"}
+  [J31-01] 招待メール: invite_member (services/workspace_members) はメール送信・キュー投入を一切行わない (email→user 即時 membership 方式)。UI の文言も「招待するユーザーのメール（登録済み）」
+[J31-01] => FAIL: 一覧に出る=true (role=member, membership 即時作成)。しかし招待メールは送られない (送信ログ/キュー/API 応答のいずれにも送信の痕跡なし — 実装は登録済みメールを即時 membership 化する方式で、メール送信コードが無い)。監査 workspace_member.invite は admin 専用 API のため未確認
+  [J31-02] member GET /workspaces=["QA-B2 WS 20260903"] projects=3 tasks=2; 画面 案件一覧に案件=true タスク画面にタスク=true
+  [J31-02] タスク画面抜粋: タスク / 進行 / 議事録 / スケジュール / 営業ドラフト / モック / 取り込み / シークレット / 設定 / Q / QA-B2 WS 20260903 / QA-B2 案件 コーポレートサイト刷新 / フェーズ1 / / / タスク / Q / タスクボード / タスクボード — AI 社員に作業を任せる場所 / タスクを選んで「再生」を押すと、Atelier Bridge があなたの PC でローカル Claude Code を並列起動し、AI 社員が自動で実装・自己検証を進めます。 タスクは 準備中 → 着手可 → 実装中 → （要対応） → 承認待ち → 完了 の流れで進みます。 / 1 / タスクを選ぶ / カードをクリックして 1 件、またはまとめて
+[J31-02] => PASS: 招待リンクは存在せず membership が即時作成 (member の GET /workspaces に WS あり=true)。案件一覧に案件=true, タスク画面に owner のタスク=true (API projects=3, tasks=2)。監査 invitation_accepted に相当する操作は無い (即時参加)
+  [J31-03] 設定画面 (member): 課金タブ=プラン / 退会 / プラン / Free プラン / inactive / 無料プラン。Pro にすると全機能が利用できます (月額 ¥5,000)。 / 決済連携が未設定です。管理者が STRIPE_SECRET_KEY を設定するとアップグレードできるようになります。
+  [J31-03] 退会タブ=退会設定。 / 基本情報 / メンバー / 招待管理 / MCPトークン / AI学習 / プラン / 退会 / ワークスペースの削除 / Danger Zone / ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 / ワークスペースを削除 / アカウント退会 / アカウント自体の退会とデータ削除は専用の手続きページで行います (削除対象データの確認と同意が必要なため)。 / 退会手続きへ進む
+  [J31-03] /admin/s_t01 → url=https://atelier-web-coral.vercel.app/admin 画面=ACCESS DENIED / この画面は運営専用です / お使いのアカウントには、この画面を開く権限がありません。 必要な場合は、運営の担当者にご連絡ください。 / プロジェクト一覧へ戻る
+  [J31-03] API probes={"WS 設定変更":"403 このワークスペースを変更する権限がありません。","WS 削除":"403 このワークスペースを削除する権限がありません。","課金 checkout":"503 お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。","運営 dashboard":"403 この操作は運営のみが行えます。","メンバー招待":"403 メンバーを招待できるのはワークスペースのオーナーだけです。"} WS名=QA-B2 WS 20260903 errs=["pageerror: Minified React error #418; visit https://react.dev/errors/418?args[]=HTML&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings."]
+[J31-03] => PASS: 運営画面 /admin → access-denied 相当 (日本語で権限なし表示=true); 設定の課金/退会タブは描画されるが owner 専用 API は全部拒否 {"WS 設定変更":"403 このワークスペースを変更する権限がありません。","WS 削除":"403 このワークスペースを削除する権限がありません。","課金 checkout":"503 お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。","運営 dashboard":"403 この操作は運営のみが行えます。","メンバー招待":"403 メンバーを招待できるのはワークスペースのオーナーだけです。"}; WS 名不変=true; 日本語文言=true
+  [J31-04] member POST /projects=201 POST /tasks=201; owner GET /projects に反映=true GET /tasks に反映=true; owner タスク画面に表示=true
+[J31-04] => PASS: member: 案件作成=201, タスク作成=201; owner 側: 案件一覧に反映=true, タスク一覧 (API/画面) に反映=true/true
+  [J31-12] member PATCH task done=200 (lifecycle=done); POST /comments=201; owner dashboard task_counts={"triage":2,"ready":0,"in_progress":0,"blocked":0,"awaiting":0,"done":1,"total":3} unresolved=2 recent_activities=["project.flow.thread","task.create","task.create","project.flow.complete","project.flow.reopen","project.flow.complete"]
+  [J31-12] owner ボード抜粋=し / 全 3 件のタスク / 実行モニター / タスクを追加 / design / 3 件 / 完了 33% / 準備中 / 2 / トップページ構成案の作成 / #6b529f69 / 見積 4 時間 / 着手可にする / CMS 選定 / #0449b7a9 / 見積 4 時間 / 着手可にする / 着手可 / 0 / 実装中 / 0 / 要対応 / 0 / 承認待ち / 0 / 完了 / 1 / メンバー作成タスク: 採用ページ文言 / #42539e89 / 見積 2 時間 / ダッシュボード=未解決コメント / 2 / 確定 1 · 未確認 0 件 / 工程の流れ（9 工程） / 工程画 今日の活動 / 8 / タスク 3 · チャット 1 / 未解決コメント / 2 / 確定 1 · 
+[J31-12] => FAIL: タスク完了=200/done, コメント=201; owner ダッシュボード done=1 未解決コメント=2 (画面反映=true); 監査 recent_activities=["project.flow.thread","task.create","task.create","project.flow.complete"] → task 系=false, comment 系=false (comment_created 相当は project/task 対象の audit にしか出ないため未確認)
+  [J31-05] UI select 経由=true API PATCH=-; GET members role=viewer; 画面=qa-jB2-20260903-2@example.com / qa-jB2-20260903-2@example.com のロール / メンバー / 閲覧者 / メンバー招待
+[J31-05] => PASS: ロール変更 (UI select) → GET members role=viewer, 一覧に閲覧者表記=true。監査 workspace_member.role_update は admin 専用 API のため未確認。相手側の即時反映は J31-06 で確認
+  [J31-06] viewer: PATCH project=403 このプロジェクトを変更する権限がありません。 / POST task=500 サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 46efbe9 / GET project=200 / GET tasks=200 (3 件) / 案件名不変=true
+[J31-06] => FAIL: ロール変更直後・同じトークンで: 案件名変更=403, タスク作成=500 (403 期待), 閲覧 GET project=200 tasks=200; 案件名不変=true
+  [J31-07] viewer: POST credentials=500 サーバー側の設定に問題があります。運営にお問い合わせください。 / reveal=404 対象が見つかりません。 / GET list=200 (0 件) / 値漏れ=false; 画面=シークレット / 設定 / Q / QA-B2 WS 20260903 / QA-B2 案件 コーポレートサイト刷新 / フェーズ1 / / / シークレット / Q / プロジェクト・シークレット / 顧客・案件の機密クレデンシャル（APIキー・パスワード・トークン・接続文字列）を暗号化して保管します。 / 平文は保存・表示しません。 値は Fernet で暗号化して保存され、暗号鍵は DB の外（環境変数）にあります。 表示（revea
+[J31-07] => FAIL: 閲覧者: 追加=500, reveal=404 (403 期待), 値漏れ=false, 一覧 GET=200。監査の拒否記録は admin 専用 API のため未確認
+  [J31-09] API 再招待=409 この方は、すでにメンバーです。; members 2→2; UI 文言="すでにメンバーです。"
+[J31-09] => PASS: 再招待 API=409 「この方は、すでにメンバーです。」, UI にも「すでにメンバーです。」; メンバー数 2→2 (増えない)
+[J31-08] => FAIL: 招待リンク・expires_at を持つ招待エンティティが実装に存在しない (POST /workspaces/{id}/members は登録済みメールを即時 membership 化し、招待一覧/期限/リンクの API・UI が無い)。「7 日で期限切れ」の仕様を満たす対象が無いため期待未達
+  [J31-10] UI 削除=true API DELETE=-; 一覧に残る=false 画面に email=false; 直後の既存トークン: GET project=404, GET projects(ws)=200 (0 件), GET tasks=200 (0 件)
+[J31-10] => PASS: 除名 (UI 削除ボタン) → 一覧から消える=true; 除名直後・既存トークンで案件 GET=404, WS 案件一覧=200/0 件, タスク=200/0 件 (拒否=true)。監査 workspace_member.remove は admin 専用 API のため未確認
+  [J31-11] 除名前に開いていた画面を再操作: url=https://atelier-web-coral.vercel.app/projects/dashboard?project=076ce793-3380-48bd-ad94-1b396f9de218 案件データ表示=false 抜粋=ダッシュボードの取得に失敗しました。
+  [J31-11] 再サインイン: signin=true GET /workspaces=[] GET project=404; 画面 url=https://atelier-web-coral.vercel.app/projects 案件見える=false 抜粋=メインコンテンツへスキップ / Q / WELCOME TO ATELIER / 最初のワークスペースを作成 / プロジェクト・AI社員・クライアント招待は、すべてワークスペースの中で管理します。 まずは個人 or 組織のワークスペースを1つ作りましょう。 / ワークスペース名 / ワークスペースを作成
+[J31-11] => PASS: 除名前の画面: WS データ見える=false; 再サインイン可=true, 所属 WS=[] (元 WS 含む=false), 案件 GET=404, 画面に案件=false
+  [J32] GET /approval-inbox pending=0 all=0。承認待ちの発生源はコード上 chat_sse/tools (AI ツール実行), dispatcher/bridge_tools (Bridge), platform_jobs (運営 cron の integrity_alert) のみで、利用者操作 (API/画面) から作れない
+  [J32-05] S-J01 抜粋: 承認待ち / WS設定 / Q / QA-B2 WS 20260903 / / / 承認待ち / Q / 承認待ち / 承認待ち — あなたの判断を待っている案件をまとめて処理する場所 / AI 社員が自走している中で、人間の判断が必要になったものだけがここに集まります。上から順に処理すれば、迷子になりません。 / 1 / 緊急（赤枠）を先に / 仕様変更の取り込み判断は他工程をブロックします / 2 / 通常の承認は素早く / スコアと要約だけ見て承認 / 差し戻しを即決 / 3 / 提案系は判断を保留可 / ナレッジ昇格や次工程進行は「後で判断」も OK / 承認待ちはありません。
+  [J32-05] errs=[] api>=400=[]
+[J32-05] => PASS: GET /approval-inbox pending=0 の状態で S-J01 を開く → 0 件の案内表示=true (「承認待ち / WS設定 / Q / QA-B2 WS 20260903 / / / 承認待ち / Q / 承認待ち / 承認待ち — あなたの判断を待っている案件をまとめて処理する場所 / AI 」), 生エラー無し。※承認待ちを発生させる手段が無いので「全部処理してから」ではなく最初から 0 件の状態で確認
+  [J32-07] ダッシュボードのカード「未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 8 / タスク 3 · チ」 バッジ要素=1 クリック後 url=https://atelier-web-coral.vercel.app/t-uc-36 一覧件数 API=0 遷移先抜粋=承認待ち / WS設定 / Q / QA-B2 WS 20260903 / Q / 通知センター / 未読 0 / すべて / 未読のみ / 通知はありません
+[J32-07] => FAIL: S-B02 カード「未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 8 / タスク 3 · チ」 = GET /approval-inbox pending 0 件と一致=true; バッジ押下 → /t-uc-36
+[J32-01] => BLOCKED: 5 種の承認待ちを発生させる手段が利用者側に無い (発生源は AI ツール実行 / Bridge / 運営 cron のみ)。画面 S-J01 には種別チップ (タスク/工程/ナレッジ/コメント/スコープ変更) が実装されているが 0 件のため絞り込みを判定できない / 解除条件: Mac の Bridge ハーネスで AI 社員に書込系ツールを実行させて approval_inbox を発生させる (または運営 cron integrity-check)
+[J32-02] => BLOCKED: 承認対象の承認待ちを作れない (発生源は AI/Bridge/運営 cron のみ) / 解除条件: Mac の Bridge ハーネスで AI 社員に書込系ツールを実行させて approval_inbox を発生させる (または運営 cron integrity-check)
+[J32-03] => BLOCKED: 却下対象の承認待ちを作れない (発生源は AI/Bridge/運営 cron のみ) / 解除条件: Mac の Bridge ハーネスで AI 社員に書込系ツールを実行させて approval_inbox を発生させる (または運営 cron integrity-check)
+[J32-04] => BLOCKED: 一括承認する複数件の承認待ちを作れない (発生源は AI/Bridge/運営 cron のみ) / 解除条件: Mac の Bridge ハーネスで AI 社員に書込系ツールを実行させて approval_inbox を発生させる (または運営 cron integrity-check)
+[J32-06] => BLOCKED: 承認待ちを発生させられず、通知メールの送信ログ/キューを見る手段も無い (受信箱なし) / 解除条件: Mac の Bridge ハーネスで AI 社員に書込系ツールを実行させて approval_inbox を発生させる (または運営 cron integrity-check)
+  [J34-01] API 往復=["200 /meetings/upload-url","201 /meetings","202 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50/transcribe","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50","200 /meetings/80a65b45-b59b-44fc-92a1-54841895dc50"] storage PUT=[{"status":200,"url":"https://rgxwmdnqnlkgrgdfafih.supabase.co/storage/v1/object/upload/sign/meetings/076ce793-3380-48bd-ad94-1b396f9de218/a91f2ebd-449d-4d21-8337","body":"{\"Key\":\"meetings/076ce793-3380-48bd-ad94-1b396f9de218/a91f2ebd-449d-4d21-8337-0cae250fdc93/wav\"}"}]
+  [J34-01] GET /meetings: 0→1 件, 対象={"id":"80a65b45-b59b-44fc-92a1-54841895dc50","type":"audio","storage_path":"meetings/076ce793-3380-48bd-ad94-1b396f9de218/a91f2ebd-449d-4d21-8337-0cae250fdc93/wav","parsed_at":null,"parse_error":null,"size":16044}
+  [J34-01] 画面抜粋: アップロード状況 / 音声・動画を解析中 / サーバー内で文字起こししています… / 解析結果プレビュー / 解析中です。完了すると文字起こし結果がここに表示されます。
+[J34-01] => FAIL: 署名 URL 発行 → storage への PUT=[200] (G-11: バケット meetings に実体が置けた = storage の 200 応答), POST /meetings → 一覧 0→1 件 (parsed_at=null); 画面一覧に表示=false 処理中系の表記=false
+  [J34-06] UI accept="audio/*,video/*,.txt,.md,.docx,text/plain" 画面文言="" 画面に setup.exe=false; API upload-url=200  / POST /meetings=201 ; 一覧に増えた=true (1→3)
+[J34-06] => FAIL: .exe: UI は accept="audio/*,video/*,.txt,.md,.docx,text/plain" で選択制限、送信後文言=""; API upload-url=200「」 POST /meetings=201「」; 一覧に増えた=true
+  [J34-02] 参考: POST /meetings/80a65b45-b59b-44fc-92a1-54841895dc50/transcribe → 202 {"data":{"id":"80a65b45-b59b-44fc-92a1-54841895dc50","status":"queued","queued_at":"2026-09-03T05:16:55.578794Z"}}
+[J34-02] => BLOCKED: 文字起こしは利用者 PC の Bridge/STT ワーカーで実行される (場所=mac)。参考: API transcribe → 202  / 解除条件: Mac の Bridge ハーネス
+  [J34-05] 参考: POST /meetings/80a65b45-b59b-44fc-92a1-54841895dc50/resume-analysis → 200 {"data":{"status":"not_pending","message":"この議事録に保留中の解析はありません（解析済みか、まだ文字起こしの途中です）。"}}
+[J34-05] => BLOCKED: 解析の再開・完了は Bridge ワーカーが要る (場所=mac)。参考: API resume-analysis → 200  / 解除条件: Mac の Bridge ハーネス
+  [J34-04] 参考: POST /meetings/80a65b45-b59b-44fc-92a1-54841895dc50/propose-phase → 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: e68d1472-0ac2-4c50-b0e2-7fc746b3b77a）"}
+[J34-04] => BLOCKED: 文字起こし済みの議事録が前提 (場所=mac)。参考: API propose-phase → 500 サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: e68d1472-0ac2-4c5 / 解除条件: Mac の Bridge ハーネス
+[J34-03] => BLOCKED: 採用候補は文字起こし済み (parsed) の議事録から抽出される (場所=mac) / 解除条件: Mac の Bridge ハーネスで J34-02 を通す
+[J34-08] => BLOCKED: 無音ファイルの解析実行は STT ワーカー (場所=mac) が要る。G-15 観点は正本どおり残す / 解除条件: Mac の Bridge ハーネス
+  [J34-07] UI 削除=true API DELETE=204; GET /meetings/{id} → 404 deleted_at=(404); 一覧に残る=false 画面に残る=false
+[J34-07] => PASS: 削除 (UI) → 一覧 (API/画面) から消える=true/true; GET /meetings/{id} → 404 (deleted_at=n/a) = 論理削除
+  POST /knowledge -> 201 {"data": {"id": "1909ed32-f69c-4679-a694-5837038a234a", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "owner_employee_id": null, "parent_id": nu
+  GET /embedding-status -> 200 {"data": {"provider": "none", "state": "unavailable", "reason": "意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)", "payer": "費用なし", "model_tag": null, "next_steps": ["サーバーで `uv sync` を実行して fastembed を導入する", "導入後は API 再起動でモデルの準備が自動で始まります"], "warnings": ["VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_A
+[J35-01] => PASS: POST /knowledge 201 → GET /knowledge (workspace) 一覧に出る=True; embedding-status: provider=none state=unavailable indexed/total=0/1 semantic=False (埋め込みは provider=none のため生成状況は indexed 件数で確認)。監査ログ knowledge.create は利用者向け API に露出せず未確認 (画面は b6ui で確認)
+  POST /knowledge/search (本文語) -> 200 {"data": {"query": "オニキス層帳票手順", "hits": [{"knowledge": {"id": "1909ed32-f69c-4679-a694-5837038a234a", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "owner_employee_id": null, "parent_id": null, "visible_in_tree": true, "category": "検証", "title"
+  [J35-01 訂正] embedding provider=none / state=unavailable / indexed 0 → 「埋め込みが生成される」未達のため FAIL に訂正
+  [J32-07 訂正] 0 件時はカードに /approvals リンクが無い (押せたのは通知センター) → BLOCKED に訂正
+  POST /knowledge -> 201 {"data": {"id": "3b333dfa-6e62-4fa7-a029-892beac9c675", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "owner_employee_id": null, "parent_id": nu
+  GET /embedding-status -> 200 {"data": {"provider": "none", "state": "unavailable", "reason": "意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)", "payer": "費用なし", "model_tag": null, "next_steps": ["サーバーで `uv sync` を実行して fastembed を導入する", "導入後は API 再起動でモデルの準備が自動で始まります"], "warnings": ["VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_A
+  [J35-01] (再実行: 判定済みのため記録省略) True
+  POST /knowledge/search (本文語) -> 200 {"data": {"query": "オニキス層帳票手順", "hits": [{"knowledge": {"id": "3b333dfa-6e62-4fa7-a029-892beac9c675", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "owner_employee_id": null, "parent_id": null, "visible_in_tree": true, "category": "検証", "title"
+  POST /knowledge/search (存在しない語) -> 200 {"data": {"query": "ゼブラライト架空単語XYZ", "hits": [], "total": 0, "search_mode": "text_fallback"}}
+[J35-02] => PASS: 本文にしか無い語で検索 → 1 件, 該当あり=True (hit の付帯情報: ['knowledge', 'score'], source_type=manual); 存在しない語 → 200 / 0 件 (壊れない)
+  POST /knowledge (別WS) -> 201 {"data": {"id": "2bef1b97-6d79-4766-9531-360531aca373", "account_id": "afa165f6-b77c-4c02-b6f7-94f0b33a701e", "account_t
+  GET /knowledge/graph?account_id=別WS (owner) -> 200 {"data": {"nodes": [], "edges": [], "total_nodes": 0, "truncated": false}}
+  GET /knowledge?account_id=別WS (owner) -> 200 {"n": 0}
+[J35-03] => PASS: 別 WS で同じ語を含むナレッジ作成後、自分側の検索 (account_id 指定 1 件 / 指定なし 1 件)・グラフ (1 nodes)・別 WS を account_id に指定した一覧/グラフ (0 件 / 200) のいずれにも別 WS のナレッジは出ない=True
+  GET /knowledge/candidates -> 200 {"data": []}
+[J35-04] => BLOCKED: 候補は AI が会話から拾う (J41-01, Bridge 要)。GET /knowledge/candidates pending=0 件で採用/却下の対象が無い / 解除条件: Mac の Bridge ハーネスで AI チャットを実行し候補を発生させる
+  POST /knowledge (user scope) -> 201 {"data": {"id": "c343c722-1375-4e57-bbd7-91e7f4dcee6a", "account_id": "18391284-b276-4f64-8e9a-f952e43bb8a3", "account_type": "user", "scope": "common", "owner_
+  POST promote -> 200 {"data": {"id": "c343c722-1375-4e57-bbd7-91e7f4dcee6a", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "owner_employee_id": null, "parent_id": null, "visible_in_tree": true, "category": "検証", "title": "個人メモ: 見積の相場感", "content_md": "個人で溜めた見積相場。昇格
+[J35-05] => PASS: promote → account_type=workspace account_id==WS=True scope=common; 共通ナレッジ一覧 (workspace) に出る=True; 元 user 側に残る=False (id 同一=True)。監査 knowledge_approved 相当は利用者向け API に露出せず未確認 (S-K02 画面は b6ui)
+  POST /knowledge (child) -> 201 {"data": {"id": "ac6a4c1f-2565-4876-80d6-99b4cb1407ae", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_t
+  GET references -> 200 {"data": {"knowledge_id": "3b333dfa-6e62-4fa7-a029-892beac9c675", "references": [], "total": 0}}
+  [J35-06] graph nodes=3 edges=[('3b333dfa', 'ac6a4c1f', 'parent'), ('3b333dfa', 'ac6a4c1f', 'tag')] parent_edge=True tag_edge=True; references total=0 (チャット RAG 消費が無いので 0 が正)
+  POST /embedding-status/prepare -> 200 {"data": {"provider": "none", "state": "unavailable", "reason": "意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)", "payer": "費用なし", "model_tag": null, "next_steps": ["サーバーで `uv sync` を実行して fastembed を導入する", "導入後は API 再起動でモデルの準備が自動で始まります"], "warnings": ["VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_A
+  [J35-07] before: provider=none payer=費用なし state=unavailable reason=意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ) model=None; prepare → {'provider': 'none', 'state': 'unavailable', 'reason': '意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)', 'payer': '費用なし', 'model_tag': None, 'next_steps': ['サーバーで `uv sync` を実行して fastembed を導入する', '導入後は API 再起動でモデルの準備が自動で始まります'], 'warnings': ['VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_ALLOW_VOYAGE=1) が無いため使用しません (課金しません)'], 'semantic_enabled': False, 'indexed': 0, 'total': 4}; 遷移=[('unavailable', 0, 4), ('unavailable', 0, 4), ('unavailable', 0, 4), ('unavailable', 0, 4), ('unavailable', 0, 4), ('unavailable', 0, 4)]; 準備後の意味検索 hits=0 semantic=False
+  POST /knowledge (employee_specific) -> 201 {"data": {"id": "f2db6f89-c1b4-4faf-9be7-181f351c9079", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_t
+  POST /knowledge (project) -> 201 {"data": {"id": "a378d196-b4cf-43c9-a2cc-a3e9f6cbe55f", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_t
+  [J35-08] API: scope=employee_specific → ['tony 専用: デプロイ手順']; source_project_id=本案件 → ['案件固有: 顧客の禁止ワード']; 別案件 → []
+  PATCH /knowledge -> 200 {"data": {"id": "ac6a4c1f-2565-4876-80d6-99b4cb1407ae", "account_id": "7eb5ba25-9be4-4e1a-808a-22f853d46cf1", "account_type": "workspace", "scope": "common", "o
+  DELETE /knowledge -> 204 null
+[J35-09] => PASS: PATCH 本文 → 再取得で反映=True, updated_at 05:20:08→05:20:48 更新=True; DELETE → GET /knowledge/{id}=404, 再取得の一覧から消える=True
+  [J35-10] vault-export(自WS) → 200 bytes=1550 entries=4 ['共通/検証/QA-B2 コーポレートサイト刷新の学び.md', '共通/検証/個人メモ 見積の相場感.md', 'AI社員別/検証/tony 専用 デプロイ手順.md', 'プロジェクト別/検証/案件固有 顧客の禁止ワード.md']; 自分の分含む=3; 別WS 混入=False; account_id=別WS を指定 → 200 entries=0
+[J35-10] => PASS: zip 4 entries (自 WS のナレッジ 3 件含む), 別 WS の「別WSの秘密ナレッジ」混入=false; 別 WS を account_id に指定した export → 200 / entries=0
+  [J34-01 再] storage PUT=[200] GET /meetings に対象=true parsed_at=null storage_path=meetings/076ce793-3380-48bd-ad94-1b396f9de218/b27a9267-a184-4a79-ae5a-daeb8217d694/2.wav
+  [J34-01 再] 画面全文 (主要部): 議事録 / 商談アップロード / 音声・動画・テキストをアップロードすると、このサーバー内で文字起こしし、 AI 社員が構造化して要件抽出を提案します。 / ここにファイルをドロップ / または クリックして選択 / .mp3 / .m4a / .wav / .mp4 / .txt / .docx / Zoom / Meet 議事録 / 最大 500MB · 文字起こしは Atelier のサーバー内で実行（音声は外部の 文字起こしサービスに送信されません） / アップロード状況 / 音声・動画を解析中 / サーバー内で文字起こししています… / setup.exe / 102 B / 解析中 / × / 解析結果プレビュー / 解析中です。完了すると文字起こし結果がここに表示されます。
+[J34-01] => FAIL: 再実行: 署名 URL → storage PUT=[200] (G-11 実体: バケット meetings への PUT 200), GET /meetings に処理中 (parsed_at=null) で登録=true; 画面にファイル名=false 状態表記「解析中」
+  [J35-05 UI] S-K02 に候補表示=true ボタン="検証
+昇格候補
+個人メモ: 採用サイトの構成
+
+UI から昇格する候補。
+
+信頼度 0.50
+2 分前" → 昇格後 workspace 一覧に出る (API)=false scope=undefined account_type=undefined; S-K01 共通一覧に表示=false; S-K02 残り=true
+  [J35-05 UI] S-K02 抜粋: 昇格レビュー / AI 提案 / 書込候補（1） / 一括承認 / 検証 / 昇格候補 / 個人メモ: 採用サイトの構成 / UI から昇格する候補。 / 信頼度 0.50 / 2 分前 / 検証 · 昇格候補 / 出典: 手動登録 · 信頼度 0.50 / 昇格先 / common（共通ナレッジ） / カテゴリ / 検証 / 出典 / 手動登録 / 信頼度 / 0.50 / 中 / 手動登録による提案： / 類似パターンを検出しました。共通ナレッジへの昇格を提案します。内容を確認・編集して採用してください。 / UI から昇格する候補。 / 採用して書込 / 編集して採用 / 却下 / 採用後、埋め込みが生成され RAG 検索対象になります
+  [J35-08] スコープ切替=["共通","AI社員別","プロジェクト別"]; AI社員別: 
+  [J35-08] プロジェクト別: 
+  [J35-08] 共通: ; API: {"emp":["tony 専用: デプロイ手順"],"proj":["案件固有: 顧客の禁止ワード"],"proj_other":[]}
+[J35-08] => PASS: S-K01 スコープ「AI社員別」→ tony のグループに社員専用ナレッジだけ=true; 「プロジェクト別」→ 本案件の見出し下に案件固有だけ=true; 「共通」に社員/案件固有は混ざらない=true; API: employee_specific=["tony 専用: デプロイ手順"] source_project_id=["案件固有: 顧客の禁止ワード"] 別案件=[]
+  [J35-06] グラフ figure=1 summary="ナレッジ 4 件と 0 本のリンク" API graph nodes=3 edges=[["3b333dfa","ac6a4c1f","parent"],["3b333dfa","ac6a4c1f","tag"]] parent_edge=true tag_edge=true; references API=200 total=0; 画面の参照元節: バックリンク（0） / まだ参照されていません / アクション / Obsidian Vault に書出 / 共通ナレッジに昇格 / 削除
+[J35-06] => PASS: グラフビュー描画=true (「ナレッジ 4 件と 0 本のリンク」), API graph に親子リンク=true タグ共起=true; 1 件選択で参照元 (GET references=200, total=0: チャット RAG 消費が無いため 0 件表示) 画面節=「バックリンク（0） / まだ参照されていません / アクション / Obsidian Vault に書出 / 共通ナレッジに昇格 / 削除」
+  [J35-07] カード(前): 意味検索は使えません（キーワード一致のみ） / 費用なし /  / 意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ) /  / 埋め込み済み 0 / 5 件（残りは準備すると埋まります） /  / ⚠ VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_ALLOW_VOYAGE=1) が無いため使用しません (課金しません) / サーバーで `uv sync` を実行して fastembed を導入する / 導入後は API 再起動でモデルの準備が自動で始まります / 再試行する
+  [J35-07] ボタン="再試行する" 押下後: 意味検索は使えません（キーワード一致のみ） / 費用なし /  / 意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ) /  / 埋め込み済み 0 / 5 件（残りは準備すると埋まります） /  / ⚠ VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_ALLOW_VOYAGE=1) が無いため使用しません (課金しません) / サーバーで `uv sync` を実行して fastembed を導入する / 導入後は API 再起動でモデルの準備が自動で始まります / 再試行する / 準備を開始しました（完了までしばらくかかります）
+  [J35-07] API: provider=none payer=費用なし state=unavailable; prepare → state=unavailable; 遷移=[["unavailable",0,4],["unavailable",0,4],["unavailable",0,4],["unavailable",0,4],["unavailable",0,4],["unavailable",0,4]]; 準備後の検索 hits=0
+[J35-07] => FAIL: 状態カードに何で動くか/費用=表示あり (意味検索は使えません（キーワード一致のみ） / 費用なし /  / 意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ) /  / 埋め込); 「再試行する」押下 → 処理中に遷移=true, 完了 (ready)=false: サーバーに fastembed が無く provider=none/unavailable のまま (G-11: 本番に意味検索の部品が未導入)。検索はキーワード一致で 0 件
+  [J30-11] 準備前 flow={'hearing': 'done', 'proposal': 'done', 'estimate': 'pending', 'contract': 'pending', 'requirements': 'pending', 'architecture': 'pending', 'design': 'pending', 'implementation': 'pending', 'verification': 'pending', 'delivery': 'pending'}
+  [J30-11] complete estimate -> 200
+  [J30-11] complete contract -> 200
+  [J30-11] complete requirements -> 200
+  [J30-11] complete architecture -> 200
+  [J30-11] complete design -> 200
+  [J30-11] complete implementation -> 200
+  [J30-11] complete verification -> 200
+  [J30-11] complete delivery -> 200
+  [J30-11] task 6b529f69 -> done 200
+  [J30-11] task 0449b7a9 -> done 200
+  [J30-11] comment c7a1f861 -> resolved 200
+  [J30-11] comment bf3c197c -> resolved 403
+  GET freeze-check (残件処理後) -> 200 {"data": {"phase_id": "5cb77630-b1cb-45e6-8ab6-49df8c688500", "phase_name": "フェーズ1", "pending_stages": [], "open_tasks": 0, "unresolved_comments": 1, "output_count": 7, "mock_count": 0, "warnings": ["未解決のコメントが 1 件あります"]}}
+  [J30-11] freeze confirm=false -> 403 {"detail": "確定すると成果物が凍結され、以後の追加は次のフェーズになります。内容をご確認のうえ承認してください。"}
+  POST freeze confirm=true -> 200 {"data": [{"id": "5cb77630-b1cb-45e6-8ab6-49df8c688500", "project_id": "076ce793-3380-48bd-ad94-1b396f9de218", "seq": 1, "name": "フェーズ1", "status": "frozen", "note": "QA-B2 フェーズ1 確定\n完了工程: 商談・ヒアリング / 提案 / 見積 / 契約 / 要件定義 / アーキ設計 / デザイン・モック / タスク分解・実装 / 検証 / 納品・請求 ｜ 成果物: 要件定義書v2(v2) / ヒアリングメモ2(v1) / 提案書v2(v2) / 見積書(v1) / ヒアリング議事録(v1) / 提案書(v1) / 要件定義書(v1)", "frozen_at": "2026-09-03T05:24:44.118262Z"
+  [J30-11] 確定後 phases=[(1, 'frozen', 7, 10, 10), (2, 'active', 0, 0, 10)] flow(フェーズ2)={'hearing': 'pending', 'proposal': 'pending', 'estimate': 'pending', 'contract': 'pending', 'requirements': 'pending', 'architecture': 'pending', 'design': 'pending', 'implementation': 'pending', 'verification': 'pending', 'delivery': 'pending'}
+  POST import 提案書.md (凍結後) -> 200 {"data": {"results": [{"file_name": "提案書.md", "type": "output", "title": "提案書", "stage": "proposal", "version": 3, "target_id": "da842e9e-e971-4935-8196-28f7a26d6fdb", "error": null}], "imported": 1, "failed": 0, "suggested_stage_keys": ["proposal"]}}
+  [J30-11] 凍結成果物へのコメント -> 201
+  [J30-11] 凍結成果物 restore -> 201 {"data": {"id": "41555faf-f09d-4d87-976e-1ef64103b163", "project_id": "076ce793-3380-48bd-ad94-1b396
+  [J30-11] 凍結成果物 提案書 v1 → 再取り込み後 v1 (phase 不変=True); 新規出力 (フェーズ2 側)=[('da842e9e', 'proposal', 3, True)]
+[J30-11] => FAIL: 残件 0 (pending_stages=0, open_tasks=0, unresolved=1) → confirm なし 403 / confirm あり 200 → フェーズ1 frozen=True, フェーズ2 active=True (flow が再初期化: hearing=pending); 凍結後に同名資料を再取り込み → 凍結側の提案書は v1 のまま=True, 新版はフェーズ2 に別出力として作成=True; 凍結成果物へのコメント=201, restore=201
+  POST share-links -> 201 {"data": {"id": "6e882689-d15d-4693-be9a-0f7922952b51", "output_id": "da842e9e-e971-4935-8196-28f7a26d6fdb", "label": "納品用", "expires_at": "2026-10-03T05:24:48.357042Z", "revoked_at": null, "view_count": 0, "last_viewed_at": null, "created_at": "2026-09-03T05:24:48.357042Z", "share_url": "http://ate
+  [J30-15] 共有リンク発行 200 → GET /outputs/{id}/share-links 1 件; 公開 GET /share/{token} (認証なし) -> 200 bytes=848 本文に成果物=True
+  [J30-15] delivery complete confirm=false -> 403 {"detail": "この工程は重要な確認が必要です。内容をご確認のうえ承認してください。"}
+  [J30-15] delivery complete confirm=true -> 200
+  [J30-15] 納品後: flow delivery=done project.status=draft 一覧の status=draft dashboard status=draft current_phase=hearing
+  [J30-11 UI] フェーズ表示: フェーズ1 / ✓確定済み / 成果物7 · モック0 · タスク3 / フェーズ2 / 進行中 / 成果物2 · モック0 · タスク0 / 「フェーズ2」を確定して次フェーズへ… / / / 工程 / Q / PHASE MANAGEMENT / フェーズ管理 / AI 提案を承認してフェーズを確定。タスク移動時は F-IMP01 が影響範囲を解析します。 / フェ; GET /outputs (フェーズ別)=["提案書 v4 P2","提案書 v3 P2","要件定義書v2 v2 P1","提案書v2 v2 P1","ヒアリングメモ2 v1 P1","見積書 v1 P1","要件定義書 v1 P1","ヒアリング議事録 v1 P1","提案書 v1 P1"]; 成果物画面抜粋: 成果物を選択すると表示します。
+  [J30-11 UI] 凍結表記 (確定/凍結/読み取り専用) あり=true
+  [J30-15 UI] 一覧の当該行: プロジェクトを検索 / すべて / 進行中 / アーカイブ / クライアント案件 / ヒアリング中 / QA-B2 案件 コーポレートサイト刷新 / — / 工程 1 / 9 / 29 分前更新 / クライアント案件 / ヒアリング中 / QA-B2 空案件 / — / 工程 1 / 9 / 26 分前更新 / クライアント案件 / ヒアリング中 / QA-B2 凍結試験 / — / 工程 1 / 9 / 18 分前更新 / クライアント案件 / ヒアリング中 / QA-B2 メンバー案件 
+  [J30-15 UI] ダッシュボード見出し: プロジェクトダッシュボード / QA-B2 案件 コーポレートサイト刷新 · クライアント案件 · 第 1 段階 ヒアリング中 / 全体進捗率 / 0% / 工程 0/9 完了 / 未承認 INBOX 件数 / 0 / すべて処理済み / 今日の活動 / 8 / タスク 3 · チャット 1 / 未解決コメント / 2 / 確定 1 · 未確認 0 件 / 工程の流れ（9 工程） / 工程画面で確定事項・成果物を見る / 1 / ヒアリング / 進行中 / 2 / 要件定義 / 
+[J30-15] => FAIL: 共有リンク発行 → 公開 GET /share/{token} (認証なし)=200 で最終版が見える (クライアント側 J21 の代替); 納品工程 confirm なし 403 / confirm あり 200 → flow delivery=done。しかし案件の状態は納品済みにならない: GET /projects/{id}.status=draft, 一覧 status=draft, dashboard status=draft current_phase=hearing; 画面 (一覧/ダッシュボード) に納品済み表記=false
+  [J34-01 一覧再確認] GET /meetings=[["打合せ音声2.wav","pending",null],["setup.exe","pending",null]]; 画面のアップロード状況/履歴: アップロード状況 / 打合せ音声2.wav / 16 KB / 解析中 / × / setup.exe / 102 B / 解析中 / × / 解析結果プレビュー / 解析が完了すると、文字起こし結果がここに表示されます。
+  [J34-01 訂正] 一覧再確認で「打合せ音声2.wav / 16 KB / 解析中」が表示されていた (初回は描画前に読んだ) → PASS
+  [J30-11 訂正] 期待列 (凍結・次フェーズ開始・凍結成果物は変更されない) は全て実測どおり → PASS。残件 0 にできなかったのは owner が member のコメントを resolve できない 403 のため (別観点)
+  cleanup: DELETE meeting 打合せ音声2.wav -> 204
+  cleanup: DELETE meeting setup.exe -> 204
+  cleanup: revoke share-link -> 200
+  cleanup: account/delete qa-jB2-20260903-1@example.com -> 200 {"data": {"user_id": "18391284-b276-4f64-8e9a-f952e43bb8a3", "scheduled_purge_at
+  cleanup: 退会後 signin qa-jB2-20260903-1@example.com -> 401
+  cleanup: account/delete qa-jB2-20260903-2@example.com -> 200 {"data": {"user_id": "8a0f24cf-8699-4048-b3d2-358b6f3f3170", "scheduled_purge_at
+  cleanup: 退会後 signin qa-jB2-20260903-2@example.com -> 429
+  cleanup: signin qa-jB2-20260903-3@example.com -> 429 (skip)
+  cleanup: signin qa-jB-20260903-1@example.com -> 429 (skip)
+  cleanup: signin qa-jB-20260903-2@example.com -> 429 (skip)
+  cleanup: signin qa-jB-20260903-3@example.com -> 429 (skip)
+  cleanup(再): account/delete qa-jB2-20260903-3@example.com -> 200 {"data": {"user_id": "7f9dddd8-2382-4799-871a-49402c0276e2",
+  cleanup(再): account/delete qa-jB-20260903-1@example.com -> 200 {"data": {"user_id": "972d2dfd-7f77-43de-ac29-2361f83bee2d",
+  cleanup(再): account/delete qa-jB-20260903-2@example.com -> 200 {"data": {"user_id": "2a08436f-badc-483a-961d-cb9b2d22d47c",
+  cleanup(再): account/delete qa-jB-20260903-3@example.com -> 200 {"data": {"user_id": "589aa6ef-2fa1-4197-9ef3-7aeb148c7882",
+  cleanup(再): signin qa-jB2-20260903-2@example.com -> 401 (skip)
