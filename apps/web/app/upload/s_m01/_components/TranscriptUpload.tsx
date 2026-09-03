@@ -156,6 +156,28 @@ function StatusPill({
   );
 }
 
+/**
+ * GAP-314 (通し J34-06 再測): 失敗の表示はサーバーの日本語 (payload.detail) を優先する。
+ * ApiError の message は「Atelier API POST /meetings/upload-url -> 422 …」という内部文言で、
+ * 利用者には何が悪かったか分からない。
+ */
+export function userFacingMessage(err: unknown): string {
+  const payload = (err as { payload?: { detail?: unknown } } | null)?.payload;
+  if (payload && typeof payload.detail === "string" && payload.detail.trim()) {
+    return payload.detail;
+  }
+  const status = (err as { status?: number } | null)?.status;
+  if (typeof status === "number" && status >= 500) {
+    return "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。";
+  }
+  const message = err instanceof Error ? err.message : "";
+  // 内部文言 (メソッド / パス / status) はそのまま出さない
+  if (!message || /^Atelier API /.test(message)) {
+    return "登録できませんでした。ファイルの形式を確認して、もう一度お試しください。";
+  }
+  return message;
+}
+
 export function TranscriptUpload({
   onUpload,
   history = [],
@@ -195,7 +217,7 @@ export function TranscriptUpload({
       setAnalysisError(result.analysisError ?? null);
       setStatus("done");
     } catch (err) {
-      setError((err as Error).message);
+      setError(userFacingMessage(err));
       setStatus("error");
     }
   };
@@ -220,7 +242,7 @@ export function TranscriptUpload({
       setOpenedId(row.id);
       setStatus("done");
     } catch (err) {
-      setError((err as Error).message);
+      setError(userFacingMessage(err));
       setStatus("error");
     }
   };
