@@ -97,13 +97,16 @@ async def list_sales_docs(
     return [_row_to_response(r) for r in res.all()]
 
 
-async def get_sales_doc(session: AsyncSession, doc_id: str) -> SalesDocResponse | None:
+async def get_sales_doc(
+    session: AsyncSession, doc_id: str, *, include_deleted: bool = False
+) -> SalesDocResponse | None:
     if not is_uuid(doc_id):
         return None
+    deleted_clause = "" if include_deleted else "and deleted_at is null "
     res = await session.execute(
         text(
             f"select {_COLS} from public.workflow_outputs "
-            "where id = cast(:id as uuid) and deleted_at is null "
+            f"where id = cast(:id as uuid) {deleted_clause}"
             "and stage = any(:stages)"
         ),
         {"id": doc_id, "stages": list(_SALES_STAGES)},

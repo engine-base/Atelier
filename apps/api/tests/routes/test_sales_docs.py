@@ -529,6 +529,11 @@ class TestSalesDocsGap018:
 
             sends = client.get(f"/sales-docs/{doc['id']}/sends", headers=h).json()["data"]
             assert len(sends) == 1 and sends[0]["id"] == sent["id"]
+            # GAP-306 (通し J47-07): ドラフトを削除しても送信履歴は辿れる
+            assert client.delete(f"/sales-docs/{doc['id']}", headers=h).status_code == 204
+            after = client.get(f"/sales-docs/{doc['id']}/sends", headers=h)
+            assert after.status_code == 200, after.text
+            assert [s["id"] for s in after.json()["data"]] == [sent["id"]]
             # 不正メールは 422 / R-T08 404
             assert (
                 client.post(

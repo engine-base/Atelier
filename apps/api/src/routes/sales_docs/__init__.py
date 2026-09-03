@@ -160,6 +160,8 @@ async def send_sales_doc(
 async def list_sales_doc_sends(
     doc_id: str, session: SessionDep, _user: UserDep
 ) -> dict[str, list[SalesDocSendResponse]]:
-    if await svc.get_sales_doc(session, doc_id) is None:
+    # GAP-306 (通し J47-07): 削除 (論理) 済みのドラフトでも送信履歴は辿れる。
+    # 「送った事実」は削除で消えない (可視性は RLS が担保する)。
+    if await svc.get_sales_doc(session, doc_id, include_deleted=True) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の商談資料が見つかりません。")
     return {"data": await send_svc.list_sends(session, doc_id)}
