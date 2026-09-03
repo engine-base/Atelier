@@ -11,7 +11,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
-import { type ApiClient } from "@atelier/api-client";
+import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import {
   OrgChart,
@@ -266,6 +266,30 @@ describe("ScheduleBuilderContainer (T-UC-25 create wiring)", () => {
       request: noop,
     } as unknown as ApiClient;
   }
+
+  it("422 は API が指す箇所 (分の指定が空です 等) をそのまま出す (GAP-258)", async () => {
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 422,
+        statusText: "Unprocessable",
+        payload: { detail: "分の指定が空です: '0,,5'" },
+        path: "/cron-schedules",
+        method: "post",
+      });
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ScheduleBuilderContainer projectId="p1" client={fakeClient(post)} />
+      </QueryClientProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("1. 名前"), { target: { value: "x" } });
+    fireEvent.click(screen.getByRole("button", { name: /日次ダイジェストを配信する/ }));
+    fireEvent.click(screen.getByRole("button", { name: "毎日 深夜 2:00" }));
+    fireEvent.click(screen.getByRole("button", { name: /このスケジュールを作成/ }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole("alert")).toHaveTextContent("分の指定が空です: '0,,5'");
+  });
 
   it("POSTs /cron-schedules with the project + form payload", async () => {
     const post = vi.fn(async () => ({ data: { id: "c1" } }));

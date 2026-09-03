@@ -28,6 +28,19 @@ interface CreatePayload {
   readonly target_action: CronTargetAction;
 }
 
+/** API の detail を利用者向け文言として取り出す (文字列、または FastAPI 検証エラーの配列)。 */
+function apiDetail(e: ApiError): string | null {
+  const d = (e.payload as { detail?: unknown } | undefined)?.detail;
+  if (typeof d === "string" && d.trim()) return d;
+  if (Array.isArray(d)) {
+    const msgs = d
+      .map((x) => (x && typeof x === "object" && "msg" in x ? String((x as { msg: unknown }).msg) : ""))
+      .filter(Boolean);
+    if (msgs.length) return msgs.join(" / ");
+  }
+  return null;
+}
+
 export function ScheduleBuilderContainer({
   projectId,
   client: injected,
@@ -55,10 +68,15 @@ export function ScheduleBuilderContainer({
       });
     },
     onError: (e) => {
+      // GAP-258: 422 は API が「どこが悪いか」を日本語で指す (「分の指定が空です: '0,,5'」等)。
+      // 固定文に潰すと直し方が分からない (本番実走 SO01-405)
+      const detail = e instanceof ApiError && e.status === 422 ? apiDetail(e) : null;
       setError(
         e instanceof ApiError && e.status === 403
           ? "スケジュールを作成する権限がありません。"
-          : "スケジュールの作成に失敗しました。入力内容を確認してください。",
+          : detail
+            ? `入力内容を確認してください: ${detail}`
+            : "スケジュールの作成に失敗しました。入力内容を確認してください。",
       );
     },
   });
