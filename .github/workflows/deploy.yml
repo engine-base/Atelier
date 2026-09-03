@@ -46,10 +46,11 @@ on:
         type: boolean
         default: false
       server_ai:
-        description: "意味検索・文字起こしをサーバーで動かす (VM を 2GB へ上げてから)"
+        description: "意味検索・文字起こしをサーバーで動かす (既定 on。off にするとキーワード検索に落ちる)"
         required: false
-        type: boolean
-        default: false
+        type: choice
+        options: ["", "true", "false"]
+        default: ""
 
 # concurrency: 同一ブランチで重複 deploy を抑止する。
 concurrency:
@@ -161,8 +162,19 @@ jobs:
         run: bash scripts/ci/apply-seeds.sh
       # GAP-200: サーバー実行を選んだら、VM が足りているかを **deploy 前に** 確かめる。
       # メモリ不足のまま入れると OOM で落ちるだけで、原因が分からない。
+      # GAP-285: 既定を on にした。push での自動 deploy にも効かせるため、
+      # workflow_dispatch の入力が空なら on とみなす (明示的に "false" のときだけ off)。
+      - name: Resolve server-side AI setting
+        id: server_ai
+        env:
+          INPUT: ${{ inputs.server_ai }}
+        run: |
+          VALUE="true"
+          if [ "$INPUT" = "false" ]; then VALUE="false"; fi
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+          echo "::notice::意味検索・文字起こしをサーバーで動かす = $VALUE"
       - name: Verify VM size for server-side AI
-        if: ${{ inputs.server_ai == true }}
+        if: ${{ steps.server_ai.outputs.value == 'true' }}
         env:
           SERVER_AI_MIN_MB: "1024"
         run: |
@@ -179,12 +191,16 @@ jobs:
           fi
       - name: Deploy
         env:
-          SERVER_AI: ${{ inputs.server_ai }}
+          SERVER_AI: ${{ steps.server_ai.outputs.value }}
         run: |
-          # GAP-200: 既定は 0 (モデルを入れない = 運営費用を勝手に増やさない)
-          LOCALRAG=0
-          if [ "$SERVER_AI" = "true" ]; then
-            LOCALRAG=1
+          # GAP-285: 既定は 1 (意味検索は宣伝している機能なので本番に同梱する)。
+          # off にすると画面は「意味検索は使えません」と正直に出し、
+          # キーワード検索へ落ちる (GAP-285 ②)。
+          LOCALRAG=1
+          if [ "$SERVER_AI" = "false" ]; then
+            LOCALRAG=0
+            echo "::warning::意味検索・文字起こしをサーバーに入れずにビルドします (キーワード検索に落ちます)"
+          else
             echo "::notice::意味検索・文字起こしをサーバー同梱でビルドします (イメージ +約 2.6GB)"
           fi
           flyctl deploy \
@@ -202,3 +218,24 @@ jobs:
             exit 1
           fi
           echo "::notice::Fly.io /health OK (200)"
+      # GAP-285 (G-11: 外部リソースの実在): 「入れたつもりで入っていない」を、
+      # 本番で最初のユーザーが踏む前にここで落とす。意味検索が unavailable のまま
+      # 出ていくと、画面には「使えません」としか出ず、原因が誰にも分からない。
+      - name: Verify server-side AI is actually present
+        if: ${{ steps.server_ai.outputs.value == 'true' }}
+        run: |
+          body=$(curl -s --max-time 30 "https://${FLY_APP_NAME}.fly.dev/health/capabilities" || echo "")
+          echo "capabilities: $body"
+          case "$body" in
+            *'"embeddings":true'*) ;;
+            *)
+              echo "::error::意味検索の部品 (fastembed) が本番イメージに入っていません。"
+              echo "::error::INSTALL_LOCALRAG=1 でビルドされたか、Dockerfile の prefetch が失敗していないか確認してください。"
+              exit 1
+              ;;
+          esac
+          case "$body" in
+            *'"transcription":true'*) ;;
+            *) echo "::warning::文字起こしの部品 (faster-whisper) が入っていません (議事録の自動文字起こしは使えません)" ;;
+          esac
+          echo "::notice::意味検索・文字起こしの部品が本番に入っていることを確認しました"

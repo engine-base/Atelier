@@ -26,7 +26,17 @@ logger = logging.getLogger(__name__)
 
 # 監視 / liveness / readiness は audit 対象外
 DEFAULT_EXEMPT_PATHS: frozenset[str] = frozenset(
-    {"/health", "/healthz", "/ready", "/readyz", "/live", "/livez", "/metrics"}
+    {
+        "/health",
+        # GAP-285: deploy 直後に「部品が入っているか」を確かめる口。監視と同じ扱い
+        "/health/capabilities",
+        "/healthz",
+        "/ready",
+        "/readyz",
+        "/live",
+        "/livez",
+        "/metrics",
+    }
 )
 
 SessionFactory = Callable[[], AbstractAsyncContextManager[AsyncSession]]
