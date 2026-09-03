@@ -14,6 +14,7 @@
 
 "use client";
 
+import { ApiError } from "@atelier/api-client";
 import * as React from "react";
 import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -177,7 +178,10 @@ export function EmbeddingStatusCard({
           ) : null}
           {prepare.isError ? (
             <span role="alert" className="text-[11px] text-error">
-              準備を開始できませんでした
+              {/* GAP-285: 理由 (次にやること) をそのまま出す。「開始しました」と嘘を言わない */}
+              {prepare.error instanceof ApiError && prepare.error.status === 503
+                ? prepare.error.message
+                : "準備を開始できませんでした"}
             </span>
           ) : null}
         </div>

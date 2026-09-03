@@ -67,8 +67,19 @@ async def post_embedding_prepare(
     """モデルの読み込みと未埋め込み分の補完を開始する (冪等)。
 
     完了までは時間がかかるため、ここでは開始した直後の状態を返す。
+    GAP-285 (通し J35-01 / J35-07): プロバイダが無い環境では「準備を開始しました」と
+    嘘を言わず、503 と理由 (次にやること) を返す。
     """
-    return {"data": await svc.prepare_embeddings(session)}
+    data = await svc.prepare_embeddings(session)
+    if data.state == "unavailable":
+        from src.errors import service_unavailable
+
+        steps = " / ".join(data.next_steps[:3])
+        raise service_unavailable(
+            "embedding_unavailable",
+            f"意味検索の準備を開始できません: {data.reason}" + (f"（{steps}）" if steps else ""),
+        )
+    return {"data": data}
 
 
 @router.get("/knowledge", summary="ナレッジ一覧")

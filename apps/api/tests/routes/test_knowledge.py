@@ -1195,11 +1195,18 @@ class TestEmbeddingStatusRoutes:
         self, app: FastAPI, seeded: dict[str, str]
     ) -> None:
         with TestClient(app) as client:
+            status_now = client.get("/embedding-status", headers=_h(seeded["u_a"])).json()["data"]
             first = client.post("/embedding-status/prepare", headers=_h(seeded["u_a"]))
             second = client.post("/embedding-status/prepare", headers=_h(seeded["u_a"]))
-        assert first.status_code == 200, first.text
-        assert second.status_code == 200
-        assert first.json()["data"]["provider"] == second.json()["data"]["provider"]
+        if status_now["state"] == "unavailable":
+            # GAP-285: プロバイダが無いなら「準備を開始しました」と嘘を言わず 503 + 理由
+            assert first.status_code == 503, first.text
+            assert "準備を開始できません" in first.json()["detail"]
+            assert second.status_code == 503
+        else:
+            assert first.status_code == 200, first.text
+            assert second.status_code == 200
+            assert first.json()["data"]["provider"] == second.json()["data"]["provider"]
 
     def test_voyage_key_alone_is_not_used(
         self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
