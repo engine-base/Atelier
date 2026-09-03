@@ -402,3 +402,37 @@ class TestWorkspacesCrud:
                 ).scalar_one()
             assert n == 1
             client.delete(f"/workspaces/{wid}", headers=ha)
+
+
+@pytest.mark.integration
+def test_gap273_deleted_workspace_children_are_invisible(
+    app: FastAPI, sync_engine: sqlalchemy.Engine, seeded_users: tuple[str, str]
+) -> None:
+    """GAP-273 (通し J36-07 / G-14): WS 削除後は配下の案件が一覧・詳細とも見えない (404)。"""
+    u_a, _ = seeded_users
+    ws, proj = str(uuid.uuid4()), str(uuid.uuid4())
+    with sync_engine.begin() as c:
+        c.execute(
+            text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
+            {"i": ws, "o": u_a, "n": "to-delete"},
+        )
+        c.execute(
+            text(
+                "insert into public.projects (id,workspace_id,name,project_type) "
+                "values (:i,:w,:n,'internal_product')"
+            ),
+            {"i": proj, "w": ws, "n": "orphan"},
+        )
+    h = {"Authorization": f"Bearer {_mint_jwt(u_a)}"}
+    try:
+        with TestClient(app) as client:
+            assert client.get(f"/projects/{proj}", headers=h).status_code == 200
+            assert client.delete(f"/workspaces/{ws}", headers=h).status_code == 204
+            assert client.get(f"/projects/{proj}", headers=h).status_code == 404
+            listed = client.get("/projects", params={"workspace_id": ws}, headers=h)
+            assert listed.status_code == 200 and listed.json()["data"] == []
+            everything = client.get("/projects", headers=h).json()["data"]
+            assert proj not in {p["id"] for p in everything}
+    finally:
+        with sync_engine.begin() as c:
+            c.execute(text("delete from public.workspaces where id = :i"), {"i": ws})

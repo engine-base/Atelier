@@ -160,15 +160,19 @@ async def update_workspace(
 
 
 async def delete_workspace(session: AsyncSession, *, actor_id: str, workspace_id: str) -> bool:
-    """ソフト削除 (deleted_at)。1 行更新で True。"""
-    res = await session.execute(
-        text(
-            "update public.workspaces set deleted_at = now() "
-            "where id = :id and deleted_at is null returning id"
-        ),
-        {"id": workspace_id},
-    )
-    if res.scalar_one_or_none() is None:
+    """ソフト削除 (deleted_at)。1 行更新で True。
+
+    GAP-273: 削除後は current_user_workspaces() から外れるため、監査ログの
+    RLS (workspace_id が所属 WS) が通らなくなる。監査行は削除の **前** に書く
+    (対象が実在し、かつ本人が owner であることは update の返り値で確定する)。
+    """
+    exists = (
+        await session.execute(
+            text("select 1 from public.workspaces where id = :id and deleted_at is null"),
+            {"id": workspace_id},
+        )
+    ).first()
+    if exists is None:
         return False
     await AuditWriter(session).write(
         AuditEvent(
@@ -180,4 +184,11 @@ async def delete_workspace(session: AsyncSession, *, actor_id: str, workspace_id
             target_id=workspace_id,
         )
     )
-    return True
+    res = await session.execute(
+        text(
+            "update public.workspaces set deleted_at = now() "
+            "where id = :id and deleted_at is null returning id"
+        ),
+        {"id": workspace_id},
+    )
+    return res.scalar_one_or_none() is not None
