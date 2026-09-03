@@ -1032,6 +1032,36 @@ class TestAccountDeletionAndRestore:
         from src import dependencies
 
         h = {"Authorization": f"Bearer {_make_jwt(auth_user['user_id'])}"}
+        # GAP-309: 本人が発行した成果物の共有リンクも退会で失効する
+        ws, proj, out, link = (str(uuid.uuid4()) for _ in range(4))
+        with sync_engine.begin() as c:
+            c.execute(
+                text("insert into public.workspaces (id,owner_user_id,name) values (:i,:o,:n)"),
+                {"i": ws, "o": auth_user["user_id"], "n": "g309"},
+            )
+            c.execute(
+                text(
+                    "insert into public.projects (id,workspace_id,name,project_type) "
+                    "values (:i,:w,:n,'internal_product')"
+                ),
+                {"i": proj, "w": ws, "n": "g309"},
+            )
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs (id,project_id,stage,version,html_path) "
+                    "values (cast(:i as uuid),cast(:p as uuid),'proposal',1,'g309.html')"
+                ),
+                {"i": out, "p": proj},
+            )
+            c.execute(
+                text(
+                    "insert into public.output_share_links "
+                    "(id,output_id,token_hash,label,expires_at,created_by) "
+                    "values (cast(:i as uuid),cast(:o as uuid),:h,'g309',now() + interval '7 days',"
+                    " cast(:u as uuid))"
+                ),
+                {"i": link, "o": out, "h": "g309" * 16, "u": auth_user["user_id"]},
+            )
         with TestClient(app) as client:
             # 退会前: 通る + Bridge トークンも発行できる
             assert client.get("/workspaces", headers=h).status_code == 200
@@ -1060,6 +1090,16 @@ class TestAccountDeletionAndRestore:
                 ).status_code
                 == 401
             )
+        # GAP-309: 共有リンクは revoked_at が立つ
+        with sync_engine.begin() as c:
+            revoked = c.execute(
+                text(
+                    "select revoked_at from public.output_share_links where id = cast(:i as uuid)"
+                ),
+                {"i": link},
+            ).scalar_one()
+            assert revoked is not None
+            c.execute(text("delete from public.workspaces where id = :i"), {"i": ws})
             # 復活すれば同じ JWT が (期限内なら) また通る
             rr = client.post(
                 "/auth/account/restore",

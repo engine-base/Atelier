@@ -1314,6 +1314,15 @@ async def delete_account(
                 ),
                 {"i": user_id},
             )
+            # GAP-309 (通し D 所見 / G-14): 本人が発行した成果物の共有リンクも失効させる。
+            # 退会した人の名義で外部に開いたままの窓を残さない。
+            await session.execute(
+                text(
+                    "update public.output_share_links set revoked_at = now() "
+                    "where created_by = cast(:i as uuid) and revoked_at is null"
+                ),
+                {"i": user_id},
+            )
             # 全 refresh_token 失効
             await AuditWriter(session).write(
                 AuditEvent(
