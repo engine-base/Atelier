@@ -16,7 +16,10 @@
 > supabase orgs list                                   # org-id を控える
 > bash scripts/staging-bootstrap.sh <org-id>           # プロジェクト作成 → キー取得 → Fly app + secrets → GitHub secrets → staging ブランチ
 > ```
-> 残るのは JWT secret・Vercel の env・Site URL の 3 つだけ（スクリプトの最後に手順が出ます）。以下は手動で行う場合の詳細。
+> 残るのは Vercel の env・Site URL・CORS の 3 つだけ（スクリプトの最後に手順が出ます）。以下は手動で行う場合の詳細。
+>
+> **秘密の扱い**: JWT secret / service_role / DB パスワードは **チャット・Issue・PR に貼らない**。貼った時点で漏洩扱いとし、
+> その環境の値を即ローテーションする（本番の JWT secret を差し替えると全ユーザーが再ログインになる。Bridge の接続は別トークンなので影響なし）。
 
 
 ### 1-1. Supabase: staging プロジェクトを作る
@@ -33,7 +36,7 @@
 flyctl apps create atelier-api-staging --org <本番と同じ org>
 flyctl secrets set -a atelier-api-staging \
   ATELIER_DB_URL='postgresql+asyncpg://postgres.<ref>:<pw>@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres' \
-  ATELIER_AUTH_JWT_SECRET='<Supabase staging の JWT secret (Settings → API)>' \
+  ATELIER_AUTH_JWT_SECRET='<乱数: openssl rand -base64 48>' \
   ATELIER_SUPABASE_ADMIN_API_URL='https://<ref>.supabase.co' \
   ATELIER_SUPABASE_ANON_KEY='<anon>' \
   ATELIER_SUPABASE_SERVICE_ROLE_KEY='<service_role>' \
@@ -41,6 +44,8 @@ flyctl secrets set -a atelier-api-staging \
   ATELIER_CORS_EXTRA_ORIGINS='<staging Web URL>' \
   APP_ENV='staging'
 ```
+`ATELIER_AUTH_JWT_SECRET` は **API が自前で発行・検証する HS256 の鍵**（`apps/api/src/dependencies.py`）。Supabase 発行のトークンは
+使わないので、Supabase の JWT secret / JWKS（ES256）とは無関係。staging 専用の乱数を使い、本番の値を流用しない。
 本番にある他の secrets（Resend / Stripe テストキー等）は **テストモードの鍵**を入れる。無いものは入れない（その機能の行は BLOCKED として残る）。
 
 ### 1-3. GitHub: secrets を 2 つ登録
