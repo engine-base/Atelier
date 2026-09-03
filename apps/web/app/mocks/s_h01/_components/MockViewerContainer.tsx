@@ -71,6 +71,13 @@ function statusOf(error: unknown): number | null {
   return error instanceof ApiError ? error.status : null;
 }
 
+/** API の detail (利用者向けの日本語) を取り出す。無ければ null。 */
+function detailOf(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const d = (error.payload as { detail?: unknown } | undefined)?.detail;
+  return typeof d === "string" && d.trim() ? d : null;
+}
+
 /** ISO → "YYYY-MM-DD HH:mm" (鉄則: 生 ISO を画面に出さない)。 */
 function dateLabel(iso: string | undefined): string {
   return iso ? iso.slice(0, 16).replace("T", " ") : "";
@@ -355,7 +362,8 @@ export function MockViewerContainer({
         kind: "error",
         text:
           statusOf(e) === 409
-            ? "唯一のバージョンは破棄できません。"
+            ? // GAP-255: 409 の理由 (唯一版 / 確定済みフェーズ) は API が言う。固定文で書き換えない
+              (detailOf(e) ?? "唯一のバージョンは破棄できません。")
             : "バージョンの破棄に失敗しました。",
       }),
   });

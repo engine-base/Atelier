@@ -29,7 +29,7 @@ from src.llm.client import LLMMessage
 from src.schemas.mocks import MockResponse, MockVersionCreate
 from src.storage_signing import create_signed_download_url, create_signed_upload_url
 
-from . import MockVersionConflict, create_version, get_mock
+from . import MockPhaseFrozen, MockVersionConflict, _guard_frozen, create_version, get_mock
 
 REVISE_MODEL = os.environ.get("ATELIER_DESIGN_MODEL", "claude-sonnet-4-6")
 
@@ -179,6 +179,7 @@ async def revise_mock(
     current = await get_mock(session, mock_id)
     if current is None:
         return None
+    await _guard_frozen(session, current)  # GAP-255: 確定済みフェーズのモックは AI 改訂も不可
     html = await _load_current_html(current)
 
     if client is not None:
@@ -365,6 +366,11 @@ async def revise_mock_stream(
         current = await get_mock(session, mock_id)
         if current is None:
             yield {"error": {"code": "not_found", "message": "mock not found"}}
+            return
+        try:
+            await _guard_frozen(session, current)  # GAP-255
+        except MockPhaseFrozen as exc:
+            yield {"error": {"code": "phase_frozen", "message": str(exc)}}
             return
         yield {"stage": "loading"}
         html = await _load_current_html(current)

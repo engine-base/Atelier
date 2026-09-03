@@ -429,6 +429,27 @@ describe("S-H01 MockViewerContainer (T-UC-13)", () => {
     );
   });
 
+  it("破棄の 409 は API の理由 (確定済みフェーズ等) をそのまま出す (GAP-255)", async () => {
+    const get = standardGet();
+    const post = vi.fn(async () => {
+      throw new ApiError({
+        status: 409,
+        statusText: "Conflict",
+        payload: { detail: "確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。" },
+        path: "/mocks/{mock_id}/discard",
+        method: "post",
+      });
+    });
+    const client = { get, post, patch: vi.fn(), delete: vi.fn(), put: vi.fn(), request: vi.fn() };
+    renderWithQuery(<MockViewerContainer mockId="m2" client={client as never} />);
+    fireEvent.click(await screen.findByRole("button", { name: "v1 を破棄" }));
+    fireEvent.click(screen.getByRole("button", { name: "破棄を確定" }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("確定済みのフェーズの成果物は変更できません");
+    expect(alert).not.toHaveTextContent("唯一のバージョン");
+  });
+
   it("shows a forbidden message on 403", async () => {
     const get = vi.fn(async () => {
       throw apiError(403);

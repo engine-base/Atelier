@@ -393,6 +393,12 @@ async def revise_mock(
             instruction=body.instruction,
             reference_files=[r.model_dump() for r in body.reference_files],
         )
+    except svc.MockPhaseFrozen as exc:
+        # GAP-255: 確定済みフェーズのモックは AI 改訂も不可 (破棄・削除と同じ 409)
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。",
+        ) from exc
     except revise_svc.MockReviseError as exc:
         if exc.code in ("llm_unconfigured", "bridge_offline"):
             # GAP-138: Bridge オフラインも「実行経路が無い」— 黙って API 課金に落とさない

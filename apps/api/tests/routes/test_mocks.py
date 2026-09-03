@@ -351,6 +351,49 @@ class TestMocksCrud:
             client.delete(f"/mocks/{v2['id']}", headers=h)
             client.delete(f"/mocks/{v1['id']}", headers=h)
 
+    def test_gap255_revise_on_frozen_phase_is_409(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-255 (本番実走 SH01-212): 確定済みフェーズのモックに AI 改訂を依頼すると、
+        破棄・削除と同じく 409 で止まる (revise 経路に凍結ガードが無かった)。"""
+        _install_storage_fakes(monkeypatch, source_html="<html><body><h1>v1</h1></body></html>")
+        monkeypatch.setenv("ATELIER_ALLOW_FAKE_LLM", "1")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        proj = seeded["proj_a"]
+        with TestClient(app) as client:
+            v1 = client.post(
+                "/mocks",
+                json={
+                    "project_id": proj,
+                    "screen_name": "S-FROZEN",
+                    "html_storage_path": "mocks/frozen-v1.html",
+                },
+                headers=h,
+            ).json()["data"]
+            phases = client.get(f"/projects/{proj}/delivery-phases", headers=h).json()["data"]
+            p1 = phases[0]["id"]
+            fr = client.post(
+                f"/projects/{proj}/delivery-phases/{p1}/freeze",
+                json={"confirm": True},
+                headers=h,
+            )
+            assert fr.status_code == 200, fr.text
+            r = client.post(
+                f"/mocks/{v1['id']}/revise",
+                json={"instruction": "ヘッダーをブランドカラーに変更"},
+                headers=h,
+            )
+            assert r.status_code == 409, r.text
+            assert "確定済み" in r.json()["detail"], r.text
+            # 新版は積まれていない
+            vs = client.get(f"/mocks/{v1['id']}/versions", headers=h)
+            if vs.status_code == 200:
+                assert all(v["version"] == 1 for v in vs.json()["data"]), vs.text
+
     def test_revise_503_when_llm_unconfigured(
         self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
