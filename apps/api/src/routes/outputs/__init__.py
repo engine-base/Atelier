@@ -596,7 +596,10 @@ async def approve_fix_proposal(
 ) -> dict[str, FixProposalApproveResponse]:
     try:
         result = await fix_svc.approve(session, actor_id=user.id, proposal_id=proposal_id)
-    except (ValueError, svc.OutputVersionConflict) as exc:
+    except ValueError as exc:
+        # GAP-260: 「すでに処理済み」を同時編集の文言で返していた (本番実走 SG01-218)。理由を言い分ける
+        raise HTTPException(status.HTTP_409_CONFLICT, "この修正案はすでに処理済みです。") from exc
+    except svc.OutputVersionConflict as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "ほかの編集と同時に保存されたため、反映できませんでした。"

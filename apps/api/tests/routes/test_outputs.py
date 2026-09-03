@@ -447,11 +447,11 @@ class TestOutputViewerOps:
             assert body["proposal"]["status"] == "approved"
             assert body["new_output"]["version"] == 2
             assert body["proposal"]["applied_output_id"] == body["new_output"]["id"]
-            # 二重承認は 409
-            assert (
-                client.post(f"/output-fix-proposals/{prop['id']}/approve", headers=h).status_code
-                == 409
-            )
+            # 二重承認は 409。GAP-260: 理由は「処理済み」であって同時編集の文言ではない
+            dup = client.post(f"/output-fix-proposals/{prop['id']}/approve", headers=h)
+            assert dup.status_code == 409
+            assert "処理済み" in dup.json()["detail"], dup.text
+            assert "同時に保存" not in dup.json()["detail"], dup.text
 
             # 却下: 文書は不変 (バージョン数が増えない)
             c2 = client.post(
