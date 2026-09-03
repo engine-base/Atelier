@@ -1,0 +1,29 @@
+name: error-log
+
+# 本番 error_log の直近行を GitHub Actions 上で読む (GAP-290 調査用)。
+# 手元に DB パスワードが無くても `gh workflow run error-log.yml` だけで見られる。
+# 秘密は PROD_DATABASE_URL (GitHub secret) のみ。出力は本文 300 文字まで。
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 何件出すか
+        default: "20"
+        required: false
+
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+    steps:
+      - name: Install psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client >/dev/null
+      - name: Read error_log
+        run: |
+          set -euo pipefail
+          if [ -z "$PROD_DATABASE_URL" ]; then echo "::error::PROD_DATABASE_URL is not set"; exit 1; fi
+          psql "$PROD_DATABASE_URL" -X -P pager=off -c \
+            "select occurred_at, status_code, path, left(message, 300) as message from public.error_log order by occurred_at desc limit ${{ github.event.inputs.limit || 20 }}"
