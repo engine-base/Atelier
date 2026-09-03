@@ -398,6 +398,63 @@ class TestChatSSE:
             ).scalar_one()
             assert before == after
 
+    def test_gap317_long_history_is_folded_into_the_context_block(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+    ) -> None:
+        """AI-032 (訂正後): 長文脈は `_fold_older_history` が畳み込む。
+
+        旧行は compress.py の発火を期待していたが、そのモジュールは存在せず
+        **永久に検証できない行** だった (BLOCKED のまま)。実際に長文脈を担うのは
+        chat_sse の `_fold_older_history` (+ 要約が在れば summary.py)。
+        直近ぶんはそのまま、古いぶんは「これまでの経緯(要約)」に畳まれ、
+        文字数の上限を超えず、エラーにならないことを実データで見る。
+        """
+        h = _h(seeded["u_a"])
+        tid = seeded["thread_a"]
+        with sync_engine.begin() as c:
+            for i in range(40):
+                c.execute(
+                    text(
+                        "insert into public.chat_messages (thread_id, role, content, created_at) "
+                        "values (cast(:t as uuid), :r, :c, now() - make_interval(secs => :s))"
+                    ),
+                    {
+                        "t": tid,
+                        "r": "user" if i % 2 == 0 else "assistant",
+                        "c": f"むかしの発言 {i:02d} " + ("あ" * 80),
+                        "s": 4000 - i * 10,
+                    },
+                )
+            c.execute(
+                text(
+                    "insert into public.chat_messages (thread_id, role, content) "
+                    "values (cast(:t as uuid), 'user', :c)"
+                ),
+                {"t": tid, "c": "直近のいちばん新しい発言 ZZZ"},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                f"/chat/threads/{tid}/context-preview",
+                headers=h,
+                json={"user_message": "いまの質問", "include_history": 5},
+            )
+            assert r.status_code == 200, r.text
+            prompt = r.json()["data"]["system_prompt"]
+        # 古い発言は畳まれて「これまでの経緯」に入る (原文がそのまま全部は載らない)
+        assert "これまでの経緯" in prompt
+        block = prompt.split("これまでの経緯", 1)[1]
+        # 畳み込みは **新しい方から** 文字数の予算ぶんだけ残す (古すぎる分は落とす)。
+        # 「直前に何を話していたか」が残らないと文脈として役に立たないため。
+        assert "むかしの発言 36" in block
+        assert "むかしの発言 00" not in block
+        # 予算 (char_budget=1200) を大きく超えない = 長文脈でも system prompt が膨張しない
+        assert len(block) < 4000, len(block)
+        # エラーにならず、素の system prompt も壊れない
+        assert "Atelier" in prompt
+
     def test_stream_rejects_empty_user_message_422(
         self, app: FastAPI, seeded: dict[str, str]
     ) -> None:
