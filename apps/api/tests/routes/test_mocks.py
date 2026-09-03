@@ -378,7 +378,9 @@ class TestMocksCrud:
             p1 = phases[0]["id"]
             fr = client.post(
                 f"/projects/{proj}/delivery-phases/{p1}/freeze",
-                json={"confirm": True},
+                # GAP-280: 残件があると確定できない。ここで見たいのは
+                # 「凍結後のフェーズでは改訂できない」ことなので、残件は承知の上で確定する
+                json={"confirm": True, "acknowledge_open_items": True},
                 headers=h,
             )
             assert fr.status_code == 200, fr.text

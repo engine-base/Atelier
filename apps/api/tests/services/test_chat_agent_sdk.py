@@ -248,6 +248,20 @@ def _patch_stream_chat_io(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(chat_sse, "AuditWriter", _FakeAuditWriter)
 
 
+def _patch_bridge_presence(monkeypatch: pytest.MonkeyPatch, *, online: bool) -> None:
+    """GAP-310: relay 経路は保存の前に **本人の PC が繋がっているか** を見る。
+
+    ここを与えないと、relay の中身を検証したいテストが全部
+    「PC 未接続」で先に打ち切られてしまう (relay の分岐に一度も入らない)。
+    """
+    from src.services import chat_relay
+
+    async def _status(*_: Any, **__: Any) -> dict[str, Any]:
+        return {"bridge_online": online}
+
+    monkeypatch.setattr(chat_relay, "connection_status", _status)
+
+
 class _CountingSession:
     """GAP-201: stream_chat が「待ちに入る前」に commit することを受けるフェイク。"""
 
@@ -320,6 +334,7 @@ async def test_stream_chat_uses_relay_when_opted_in(
         yield "リレー応答"
 
     monkeypatch.setattr(sse_relay, "relay_stream_chunks", _fake_relay)
+    _patch_bridge_presence(monkeypatch, online=True)
     monkeypatch.setenv(agent_sdk.PROVIDER_ENV, "relay")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     events: list[str] = []
@@ -352,7 +367,10 @@ async def test_stream_chat_relay_offline_message(
         raise sse_relay.RelayUnavailable
         yield  # pragma: no cover  - generator 化のため
 
+    # presence は「繋がっている」。**繋いだ後に中継が落ちた** ときの誠実エラーを見る
+    # (未接続そのものは GAP-310 の別テストが持つ)。
     monkeypatch.setattr(sse_relay, "relay_stream_chunks", _offline_relay)
+    _patch_bridge_presence(monkeypatch, online=True)
     monkeypatch.setenv(agent_sdk.PROVIDER_ENV, "relay")
     events: list[str] = []
     async for b in chat_sse.stream_chat(

@@ -155,6 +155,14 @@ async def test_stream_chat_allows_tools_on_relay(monkeypatch: pytest.MonkeyPatch
         yield "了解"
 
     monkeypatch.setattr(sse_relay, "relay_stream_chunks", _fake_relay)
+    # GAP-310: relay は保存の前に本人の PC が繋がっているかを見る。
+    # 与えないと「PC 未接続」で打ち切られ、relay の分岐に一度も入らない。
+    from src.services import chat_relay
+
+    async def _online(*_: Any, **__: Any) -> dict[str, Any]:
+        return {"bridge_online": True}
+
+    monkeypatch.setattr(chat_relay, "connection_status", _online)
     events: list[str] = []
     # GAP-201: stream_chat は「待ちに入る前」に commit して DB 接続を手放す
     session = _FakeSession()

@@ -188,6 +188,8 @@ class TestStreamReleasesWhileWaiting:
         marker = 'yield _sse_event({"type": "start"})'
         assert marker in src
         after = src.split(marker, 1)[1]
-        # start の直後 (待ちに入る前) に commit している
-        head = after[: after.index("use_subscription =")]
+        # start の直後 (待ちに入る前) に commit している。
+        # 区切りは「次に何かを yield するまで」— 変数名を目印にすると、
+        # 実装をいじった拍子に目印だけが消えてテストが壊れる (実際に踏んだ)。
+        head = after[: after.index("yield ")]
         assert "await session.commit()" in head, "待ちに入る前に接続を手放していない"

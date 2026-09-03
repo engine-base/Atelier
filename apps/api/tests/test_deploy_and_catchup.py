@@ -44,13 +44,20 @@ class TestProductionMigrationsAreNotSkippedSilently:
         return list(jobs["fly"]["steps"])
 
     def test_deploy_fails_when_the_db_url_is_missing(self, workflow: dict[str, Any]) -> None:
-        """未設定なら deploy を **止める** (黙って skip しない)。"""
-        verify = next(
-            s for s in self._steps(workflow) if s.get("name") == "Verify required secrets"
-        )
-        run = str(verify["run"])
-        assert "PROD_DATABASE_URL" in run
-        assert "exit 1" in run
+        """未設定なら deploy を **止める** (黙って skip しない)。
+
+        どの step が見張るかは実装の都合で動く (実際に動いた)。守るのは
+        「PROD_DATABASE_URL が空なら exit 1 する step がどこかにある」こと。
+        """
+        guards = [
+            str(s.get("run", ""))
+            for s in self._steps(workflow)
+            if "PROD_DATABASE_URL" in str(s.get("run", "")) and "exit 1" in str(s.get("run", ""))
+        ]
+        assert guards, "PROD_DATABASE_URL 未設定で deploy を止める step が無い"
+        assert any(
+            '-z "$PROD_DATABASE_URL"' in g for g in guards
+        ), "空判定をしていない (未設定でも素通りしてしまう)"
 
     def test_migration_step_is_not_gated_on_the_secret_being_present(
         self, workflow: dict[str, Any]

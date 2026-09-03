@@ -123,9 +123,27 @@ def test_upload_url_sanitizes_filename(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://proj.supabase.co")
     monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
     monkeypatch.setattr(svc.httpx, "AsyncClient", _FakeClient)
+    # GAP-284 で対応形式の判定が入ったので、**対応形式のまま** traversal を試す
+    # (拡張子なしにすると 422 で弾かれ、サニタイズ経路に一度も入らない)。
+    body = {
+        "project_id": "p1",
+        "file_name": "../../etc/passwd.m4a",
+        "mime_type": "audio/mp4",
+    }
+    with TestClient(_app()) as client:
+        res = client.post("/meetings/upload-url", json=body)
+    assert res.status_code == 200, res.text
+    # path traversal 文字は除去され storage_path に "../" が現れない。
+    assert ".." not in res.json()["data"]["storage_path"]
+
+
+def test_gap284_対応外の形式は上り口で断る(monkeypatch: pytest.MonkeyPatch) -> None:
+    """拡張子なし / 対応外は 422。一覧に「開けないもの」を増やさない。"""
+    monkeypatch.setenv("ATELIER_SUPABASE_ADMIN_API_URL", "https://proj.supabase.co")
+    monkeypatch.setenv("ATELIER_SUPABASE_SERVICE_ROLE_KEY", "svc-key")
+    monkeypatch.setattr(svc.httpx, "AsyncClient", _FakeClient)
     body = {"project_id": "p1", "file_name": "../../etc/passwd", "mime_type": "audio/mp4"}
     with TestClient(_app()) as client:
         res = client.post("/meetings/upload-url", json=body)
-    assert res.status_code == 200
-    # path traversal 文字は除去され storage_path に "../" が現れない。
-    assert ".." not in res.json()["data"]["storage_path"]
+    assert res.status_code == 422
+    assert "対応していない形式" in res.json()["detail"]
