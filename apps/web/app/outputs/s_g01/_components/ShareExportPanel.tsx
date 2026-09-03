@@ -20,7 +20,7 @@ import { Copy, Link2, Trash2 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
-import { readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 
 export interface ShareLinkItem {
@@ -71,7 +71,10 @@ export function ShareExportPanel({
   client,
   exportUrlOf,
   fetchExport,
-  apiBase = process.env.NEXT_PUBLIC_API_URL ?? "",
+  // GAP-323 (通し J46-16 再測): ここだけ独自に env を読んでおり、本番 (env 未設定) では
+  // 空文字 = **web オリジン相対**になって書き出しが 404 になっていた。
+  // API のベース URL の解決はアプリ共通の 1 か所 (lib/auth/connector.API_BASE) に寄せる。
+  apiBase = API_BASE,
 }: ShareExportPanelProps) {
   const queryClient = useQueryClient();
   const KEY = ["share-links", outputId] as const;

@@ -121,3 +121,19 @@ describe("ShareExportPanel (GAP-162)", () => {
     expect(init.params.path.link_id).toBe("l9");
   });
 });
+
+describe("ShareExportPanel の API ベース URL (GAP-323 / 通し J46-16 再測)", () => {
+  it("既定の書き出し URL はアプリ共通の API ベース (web オリジン相対にならない)", async () => {
+    const fetchExport = vi.fn(async (_url: string) => new Blob(["x"], { type: "text/html" }));
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:x"), revokeObjectURL: vi.fn() });
+    renderWithQuery(
+      <ShareExportPanel outputId={OUT} client={clientOf()} fetchExport={fetchExport} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "HTML で保存" }));
+    await waitFor(() => expect(fetchExport).toHaveBeenCalled());
+    const url = String(fetchExport.mock.calls[0]?.[0] ?? "");
+    // 相対 (= web オリジン) だと本番で 404 になる。絶対 URL であることを固定する
+    expect(url.startsWith("http")).toBe(true);
+    expect(url).toContain(`/outputs/${OUT}/export?format=html`);
+  });
+});
