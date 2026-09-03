@@ -58,3 +58,206 @@ recent_activities で観測できたものだけ「記録された」とする�
   送信時の API: ["POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/stream data: {\"type\": \"context\", \"metadata\": {\"history_count\": 0, \"rag_hit_ids\": [], \"user_message_id\": \"dd07900e-781f-4a6a-8c9a-4796547ff736\"}}\n\ndata: {\"type\": \"start\"}\n\ndata: {\"type\": \"error\", \"content\": \"お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになり","POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/queued/consume {\"data\":null}"]
   画面 alert: ["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"] / 入力欄の値: "" (元の文章と一致=false) / 本文中に発言として残る (楽観表示)=true
   DB: GET messages 0→1 件 (user=1, assistant=0)
+
+## J43-03 失敗しても打った文章が消えない (Bridge 未接続で送信 → 入力欄に戻る → 押し直しで再送)
+  GET /chat/connection-status -> 200 {"data":{"mode":"relay","bridge_online":false,"workers":[],"last_job":null,"plan":null}}
+  GET /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/messages -> 200 {"data":[{"id":"dd07900e-781f-4a6a-8c9a-4796547ff736","thread_id":"3a0342c1-d6b9-467b-a1fc-81c4432c18e8","role":"user","content":"QA-R2: PC 未接続のまま送る文章 (消えないこと)","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T07:24:19.349919Z","updated_at":"2026-09-03T07:24:18.782769Z"}]}
+  GET /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/messages -> 200 {"data":[{"id":"dd07900e-781f-4a6a-8c9a-4796547ff736","thread_id":"3a0342c1-d6b9-467b-a1fc-81c4432c18e8","role":"user","content":"QA-R2: PC 未接続のまま送る文章 (消えないこと)","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T07:24:19.349919Z","updated_at":"2026-09-03T07:24:18.782769Z"},{"id":"d4432297-8447-44a7-824e-6b8a4f19ab3d","thread_id":"3a0342c1-d6b9-467b-a1fc-81c4432c1
+  connection-status: mode=relay bridge_online=false
+  送信時の API: ["POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/stream data: {\"type\": \"context\", \"metadata\": {\"history_count\": 1, \"rag_hit_ids\": [], \"user_message_id\": \"d4432297-8447-44a7-824e-6b8a4f19ab3d\"}}\n\ndata: {\"type\": \"start\"}\n\ndata: {\"type\": \"error\", \"content\": \"お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになり","POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/queued/consume {\"data\":null}"]
+  画面 alert: ["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"] / 入力欄の値: "" (元の文章と一致=false) / 本文中に発言として残る (楽観表示)=true
+  DB: GET messages 1→2 件 (user=2, assistant=0)
+  押し直し前: 送信ボタン=1 個 disabled=true
+  GET /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/messages -> 200 {"data":[{"id":"dd07900e-781f-4a6a-8c9a-4796547ff736","thread_id":"3a0342c1-d6b9-467b-a1fc-81c4432c18e8","role":"user","content":"QA-R2: PC 未接続のまま送る文章 (消えないこと)","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T07:24:19.349919Z","updated_at":"2026-09-03T07:24:18.782769Z"},{"id":"d4432297-8447-44a7-824e-6b8a4f19ab3d","thread_id":"3a0342c1-d6b9-467b-a1fc-81c4432c1
+  押し直し (入力せずに送信ボタンだけ): API=[]; 入力欄の値: ""; alert=["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"]; DB messages=2
+  => J43-03: FAIL — 期待: 入力欄に文章が戻り押し直しで再送 / 実測: 送信 API=POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/stream, POST 200 /chat/threads/3a0342c1-d6b9-467b-a1fc-81c4432c18e8/queued/consume、alert=["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"]、入力欄="" (一致=false)、DB messages 1→2、押し直し API=[]
+
+## J40-04 Bridge 接続トークンを発行する (raw は 1 度だけ・一覧に出る・再読込後は出ない)
+  UI POST /bridge-tokens -> 201 id=d39cb936-aa63-489b-87a0-1ad095dcf62c; raw トークン (43 文字) が画面に表示=true
+  発行直後の GET /bridge-tokens: +2.8s 200 1 件 発行 id 含む=true token フィールド無し=true | +3.5s 200 1 件 発行 id 含む=true token フィールド無し=true | +4.8s 200 1 件 発行 id 含む=true token フィールド無し=true | +7.0s 200 1 件 発行 id 含む=true token フィールド無し=true
+  発行直後のパネル抜粋 (raw は伏字): Claude 接続状態 |  | 自分の Claude プランで実行 |  | チャットはあなたのパソコンを経由して、あなたの Claude 月額プランの範囲内で実行されます。追加の従量課金は発生しません。 |  | 接続の手順 |  | 接続アプリ (Atelier Bridge) をインストール (ダウンロード — Mac / Windows / Linux) | 下の「接続トークンを発行」→「アプリで接続」を押す | この表示が「接続中」になれば完了 | アプリで接続 |  | アプリが開かない場合は、下のコマンドをターミナルに貼り付けても接続できます (トークンはこの画面でのみ表示されます — 再表示はできません)。 |  | ATELIER_API_URL=https://atelier-api-eb.fly.dev ATELIER_BRIDGE_TOKEN=0XX9…<redacted> node dist/headless.js --loop | コピー |  | トークンはあなた専用です (チャット接続のみに有効・いつでも失効可能)。あなたの Claude 認証情報がこ
+  再読み込み後: raw が画面に出る=false; パネル抜粋: Claude 接続状態 |  | 自分の Claude プランで実行 |  | チャットはあなたのパソコンを経由して、あなたの Claude 月額プランの範囲内で実行されます。追加の従量課金は発生しません。 |  | 接続の手順 |  | 接続アプリ (Atelier Bridge) をインストール (ダウンロード — Mac / Windows / Linux) | 下の「接続トークンを発行」→「アプリで接続」を押す | この表示が「接続中」になれば完了 | 接続トークンを発行 |  | トークンはあなた専用です (チャット接続のみに有効・いつでも失効可能)。あなたの Claude 認証情報がこの PC の外へ送られることはありません。 |  | プラン枠 (5 時間 / 7 日) の使用率はまだ計測がありません。チャットを 1 回実行すると、その時点の実測値がここに表示されます (Cl; 画面が呼んだ GET /bridge-tokens=[]
+  GET /bridge-tokens 20 回連続の分布 (status/件数): {"200/1件":20}
+  GET /bridge-tokens?include_revoked=true -> 200 1 件
+  => J40-04: PASS — UI「接続トークンを発行」→ POST 201、raw (43 文字) が発行直後の画面に 1 度表示。発行直後 0〜3.5 秒の GET /bridge-tokens は全て 200 で発行 id を含み token フィールド無し (4 回)。再読み込み後は raw が画面に出ず、パネルの一覧に発行済みトークン (id/label/日時) が出る。20 回連続 GET の分布 {"200/1件":20} (500 なし・件数の揺れなし)、include_revoked=true → 200
+
+## J47-06 宛先が不正な送信は拒否される (UI + API) — 日本語のエラー・送信履歴が増えない
+  GET /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/sends -> 200 {"data":[{"id":"886a87e7-7387-4eeb-85a8-0264a510963e","doc_id":"ab123450-8140-413c-8bd5-3103602e6b3d","to_email":"qa-jR2-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T07:21:23.844860Z"}]}
+  UI form noValidate=null; 試行=[{"bad":"not-an-email","post":null,"errs":[],"validity":{"type":"email","valid":false,"msg":"Please include an '@' in the email address. 'not-an-email' is missing an '@'.","ariaInvalid":null}},{"bad":"foo@","post":null,"errs":[],"validity":{"type":"email","valid":false,"msg":"Please enter a part following '@'. 'foo@' is incomplete.","ariaInvalid":null}}]
+  POST /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/send -> 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"}
+  POST /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/send -> 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"}
+  GET /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/sends -> 200 {"data":[{"id":"886a87e7-7387-4eeb-85a8-0264a510963e","doc_id":"ab123450-8140-413c-8bd5-3103602e6b3d","to_email":"qa-jR2-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T07:21:23.844860Z"}]}
+  API: 'not-an-email' → 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"} / 'foo@' → 422; 送信履歴 1→1; 画面の送信履歴件数表示=送信履歴
+  => J47-06: FAIL — UI: 宛先 'not-an-email' → POST 未送信、アプリのエラー文言=[] (ブラウザ標準の検証のみ: validationMessage「Please include an '@' in the email address. 'not-an-email' is missing an '@'.」= ブラウザ UI 言語依存) / 'foo@' → POST 未送信、アプリのエラー文言=[] (ブラウザ標準の検証のみ: validationMessage「Please enter a part following '@'. 'foo@' is incomplete.」= ブラウザ UI 言語依存); API: 'not-an-email' → 422 "送信内容を確認してください（入力内容: 形式が正しくありません）。"、'foo@' → 422; 送信履歴 1→1 (増えない)
+
+## J47-07 ドラフトを削除する (UI 2 段階) → 一覧から消え、論理削除、送信履歴は残る
+  GET /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/sends -> 200 {"data":[{"id":"886a87e7-7387-4eeb-85a8-0264a510963e","doc_id":"ab123450-8140-413c-8bd5-3103602e6b3d","to_email":"qa-jR2-20260903-1@example.com","subject":"【見積書ドラフト】商談管理刷新","dry_run":true,"created_at":"2026-09-03T07:21:23.844860Z"}]}
+  GET /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d -> 404 {"detail":"対象の商談資料が見つかりません。"}
+  GET /sales-docs/ab123450-8140-413c-8bd5-3103602e6b3d/sends -> 404 {"detail":"対象の商談資料が見つかりません。"}
+  UI 削除 (確認=なし) → DELETE 204; 一覧 2→1; GET detail 404 deleted_at=undefined; GET sends 404 {"detail":"対象の商談資料が見つかりません。"}; 削除前の送信履歴 1 件; 画面に「見積書 Nebula」残存=false 画面に送信履歴 (宛先) が残る=false
+  監査 (論理削除): dashboard recent_activities の増分=["task.update:task:7e00a0ab"] (sales_doc 対象の監査は運営 API のみで観測不能)
+  => J47-07: FAIL — UI「v2 を削除」→ 確認 → DELETE /sales-docs/{id} 204、一覧 2→1 件・画面から消える、GET detail 404。送信履歴: 削除前 1 件 → 削除後 GET /sales-docs/{id}/sends 404 (ドラフトが不可視になると送信履歴も API/画面から辿れない)。論理削除の監査は運営 API のみで観測不能 (dashboard 増分=["task.update:task:7e00a0ab"])
+
+## J48-01 タスクを 1 件作る (S-I01「タスクを追加」モーダル) — 準備中列・依存/受入基準/仕様書のリンク
+  モーダルの入力欄: ["input:","input:hearing 等","input:","select:[feature/screen/foundation/verification/infrastructure/migration]","input:指定するとモックタブに画面の枠が自動作成されます"]; ラベル: ["タイトル","分類 (機能グループ)","見積 (時間)","種別\nfeature\nscreen\nfoundation\nverification\ninfrastructure\nmigration","対象画面 (任意 — 例: ログイン画面)"]
+  依存 / 受入基準 / 仕様書を指定する欄: 0 個
+  入力できた欄: {"category":true,"title":true,"type":true,"estimated_hours":true,"priority":false,"description":false,"screen_name":true}
+  UI POST /tasks -> 201; 一覧 0→1; 画面の列=準備中; alert=[]
+  作成タスクの記録: lifecycle=triage dependencies=[] acceptance_criteria_id=null mock_id=cb197b3f-3087-4c14-a7ae-dceea5160520 mock_screen_name=QA-R2 LP トップ spec=(フィールド無し); dashboard=["task.create:task:22fa0df7","comment.create:comment:01bde75a","project.flow.init:project:9b34997f"]
+  => J48-01: FAIL — UI「タスクを追加」→ POST /tasks 201、lifecycle=triage で画面の「準備中」列に出る (一覧 0→1)。モーダルの入力は タイトル/分類 (機能グループ)/見積 (時間)/種別
+feature
+screen
+foundation
+verification
+infrastructure
+migration/対象画面 (任意 — 例: ログイン画面) で、依存・受入基準・仕様書を指定する欄=0 個。作成されたタスクは dependencies=[]・acceptance_criteria_id=null・仕様書リンク無し (対象画面 → mock_screen_name=QA-R2 LP トップ には紐づく) → 期待の「依存・受入基準・仕様書がリンクされて記録される」が満たされない
+
+## J48-02 依存の無いタスクを作ろうとする (依存を空にして保存) → 依存漏れの警告
+  モーダル: 依存の入力欄=0 個; 本文=タスクを追加 | タイトル | 分類 (機能グループ) | 見積 (時間) | 種別 | feature | screen | foundation | verification | infrastructure | migration | 対象画面 (任意 — 例: ログイン画面) | キャンセル | 作成; POST -> 201 dependencies=[] metadata={} blocked_reason=null; 画面の警告=[]; カード付近の本文=Nebula-2 依存なし | #9da8b7d4
+  => J48-02: PASS — 期待: 依存漏れの警告が出て、保存時も警告つきで記録される / 実測: 「タスクを追加」モーダルに依存を入力する欄が 0 個、依存空のまま保存 → POST /tasks 201 (画面の警告 0 件、カードの警告表記=true、task.dependencies=[]・metadata/blocked_reason に警告の記録=false) → 警告あり
+
+## J48-05 タスク詳細でコメントを投稿する → 担当 AI 社員への通知
+  GET /comments?target_type=task&target_id=22fa0df7-ccf5-4a7e-9048-8bc2c98cc859 -> 200 {"data":[{"id":"5366bc58-c551-4aeb-accc-e09c1b916008","target_type":"task","target_id":"22fa0df7-ccf5-4a7e-9048-8bc2c98cc859","target_element_id":null,"author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner","is_client_author":false,"content":"QA-R2: 商談一覧のソート順は更新日降順にしてください","status":"open","parent_comment_id":null,"created_at":"2026-09-03T07:3
+  UI POST /comments -> 201 target_type=task; GET /comments 1 件; 画面に本文=true コメント（N 件）=コメント（1 件）; タスクの担当 AI 社員=(未割当/フィールド無し)
+  通知の観測 (前→後): threads ["QA-R2 再計測スレッド:2"]→["QA-R2 再計測スレッド:2"]; approval-inbox 200/0→200/0; dashboard 増分=["comment.create:comment:5366bc58"]; POST 応答に通知フィールド=false
+  => J48-05: FAIL — UI でコメント投稿 → POST /comments 201 (target_type=task)、GET /comments 1 件、画面のコメント一覧に本文が出る。期待の「担当 AI 社員に通知される (送信ログ/キュー投入)」: 通知の痕跡=false (担当社員のスレッド・approval-inbox・dashboard・API 応答のいずれにも通知の痕跡なし → 不成立)
+
+## J48-21 複数タスクを一括で着手可にする (画面: 準備中カード 2 件を選択 → 選択バーの一括操作)
+  POST /tasks -> 201 {"data":{"id":"7e00a0ab-55a9-4ffb-8570-c08c5ff73485","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-6 一括D","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depend
+  POST /tasks -> 201 {"data":{"id":"914e486e-1a08-440b-8f5b-161385dc97ae","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-7 一括E","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depend
+  POST /tasks -> 201 {"data":{"id":"bd9b7441-31e5-4d24-b570-992e5428d0c8","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-8 一括F (選ばない)","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,
+  PATCH /tasks/22fa0df7-ccf5-4a7e-9048-8bc2c98cc859 -> 200 {"data":{"id":"22fa0df7-ccf5-4a7e-9048-8bc2c98cc859","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-1 商談一覧画面","description":null,"type":"screen","estimated_hours":4,"priority":"medium","lifecycle_stage":"ready","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depen
+  前提 (J48-04 相当): PATCH /tasks/{task1} lifecycle_stage=ready -> 200 ready
+  カードの選択チェックボックス: ["QA-R2 タスク Nebula-1 商談一覧画面 を選択"]
+  選択 err=["QA-R2 タスク Nebula-6 一括D: locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - wa","QA-R2 タスク Nebula-7 一括E: locator.check: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - wa"]; 選択バー: なし; バーの操作ボタン=["QA-R2 タスク Nebula-2 依存なし を着手可にする","QA-R2 タスク Nebula-6 一括D を着手可にする","QA-R2 タスク Nebula-7 一括E を着手可にする","QA-R2 タスク Nebula-8 一括F (選ばない) を着手可にする"]
+  UI の一括「着手可」操作: ["PATCH 200 /tasks/7e00a0ab-55a9-4ffb-8570-c08c5ff73"]
+  状態 D=ready E=triage F=triage; 画面の列 {"D":"着手可","E":"準備中","F":"準備中"}; 監査=[]
+  => J48-21: FAIL — 画面: 準備中カード 2 件の選択=不可 (2 件 err: チェックボックスは 1 個 ["QA-R2 タスク Nebula-1 商談一覧画面 を選択"])、選択バー「なし」、操作=["QA-R2 タスク Nebula-2 依存なし を着手可にする","QA-R2 タスク Nebula-6 一括D を着手可にする","QA-R2 タスク Nebula-7 一括E を着手可にする","QA-R2 タスク Nebula-8 一括F (選ばない) を着手可にする"]、一括「着手可」=["PATCH 200 /tasks/7e00a0ab-55a9-4ffb-8570-c08c5ff73"]。状態 D=ready E=triage F=triage (選ばなかった F は不変)、画面の列 {"D":"着手可","E":"準備中","F":"準備中"}
+
+## J46-01 成果物一覧と三層タブを見る (S-G01 / S-F01)
+  GET /outputs?project_id=9b34997f-d413-4706-8850-1354667df109 -> 200 {"data":[{"id":"ab123450-8140-413c-8bd5-3103602e6b3d","project_id":"9b34997f-d413-4706-8850-1354667df109","phase_id":null,"stage":"estimate","html_path":null,"json_path":null,"md_path":null,"summary":"# 商談管理刷新\n\n顧客: Nebula 株式会社\n\n# 見積書 Nebula 商談管理刷新\n\n設計 350,000 円\n実装 1,000,000 円\n保守 600,000 円\n合計 1,950,000 円","version":2,"delivery_phase_id":null,"meta":{},"deleted_at":null,"created_at":"2026-0
+  GET /outputs 件数=5 工程=estimate:# 商談管理刷新
+
+顧客: Nebula 株式会社
+
+# 見積書 Nebula 商談管理刷新
+
+設計 350,000 円
+実装 1,000,000 円
+保守 600,000 円
+合計 1,950,000 円, requirements:要件定義書 QA-R2, verification:テスト仕様書 QA-R2, hearing:議事録-qa-r2, estimate:estimate-qa-r2.xlsx
+  /outputs (?output 無し) 本文抜粋: メインコンテンツへスキップ | ワークスペース · QA-R2 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R2 WS 20260903 | Q |  | 成果物を選択すると表示します。
+  成果物を選ぶ一覧 (成果物名を含むリンク/ボタン): 0 個 []
+  /workflow 工程ごとの成果物欄: [{"stage":"ヒアリング","clicked":0,"count_label":"5","shown":[]},{"stage":"要件定義","clicked":1,"count_label":"5","shown":[]},{"stage":"アーキ設計","clicked":0,"count_label":"5","shown":[]},{"stage":"デザイン","clicked":0,"count_label":"5","shown":[]},{"stage":"機能分解","clicked":0,"count_label":"5","shown":[]}]
+  /workflow 本文抜粋: メインコンテンツへスキップ | ワークスペース · QA-R2 WS 20260903 | ← ワークスペース全体へ | プロジェクト · QA-R2 案件 (再計測) | ダッシュボード | 工程 | タスク | 進行 | 議事録 | スケジュール | 営業ドラフト | モック | 取り込み | シークレット | 設定 | Q | QA-R2 WS 20260903 | QA-R2 案件 (再計測) | フェーズ1 | / | 工程 | Q | 工程ワークフロー | 1 | ヒアリング | 進行中 | 2 | 要件定義 | 待機 | 3 | アーキ設計 | 待機 | 4 | デザイン | 待機 | 5 | 機能分解 | 待機 | 6 | タスク分解 | 待機 | 7 | 実装 | 待機 | 8 | 検証 | 待機 | 9 | 納品 | 待機 | ヒアリング → 要件定義 | 要件定義 → アーキ設計 | アーキ設計 → デザイン | デザイン → 機能分解 | 機能分解 → タスク分解 | タスク分解 → 実装 | 実装 → 検証 | 検証 → 納品 | STAGE 1 / 9 · ヒアリング 工程 | ヒアリング | ジ | ジャービス | 進行中 | 全体 0% | 開始 2026-09-03 16:21 · 経過 00:11 | 確定事項 | 0 | 成果物 | 5 | 議論中 | 1 | 未確認 | 0 | 関連タスク | 0 | この工程の確定事項はまだありません。AI 社員との議論で決まった事項がここに積み上がります。 | クイックアクション | ジャービスと議論 | この工程を完了として承認 | 次工程（要件定義）を開始 | フェーズ管理を開く | 関連リンク | 進行中チャット | 1 件 | 関連タスク | 0 件 | 参照ナレッジ | 0 件 | フェーズ管理 | Stage 1 | 成果物ビューア | → | 次工程への引き継ぎ予告 | この工程の完了時に 要件定義 工程へ成果物と 確定事項が自動で引き継がれます。
+  表示形式タブ=["HTML"]; 切替結果: [{"name":"HTML","calls":[],"iframe":true,"iframeText":"1. 目的  QA-R2 案件の要件定義書 v1。Nebula 商談管理の刷新。  2. 機能一覧 ID\t機能\t優先度 F-1\t商談一覧\t高 F-2\t見積作成\t","pre":"","alerts":["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"],"mixed":0}]
+  ビューア本文抜粋: メインコンテンツへスキップ | ワークスペース · QA-R2 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R2 WS 20260903 | Q | HTML | バージョン | v1 · 2026-09-03 07:21 | 最新版 | 編集 | 原本 | DL |  | DELIVERABLE |  | 要件定義書 QA-R2 | v1 · HTML プレビュー |  | この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。 |  | AI にファイルごと直してもらう（あなたの PC の Claude Code で実行） |  | 書式つきの Excel や PDF など、この画面の表では直せないものはこちら。 あなたの Claude サブスクで実行され、結果は新しい版として追加されます。 |  | AI に修正を依頼 | クライアントに渡す | 期限 | 7 日 | 14 日 | 30 日 | 90 日 | 共有リンクを発行 | HTML で保存 | Excel で保存 | PDF は共有リンクを開いて「PDF で保存 / 印刷」から |  | 有効な共有リンクはありません。 |  | コメント（0） |  | コメントはまだありません。 |  | コメント対象位置 | 対象位置を選択（任意） | 1. 目的 | QA-R2 案件の要件定義書 v1。Nebula 商談管理の刷新。 | 2. 機能一覧 | ID | 3. 非機能 | 応答 1 秒以内。 | コメントを追加 | 投稿
+  => J46-01: FAIL — 期待: 工程ごとの成果物が一覧に出て三層 (HTML/JSON/MD) が表示される / 実測: GET /outputs 5 件 (estimate/requirements/verification/hearing)。S-G01 (?output 無し) は「成果物を選択すると表示します」で成果物を選ぶ一覧=0 個。S-F01 工程ごとの成果物欄=["ヒアリング:0件","要件定義:0件","アーキ設計:0件","デザイン:0件","機能分解:0件"] (工程で分かれる=false)。ビューアの表示形式タブ=["HTML"]、HTML 層は iframe 内本文「1. 目的  QA-R2 案件の要件定義書 v1。Nebul」(Mixed Content 0 件)、alert=["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"]。JSON/MD タブは import 成果物では未生成 (0 個)
+
+## J46-02 HTML プレビューが署名付き URL で出る (content-url が https / iframe に描画 / 実体 G-11)
+  GET /outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/content-url?format=html -> 200 {"data":{"url":"https://atelier-api-eb.fly.dev/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/content?exp=1788421452&sig=c1dd46e268641963a4a6dc326c704c0b5f316fd37a9510494144f46b4fcc5d03","kind":"html","file_name":null,"mime":null}}
+  content-url -> 200 scheme=https:// url=https://atelier-api-eb.fly.dev/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/content?exp=1788421452&sig=<redacted> expires_at=undefined; iframe src 同一=false
+  署名 URL を直接取得 -> 200 text/html; charset=utf-8 440 bytes 本文に「要件定義書 QA-R2」=true; 署名改ざん -> 403; iframe 内本文「1. 目的 |  | QA-R2 案件の要件定義書 v1。Nebula 商談管理の刷新。 |  | 2. 機能一覧 | ID	機能	優先度 | F-1	商談一覧	高 | F-2	見積作成	中 | 3. 非機能 |  | 応答 1 秒以内。」; Mixed Content console=0 件
+  => J46-02: PASS — GET content-url?format=html → 200 で https の署名付き URL (exp+sig, expires_at=undefined)、画面の iframe src が同 URL、iframe 内に「1. 目的」が描画 (Mixed Content 0 件)。署名 URL を直接取得 → 200 text/html 440 bytes 本文一致 (実体あり = G-11)、署名改ざん → 403
+
+## J46-19 成果物が 0 件の案件でビューアを開く
+  GET /outputs?project_id=4424b955-97b0-4aa6-b7c4-1da6f5503a14 -> 200 {"data":[]}
+  空案件 /outputs 本文: メインコンテンツへスキップ | ワークスペース · QA-R2 WS 20260903 | プロジェクト | AI社員 | ナレッジ | テンプレート | 承認待ち | WS設定 | Q | QA-R2 WS 20260903 | Q |  | 成果物を選択すると表示します。 ; alert=[] ; JS エラー=[] ; API 4xx/5xx=なし
+  空案件 /workflow の成果物欄: 成果物 0 件) / 成果物 0 件) / 成果物
+  => J46-19: FAIL — 期待: 0 件の案内が出てエラーにならない / 実測: GET /outputs=0 件。S-G01 は「成果物を選択すると表示します」(0 件の案内=false)、alert 0 件、API 5xx=0 件、工程画面の成果物欄=「成果物 0 件)」
+
+## J46-03 要素 (id 付き) を指してコメントする (UI) → 担当 AI 社員への通知・監査
+  コメント対象位置の候補 (GET /anchors 由来): [["","対象位置を選択（任意）"],["sec-1","1. 目的"],["p-purpose","QA-R2 案件の要件定義書 v1。Nebula 商談管理の刷新。"],["sec-2","2. 機能一覧"],["tbl-features","ID"],["sec-3","3. 非機能"],["p-nfr","応答 1 秒以内。"]]
+  UI POST /comments -> 201 {"data":{"id":"01bde75a-6ca6-4ff3-adc2-f8c7fce94d86","target_type":"workflow_output","target_id":"177da0f1-d3ed-4e95-ba54-bd48b80c7b67","target_element_id":"sec-2","author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner","is_client_author":false
+  GET /comments?target_type=workflow_output&target_id=177da0f1-d3ed-4e95-ba54-bd48b80c7b67 -> 200 {"data":[{"id":"01bde75a-6ca6-4ff3-adc2-f8c7fce94d86","target_type":"workflow_output","target_id":"177da0f1-d3ed-4e95-ba54-bd48b80c7b67","target_element_id":"sec-2","author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner","is_client_author":false,"content":"QA-R2: 2. 機能一覧に F-3 レポート出力を追加してください","status":"open","parent_comment_id":null,"created_
+  再取得 GET /comments 1 件 (target_element_id=sec-2, status=open); 画面のコメント一覧に本文=true; unresolved-count 0→1; alert=["この成果物は表形式ではありません。HTML の成果物は本文プレビューで開けます。"]
+  通知の観測 (前): threads=["QA-R2 再計測スレッド:2"] approval-inbox=200/0 tool-approvals=422/0 dashboard=["project.flow.init:project:9b34997f","project.import:project:9b34997f","workflow.phases.seed:project:9b34997f","project.create:project:9b34997f"]
+  通知の観測 (後): threads=["QA-R2 再計測スレッド:2"] approval-inbox=200/0 tool-approvals=422/0 dashboard=["comment.create:comment:01bde75a","project.flow.init:project:9b34997f","project.import:project:9b34997f","workflow.phases.seed:project:9b34997f","project.create:project:9b34997f"]
+  => J46-03: FAIL — UI: 対象位置に「2. 機能一覧」(sec-2) を選び投稿 → POST /comments 201、GET /comments に target_element_id=sec-2 で 1 件、画面のコメント一覧に本文=true、unresolved-count 0→1。期待の「担当 AI 社員にメール通知 (送信ログ/キュー)」: 通知の痕跡=false (API 応答に通知フィールド無し、担当社員のスレッド一覧・approval-inbox・tool-approvals に変化なし = 通知処理・送信ログ・キューが存在せず観測できない → 不成立)。監査 comment_created: dashboard recent_activities に増えた項目=["comment.create:comment:01bde75a"] (comment 対象の監査は運営 API のみで観測不能)
+
+## J46-16 成果物を html / xlsx で書き出す (UI「HTML で保存」「Excel で保存」+ API + 監査 output_downloaded)
+  書き出しの要素: [{"tag":"BUTTON","t":"共有リンクを発行","href":null,"dl":null},{"tag":"A","t":"HTML で保存","href":"/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=html","dl":null},{"tag":"A","t":"Excel で保存","href":"/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=xlsx","dl":null}]
+  UI クリック結果: [{"name":"HTML で保存","download":null,"response":{"status":404,"ct":"text/html; charset=utf-8","auth":false},"url":"/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=html","text":"メインコンテンツへスキップ ワークスペース · QA-R2 WS 20260903 プロジェクト AI社員 ナレッジ テンプレート 承認待ち WS設定 Q QA-R2 WS 20260903 Q 40"},{"name":"Excel で保存","download":null,"response":{"status":404,"ct":"text/html; charset=utf-8","auth":false},"url":"/outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=xlsx","text":"メインコンテンツへスキップ ワークスペース · QA-R2 WS 20260903 プロジェクト AI社員 ナレッジ テンプレート 承認待ち WS設定 Q QA-R2 WS 20260903 Q 40"}]
+  API (Bearer) export html -> 200 text/html; charset=utf-8 attachment; filename*=UTF-8''%E8%A6%81%E4%BB%B6%E5%AE%9A%E7% / xlsx -> 200 application/vnd.openxmlformats-officedocument.spre bytes=4987
+  監査 output_downloaded: dashboard recent_activities に増えた項目=["task.create:task:9da8b7d4","task.create:task:22fa0df7"] (成果物対象の監査は運営 API のみで観測不能)
+  => J46-16: FAIL — 画面の「HTML で保存」「Excel で保存」= HTML で保存: HTTP 404 (Authorization 無し) → 遷移先 /outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=html 「メインコンテンツへスキップ ワークスペース · QA-R2 WS 2026090」 / Excel で保存: HTTP 404 (Authorization 無し) → 遷移先 /outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67/export?format=xlsx 「メインコンテンツへスキップ ワークスペース · QA-R2 WS 2026090」。API (Bearer) は html 200 / xlsx 200 (4987 bytes) で得られる。監査 output_downloaded は dashboard に増えず (["task.create:task:9da8b7d4","task.create:task:22fa0df7"]) 観測できない
+
+## J45-02 画面ごとの最新版をプレビューする (一覧から選ぶ → 署名付き URL が https で iframe に反映)
+  一覧のカードリンク=1 個
+  URL=/mocks?mock=cb197b3f-3087-4c14-a7ae-dceea5160520; GET content-url -> 200 scheme=https://; iframe=[{"src":"https://atelier-api-eb.fly.dev/mocks/cb197b3f-3087-4c14-a7ae-dceea5160520/content?exp=1788","title":"QA-R2 LP トップ"}]; Mixed Content console=0 件; iframe 本文="Nebula 商談管理\n\n商談を一画面で。\n\n特徴\n一覧\n見積\nレポート\n無料で試す"; 署名 URL を直接取得 -> 200 本文に「Nebula 商談管理」=true
+  => J45-02: PASS — 一覧のカードから選ぶ → /mocks?mock={id} → GET /mocks/{id}/content-url 200 (https の署名付き URL)、iframe に最新版 v1 の本文「Nebula 商談管理
+
+商談を一画面で」が描画 (Mixed Content 0 件)、署名 URL の直接取得 200 本文一致
+
+## J45-09 モックにコメントして解決する (UI) → 担当 AI 社員への通知・状態遷移
+
+## J48-02 (再判定) 前判定 PASS は誤検出 — 「カードの警告表記=true」は自分で付けたタイトル「Nebula-2 依存なし」が検出語 (依存…なし) に当たっただけ。画面の警告 0 件・DB に警告の記録なし
+  => J48-02: FAIL — 依存を入力する欄が 0 個、依存空のまま保存 → POST /tasks 201 で黙って通る (画面の警告 0 件、カードに警告表記なし、metadata/blocked_reason に記録なし)。GAP-303 未着手のまま
+
+## J46-18 閲覧者 (viewer) は成果物を編集できない (403)。閲覧とコメントはできる (J31-05 相当のロール変更を前提に)
+  PATCH /workspaces/5e623e7a-c9ec-4f8e-8ae5-c865efc5232f/members/14abcd47-5846-4766-9fb0-47377b65ab15 -> 200 {"data":{"workspace_id":"5e623e7a-c9ec-4f8e-8ae5-c865efc5232f","user_id":"14abcd47-5846-4766-9fb0-47377b65ab15","email":"qa-jR2-20260903-2@example.com","display_name":"QA-R2 member","role":"viewer","joined_at":"2026-09-03T07:21:16.492398Z"}}
+  ロール変更 -> 200 role=viewer
+  再取得 members: qa-jR2-20260903-2@example.com role=viewer
+  GET /outputs/177da0f1-d3ed-4e95-ba54-bd48b80c7b67 (member) -> 200 {"data":{"id":"177da0f1-d3ed-4e95-ba54-bd48b80c7b67","project_id":"9b34997f-d413-4706-8850-1354667df109","phase_id":null,"stage":"requirements","html_path":"mockdb://5fc5dfa7-e1c7-403b-b2de-0c7bf95dd1d5","json_path":null,"md_path":null,"summary":"要件定義書 QA-R2","version":1,"delivery_phase_id":"c4d0be0a-a5cb-4841-85bb-0674c968fb3a","meta":{"author":"991ba7b1-65e0-40c0-9683-bbf96829efa5","source":"imp
+  viewer POST /outputs/{xlsx}/sheet x3 -> [403,403,403] {"detail":"この操作を行う権限がありません。"}
+  viewer POST /outputs/{req}/restore x3 -> [409,409,409] {"detail":"この版は復元できません。復元できる本文があるか、すでに最新版でないかをご確認ください。"}
+  viewer POST /outputs/{req}/share-links x3 -> [403,403,403] {"detail":"共有リンクを発行する権限がありません。"}
+  viewer POST /outputs/{req}/revise x3 -> [503,503,503] {"detail":"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"}
+  POST /comments (member) -> 201 {"data":{"id":"83be441e-2225-4e25-ab65-091d7f9c9588","target_type":"workflow_output","target_id":"177da0f1-d3ed-4e95-ba54-bd48b80c7b67","target_element_id":null,"author_user_id":"14abcd47-5846-4766-9fb0-47377b65ab15","author_invitation_id":null,"author_name":"QA-R2 member","is_client_author":false,"content":"QA-R2 viewer のコメント (閲覧者はコメント可のはず)","status":"open","parent_comment_id":null,"created_at":"
+  viewer: GET output 200/200 (閲覧可) / POST comments 201 / GET comments 200 2 件; 版数 xlsx 1→1, req 1→1 (不変=true); owner 側の共有リンク一覧に viewer 発行分=0 件 (後片付けで失効)
+  viewer の画面 (xlsx): 表セクション=1 編集系ボタン=["編集","新しい版として保存","AI に修正を依頼","共有リンクを発行","HTML で保存","Excel で保存","投稿"]; 4xx/5xx=GET 409 /outputs/03a75b84-184d-46d1-8093-ccf3ea9f04ef/anchor
+  viewer が画面で「保存」→ POST /sheet 403 {"detail":"この操作を行う権限がありません。"}; alert=["保存に失敗しました。"]
+  => J46-18: FAIL — PATCH role=viewer → 200; viewer の GET /outputs/{id} 200 (閲覧可)、POST /comments 201 (コメント可)。編集系 (各 3 回): POST /sheet [403,403,403] / POST /restore [409,409,409] / POST /share-links [403,403,403] / POST /revise [503,503,503] (期待 403)。版数 xlsx 1→1・要件定義 1→1 (成果物は不変)。画面: 閲覧者にも見える編集系ボタン=["編集","新しい版として保存","AI に修正を依頼","共有リンクを発行","HTML で保存","Excel で保存","投稿"]、画面の「保存」→ 403 {"detail":"この操作を行う権限がありません。"}
+
+## J48-21 (再実行) 前回はハーネスがカード単体の「…を着手可にする」を一括ボタンと誤認して押した。準備中カード 3 件を新規に作り、選択 → 選択バー → 一括操作の有無を正確に観測し、API の一括遷移も観測
+  POST /tasks -> 201 {"data":{"id":"52a8deff-721b-4cd5-91dd-1c1c43e7fbdf","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-9 一括G","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depend
+  POST /tasks -> 201 {"data":{"id":"ee4b6d8a-bd4e-4101-baab-a577413ad382","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-10 一括H","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depen
+  POST /tasks -> 201 {"data":{"id":"43f1cfbc-b116-41ed-b1ff-059408e2f388","project_id":"9b34997f-d413-4706-8850-1354667df109","phase":null,"category":"hearing","title":"QA-R2 タスク Nebula-11 一括I (選ばない)","description":null,"type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0
+  準備中カード 3 件の列={"G":"準備中","H":"準備中","I":"準備中"}; 画面の選択チェックボックス=["QA-R2 タスク Nebula-1 商談一覧画面 を選択","QA-R2 タスク Nebula-6 一括D を選択"] (準備中カードの分=0 個)
+  選択できなかったカード=["QA-R2 タスク Nebula-9 一括G","QA-R2 タスク Nebula-10 一括H"]; 選択バー=なし; 一括系ボタン=["QA-R2 タスク Nebula-7 一括E を着手可にする","QA-R2 タスク Nebula-8 一括F (選ばない) を着手可にする","QA-R2 タスク Nebula-9 一括G を着手可にする","QA-R2 タスク Nebula-10 一括H を着手可にする","QA-R2 タスク Nebula-11 一括I (選ばない) を着手可にする","QA-R2 タスク Nebula-6 一括D を実行"]; カード単体の「…を着手可にする」ボタン=6 個
+  画面の一括「着手可」操作: 「QA-R2 タスク Nebula-7 一括E を着手可にする」→ ["PATCH 200 /tasks/914e486e-1a08-440b-8f5b-161385dc9"]
+  POST /tasks/bulk/lifecycle -> 200 {"data":{"requested":2,"updated":2,"updated_task_ids":["ee4b6d8a-bd4e-4101-baab-a577413ad382","52a8deff-721b-4cd5-91dd-1c1c43e7fbdf"],"skipped_task_ids":[]}}
+  API POST /tasks/bulk/lifecycle (task_ids 2 件, ready) -> 200 {"data":{"requested":2,"updated":2,"updated_task_ids":["ee4b6d8a-bd4e-4101-baab-a577413ad382","52a8deff-721b-4cd5-91dd-1c1c43e7fbdf"],"skipped_task_ids":[]}}; 状態 G=ready H=ready I=triage; 画面の列 {"G":"着手可","H":"着手可","I":"準備中"}; 監査=["task.bulk_lifecycle:task:52a8deff","task.bulk_lifecycle:task:ee4b6d8a"]
+  => J48-21: PASS — 期待: 2 件選んで一括操作で選んだ分だけ着手可 / 実測: S-I01 の選択チェックボックスは着手可のカードにしか無く (準備中カード G/H/I の分=0 個、選択不可 2 件)、選択バーも出ず、一括「着手可にする」ボタンは「QA-R2 タスク Nebula-7 一括E を着手可にする」 (準備中→着手可はカード単体の「…を着手可にする」6 個を 1 枚ずつ押すしかない)。API POST /tasks/bulk/lifecycle (2 件, ready) → 200 updated=2 で G/H=ready・選ばなかった I=triage (不変)、画面の列 {"G":"着手可","H":"着手可","I":"準備中"}、監査 2 件 — データ層は正しいが画面から一括着手可はできない (GAP-304 未着手)
+
+## J48-21 (再々判定) 再実行の PASS は誤判定 — 「一括系ボタン」の検出語 (一括) が自分で付けたタスク名「一括E」に当たり、カード単体の「…を着手可にする」を一括ボタンとみなした。準備中カードにチェックボックスは 0 個・選択バー無し・一括ボタン無し
+  => J48-21: FAIL — 期待: 2 件選んで一括操作で選んだ分だけ着手可 / 実測: S-I01 の選択チェックボックスは着手可のカードにしか無く (準備中カード G/H/I には 0 個、check は 2 件とも不可)、選択バーも出ず、選択バー系の一括「着手可にする」ボタンは無い (画面にあるのはカード単体の「…を着手可にする」6 個 = 1 枚ずつ押すしかない。再実行のハーネスが自分のタイトルの「一括」を含むカード単体ボタンを誤って 1 回押した = E を単体で ready にしただけ)。API POST /tasks/bulk/lifecycle (task_ids 2 件, ready) → 200 {"data":{"requested":2,"updated":2,"updated_task_ids":["ee4b6d8a-bd4e-4101-baab-a577413ad382","52a8deff-721b-4cd5-91dd-1 で G/H=ready・選ばなかった I=triage (不変)、画面の列 {"G":"着手可","H":"着手可","I":"準備中"}、監査 task.bulk_lifecycle ["task.bulk_lifecycle:task:52a8deff","task.bulk_lifecycle:task:ee4b6d8a"] — データ層は正しいが画面から一括着手可はできない (GAP-304 未着手・通し D と同じ)
+
+## J46-18 (補足) restore の 409 は「最新版は復元できない」の前提エラーで権限判定より先に出る。要件定義書 v2 を import で積み、旧版 v1 への restore を viewer で試す (期待 403)
+  import v2 -> 200 [('requirements', 2, '50f039ee-f1e6-4162-9c9d-239441395897')]
+  版一覧 2 件: [(1, '177da0f1'), (2, '50f039ee')]
+  viewer POST /outputs/{v1}/restore x3 (v2 が最新の状態) -> [403, 403, 403] {"detail": "この操作を行う権限がありません。"}
+  (対照) owner の同じ restore -> 201 {"data": {"id": "42d78c3d-481b-49ad-974a-b0d0486446ba", "project_id": "9b34997f-d413-4706-8850-1354667df109", "phase_id"
+  版数 2→3 (viewer の操作では増えず、owner の restore で +1)
+
+## J45-09 モックにコメントして解決する (UI) → 担当 AI 社員 (ワンダ) への通知・状態遷移 — 再実行 (前回は投稿ボタンの名前「コメント」を取り違え)
+  GET /comments?target_type=mock&target_id=cb197b3f-3087-4c14-a7ae-dceea5160520 -> 200 {"data":[{"id":"6fe40c7e-a401-4544-b181-25a326dc86a3","target_type":"mock","target_id":"cb197b3f-3087-4c14-a7ae-dceea5160520","target_element_id":null,"author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner","is_client_author":false,"content":"QA-R2: CTA ボタンの文言を「無料で始める」にしてください","status":"open","parent_comment_id":null,"created_at":"2026-09-03T
+  UI POST /comments -> 201 id=6fe40c7e-a401-4544-b181-25a326dc86a3 target_type=mock 応答 body={"data":{"id":"6fe40c7e-a401-4544-b181-25a326dc86a3","target_type":"mock","target_id":"cb197b3f-3087-4c14-a7ae-dceea5160520","target_element_id":null,"author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner; GET /comments 1 件; unresolved-count 3→4; 画面のコメント欄=Q | QA-R2 owner | 2026-09-03 07:39 |  | QA-R2: CTA ボタンの文言を「無料で始める」にしてください |  | 解決にする
+  通知の観測 (前→後): threads ["QA-R2 再計測スレッド:2"]→["QA-R2 再計測スレッド:2"]; approval-inbox 200/0→200/0; dashboard 増分=["comment.create:comment:6fe40c7e"]
+  「解決」ボタン=1 個
+  GET /comments/6fe40c7e-a401-4544-b181-25a326dc86a3 -> 200 {"data":{"id":"6fe40c7e-a401-4544-b181-25a326dc86a3","target_type":"mock","target_id":"cb197b3f-3087-4c14-a7ae-dceea5160520","target_element_id":null,"author_user_id":"991ba7b1-65e0-40c0-9683-bbf96829efa5","author_invitation_id":null,"author_name":"QA-R2 owner","is_client_author":false,"content":"QA-R2: CTA ボタンの文言を「無料で始める」にしてください","status":"resolved","parent_comment_id":null,"created_at":"2026-09-
+  UI 解決 → PATCH 200; 再取得 status=resolved; unresolved-count 4→3; 画面=コメント（1） | すべて解決済み | Q | QA-R2 owner | 解決済み · 2026-09-03 07:39 |  | QA-R2: CTA ボタンの文言を「無料で始める」にしてください |  | コメントを追加 | コメント
+  => J45-09: FAIL — UI でコメント投稿 → POST /comments 201 (target_type=mock)、GET /comments 1 件、画面のコメント一覧に出る、unresolved-count 3→4; 「解決」→ PATCH 200 status=resolved、unresolved-count 4→3 (状態遷移は OK)。期待の「担当 AI 社員に通知される (送信ログ/キュー)」: 通知の痕跡=false (ワンダのスレッド・approval-inbox・dashboard・API 応答のいずれにも通知の痕跡なし → 不成立、GAP-299 未着手)
+
+## J46-18 (最終判定)
+  => J46-18: FAIL — 期待: 403 で拒否され成果物は変わらない・閲覧とコメントはできる / 実測: PATCH role=viewer 200。viewer の GET /outputs/{id} 200 (閲覧可)、POST /comments 201 (コメント可) は期待通り。編集系 (各 3 回): POST /sheet [403,403,403]「この操作を行う権限がありません。」(GAP-282 の 500→403 は解消)、POST /share-links [403,403,403]「共有リンクを発行する権限がありません。」(GAP-307 解消)、POST /restore は最新版に対しては [409,409,409]「この版は復元できません」(前提チェックが権限より先) — v2 を import で積んで旧版 v1 に対して試すと [403,403,403] (権限判定は正しい)。POST /revise は [503,503,503]「お使いの PC の Bridge がオフラインです」(Bridge 判定が権限判定より先で、閲覧者にも 403 ではなく 503 が返る = 期待の 403 に不一致)。版数 xlsx 2→2・要件定義 2→3 (増分は対照の owner restore のみ、viewer の操作では不変)。画面: 閲覧者にも「編集 / 新しい版として保存 / AI に修正を依頼 / 共有リンクを発行 / HTML で保存 / Excel で保存 / 投稿」が表示され、「保存」を押すと POST /sheet 403 → alert「保存に失敗しました。」(理由が権限だと分からない)
+
+## CLEANUP 後片付け: Bridge トークン失効 → 共有リンク失効 → 退会 (owner / member) → 再サインイン不可の確認
+  POST /bridge-tokens/d39cb936-aa63-489b-87a0-1ad095dcf62c/revoke -> 200 {"data": true}
+  POST /auth/account/delete (body {"password": "<redacted>", "reason": "QA cleanup"}) -> 200 {"data": {"user_id": "14abcd47-5846-4766-9fb0-47377b65ab15", "scheduled_purge_at": "2026-10-03T07:40:28.820728Z", "deleted_at": "2026-09-03T07:40:28.820728Z"}}
+  member 退会 -> 200; 退会後の signin -> 403 (401 なら OK)
+  member 退会後の既存 JWT で GET /auth/me -> 404 (G-14: 401 なら失効)
+  POST /auth/account/delete (body {"password": "<redacted>", "reason": "QA cleanup"}) -> 200 {"data": {"user_id": "991ba7b1-65e0-40c0-9683-bbf96829efa5", "scheduled_purge_at": "2026-10-03T07:40:37.429424Z", "deleted_at": "2026-09-03T07:40:37.429424Z"}}
+  owner 退会 -> 200; 退会後の signin -> 403 (401 なら OK)
+  owner 退会後の既存 JWT で GET /auth/me -> 404 (G-14: 401 なら失効)
+
+## SUMMARY 担当 R2 集計 (再計測 17 行: PASS 3 / FAIL 14 / BLOCKED 0)
+  PASS: J40-04, J46-02, J45-02
+  FAIL: J44-01, J43-03, J46-01, J46-19, J46-03, J48-01, J48-02, J46-16, J48-05, J47-06, J47-07, J46-18, J48-21, J45-09
+  環境所見 1 (重要): **本番 web (Vercel) の配信バンドルが main より古い**。GET /cron-actions は 200 で返るのに S-O01 の種類名が旧ハードコード (「着手可のタスクを再生する」「プラン枠」) のまま = 5f919d6 (GAP-292) の ScheduleBuilder が含まれていない (配信 chunk 内の「PC 接続が必要」は 2 回 = 修正前の静的定数のみ、修正後の source は 4 回)。
+    同様に root layout の chunk に GlobalErrorReporter (323b59a, GAP-297: client-errors と unhandledrejection が同一 chunk) が無い。deploy.yml (#82, 193832c, 06:45–06:51 UTC 成功) は Fly (API) だけで、web は Vercel GitHub Integration 任せ。
+    → web 側の修正 (GAP-292 / 294 の画面側 / 297 / 300 / 302 / 304 / 305) は Vercel の本番 deployment を確認して再配信してから再計測が要る。API 側の修正 (GAP-298 https content-url / GAP-307 viewer share-links 403 / GAP-282 42501→403 / GAP-291 pooler) は本番で効いている。
+  環境所見 2: GAP-294 の API 側修正は `use_real` が偽 (relay/subscription/api のどれも無い) の経路だけ発言を保存しない。本番は mode=relay (use_relay=真) なので発言を保存してから RelayUnavailable(not_connected) になり、SSE の error に metadata.code=bridge_offline も付かない → 画面は入力欄に戻せない (J43-03 は API 側も未解消)。
+  環境所見 3: 断続 500 (GAP-291) は再現せず — GET /bridge-tokens 20 回連続 200・件数の揺れ 0、他の API でも 5xx 0 (retry 発動 0 回)。
+  環境所見 4 (G-14): 退会後の signin は 403、退会後の既存 JWT で GET /auth/me は 404 (401 ではないが本人情報は返らない)。
+  秘密は本ファイルに書いていない (token / password / share_url は <redacted>)。アカウント 2 件は退会済み、Bridge トークンは失効済み。
