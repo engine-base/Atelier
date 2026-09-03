@@ -57,7 +57,9 @@
       "expected": "500 や白画面にならず、各画面が 0 件の状態として表示される。API は空配列を返し、サーバのエラーログに例外が記録されない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-28"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -75,7 +77,11 @@
       "expected": "「メールまたはパスワードが違います」として断られ、存在の有無が応答に漏れない。監査ログに login_failed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-24",
+        "T-A-02",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -93,7 +99,10 @@
       "expected": "運営としてサインインでき、運営画面 (S-T01) に遷移する。DB の auth.users に role=admin が記録され、「認証はできるが権限が無い」で詰まらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-24",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -111,7 +120,10 @@
       "expected": "手動補正なしでサインインが成立し、プロジェクト一覧に遷移する。seed が必須項目 (パスワード等) をDB に残している",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-24",
+        "T-A-02"
+      ],
       "note": "場所=cloud / seed 済み DB では原理的に出ないバグ"
     },
     {
@@ -129,7 +141,10 @@
       "expected": "その種類の版 v1 が 1 つ生まれ、一覧 (GET /admin/design-templates) に最新版として出る。プレビューに生成した HTML が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=mac"
     },
     {
@@ -147,7 +162,10 @@
       "expected": "新版 v2 が積まれ、一覧の最新版が v2 に切り替わる。v1 は版履歴 (GET …/versions) に消えず残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=mac"
     },
     {
@@ -165,7 +183,10 @@
       "expected": "署名付き URL (GET /design-templates/{id}/content-url) で最新版の HTML がプレビューに反映される。期限切れの URL は拒否され、再取得で復旧する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -184,7 +205,10 @@
       "expected": "運営の既定が最初から一覧に出る。ワークスペース側の版履歴は空で、参照している既定版が記録されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -202,7 +226,10 @@
       "expected": "ワークスペース版 v1 が積まれ、一覧の最新版が自分の版に切り替わる。以後の成果物プレビューに反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=mac"
     },
     {
@@ -220,7 +247,10 @@
       "expected": "自分の版が作成者・日時つきで記録され、運営既定とは別の履歴として残っている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -238,7 +268,10 @@
       "expected": "上書き済みワークスペースの最新版は変わらない (勝手に上書きし返さない)。上書きしていないワークスペースだけ新しい既定が最新版として反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=mac"
     },
     {
@@ -256,7 +289,10 @@
       "expected": "既定に戻した版が新版として積まれ、自分の旧版は履歴に残る。プレビューが既定の見た目に戻る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -274,7 +310,10 @@
       "expected": "運営固定 10 名のテンプレが一覧に出る。展開先 (GET …/deployment) に実際に複製されているワークスペース数が記録されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -292,7 +331,10 @@
       "expected": "保存で version が 1 増え、展開先の全ワークスペースの AI 社員に反映される (展開先カウントと一致)。監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -310,7 +352,10 @@
       "expected": "日本語のエラーで拒否され、DB の版は増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-42",
+        "T-UC-32"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -328,7 +373,10 @@
       "expected": "スキルが一覧に出て、版 1 として記録される。監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-42"
+      ],
       "note": "場所=cloud / 「整備済みを確認」で済ませず実際に 1 件回す"
     },
     {
@@ -346,7 +394,10 @@
       "expected": "編集内容が一覧と詳細に反映され、版が増える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -365,7 +416,10 @@
       "expected": "装着状態が一覧に反映される。利用者側 (S-C02) では「できること」に変換されて出る。監査ログ skill_attached が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -383,7 +437,10 @@
       "expected": "解除が一覧に反映され、利用者側の「できること」から消える。監査ログ skill_detached が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -401,7 +458,10 @@
       "expected": "取り込まれた件数が一覧に反映される。同名は重複せず更新として記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -419,7 +479,10 @@
       "expected": "一覧から消え、再読み込みしても復活しない。装着していた AI 社員の「できること」からも消えた状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -438,7 +501,10 @@
       "expected": "利用者側 API は能力に変換された名前だけを返し、スキル本文が応答に含まれない状態である。画面側 JS にも含まれない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-UC-07"
+      ],
       "note": "場所=cloud / R-T06"
     },
     {
@@ -456,7 +522,10 @@
       "expected": "API は 403 で拒否され、画面は access-denied に遷移する。監査ログに拒否が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-US-16"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -474,7 +543,10 @@
       "expected": "現行が 1 件だけの状態になる。旧版は消えず残り、公開 API (GET /public/legal-documents/{type}) が新版を返す",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-44",
+        "T-D-25"
+      ],
       "note": "場所=cloud / 順序を誤ると一意制約で失敗する"
     },
     {
@@ -492,7 +564,10 @@
       "expected": "改訂した内容がそのまま反映されて読める。ダミーの連絡先や存在しないプランが残っていない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-44",
+        "T-UC-26"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -510,7 +585,9 @@
       "expected": "一意制約で拒否され、現行が 2 件の状態は DB に残らない。画面に日本語で理由が出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-44"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -528,7 +605,9 @@
       "expected": "3 種 (規約/プライバシー/特商法) が版番号つきで一覧に出て、未サインインで読める",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-44"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -546,7 +625,10 @@
       "expected": "各ケースで日本語のエラーが出て送信されない (DB のユーザーが増えない)。英語の既定メッセージが出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-UC-01"
+      ],
       "note": "場所=cloud / GAP-210"
     },
     {
@@ -564,7 +646,10 @@
       "expected": "サーバーが 4xx で拒否し、ユーザーも同意記録も DB に作られない。画面だけの防御になっていない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -582,7 +667,10 @@
       "expected": "登録が通り、サインイン画面から抜けて中の画面に遷移する。DB に users 行が作られ、HTTP-only cookie で JWT が発行されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -600,7 +688,10 @@
       "expected": "記録された版が現行版と一致する。登録日など別の値になっていない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-UC-01"
+      ],
       "note": "場所=cloud / GAP-210"
     },
     {
@@ -618,7 +709,9 @@
       "expected": "サイドバー・検索・通知など押しても何も起きない導線が出ていない。ワークスペース作成の導線だけが出ている状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-35"
+      ],
       "note": "場所=cloud / GAP-207"
     },
     {
@@ -636,7 +729,10 @@
       "expected": "再読み込みせずにサイドバーとワークスペース名に反映される。既定の AI 社員 10 名が複製され、監査ログ workspace_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-US-02"
+      ],
       "note": "場所=cloud / GAP-207"
     },
     {
@@ -654,7 +750,10 @@
       "expected": "日本語のエラーで拒否され、ワークスペースは増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-US-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -672,7 +771,10 @@
       "expected": "0 件の案内と新規作成の導線が出る状態になる。エラーや白画面にならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-10",
+        "T-UC-03"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -690,7 +792,10 @@
       "expected": "サインイン画面に遷移し、cookie と手元の文脈が消える。監査ログ logout が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-04",
+        "T-US-03"
+      ],
       "note": "場所=cloud / GAP-209"
     },
     {
@@ -708,7 +813,10 @@
       "expected": "サインインへ遷移させられる。古い更新用トークンも通らない (この人の refresh token が全部失効した状態)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-04",
+        "T-US-03"
+      ],
       "note": "場所=cloud / GAP-209"
     },
     {
@@ -726,7 +834,10 @@
       "expected": "作ったワークスペースと案件が残っている。サイドバーの現在のワークスペースが復元されて反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-04",
+        "T-US-03"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -745,7 +856,10 @@
       "expected": "「更新しました。同意をお願いします」の帯が出る。GET /me/consents が再同意要の状態を返す",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-US-01"
+      ],
       "note": "場所=cloud / GAP-206"
     },
     {
@@ -763,7 +877,10 @@
       "expected": "帯が消え、再読み込みしても出ない。旧版の記録は消えず新版の同意記録が増える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-US-01"
+      ],
       "note": "場所=cloud / GAP-206"
     },
     {
@@ -781,7 +898,10 @@
       "expected": "同意していない状態のまま (DB に新版の同意記録が増えない)。次のサインインで帯がまた出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-01",
+        "T-US-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -799,7 +919,10 @@
       "expected": "再設定用のメールが届く (実送信できない環境では送信ログ/キュー投入で代替)。新しいパスワードでサインインでき、古いパスワードでは入れない状態になる。監査ログ password_reset が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-04",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -817,7 +940,10 @@
       "expected": "通らない (401 に遷移)。パスワードを変えたのに古いセッションが生き続けない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-04",
+        "T-UC-01"
+      ],
       "note": "場所=cloud / GAP-209 で見つけた回帰"
     },
     {
@@ -835,7 +961,10 @@
       "expected": "5 回目以降は 15 分間ロックされ、正しいパスワードでも入れない状態になる。監査ログに login_failed が 5 件記録され、存在の有無は漏れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-02",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -853,7 +982,10 @@
       "expected": "env が設定済みのプロバイダだけボタンが出る。未設定のものは表示されない状態 (死にボタンなし)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-03",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -871,7 +1003,10 @@
       "expected": "認可後に oauth-complete に戻り、JWT が発行されてプロジェクト一覧に遷移する。監査ログ oauth_link が記録され、外部アカウントと紐づいた状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-03",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -889,7 +1024,10 @@
       "expected": "エラー画面に遷移し、日本語で理由が出る。アカウントは作られない (DB に増えない)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-03",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -907,7 +1045,10 @@
       "expected": "登録済みのメールにはリンクが届く (実送信できない環境では送信ログ/キュー投入で代替)。存在しないメールでも同じ応答で、存在の有無が漏れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-03",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -925,7 +1066,10 @@
       "expected": "1 回目でサインイン状態になりプロジェクト一覧に遷移する。同じリンクの 2 回目は拒否される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-03",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -943,7 +1087,9 @@
       "expected": "初回だけ 3 ステップのウォークスルーが出る。完了すると次回から出ない状態が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-35"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -961,7 +1107,10 @@
       "expected": "自分宛の承認待ちが通知として一覧に出る。件数がバッジに反映され、他人宛のものは 1 件も出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-36"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -979,7 +1128,9 @@
       "expected": "保存後にヘッダーの表示名に反映され、再読み込みしても残る。監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-37"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -997,7 +1148,9 @@
       "expected": "日本語のエラーで拒否され、DB の表示名は変わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-37"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1015,7 +1168,9 @@
       "expected": "選んだワークスペースが現在のワークスペースとして反映され、案件一覧がそのワークスペースのものに切り替わる。再読み込み後も残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-38"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1033,7 +1188,9 @@
       "expected": "選んだ案件が現在の案件として反映され、工程/チャットがその案件の文脈に切り替わる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-39"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1052,7 +1209,9 @@
       "expected": "種別ごとに該当が一覧に出る。他ワークスペースのものは 1 件も出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-40"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -1070,7 +1229,9 @@
       "expected": "0 件の案内が出る状態になり、壊れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-40"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1088,7 +1249,10 @@
       "expected": "一覧に出て開ける。DB に ai_training_optout=true (学習しない) で作られ、監査ログ project_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-10",
+        "T-UC-03"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1106,7 +1270,10 @@
       "expected": "9 工程が並び、先頭が進行中の状態になっている (GET /workflow/phases と一致)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1124,7 +1291,10 @@
       "expected": "次の工程が進行中に遷移し、前の工程が完了になる。画面と DB の両方で一致し、監査ログ stage_completed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1142,7 +1312,10 @@
       "expected": "変えられないか、変えるには明示の操作が要る。黙って書き換わらない (DB の状態が変わらない)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1160,7 +1333,10 @@
       "expected": "各カードが実データと一致して反映される。承認待ちの件数は GET /approval-inbox の件数と同じ",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-11",
+        "T-UC-04"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1178,7 +1354,10 @@
       "expected": "成果物 0 件・承認待ち 0 件でも各カードが 0 件の状態として出る。エラーにならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-11",
+        "T-UC-04"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1196,7 +1375,10 @@
       "expected": "理由なしは拒否される。理由を入れると skipped に遷移し、理由が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1214,7 +1396,10 @@
       "expected": "done/skipped から pending に遷移し、監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1232,7 +1417,10 @@
       "expected": "確認なしは拒否され状態が変わらない。確認つきで done に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1250,7 +1438,10 @@
       "expected": "未完了工程・タスク・未解決コメントの実数が出る。0 でない間は確定できない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1268,7 +1459,10 @@
       "expected": "成果物が凍結され、次フェーズが開始状態に遷移する。凍結後の成果物は編集不可の状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1286,7 +1480,10 @@
       "expected": "工程ごとにスレッドが 1 つ作られる。2 回目は同じスレッドに遷移し、増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-16",
+        "T-UC-09"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1304,7 +1501,10 @@
       "expected": "作成した確定事項が一覧に出る。状態遷移がチャットの文脈パネルに反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1322,7 +1522,10 @@
       "expected": "条件に合う案件だけが一覧に出る。カーソルで次ページが取れ、重複も抜けも無い",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-10",
+        "T-UC-03"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1342,7 +1545,10 @@
       "expected": "納品工程が done に遷移し、案件の状態が納品済みとして一覧とダッシュボードに反映される。クライアント側 (J21) に最終版の成果物が見える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1360,7 +1566,10 @@
       "expected": "サイドバーのワークスペース名に反映され、監査ログ workspace_updated が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1378,7 +1587,10 @@
       "expected": "日本語のエラーで拒否され、DB の名前は変わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1396,7 +1608,10 @@
       "expected": "既定は OFF (学習しない) で表示される。切替が DB に反映され、監査ログ ai_training_optin_changed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-13",
+        "T-UC-02"
+      ],
       "note": "場所=cloud / 絶対ルール 6"
     },
     {
@@ -1414,7 +1629,10 @@
       "expected": "平文が 1 度だけ表示され、一覧に出る。再読み込み後は平文が二度と出ない。監査ログ mcp_token_issued が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-08",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1432,7 +1650,10 @@
       "expected": "一覧に失効として反映され、そのトークンでの MCP 接続は拒否される。監査ログ mcp_token_revoked が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-08",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1450,7 +1671,10 @@
       "expected": "LAST_OWNER エラーで拒否され、メンバー一覧は変わらない (DB の membership も残る)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1468,7 +1692,10 @@
       "expected": "30 日保持の案内が出て一覧から消える。DB に deleted_at が記録され、そのワークスペースのデータへのアクセスは拒否される。監査ログ workspace_deleted が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1486,7 +1713,10 @@
       "expected": "運営固定の 10 名が組織図とリストの両方に出る。雇用/追加/削除の導線は出ない状態 (固定編成)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-06"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1505,7 +1735,10 @@
       "expected": "名前・口調・「できること」が出る。スキル名や本文は画面と API 応答のどちらにも含まれない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud / R-T06"
     },
     {
@@ -1523,7 +1756,10 @@
       "expected": "一覧と組織図とチャットの発言者名に反映される。監査ログ ai_employee_customized が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1541,7 +1777,10 @@
       "expected": "FORBIDDEN_FIELD で拒否され、DB は変わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1559,7 +1798,10 @@
       "expected": "署名付き URL でアップロードした画像が組織図とチャットに反映される。Storage に実体が存在する (G-11)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1577,7 +1819,10 @@
       "expected": "その社員がした作業 (修正提案・成果物生成) が時系列で一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1595,7 +1840,10 @@
       "expected": "0 件の案内が出る状態になる。エラーにならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1614,7 +1862,11 @@
       "expected": "利用者が編集した表示名・口調は残り、編集していない項目 (専門分野等) だけ新版が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-15",
+        "T-A-14",
+        "T-UC-07"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1632,7 +1884,10 @@
       "expected": "一覧と見出しに反映され、監査ログ project_updated が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-10",
+        "T-UC-05"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1650,7 +1905,10 @@
       "expected": "既定は OFF で表示される。切替が DB に反映され、記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-13",
+        "T-UC-05"
+      ],
       "note": "場所=cloud / 絶対ルール 6"
     },
     {
@@ -1669,7 +1927,10 @@
       "expected": "30 日カウントダウンつきで一覧から消える (deleted_at が記録)。その案件のクライアント招待は無効化され、監査ログ project_deleted が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-12",
+        "T-UC-05"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1687,7 +1948,10 @@
       "expected": "元の状態に戻り、成果物・タスク・コメントが残っている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-12",
+        "T-UC-05"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1705,7 +1969,10 @@
       "expected": "復元できず、案件データが削除される。ナレッジは匿名化されて残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-12",
+        "T-UC-05"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1723,7 +1990,10 @@
       "expected": "アクティブ一覧から消えアーカイブ一覧に出る。戻すとアクティブ一覧に反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-12",
+        "T-UC-05"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1741,7 +2011,11 @@
       "expected": "一覧にマスク表示で出る。応答と DB に平文が無い (暗号化保存)。監査ログ credential_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-36",
+        "T-A-46",
+        "T-UC-41"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1759,7 +2033,11 @@
       "expected": "権限者だけ一時復号した値が出る。監査ログ credential_revealed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-36",
+        "T-A-46",
+        "T-UC-41"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1777,7 +2055,11 @@
       "expected": "名前が一覧に反映され、値は変わらない (reveal で同じ値)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-36",
+        "T-A-46",
+        "T-UC-41"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1795,7 +2077,11 @@
       "expected": "一覧から消え、soft delete が記録される。reveal もできない状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-36",
+        "T-A-46",
+        "T-UC-41"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1813,7 +2099,10 @@
       "expected": "招待が一覧に出て、相手に招待メールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ invitation_sent が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1831,7 +2120,10 @@
       "expected": "参加でき membership が作られる。案件とタスクが一覧に出る。監査ログ invitation_accepted が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1849,7 +2141,10 @@
       "expected": "権限が無いことが日本語で分かる (access-denied に遷移)。白画面や生のエラーにしない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-US-01"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1867,7 +2162,12 @@
       "expected": "member として案件とタスクを作成でき、owner 側の一覧にも反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-10",
+        "T-UC-03",
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1885,7 +2185,10 @@
       "expected": "一覧に viewer として反映され、監査ログ role_changed が記録される。相手側は次の操作から閲覧のみに遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1903,7 +2206,10 @@
       "expected": "編集操作は 403 で拒否され、閲覧は引き続きできる状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-A-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1922,7 +2228,10 @@
       "expected": "どちらも 403 で拒否され、値は漏れない。監査ログに拒否が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-46",
+        "T-UC-41"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1940,7 +2249,10 @@
       "expected": "拒否され、期限切れであることが日本語で分かる。membership は増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1958,7 +2270,10 @@
       "expected": "既にメンバーとして拒否され、招待は増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1976,7 +2291,10 @@
       "expected": "一覧から消え、監査ログ member_removed が記録される。相手の既存セッションは次のリクエストから拒否される (G-14)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -1994,7 +2312,10 @@
       "expected": "ワークスペースのデータが見えなくなる。サインインはできるが所属なしの状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-07",
+        "T-D-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2014,7 +2335,12 @@
       "expected": "owner 側のボードとダッシュボードに完了とコメントが反映される。監査ログ task_status_changed / comment_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-15",
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2032,7 +2358,10 @@
       "expected": "5 種 (task/phase/knowledge/comment/scope_change) の承認待ちが種別つきで一覧に出て、フィルタで絞れる。本人宛以外は出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2050,7 +2379,10 @@
       "expected": "一覧から消え、DB 上も承認済みに遷移する。対象 (タスク/フェーズ/ナレッジ) の状態が変わる。監査ログ inbox_entry_resolved が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2068,7 +2400,10 @@
       "expected": "却下として記録され、承認済みと区別できる。対象は変わらない (ナレッジなら書き込まれない)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2086,7 +2421,10 @@
       "expected": "選んだ件だけ承認済みに遷移し、選んでいないものは一覧に残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2104,7 +2442,10 @@
       "expected": "0 件の案内が出る状態になり、バッジも 0 に反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2122,7 +2463,10 @@
       "expected": "ON では承認待ちの通知メールが届く (実送信できない環境では送信ログ/キュー投入で代替)。OFF では届かない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-32",
+        "T-F-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2140,7 +2484,11 @@
       "expected": "バッジの件数が一覧の件数と一致し、押すと承認待ち一覧に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-11",
+        "T-UC-04",
+        "T-UC-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2158,7 +2506,11 @@
       "expected": "提案が一覧に出て、承認待ちに通知される。実フェーズはまだ作られない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2176,7 +2528,10 @@
       "expected": "実フェーズが確定して一覧に出る。監査ログ phase_approved が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2194,7 +2549,10 @@
       "expected": "フェーズは作られず、却下が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2213,7 +2571,10 @@
       "expected": "影響を受ける下流タスクが件数つきで出る。適用前は実移動しない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-23",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2231,7 +2592,10 @@
       "expected": "実移動が反映され、完了済みの影響タスクにリファクタタスクが parent_task 紐付けで自動起票される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-23",
+        "T-UC-11"
+      ],
       "note": "場所=cloud / F-CUC02"
     },
     {
@@ -2249,7 +2613,10 @@
       "expected": "total/done/awaiting とスコア平均、本日の解析回数が実数と一致して反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2267,7 +2634,11 @@
       "expected": "同じ提案が 2 件にならず、既存の pending 提案に案内される状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-20",
+        "T-UC-11",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2285,7 +2656,10 @@
       "expected": "「準備中」列に出る。依存・受入基準・仕様書がリンクされて記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2303,7 +2677,10 @@
       "expected": "依存漏れとして警告が出る。保存する場合も警告つきの状態が記録され、黙って通らない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2321,7 +2698,10 @@
       "expected": "受入基準 (3 層) と関連資料が出て、リンク先が実在する。0 件のタブは 0 件の状態で出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-15"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2339,7 +2719,10 @@
       "expected": "列移動が DB に反映され、監査ログ task_status_changed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2357,7 +2740,10 @@
       "expected": "コメントが一覧に出て、担当 AI 社員に通知される (実送信できない環境では送信ログ/キュー投入で代替)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-15"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2376,7 +2762,11 @@
       "expected": "着手可から実装中に遷移し、Bridge で worker が起動して実行モニター (S-I03) に出る。監査ログ execution_started が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-24",
+        "T-UC-14",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2394,7 +2784,10 @@
       "expected": "ログが逐次流れ、status の変化が画面に反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-31",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2412,7 +2805,10 @@
       "expected": "テストケース単位の結果が出て、実行の記録と一致する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-27",
+        "T-UC-15"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2430,7 +2826,10 @@
       "expected": "承認待ちを経ずに完了に遷移し、監査ログ auto_approved が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-25",
+        "T-UC-15"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2448,7 +2847,10 @@
       "expected": "承認待ちに出る。承認で done に遷移し、監査ログ approval_required / inbox_entry_resolved が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-25",
+        "T-UC-15"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2466,7 +2868,10 @@
       "expected": "差戻で要対応 (blocked) に遷移し、再試行で着手可へ戻る。retry_count が 1 増えて記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-25",
+        "T-UC-15"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2484,7 +2889,10 @@
       "expected": "自動再実装をせず、人間介入を要求する状態で固定される。監査ログ force_intervention が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-25",
+        "T-UC-15"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2502,7 +2910,10 @@
       "expected": "接続中の worker 数と並列枠が実数で反映される。イベント集約に直前の実行が記録されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2520,7 +2931,10 @@
       "expected": "キューから外れ、実行されない状態に戻る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2538,7 +2952,10 @@
       "expected": "実行が cancelled で閉じ、席が返る。タスクは要対応として残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2556,7 +2973,10 @@
       "expected": "次の pick でそのタスクが最優先で実行中に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2575,7 +2995,10 @@
       "expected": "選んだ処理が反映され、確認カードが消える。監査ログ task_paused_for_change が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-25",
+        "T-UC-15"
+      ],
       "note": "場所=mac / F-CUC02"
     },
     {
@@ -2593,7 +3016,10 @@
       "expected": "PID ポーリングで検出され、自動で再 spawn される。監査ログ worker_dead_reclaimed が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-29",
+        "T-F-41"
+      ],
       "note": "場所=mac / G-15"
     },
     {
@@ -2611,7 +3037,10 @@
       "expected": "完了扱いにならず、要対応として残る状態になる。空の要約が完了として記録されない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-29",
+        "T-F-41"
+      ],
       "note": "場所=mac / G-15"
     },
     {
@@ -2629,7 +3058,10 @@
       "expected": "一覧から消え論理削除が記録される。依存していたタスクに警告が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2647,7 +3079,10 @@
       "expected": "選んだ分だけ着手可に遷移し、選んでいないものは変わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-26",
+        "T-UC-14"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2665,7 +3100,10 @@
       "expected": "工程ごとの成果物が一覧に出て、三層がそれぞれ表示された状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2683,7 +3121,10 @@
       "expected": "署名付き URL (content-url) で HTML が iframe に反映される。Storage に実体が存在する (G-11)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2701,7 +3142,10 @@
       "expected": "コメントが一覧に出て、担当 AI 社員にメール通知される (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ comment_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2719,7 +3163,10 @@
       "expected": "解決済みに遷移し、ダッシュボードの未解決件数が 1 減る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2737,7 +3184,11 @@
       "expected": "提案が一覧に出る。文書はまだ変わらない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2755,7 +3206,11 @@
       "expected": "提案を適用した新版が生成され、版履歴が 1 増える。旧版は残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2773,7 +3228,10 @@
       "expected": "文書は不変で、却下が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2791,7 +3249,11 @@
       "expected": "新版が積まれ、一覧の最新版が切り替わる。旧版は履歴に残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2809,7 +3271,10 @@
       "expected": "版間の差分が表示され、変更箇所が依頼内容と一致して反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2827,7 +3292,10 @@
       "expected": "旧版が新版として復元され、履歴は消えない (版が 1 増える)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2845,7 +3313,10 @@
       "expected": "表として出る。編集が新版として保存され、元の版は残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2864,7 +3335,11 @@
       "expected": "本人 PC で修正され、新版として反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -2882,7 +3357,10 @@
       "expected": "期限つきリンクが 1 度だけ表示され、一覧に出る (URL は再取得不可)。監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2900,7 +3378,10 @@
       "expected": "認証なしで成果物が読める状態になる。期限を過ぎたリンクは拒否される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2918,7 +3399,10 @@
       "expected": "以後の閲覧は 410 で見えなくなる。無効化の直後 (0 秒) でも見えない (G-12)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2936,7 +3420,10 @@
       "expected": "ファイルが得られ、監査ログ output_downloaded が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2954,7 +3441,10 @@
       "expected": "編集が DB に反映され updated_at が更新される。次のチャット応答が最新の本文を前提にする",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=mac / F-009"
     },
     {
@@ -2973,7 +3463,10 @@
       "expected": "403 で拒否され、成果物は変わらない。閲覧とコメントはできる状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-D-21"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -2991,7 +3484,10 @@
       "expected": "0 件の案内が出る状態になり、エラーにならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3009,7 +3505,11 @@
       "expected": "生成したモックが一覧に出て、版 v1 が記録される。Storage に HTML の実体がある (G-11)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3027,7 +3527,10 @@
       "expected": "画面ごとの最新版がプレビューに反映される (署名付き URL)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3045,7 +3548,10 @@
       "expected": "切り替えた幅がプレビューに反映された状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3063,7 +3569,11 @@
       "expected": "進行状況がストリームで出る。新版が積まれ旧版は残る。一覧の最新版が切り替わる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3081,7 +3591,10 @@
       "expected": "差分に指示した箇所だけが出る。指示していない作り込みは旧版のまま残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud / GAP-147 回帰"
     },
     {
@@ -3099,7 +3612,10 @@
       "expected": "複製版が履歴に増える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3117,7 +3633,10 @@
       "expected": "複製版は履歴から消える。唯一の版は 409 で拒否され、残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3135,7 +3654,10 @@
       "expected": "保存内容が反映されて残る。次のモック生成の前提として使われる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3153,7 +3675,10 @@
       "expected": "コメントが一覧に出て担当 AI 社員に通知される (実送信できない環境では送信ログ/キュー投入で代替)。解決で状態が遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3172,7 +3697,11 @@
       "expected": "フェーズごとの最新版だけが一覧に出る状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-A-20",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3191,7 +3720,11 @@
       "expected": "拒否され、新版が増えない (凍結が守られる)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-33",
+        "T-A-20",
+        "T-UC-13"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3209,7 +3742,11 @@
       "expected": "各ファイルの結果が出て、どこへ仕分けられたか (成果物/ナレッジ) が一覧に反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-10",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3227,7 +3764,10 @@
       "expected": "壊れた方は理由つきで残り、正常な方は取り込まれて一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3245,7 +3785,11 @@
       "expected": "確定した工程だけが done に遷移する。確定していないものは動かない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-10",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3263,7 +3807,10 @@
       "expected": "工程の状態は変わらず、取り込んだ資料だけが残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-10"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3281,7 +3828,10 @@
       "expected": "アップロードが完了し、処理中の状態で一覧に出る。Storage に実体が存在する (G-11)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3299,7 +3849,11 @@
       "expected": "状態が parsed に遷移し、本文が読める",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3317,7 +3871,11 @@
       "expected": "タスク・要件・決定に反映され、元の議事録から辿れる状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3335,7 +3893,11 @@
       "expected": "打合せを根拠にした提案が承認待ちの一覧に出て、通知される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3353,7 +3915,11 @@
       "expected": "状態が parsing に遷移し、完了すれば parsed になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3371,7 +3937,10 @@
       "expected": "日本語のエラーで拒否され、一覧に増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3389,7 +3958,10 @@
       "expected": "一覧から消え、論理削除が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3407,7 +3979,11 @@
       "expected": "完了扱いにならず、要対応 (error) の状態で残る。空の本文が parsed として記録されない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-38",
+        "T-UC-23",
+        "T-F-41"
+      ],
       "note": "場所=mac / G-15"
     },
     {
@@ -3425,7 +4001,10 @@
       "expected": "一覧に出て、埋め込みが生成される (embedding-status に反映)。監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3443,7 +4022,10 @@
       "expected": "該当が出典つきで一覧に出る。存在しない語では 0 件の状態になり、壊れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3461,7 +4043,10 @@
       "expected": "1 件も出ない状態である。グラフにも出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-D-18"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -3479,7 +4064,10 @@
       "expected": "採用したものだけが正式なナレッジとして一覧に出る。却下したものは同じ題で再提案されない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-37",
+        "T-UC-19"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3497,7 +4085,10 @@
       "expected": "user から workspace common に遷移し、共通ナレッジの一覧に出る。監査ログ knowledge_approved が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-37",
+        "T-UC-19"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3515,7 +4106,10 @@
       "expected": "ナレッジ間のリンク構造が反映され、参照元 (バックリンク) が一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3533,7 +4127,10 @@
       "expected": "何で動いていて誰の費用かが出る。準備を押すと状態が処理中に遷移し、完了後に検索で引ける",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3551,7 +4148,10 @@
       "expected": "選んだ社員/案件のナレッジだけが一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-47",
+        "T-UC-43"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3569,7 +4169,10 @@
       "expected": "編集が反映され updated_at が更新される。削除で一覧から消え、再読み込みしても復活しない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3587,7 +4190,10 @@
       "expected": "zip に RLS で見える分だけが含まれ、他ワークスペースの分は含まれない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-36",
+        "T-UC-18"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -3605,7 +4211,11 @@
       "expected": "ドラフトが一覧に出て、参照したナレッジと生成トレースが記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-UC-24",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3623,7 +4233,10 @@
       "expected": "一覧に出て、編集が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3641,7 +4254,10 @@
       "expected": "PDF が得られ、内容が編集後の状態と一致する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3659,7 +4275,11 @@
       "expected": "dry_run では実送信せず送信履歴に dry_run と記録される。本送信ではクライアントにメールが届く (実送信できない環境では送信ログ/キュー投入で代替)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-F-17",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3677,7 +4297,11 @@
       "expected": "宛先・日時・dry_run の別が一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-F-17",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3695,7 +4319,11 @@
       "expected": "日本語のエラーで拒否され、送信履歴に増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-F-17",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3713,7 +4341,10 @@
       "expected": "一覧から消え、論理削除が記録される。送信履歴は残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-39",
+        "T-UC-24"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3731,7 +4362,10 @@
       "expected": "実行できる種類とコストが一覧に出て、画面表示が GET /cron-actions と一致した状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3749,7 +4383,10 @@
       "expected": "一覧に出て、有効の状態で次回実行が予定される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3767,7 +4404,10 @@
       "expected": "日本語のエラーで拒否され、一覧に増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3785,7 +4425,10 @@
       "expected": "無効の間は次回実行が予定されない状態になる。有効化で予定が戻る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3804,7 +4447,11 @@
       "expected": "実行履歴に記録が増え、結果が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-A-53",
+        "T-UC-25"
+      ],
       "note": "場所=mac"
     },
     {
@@ -3822,7 +4469,10 @@
       "expected": "実行日時・結果が一覧に出る。0 件なら 0 件の状態で出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3840,7 +4490,10 @@
       "expected": "read-only の状態で出て、編集・削除の導線が無い",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3859,7 +4512,10 @@
       "expected": "403 で拒否され、一覧にそのまま残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-D-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3877,7 +4533,10 @@
       "expected": "一覧から消え、次回実行の予定も消えた状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-40",
+        "T-UC-25"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3895,7 +4554,10 @@
       "expected": "招待が一覧に出て、相手に招待メールが届く (実送信できない環境では送信ログ/キュー投入で代替)。DB に表示名・期限・scope が記録され、監査ログ client_invited が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-UC-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3913,7 +4575,11 @@
       "expected": "クライアント画面 (S-L03) に遷移する。client_portal role の別 JWT が社内用とは別の cookie で発行された状態になる。監査ログ client_signed_in と同意記録が残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-21",
+        "T-UC-22"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -3931,7 +4597,11 @@
       "expected": "拒否される。セッションも同意記録も DB に作られない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-21",
+        "T-UC-22"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3949,7 +4619,9 @@
       "expected": "案件名と招待者だけが出て、成果物は出ない状態である。レート制限を超えると拒否される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3967,7 +4639,10 @@
       "expected": "トークンがローテーションされ新リンクがメールで届く (実送信できない環境では送信ログ/キュー投入で代替)。旧リンクは無効になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-UC-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -3985,7 +4660,10 @@
       "expected": "有効/失効/期限切れの状態と期限が一覧に反映され、詳細と一致する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-UC-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4003,7 +4681,10 @@
       "expected": "自分の案件の工程進捗・運営・リンク有効期限が出る。社内専用の情報 (原価/他案件/内部メモ) が出ない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-22"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4022,7 +4703,10 @@
       "expected": "工程ごとの最新版だけが一覧に出る。旧版と社内コメントは出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-22"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4041,7 +4725,10 @@
       "expected": "画面ごとの最新版だけが一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-22"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4059,7 +4746,10 @@
       "expected": "0 件の案内が出る状態になり、エラーにならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-UC-22"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4077,7 +4767,10 @@
       "expected": "招待者に更新のメールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ client_notified_of_update が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-35",
+        "T-F-17"
+      ],
       "note": "場所=cloud / F-CUC03"
     },
     {
@@ -4095,7 +4788,11 @@
       "expected": "参照も投稿も拒否される。1 件も他人の情報が出ない状態で、拒否が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-22",
+        "T-A-35",
+        "T-I-07"
+      ],
       "note": "場所=cloud / R-T08 致命級。ここが破れたら公開不可"
     },
     {
@@ -4113,7 +4810,11 @@
       "expected": "拒否される (RLS で 0 件 / 401)。系統をまたげない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-22",
+        "T-A-35",
+        "T-I-07"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4131,7 +4832,11 @@
       "expected": "403 で拒否され、コメントは増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-A-35",
+        "T-I-07"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4149,7 +4854,11 @@
       "expected": "拒否される。社内 cookie がクライアント画面で流用されない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-22",
+        "T-A-35",
+        "T-I-07"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -4167,7 +4876,10 @@
       "expected": "コメントが自分の画面の一覧に出る。担当者に通知メールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ comment_created が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-22"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4185,7 +4897,10 @@
       "expected": "クライアントのコメントが誰のものか分かる形で出ている。ダッシュボードの未解決件数が 1 増える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4203,7 +4918,10 @@
       "expected": "自分のものは編集・削除が反映される。他人のものは拒否される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-22"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4221,7 +4939,10 @@
       "expected": "返信がクライアント側の一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-12"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4240,7 +4961,10 @@
       "expected": "社内の返信が自分のコメントの下に出ている。納品された最終版の成果物が閲覧できる状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-22",
+        "T-UC-22"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4258,7 +4982,11 @@
       "expected": "入れず、期限切れであることが日本語で分かる。セッションは作られない (DB に増えない)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-A-35",
+        "T-UC-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4276,7 +5004,11 @@
       "expected": "1 クリック目では失効しない。確定後はリンクで入れず、一覧が失効として反映される。監査ログ invitation_revoked が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-A-35",
+        "T-UC-20"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4294,7 +5026,11 @@
       "expected": "相手はその場で拒否され (401)、案件名・モック名が画面に残らない。「失効させたのにしばらく見られる」状態にならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-A-35",
+        "T-UC-20"
+      ],
       "note": "場所=cloud / G-12 / G-14"
     },
     {
@@ -4312,7 +5048,11 @@
       "expected": "直前は操作できる。直後は拒否され、一覧の状態が期限切れに遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-34",
+        "T-A-35",
+        "T-UC-20"
+      ],
       "note": "場所=cloud / G-12"
     },
     {
@@ -4330,7 +5070,10 @@
       "expected": "拒否され、案件の情報が見えなくなる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-12",
+        "T-A-35"
+      ],
       "note": "場所=cloud / G-14"
     },
     {
@@ -4348,7 +5091,10 @@
       "expected": "「本人の PC が未接続」の状態と接続の導線が出る。未設定と混同しない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-UC-08"
+      ],
       "note": "場所=cloud / GAP-168/206"
     },
     {
@@ -4366,7 +5112,11 @@
       "expected": "接続済みの状態が画面に反映される。GET /bridge/status に presence が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4384,7 +5134,11 @@
       "expected": "利用者自身の契約で動くことが実行前に表示された状態である (接続状態は実測値のみ)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac / GAP-178"
     },
     {
@@ -4402,7 +5156,11 @@
       "expected": "raw トークンが 1 度だけ表示され、一覧に出る。再読み込み後は二度と出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-23",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4421,7 +5179,11 @@
       "expected": "接続が切れ、表示が即時 (0 秒) で未接続の状態に遷移する。90 秒間の「接続中」誤表示が無い",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-23",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac / G-12 / G-14"
     },
     {
@@ -4439,7 +5201,11 @@
       "expected": "接続状態が即時に未接続へ遷移する。その間の送信は 3 分無応答にならず、未接続の案内が出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=mac / G-12 GAP-243"
     },
     {
@@ -4458,7 +5224,11 @@
       "expected": "本人以外のトークンは一覧に出ず、失効も拒否される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-23",
+        "T-A-30",
+        "T-UC-16"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4477,7 +5247,12 @@
       "expected": "応答がストリームで返り、DB にメッセージが記録される。オウム返しや定型文でない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4495,7 +5270,12 @@
       "expected": "仕込んだ固有名を踏まえて答える (F-CTX01 が DB の最新を反映)。知らないまま喋らない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4513,7 +5293,12 @@
       "expected": "説明し直さずに解決する。会話の記録が 3 ターン分残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4531,7 +5316,11 @@
       "expected": "画面と DB の両方に実体がある (三層で保存)。会話だけで終わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-139"
     },
     {
@@ -4549,7 +5338,11 @@
       "expected": "指示した箇所以外の作り込みが保たれる。新版として記録され旧版が残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-21",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-147 回帰"
     },
     {
@@ -4567,7 +5360,11 @@
       "expected": "添付ありでは中身に基づき答え、添付なしでは作り話をしない。添付は Storage に記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-17",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-161"
     },
     {
@@ -4585,7 +5382,10 @@
       "expected": "各操作がスレッド一覧に反映され、削除したスレッドは復活しない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-16",
+        "T-UC-08"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4603,7 +5403,10 @@
       "expected": "履歴がコピーされた新スレッドが一覧に出て、元スレッドとの親子関係が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-19",
+        "T-UC-08"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4621,7 +5424,10 @@
       "expected": "フィードバックが監査ログに記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-19",
+        "T-UC-08"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4639,7 +5445,12 @@
       "expected": "追い足しがキューに出る。取り消した 1 件は消え、残りが応答の中に反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-189/191"
     },
     {
@@ -4657,7 +5468,12 @@
       "expected": "切替が捨てられず、次のツール実行から承認が要る状態に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / G-13"
     },
     {
@@ -4675,7 +5491,12 @@
       "expected": "走っている実行に繋ぎ直され、途中からの応答が反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-A-48",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-189"
     },
     {
@@ -4693,7 +5514,11 @@
       "expected": "コマンドとして解釈され、結果が構造化して記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-17",
+        "T-UC-08",
+        "T-F-41"
+      ],
       "note": "場所=mac / GAP-002"
     },
     {
@@ -4711,7 +5536,10 @@
       "expected": "7 層の文脈が LLM 呼出なしで出て、DB の最新値が反映されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-48",
+        "T-UC-09"
+      ],
       "note": "場所=cloud / F-CTX01"
     },
     {
@@ -4729,7 +5557,10 @@
       "expected": "エラー応答が記録され、利用者に通知される。無限に待たない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-29",
+        "T-UC-36"
+      ],
       "note": "場所=mac / G-15"
     },
     {
@@ -4747,7 +5578,10 @@
       "expected": "空応答が完了として記録されず、失敗として通知される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-18",
+        "T-F-41"
+      ],
       "note": "場所=mac / G-15 GAP-244"
     },
     {
@@ -4765,7 +5599,10 @@
       "expected": "候補が一覧に出る。採用するまでナレッジには書き込まれない (DB に増えない)",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-37",
+        "T-UC-19"
+      ],
       "note": "場所=mac / GAP-167"
     },
     {
@@ -4783,7 +5620,11 @@
       "expected": "承認するまで実行されない。承認要求が一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-18",
+        "T-UC-08"
+      ],
       "note": "場所=mac / GAP-130"
     },
     {
@@ -4801,7 +5642,11 @@
       "expected": "副作用が起きていない (DB が変わらない)。却下が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-18",
+        "T-UC-08"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4819,7 +5664,11 @@
       "expected": "承認した操作だけが実行され記録される。ついでに別の操作をしない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-18",
+        "T-UC-08"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4838,7 +5687,10 @@
       "expected": "本人宛以外は一覧に出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-D-17",
+        "T-A-32"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4856,7 +5708,11 @@
       "expected": "断られず順番待ちの状態になり、空き次第そのまま実行に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-08"
+      ],
       "note": "場所=mac / GAP-203"
     },
     {
@@ -4874,7 +5730,11 @@
       "expected": "席が戻り、列に残り続けない。空き数が 1 増える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-08"
+      ],
       "note": "場所=mac / GAP-203 回帰"
     },
     {
@@ -4892,7 +5752,9 @@
       "expected": "入力欄に文章が戻った状態になり、押し直すだけで再送できる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-UC-08"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4910,7 +5772,11 @@
       "expected": "停止中の状態では新規 pick が止まり、実行中のものは続く。再開で pick が再び始まる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-F-41",
+        "T-A-30",
+        "T-UC-08"
+      ],
       "note": "場所=mac"
     },
     {
@@ -4928,7 +5794,10 @@
       "expected": "順番待ちとお断りの件数が機械をまたいで記録されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-30",
+        "T-A-41"
+      ],
       "note": "場所=mac / GAP-208"
     },
     {
@@ -4946,7 +5815,10 @@
       "expected": "free として表示される状態で、架空のプランや金額が出ない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4964,7 +5836,10 @@
       "expected": "Stripe Checkout の手続き画面に遷移するか、進めない理由が出る。黙って何も起きない、にならない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -4982,7 +5857,10 @@
       "expected": "成功ページの照会で pro に反映され、契約中として表示される。webhook でも同じ状態が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5000,7 +5878,10 @@
       "expected": "拒否され、契約状態は変わらない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5018,7 +5899,10 @@
       "expected": "free のままの状態で、契約は増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5036,7 +5920,10 @@
       "expected": "期間末まで使えること・日割り返金が無いことが押す前に表示された状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -5054,7 +5941,10 @@
       "expected": "ポータルに遷移するか、進めない理由が出る。解約後は期間末までの契約中として反映される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -5072,7 +5962,10 @@
       "expected": "期間末前は使える。期間末後は free の状態に遷移し、有料機能が案内つきで止まる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5090,7 +5983,10 @@
       "expected": "解約の導線が表示されない状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-06",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5108,7 +6004,10 @@
       "expected": "受け付けられ、30 日の猶予があることが分かる。DB に deleted_at が記録され、監査ログ account_deletion_requested が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-05",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5126,7 +6025,10 @@
       "expected": "元の状態に戻り、作ったものが残っている。deleted_at が消える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-05",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5144,7 +6046,10 @@
       "expected": "入れない状態で、理由が日本語で分かる。復元の導線だけが出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-05",
+        "T-UC-02"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5162,7 +6067,11 @@
       "expected": "全部拒否される (401)。退会したのにセッション・トークンが有効な状態で残らない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-05",
+        "T-A-04",
+        "T-I-04"
+      ],
       "note": "場所=cloud / G-14 GAP-245"
     },
     {
@@ -5180,7 +6089,10 @@
       "expected": "個人情報が削除され、ナレッジは匿名化されて残る。監査ログ account_hard_deleted が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-05",
+        "T-I-04"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5198,7 +6110,10 @@
       "expected": "請求が受け付けられ記録される。30 日以内のキャンセル方法が案内される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-44",
+        "T-UC-29"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5216,7 +6131,10 @@
       "expected": "順番待ちやお断りが起きていれば、機械をまたいで集計されて出る。件数が J43 の記録と一致する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud / GAP-208"
     },
     {
@@ -5234,7 +6152,10 @@
       "expected": "現在の余裕と、増やす前に必要な作業が実測値で表示された状態である",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud / GAP-205"
     },
     {
@@ -5252,7 +6173,11 @@
       "expected": "直前の失敗がエラーログに記録され、通知の送信状態が出る。外部 SaaS に送られていない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30",
+        "T-F-08"
+      ],
       "note": "場所=cloud / GAP-182/194/195"
     },
     {
@@ -5270,7 +6195,10 @@
       "expected": "ワークスペース数・ユーザー数が実数と一致して反映される。期間切替で数字が変わる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5288,7 +6216,11 @@
       "expected": "状態が表示され、リセットが監査ログに記録される。stale な実行が回収される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-29",
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5306,7 +6238,10 @@
       "expected": "報告が記録され、運営のエラーログに一覧で出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud / GAP-182"
     },
     {
@@ -5324,7 +6259,10 @@
       "expected": "投稿が運営の一覧に出る。対応済みに遷移し、記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5342,7 +6280,10 @@
       "expected": "実行者・対象・時刻が記録から特定できる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-43",
+        "T-UC-34"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5360,7 +6301,10 @@
       "expected": "見られない (403)。拒否が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-43",
+        "T-D-19"
+      ],
       "note": "場所=cloud / R-T08"
     },
     {
@@ -5378,7 +6322,10 @@
       "expected": "条件に合う記録だけが一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-43",
+        "T-UC-34"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5396,7 +6343,10 @@
       "expected": "絞った分だけが CSV に出て、件数が一覧の記録と一致する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-43",
+        "T-UC-34"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5414,7 +6364,10 @@
       "expected": "0 件の状態で出て壊れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-43",
+        "T-UC-34"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5432,7 +6385,10 @@
       "expected": "実累計が表示され、直前の登録 (J10) が反映されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5450,7 +6406,10 @@
       "expected": "目標が反映され、再読み込みしても残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5468,7 +6427,10 @@
       "expected": "追加が集計に反映され、削除で集計から減る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5486,7 +6448,10 @@
       "expected": "月次一覧に反映され、削除で消える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5504,7 +6469,10 @@
       "expected": "日本語のエラーで拒否され、一覧に増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5522,7 +6490,10 @@
       "expected": "0 の状態で表示され壊れない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-30"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5540,7 +6511,10 @@
       "expected": "403 で拒否され access-denied に遷移する",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-US-16"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5558,7 +6532,10 @@
       "expected": "所属ワークスペース scope の利用者が一覧に出て、J10/J31 で作った人が反映されている",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-33"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5576,7 +6553,11 @@
       "expected": "相手にメールが届く (実送信できない環境では送信ログ/キュー投入で代替)。監査ログ support.contact が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-33",
+        "T-F-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5594,7 +6575,11 @@
       "expected": "送った連絡が監査ログの逆引きで一覧に出る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-33",
+        "T-F-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5612,7 +6597,11 @@
       "expected": "拒否され、メールは送られず記録も増えない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-41",
+        "T-UC-33",
+        "T-F-17"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5630,7 +6619,10 @@
       "expected": "account_type=platform として一覧に出て、全アカウントの検索で引ける状態になる",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5648,7 +6640,10 @@
       "expected": "編集が反映され、削除で一覧から消える",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5666,7 +6661,11 @@
       "expected": "取り込んだ内容が一覧に出て記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-49",
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5684,7 +6683,11 @@
       "expected": "全テナントを走査した提案が匿名化されて一覧に出る。テナント名や個人名が含まれない",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-47",
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud / GAP-153 R-T08"
     },
     {
@@ -5702,7 +6705,11 @@
       "expected": "platform ナレッジとして一覧に出て、一般利用者の検索でも引ける",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-47",
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5720,7 +6727,11 @@
       "expected": "公開されず、却下が記録される",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-47",
+        "T-A-50",
+        "T-UC-42"
+      ],
       "note": "場所=cloud"
     },
     {
@@ -5738,7 +6749,10 @@
       "expected": "403 で拒否され、内容は元のまま残る",
       "status": "TODO",
       "evidence": "",
-      "runnable_after": [],
+      "runnable_after": [
+        "T-A-50",
+        "T-US-16"
+      ],
       "note": "場所=cloud / R-T08"
     }
   ]
