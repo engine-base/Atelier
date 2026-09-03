@@ -20,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
+from src.db.session import shared_session_factory
 from src.schemas.projects import (
     AccountAiLearning,
     ActivityItem,
@@ -377,12 +378,19 @@ async def get_dashboard(session: AsyncSession, project_id: str) -> ProjectDashbo
         total += int(row.n)
     counts["total"] = total
 
-    ares = await session.execute(
+    ares = await _read_activities(
         text(
             "select action, actor_type, actor_id, target_type, target_id, created_at "
             "from public.audit_logs "
             "where target_id = cast(:pid as uuid) "
             "   or target_id in (select id from public.tasks where project_id = cast(:pid as uuid)) "
+            "   or (target_type = 'comment' and target_id in ("
+            "        select c.id from public.comments c "
+            "        left join public.workflow_outputs wo "
+            "          on c.target_type = 'workflow_output' and wo.id = c.target_id "
+            "        left join public.mocks m on c.target_type = 'mock' and m.id = c.target_id "
+            "        left join public.tasks t on c.target_type = 'task' and t.id = c.target_id "
+            "        where coalesce(wo.project_id, m.project_id, t.project_id) = cast(:pid as uuid))) "
             "order by created_at desc limit 10"
         ),
         {"pid": project_id},
@@ -460,3 +468,26 @@ async def set_account_ai_learning(
         )
     )
     return AccountAiLearning(user_id=str(row.id), ai_learning_opt_out=bool(row.ai_learning_opt_out))
+
+
+async def _read_activities(statement: Any, params: dict[str, object]) -> Any:
+    """recent_activities の読み出しだけ service 経路で行う (GAP-283)。
+
+    audit_logs の RLS は「自分の行為」か「workspace_id 付きの行」しか見せない。
+    task.update / comment.create は workspace_id を持たないため、**メンバーの行為が
+    owner のダッシュボードに出なかった** (通し J31-12)。案件自体の可視性は RLS
+    セッションで確認済みなので、その案件に紐づく監査行だけを service 経路で読む。
+    """
+    factory = shared_session_factory()
+    async with factory() as s:
+        res = await s.execute(statement, params)
+        rows = list(res.all())
+    return _Rows(rows)
+
+
+class _Rows:
+    def __init__(self, rows: list[Any]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[Any]:
+        return self._rows

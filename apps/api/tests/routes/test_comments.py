@@ -196,6 +196,56 @@ class TestComments:
             assert client.delete(f"/comments/{cid}", headers=h).status_code == 204
             assert client.get(f"/comments/{cid}", headers=h).status_code == 404
 
+    def test_gap286_owner_resolves_member_comment_and_gap283_dashboard_shows_it(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-286: owner は他人 (メンバー) のコメントを解決できる。
+        GAP-283 (通し J31-12): メンバーの comment.create が owner のダッシュボード
+        recent_activities に出る。"""
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                    "values (cast(:w as uuid), cast(:u as uuid), 'member') on conflict do nothing"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
+        try:
+            with TestClient(app) as client:
+                posted = client.post(
+                    "/comments",
+                    json={
+                        "target_type": "workflow_output",
+                        "target_id": seeded["out_a"],
+                        "content": "メンバーからの指摘",
+                    },
+                    headers=_h(seeded["u_b"]),
+                )
+                assert posted.status_code == 201, posted.text
+                cid = posted.json()["data"]["id"]
+                # owner が解決できる (以前は 403)
+                r = client.patch(
+                    f"/comments/{cid}", json={"status": "resolved"}, headers=_h(seeded["u_a"])
+                )
+                assert r.status_code == 200, r.text
+                assert r.json()["data"]["status"] == "resolved"
+                # owner のダッシュボードにメンバーの comment.create が出る
+                dash = client.get(
+                    f"/projects/{seeded['proj_a']}/dashboard", headers=_h(seeded["u_a"])
+                )
+                assert dash.status_code == 200, dash.text
+                actions = [a["action"] for a in dash.json()["data"]["recent_activities"]]
+                assert "comment.create" in actions, actions
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workspace_memberships where workspace_id = cast(:w as uuid) "
+                        "and user_id = cast(:u as uuid)"
+                    ),
+                    {"w": seeded["ws_a"], "u": seeded["u_b"]},
+                )
+
     def test_cross_workspace_forbidden_and_invisible(
         self, app: FastAPI, seeded: dict[str, str]
     ) -> None:
