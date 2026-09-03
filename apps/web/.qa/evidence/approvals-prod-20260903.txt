@@ -1,0 +1,73 @@
+# approvals QA 実走 — prod(pre-launch) 2026-09-03  API=https://atelier-api-eb.fly.dev
+== setup ==
+signup qa-approvals-20260903-1@example.com: 201
+signin: 200 (JWT は記録しない)
+workspace: 201 id=c0217113-781d-49c8-afb9-a6e5d210336c
+project: 201 id=2c1a46d6-a742-4d2b-b25a-c51caa93ce92
+GET /embedding-status: 200 {"data": {"provider": "none", "state": "unavailable", "reason": "意味検索の部品 (fastembed) がこのサーバーに入っていません (キーワード一致のみ)", "payer": "費用なし", "model_tag": null, "next_steps": ["サーバーで `uv sync` を実行して fastembed を導入する", "導入後は API 再起動でモデルの準備が自動で始まります"], "warnings": ["VOYAGE_API_KEY は設定されていますが、明示 opt-in (ATELIER_ALLOW_VOYAGE=1) が無いため使用しません (課金しません)"], "semantic_enabled": false, "indexed": 0, "total": 0}}
+
+== SK01-404: 存在しない語の検索は 0 件 (semantic_enabled=false → text_fallback を実測) ==
+knowledge 3 件作成: 201 x3 (ids e03e3113.., 136e7d42.., 46687713..)
+  POST /knowledge/search q='オニキス層': 200 total=1 hits=1 search_mode=text_fallback titles=['オニキス層の帳票検証手順']
+  POST /knowledge/search q='ゼブラライトクォンタム架空単語': 200 total=0 hits=0 search_mode=text_fallback titles=[]
+  POST /knowledge/search q='夕焼けの写真とラーメンの味': 200 total=0 hits=0 search_mode=text_fallback titles=[]
+
+== SK01-405: 検索と RAG が同じ検索関数を使っているか (コード確認 + 上記 API 実測) ==
+  apps/api/src/services/chat_sse/__init__.py:69:    result = await kn.search_knowledge(
+  apps/api/src/services/knowledge/__init__.py:408:        params["min_score"] = float(os.environ.get("ATELIER_KNOWLEDGE_MIN_SCORE", "") or "0.83")
+  apps/api/src/services/knowledge/__init__.py:419:            f" >= :min_score "
+
+== SK02-017: 採用した候補だけが正式なナレッジになる (industry_extract で候補 2 件を作る) ==
+  タグ構成 A x2, B x2 のナレッジ 4 件作成: 201 x4
+  POST /cron-schedules (industry_extract, enabled=false): 201
+  POST /cron-schedules/{id}/run-now: 200 {"status": "error", "message": "実行に失敗しました: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.InFailedSQLTransactionError'>: current transaction is aborted, commands ignored until end of transaction block\n[SQL: select workspace_id from public.projects where id = cast($1 as uu
+  GET /knowledge/candidates?status=pending: 200 自 WS の候補 0 件: []
+  → 原因 (コード): services/cron/dispatcher.py _record_start が利用者 RLS セッションで cron_run_history に insert → t-d-99za_gap013_cron_run_history.sql は『書込 policy は作らない』→ insert 失敗を握りつぶした後の transaction が aborted のまま action 本体が失敗。GET /cron-runs も [] (履歴 0)
+  代替: 同じ schedule を enabled=true / cron='* * * * *' に PATCH し、サーバー側 Inngest 'user-schedules' (15 分毎, service session) の発火を待って候補を作る
+  PATCH /cron-schedules/{id} enabled=true cron='* * * * *': 500 next_run_at=None
+
+== SO01-405 (API 側): 不正な cron 式の 422 文言 ==
+  [空の項目] cron_expression='0,,5 3 * * *': 422 detail="分の指定が空です: '0,,5'"
+  [範囲の逆転] cron_expression='0 5-2 * * *': 422 detail="時の範囲が逆転しています: '5-2'"
+  [数字以外] cron_expression='0 3 * * mon': 422 detail="曜日に数字以外が入っています: 'mon'"
+  [項目数不足] cron_expression='0 3 * *': 422 detail="cron 式は「分 時 日 月 曜日」の 5 項目で指定してください (受け取り: '0 3 * *')"
+
+== SJ01-112/113 前提の成立確認: awaiting のタスク + pending の task_approval 通知 ==
+  POST /tasks: 201 id=f84eb021-697b-4b4a-b82d-80d4d6402cde lifecycle=triage
+  PATCH /tasks/{id} lifecycle_stage=awaiting: 200 lifecycle=awaiting
+  GET /approval-inbox (全 status): 200 本人 0 件; このタスク宛 task_approval = []
+  POST /tasks/{id}/play (awaiting のまま): 409 {"detail": "このタスクは、いま実行できる状態ではありません。"}
+  play 後 GET /approval-inbox?status=pending: 200 0 件
+  → pending の task_approval を作る producer は dispatcher/bridge_tools.py complete_task/request_review (kanban, X-Bridge-Token=インスタンス トークン必須) のみ。利用者 API から作れない
+  PATCH /cron-schedules/{id} {"cron_expression": "* * * * *"}: 200 {"data": {"id": "982dd16f-2a08-436d-be46-c7469d2c1b2d", "project_id": "2c1a46d6-a742-4d2b-b25a-c51caa93ce92", "name": "QA industry_extract", "cron_expression": "* * * * *", "target_action": "industry_extract", "target_payload": {}, "enabled": false, "next_run_at": null, "created_at": "2026-09-03T01:
+  PATCH /cron-schedules/{id} {"enabled": true}: 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: e84a37a5-d0a1-420d-bbd8-cf1a28d545c2）"}
+  PATCH /cron-schedules/{id} {"enabled": true, "cron_expression": "* * * * *"}: 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: d1c68bdf-6fce-404e-ba7c-fa46aa84378b）"}
+  PATCH /cron-schedules/{id} {"name": "QA industry_extract (renamed)"}: 200 {"data": {"id": "982dd16f-2a08-436d-be46-c7469d2c1b2d", "project_id": "2c1a46d6-a742-4d2b-b25a-c51caa93ce92", "name": "QA industry_extract (renamed)", "cron_expression": "* * * * *", "target_action": "industry_extract", "target_payload": {}, "enabled": false, "next_run_at": null, "created_at": "2026
+  GET /cron-schedules/{id}: 200 enabled=False cron=* * * * * next_run_at=None
+  → PATCH enabled=true が 500 (参照 ID 上記)。cron_expression のみ / name のみは 200。有効化の切替 (S-O01 トグル) が本番で壊れている疑い
+  代替2: POST /cron-schedules enabled=true cron='* * * * *' industry_extract: 201 next_run_at=2026-09-03T01:46:00Z
+    → Inngest 'user-schedules' (*/15) の次回発火を待つ (登録時刻 UTC 2026-09-03T01:45:39)
+
+== SO01-405 (画面側): デプロイ済みバンドルの文言確認 (ブラウザ実走はサンドボックス権限で拒否されたため代替) ==
+  GET https://atelier-web-coral.vercel.app/cron/s_o01 (自分の JWT cookie): 200 html 10312B, chunks 15 (cron/s_o01 関連: ['/_next/static/chunks/app/cron/s_o01/page-000bdbd371794d13.js'])
+  chunk /_next/static/chunks/app/cron/s_o01/page-000bdbd371794d13.js: 生成失敗の文言あり → 前後: 'pression,target_action:e.target_action,target_payload:{},enabled:!0}}),onSuccess:()=>{o(null),i.invalidateQueries({queryKey:["cron-schedules",t]})},onError:e=>{o(e instanceof x.hD&&403===e.status?"スケジュールを作成する権限がありません。":"スケジュールの作成に失敗しました。入力内容を確認してください。")}});return(0,r.jsx)(Y,{onCreate:e=>d.mutate(e),'
+  /_next/static/chunks/app/cron/s_o01/page-000bdbd371794d13.js: {'generic_msg': True, 'posts_cron_schedules': True, 'renders_detail': True, '403_msg': True}
+  GET /knowledge/candidates?status=pending (UTC 02:04:29, Inngest user-schedules 02:00 UTC 発火枠の後): 200 自 WS 0 件 (01:56〜02:03 に毎分ポーリング、すべて 0 件)
+  GET /cron-schedules/{every-minute}: 200 enabled=True next_run_at=2026-09-03T01:46:00Z last_run_at=None (登録時 next_run_at=01:46:00Z)
+  GET /cron-runs?schedule_id=<every-minute>: 200 []
+  → SK02-017 は前提 (pending 候補 2 件) を本番で作れず BLOCKED。候補の producer は (a) AI 会話の auto_capture (Bridge 要) (b) cron industry_extract。(b) は run-now が cron_run_history RLS で transaction abort、PATCH enabled=true が 500、enabled で作った every-minute 行もサーバー sweep で発火せず
+
+== 後片付け ==
+  DELETE /cron-schedules/982dd16f..: 204
+  DELETE /cron-schedules/295100f5..: 204
+  DELETE /tasks/f84eb021..: 204
+  DELETE /knowledge/e03e3113..: 204
+  DELETE /knowledge/136e7d42..: 204
+  DELETE /knowledge/46687713..: 204
+  DELETE /knowledge/47b30c8d..: 204
+  DELETE /knowledge/8de7c5e9..: 204
+  DELETE /knowledge/913bee08..: 204
+  DELETE /knowledge/7afbfcf6..: 204
+  残 cron-schedules: 0
+  退会 POST /auth/account/delete (qa-approvals-20260903-1@example.com): 200
+  退会後 GET /projects (旧 JWT): 401 (期待 401)
