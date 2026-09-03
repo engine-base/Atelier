@@ -158,7 +158,9 @@ class TestWorkspaceMembers:
         with TestClient(app) as client:
             assert client.get(f"/workspaces/{seeded['ws_a']}/members").status_code == 401
 
-    def test_owner_invite_update_remove(self, app: FastAPI, seeded: dict[str, str]) -> None:
+    def test_owner_invite_update_remove(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
         ha = _h(seeded["u_a"])
         with TestClient(app) as client:
             # 初期は owner 1 名 (トリガ生成)
@@ -175,6 +177,17 @@ class TestWorkspaceMembers:
             assert r.status_code == 201, r.text
             assert r.json()["data"]["user_id"] == seeded["u_b"]
             assert r.json()["data"]["role"] == "member"
+            # GAP-281 (通し J31-01): 招待メールが送られた痕跡 (dry-run でも監査に残る)
+            with sync_engine.begin() as c:
+                mails = c.execute(
+                    text(
+                        "select after from public.audit_logs "
+                        "where action = 'workspace_member.invite_mail' "
+                        "and workspace_id = cast(:w as uuid)"
+                    ),
+                    {"w": seeded["ws_a"]},
+                ).all()
+            assert len(mails) == 1, mails
 
             # 二重招待は 409
             assert (
