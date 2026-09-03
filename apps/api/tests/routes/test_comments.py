@@ -503,3 +503,118 @@ class TestComments:
             assert client.get(url, headers=ha).json()["data"]["count"] == base
             # 越境 user は対象が不可視なので 0 (RLS)
             assert client.get(url, headers=hb).json()["data"]["count"] == 0
+
+    def test_gap299_コメントは担当AI社員のスレッドに届く(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-299 (通し J46-03 / J45-09 / J48-05): 成果物にコメントしても
+        担当 AI 社員には何も届かず、指摘が次の作業につながらなかった。
+
+        届け先は「その社員のプロジェクトチャット」。system メッセージとして積むので、
+        次にその社員へ話しかけたときの文脈にそのまま乗る。
+        """
+        emp = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees "
+                    "(id, workspace_id, name, display_name, role, department) "
+                    "values (cast(:i as uuid), cast(:w as uuid), :n, :d, 'coo', 'executive')"
+                ),
+                {"i": emp, "w": seeded["ws_a"], "n": f"emp{emp[:6]}", "d": "COO"},
+            )
+        h = _h(seeded["u_a"])
+        tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
+        with TestClient(app) as client:
+            r = client.post(
+                "/comments", json={**tgt, "content": "ここの数字を直してほしい"}, headers=h
+            )
+            assert r.status_code == 201, r.text
+            cid = r.json()["data"]["id"]
+        with sync_engine.connect() as c:
+            msg = c.execute(
+                text(
+                    "select m.content, m.role, t.ai_employee_id from public.chat_messages m "
+                    "join public.chat_threads t on t.id = m.thread_id "
+                    "where t.project_id = cast(:p as uuid) and t.ai_employee_id = cast(:e as uuid) "
+                    "order by m.created_at desc limit 1"
+                ),
+                {"p": seeded["proj_a"], "e": emp},
+            ).first()
+            assert msg is not None, "担当 AI 社員のスレッドに何も積まれていない"
+            assert msg.role == "system"
+            assert "ここの数字を直してほしい" in msg.content
+            # 送信の痕跡が監査ログに残る (届いたことを後から確かめられる)
+            n = c.execute(
+                text(
+                    "select count(*) from public.audit_logs "
+                    "where action='comment.assignee_notified' and target_id=:t"
+                ),
+                {"t": cid},
+            ).scalar_one()
+            assert n == 1
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.chat_threads where ai_employee_id = cast(:e as uuid)"),
+                {"e": emp},
+            )
+            c.execute(
+                text("delete from public.ai_employees where id = cast(:e as uuid)"), {"e": emp}
+            )
+
+    def test_gap299_担当が決まっていない対象でも宛先が決まる(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """モック / 成果物には担当欄が無い。部門 → COO → 既定 の順で宛先を決めるので、
+        「担当が空だから通知しない」で消えることはない。"""
+        design = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.ai_employees "
+                    "(id, workspace_id, name, display_name, role, department) "
+                    "values (cast(:i as uuid), cast(:w as uuid), :n, :d, 'member', 'design')"
+                ),
+                {"i": design, "w": seeded["ws_a"], "n": f"des{design[:6]}", "d": "デザイナー"},
+            )
+            mock_id = str(uuid.uuid4())
+            c.execute(
+                text(
+                    "insert into public.mocks (id, project_id, screen_name, html_storage_path) "
+                    "values (cast(:i as uuid), cast(:p as uuid), 'ログイン画面', 'mockdb://x')"
+                ),
+                {"i": mock_id, "p": seeded["proj_a"]},
+            )
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/comments",
+                json={"target_type": "mock", "target_id": mock_id, "content": "余白が広い"},
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+        with sync_engine.connect() as c:
+            got = c.execute(
+                text(
+                    "select m.content from public.chat_messages m "
+                    "join public.chat_threads t on t.id = m.thread_id "
+                    "where t.ai_employee_id = cast(:e as uuid) order by m.created_at desc limit 1"
+                ),
+                {"e": design},
+            ).first()
+            assert got is not None, "design 部門の社員に届いていない"
+            assert "余白が広い" in got.content
+            assert "モック" in got.content
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.chat_threads where ai_employee_id = cast(:e as uuid)"),
+                {"e": design},
+            )
+            c.execute(
+                text("delete from public.comments where target_id = cast(:m as uuid)"),
+                {"m": mock_id},
+            )
+            c.execute(text("delete from public.mocks where id = cast(:m as uuid)"), {"m": mock_id})
+            c.execute(
+                text("delete from public.ai_employees where id = cast(:e as uuid)"), {"e": design}
+            )

@@ -41,6 +41,7 @@ from src.services.client_signin import (
     _service_session_factory,  # pyright: ignore[reportPrivateUsage]  # 同一パッケージ内共有
 )
 from src.services.client_signin.staff_notify import notify_staff_of_client_comment
+from src.services.comments.assignee_notify import notify_assignee_of_comment
 from src.services.mocks.artifacts import FILEDB_PREFIX, MOCKDB_PREFIX, build_content_url
 from src.services.outputs.content_kind import filedb_kind
 from src.storage_signing import StorageSigningError, create_signed_download_url
@@ -433,6 +434,17 @@ async def create_comment(
                 label = STAGE_LABEL.get(str(target.label_src), str(target.label_src))
             else:
                 label = f"モック: {target.label_src}"
+            # GAP-299: 通知に「誰から」を出すための表示名 (無ければメール)
+            who = (
+                await session.execute(
+                    text(
+                        "select coalesce(nullif(client_display_name, ''), email) as who "
+                        "from public.client_invitations where id = cast(:i as uuid)"
+                    ),
+                    {"i": invitation_id},
+                )
+            ).first()
+            client_label = str(who.who) if who is not None and who.who else "クライアント"
             # GAP-266 (通し J23-01): 運営に届かないコメントは機能として成立しない。
             # 保存と同じトランザクションで通知 + 監査ログ (送信自体は best-effort)。
             await notify_staff_of_client_comment(
@@ -444,6 +456,17 @@ async def create_comment(
                 content=data.content,
             )
             await session.commit()
+            # GAP-299 (通し J46-03): 運営 (人) だけでなく **担当 AI 社員** にも届ける。
+            # 届かないと、クライアントの指摘が次の作業に一切つながらない。
+            await notify_assignee_of_comment(
+                comment_id=str(row.id),
+                target_type=data.target_type,
+                target_id=data.target_id,
+                content=data.content,
+                author_label=client_label,
+                actor_id=f"client:{invitation_id}",
+                actor_type="anonymous",
+            )
         except Exception:
             await session.rollback()
             raise

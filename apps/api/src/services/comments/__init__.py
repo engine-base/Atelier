@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.comments import CommentCreate, CommentResponse, CommentUpdate
+from src.services.comments.assignee_notify import notify_assignee_of_comment
 
 _COLS = (
     "c.id, c.target_type, c.target_id, c.target_element_id, c.author_user_id, "
@@ -157,7 +158,19 @@ async def create_comment(
             },
         )
     )
-    return await get_comment(session, new_id)
+    created = await get_comment(session, new_id)
+    # GAP-299: 担当 AI 社員に届ける (その社員のスレッドへ system メッセージ)。
+    # 届かなければ「コメントは書いた本人しか知らない」まま止まる。
+    await notify_assignee_of_comment(
+        comment_id=new_id,
+        target_type=data.target_type,
+        target_id=data.target_id,
+        content=data.content,
+        author_label=(created.author_name if created and created.author_name else "担当者"),
+        actor_id=actor_id,
+        actor_type=("anonymous" if is_client else "user"),
+    )
+    return created
 
 
 async def update_comment(
