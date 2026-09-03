@@ -100,6 +100,26 @@ jobs:
             echo "::error::FLY_APP_NAME secret is not set"
             exit 1
           fi
+      - name: Verify runtime secrets on Fly (G-11)
+        # GAP-278 (通し J31-07 / J39-01): 本番に Vault 鍵が無く、シークレット登録が全員 500 だった。
+        # 「外部リソースの実在」はダッシュボードの目視でなくデプロイの関所で確かめる。
+        # 名前だけを見る (値は取らない・出さない)。
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          names="$(flyctl secrets list -a "$FLY_APP_NAME" --json | python3 -c 'import json,sys; print("\n".join(x.get("Name","") for x in json.load(sys.stdin)))')"
+          missing=""
+          has() { printf '%s\n' "$names" | grep -qx "$1"; }
+          has ATELIER_VAULT_ENCRYPTION_KEYS || has ATELIER_VAULT_ENCRYPTION_KEY || missing="$missing ATELIER_VAULT_ENCRYPTION_KEYS"
+          for n in ATELIER_AUTH_JWT_SECRET ATELIER_DB_URL ATELIER_SUPABASE_ADMIN_API_URL ATELIER_SUPABASE_SERVICE_ROLE_KEY; do
+            has "$n" || missing="$missing $n"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Fly app $FLY_APP_NAME is missing runtime secrets:$missing (flyctl secrets set <NAME>=... -a $FLY_APP_NAME)"
+            exit 1
+          fi
+          echo "runtime secrets present on $FLY_APP_NAME"
           # GAP-192: PROD_DATABASE_URL 未設定は **黙って skip させない**。
           # 従来は migration ステップが if で静かに飛ばされるだけだったので、
           # 「新しいコードを古いスキーマの本番へ流す」= 起動後に 500 になる事故を

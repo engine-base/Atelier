@@ -48,6 +48,9 @@ async def list_credentials(
 async def create_credential(
     project_id: str, body: CredentialCreate, session: SessionDep, user: UserDep
 ) -> dict[str, CredentialResponse]:
+    # GAP-278: 認可 (viewer 403) を鍵の設定検査より先に行う
+    if not await svc.can_write_project(session, project_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "シークレットを追加する権限がありません。")
     created = await svc.create_credential(
         session, actor_id=user.id, project_id=project_id, data=body
     )

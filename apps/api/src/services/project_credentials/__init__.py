@@ -153,6 +153,24 @@ async def get_credential(
     return None if row is None else _row_to_response(row)
 
 
+async def can_write_project(session: AsyncSession, project_id: str) -> bool:
+    """呼び出し元が案件の WS で owner / member か (viewer は書けない)。
+
+    GAP-278 (通し J31-07 / J39-01): 設定不備 (鍵未設定) の 500 より **先に** 認可を
+    見る。viewer にまで「サーバー側の設定に問題」と返していた。
+    """
+    res = await session.execute(
+        text(
+            "select exists(select 1 from public.projects p "
+            "join public.workspace_memberships m on m.workspace_id = p.workspace_id "
+            "where p.id = cast(:p as uuid) and p.deleted_at is null "
+            "and m.user_id = auth.uid() and m.role in ('owner', 'member'))"
+        ),
+        {"p": project_id},
+    )
+    return bool(res.scalar_one())
+
+
 async def create_credential(
     session: AsyncSession, *, actor_id: str, project_id: str, data: CredentialCreate
 ) -> CredentialResponse | None:
