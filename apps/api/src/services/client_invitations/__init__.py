@@ -203,8 +203,9 @@ async def resend_invitation(
 
     token は hash しか保存していないため「元リンクの再送」は不可能。
     再送 = 新 token へローテーション (旧リンク失効) + 新リンクをメール送信。
-    pending (未使用・未失効・未期限切れ) の招待のみ対象 — 期限切れ/失効は
-    既存の再発行 (新規 POST) を使う。
+    未失効・未期限切れの招待が対象 (GAP-264: 使用済みでも再送できる — クライアントが
+    リンクを失くして再サインインしたい場面が通し J20-05 で出た。旧リンクは失効し、
+    発行済みの client JWT はそのまま有効期限まで使える)。期限切れ/失効は既存の再発行 (新規 POST) を使う。
     """
     cur = await session.execute(
         text(
@@ -216,8 +217,8 @@ async def resend_invitation(
     row = cur.first()
     if row is None:
         raise ResendError("not_found", "invitation not found")
-    if row.used_at is not None or row.revoked_at is not None:
-        raise ResendError("not_pending", "invitation already used or revoked")
+    if row.revoked_at is not None:
+        raise ResendError("not_pending", "invitation already revoked")
     if row.expires_at is not None and row.expires_at < datetime.now(UTC):
         raise ResendError("not_pending", "invitation expired — create a new one")
 

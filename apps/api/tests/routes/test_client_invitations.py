@@ -197,6 +197,46 @@ class TestClientInvitations:
                 ).json()["data"]
             )
 
+    def test_resend_after_use_rotates_token_GAP264(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-264 (通し J20-05): 一度使われた招待でも再送できる (旧リンク失効・新リンク)。
+        失効させた招待は従来どおり 409。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            cr = client.post(
+                "/client-invitations",
+                json={"project_id": seeded["proj_a"], "email": "used-resend@ext.example"},
+                headers=h,
+            )
+            assert cr.status_code == 201, cr.text
+            iid = cr.json()["data"]["id"]
+            old_raw = cr.json()["data"]["token"]
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "update public.client_invitations set used_at = now() where id = cast(:i as uuid)"
+                    ),
+                    {"i": iid},
+                )
+            rs = client.post(f"/client-invitations/{iid}/resend", headers=h)
+            assert rs.status_code == 200, rs.text
+            new_raw = rs.json()["data"]["token"]
+            assert new_raw and new_raw != old_raw
+            # 旧リンクは無効 (token_hash が新リンクのものに置き換わっている)
+            with sync_engine.connect() as c:
+                stored = c.execute(
+                    text(
+                        "select token_hash from public.client_invitations where id = cast(:i as uuid)"
+                    ),
+                    {"i": iid},
+                ).scalar_one()
+            assert stored == hashlib.sha256(new_raw.encode()).hexdigest()
+            assert stored != hashlib.sha256(old_raw.encode()).hexdigest()
+            # 失効済みは 409 のまま
+            assert client.post(f"/client-invitations/{iid}/revoke", headers=h).status_code == 200
+            assert client.post(f"/client-invitations/{iid}/resend", headers=h).status_code == 409
+
     def test_resend_rotates_token_and_audits(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:
