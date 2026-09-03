@@ -39,7 +39,9 @@ import { usePathname } from 'next/navigation';
 import { getJson } from '../../lib/auth/connector';
 import { ROUTE_MAP } from '../../lib/routes';
 import {
+  ME_CHANGED_EVENT,
   WORKSPACES_CHANGED_EVENT,
+  WORKSPACE_SWITCHED_EVENT,
   readCurrentWorkspace,
   writeCurrentWorkspace,
 } from '../../lib/currentWorkspace';
@@ -271,13 +273,18 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
   useEffect(() => {
     if (bare) return;
     let cancelled = false;
-    getJson<MeLite>('/me')
-      .then((res) => {
-        if (!cancelled) setMe(res.data);
-      })
-      .catch(() => {
-        /* アバターはプロフィール取得失敗時は出さない */
-      });
+    // GAP-270: 表示名の保存 (T-UC-37) を受けて読み直す (再読み込み前に反映)
+    const loadMe = () => {
+      getJson<MeLite>('/me')
+        .then((res) => {
+          if (!cancelled) setMe(res.data);
+        })
+        .catch(() => {
+          /* アバターはプロフィール取得失敗時は出さない */
+        });
+    };
+    loadMe();
+    window.addEventListener(ME_CHANGED_EVENT, loadMe);
     // 通知ベルの未読バッジ = 本人の未処理承認待ち件数 (実データ)。失敗時は 0 のまま。
     getJson<readonly unknown[]>('/approval-inbox?status=pending')
       .then((res) => {
@@ -288,7 +295,16 @@ export function ConditionalAppShell({ children }: { readonly children: ReactNode
       });
     return () => {
       cancelled = true;
+      window.removeEventListener(ME_CHANGED_EVENT, loadMe);
     };
+  }, [bare]);
+
+  // GAP-271: WS 切替 (ヘッダー / T-UC-38) を受けたら現在案件の表示を消す
+  useEffect(() => {
+    if (bare) return;
+    const onSwitched = () => setProject(undefined);
+    window.addEventListener(WORKSPACE_SWITCHED_EVENT, onSwitched);
+    return () => window.removeEventListener(WORKSPACE_SWITCHED_EVENT, onSwitched);
   }, [bare]);
 
   // 現在プロジェクト (useProjectId と同じ永続値 + URL ?project= 優先) の名前を引く。

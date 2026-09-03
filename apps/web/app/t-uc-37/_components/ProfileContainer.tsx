@@ -8,6 +8,7 @@
 
 "use client";
 
+import { notifyMeChanged } from "../../../lib/currentWorkspace";
 import * as React from "react";
 import { Loading } from "../../../components/Loading";
 import { useMemo, useState } from "react";
@@ -112,7 +113,11 @@ function ProfileForm({ client, email, initialName }: ProfileFormProps) {
       );
     },
     onSuccess: () => setSaved(true),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["me"] }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["me"] });
+      // GAP-270 (通し J15-03): 保存直後にヘッダーの表示名も更新する
+      notifyMeChanged();
+    },
   });
 
   const onSubmit = async (v: { display_name: string }): Promise<void> => {

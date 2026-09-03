@@ -11,6 +11,7 @@
 
 "use client";
 
+import { notifyWorkspacesChanged } from "../../../../lib/currentWorkspace";
 import * as React from "react";
 import { Loading } from "../../../../components/Loading";
 import { useMemo, useState } from "react";
@@ -128,7 +129,11 @@ export function WorkspaceSettingsContainer({
           : "設定の保存に失敗しました。時間をおいて再度お試しください。",
       );
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: KEY });
+      // GAP-270 (通し J36-01): 保存直後にサイドバー / ヘッダーの WS 名も更新する
+      notifyWorkspacesChanged();
+    },
   });
 
   // GAP-021: アイコン変更 (PATCH {icon})。null = クリア (頭文字表示に戻す)。

@@ -14,7 +14,31 @@ export function readCurrentWorkspace(): string | undefined {
 
 export function writeCurrentWorkspace(id: string): void {
   if (typeof window === "undefined") return;
+  const before = window.localStorage.getItem(CURRENT_WS_KEY);
   window.localStorage.setItem(CURRENT_WS_KEY, id);
+  // GAP-271 (通し J15-05): 切り替えた瞬間に「現在案件」を旧 WS のまま残さない。
+  // 一覧 (S-B01) も切替を受けて現在 WS で読み直す。
+  if (before !== id) {
+    window.localStorage.removeItem(CURRENT_PROJECT_STORAGE_KEY);
+    window.dispatchEvent(new Event(WORKSPACE_SWITCHED_EVENT));
+  }
+}
+
+/** useProjectId と同じ永続キー (循環 import を避けるためここに複製)。 */
+const CURRENT_PROJECT_STORAGE_KEY = "atelier_current_project";
+
+/** GAP-271: 現在ワークスペースが切り替わった (一覧・ヘッダーが読み直す)。 */
+export const WORKSPACE_SWITCHED_EVENT = "atelier:workspace-switched";
+
+/**
+ * GAP-270 (通し J15-03): 表示名を保存した直後にヘッダーへ反映する。
+ * シェルは起動時に 1 回しか `/me` を読まないので、保存側がこれを呼ぶ。
+ */
+export const ME_CHANGED_EVENT = "atelier:me-changed";
+
+export function notifyMeChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(ME_CHANGED_EVENT));
 }
 
 /**
