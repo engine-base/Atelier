@@ -96,6 +96,7 @@ USER_MESSAGES: dict[str, str] = {
     "forbidden_scope": "この操作を行う権限がありません。",
     "project_not_found": "対象が見つかりません。",
     "target_not_found": "対象が見つかりません。",
+    "comment_not_found": "対象のコメントが見つからないか、すでに取り消されています。",
     # ---- 見つからない / 状態が合わない (GAP-225) -------------------------- #
     # 同じ code を多くの service が使う。**どの種類のものが見つからないか**は
     # CLASS_MESSAGES で個別に言う (下)。ここはその既定値。

@@ -310,3 +310,54 @@ export async function postClientComment(
   if (!data) throw new ClientPortalError("unexpected response", res.status);
   return data;
 }
+
+async function clientSend(
+  method: "PATCH" | "DELETE",
+  path: string,
+  token: string,
+  body?: unknown,
+): Promise<unknown> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (res.status === 204) return undefined;
+  const json = await parseJson(res);
+  if (!res.ok)
+    throw new ClientPortalError(detailMessage(json, res.status), res.status);
+  return json?.data;
+}
+
+/** 自分のコメントの本文修正 (GAP-267 / 通し J23-03)。 */
+export async function patchClientComment(
+  projectId: string,
+  token: string,
+  commentId: string,
+  content: string,
+): Promise<ClientCommentItemData> {
+  const data = (await clientSend(
+    "PATCH",
+    `/client/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+    token,
+    { content },
+  )) as ClientCommentItemData | undefined;
+  if (!data) throw new ClientPortalError("unexpected response", 200);
+  return data;
+}
+
+/** 自分のコメントの取り消し (GAP-267 / 通し J23-03)。 */
+export async function deleteClientComment(
+  projectId: string,
+  token: string,
+  commentId: string,
+): Promise<void> {
+  await clientSend(
+    "DELETE",
+    `/client/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+    token,
+  );
+}

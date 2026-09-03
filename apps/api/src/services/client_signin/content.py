@@ -28,6 +28,7 @@ from src.audit import AuditEvent, AuditWriter
 from src.schemas.client_signin import (
     ClientCommentCreate,
     ClientCommentItem,
+    ClientCommentUpdate,
     ClientMockItem,
     ClientMocksResponse,
     ClientOutputItem,
@@ -446,3 +447,132 @@ async def create_comment(
         is_client_author=True,
         created_at=row.created_at,
     )
+
+
+# コメントが「この招待の・この project の・未削除の」ものであることを 1 文で言う (GAP-267)
+_OWN_COMMENT_WHERE = (
+    "c.id = cast(:id as uuid) and c.deleted_at is null "
+    "and c.author_invitation_id = cast(:inv as uuid) "
+    "and exists (select 1 from public.comments c2 "
+    "  left join public.workflow_outputs wo "
+    "    on c2.target_type = 'workflow_output' and wo.id = c2.target_id "
+    "  left join public.mocks m on c2.target_type = 'mock' and m.id = c2.target_id "
+    "  where c2.id = c.id and coalesce(wo.project_id, m.project_id) = cast(:p as uuid))"
+)
+
+
+async def update_comment(
+    *,
+    claims: dict[str, Any],
+    requested_project_id: str,
+    comment_id: str,
+    data: ClientCommentUpdate,
+) -> ClientCommentItem:
+    """クライアント自身のコメントの本文修正 (GAP-267 / 通し J23-03)。
+
+    自分 (この招待) が書いた・未削除・自 project のコメントだけ。他人のコメントや
+    他 project のものは存在ごと秘匿 (404)。comment スコープ必須。
+    """
+    project_id = _require_project(claims, requested_project_id)
+    _require_scope(claims, "comment")
+    invitation_id = str(claims.get("invitation_id", ""))
+    if not _is_uuid(invitation_id):
+        raise ClientSigninError("invalid_client_token", "missing invitation_id claim")
+    if not _is_uuid(comment_id):
+        raise ClientSigninError("comment_not_found", "comment not found")
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            res = await session.execute(
+                text(
+                    "update public.comments c set content = :c, updated_at = now() "
+                    "where " + _OWN_COMMENT_WHERE + " "
+                    "returning c.id, c.target_type, c.target_id, c.created_at"
+                ),
+                {"id": comment_id, "inv": invitation_id, "p": project_id, "c": data.content},
+            )
+            row = res.first()
+            if row is None:
+                raise ClientSigninError("comment_not_found", "comment not found")
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="client.comment.update",
+                    target_type="comment",
+                    actor_type="anonymous",
+                    actor_id=f"client:{invitation_id}",
+                    target_id=str(row.id),
+                    after={"project_id": project_id, "content_length": len(data.content)},
+                )
+            )
+            label = await _target_label(session, str(row.target_type), str(row.target_id))
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+    return ClientCommentItem(
+        id=str(row.id),
+        target_type=str(row.target_type),
+        target_id=str(row.target_id),
+        target_label=label,
+        content=data.content,
+        author_name=None,
+        is_client_author=True,
+        created_at=row.created_at,
+    )
+
+
+async def delete_comment(
+    *, claims: dict[str, Any], requested_project_id: str, comment_id: str
+) -> None:
+    """クライアント自身のコメントの取り消し (論理削除 / GAP-267 / 通し J23-03)。"""
+    project_id = _require_project(claims, requested_project_id)
+    _require_scope(claims, "comment")
+    invitation_id = str(claims.get("invitation_id", ""))
+    if not _is_uuid(invitation_id):
+        raise ClientSigninError("invalid_client_token", "missing invitation_id claim")
+    if not _is_uuid(comment_id):
+        raise ClientSigninError("comment_not_found", "comment not found")
+    factory = _service_session_factory()
+    async with factory() as session:
+        try:
+            res = await session.execute(
+                text(
+                    "update public.comments c set deleted_at = now(), status = 'deleted', "
+                    "updated_at = now() where " + _OWN_COMMENT_WHERE + " returning c.id"
+                ),
+                {"id": comment_id, "inv": invitation_id, "p": project_id},
+            )
+            if res.first() is None:
+                raise ClientSigninError("comment_not_found", "comment not found")
+            await AuditWriter(session).write(
+                AuditEvent(
+                    action="client.comment.delete",
+                    target_type="comment",
+                    actor_type="anonymous",
+                    actor_id=f"client:{invitation_id}",
+                    target_id=comment_id,
+                    after={"project_id": project_id},
+                )
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+async def _target_label(session: AsyncSession, target_type: str, target_id: str) -> str | None:
+    if target_type == "workflow_output":
+        stage = (
+            await session.execute(
+                text("select stage from public.workflow_outputs where id = cast(:i as uuid)"),
+                {"i": target_id},
+            )
+        ).scalar_one_or_none()
+        return None if stage is None else STAGE_LABEL.get(str(stage), str(stage))
+    name = (
+        await session.execute(
+            text("select screen_name from public.mocks where id = cast(:i as uuid)"),
+            {"i": target_id},
+        )
+    ).scalar_one_or_none()
+    return None if name is None else f"モック: {name}"

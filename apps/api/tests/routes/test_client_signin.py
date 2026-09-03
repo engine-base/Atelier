@@ -983,6 +983,92 @@ class TestClientPortalContent:
                 )
                 c.execute(text("delete from public.mock_contents where id = :c"), {"c": cid})
 
+    def test_gap267_client_edits_and_deletes_own_comment_only(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        portal_content: dict[str, str],
+    ) -> None:
+        """GAP-267 (通し J23-03): 自分のコメントは直せる・取り消せる。他人のは 404。
+
+        修正は本文が変わり一覧に反映、監査 client.comment.update。取り消しは一覧から消え
+        監査 client.comment.delete。別案件の券・view-only の券は触れない。"""
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            h = {"Authorization": f"Bearer {tok}"}
+            base = f"/client/projects/{portal_content['proj_a']}/comments"
+            posted = client.post(
+                base,
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_hear_v2"],
+                    "content": "最初の本文",
+                },
+                headers=h,
+            )
+            assert posted.status_code == 201, posted.text
+            cid = posted.json()["data"]["id"]
+            # 修正
+            r = client.patch(f"{base}/{cid}", json={"content": "直した本文"}, headers=h)
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["content"] == "直した本文"
+            assert r.json()["data"]["target_label"] == "ヒアリングサマリー"
+            listed = client.get(base, headers=h).json()["data"]
+            assert [c["content"] for c in listed if c["id"] == cid] == ["直した本文"]
+            # 空本文は 422
+            assert client.patch(f"{base}/{cid}", json={"content": ""}, headers=h).status_code == 422
+            # 別案件の券 → claim 不一致 403 / view-only の券 → スコープ無し 403
+            tok_b = _client_token(client, portal_content["token_b"])
+            assert (
+                client.patch(
+                    f"{base}/{cid}",
+                    json={"content": "x"},
+                    headers={"Authorization": f"Bearer {tok_b}"},
+                ).status_code
+                == 403
+            )
+            tok_view = _client_token(client, portal_content["token_view"])
+            assert (
+                client.delete(
+                    f"{base}/{cid}", headers={"Authorization": f"Bearer {tok_view}"}
+                ).status_code
+                == 403
+            )
+            # 存在しない / 他人のコメント ID は 404 (存在ごと秘匿)
+            assert client.delete(f"{base}/{uuid.uuid4()}", headers=h).status_code == 404
+            # 取り消し
+            assert client.delete(f"{base}/{cid}", headers=h).status_code == 204
+            assert cid not in {c["id"] for c in client.get(base, headers=h).json()["data"]}
+            # 取り消し済みは二度目 404、修正も 404
+            assert client.delete(f"{base}/{cid}", headers=h).status_code == 404
+            assert (
+                client.patch(f"{base}/{cid}", json={"content": "y"}, headers=h).status_code == 404
+            )
+        with sync_engine.begin() as c:
+            row = c.execute(
+                text("select deleted_at, status from public.comments where id = cast(:i as uuid)"),
+                {"i": cid},
+            ).first()
+            assert row is not None and row.deleted_at is not None and row.status == "deleted"
+            actions = [
+                r.action
+                for r in c.execute(
+                    text(
+                        "select action from public.audit_logs where target_id = :i "
+                        "and actor_id = :a order by created_at"
+                    ),
+                    {"i": cid, "a": f"client:{portal_content['inv_a']}"},
+                ).all()
+            ]
+            assert "client.comment.update" in actions and "client.comment.delete" in actions
+            c.execute(
+                text(
+                    "delete from public.audit_logs where action in "
+                    "('client.comment.update','client.comment.delete') and target_id = :i"
+                ),
+                {"i": cid},
+            )
+
     def test_comment_target_from_other_project_404(
         self, app: FastAPI, portal_content: dict[str, str]
     ) -> None:

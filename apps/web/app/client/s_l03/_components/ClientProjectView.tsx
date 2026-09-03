@@ -59,6 +59,10 @@ export interface ClientProjectViewProps {
   ) => void;
   readonly openingOutputId?: string | null;
   readonly openError?: string | null;
+  /** GAP-267: 自分のコメントの修正・取り消し (comment スコープ保有時のみ)。 */
+  readonly onEditComment?: (commentId: string, content: string) => void;
+  readonly onDeleteComment?: (commentId: string) => void;
+  readonly busyCommentId?: string | null;
 }
 
 const OUTPUT_FORMATS: ReadonlyArray<"html" | "json" | "md"> = [
@@ -113,6 +117,9 @@ export function ClientProjectView({
   onOpenOutput,
   openingOutputId,
   openError,
+  onEditComment,
+  onDeleteComment,
+  busyCommentId,
 }: ClientProjectViewProps) {
   const displayName = data.viewed_as_client_display_name;
   const permissionLabel =
@@ -130,6 +137,10 @@ export function ClientProjectView({
     }));
     return [...outs, ...ms];
   }, [outputs, mocks]);
+  const canManageOwn =
+    data.scopes.includes("comment") && Boolean(onEditComment || onDeleteComment);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editText, setEditText] = React.useState("");
   const [commentTarget, setCommentTarget] = React.useState("");
   const [commentText, setCommentText] = React.useState("");
   const [commentLocalError, setCommentLocalError] = React.useState<
@@ -465,9 +476,72 @@ export function ClientProjectView({
                             {c.target_label}
                           </p>
                         ) : null}
-                        <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-on-surface">
-                          {c.content}
-                        </p>
+                        {editingId === c.id ? (
+                          <div className="flex flex-col gap-2">
+                            <textarea
+                              aria-label="コメントを修正"
+                              value={editText}
+                              onChange={(e) => setEditText(e.target.value)}
+                              rows={3}
+                              className="w-full rounded-md border border-border px-3 py-2 text-[12.5px] text-on-surface"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                disabled={
+                                  !editText.trim() || busyCommentId === c.id
+                                }
+                                onClick={() => {
+                                  onEditComment?.(c.id, editText.trim());
+                                  setEditingId(null);
+                                }}
+                                className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-semibold text-on-primary hover:bg-primary-hover disabled:opacity-50"
+                              >
+                                保存
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(null)}
+                                className="inline-flex h-8 items-center rounded-md border border-border px-3 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant"
+                              >
+                                やめる
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-on-surface">
+                            {c.content}
+                          </p>
+                        )}
+                        {canManageOwn && c.is_client_author && editingId !== c.id ? (
+                          <div className="mt-2 flex items-center gap-3">
+                            {onEditComment ? (
+                              <button
+                                type="button"
+                                disabled={busyCommentId === c.id}
+                                onClick={() => {
+                                  setEditingId(c.id);
+                                  setEditText(c.content);
+                                }}
+                                aria-label={`コメントを修正: ${c.content.slice(0, 20)}`}
+                                className="text-[11.5px] font-semibold text-primary hover:underline disabled:opacity-50"
+                              >
+                                修正
+                              </button>
+                            ) : null}
+                            {onDeleteComment ? (
+                              <button
+                                type="button"
+                                disabled={busyCommentId === c.id}
+                                onClick={() => onDeleteComment(c.id)}
+                                aria-label={`コメントを取り消す: ${c.content.slice(0, 20)}`}
+                                className="text-[11.5px] font-semibold text-error hover:underline disabled:opacity-50"
+                              >
+                                取り消す
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </li>
                     ))}
                   </ul>

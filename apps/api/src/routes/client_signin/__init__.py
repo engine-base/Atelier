@@ -20,6 +20,7 @@ from src.rate_limit import rate_limit_ip
 from src.schemas.client_signin import (
     ClientCommentCreate,
     ClientCommentItem,
+    ClientCommentUpdate,
     ClientInvitationPreview,
     ClientInvitationPreviewRequest,
     ClientMocksResponse,
@@ -138,7 +139,7 @@ async def _client_claims(authorization: str | None) -> dict[str, Any]:
 def _raise_content_error(exc: svc.ClientSigninError) -> None:
     if exc.code in ("cross_project", "forbidden_scope"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, user_detail(exc)) from exc
-    if exc.code in ("project_not_found", "target_not_found"):
+    if exc.code in ("project_not_found", "target_not_found", "comment_not_found"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, user_detail(exc)) from exc
     if exc.code == "invalid_client_token":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
@@ -269,3 +270,46 @@ async def client_project_comment_create(
         _raise_content_error(exc)
         raise
     return {"data": result}
+
+
+@router.patch(
+    "/client/projects/{project_id}/comments/{comment_id}",
+    summary="クライアント: 自分のコメントの本文修正 — comment スコープ必須 (GAP-267 / 越境 404)",
+    dependencies=[Depends(rate_limit_ip(30))],
+)
+async def client_project_comment_update(
+    project_id: str,
+    comment_id: str,
+    body: ClientCommentUpdate,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, ClientCommentItem]:
+    claims = await _client_claims(authorization)
+    try:
+        result = await content_svc.update_comment(
+            claims=claims, requested_project_id=project_id, comment_id=comment_id, data=body
+        )
+    except svc.ClientSigninError as exc:
+        _raise_content_error(exc)
+        raise
+    return {"data": result}
+
+
+@router.delete(
+    "/client/projects/{project_id}/comments/{comment_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="クライアント: 自分のコメントの取り消し — comment スコープ必須 (GAP-267 / 越境 404)",
+    dependencies=[Depends(rate_limit_ip(30))],
+)
+async def client_project_comment_delete(
+    project_id: str,
+    comment_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+) -> None:
+    claims = await _client_claims(authorization)
+    try:
+        await content_svc.delete_comment(
+            claims=claims, requested_project_id=project_id, comment_id=comment_id
+        )
+    except svc.ClientSigninError as exc:
+        _raise_content_error(exc)
+        raise

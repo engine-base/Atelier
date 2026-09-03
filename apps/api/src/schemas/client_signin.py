@@ -152,6 +152,12 @@ class ClientCommentCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
+class ClientCommentUpdate(BaseModel):
+    """クライアント自身のコメントの本文修正 (GAP-267)。"""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+
 class ClientCommentItem(BaseModel):
     """クライアント自身のコメント + 運営からの返信。"""
 

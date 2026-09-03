@@ -24,6 +24,8 @@ import {
   clearClientAccessToken,
   getClientComments as defaultGetComments,
   getClientOutputContentUrl as defaultGetContentUrl,
+  patchClientComment as defaultPatchComment,
+  deleteClientComment as defaultDeleteComment,
   type ClientContentUrlData,
   getClientMocks as defaultGetMocks,
   getClientOutputs as defaultGetOutputs,
@@ -75,6 +77,23 @@ export interface ClientProjectViewContainerProps {
     token: string,
   ) => Promise<ClientContentUrlData>;
   readonly openUrl?: (url: string) => void;
+  /** GAP-267: 自分のコメントの修正・取り消し。 */
+  readonly patchComment?: (
+    projectId: string,
+    token: string,
+    commentId: string,
+    content: string,
+  ) => Promise<ClientCommentItemData>;
+  readonly deleteComment?: (
+    projectId: string,
+    token: string,
+    commentId: string,
+  ) => Promise<void>;
+  readonly confirmDelete?: (message: string) => boolean;
+}
+
+function defaultConfirmDelete(message: string): boolean {
+  return window.confirm(message);
 }
 
 function defaultOpenUrl(url: string): void {
@@ -92,6 +111,9 @@ export function ClientProjectViewContainer({
   postComment = defaultPostComment,
   fetchContentUrl = defaultGetContentUrl,
   openUrl = defaultOpenUrl,
+  patchComment = defaultPatchComment,
+  deleteComment = defaultDeleteComment,
+  confirmDelete = defaultConfirmDelete,
 }: ClientProjectViewContainerProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -155,6 +177,56 @@ export function ClientProjectViewContainer({
             ? "この成果物は共有されていないか、削除されています。"
             : "成果物を開けませんでした。時間をおいてもう一度お試しください。",
       );
+    },
+  });
+
+  // GAP-267 (通し J23-03): 自分のコメントを直せない・取り消せない
+  const invalidateComments = () =>
+    queryClient.invalidateQueries({
+      queryKey: ["client-project", projectId, "comments"],
+    });
+  const edit = useMutation({
+    mutationFn: (input: { commentId: string; content: string }) =>
+      patchComment(projectId, token as string, input.commentId, input.content),
+    retry: false,
+    onSuccess: async () => {
+      setPostState({ kind: "notice", text: "コメントを修正しました。" });
+      await invalidateComments();
+    },
+    onError: (error) => {
+      const status =
+        error instanceof ClientPortalError ? error.status : null;
+      setPostState({
+        kind: "error",
+        text:
+          status === 404
+            ? "このコメントは見つからないか、すでに取り消されています。"
+            : status === 403
+              ? "コメント権限がありません。"
+              : "コメントの修正に失敗しました。",
+      });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (commentId: string) =>
+      deleteComment(projectId, token as string, commentId),
+    retry: false,
+    onSuccess: async () => {
+      setPostState({ kind: "notice", text: "コメントを取り消しました。" });
+      await invalidateComments();
+    },
+    onError: (error) => {
+      const status =
+        error instanceof ClientPortalError ? error.status : null;
+      setPostState({
+        kind: "error",
+        text:
+          status === 404
+            ? "このコメントは見つからないか、すでに取り消されています。"
+            : status === 403
+              ? "コメント権限がありません。"
+              : "コメントの取り消しに失敗しました。",
+      });
     },
   });
 
@@ -283,6 +355,22 @@ export function ClientProjectViewContainer({
         post.mutate(input);
       }}
       posting={post.isPending}
+      onEditComment={(commentId, content) => {
+        setPostState(null);
+        edit.mutate({ commentId, content });
+      }}
+      onDeleteComment={(commentId) => {
+        if (!confirmDelete("このコメントを取り消しますか？運営側からも見えなくなります。")) return;
+        setPostState(null);
+        remove.mutate(commentId);
+      }}
+      busyCommentId={
+        edit.isPending
+          ? edit.variables?.commentId ?? null
+          : remove.isPending
+            ? remove.variables ?? null
+            : null
+      }
       onOpenOutput={(outputId, format) => {
         setOpenError(null);
         open.mutate({ outputId, format });

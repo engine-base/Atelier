@@ -3137,6 +3137,14 @@ class ClientCommentCreate(BaseModel):
     content: Annotated[str, Field(max_length=4000, min_length=1)]
 
 
+class ClientCommentUpdate(BaseModel):
+    """
+    クライアント自身のコメントの本文修正 (GAP-267)。
+    """
+
+    content: Annotated[str, Field(max_length=4000, min_length=1)]
+
+
 class ClientCommentItem(BaseModel):
     """
     クライアント自身のコメント + 運営からの返信 (GAP-029)。

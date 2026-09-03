@@ -389,3 +389,78 @@ describe("S-L03 GAP-268 成果物を開く (通し J23-05)", () => {
     expect(openUrl).not.toHaveBeenCalled();
   });
 });
+
+describe("S-L03 GAP-267 自分のコメントの修正・取り消し (通し J23-03)", () => {
+  it("edits the own comment inline and calls the API with the new text", async () => {
+    const patchComment = vi.fn(async () => ({
+      ...COMMENTS[0]!,
+      content: "直した本文",
+    }));
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        postComment={vi.fn()}
+        patchComment={patchComment}
+        deleteComment={vi.fn()}
+      />,
+    );
+    const section = await screen.findByRole("region", { name: "あなたのコメント" });
+    // 自分のコメントにだけ「修正」「取り消す」が出る (運営の返信には出ない)
+    expect(within(section).getAllByRole("button", { name: /^コメントを修正:/ })).toHaveLength(1);
+    fireEvent.click(within(section).getByRole("button", { name: /^コメントを修正:/ }));
+    const box = within(section).getByRole("textbox", { name: "コメントを修正" });
+    fireEvent.change(box, { target: { value: "直した本文" } });
+    fireEvent.click(within(section).getByRole("button", { name: "保存" }));
+    await vi.waitFor(() =>
+      expect(patchComment).toHaveBeenCalledWith("p1", "ct", COMMENTS[0]!.id, "直した本文"),
+    );
+    expect(await screen.findByText("コメントを修正しました。")).toBeInTheDocument();
+  });
+
+  it("deletes the own comment after confirmation and skips when declined", async () => {
+    const deleteComment = vi.fn(async () => undefined);
+    const confirmDelete = vi.fn(() => false);
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        postComment={vi.fn()}
+        patchComment={vi.fn()}
+        deleteComment={deleteComment}
+        confirmDelete={confirmDelete}
+      />,
+    );
+    const section = await screen.findByRole("region", { name: "あなたのコメント" });
+    const del = within(section).getByRole("button", { name: /^コメントを取り消す:/ });
+    fireEvent.click(del);
+    expect(confirmDelete).toHaveBeenCalled();
+    expect(deleteComment).not.toHaveBeenCalled();
+    confirmDelete.mockReturnValue(true);
+    fireEvent.click(del);
+    await vi.waitFor(() =>
+      expect(deleteComment).toHaveBeenCalledWith("p1", "ct", COMMENTS[0]!.id),
+    );
+    expect(await screen.findByText("コメントを取り消しました。")).toBeInTheDocument();
+  });
+
+  it("hides edit/delete for view-only scope", async () => {
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => ({ ...DATA, scopes: ["view"] }))}
+        {...contentProps()}
+        patchComment={vi.fn()}
+        deleteComment={vi.fn()}
+      />,
+    );
+    const section = await screen.findByRole("region", { name: "あなたのコメント" });
+    expect(within(section).queryByRole("button", { name: /^コメントを修正:/ })).not.toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: /^コメントを取り消す:/ })).not.toBeInTheDocument();
+  });
+});

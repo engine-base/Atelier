@@ -18878,6 +18878,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/projects/{project_id}/comments/{comment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * クライアント 自分のコメントの取り消し（GAP-267 / 越境 404）
+         * @description 論理削除 (deleted_at + status=deleted)。自分 (この招待) が書いた・未削除・自 project のコメントのみ。comment スコープ必須。audit client.comment.delete。
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                    comment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消し完了 */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / comment スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description コメント不在 (他人・他 project・取り消し済み含む) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * クライアント 自分のコメントの本文修正（GAP-267 / 越境 404）
+         * @description 自分 (この招待) が書いた・未削除・自 project のコメントのみ。他人・他 project は存在ごと秘匿し 404。comment スコープ必須。audit client.comment.update。
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    project_id: string;
+                    comment_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ClientCommentUpdate"];
+                };
+            };
+            responses: {
+                /** @description 修正後のコメント */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ClientCommentItem"];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / comment スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description コメント不在 (他人・他 project・取り消し済み含む) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description バリデーション失敗 */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description レート制限超過 */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -21359,6 +21512,10 @@ export interface components {
             target_type: "workflow_output" | "mock";
             /** Format: uuid */
             target_id: string;
+            content: string;
+        };
+        /** @description クライアント自身のコメントの本文修正 (GAP-267)。 */
+        ClientCommentUpdate: {
             content: string;
         };
         /** @description クライアント自身のコメント + 運営からの返信 (GAP-029)。 */
