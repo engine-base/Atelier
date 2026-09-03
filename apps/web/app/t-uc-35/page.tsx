@@ -8,8 +8,10 @@
 
 import * as React from 'react';
 import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { cn } from '../../lib/cn';
+import { markWalkthroughDone } from '../../lib/walkthrough';
 
 const STEPS = [
   {
@@ -28,6 +30,15 @@ const STEPS = [
 
 export default function UC35Page() {
   const [step, setStep] = useState(0);
+  const router = useRouter();
+  const params = useSearchParams();
+  const redirectTo = params.get('redirect') || '/projects';
+  const last = step === STEPS.length - 1;
+  // GAP-262 (通し J15-01): 最後のステップに「完了」を置き、完了を記録してから中の画面へ
+  const finish = (): void => {
+    markWalkthroughDone();
+    router.push(redirectTo);
+  };
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col items-center justify-center gap-lg px-md py-lg">
       <ol
@@ -61,11 +72,10 @@ export default function UC35Page() {
         </button>
         <button
           type="button"
-          onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-          disabled={step === STEPS.length - 1}
+          onClick={() => (last ? finish() : setStep((s) => Math.min(STEPS.length - 1, s + 1)))}
           className="inline-flex h-10 items-center rounded-md bg-primary px-md text-label-lg text-primary-fg disabled:opacity-50"
         >
-          次へ
+          {last ? '完了' : '次へ'}
         </button>
       </div>
     </div>

@@ -13,6 +13,8 @@
 
 'use client';
 
+import { WALKTHROUGH_DONE_KEY } from '../../../lib/walkthrough';
+
 import * as React from 'react';
 import { Suspense, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -85,7 +87,14 @@ function SA01Inner() {
     setServerError(null);
     try {
       await auth.signup(v.email, v.password);
-      router.push(redirectTo);
+      // GAP-262 (通し J15-01): 初回だけウォークスルー (T-UC-35) を挟む。完了は localStorage に記録
+      let seen = false;
+      try {
+        seen = window.localStorage.getItem(WALKTHROUGH_DONE_KEY) === '1';
+      } catch {
+        seen = false;
+      }
+      router.push(seen ? redirectTo : `/t-uc-35?redirect=${encodeURIComponent(redirectTo)}`);
       router.refresh();
     } catch (e) {
       setServerError(e instanceof Error ? e.message : 'サインアップに失敗しました');
