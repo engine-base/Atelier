@@ -1,0 +1,17 @@
+[harness] bridge pid=1976 token_id=0d1e7a23-8682-4564-9d5a-4042dba2bff2
+##### SF02-315: フェーズ提案の重複・二重処理 #####
+  提案 1 回目: http 201 | {"data":{"id":"d9626f2b-cd79-4b2c-8cf2-4b6b3d1e56da","project_id":"fac80ccf-c557-498d-b913-9b7fa06d3e10","name":"ヒアリング","description":"顧客の要望
+  提案 2 回目 (pending あり): http 409 | {"detail":"このプロジェクトには保留中のフェーズ提案がすでにあります。先にその提案を承認または却下してください。"} | 英語の内部語: 0
+  承認 1 回目: http 200 | {"data":{"proposal":{"id":"d9626f2b-cd79-4b2c-8cf2-4b6b3d1e56da","project_id":"fac80ccf-c557-498d-b913-9b7fa06d3e10","na
+  承認 2 回目 (処理済み): http 409 | {"detail":"この提案はすでに処理済みです。"} | 英語の内部語: 0
+  却下 (処理済み): http 409 | {"detail":"この提案はすでに処理済みです。"} | 英語の内部語: 0
+
+##### SG01-218: 修正案の二重操作 #####
+  comment=75537d20-73d0-423c-8880-a8bbeaea68f6
+  修正案 生成: http 201 | {"data":{"id":"661735c9-8607-4ba2-bbcf-84af36ab15c8","comment_id":"75537d20-73d0-423c-8880-a8bbeaea68f6","output_id":"66d02e8f-7b1f-44cf-9fb4-1598fb08dc03","pro
+  修正案 再生成 (pending あり): http 409 | {"detail":"この修正案はすでに処理済みか、同じコメントに保留中の修正案があります。"} | 英語の内部語: 0
+  承認 1 回目: http 200 | {"data":{"proposal":{"id":"661735c9-8607-4ba2-bbcf-84af36ab15c8","comment_id":"75537d20-73d0-423c-8880-a8bbeaea68f6","ou
+  承認 2 回目 (処理済み): http 409 | {"detail":"ほかの編集と同時に保存されたため、反映できませんでした。最新の内容を読み直してから、もう一度お試しください。"} | 英語の内部語: 0
+  却下 (処理済み): http 409 | {"detail":"この修正案はすでに処理済みか、同じコメントに保留中の修正案があります。"} | 英語の内部語: 0
+[harness] token revoke: 200
+
