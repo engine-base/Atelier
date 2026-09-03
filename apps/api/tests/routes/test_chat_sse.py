@@ -313,6 +313,15 @@ class TestChatSSE:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         h = _h(seeded["u_a"])
         with sync_engine.begin() as c:
+            # 「PC が未接続」という前提を **このテストが自分で作る**。
+            # presence は「鮮度 90 秒内の行があるか」で判定するので、同じ DB を
+            # 使う他のファイルが残したインスタンス worker (user_id null = 誰の
+            # ジョブでも拾う) が生きていると、未接続のはずが online と判定され、
+            # bridge_offline ではなくタイムアウトになる (全体実行でだけ落ちる)。
+            c.execute(
+                text("update public.bridge_workers set last_seen_at = now() - interval '1 hour'")
+            )
+        with sync_engine.begin() as c:
             before = c.execute(
                 text(
                     "select count(*) from public.chat_messages "
