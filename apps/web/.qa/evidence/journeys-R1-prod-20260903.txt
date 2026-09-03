@@ -309,3 +309,10 @@ Call log:
   GET /ai-employees?workspace_id=efb95e0c-7021-4509-9121-cca776c5b4d6 -> 200 {"data":[{"id":"47374409-d98a-42a0-a86e-fe205797d0b6","workspace_id":"efb95e0c-7021-4509-9121-cca776c5b4d6","template_id":"89af0dd3-d5b6-45b6-99ab-fdc5f09a340e","name":"jarvis","display_name":"ジャービス","icon":"J","role":"coo","department":"executive","tone_preset":"polite","custom_tone_text":null,"att
   対象「メインコンテンツへスキップ / ワークスペース · QA JR1 WS2 / プロジェクト / AI社員 / ナレッジ 」 Danger zone「ワークスペースの削除 / Danger Zone / ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 / ワークスペースを削除 / アカウント退会 / アカウント自体の退会とデータ削除は専用の手続」 DELETE=["204 /workspaces/efb95e0c-7021-4509-9121-cca776c5b4d6"] 遷移=/projects / GET /workspaces に残存=false GET /workspaces/{id} → 404 include_deleted → 200 deleted_at=(取得不可) / 配下: GET /projects?workspace_id → 200 1 件, GET /projects/{p3} → 200, GET /ai-employees?workspace_id → 200 10 名 / GET /projects?limit=20 に Vega=true 画面 /projects に Vega=true
   => J36-07: FAIL — 期待: 30 日案内・一覧から消える・deleted_at・配下アクセス拒否・監査 / 実測: DELETE=["204 /workspaces/efb95e0c-7021-4509-9121-cca776c5b4d6"] 30日案内=true 一覧残存=false GET ws=404 配下 projects=200/1 詳細=200 employees=200/10 /projects に Vega=true/true
+
+## PROBE 本番 DB に gap-2xx migration が当たっているかの間接確認 (GAP-286: owner がメンバーのコメントを resolved にできるか)
+  PATCH /comments/75cdb563-1cc8-4ca6-a192-743839ccd452 -> 200 {"data":{"id":"75cdb563-1cc8-4ca6-a192-743839ccd452","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_element_id":null,"author_user_id":"2a9e4d56-7885-4fe1-a29c-74b5f289a234","author_invitation_id":null,"author_name":null,"is_client_author":false,"content":"
+  owner PATCH /comments/{member の comment} status=resolved → 200 {"data":{"id":"75cdb563-1cc8-4ca6-a192-743839ccd452","target_type":"workflow_output","target_id":"f5201737-7d4f-429e-9d71-9682f0645fbb","target_element_id":null
+  [J23-05 補足] client GET comments の順序: 社内:【社内 R1 返信】承知しま parent=無 07:25:30 | 客:【クライアント R1・修正】 parent=無 07:25:24
+  [J30-15 補足] share-links 一覧 keys=id,output_id,label,expires_at,revoked_at,view_count,last_viewed_at,created_at,share_url
+  [J30-15 補足] 一覧に URL/token が無く公開 GET は未実施 (発行時の 201 応答には share_url あり)
