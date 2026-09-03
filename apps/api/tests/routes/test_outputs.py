@@ -1314,6 +1314,19 @@ class TestGap162ShareAndExport:
                     json={"label": "viewer が発行", "expires_days": 7},
                 )
                 assert denied.status_code == 403, denied.text
+                # GAP-311 (通し J46-18 再測): revise / restore も権限判定が先 (503 / 409 より前に 403)
+                assert (
+                    client.post(
+                        f"/outputs/{oid}/revise",
+                        headers=_h(seeded["u_b"]),
+                        json={"instruction": "viewer が改訂"},
+                    ).status_code
+                    == 403
+                )
+                assert (
+                    client.post(f"/outputs/{oid}/restore", headers=_h(seeded["u_b"])).status_code
+                    == 403
+                )
                 with sync_engine.begin() as c:
                     c.execute(
                         text(

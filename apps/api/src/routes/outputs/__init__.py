@@ -447,6 +447,12 @@ async def diff_output_versions(
 async def restore_output_version(
     output_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, OutputResponse]:
+    # GAP-311 (通し J46-18 再測): 権限判定を前提チェック (最新版 / 本文) より先に。
+    # viewer には 409 ではなく 403 で「権限が無い」と伝える
+    if await svc.get_output(session, output_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
+    if not await _can_write_output(session, output_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この成果物を変更する権限がありません。")
     try:
         created = await svc.restore_version(session, actor_id=user.id, output_id=output_id)
     except ValueError as exc:
@@ -518,6 +524,11 @@ def _raise_revise_error(exc: revise_svc.OutputReviseError) -> None:
 async def revise_output(
     output_id: str, body: OutputReviseRequest, session: SessionDep, user: UserDep
 ) -> dict[str, OutputResponse]:
+    # GAP-311 (通し J46-18 再測): Bridge 未接続の 503 より先に権限を見る (viewer は 403)
+    if await svc.get_output(session, output_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
+    if not await _can_write_output(session, output_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この成果物を変更する権限がありません。")
     try:
         created = await revise_svc.revise_output(
             session, actor_id=user.id, output_id=output_id, instruction=body.instruction
