@@ -300,6 +300,47 @@ class TestChatSSE:
             # user 1 + assistant 1
             assert audit_cnt >= 2
 
+    def test_stream_relay_offline_does_not_persist(
+        self,
+        app: FastAPI,
+        seeded: dict[str, str],
+        sync_engine: sqlalchemy.Engine,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-310 (通し J43-03 再測): relay 経路で PC が未接続なら、発言を保存せず
+        bridge_offline だけを返す (GAP-294 が relay 経路に効いていなかった)。"""
+        monkeypatch.setenv("ATELIER_LLM_PROVIDER", "relay")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        h = _h(seeded["u_a"])
+        with sync_engine.begin() as c:
+            before = c.execute(
+                text(
+                    "select count(*) from public.chat_messages "
+                    "where thread_id = cast(:t as uuid) and role = 'user'"
+                ),
+                {"t": seeded["thread_a"]},
+            ).scalar_one()
+        with TestClient(app) as client:
+            r = client.post(
+                f"/chat/threads/{seeded['thread_a']}/stream",
+                headers=h,
+                json={"user_message": "PC 未接続で送る", "use_knowledge_rag": False},
+            )
+            assert r.status_code == 200
+            events = _parse_sse(r.content)
+        errors = [e for e in events if e["type"] == "error"]
+        assert errors and errors[0].get("metadata", {}).get("code") == "bridge_offline", events
+        assert not any(e["type"] in ("start", "delta", "end") for e in events)
+        with sync_engine.begin() as c:
+            after = c.execute(
+                text(
+                    "select count(*) from public.chat_messages "
+                    "where thread_id = cast(:t as uuid) and role = 'user'"
+                ),
+                {"t": seeded["thread_a"]},
+            ).scalar_one()
+        assert after == before
+
     def test_stream_context_includes_history_count(
         self, app: FastAPI, seeded: dict[str, str]
     ) -> None:

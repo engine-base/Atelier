@@ -853,6 +853,30 @@ async def stream_chat(
     # 以前はここより前に保存していたため、Bridge 未接続で送った文章が「送ったのに
     # 応答が無い」メッセージとして残り、入力欄も空になって再送できなかった。
     # 画面は bridge_offline を受けたら本文を入力欄に戻す。
+    #
+    # GAP-310 (通し J43-03 再測): relay 経路 (本人の PC で実行) は use_real=True でも
+    # **PC が繋がっていなければ実行できない**。GAP-294 は `not use_real` の分岐にしか
+    # 効いておらず、relay で未接続のときは保存してから RelayUnavailable で落ちていた。
+    # 保存の前に presence を見て、同じ bridge_offline で誠実に断る。
+    if use_relay and not use_subscription and not use_api:
+        from src.services.chat_relay import connection_status as _relay_status
+
+        try:
+            presence = await _relay_status(session, user_id=actor_id)
+        except Exception:  # pragma: no cover - presence が読めない = 未接続として扱う
+            presence = {"bridge_online": False}
+        if not presence.get("bridge_online"):
+            yield _sse_event(
+                {
+                    "type": "error",
+                    "content": (
+                        "お使いのパソコン (Bridge) が未接続のため AI 実行ができません。"
+                        "Bridge アプリを起動してから再送してください。"
+                    ),
+                    "metadata": {"code": "bridge_offline"},
+                }
+            )
+            return
     user_msg_id = await _insert_message(
         session,
         thread_id=thread_id,
