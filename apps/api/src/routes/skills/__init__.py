@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.routes.admin_guard import require_admin
 from src.schemas.admin import AdminSkillResponse
 from src.schemas.skills import (
     SkillAttachRequest,
@@ -51,6 +52,7 @@ def _require_admin(user: CurrentUser) -> None:
     "/admin/skills",
     status_code=status.HTTP_201_CREATED,
     summary="運営 admin: スキル新規登録（SKILL.md upload）",
+    dependencies=[Depends(require_admin)],
 )
 async def create_skill(body: SkillCreate, user: UserDep) -> dict[str, AdminSkillResponse]:
     _require_admin(user)
@@ -60,13 +62,18 @@ async def create_skill(body: SkillCreate, user: UserDep) -> dict[str, AdminSkill
 @router.post(
     "/admin/skills/reimport",
     summary="運営 admin: ~/.claude/skills/ からローカル一括再取込 (GAP-031④)",
+    dependencies=[Depends(require_admin)],
 )
 async def reimport_skills(user: UserDep) -> dict[str, SkillReimportResponse]:
     _require_admin(user)
     return {"data": await svc.reimport_local_skills(actor_id=user.id)}
 
 
-@router.patch("/admin/skills/{skill_id}", summary="運営 admin: スキル編集")
+@router.patch(
+    "/admin/skills/{skill_id}",
+    summary="運営 admin: スキル編集",
+    dependencies=[Depends(require_admin)],
+)
 async def update_skill(
     skill_id: str, body: SkillUpdate, user: UserDep
 ) -> dict[str, AdminSkillResponse]:
@@ -81,6 +88,7 @@ async def update_skill(
     "/admin/skills/{skill_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="運営 admin: スキル削除",
+    dependencies=[Depends(require_admin)],
 )
 async def delete_skill(skill_id: str, user: UserDep) -> None:
     _require_admin(user)
@@ -91,6 +99,7 @@ async def delete_skill(skill_id: str, user: UserDep) -> None:
 @router.post(
     "/admin/skills/{skill_id}/attach",
     summary="運営 admin: スキルを AI 社員に装着 / 解除",
+    dependencies=[Depends(require_admin)],
 )
 async def attach_skill(skill_id: str, body: SkillAttachRequest, user: UserDep) -> dict[str, bool]:
     _require_admin(user)

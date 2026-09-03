@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
+from src.routes.admin_guard import require_admin
 from src.schemas.admin import (
     AcquisitionCreate,
     AcquisitionRecordResponse,
@@ -60,7 +61,9 @@ SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 
-@router.get("/admin/audit-logs", summary="監査ログ閲覧（運営 admin）")
+@router.get(
+    "/admin/audit-logs", summary="監査ログ閲覧（運営 admin）", dependencies=[Depends(require_admin)]
+)
 async def list_audit_logs(
     session: SessionDep,
     user: UserDep,
@@ -86,7 +89,11 @@ async def list_audit_logs(
 # (skills は read-only 閲覧 + 再取込。テンプレは GAP-031⑤ scope expand で
 #  部分更新 (PATCH) + 実展開先カウントを提供)
 # --------------------------------------------------------------------------- #
-@router.get("/admin/skills", summary="運営 admin: スキル一覧（全件 / read-only）")
+@router.get(
+    "/admin/skills",
+    summary="運営 admin: スキル一覧（全件 / read-only）",
+    dependencies=[Depends(require_admin)],
+)
 async def list_skills(
     user: UserDep,
     include_inactive: Annotated[bool, Query()] = True,
@@ -98,7 +105,11 @@ async def list_skills(
     return {"data": await svc.list_skills_admin(include_inactive=include_inactive, name=name)}
 
 
-@router.get("/admin/skills/{skill_id}", summary="運営 admin: スキル詳細")
+@router.get(
+    "/admin/skills/{skill_id}",
+    summary="運営 admin: スキル詳細",
+    dependencies=[Depends(require_admin)],
+)
 async def get_skill(skill_id: str, user: UserDep) -> dict[str, AdminSkillResponse]:
     if not svc.is_admin(user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
@@ -111,6 +122,7 @@ async def get_skill(skill_id: str, user: UserDep) -> dict[str, AdminSkillRespons
 @router.get(
     "/admin/ai-employee-templates",
     summary="運営 admin: AI 社員テンプレ一覧（全件）",
+    dependencies=[Depends(require_admin)],
 )
 async def list_templates(
     session: SessionDep,
@@ -130,6 +142,7 @@ async def list_templates(
 @router.get(
     "/admin/ai-employee-templates/{template_id}",
     summary="運営 admin: AI 社員テンプレ詳細",
+    dependencies=[Depends(require_admin)],
 )
 async def get_template(
     template_id: str, session: SessionDep, user: UserDep
@@ -145,6 +158,7 @@ async def get_template(
 @router.patch(
     "/admin/ai-employee-templates/{template_id}",
     summary="運営 admin: AI 社員テンプレ部分更新 — 保存で version increment + 全 WS 反映 (GAP-031⑤)",
+    dependencies=[Depends(require_admin)],
 )
 async def update_template(
     template_id: str, body: AdminTemplateUpdate, user: UserDep
@@ -164,6 +178,7 @@ async def update_template(
 @router.get(
     "/admin/ai-employee-templates/{template_id}/deployment",
     summary="運営 admin: テンプレの実展開先カウント (GAP-031⑤)",
+    dependencies=[Depends(require_admin)],
 )
 async def get_template_deployment(
     template_id: str, user: UserDep
@@ -182,6 +197,7 @@ async def get_template_deployment(
 @router.get(
     "/admin/dashboard",
     summary="運営 admin: dashboard 集計（admin 所属 workspaces scope）",
+    dependencies=[Depends(require_admin)],
 )
 async def get_dashboard(session: SessionDep, user: UserDep) -> dict[str, AdminDashboardResponse]:
     if not svc.is_admin(user):
@@ -192,6 +208,7 @@ async def get_dashboard(session: SessionDep, user: UserDep) -> dict[str, AdminDa
 @router.get(
     "/admin/users",
     summary="運営 admin: メンバー横断一覧（所属 workspace scope）",
+    dependencies=[Depends(require_admin)],
 )
 async def list_users(
     session: SessionDep,
@@ -209,6 +226,7 @@ async def list_users(
 @router.post(
     "/admin/support-contact",
     summary="運営 admin: ユーザーへサポートメール送信 (GAP-031⑥)",
+    dependencies=[Depends(require_admin)],
 )
 async def send_support_contact(
     body: SupportContactRequest, user: UserDep
@@ -229,6 +247,7 @@ async def send_support_contact(
 @router.get(
     "/admin/support-contacts",
     summary="運営 admin: 最近のサポート対応 (audit support.contact 逆引き)",
+    dependencies=[Depends(require_admin)],
 )
 async def list_support_contacts(
     user: UserDep,
@@ -249,19 +268,31 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
-@router.get("/admin/mission", summary="運営 admin: 事業 KPI ミッション (GAP-019)")
+@router.get(
+    "/admin/mission",
+    summary="運営 admin: 事業 KPI ミッション (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def get_admin_mission(user: UserDep) -> dict[str, AdminMissionResponse]:
     _require_admin(user)
     return {"data": await ops.get_mission()}
 
 
-@router.put("/admin/goal", summary="運営 admin: 獲得目標の記録 (GAP-019)")
+@router.put(
+    "/admin/goal",
+    summary="運営 admin: 獲得目標の記録 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def put_admin_goal(body: AdminGoalUpsert, user: UserDep) -> dict[str, AdminGoalResponse]:
     _require_admin(user)
     return {"data": await ops.upsert_goal(actor_id=user.id, data=body)}
 
 
-@router.get("/admin/trends", summary="運営 admin: 週次トレンド実累計 (GAP-019)")
+@router.get(
+    "/admin/trends",
+    summary="運営 admin: 週次トレンド実累計 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def get_admin_trends(
     user: UserDep,
     days: Annotated[int, Query(ge=7, le=365)] = 90,
@@ -270,7 +301,11 @@ async def get_admin_trends(
     return {"data": await ops.get_trends(days)}
 
 
-@router.get("/admin/acquisitions", summary="運営 admin: 取得チャネル集計 (GAP-019)")
+@router.get(
+    "/admin/acquisitions",
+    summary="運営 admin: 取得チャネル集計 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def list_admin_acquisitions(
     user: UserDep,
     days: Annotated[int | None, Query(ge=1, le=3650)] = None,
@@ -283,6 +318,7 @@ async def list_admin_acquisitions(
     "/admin/acquisitions",
     status_code=status.HTTP_201_CREATED,
     summary="運営 admin: 取得チャネルの記録 (GAP-019)",
+    dependencies=[Depends(require_admin)],
 )
 async def record_admin_acquisition(
     body: AcquisitionCreate, user: UserDep
@@ -295,6 +331,7 @@ async def record_admin_acquisition(
     "/admin/acquisitions/{record_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="運営 admin: 取得チャネル記録の削除 (GAP-019)",
+    dependencies=[Depends(require_admin)],
 )
 async def delete_admin_acquisition(record_id: str, user: UserDep) -> None:
     _require_admin(user)
@@ -302,7 +339,11 @@ async def delete_admin_acquisition(record_id: str, user: UserDep) -> None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の獲得記録が見つかりません。")
 
 
-@router.get("/admin/health", summary="運営 admin: プラットフォーム健全性 実計測 (GAP-019)")
+@router.get(
+    "/admin/health",
+    summary="運営 admin: プラットフォーム健全性 実計測 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def get_admin_health(user: UserDep) -> dict[str, list[HealthCheckRow]]:
     _require_admin(user)
     return {"data": await ops.get_health()}
@@ -311,6 +352,7 @@ async def get_admin_health(user: UserDep) -> dict[str, list[HealthCheckRow]]:
 @router.get(
     "/admin/alerts",
     summary="運営 admin: エラー通知の設定と送信状態 (GAP-194)",
+    dependencies=[Depends(require_admin)],
 )
 async def get_admin_alerts(
     user: UserDep,
@@ -350,6 +392,7 @@ async def get_admin_alerts(
 @router.get(
     "/admin/uptime",
     summary="運営 admin: 外形監視の状態 (GAP-195)",
+    dependencies=[Depends(require_admin)],
 )
 async def get_admin_uptime(user: UserDep) -> UptimeStatusResponse:
     """運営インフラの外側から観測した結果を返す。
@@ -385,6 +428,7 @@ async def get_admin_uptime(user: UserDep) -> UptimeStatusResponse:
 @router.get(
     "/admin/errors",
     summary="運営 admin: エラーログ (GAP-182 — 外部 SaaS に送らない自前記録)",
+    dependencies=[Depends(require_admin)],
 )
 async def list_admin_errors(
     user: UserDep,
@@ -443,7 +487,11 @@ async def report_client_error(body: ClientErrorReport, user: UserDep) -> dict[st
     return {"status": "accepted"}
 
 
-@router.get("/admin/platform-stats", summary="運営 admin: platform 横断統計 (GAP-019)")
+@router.get(
+    "/admin/platform-stats",
+    summary="運営 admin: platform 横断統計 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def get_admin_platform_stats(user: UserDep) -> dict[str, AdminPlatformStatsResponse]:
     _require_admin(user)
     return {"data": await ops.get_platform_stats()}
@@ -460,7 +508,11 @@ async def create_beta_feedback(
     return {"data": await ops.create_feedback(user_id=user.id, data=body)}
 
 
-@router.get("/admin/beta-feedback", summary="運営 admin: ベータ FB 一覧 (GAP-019)")
+@router.get(
+    "/admin/beta-feedback",
+    summary="運営 admin: ベータ FB 一覧 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def list_beta_feedback(
     user: UserDep,
     status_filter: Annotated[str | None, Query(alias="status", pattern="^(open|resolved)$")] = None,
@@ -472,6 +524,7 @@ async def list_beta_feedback(
 @router.post(
     "/admin/beta-feedback/{feedback_id}/resolve",
     summary="運営 admin: ベータ FB を対応済みにする (GAP-019)",
+    dependencies=[Depends(require_admin)],
 )
 async def resolve_beta_feedback(feedback_id: str, user: UserDep) -> dict[str, BetaFeedbackResponse]:
     _require_admin(user)
@@ -483,7 +536,11 @@ async def resolve_beta_feedback(feedback_id: str, user: UserDep) -> dict[str, Be
     return {"data": resolved}
 
 
-@router.get("/admin/costs", summary="運営 admin: 運営コスト月次一覧 (GAP-019)")
+@router.get(
+    "/admin/costs",
+    summary="運営 admin: 運営コスト月次一覧 (GAP-019)",
+    dependencies=[Depends(require_admin)],
+)
 async def list_admin_costs(
     user: UserDep,
     month: Annotated[date_type | None, Query()] = None,
@@ -496,6 +553,7 @@ async def list_admin_costs(
     "/admin/costs",
     status_code=status.HTTP_201_CREATED,
     summary="運営 admin: 運営コストの記録 (GAP-019)",
+    dependencies=[Depends(require_admin)],
 )
 async def record_admin_cost(body: AdminCostCreate, user: UserDep) -> dict[str, AdminCostResponse]:
     _require_admin(user)
@@ -506,6 +564,7 @@ async def record_admin_cost(body: AdminCostCreate, user: UserDep) -> dict[str, A
     "/admin/costs/{cost_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="運営 admin: 運営コスト記録の削除 (GAP-019)",
+    dependencies=[Depends(require_admin)],
 )
 async def delete_admin_cost(cost_id: str, user: UserDep) -> None:
     _require_admin(user)

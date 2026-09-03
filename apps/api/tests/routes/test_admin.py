@@ -157,6 +157,34 @@ class TestAdminAuditLogs:
         with TestClient(app) as client:
             assert client.get("/admin/audit-logs").status_code == 401
 
+    def test_gap295_296_non_admin_gets_403_before_body_validation_and_is_audited(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-295 (通し F): 運営専用 POST/PATCH は本文検証 (422) より先に 403。
+        GAP-296 (J02-11 / J61-02): 拒否は監査ログ admin.access_denied に残る。"""
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'], admin=False)}"}
+        with TestClient(app) as client:
+            r = client.post("/admin/skills", json={"garbage": True}, headers=h)
+            assert r.status_code == 403, r.text
+            assert "運営" in r.json()["detail"]
+            r2 = client.patch(f"/admin/ai-employee-templates/{uuid.uuid4()}", json={}, headers=h)
+            assert r2.status_code == 403, r2.text
+        with sync_engine.begin() as c:
+            rows = c.execute(
+                text(
+                    "select after from public.audit_logs where action = 'admin.access_denied' "
+                    "and actor_id = :u order by created_at desc"
+                ),
+                {"u": seeded["u_admin"]},
+            ).all()
+            assert len(rows) >= 2, rows
+            c.execute(
+                text(
+                    "delete from public.audit_logs where action = 'admin.access_denied' and actor_id = :u"
+                ),
+                {"u": seeded["u_admin"]},
+            )
+
     def test_non_admin_forbidden_403(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_admin'])}"}  # admin claim 無し
         with TestClient(app) as client:

@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user
 from src.errors import service_unavailable
+from src.routes.admin_guard import require_admin
 from src.schemas.outputs import DesignTemplateCreateRequest, OutputDesignTemplateResponse
 from src.services import admin as admin_svc
 from src.services.outputs import templates as tmpl_svc
@@ -47,6 +48,7 @@ def _require_admin(user: CurrentUser) -> None:
 @router.get(
     "/admin/design-templates",
     summary="運営 admin: 既定デザインテンプレ一覧 (種類ごとの最新版)",
+    dependencies=[Depends(require_admin)],
 )
 async def list_platform_design_templates(
     user: UserDep,
@@ -60,6 +62,7 @@ async def list_platform_design_templates(
 @router.get(
     "/admin/design-templates/{stage}/versions",
     summary="運営 admin: 既定デザインテンプレの版履歴",
+    dependencies=[Depends(require_admin)],
 )
 async def list_platform_design_template_versions(
     stage: str, user: UserDep
@@ -75,6 +78,7 @@ async def list_platform_design_template_versions(
     status_code=status.HTTP_201_CREATED,
     summary="運営 admin: ワンダに既定デザインを作成/改訂させる (新版が積まれる)",
     responses={503: {"description": "LLM 実行経路が使えない (Bridge オフライン等)"}},
+    dependencies=[Depends(require_admin)],
 )
 async def create_platform_design_template_version(
     stage: str, body: DesignTemplateCreateRequest, user: UserDep

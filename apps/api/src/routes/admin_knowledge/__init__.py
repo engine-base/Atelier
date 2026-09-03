@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user
 from src.errors import service_unavailable
+from src.routes.admin_guard import require_admin
 from src.schemas.admin_knowledge import AdminKnowledgeCreate
 from src.schemas.knowledge import KnowledgeCreate, KnowledgeResponse, KnowledgeUpdate
 from src.schemas.knowledge_curation import (
@@ -54,7 +55,11 @@ def _require_admin(user: CurrentUser) -> None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "この操作は運営のみが行えます。")
 
 
-@router.get("/admin/knowledge", summary="運営 admin: 運営デフォルトナレッジ一覧（全件）")
+@router.get(
+    "/admin/knowledge",
+    summary="運営 admin: 運営デフォルトナレッジ一覧（全件）",
+    dependencies=[Depends(require_admin)],
+)
 async def list_platform_knowledge(
     user: UserDep,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
@@ -69,6 +74,7 @@ async def list_platform_knowledge(
     "/admin/knowledge",
     status_code=status.HTTP_201_CREATED,
     summary="運営 admin: 運営デフォルトナレッジ作成",
+    dependencies=[Depends(require_admin)],
 )
 async def create_platform_knowledge(
     body: AdminKnowledgeCreate, user: UserDep
@@ -104,7 +110,11 @@ async def _get_platform_or_404(session: AsyncSession, knowledge_id: str) -> Know
     return existing
 
 
-@router.patch("/admin/knowledge/{knowledge_id}", summary="運営 admin: 運営ナレッジ編集")
+@router.patch(
+    "/admin/knowledge/{knowledge_id}",
+    summary="運営 admin: 運営ナレッジ編集",
+    dependencies=[Depends(require_admin)],
+)
 async def update_platform_knowledge(
     knowledge_id: str, body: KnowledgeUpdate, user: UserDep
 ) -> dict[str, KnowledgeResponse]:
@@ -124,6 +134,7 @@ async def update_platform_knowledge(
     "/admin/knowledge/{knowledge_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="運営 admin: 運営ナレッジ削除",
+    dependencies=[Depends(require_admin)],
 )
 async def delete_platform_knowledge(knowledge_id: str, user: UserDep) -> None:
     _require_admin(user)
@@ -152,6 +163,7 @@ def _raise_curation(exc: curation_svc.CurationError) -> None:
     "/admin/knowledge/curation/run",
     summary="運営 admin: キュレーションバッチ実行 (GAP-153 — 全テナント走査 + 匿名化)",
     responses={503: {"description": "運営側 LLM (ANTHROPIC_API_KEY) 未設定"}},
+    dependencies=[Depends(require_admin)],
 )
 async def run_knowledge_curation(
     body: CurationRunRequest, user: UserDep
@@ -170,6 +182,7 @@ async def run_knowledge_curation(
 @router.get(
     "/admin/knowledge/curation",
     summary="運営 admin: キュレーション提案一覧 (GAP-153)",
+    dependencies=[Depends(require_admin)],
 )
 async def list_knowledge_curations(
     user: UserDep,
@@ -186,6 +199,7 @@ async def list_knowledge_curations(
     "/admin/knowledge/curation/{curation_id}/approve",
     summary="運営 admin: 提案を承認 → platform ナレッジとして全アカウント共有 (GAP-153)",
     responses={409: {"description": "処理済み / 公開直前リークスキャンで検出"}},
+    dependencies=[Depends(require_admin)],
 )
 async def approve_knowledge_curation(
     curation_id: str, user: UserDep
@@ -207,6 +221,7 @@ async def approve_knowledge_curation(
 @router.post(
     "/admin/knowledge/curation/{curation_id}/reject",
     summary="運営 admin: 提案を却下 (GAP-153 — 公開しない)",
+    dependencies=[Depends(require_admin)],
 )
 async def reject_knowledge_curation(
     curation_id: str, user: UserDep
