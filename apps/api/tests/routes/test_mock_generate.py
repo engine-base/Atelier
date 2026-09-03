@@ -327,11 +327,14 @@ def test_design_note_roundtrip_and_injection(
             ]
         )
 
-        # 生成時に system prompt へ注入されることを llm_complete 差し替えで実測
-        captured: dict[str, str] = {}
+        # 生成時に system prompt へ注入されることを llm_complete 差し替えで実測。
+        # **1 回分だけ覚えると取り違える**: ノートの自動整理 (裏の LLM 呼び出し) が
+        # 後から走ると、最後の 1 件で上書きされて「注入されていない」に見える
+        # (全体実行でだけ落ちていた)。全部を貯めて、そのうち 1 件を見る。
+        captured: list[str] = []
 
         async def _fake_complete(**kwargs: object) -> tuple[str, str]:
-            captured["system"] = str(kwargs["system_prompt"])
+            captured.append(str(kwargs["system_prompt"]))
             return "<!doctype html><html><title>注入検証</title></html>", "fake"
 
         from src.services.chat_sse import llm_chain
@@ -347,8 +350,9 @@ def test_design_note_roundtrip_and_injection(
             headers=h,
         )
         assert r3.status_code == 201, r3.text
-        assert "デザインノート (必ず従うこと)" in captured["system"]
-        assert "#1e3a5f" in captured["system"]
+        injected = [s for s in captured if "デザインノート (必ず従うこと)" in s]
+        assert injected, captured
+        assert any("#1e3a5f" in s for s in injected)
 
         # 不可視 project は 404 (存在秘匿)
         import uuid as _uuid
