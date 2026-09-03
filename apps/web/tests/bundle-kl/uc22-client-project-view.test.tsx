@@ -320,3 +320,72 @@ describe("S-L03 GAP-029 実コンテンツ", () => {
     expect(screen.getByText("トップページ")).toBeInTheDocument();
   });
 });
+
+describe("S-L03 GAP-268 成果物を開く (通し J23-05)", () => {
+  it("shows an open button per available format and opens the signed URL", async () => {
+    const fetchContentUrl = vi.fn(async () => ({
+      url: "https://api.example/outputs/o1/content?exp=1&sig=abc",
+      kind: "html" as const,
+    }));
+    const openUrl = vi.fn();
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        fetchContentUrl={fetchContentUrl}
+        openUrl={openUrl}
+      />,
+    );
+    const outputsSection = await screen.findByRole("region", { name: "成果物" });
+    // 実在する形式 (html / md) だけにボタンが出る。json は出ない
+    const html = within(outputsSection).getByRole("button", {
+      name: "ヒアリングサマリー を HTML で開く",
+    });
+    expect(
+      within(outputsSection).getByRole("button", {
+        name: "ヒアリングサマリー を MD で開く",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(outputsSection).queryByRole("button", {
+        name: "ヒアリングサマリー を JSON で開く",
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(html);
+    await vi.waitFor(() =>
+      expect(openUrl).toHaveBeenCalledWith(
+        "https://api.example/outputs/o1/content?exp=1&sig=abc",
+      ),
+    );
+    expect(fetchContentUrl).toHaveBeenCalledWith("p1", "o1", "html", "ct");
+  });
+
+  it("shows the reason when the format is not generated (409) instead of opening a blank tab", async () => {
+    const fetchContentUrl = vi.fn(async () => {
+      throw new ClientPortalError("not generated", 409);
+    });
+    const openUrl = vi.fn();
+    renderWithQuery(
+      <ClientProjectViewContainer
+        projectId="p1"
+        getToken={() => "ct"}
+        fetchProject={vi.fn(async () => DATA)}
+        {...contentProps()}
+        fetchContentUrl={fetchContentUrl}
+        openUrl={openUrl}
+      />,
+    );
+    const outputsSection = await screen.findByRole("region", { name: "成果物" });
+    fireEvent.click(
+      within(outputsSection).getByRole("button", {
+        name: "ヒアリングサマリー を MD で開く",
+      }),
+    );
+    expect(
+      await screen.findByText("この形式はまだ作成されていません。"),
+    ).toBeInTheDocument();
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+});

@@ -52,7 +52,20 @@ export interface ClientProjectViewProps {
   readonly posting?: boolean;
   readonly postNotice?: string | null;
   readonly postError?: string | null;
+  /** GAP-268: 成果物を開く (形式ごと)。未指定なら「開く」を出さない。 */
+  readonly onOpenOutput?: (
+    outputId: string,
+    format: "html" | "json" | "md",
+  ) => void;
+  readonly openingOutputId?: string | null;
+  readonly openError?: string | null;
 }
+
+const OUTPUT_FORMATS: ReadonlyArray<"html" | "json" | "md"> = [
+  "html",
+  "json",
+  "md",
+];
 
 const SCOPE_LABEL: Record<string, string> = {
   view: "閲覧",
@@ -97,6 +110,9 @@ export function ClientProjectView({
   posting,
   postNotice,
   postError,
+  onOpenOutput,
+  openingOutputId,
+  openError,
 }: ClientProjectViewProps) {
   const displayName = data.viewed_as_client_display_name;
   const permissionLabel =
@@ -264,6 +280,14 @@ export function ClientProjectView({
                 <h2 className="mb-4 text-base font-bold tracking-tight text-on-surface">
                   成果物
                 </h2>
+                {openError ? (
+                  <p
+                    role="alert"
+                    className="mb-2 rounded-md bg-[#FEE2E2] px-3 py-2 text-[12.5px] text-error"
+                  >
+                    {openError}
+                  </p>
+                ) : null}
                 <div className="rounded-lg border border-border bg-white">
                   {outputs === null ? (
                     <p className="px-5 py-8 text-center text-sm text-on-surface-variant">
@@ -288,6 +312,24 @@ export function ClientProjectView({
                                 : ""}
                             </p>
                           </div>
+                          {onOpenOutput && o.formats.length > 0 ? (
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {OUTPUT_FORMATS.filter((f) =>
+                                o.formats.includes(f),
+                              ).map((f) => (
+                                <button
+                                  key={f}
+                                  type="button"
+                                  onClick={() => onOpenOutput(o.id, f)}
+                                  disabled={openingOutputId === o.id}
+                                  aria-label={`${o.stage_label} を ${f.toUpperCase()} で開く`}
+                                  className="inline-flex h-8 items-center rounded-md border border-border bg-white px-2.5 text-[12px] font-semibold text-primary transition-colors hover:bg-surface-variant disabled:opacity-50"
+                                >
+                                  {f.toUpperCase()} を開く
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

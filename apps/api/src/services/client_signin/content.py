@@ -34,11 +34,15 @@ from src.schemas.client_signin import (
     ClientPhaseItem,
     ClientProjectOverview,
 )
+from src.schemas.storage import ContentUrlResponse
 from src.services.client_signin import (
     ClientSigninError,
     _service_session_factory,  # pyright: ignore[reportPrivateUsage]  # 同一パッケージ内共有
 )
 from src.services.client_signin.staff_notify import notify_staff_of_client_comment
+from src.services.mocks.artifacts import FILEDB_PREFIX, MOCKDB_PREFIX, build_content_url
+from src.services.outputs.content_kind import filedb_kind
+from src.storage_signing import StorageSigningError, create_signed_download_url
 
 STAGE_LABEL: dict[str, str] = {
     "proposal": "提案書",
@@ -200,6 +204,57 @@ async def list_outputs(
     ]
     items.sort(key=lambda i: i.updated_at, reverse=True)
     return items
+
+
+async def get_output_content_url(
+    *,
+    claims: dict[str, Any],
+    requested_project_id: str,
+    output_id: str,
+    fmt: str,
+    base_url: str,
+) -> ContentUrlResponse:
+    """クライアントが共有済み成果物の中身を開くための署名付き URL (GAP-268 / 通し J23-05)。
+
+    運営側 GET /outputs/{id}/content-url と同じ配信経路 (mockdb/filedb は自己署名 URL、
+    それ以外は Storage 署名 URL)。可視性は「自 project の成果物」だけ — 他 project は
+    存在ごと秘匿 (404)。view スコープ必須。
+    """
+    project_id = _require_project(claims, requested_project_id)
+    _require_scope(claims, "view")
+    if not _is_uuid(output_id):
+        raise ClientSigninError("target_not_found", "output not found in this project")
+    factory = _service_session_factory()
+    async with factory() as session:
+        if not await _project_exists(session, project_id):
+            raise ClientSigninError("project_not_found", "project not found")
+        row = (
+            await session.execute(
+                text(
+                    "select html_path, json_path, md_path from public.workflow_outputs "
+                    "where id = cast(:i as uuid) and project_id = cast(:p as uuid) "
+                    "and deleted_at is null"
+                ),
+                {"i": output_id, "p": project_id},
+            )
+        ).first()
+    if row is None:
+        raise ClientSigninError("target_not_found", "output not found in this project")
+    path = {"html": row.html_path, "json": row.json_path, "md": row.md_path}.get(fmt)
+    if path is None:
+        raise ClientSigninError("format_not_available", f"{fmt} is not available")
+    path = str(path)
+    if path.startswith(MOCKDB_PREFIX) or path.startswith(FILEDB_PREFIX):
+        url = build_content_url(base_url, output_id, resource="outputs")
+        if not path.startswith(FILEDB_PREFIX):
+            return ContentUrlResponse(url=url, kind="html")
+        kind, file_name, mime = await filedb_kind(path)
+        return ContentUrlResponse(url=url, kind=kind, file_name=file_name, mime=mime)
+    try:
+        url = await create_signed_download_url(path)
+    except StorageSigningError as exc:
+        raise ClientSigninError("storage_unavailable", str(exc)) from exc
+    return ContentUrlResponse(url=url)
 
 
 async def list_mocks(*, claims: dict[str, Any], requested_project_id: str) -> ClientMocksResponse:

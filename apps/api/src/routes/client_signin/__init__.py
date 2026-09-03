@@ -12,9 +12,9 @@ R-T08 (経営者承認済として実装): client JWT は project_id claim に�
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
 from src.rate_limit import rate_limit_ip
 from src.schemas.client_signin import (
@@ -29,6 +29,7 @@ from src.schemas.client_signin import (
     ClientSigninRequest,
     ClientSigninResponse,
 )
+from src.schemas.storage import ContentUrlResponse
 from src.services import client_signin as svc
 from src.services.client_signin import content as content_svc
 from src.user_messages import user_detail
@@ -173,6 +174,42 @@ async def client_project_outputs(
     try:
         result = await content_svc.list_outputs(claims=claims, requested_project_id=project_id)
     except svc.ClientSigninError as exc:
+        _raise_content_error(exc)
+        raise
+    return {"data": result}
+
+
+@router.get(
+    "/client/projects/{project_id}/outputs/{output_id}/content-url",
+    summary="クライアント: 共有済み成果物の署名付き閲覧 URL (GAP-268 / R-T08 越境 404)",
+)
+async def client_project_output_content_url(
+    project_id: str,
+    output_id: str,
+    request: Request,
+    format: Annotated[Literal["html", "json", "md"], Query()] = "html",
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, ContentUrlResponse]:
+    claims = await _client_claims(authorization)
+    try:
+        result = await content_svc.get_output_content_url(
+            claims=claims,
+            requested_project_id=project_id,
+            output_id=output_id,
+            fmt=format,
+            base_url=str(request.base_url),
+        )
+    except svc.ClientSigninError as exc:
+        if exc.code == "format_not_available":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"この成果物の {format.upper()} はまだ作成されていません。",
+            ) from exc
+        if exc.code == "storage_unavailable":
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                "成果物の保存先に接続できません。時間をおいてもう一度お試しください。",
+            ) from exc
         _raise_content_error(exc)
         raise
     return {"data": result}

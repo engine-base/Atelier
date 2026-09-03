@@ -45,6 +45,7 @@ from src.services.mocks.artifacts import (
 )
 from src.services.outputs import fix_proposals as fix_svc
 from src.services.outputs import revise as revise_svc
+from src.services.outputs.content_kind import filedb_kind as _filedb_kind
 from src.storage_signing import StorageSigningError, create_signed_download_url
 from src.user_messages import user_detail
 
@@ -87,34 +88,6 @@ async def get_output(
     if out is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {"data": out}
-
-
-async def _filedb_kind(
-    html_path: str,
-) -> tuple[Literal["html", "pdf", "image", "sheet", "binary"], str | None, str | None]:
-    """filedb 成果物の (表示種別, ファイル名, MIME) を実体から引く (GAP-176)。
-
-    表示種別は ContentUrl.kind の値域に写す:
-      image → image / pdf → pdf / sheet → sheet / それ以外 (slides, doc,
-      video 等) → binary (プレビュー枠を出さず DL 導線にする)。
-    """
-    from src.services.mocks.artifacts import file_type_for, service_session_factory
-
-    factory = service_session_factory()
-    async with factory() as service_session:
-        found = await fetch_file_content(service_session, file_id=html_path[len(FILEDB_PREFIX) :])
-    if found is None:
-        return "binary", None, None
-    _data, mime, file_name = found
-    pair = file_type_for(file_name)
-    file_kind = pair[0] if pair else ""
-    if file_kind == "image":
-        return "image", file_name, mime
-    if file_kind == "pdf":
-        return "pdf", file_name, mime
-    if file_kind == "sheet":
-        return "sheet", file_name, mime
-    return "binary", file_name, mime
 
 
 @router.get(

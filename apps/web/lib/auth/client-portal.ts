@@ -266,6 +266,26 @@ export function getClientComments(
   );
 }
 
+export interface ClientContentUrlData {
+  readonly url: string;
+  readonly kind?: "html" | "pdf" | "image" | "sheet" | "binary";
+  readonly file_name?: string | null;
+  readonly mime?: string | null;
+}
+
+/** 共有済み成果物の署名付き閲覧 URL (GAP-268 / 通し J23-05)。 */
+export function getClientOutputContentUrl(
+  projectId: string,
+  outputId: string,
+  format: "html" | "json" | "md",
+  token: string,
+): Promise<ClientContentUrlData> {
+  return clientGet(
+    `/client/projects/${encodeURIComponent(projectId)}/outputs/${encodeURIComponent(outputId)}/content-url?format=${format}`,
+    token,
+  );
+}
+
 /** コメント投稿 — comment スコープ必須 (GAP-029)。 */
 export async function postClientComment(
   projectId: string,

@@ -10567,6 +10567,37 @@ paths:
         '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '404': { description: project 不在, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
+  /client/projects/{project_id}/outputs/{output_id}/content-url:
+    get:
+      tags: [client-portal]
+      summary: クライアント 共有済み成果物の署名付き閲覧 URL（GAP-268 / R-T08 越境 404）
+      description: |
+        運営側 GET /outputs/{id}/content-url と同じ配信経路（mockdb/filedb は自己署名 URL、
+        それ以外は Storage 署名 URL）。自 project の成果物のみ（他 project は存在ごと秘匿し 404）。
+        該当 format が未生成なら 409。view スコープ必須。
+      security:
+        - clientPortalAuth: []
+      x-implementation-path: apps/api/src/routes/client_signin/__init__.py::client_project_output_content_url
+      x-screen-ids: [S-L03]
+      parameters:
+        - { name: project_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: output_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [html, json, md], default: html } }
+      responses:
+        '200':
+          description: 署名付き閲覧 URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ContentUrl' }
+        '401': { description: client JWT 不正 / 期限切れ, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: project_id claim 不一致 (R-T08) / view スコープ無し, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: project / 成果物 不在 (越境含む), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: 指定 format が未生成, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '503': { description: storage backend 未設定 / 接続不可, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
   /client/projects/{project_id}/mocks:
     get:
       tags: [client-portal]

@@ -18568,6 +18568,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/client/projects/{project_id}/outputs/{output_id}/content-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * クライアント 共有済み成果物の署名付き閲覧 URL（GAP-268 / R-T08 越境 404）
+         * @description 運営側 GET /outputs/{id}/content-url と同じ配信経路（mockdb/filedb は自己署名 URL、
+         *     それ以外は Storage 署名 URL）。自 project の成果物のみ（他 project は存在ごと秘匿し 404）。
+         *     該当 format が未生成なら 409。view スコープ必須。
+         *
+         */
+        get: {
+            parameters: {
+                query?: {
+                    format?: "html" | "json" | "md";
+                };
+                header?: never;
+                path: {
+                    project_id: string;
+                    output_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 署名付き閲覧 URL */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["ContentUrl"];
+                        };
+                    };
+                };
+                /** @description client JWT 不正 / 期限切れ */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project_id claim 不一致 (R-T08) / view スコープ無し */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description project / 成果物 不在 (越境含む) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 指定 format が未生成 */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description storage backend 未設定 / 接続不可 */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/client/projects/{project_id}/mocks": {
         parameters: {
             query?: never;

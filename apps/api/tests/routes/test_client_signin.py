@@ -916,6 +916,73 @@ class TestClientPortalContent:
         assert rows[0].actor_type == "anonymous"
         assert rows[0].actor_id == f"client:{portal_content['inv_a']}"
 
+    def test_gap268_output_content_url_self_signed_and_cross_project_404(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        portal_content: dict[str, str],
+    ) -> None:
+        """GAP-268 (通し J23-05): クライアントが共有済み成果物の中身を開ける。
+
+        mockdb 成果物 → 自己署名 URL (kind=html) で、その URL は client JWT 無しで実 HTML を返す。
+        他 project の成果物は存在ごと秘匿 (404)。未生成 format は 409。"""
+        out_db = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": "<h1>納品書 v3</h1>"},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs(id,project_id,stage,version,html_path) "
+                    "values(cast(:i as uuid),cast(:p as uuid),"
+                    "cast('delivery' as workflow_stage_enum),3,:h)"
+                ),
+                {"i": out_db, "p": portal_content["proj_a"], "h": f"mockdb://{cid}"},
+            )
+        try:
+            with TestClient(app) as client:
+                tok = _client_token(client, portal_content["token_a"])
+                h = {"Authorization": f"Bearer {tok}"}
+                base = f"/client/projects/{portal_content['proj_a']}/outputs"
+                r = client.get(f"{base}/{out_db}/content-url", headers=h)
+                assert r.status_code == 200, r.text
+                d = r.json()["data"]
+                assert d["kind"] == "html"
+                assert f"/outputs/{out_db}/content?" in d["url"]
+                # 発行された URL は署名だけで開ける (ポータルからは別タブで開く)
+                path = d["url"].split("://", 1)[1].split("/", 1)[1]
+                body = client.get("/" + path)
+                assert body.status_code == 200, body.text
+                assert "納品書 v3" in body.text
+                # 未生成 format は 409 (存在しない版を偽装しない)
+                assert (
+                    client.get(f"{base}/{out_db}/content-url?format=md", headers=h).status_code
+                    == 409
+                )
+                # 他 project の成果物は 404 (R-T08)
+                assert (
+                    client.get(
+                        f"{base}/{portal_content['out_b']}/content-url", headers=h
+                    ).status_code
+                    == 404
+                )
+                # 別 project の券で同じ URL を叩くと claim 不一致 403
+                tok_b = _client_token(client, portal_content["token_b"])
+                assert (
+                    client.get(
+                        f"{base}/{out_db}/content-url", headers={"Authorization": f"Bearer {tok_b}"}
+                    ).status_code
+                    == 403
+                )
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": out_db},
+                )
+                c.execute(text("delete from public.mock_contents where id = :c"), {"c": cid})
+
     def test_comment_target_from_other_project_404(
         self, app: FastAPI, portal_content: dict[str, str]
     ) -> None:

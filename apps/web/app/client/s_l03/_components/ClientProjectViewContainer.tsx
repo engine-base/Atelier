@@ -23,6 +23,8 @@ import {
 import {
   clearClientAccessToken,
   getClientComments as defaultGetComments,
+  getClientOutputContentUrl as defaultGetContentUrl,
+  type ClientContentUrlData,
   getClientMocks as defaultGetMocks,
   getClientOutputs as defaultGetOutputs,
   getClientOverview as defaultGetOverview,
@@ -65,6 +67,18 @@ export interface ClientProjectViewContainerProps {
     token: string,
     input: ClientCommentCreateInput,
   ) => Promise<ClientCommentItemData>;
+  /** GAP-268: 共有済み成果物を開く (署名付き URL を取って別タブで開く)。 */
+  readonly fetchContentUrl?: (
+    projectId: string,
+    outputId: string,
+    format: "html" | "json" | "md",
+    token: string,
+  ) => Promise<ClientContentUrlData>;
+  readonly openUrl?: (url: string) => void;
+}
+
+function defaultOpenUrl(url: string): void {
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export function ClientProjectViewContainer({
@@ -76,6 +90,8 @@ export function ClientProjectViewContainer({
   fetchMocks = defaultGetMocks,
   fetchComments = defaultGetComments,
   postComment = defaultPostComment,
+  fetchContentUrl = defaultGetContentUrl,
+  openUrl = defaultOpenUrl,
 }: ClientProjectViewContainerProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -118,9 +134,35 @@ export function ClientProjectViewContainer({
     retry: false,
   });
 
+  // GAP-268 (通し J23-05): 成果物一覧に「開く」が無く、共有された中身を見られなかった
+  const [openError, setOpenError] = React.useState<string | null>(null);
+  const open = useMutation({
+    mutationFn: (input: { outputId: string; format: "html" | "json" | "md" }) =>
+      fetchContentUrl(projectId, input.outputId, input.format, token as string),
+    // 4xx (未生成 409 / 越境 404) は再試行しても変わらない。既定の 2 回再試行を切る
+    retry: false,
+    onSuccess: (data) => {
+      setOpenError(null);
+      openUrl(data.url);
+    },
+    onError: (error) => {
+      const status =
+        error instanceof ClientPortalError ? error.status : null;
+      setOpenError(
+        status === 409
+          ? "この形式はまだ作成されていません。"
+          : status === 404
+            ? "この成果物は共有されていないか、削除されています。"
+            : "成果物を開けませんでした。時間をおいてもう一度お試しください。",
+      );
+    },
+  });
+
   const post = useMutation({
     mutationFn: (input: ClientCommentCreateInput) =>
       postComment(projectId, token as string, input),
+    // 再試行すると同じコメントが二重投稿されうる。失敗は 1 回で利用者に返す
+    retry: false,
     onSuccess: async () => {
       setPostState({
         kind: "notice",
@@ -241,6 +283,12 @@ export function ClientProjectViewContainer({
         post.mutate(input);
       }}
       posting={post.isPending}
+      onOpenOutput={(outputId, format) => {
+        setOpenError(null);
+        open.mutate({ outputId, format });
+      }}
+      openingOutputId={open.isPending ? open.variables?.outputId ?? null : null}
+      openError={openError}
       postNotice={postState?.kind === "notice" ? postState.text : null}
       postError={postState?.kind === "error" ? postState.text : null}
       onSignOut={() => {
