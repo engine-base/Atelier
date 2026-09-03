@@ -25,15 +25,15 @@ _COLS = (
     "c.author_invitation_id, c.content, c.status, c.parent_comment_id, "
     "c.created_at, c.updated_at, "
     # GAP-226: 誰が書いたのかを名前で返す。無ければ null (画面が既定の呼び方に倒す)
-    "coalesce(u.display_name, i.client_display_name) as author_name"
+    # GAP-318: 社内メンバーの表示名は **関数経由** で引く。users は RLS が
+    # users_select_self なので、素の join だと **自分以外は必ず NULL** になり、
+    # 「同僚の発言が名無し」のままだった (GAP-226 が直したはずの状態)。
+    "coalesce(public.user_display_name(c.author_user_id), i.client_display_name) as author_name"
 )
 
 #: 名前を引くための join。**left** join なので、名前が引けなくても行は消えない
 #: (消すと「誰か分からないコメントが一覧から消える」というもっと悪いことが起きる)。
-_AUTHOR_JOIN = (
-    "left join public.users u on u.id = c.author_user_id "
-    "left join public.client_invitations i on i.id = c.author_invitation_id "
-)
+_AUTHOR_JOIN = "left join public.client_invitations i on i.id = c.author_invitation_id "
 
 
 def _row_to_response(row: Any) -> CommentResponse:

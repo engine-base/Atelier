@@ -306,6 +306,159 @@ class TestComments:
             # UUID の断片で代用していない
             assert seeded["u_a"][:8] not in (mine["author_name"] or "")
 
+    def test_gap318_同じ対象に複数の書き手がいても誰の発言か見分けられる(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """SI02-307 (訂正後): 同じ成果物に社内メンバー 2 人 + クライアント窓口が書いても、
+        それぞれの **表示名** が出て、社内発かクライアント発かを見分けられる。
+
+        旧行は「クライアント窓口が同じ **タスク** にコメント」を前提にしていたが、
+        クライアントが書けるのは成果物 / モックだけ (R-T08 の最小開示) で、
+        タスクは社内専用。前提が仕様と矛盾していたため永久に BLOCKED だった。
+        """
+        import hashlib as _hashlib
+
+        tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
+        inv = str(uuid.uuid4())
+        token = "client-token-si02307-aaaa"
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.users set display_name = :n where id = :i"),
+                {"n": "高本まさと", "i": seeded["u_a"]},
+            )
+            c.execute(
+                text("update public.users set display_name = :n where id = :i"),
+                {"n": "佐藤ゆい", "i": seeded["u_b"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                    "values (cast(:w as uuid), cast(:u as uuid), 'member') on conflict do nothing"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
+            c.execute(
+                text(
+                    "insert into public.client_invitations"
+                    "(id,project_id,email,token_hash,scopes,expires_at,client_display_name) "
+                    "values (cast(:i as uuid),cast(:p as uuid),:e,:h,"
+                    "'[\"view\",\"comment\"]'::jsonb, now() + interval '7 days', :n)"
+                ),
+                {
+                    "i": inv,
+                    "p": seeded["proj_a"],
+                    "e": "kokyaku@ext.example.com",
+                    "h": _hashlib.sha256(token.encode()).hexdigest(),
+                    "n": "顧客の田中様",
+                },
+            )
+        try:
+            with TestClient(app) as client:
+                assert (
+                    client.post(
+                        "/comments",
+                        json={**tgt, "content": "A から"},
+                        headers=_h(seeded["u_a"]),
+                    ).status_code
+                    == 201
+                )
+                assert (
+                    client.post(
+                        "/comments",
+                        json={**tgt, "content": "B から"},
+                        headers=_h(seeded["u_b"]),
+                    ).status_code
+                    == 201
+                )
+                ct = client.post(
+                    "/client/auth/signin",
+                    json={
+                        "invitation_token": token,
+                        "agree_legal": True,
+                        "agree_confidential": True,
+                    },
+                )
+                assert ct.status_code == 200, ct.text
+                ctok = ct.json()["data"]["client_access_token"]
+                posted = client.post(
+                    f"/client/projects/{seeded['proj_a']}/comments",
+                    json={
+                        "target_type": "workflow_output",
+                        "target_id": seeded["out_a"],
+                        "content": "クライアントから",
+                    },
+                    headers={"Authorization": f"Bearer {ctok}"},
+                )
+                assert posted.status_code == 201, posted.text
+                # クライアントは **タスク** にはコメントできない (社内専用・設計どおり)
+                assert (
+                    client.post(
+                        f"/client/projects/{seeded['proj_a']}/comments",
+                        json={
+                            "target_type": "task",
+                            "target_id": str(uuid.uuid4()),
+                            "content": "task へ",
+                        },
+                        headers={"Authorization": f"Bearer {ctok}"},
+                    ).status_code
+                    == 422
+                )
+                lst = client.get("/comments", params=tgt, headers=_h(seeded["u_a"])).json()["data"]
+                # SI02-307 の対象 = タスク詳細のコメント。社内 2 人で同じことを確かめる
+                task_id = str(uuid.uuid4())
+                with sync_engine.begin() as c2:
+                    c2.execute(
+                        text(
+                            "insert into public.tasks (id, project_id, title, category, type, "
+                            " estimated_hours, priority) values (cast(:i as uuid), cast(:p as uuid), "
+                            " 'SI02-307 表示名', 'backend', 'feature', 1, 'high')"
+                        ),
+                        {"i": task_id, "p": seeded["proj_a"]},
+                    )
+                ttgt = {"target_type": "task", "target_id": task_id}
+                for uid, body in (
+                    (seeded["u_a"], "タスクへ A から"),
+                    (seeded["u_b"], "タスクへ B から"),
+                ):
+                    assert (
+                        client.post(
+                            "/comments", json={**ttgt, "content": body}, headers=_h(uid)
+                        ).status_code
+                        == 201
+                    )
+                tlist = client.get("/comments", params=ttgt, headers=_h(seeded["u_a"])).json()[
+                    "data"
+                ]
+                tnames = {x["content"]: x["author_name"] for x in tlist}
+                assert tnames["タスクへ A から"] == "高本まさと"
+                assert tnames["タスクへ B から"] == "佐藤ゆい"
+            by_content = {x["content"]: x for x in lst}
+            assert by_content["A から"]["author_name"] == "高本まさと"
+            assert by_content["B から"]["author_name"] == "佐藤ゆい"
+            assert by_content["クライアントから"]["author_name"] == "顧客の田中様"
+            assert by_content["A から"]["is_client_author"] is False
+            assert by_content["B から"]["is_client_author"] is False
+            assert by_content["クライアントから"]["is_client_author"] is True
+            # 種別だけ / UUID の断片で代用していない
+            for x in by_content.values():
+                assert x["author_name"] not in ("クライアント（招待）", "メンバー")
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.comments where author_invitation_id = cast(:i as uuid)"
+                    ),
+                    {"i": inv},
+                )
+                c.execute(
+                    text("delete from public.client_invitations where id = cast(:i as uuid)"),
+                    {"i": inv},
+                )
+                c.execute(
+                    text("delete from public.comments where target_type = 'task'"),
+                )
+                c.execute(text("delete from public.tasks where title = 'SI02-307 表示名'"))
+
     def test_名前が引けなくても行は消えない(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:

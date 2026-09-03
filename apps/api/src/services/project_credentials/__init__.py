@@ -47,7 +47,7 @@ LEGACY_KEY_ENV = "ATELIER_VAULT_ENCRYPTION_KEY"
 
 _COLS = (
     "c.id, c.project_id, c.name, c.kind, c.last4, c.created_at, c.updated_at, "
-    "u.display_name AS created_by_name"
+    "public.user_display_name(c.created_by) AS created_by_name"
 )
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,6 @@ async def list_credentials(session: AsyncSession, *, project_id: str) -> list[Cr
     res = await session.execute(
         text(
             f"select {_COLS} from public.project_credentials c "
-            "left join public.users u on u.id = c.created_by "
             "where c.project_id = cast(:pid as uuid) and c.deleted_at is null "
             "order by c.created_at desc"
         ),
@@ -143,7 +142,6 @@ async def get_credential(
     res = await session.execute(
         text(
             f"select {_COLS} from public.project_credentials c "
-            "left join public.users u on u.id = c.created_by "
             "where c.id = cast(:id as uuid) and c.project_id = cast(:pid as uuid) "
             "and c.deleted_at is null"
         ),
