@@ -10,12 +10,16 @@
 
 import * as React from "react";
 import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { createAuthedApiClient } from "../../../../lib/auth/connector";
-import { ScheduleBuilder, type CronTargetAction } from "./ScheduleBuilder";
+import {
+  ScheduleBuilder,
+  type CronActionMeta,
+  type CronTargetAction,
+} from "./ScheduleBuilder";
 
 export interface ScheduleBuilderContainerProps {
   readonly projectId: string;
@@ -81,9 +85,22 @@ export function ScheduleBuilderContainer({
     },
   });
 
+  // GAP-292 (通し J44-01): 種類の文言・コストは GET /cron-actions が唯一の信頼源
+  const actionsQuery = useQuery({
+    queryKey: ["cron-actions"],
+    queryFn: async () => {
+      const res = await client.get("/cron-actions");
+      const data = (res as { data?: unknown }).data;
+      return Array.isArray(data) ? (data as CronActionMeta[]) : [];
+    },
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
     <ScheduleBuilder
       onCreate={(p) => createMut.mutate(p)}
+      {...(actionsQuery.data ? { actions: actionsQuery.data } : {})}
       submitting={createMut.isPending}
       error={error}
     />

@@ -40,6 +40,42 @@ interface ActionOpt {
   readonly tagCls: string;
 }
 
+/** GET /cron-actions の 1 件 (GAP-179 唯一の信頼源)。表示はこれを優先する (GAP-292)。 */
+export interface CronActionMeta {
+  readonly action: CronTargetAction;
+  readonly title: string;
+  readonly description: string;
+  readonly staff: string;
+  readonly requires_bridge: boolean;
+  readonly cost_label: string;
+  readonly cost_note: string;
+}
+
+/** API のメタで表示用の行を組み立てる。アイコン・色は種類ごとの固定マップ。 */
+function mergeActions(
+  base: readonly ActionOpt[],
+  meta: readonly CronActionMeta[] | undefined,
+): readonly ActionOpt[] {
+  if (!meta || meta.length === 0) return base;
+  const byAction = new Map(meta.map((m) => [m.action, m]));
+  return base.map((b) => {
+    const m = byAction.get(b.value);
+    if (!m) return b;
+    const free = /無料/.test(m.cost_label);
+    return {
+      ...b,
+      name: m.title,
+      skill: m.staff
+        ? `${m.staff}: ${m.description}${m.requires_bridge ? "（PC 接続が必要）" : ""}`
+        : `${m.description}${m.requires_bridge ? "（PC 接続が必要）" : ""}`,
+      tag: m.cost_label,
+      tagCls: free
+        ? "bg-tertiary-container text-on-tertiary-container"
+        : "bg-primary-container text-on-primary-container",
+    };
+  });
+}
+
 const ACTIONS: readonly ActionOpt[] = [
   {
     value: "task_replay",
@@ -127,12 +163,15 @@ export interface ScheduleBuilderProps {
   }) => void;
   readonly submitting?: boolean;
   readonly error?: string | null;
+  /** GAP-292: GET /cron-actions のメタ (表示文言・コストの唯一の信頼源)。 */
+  readonly actions?: readonly CronActionMeta[];
 }
 
 export function ScheduleBuilder({
   onCreate,
   submitting = false,
   error,
+  actions: actionMeta,
 }: ScheduleBuilderProps) {
   const [name, setName] = useState("");
   const [action, setAction] = useState<CronTargetAction>("task_replay");
@@ -209,7 +248,7 @@ export function ScheduleBuilder({
             </span>
           </span>
           <div className="grid gap-1.5">
-            {ACTIONS.map((a) => {
+            {mergeActions(ACTIONS, actionMeta).map((a) => {
               const selected = a.value === action;
               return (
                 <button
