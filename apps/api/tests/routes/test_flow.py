@@ -706,3 +706,31 @@ class TestGap165FreezeJudgement:
         assert "確定時のメモ: スコープ A まで" in block
         assert "断らずに新しい版を作ること" in block
         assert "現在フェーズの作業として記録されます" in block
+
+
+@pytest.mark.integration
+def test_gap279_current_phase_follows_flow(app: FastAPI, seeded: dict[str, str]) -> None:
+    """GAP-279 (通し J30-05 / J30-15): 案件の current_phase は工程 (flow) の実状態から出る。
+
+    全工程を done にすると一覧 / 詳細の current_phase が delivery (納品済) になる。"""
+    h = _h(seeded["u"])
+    proj = seeded["proj"]
+    with TestClient(app) as client:
+        client.get(f"/projects/{proj}/flow", headers=h)
+        assert (
+            client.get(f"/projects/{proj}", headers=h).json()["data"]["current_phase"] == "hearing"
+        )
+        flow = client.get(f"/projects/{proj}/flow", headers=h).json()["data"]
+        for s in flow:
+            r = client.post(
+                f"/projects/{proj}/flow/{s['stage_key']}/complete",
+                json={"confirm": True},
+                headers=h,
+            )
+            assert r.status_code == 200, (s["stage_key"], r.text)
+        detail = client.get(f"/projects/{proj}", headers=h).json()["data"]
+        assert detail["current_phase"] == "delivery"
+        listed = client.get("/projects", params={"workspace_id": seeded["ws"]}, headers=h).json()[
+            "data"
+        ]
+        assert next(p for p in listed if p["id"] == proj)["current_phase"] == "delivery"

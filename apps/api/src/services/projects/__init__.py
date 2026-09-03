@@ -73,7 +73,21 @@ _SELECT_COLS = (
     "p.settings ->> 'description' AS description, "
     "coalesce((p.settings ->> 'cross_project_knowledge')::boolean, true) AS cross_project_knowledge, "
     "p.created_at, p.updated_at, p.deleted_at, "
+    # GAP-279 (通し J30-05 / J30-15): 工程 (project_flow_stages) があればそれを正とする。
+    # 以前は phases (旧モデル) だけを見ていたため、フローを納品まで done にしても
+    # 「ヒアリング中」のままだった。営業系 (proposal / estimate / contract) は API 契約の
+    # 9 工程には無いので hearing に寄せる。全工程が done / skipped なら delivery。
     "coalesce("
+    "  (select case fs.stage_key when 'proposal' then 'hearing' when 'estimate' then 'hearing' "
+    "          when 'contract' then 'hearing' else fs.stage_key end "
+    "     from public.project_flow_stages fs "
+    "     join public.delivery_phases dp on dp.id = fs.delivery_phase_id "
+    "     where fs.project_id = p.id and dp.status = 'active' and fs.status = 'pending' "
+    "     order by fs.seq limit 1), "
+    "  (select 'delivery' from public.project_flow_stages fs "
+    "     join public.delivery_phases dp on dp.id = fs.delivery_phase_id "
+    "     where fs.project_id = p.id and dp.status = 'active' "
+    "     having count(*) > 0 and bool_and(fs.status in ('done', 'skipped'))), "
     "  (select ph.name from public.phases ph where ph.project_id = p.id "
     "     and ph.status = 'in_progress' order by ph.\"order\" limit 1), "
     "  'hearing') AS current_phase"

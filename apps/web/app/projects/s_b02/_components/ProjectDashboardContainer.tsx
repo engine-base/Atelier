@@ -49,6 +49,13 @@ interface ApiPhase {
   order?: number;
   completed_at?: string | null;
 }
+/** GET /projects/{id}/flow の 1 工程 (GAP-279)。 */
+interface ApiFlowStage {
+  stage_key: string;
+  title: string;
+  status: string;
+  current?: boolean;
+}
 interface ApiDecision {
   id: string;
   status?: string;
@@ -159,6 +166,18 @@ export function ProjectDashboardContainer({
     },
     retry: false,
   });
+  // GAP-279 (通し J30-05 / J30-15): 工程進捗は flow (project_flow_stages) の実状態を正とする。
+  // /workflow/phases (旧モデル) だけを見ていると、フローを納品まで done にしても 0/9 のまま
+  const flowQuery = useQuery({
+    queryKey: ["dash-flow", projectId],
+    queryFn: async () => {
+      const res = await client.get("/projects/{project_id}/flow", {
+        params: { path: { project_id: projectId } },
+      });
+      return asArray<ApiFlowStage>((res as { data?: unknown }).data);
+    },
+    retry: false,
+  });
   const decisionsQuery = useQuery({
     queryKey: ["dash-decisions", projectId],
     queryFn: async () => {
@@ -251,12 +270,26 @@ export function ProjectDashboardContainer({
   const projectName = project.data?.name ?? "プロジェクト";
   const taskCounts = dashboard.data?.task_counts ?? {};
 
-  // 工程: 実 phases (無ければ canonical 9 を current_phase から)
+  // 工程: flow (project_flow_stages) → 実 phases → canonical 9 (current_phase から) の順で採用
   const rawPhases = [...(phasesQuery.data ?? [])].sort(
     (a, b) => (a.order ?? 0) - (b.order ?? 0),
   );
+  const flowStages = flowQuery.data ?? [];
   const stages: StageItem[] =
-    rawPhases.length > 0
+    flowStages.length > 0
+      ? flowStages.map((s) => ({
+          id: s.stage_key,
+          label: s.title,
+          status:
+            s.status === "done"
+              ? "done"
+              : s.status === "skipped"
+                ? "blocked"
+                : s.current
+                  ? "in_progress"
+                  : "pending",
+        }))
+      : rawPhases.length > 0
       ? rawPhases.map((p) => ({
           id: p.id,
           label: p.name,
