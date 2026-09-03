@@ -1,0 +1,85 @@
+# client (クライアントポータル R-T08) 本番実走 証拠 — 2026-09-03 prod(pre-launch)
+# 環境: API https://atelier-api-eb.fly.dev / Web https://atelier-web-coral.vercel.app
+# 担当: client / 対象行: SL01-304, SL02-207, SL03-208, SL03-209, SL03-210, SL03-211
+# 秘密 (JWT / 招待 raw token / パスワード) は本ファイルに一切書かない。UUID は識別用。
+# スクショ: apps/web/.qa/evidence/shots/SL*.png
+
+## 準備 (QA 専用データ)
+- 社内 A: qa-client-20260903-1@example.com (user 3bce5899…) → WS1 1c2b4ae3… "QA-client-W1"
+    - P1 5a65a1a8… "QA-client-P1" / mock M1 38ee199f… "QA画面P1"
+    - P3 60f4e912… "QA-client-P3-delete" / mock M3 3a59aebc…
+    - 招待 INV1 155df1e6… (P1, QAクライアントA, scopes view+comment, ttl 1d) → client signin 200 → 券 CT_A
+    - 招待 INV1B a620d54d… (P1, QAクライアントA2) → client signin 200 → 券 CT_A2 (失効試験用)
+    - 招待 INV3 b825f40b… (P3, QAクライアントC) → client signin 200 → 券 CT_C (案件削除試験用)
+- 社内 B (他社): qa-client-20260903-2@example.com (user a13359fb…) → WS2 1c5de0f4… "QA-client-W2-他社"
+    - P2 c1f067ec… "QA-client-P2-他社案件B" / mock M2 970f9b70… "QA画面P2"
+    - 招待 INV2 26e7bb25… (P2, QAクライアントB) → client signin 200 → 券 CT_B
+- POST /client/auth/signin は agree_legal / agree_confidential true で 200 (expires_at = +24h, scopes [view, comment])
+
+## SL03-208 他人の案件へは参照も投稿も通らない (curl 相当: python urllib, 01:42 UTC)
+(1) 自分のものが通る (CT_A → P1):
+  GET /client/projects/P1            200 name=QA-client-P1
+  GET /client/projects/P1/overview   200 phases[…]
+  GET /client/projects/P1/outputs    200 []
+  GET /client/projects/P1/mocks      200 items=[M1 QA画面P1]
+  GET /client/projects/P1/comments   200 []
+  POST /client/projects/P1/comments {mock M1, "QAクライアントAのコメント (SL03-208/209)"} 201 id=aeee73fe… is_client_author=true
+(2) 越境 CT_A → P2 (他社案件B):
+  GET P2 / P2/overview / P2/outputs / P2/mocks / P2/comments → 全部 403 {"detail":"この内容を表示する権限がありません。"}
+  POST /client/projects/P2/comments target=M2 → 403 同文言
+  POST /client/projects/P1/comments target=M2 (自案件のパスに他案件の mock) → 404 {"detail":"対象が見つかりません。"}
+(3) 逆方向 CT_B → P1: GET 5 系統 + POST comments(M1) → 全部 403 同文言
+  200 になった越境: 0 件 / 拒否本文に他案件名 ("QA-client-P2" "他社案件B" "QA-client-P1") が出た件数: 0
+(4) 画面: CT_A の cookie で /portal?project=P2 → role=alert「このプロジェクトを参照する権限がありません。」、API 403、画面に他社案件名なし → shots/SL03-208.png
+判定: PASS
+
+## SL03-209 クライアントの書き込みが社内へ「誰のものか」分かる形で届く
+- 上記 (1) のクライアント投稿の直後、社内 A (通常 JWT) で対照コメント POST /comments {mock M1,"社内担当のコメント (対照用)"} 201 author_name=QA内部1 is_client_author=false
+- 社内 A: GET /comments?target_type=mock&target_id=M1 → 200 2 件
+    aeee73fe… author_user_id=null author_invitation_id=155df1e6…(INV1) author_name="QAクライアントA" is_client_author=true
+    6ba58641… author_user_id=3bce5899… author_invitation_id=null author_name="QA内部1" is_client_author=false
+- 画面: 社内 A で /mocks?mock=M1 (S-H01) → 「QAクライアントA（クライアント）」ラベル付きでクライアントのコメントが表示、社内側は「QA内部1」→ 見分けられる → shots/SL03-209.png
+判定: PASS
+
+## SL03-211 案件が消えたら、その案件の券も通らない (UTC 時刻付)
+  01:42:12 CT_C GET /client/projects/P3 200 / overview 200 / mocks 200 (削除前に読める)
+  01:42:13 社内 A DELETE /projects/P3 → 204
+  01:42:14 CT_C GET P3 → 401 {"detail":"サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  01:42:14〜16 overview / outputs / mocks / comments GET, comments POST → 全部 401 同文言 (削除の 0.4 秒後から拒否)
+  01:42:17 社内 A GET /projects/P3 → 404 (論理削除を再取得で確認)
+  【付随の不具合】 01:42:16 / 01:42:53 POST /client/auth/signin に INV3 の招待リンク (raw token) → **200** で券を再発行、
+    レスポンスに削除済み案件名 "QA-client-P3-delete" を含む。再発行された券で GET P3 / overview / mocks → 401 (券自体は通らない)。
+    同じリンクの POST /client/auth/preview → 401。preview と signin で判定が食い違う。招待は used_at 付き・revoked_at null のまま。
+判定: PASS (行の期待 = 券が通らない は満たす)。付随不具合は報告に記載 (正本へ行追加を推奨: 「削除済み案件の招待リンクではサインインも通らず、案件名も返さない」)
+
+## SL01-304 / SL03-210 失効 → 同じ券がその場で止まる (Playwright + fetch, 01:47〜01:48 UTC, shots/SL03-210-before.png, SL01-304-list-before/after.png, SL03-210-after.png, SL01-304.png)
+  01:47:58 CT_A2 の cookie で /portal?project=P1 → 画面に QA-client-P1 表示、画面からの API 5 系統すべて 200 / fetch GET P1/overview 200 (失効前に読める)
+  01:48:04 社内 A を /signin から UI サインイン → /portal/invitations?project=P1 (S-L01)
+  01:48:06.6 一覧の「qa-client-20260903-inv1b@example.com を失効」→「失効する」を押下 → POST /client-invitations/{INV1B}/revoke 200、一覧に「失効」表示
+  01:48:09.1 同じ券 CT_A2 で GET P1/overview → 401 {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+             GET P1 → 401 同文言 / GET P1/mocks → 401 同文言 (失効後 最初のアクセスから拒否。券の期限 24h を待たない)
+  01:48:10 同じ cookie で /portal?project=P1 を再読込 → 画面からの GET /client/projects/P1 401 (detail は上記の取り消し文言)、
+             本文に案件名・モック名は残らない。ただし画面の role=alert は「セッションの有効期限が切れました。再度サインインしてください。」
+             + 右下 toast「通信エラーが発生しました。時間をおいて再試行してください。」(401 なのに通信エラー扱い) → shots/SL03-210-after.png
+SL01-304 判定: PASS (失効は次のアクセスから効く。「しばらく見られる」状態なし)
+SL03-210 判定: FAIL — 拒否・即時性は OK、API 文言も期待通りだが、**画面 (S-L03) の文言が「この招待は取り消されています…」ではなく
+  「セッションの有効期限が切れました。再度サインインしてください。」**。ClientProjectViewContainer が 401 を一律にセッション切れ扱いにし、API の detail を捨てている。
+  再サインインを促すが招待は失効済みで入れないため、案内として誤り。
+
+## SL02-207 期限切れ・失効の理由が日本語で分かる (shots/SL02-207-revoked-preview.png, SL02-207-revoked-submit.png)
+  失効リンク (INV1B の raw token を /portal/signin?token=… で開く, 01:48:15):
+    画面 role=alert「招待トークンが無効です。リンクをご確認ください。」(preview API 401 {"detail":"リンクが正しくないか、有効期限が切れています。"})
+    同意 2 つを ON にして送信 → 同じ alert (signin API 401 同 detail)。入れない (URL は /portal/signin のまま)。
+    本文テキストに UUID / "invitation_id" / "expired" / "revoked" は出ない。「トークン」という語は出る。
+    **「招待トークン」入力欄に URL の raw token がそのまま表示される** (スクショで確認。証拠スクショは入力欄をマスクして再撮影)。
+  期限切れリンク: 作成不可 (POST /client-invitations の ttl_days 最小 1 日、DB 直接操作の手段なし) → 未実走
+判定: FAIL — 失効リンクは入れないが「理由が日本語で分かる」を満たさない: 画面は「無効」、API は「正しくないか、有効期限が切れています」と
+  **失効を期限切れ扱い**で案内する (失効 API は invitation_revoked を持つのに signin/preview では invalid_token に畳まれる)。
+  加えて「トークン」の語が画面に出る (行は token を内部識別子として列挙)。期限切れ側は BLOCKED (解除条件: 期限切れ招待を作れる手段 = ttl 秒指定 or staging DB 操作)。
+
+## 後片付け
+- P3 は試験で論理削除済。P1 / P2 / WS1 / WS2 / 招待 / コメント / mock は退会に伴い所有者と共に残置 (QA 専用データ)
+- 退会 (01:51 UTC): POST /auth/account/delete
+    qa-client-20260903-1 → 200 deleted_at=2026-09-03T01:51:37Z scheduled_purge_at=2026-10-03 / 旧 JWT で GET /workspaces → 401
+    qa-client-20260903-2 → 200 deleted_at=2026-09-03T01:51:38Z scheduled_purge_at=2026-10-03 / 旧 JWT で GET /workspaces → 401
+- スクラッチの secrets (JWT / raw token / パスワード) は削除済。SL02-207 のスクショは入力欄をマスクして再撮影済。

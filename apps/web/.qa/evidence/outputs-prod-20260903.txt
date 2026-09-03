@@ -1,0 +1,92 @@
+# QA 実走証拠 — 担当 outputs (S-F02 / S-G01 / S-H01 / S-I02) — 2026-09-03 prod(pre-launch)
+API: https://atelier-api-eb.fly.dev  Web: https://atelier-web-coral.vercel.app
+Playwright: chromium + proxy(HTTPS_PROXY) + --ssl-version-max=tls1.2。スクショ: shots/<ID>.png
+秘密 (JWT / 招待トークン / パスワード) は記載しない。
+
+## 0. 準備 (全部 QA 専用データ)
+- POST /auth/signup qa-outputs-20260903-1@example.com (display_name "QA成果物メンバー甲") → 201
+- POST /auth/signup qa-outputs-20260903-2@example.com (display_name "QA成果物メンバー乙") → 201 (表示名なし利用者は signup/PATCH /users/me とも display_name min_length=1 で作れないため未使用)
+- POST /workspaces → WS 510b98d6… / POST /projects (type client_project) → PJ e6c62e37-66b1-4f0b-a669-8b60aaafae0f
+- POST /projects/{PJ}/import (qa-spec.md, qa-table.csv, qa-screen-login.html) → 200 imported=3
+  output(md)  e1e0f939-3263-4bd1-adf9-ae5533825980 (stage delivery v1)
+  output(csv) a4d3443c-7352-4b93-8aa4-cac3b7b12d82 (filedb, sheet editable)
+  mock(html)  246adaf8-bc46-42fc-b157-bb87ee243f49 「QA画面ログイン」 v1 (mockdb://)
+- POST /mocks {screen_name:"QA画面 一覧", html_storage_path:"mocks/<PJ>/qa-ichiran-v1.html"} → 201 dab95ec7-5f93-43b5-8618-1d4f07a7018d v1
+- POST /tasks {category QA, title "QA タスク コメント表示", type feature, estimated_hours 2} → 201 cda00db3-f5a6-4e39-92d1-2ad3ed8f9695
+- POST /client-invitations (scopes view,comment, client_display_name "QAクライアント窓口 丙") → 201 fc61127e-603c-4103-941e-ec3b188dac71
+- POST /client-invitations (scopes view,comment, client_display_name 無し) → 201 5f338ad6-9b57-4c21-ab2d-793f47b1d3c0
+- POST /client/auth/signin (両招待, agree_legal/agree_confidential true, display_name 無し) → 200 (client_access_token 発行)
+- GET /projects/{PJ}/delivery-phases → 200 [seq1 フェーズ1 active, frozen_at null, mock_count 2, output_count 2]  PH1 = ed6be7d1-6a79-4b43-a834-41e9faf0911c
+
+## SF02-315 — BLOCKED (Bridge 要)
+- POST /workflow/phase-proposals {project_id} → 503 {"detail":"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"}
+- 実装 (services/workflow/proposals.py) は pending 重複判定の後に LLM 生成 → 生成できない環境では pending 提案が 1 件も作れず「もう一度提案」「処理済み提案の承認」の前提に到達しない。
+- 解除条件: Bridge ハーネス。API 側の重複/二重処理文言はコード上「この提案はすでに処理済みです。」(routes/workflow) — 未実測。
+
+## SF02-316 — PASS
+- GET /mocks/dab95ec7… (before) を JSON sort_keys で保存
+- POST /projects/{PJ}/delivery-phases/{PH1}/freeze {} → 403 {"detail":"確定すると成果物が凍結され、以後の追加は次のフェーズになります。内容をご確認のうえ承認してください。"}
+- 同 {confirm:false} → 403 同文言。GET delivery-phases → [(1,'フェーズ1','active',None)] 不変
+- 同 {confirm:true, note:"QA 確定"} → 200 data=[(1,'フェーズ1','frozen','2026-09-03T01:43:14.589982Z',mock 2,output 8),(2,'フェーズ2','active',None,0,0)]
+- 再度 {confirm:true} → 409 {"detail":"この工程はすでに確定済みです。"}
+- PATCH /mocks/dab95ec7… {html_storage_path:"…/CHANGED.html", meta_tags:{qa:changed}} → 409 {"detail":"確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。"}
+- DELETE /mocks/dab95ec7… → 409 同文言
+- POST /mocks/dab95ec7…/discard → 409 同文言
+- POST /mocks/dab95ec7…/versions {html_storage_path:"…/qa-ichiran-v2.html"} → 201 v2 (id feafe59d…, delivery_phase_id=フェーズ2 b4d9789e…) ※凍結 v1 行は不変、次フェーズへの追加として積まれる (GAP-152 設計)
+- GET /mocks/dab95ec7… (after) → cmp before/after = IDENTICAL (html_storage_path / meta_tags / deleted_at / updated_at すべて同一)
+- GET /mocks?project_id → [('QA画面 一覧',2,'b4d9789e'),('QA画面 一覧',1,'ed6be7d1'),('QA画面ログイン',1,'ed6be7d1')] 削除なし
+- GET delivery-phases (final) → [(1,frozen,2026-09-03T01:43:14Z),(2,active,None)]
+
+## SG01-217 — FAIL
+- GET /outputs/{csv}/sheet → 200 editable=true rows [[項目,数量],[りんご,1],[みかん,2]]
+- API 順次: POST /outputs/{csv}/sheet (タブA 相当, v1 起点) → 201 v2 / POST 同 (タブB 相当, v1 起点の別内容) → 201 v3 — 409 なし
+- API 同時: 4 本並列 POST /sheet → 4 本とも 201 (v4,v5,v6,v7)。GET /versions → v1..v7
+- ブラウザ (Playwright, 同一ログインの 2 タブで /outputs?output={csv}): 両タブで表の最終セルを編集 (甲の編集 / 乙の編集) → タブ1「新しい版として保存」→ タブ2「新しい版として保存」: 両方 role=alert なし。GET /versions 再取得 → v8, v9 が追加 (両方成功)。衝突文言「ほかの編集と同時に保存されたため…」は出ない。
+- 期待 vs 実測: 期待=2 つ目の保存が 409 で日本語の衝突文言 / 実測=常に 201 で新版が積まれ、古いタブの内容 (相手の編集を含まない) が最新版になる。実装は insert 時 max(version)+1 で採番 (services/outputs/__init__.py insert_version) するため、UNIQUE 衝突が起きるのは同一ミリ秒級の真の競合のみ。shots/SG01-217.png (タブ2), SG01-217-tab1.png
+
+## SG01-218 — BLOCKED (Bridge 要)
+- POST /comments/59de4ce2…/fix-proposal → 503 {"detail":"お使いの PC の Bridge がオフラインです。…"} / GET /outputs/{md}/fix-proposals → {"data":[]}
+- 処理済みの修正案が作れないため二重承認/却下の前提に到達しない。API 文言はコード上「この修正案はすでに処理済みか、同じコメントに保留中の修正案があります。」— 未実測。
+
+## SG01-219 / SG01-220 — PASS
+- POST /comments (甲, workflow_output {md}) → 201 author_name "QA成果物メンバー甲" is_client_author false
+- POST /client/projects/{PJ}/comments (丙, workflow_output {md}) → 201 is_client_author true
+- POST /client/projects/{PJ}/comments (名前未設定招待, workflow_output {md}) → 201
+- GET /comments?target_type=workflow_output&target_id={md} (甲) → 3 件:
+  {author_name:'QA成果物メンバー甲', is_client_author:False}
+  {author_name:'QAクライアント窓口 丙', author_invitation_id fc61127e…, is_client_author:True}
+  {author_name:None, author_invitation_id 5f338ad6…, is_client_author:True, content:'名前未設定クライアントからの発言'}
+- ブラウザ /outputs?output={md} の [aria-label=コメント一覧] innerText:
+  "QA成果物メンバー甲 … 社内メンバー甲から成果物へのコメント / QAクライアント窓口 丙（クライアント） … クライアント窓口丙から成果物へのコメント / クライアント（招待） … 名前未設定クライアントからの発言"
+  → 表示名 + 「（クライアント）」で社内/クライアント判別可、UUID 断片なし (SG01-219)。名前が引けない発言は「クライアント（招待）」で本文ごと一覧に残る (SG01-220)。shots/SG01-219.png, SG01-220.png
+
+## SH01-212 — FAIL
+- 対象: 確定済みフェーズ1 のモック 246adaf8… (mockdb, /mocks?mock=… で本体表示 OK)
+- ブラウザ 編集 (修正指示 textarea「見出しを大きくしてください」→ 送信): SSE /mocks/{id}/revise/stream → loading → generating(provider relay) → error bridge_offline。画面: 「お使いのパソコン (Bridge) が未接続のためモックの改訂を実行できません」+ 接続手順。凍結の文言は出ない (API revise に凍結ガード無し: services/mocks/revise.py に MockPhaseFrozen 参照 0 件)。shots/SH01-212-edit.png
+- ブラウザ 破棄 → 破棄を確定: API POST /mocks/{id}/discard → 409 {"detail":"確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。"} なのに画面は「唯一のバージョンは破棄できません。」+「エラーが発生しました（HTTP 409）」を表示 (MockViewerContainer discardMut.onError: statusOf(e)===409 → 固定文言)。shots/SH01-212.png
+- API 直 (PATCH / DELETE / discard) は 409 で期待文言どおり (SF02-316 参照)。
+- 期待 vs 実測: 期待=画面に「確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。」/ 実測=編集は Bridge 未接続で止まり、破棄は別の理由 (唯一のバージョン) に置き換わって表示。
+
+## SH01-213 — PASS
+- POST /comments (甲, mock 246adaf8…) → 201 / POST /client/projects/{PJ}/comments (丙, mock) → 201
+- GET /comments?target_type=mock (甲) → [{author_name:'QA成果物メンバー甲',False},{author_name:'QAクライアント窓口 丙',True}]
+- ブラウザ /mocks?mock=246adaf8… コメント一覧: 「QA成果物メンバー甲 … / QAクライアント窓口 丙（クライアント） …」 UUID 断片なし。shots/SH01-213.png
+
+## SH01-214 — PASS
+- POST /mocks {screen_name:"QA画面 一覧", html_storage_path 別} → 409 {"detail":"「QA画面 一覧」という画面は既にあります。別の名前にするか、既存の画面へ新しい版として追加してください。"}
+- POST /mocks {screen_name:"QA画面ログイン"} → 409 同形 (「QA画面ログイン」という画面は既にあります。…)
+- GET /mocks?project_id 再取得 → [('QA画面 一覧',1),('QA画面ログイン',1)] 増えていない。500 なし。
+- S-H01 画面には新規作成フォームが無い (作成は取り込み / AI / タスク screen_name 経由) — 画面文言は API detail がそのまま表示される経路のみ。
+
+## SI02-307 — BLOCKED (前提が仕様上成立しない)
+- POST /comments (甲, task cda00db3…) → 201 author_name "QA成果物メンバー甲"
+- POST /client/projects/{PJ}/comments {target_type:"task", target_id:cda00db3…} (丙) → 422 {"detail":"送信内容を確認してください（入力内容: 形式が正しくありません）。"} (ClientCommentCreate target_type ^(workflow_output|mock)$)
+- ブラウザ /tasks/detail?task=cda00db3… コメント欄: 「コメント（1 件） QA成果物メンバー甲 2026-09-03 01:42 社内メンバー甲からタスクへのコメント」 (社内分は表示名で出る)。shots/SI02-307.png
+- クライアントのタスクコメントが作れないため「クライアント発を見分けられる」は判定不能。
+
+## 後片付け
+- POST /client-invitations/fc61127e…/revoke → 200 / 5f338ad6…/revoke → 200 → 発行済 client token で GET /client/projects/{PJ}/overview → 401
+- POST /auth/account/delete (甲) → 200 {deleted_at 2026-09-03T01:51:50Z, scheduled_purge_at 2026-10-03}
+- POST /auth/account/delete (乙) → 200 {deleted_at 2026-09-03T01:51:51Z}
+- 退会後: POST /auth/signin 甲/乙 → 401、退会前の JWT で GET /projects/{PJ} → 401
+- WS / PJ / 成果物 / モック / タスク / コメントは退会アカウント配下の QA 専用データ (他人のデータ不変更)。
