@@ -61,3 +61,13 @@ staging を「どの DB・どの認証・どの保存先・どの API/Web で」
 - 外部リソースはコードで作る（G-11）: バケット = `supabase/migrations/gap-242_storage_buckets.sql`、法務文書・AI 社員テンプレ = `supabase/seed/`、認証設定（Site URL / Redirect URLs）= `supabase config push`（手順書に記載）。
 - staging が無い間、L1〜L3 の行は **BLOCKED（理由: staging 未整備）** として正本に残す。ローカルで緑にして PASS と書かない。
 - 用意手順: `docs/staging-setup.md`。
+
+## 改訂 2026-09-03（経営者決定）
+
+- 案 A を実行したところ、Supabase Free の上限（**1 人あたり有効プロジェクト 2 つ**、org 横断）で別プロジェクトを作れなかった。
+  他プロジェクトの停止・Pro 化は見送り。
+- **ローンチ前は本番プロジェクト（Supabase / Fly / Vercel）を staging として共用する。** ローンチ前に DB のデータは全消去する
+  ので、この期間は「本番データ」が存在しない。破壊系（退会・DB 故意破壊・課金テストモード）も QA 専用データに限って本番で流す。
+- **切替条件**: 実顧客の最初の 1 件が入る前（T-I-24 go/no-go の前提）。Pro 化のうえ `scripts/staging-bootstrap.sh` で案 A に移る。
+- 「本番はスモークだけ」（test-ladder §5 / CLAUDE.md 22）はローンチ後から効く。それまでの本番実走は正本の結果列に `prod(pre-launch)` と書く。
+

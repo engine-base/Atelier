@@ -669,20 +669,23 @@
         "L4 の full (本番はスモークだけ)"
       ],
       "adr": "ADR-021",
-      "adopted_option": "A",
+      "adopted_option": "A (ローンチ後) / ローンチ前は本番プロジェクトを staging として共用",
       "approved_by": "経営者",
-      "approved_at": "2026-09-02",
-      "approval_note": "AskUserQuestion で A を選択 (推奨どおり)。資源の用意は docs/staging-setup.md §1 (経営者・約 1 時間)。用意できたら resources に project ref / Fly app / preview URL を記入",
+      "approved_at": "2026-09-03",
+      "approval_note": "2026-09-03 経営者決定: Supabase Free の上限 (1 人 2 プロジェクト) により別プロジェクトは作れず、他プロジェクトの停止・Pro 化も見送り。ローンチ前は本番 (Supabase rgxwmdnqnlkgrgdfafih / Fly atelier-api-eb / Vercel 本番) を staging として使い、ローンチ前に DB のデータを全消去する。ローンチ時 (実顧客が入る前) に案 A (Pro + 別プロジェクト) へ切り替える。それまで『本番はスモークだけ』の規約は停止し、破壊系テストも QA 専用データに限って可",
       "resources": {
-        "supabase_project_ref": "",
-        "fly_app": "atelier-api-staging",
-        "vercel_preview_url": "",
+        "supabase_project_ref": "rgxwmdnqnlkgrgdfafih",
+        "fly_app": "atelier-api-eb",
+        "vercel_preview_url": "(本番 Web と同一)",
         "github_secrets": [
-          "STAGING_DATABASE_URL",
-          "STAGING_FLY_APP_NAME"
+          "PROD_DATABASE_URL",
+          "FLY_APP_NAME"
         ],
-        "ready": false
-      }
+        "ready": true,
+        "note": "ローンチ前は本番と同一。案 A へ切替後は atelier-api-staging / STAGING_* に差し替える"
+      },
+      "phase": "pre-launch: staging == production",
+      "switch_condition": "実顧客の最初の 1 件が入る前 (ローンチ判定 T-I-24 の前提条件)。切替時は scripts/staging-bootstrap.sh (Pro 化後) を実行"
     },
     "production": {
       "purpose": "L4 のスモーク (prod-smoke.md) だけ。通し・ジャーニー・破壊的テストは流さない",

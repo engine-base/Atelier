@@ -56,6 +56,9 @@
 
 - **L1〜L3 のブラウザ通し・ジャーニー・AI 実動は staging で流す。** ローカルのスタブ環境は単体・契約テストまで。
 - **本番は L4 のスモーク（prod-smoke）だけ。** 本番のデータを触る通しはしない。
+  - **例外（ローンチ前）**: 実顧客が 1 件も入っておらず、ローンチ前に DB を全消去する期間は、本番を staging として共用してよい
+    （ADR-021 改訂 2026-09-03）。この期間の本番実走は結果列に `prod(pre-launch)` と書き、QA 専用データにだけ触る。
+    切替条件は `selected-stack.json` の `environments.staging.switch_condition`。
 - staging の **構成は technology-agnostic に決め打ちしない**。`architecture-design` が **本番と同じ migration / deploy / プロビジョニングコードで作れる**ことを条件に決め、`selected-stack.json` の `environments.staging` と ADR に確定させる。**未確定のプロジェクトでは、この決定自体を最初のタスクとして起票する。**
 - staging に無いもの（有料の外部プロバイダ等）は **BLOCKED（理由つき）** で残す。fake green にしない。
 
