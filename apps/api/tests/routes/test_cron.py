@@ -168,6 +168,83 @@ class TestCronSchedules:
         with TestClient(app) as client:
             assert client.get("/cron-schedules").status_code == 401
 
+    def test_gap257_enable_toggle_is_200_not_500(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-257 (本番実走 S-O01): PATCH {enabled:true} が 500。update_schedule が next_run_at
+        (datetime) を audit の after に入れ、json.dumps で落ちていた。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            sid = client.post(
+                "/cron-schedules",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "name": "toggle",
+                    "cron_expression": "0 9 * * *",
+                    "target_action": "daily_digest",
+                    "target_payload": {},
+                    "enabled": False,
+                },
+                headers=h,
+            ).json()["data"]["id"]
+            r = client.patch(f"/cron-schedules/{sid}", json={"enabled": True}, headers=h)
+            assert r.status_code == 200, r.text
+            assert r.json()["data"]["enabled"] is True
+            assert r.json()["data"]["next_run_at"] is not None
+            r2 = client.patch(f"/cron-schedules/{sid}", json={"enabled": False}, headers=h)
+            assert r2.status_code == 200, r2.text
+            assert r2.json()["data"]["next_run_at"] is None
+
+    def test_gap256_run_now_writes_history_and_does_not_abort(
+        self, app: FastAPI, seeded: dict[str, str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GAP-256 (本番実走 S-O01): run-now が全 action で「current transaction is aborted」。
+        履歴 insert が利用者 RLS で拒否され transaction ごと壊れていた。履歴は service session で書き、
+        本体は error にならず、GET /cron-runs に行が残る。"""
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        from src.services.cron import dispatcher as dispatcher_mod
+
+        history_engine = create_async_engine(PG_ASYNC, poolclass=NullPool)
+        monkeypatch.setattr(
+            dispatcher_mod,
+            "_history_session_factory",
+            lambda: async_sessionmaker(history_engine, class_=AsyncSession),
+        )
+
+        # action 本体は対象外 (Bridge 待ちで固まらないよう即 done を返す偽 spec)
+        from src.services.cron.actions import ActionOutcome
+
+        class _ImmediateSpec:
+            async def run(self, session: object, **_kw: object) -> ActionOutcome:
+                return ActionOutcome(status="done", detail={"note": "fake"})
+
+        monkeypatch.setattr(dispatcher_mod, "get_action_spec", lambda _a: _ImmediateSpec())
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            sid = client.post(
+                "/cron-schedules",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "name": "run-now-history",
+                    "cron_expression": "0 9 * * *",
+                    "target_action": "daily_digest",
+                    "target_payload": {},
+                },
+                headers=h,
+            ).json()["data"]["id"]
+            r = client.post(f"/cron-schedules/{sid}/run-now", headers=h)
+            assert r.status_code == 200, r.text
+            body = r.json()["data"]
+            assert body["status"] in ("done", "deferred"), body
+            assert "transaction is aborted" not in json.dumps(body, ensure_ascii=False)
+            runs = client.get("/cron-runs", params={"name": "run-now-history"}, headers=h)
+            assert runs.status_code == 200, runs.text
+            rows = runs.json()["data"]
+            assert len(rows) >= 1, "run-now の履歴が残っていない"
+            assert rows[0]["status"] in ("success", "deferred"), rows[0]
+        asyncio.run(history_engine.dispose())
+
     def test_create_and_audit(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:

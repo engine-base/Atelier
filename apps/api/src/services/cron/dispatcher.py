@@ -13,7 +13,9 @@ GAP-183 (経営者判断 2026-08-19): 発火の「見張り役」は **利用者
 
 **二重実行の防止**: 見張り役が 2 つある以上、PC と クラウドが同じ行を同時に
 拾いうる。AI を使う自動実行が二重に走ると利用者のプラン枠を無駄に消費するため、
-発火対象は `for update skip locked` で 1 行ずつロックして取り、next_run_at を
+発火対象は `for no key update skip locked` で 1 行ずつロックして取り、next_run_at を
+(GAP-256: 履歴は別接続で書き、cron_run_history.schedule_id の FK 検査が KEY SHARE を取る。
+`for update` だとそれと衝突して互いに待つ = 固まる。`no key update` なら FK 検査と両立する)
 先に進めてから実行する。ロックを取れなかった行は「他方が処理中」なので黙って飛ばす。
 
 「今は実行できない」(PC 未接続など) 場合は失敗にせず `deferred` として記録し、
@@ -29,7 +31,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from .actions import ActionOutcome, get_action_spec
 from .expression import CronExpressionError, missed_occurrences, next_occurrence
@@ -70,6 +72,30 @@ async def compute_next_run(
     return nxt
 
 
+def _history_session_factory() -> async_sessionmaker[AsyncSession]:
+    """GAP-256: 実行履歴は **service session** (RLS を通らない) で書く。
+
+    cron_run_history には書込 policy が無い (API 経由の改竄不可 = 設計どおり)。ところが履歴を
+    利用者の RLS セッションで insert していたため、本番で run-now が **全 action で失敗**
+    していた: insert が拒否され、握りつぶした後も transaction が aborted のまま action が落ちる
+    (「current transaction is aborted」)。履歴は自分の session・自分の commit で書く。
+    """
+    from src.db.session import shared_session_factory
+
+    return shared_session_factory()
+
+
+async def _history_exec(sql: str, params: dict[str, Any]) -> Any:
+    factory = _history_session_factory()
+    async with factory() as hs, hs.begin():
+        res = await hs.execute(text(sql), params)
+        return (
+            res.scalar_one()
+            if sql.lstrip().lower().startswith("insert") and "returning" in sql
+            else None
+        )
+
+
 async def _record_start(
     session: AsyncSession,
     *,
@@ -82,17 +108,17 @@ async def _record_start(
 
     GAP-193: skipped は「この実行の前に飛ばした定刻の回数」。PC を数日止めて
     いたときに黙って消さないための記録 (0 = 取りこぼしなし)。
+    GAP-256: 呼び出し元の session とは別の service session で書く (RLS に阻まれても本体を巻き込まない)。
     """
+    del session  # 履歴は service session で書く (下)
     try:
-        res = await session.execute(
-            text(
-                "insert into public.cron_run_history "
-                "(name, schedule_id, project_id, status, skipped_occurrences) "
-                "values (:n, cast(:s as uuid), cast(:p as uuid), 'running', :sk) returning id"
-            ),
+        rid = await _history_exec(
+            "insert into public.cron_run_history "
+            "(name, schedule_id, project_id, status, skipped_occurrences) "
+            "values (:n, cast(:s as uuid), cast(:p as uuid), 'running', :sk) returning id",
             {"n": name, "s": schedule_id, "p": project_id, "sk": skipped},
         )
-        return str(res.scalar_one())
+        return None if rid is None else str(rid)
     except Exception:  # pragma: no cover - 履歴が書けなくても本体は止めない
         logger.exception("cron_run_history insert failed for schedule %s", schedule_id)
         return None
@@ -101,14 +127,13 @@ async def _record_start(
 async def _record_finish(
     session: AsyncSession, *, run_id: str | None, status: str, detail: dict[str, Any]
 ) -> None:
+    del session
     if run_id is None:
         return
     try:
-        await session.execute(
-            text(
-                "update public.cron_run_history set status = :st, finished_at = now(), "
-                "detail = cast(:d as jsonb) where id = cast(:i as uuid)"
-            ),
+        await _history_exec(
+            "update public.cron_run_history set status = :st, finished_at = now(), "
+            "detail = cast(:d as jsonb) where id = cast(:i as uuid)",
             {"i": run_id, "st": status, "d": json.dumps(detail, ensure_ascii=False)},
         )
     except Exception:  # pragma: no cover
@@ -124,14 +149,13 @@ async def _record_failure(
     error: str,
 ) -> None:
     """失敗を 1 行で記録する (rollback 後に使う)。"""
+    del session
     try:
-        await session.execute(
-            text(
-                "insert into public.cron_run_history "
-                "(name, schedule_id, project_id, status, finished_at, detail) "
-                "values (:n, cast(:s as uuid), cast(:p as uuid), 'error', now(), "
-                " cast(:d as jsonb))"
-            ),
+        await _history_exec(
+            "insert into public.cron_run_history "
+            "(name, schedule_id, project_id, status, finished_at, detail) "
+            "values (:n, cast(:s as uuid), cast(:p as uuid), 'error', now(), "
+            " cast(:d as jsonb))",
             {
                 "n": name,
                 "s": schedule_id,
@@ -175,7 +199,7 @@ async def run_due_schedules(
             text(
                 "select id, project_id, name, cron_expression, target_action, "
                 "target_payload, next_run_at from public.cron_schedules "
-                f"where {' and '.join(where)} order by created_at for update skip locked"
+                f"where {' and '.join(where)} order by created_at for no key update skip locked"
             ),
             params,
         )
@@ -346,7 +370,7 @@ async def run_one_now(
         await session.execute(
             text(
                 "select id, project_id, name, cron_expression, target_action, target_payload "
-                "from public.cron_schedules where id = cast(:i as uuid) for update"
+                "from public.cron_schedules where id = cast(:i as uuid) for no key update"
             ),
             {"i": schedule_id},
         )
