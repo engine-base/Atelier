@@ -1,0 +1,8 @@
+{"id": "J20-03", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "同意なし→422 / 片方のみ→422 で拒否。招待の used_at/use_count は不変 (used_at=None)。セッション (client token) は発行されない。同意記録は DB 直接照会不可のため『作られない』は API 応答 (422 で処理前に拒否) から判定"}
+{"id": "J20-05", "status": "FAIL", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "resend が 409: {\"detail\": \"この招待はすでに使われたか、取り消されています。\"}"}
+{"id": "J21-02", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "outputs 2 件 = requirements v2 (v1 は出ない) + delivery v1。社内コメント (原価メモ) はクライアントの comments 一覧に出ない (0 件)"}
+{"id": "J21-03", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "mocks 1 件 = 画面1 の v2 のみ (v1 a2aabca4… は出ない)"}
+{"id": "J21-05", "status": "FAIL", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "期待: 成果物の新版で招待者に更新メール + 監査ログ client_notified_of_update / 実測: 新版 (要件定義 v3) 作成は 200 だが、更新通知メールを送る実装が API に存在しない (ResendSender の呼出箇所に成果物更新が無い)。観測できる送信痕跡も無し。T-F-17 未実装扱い"}
+{"id": "J22-01", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "CT1→PX 5 GET + POST comment 全 403、CTX→PE1 5 GET + POST 全 403、自案件パスに他社 mock target は 404 (存在秘匿)。拒否本文に相手案件名なし。他社側コメント 0 件。拒否の監査記録は admin 専用で未確認"}
+{"id": "J22-02", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "クライアント券で社内 API 9 本 (projects/outputs/mocks/comments/workspaces/me/client-invitations) 全て 401。系統をまたげない"}
+{"id": "J22-03", "status": "PASS", "evidence": "apps/web/.qa/evidence/journeys-E-prod-20260903.txt", "note": "scope=view の券で投稿 → 403 拒否、コメント数 0→0 で増えない。閲覧 (outputs) は 200"}

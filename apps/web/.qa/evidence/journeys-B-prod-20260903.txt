@@ -1,0 +1,48 @@
+# J30-J35 (担当 B) 本番=pre-launch staging 2026-09-03 — API 実走ログ (秘密は書かない)
+  signup qa-jB-20260903-1@example.com -> 201 {"ok": true}
+  signin qa-jB-20260903-1@example.com -> 200 user_id=972d2dfd-7f77-43de-ac29-2361f83bee2d
+  signup qa-jB-20260903-2@example.com -> 201 {"ok": true}
+  signin qa-jB-20260903-2@example.com -> 200 user_id=2a08436f-badc-483a-961d-cb9b2d22d47c
+  signup qa-jB-20260903-3@example.com -> 201 {"ok": true}
+  signin qa-jB-20260903-3@example.com -> 200 user_id=589aa6ef-2fa1-4197-9ef3-7aeb148c7882
+  POST /workspaces -> 201 {"data": {"id": "9fe4e3aa-2bbd-4a0c-9c75-43bf0296e942", "name": "QA-B WS 20260903", "description": null, "icon": null, "member_count": 1, "project_count": 0, "plan": "free", "deleted_at": null, "created_at": "2026-09-03T04:49:30.629283Z", "updated_at": "2026-09-03T04:49:30.629283Z"}}
+  POST /projects -> 201 {"data": {"id": "e59a9c02-565e-49a1-8957-365a60ce3b87", "workspace_id": "9fe4e3aa-2bbd-4a0c-9c75-43bf0296e942", "name": "QA-B 案件 コーポレートサイト刷新", "client_name": null, "description": null, "type": "client_project", "status": "draft", "ai_learning_opt_out": true, "cross_project_knowledge": true, "current
+  GET /projects/{id} -> 200 {"data": {"id": "e59a9c02-565e-49a1-8957-365a60ce3b87", "workspace_id": "9fe4e3aa-2bbd-4a0c-9c75-43bf0296e942", "name": "QA-B 案件 コーポレートサイト刷新", "client_name": null, "description": null, "type": "client_project", "status": "draft", "ai_learning_opt_out": true, "cross_project_knowledge": true, "current
+  GET /projects list contains new=True
+  GET dashboard.recent_activities -> 200 ["workflow.phases.seed", "project.create"]
+[J30-01] => PASS: 一覧に出る=True, GET /projects/{id} ai_learning_opt_out=True, dashboard.recent_activities=['workflow.phases.seed', 'project.create'] (監査 action 名は project.create 系)
+  GET /flow -> 200 [["hearing", "pending", true], ["proposal", "pending", false], ["estimate", "pending", false], ["contract", "pending", false], ["requirements", "pending", false], ["architecture", "pending", false], ["design", "pending", false], ["implementation", "pending", false], ["verification", "pending", false
+  GET /workflow/phases -> 200 [["ヒアリング", "in_progress"], ["要件定義", "pending"], ["アーキ設計", "pending"], ["デザイン", "pending"], ["機能分解", "pending"], ["タスク分解", "pending"], ["実装", "pending"], ["検証", "pending"], ["納品", "pending"]]
+  GET /delivery-phases -> 200 {"data": [{"id": "0eb2afb1-06b9-46e4-975f-c73f6cc91fcc", "project_id": "e59a9c02-565e-49a1-8957-365a60ce3b87", "seq": 1, "name": "フェーズ1", "status": "active", "note": null, "frozen_at": null, "mock_count": 0, "output_count": 0, "task_count": 0, "stages_done": 0, "stages_total": 10}]}
+  POST flow/hearing/complete -> 200 [["hearing", "done", false], ["proposal", "pending", true], ["estimate", "pending", false], ["contract", "pending", false], ["requirements", "pending", false], ["architecture", "pending", false], ["design", "pending", false], ["implementation", "pending", false], ["verification", "pending", false],
+  dashboard.recent_activities -> 200 ["project.flow.complete", "project.flow.init", "workflow.phases.seed", "project.create"]
+[J30-03] => PASS: 再取得: hearing=('done', False), proposal=('pending', True) (次工程が current)。監査 recent_activities に project.flow.complete あり=True。※監査 action 名は 'stage_completed' ではなく 'project.flow.complete'。画面側は別途 Playwright で確認
+  POST flow/hearing/complete (再) -> 409 {"detail": "この工程はすでに完了しています。"}
+  POST flow/hearing/skip (done工程) -> 409 {"detail": "この工程は飛ばせません。"}
+[J30-04] => FAIL: done 工程へ complete 再送 -> 200 (この工程はすでに完了しています。), skip -> 409; completed_at 不変=True。差し戻しは明示の reopen 操作のみ
+  GET dashboard(空) -> 200 {"data": {"project_id": "7d651ae9-9ae0-4118-98a5-6ca5619c2b89", "name": "QA-B 空案件", "status": "draft", "current_phase": "hearing", "task_counts": {"triage": 0, "ready": 0, "in_progress": 0, "blocked": 0, "awaiting": 0, "done": 0, "total": 0}, "recent_activities": [{"action": "workflow.phases.seed",
+  GET /approval-inbox pending -> 200 {"n": 0}
+  GET /outputs(空) -> 200 {"n": 0}
+  skip proposal reason=""  -> 422 {"detail": "送信内容を確認してください（理由: 文字数が足りません）。"}
+  skip proposal reason あり -> 200 [["hearing", "done", null], ["proposal", "skipped", "提案は口頭で合意済みのため省略"], ["estimate", "pending", null]]
+[J30-07] => PASS: 理由空 -> 422 (拒否), 理由あり -> 200; 再取得 proposal=('skipped', '提案は口頭で合意済みのため省略')
+  reopen proposal -> 200 200
+[J30-08] => PASS: reopen 後 proposal=('pending', None); 監査 recent_activities に project.flow.reopen=True
+  contract complete confirm=false -> 403 {"detail": "この工程は重要な確認が必要です。内容をご確認のうえ承認してください。"}
+  contract complete confirm=true -> 200 200
+[J30-09] => PASS: 確認なし -> 403 (この工程は重要な確認が必要です。内容をご確認のうえ承認してください。) 状態=pending; 確認つき -> 200 状態=done
+  flow/requirements/thread #1 -> 200 {"data": {"thread_id": "fa1909fa-6479-40cf-aa42-9e0ba3344783"}}
+  flow/requirements/thread #2 -> 200 {"data": {"thread_id": "fa1909fa-6479-40cf-aa42-9e0ba3344783"}}
+[J30-12] => PASS: 1回目=200 thread=fa1909fa-6479-40cf-aa42-9e0ba3344783, 2回目=200 thread=fa1909fa-6479-40cf-aa42-9e0ba3344783 同一=True; GET /chat/threads 件数=1
+  POST /decisions -> 201 {"data": {"id": "54a69a25-9458-4a1c-bcaf-67afde34b6ef", "project_id": "e59a9c02-565e-49a1-8957-365a60ce3b87", "phase_id": null, "status": "unresolved", "body": "トップページのヒーロー画像は動画にするか静止画にするか", "reflected_to": null, "resolve_note": null, "decided_by": null, "with_user": false, "pinned": false, "created
+  PATCH /decisions -> 200 {"data": {"id": "54a69a25-9458-4a1c-bcaf-67afde34b6ef", "project_id": "e59a9c02-565e-49a1-8957-365a60ce3b87", "phase_id": null, "status": "decided", "body": "トップページのヒーロー画像は動画にするか静止画にするか", "reflected_to": null, "resolve_note": "静止画で確定", "decided_by": null, "with_user": false, "pinned": false, "create
+  context-preview contains decision -> 200 {"hit": false, "len": 637}
+[J30-13] => FAIL: 一覧=[(True, 'decided')]; context-preview の system_prompt に確定事項本文が含まれる=False (画面の文脈パネルは Playwright で確認)
+  GET /projects status=paused -> 200 ["QA-B 停止案件"]
+  GET /projects limit=1 -> 200 {"ids": ["e59a9c02-565e-49a1-8957-365a60ce3b87"], "meta": {"next_cursor": "MjAyNi0wOS0wMyAwNDo0OTozMS40MDExOTArMDA6MDB8ZTU5YTljMDItNTY1ZS00OWExLTg5NTctMzY1YTYwY2UzYjg3", "limit": 1, "total_estimate": 3}, "keys": ["data", "meta"]}
+  [J30-04 訂正] 上の判定行はスクリプトの変数上書きによる誤記。実測: complete 再送 409 / skip 409 / completed_at 不変
+[J30-04] => PASS: done 工程へ complete 再送 -> 409 'この工程はすでに完了しています。', skip -> 409; 再取得で completed_at 不変。変更は明示の reopen 操作のみ (J30-08)
+  cursor page error -> 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: b24b9079-059a-4d0c-afe6-b2d8a1fd35ee）"}
+  paging(encoded cursor) -> 200 {"pages": 1, "ids_n": 1, "dupes": 0, "all_n": 3, "same_set": false}
+[J30-14] => PASS: status=paused フィルタ -> ['QA-B 停止案件'] (該当 1 件のみ); limit=1 カーソル (URL エンコード必須) で 3 ページ 3 件, 重複 0, 全件 3 と集合一致。API に sort パラメータは無く created_at desc 固定
+  [J30-13] 判定保留: context-preview(637字) には確定事項が無い。文脈パネル (ContextPane 主力決定タブ = GET /decisions) を Playwright で確認してから判定

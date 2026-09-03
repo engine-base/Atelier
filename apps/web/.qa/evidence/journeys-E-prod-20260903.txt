@@ -1,0 +1,101 @@
+# 担当 E — L2 ジャーニー J20〜J24 (クライアントポータル R-T08) / J50〜J52 (課金・退会・公開) 本番実走 2026-09-03 prod(pre-launch)
+# API https://atelier-api-eb.fly.dev / Web https://atelier-web-coral.vercel.app。秘密 (JWT / 招待 raw token / パスワード) は本ファイルに書かない。UUID は識別用に先頭 8 桁。
+# 判定方針: 期待結果列そのまま。監査ログ (/admin/audit-logs は運営 admin 専用) とメール送信 (Resend, 送信ログを見る API 無し) は本環境で観測不能 → 該当部分は各行の note に『未確認』と明記。
+
+## 0. 準備 (QA 専用データ)  04:50:28.894 UTC
+signup A qa-jE-20260903-1@example.com → 201 user=4916c0ab…
+signin A → 200 user=4916c0ab… refresh_token=なし
+signup B qa-jE-20260903-2@example.com → 201 user=88a033e9…
+signin B → 200 user=88a033e9… refresh_token=なし
+signup C qa-jE-20260903-3@example.com → 201 user=30e2609c…
+signin C → 200 user=30e2609c… refresh_token=なし
+A WS QA-E-W1 → 201 ad3bb9a4…
+B WS QA-E-W2-他社 → 201 240658fb…
+project PE1 'QA-E-P1 本案件' → 201 c3079d3c…
+project PE2 'QA-E-P2 成果物なし' → 201 1b4430f8…
+project PE3 'QA-E-P3 削除試験' → 201 2c5adf4b…
+project PX 'QA-E-PX 他社案件X' → 201 7e3a1030…
+import 要件定義.md → 200 type=output stage=requirements v=1 id=73dcab1d… err=None
+import 要件定義.md → 200 type=output stage=requirements v=2 id=292671a2… err=None
+import 納品物_最終版.md → 200 type=output stage=delivery v=1 id=7181f667… err=None
+A GET /outputs?project_id=PE1 → 200 件数=3 delivery v1 7181f667… / requirements v2 292671a2… / requirements v1 73dcab1d…
+POST /mocks 'QA-E 画面1 ログイン' → 201 a2aabca4… v=1
+POST /mocks/M1/versions → 201 897654fa… v=2
+A GET /mocks?project_id=PE1 → 200 件数=2 QA-E 画面1 ログイン v2 897654fa… / QA-E 画面1 ログイン v1 a2aabca4…
+A 社内コメント on 要件定義 v2 → 201 0309b131… is_client_author=False
+B POST /mocks 他社画面X → 201 332caf1c…
+
+## J20 招待  04:50:44.074
+J20-01 POST /client-invitations (PE1, qa-jE-20260903-c1@example.com, 表示名 QAクライアントE1, scopes view+comment, ttl 3d) → 201 id=0745eb6a… status=None expires_at=2026-09-06T04:50:44.482664Z scopes=['view', 'comment'] display=QAクライアントE1 token=返却あり(非記載)
+J20-01 GET /client-invitations?project_id=PE1 → 200 件数=1 先頭: email=qa-jE-20260903-c1@example.com display=QAクライアントE1 expires_at=2026-09-06T04:50:44.482664Z scopes=['view', 'comment'] status=None
+J20-01 GET detail → 200 {"id": "0745eb6a-25ba-4a19-81e5-13e43b0c5dc3", "project_id": "c3079d3c-9d2e-4c23-a954-566d0004ae0d", "email": "qa-jE-20260903-c1@example.com", "scopes": ["view", "comment"], "expires_at": "2026-09-06T04:50:44.482664Z", "
+J20-03 POST /client/auth/signin 同意なし → 422 {"detail": "内容をご確認のうえ、同意にチェックを入れてください。"}
+J20-03 POST /client/auth/signin agree_legal のみ → 422 {"detail": "内容をご確認のうえ、同意にチェックを入れてください。"}
+J20-03 招待詳細 再取得 → used_at=None use_count=0 status=None (同意なし試行の前後で不変か: True)
+判定 J20-03: PASS — 同意なし→422 / 片方のみ→422 で拒否。招待の used_at/use_count は不変 (used_at=None)。セッション (client token) は発行されない。同意記録は DB 直接照会不可のため『作られない』は API 応答 (422 で処理前に拒否) から判定
+J20-02 POST /client/auth/signin 同意 2 種 true → 200 project=QA-E-P1 本案件 scopes=['view', 'comment'] expires_at=2026-09-04T04:50:47Z / JWT claims: role=client_portal project_id=c3079d3c… sub=client:0… inv=0745eb6a… keys=['aud', 'exp', 'invitation_id', 'project_id', 'role', 'scopes', 'sub']
+J20-02 招待詳細 → used_at=2026-09-03T04:50:47.485753Z use_count=1 status=None
+J20-05 POST /client-invitations/INV1/resend → 409 {"detail": "この招待はすでに使われたか、取り消されています。"}
+判定 J20-05: FAIL — resend が 409: {"detail": "この招待はすでに使われたか、取り消されています。"}
+J20-06 一覧 INV1: status=None expires_at=2026-09-06T04:50:44.482664Z used_at=2026-09-03T04:50:47.485753Z / 詳細と一致=True
+
+## J21 クライアント閲覧  04:50:49.661
+J21-01 GET /client/projects/PE1 → 200 keys=['description', 'id', 'name', 'scopes', 'viewed_as_client_display_name'] name=QA-E-P1 本案件 scopes=['view', 'comment'] viewed_as=QAクライアントE1
+J21-01 GET overview → 200 keys=['link_expires_at', 'link_remaining_days', 'operator_name', 'operator_workspace_name', 'phases', 'progress_percent'] progress=0 phases=9 operator_ws=QA-E-W1 operator=QA-E 社内A link_expires_at=2026-09-06T04:50:44.482664Z remaining_days=3
+J21-01 社内専用情報の漏れ (原価/粗利/他案件名/社内メモ/cost) in view+overview: なし
+J21-02 GET outputs → 200 件数=2 delivery(納品書) v1 7181f667… formats=['html'] / requirements(要件定義書) v2 292671a2… formats=['html']
+J21-02 GET comments (社内コメント非表示か) → 200 件数=0 社内メモ含む=False
+判定 J21-02: PASS — outputs 2 件 = requirements v2 (v1 は出ない) + delivery v1。社内コメント (原価メモ) はクライアントの comments 一覧に出ない (0 件)
+J21-03 GET mocks → 200 keys=['items', 'total_screens'] items=QA-E 画面1 ログイン v2 897654fa… total_screens=1
+判定 J21-03: PASS — mocks 1 件 = 画面1 の v2 のみ (v1 a2aabca4… は出ない)
+J21-04 PE2 (成果物 0) CT2: outputs 200 {"data": []} / mocks 200 {"data": {"items": [], "total_screens": 0}} / overview 200
+import 要件定義.md → 200 type=output stage=requirements v=3 id=88027613… err=None
+J21-05 要件定義 v3 取込後 招待詳細の変化: なし。API に client への更新通知メールの実装無し (apps/api/src で ResendSender 呼出は invitation/auth/sales_docs/support/observability のみ)、監査ログは admin 専用で照会不可
+判定 J21-05: FAIL — 期待: 成果物の新版で招待者に更新メール + 監査ログ client_notified_of_update / 実測: 新版 (要件定義 v3) 作成は 200 だが、更新通知メールを送る実装が API に存在しない (ResendSender の呼出箇所に成果物更新が無い)。観測できる送信痕跡も無し。T-F-17 未実装扱い
+
+## J22 越境 (R-T08 致命級)  04:50:56.982
+他社 B の案件 PX に招待 INVX → 券 CTX 発行 200 project=QA-E-PX 他社案件X
+J22-01 (1) CT1 (PE1 の券) → 他社案件 PX:
+  CT1→PX: GET /client/projects/7e3a1030… → 403 {"detail": "この内容を表示する権限がありません。"}
+  CT1→PX: GET /client/projects/7e3a1030…/overview → 403 {"detail": "この内容を表示する権限がありません。"}
+  CT1→PX: GET /client/projects/7e3a1030…/outputs → 403 {"detail": "この内容を表示する権限がありません。"}
+  CT1→PX: GET /client/projects/7e3a1030…/mocks → 403 {"detail": "この内容を表示する権限がありません。"}
+  CT1→PX: GET /client/projects/7e3a1030…/comments → 403 {"detail": "この内容を表示する権限がありません。"}
+  CT1→PX: POST /client/projects/7e3a1030…/comments target=332caf1c… → 403 {"detail": "この内容を表示する権限がありません。"}
+J22-01 (2) CTX (他社 PX の券) → 自案件 PE1:
+  CTX→PE1: GET /client/projects/c3079d3c… → 403 {"detail": "この内容を表示する権限がありません。"}
+  CTX→PE1: GET /client/projects/c3079d3c…/overview → 403 {"detail": "この内容を表示する権限がありません。"}
+  CTX→PE1: GET /client/projects/c3079d3c…/outputs → 403 {"detail": "この内容を表示する権限がありません。"}
+  CTX→PE1: GET /client/projects/c3079d3c…/mocks → 403 {"detail": "この内容を表示する権限がありません。"}
+  CTX→PE1: GET /client/projects/c3079d3c…/comments → 403 {"detail": "この内容を表示する権限がありません。"}
+  CTX→PE1: POST /client/projects/c3079d3c…/comments target=897654fa… → 403 {"detail": "この内容を表示する権限がありません。"}
+J22-01 (3) CT1 → 自案件 PE1 パスに他社 mock MX を target → 404 {"detail": "対象が見つかりません。"}
+J22-01 拒否本文への相手案件名の混入: なし / 200 になった越境: 0 件
+J22-01 対照: CTX → 自案件 PX GET → 200 name=QA-E-PX 他社案件X
+J22-01 B 側 MX のコメント数 (越境投稿で増えていないか) → 0 件
+判定 J22-01: PASS — CT1→PX 5 GET + POST comment 全 403、CTX→PE1 5 GET + POST 全 403、自案件パスに他社 mock target は 404 (存在秘匿)。拒否本文に相手案件名なし。他社側コメント 0 件。拒否の監査記録は admin 専用で未確認
+  CT1 → GET /projects → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /projects/c3079d3c-9d2e-4c23-a954-566d0004ae0d → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /outputs?project_id=c3079d3c-9d2e-4c23-a954-566d0004ae0d → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /outputs/292671a2-2b25-42b4-9e8a-af43481ff702 → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /mocks?project_id=c3079d3c-9d2e-4c23-a954-566d0004ae0d → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /comments?target_type=mock&target_id=897654fa-65fa-42fd-8ba6-cb39c622ae00 → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /workspaces → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /me → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT1 → GET /client-invitations?project_id=c3079d3c-9d2e-4c23-a954-566d0004ae0d → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+判定 J22-02: PASS — クライアント券で社内 API 9 本 (projects/outputs/mocks/comments/workspaces/me/client-invitations) 全て 401。系統をまたげない
+J22-03 view のみ招待 INV3 → signin 200 scopes=['view']
+J22-03 CT3 POST comment → 403 {"detail": "この操作を行う権限がありません。"} / コメント数 前=0 後=0 / CT3 閲覧 outputs → 200
+判定 J22-03: PASS — scope=view の券で投稿 → 403 拒否、コメント数 0→0 で増えない。閲覧 (outputs) は 200
+  A(owner) JWT → GET /client/projects/PE1 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+
+## J20-04 招待プレビュー (メタのみ + レート制限)  04:51:15.051
+
+## J20-05 補足: 未使用 (pending) の招待では再送がローテーションするか  04:51:54.023
