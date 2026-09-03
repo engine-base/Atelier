@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.errors import service_unavailable
+from src.routes.public_url import public_base_url
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.outputs import (
     DesignTemplateCreateRequest,
@@ -53,6 +54,25 @@ router = APIRouter(tags=["outputs"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_rls_session)]
 UserDep = Annotated[CurrentUser, Depends(get_current_user)]
+
+
+async def _can_write_output(session: AsyncSession, output_id: str) -> bool:
+    """成果物の案件で呼び出し元が owner / member か (viewer は書けない)。GAP-307。"""
+    try:
+        uuid_mod.UUID(output_id)
+    except ValueError:
+        return False
+    res = await session.execute(
+        text(
+            "select exists(select 1 from public.workflow_outputs wo "
+            "join public.projects p on p.id = wo.project_id "
+            "join public.workspace_memberships m on m.workspace_id = p.workspace_id "
+            "where wo.id = cast(:o as uuid) and wo.deleted_at is null "
+            "and m.user_id = auth.uid() and m.role in ('owner', 'member'))"
+        ),
+        {"o": output_id},
+    )
+    return bool(res.scalar_one())
 
 
 def _content_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -118,7 +138,7 @@ async def get_output_content_url(
         )
     if path.startswith(MOCKDB_PREFIX) or path.startswith(FILEDB_PREFIX):
         # GAP-139/145: DB 内蔵ストア (HTML / バイナリ) は自己署名 URL で配信
-        url = build_content_url(str(request.base_url), output_id, resource="outputs")
+        url = build_content_url(public_base_url(request), output_id, resource="outputs")
         if not path.startswith(FILEDB_PREFIX):
             return {"data": ContentUrlResponse(url=url, kind="html")}
         # GAP-176: バイナリ成果物は「中身が何か」を返す。これが無いと画面が
@@ -303,7 +323,9 @@ async def get_design_template_content_url(
         )
     return {
         "data": ContentUrlResponse(
-            url=build_content_url(str(request.base_url), template_id, resource="design-templates")
+            url=build_content_url(
+                public_base_url(request), template_id, resource="design-templates"
+            )
         )
     }
 
@@ -645,6 +667,10 @@ async def create_output_share_link(
 ) -> dict[str, ShareLinkResponse]:
     from src.services.outputs import sharing
 
+    # GAP-307 (通し J46-18 / D): 共有リンクの発行は owner / member だけ。閲覧者 (viewer) が
+    # 外部公開の URL を作れていた (権限漏れ)
+    if not await _can_write_output(session, output_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "共有リンクを発行する権限がありません。")
     link = await sharing.create_share_link(
         session,
         actor_id=user.id,
@@ -656,7 +682,7 @@ async def create_output_share_link(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
     return {
         "data": _to_share_response(
-            link, share_url=_share_url(str(request.base_url), link.token or "")
+            link, share_url=_share_url(public_base_url(request), link.token or "")
         )
     }
 

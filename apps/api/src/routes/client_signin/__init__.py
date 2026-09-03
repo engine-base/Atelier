@@ -17,6 +17,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
 from src.rate_limit import rate_limit_ip
+from src.routes.public_url import public_base_url
 from src.schemas.client_signin import (
     ClientCommentCreate,
     ClientCommentItem,
@@ -198,7 +199,7 @@ async def client_project_output_content_url(
             requested_project_id=project_id,
             output_id=output_id,
             fmt=format,
-            base_url=str(request.base_url),
+            base_url=public_base_url(request),
         )
     except svc.ClientSigninError as exc:
         if exc.code == "format_not_available":

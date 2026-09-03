@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.db.session import shared_session_factory
 from src.dependencies import CurrentUser, get_current_user, get_rls_session
 from src.errors import service_unavailable
+from src.routes.public_url import public_base_url
 from src.schemas.diffs import VersionDiffResponse
 from src.schemas.mocks import (
     DesignNoteUpdate,
@@ -120,7 +121,9 @@ async def get_mock_content_url(
     if mock is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "対象のモックが見つかりません。")
     if mock.html_storage_path.startswith(MOCKDB_PREFIX):
-        return {"data": ContentUrlResponse(url=build_content_url(str(request.base_url), mock_id))}
+        return {
+            "data": ContentUrlResponse(url=build_content_url(public_base_url(request), mock_id))
+        }
     try:
         url = await create_signed_download_url(mock.html_storage_path)
     except StorageSigningError as exc:
