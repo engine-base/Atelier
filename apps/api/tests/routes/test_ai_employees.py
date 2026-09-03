@@ -266,6 +266,18 @@ class TestAiEmployees:
             ]
             assert adm["system_prompt"]  # 運営には本文が見える
 
+    def test_gap308_list_without_workspace_id_is_not_500(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-308 (通し D 所見): workspace_id 無しの GET /ai-employees は 500 にしない。
+        所属 WS の社員だけを返す (RLS) = 200。"""
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+        with TestClient(app) as client:
+            r = client.get("/ai-employees", headers=h)
+            assert r.status_code == 200, r.text
+            ids = {e["id"] for e in r.json()["data"]}
+            assert seeded["emp_a"] in ids
+
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         hb = _h(seeded["u_b"])
         with TestClient(app) as client:
