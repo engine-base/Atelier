@@ -36,7 +36,7 @@
 | AI-003 | provider | Anthropic レート/タイムアウト | 既定 | 極小 timeout / 連投 | バックオフ or 明示エラー・半端保存なし | **PASS** | 31 連投で 429 実到達 (i=28)・Retry-After=34 付与・半端保存なし。`run-20260715-134410.jsonl`（※本行は連投の巻き添え防止のため runner 実行順を最後に固定） |
 | AI-004 | provider | 廃止/誤モデル名 | 既定 | model 名を typo に | 明示エラー（沈黙 fallback しない） | **PASS** | typo model 名で provider が 404 明示エラー・沈黙 fallback なし (アプリは単一 model 固定で fallback 分岐なし)。`run-20260715-134410.jsonl` |
 | AI-005 | provider | Voyage 実接続 | 既定 | embedding 1 件 | 1024 次元 vector 返却・knowledge 検索にヒット | **PASS** | 2026-07-15 実走: Voyage 実接続で /knowledge/search が 10 hits (seed 44 件は SQL 直挿入で embedding NULL だったため一括バックフィル実施)。`run-20260715-141416.jsonl` |
-| AI-006 | provider | fallback | — | — | **対象外: fallback 実装なし（棚卸しどおり単一系）** | N/A | 実装追加時に行を起こす |
+| AI-006 | provider | fallback | — | — | **対象外: fallback 実装なし（棚卸しどおり単一系）** | BLOCKED: 対象外 (fallback 実装なし・単一系) / 解除条件: fallback を実装したときに行を起こし直す | 実装追加時に行を起こす |
 | AI-010 | tool | web_search 正起動 | 既定 | 「最新の…を調べて」等 2-3 通り | tool_use ブロックに web_search・実行果を引用 | **PASS** | 「天気を調べて」「最新モデルを調べて」2 サンプルとも server_tool_use(web_search) が実起動し実行結果を引用。`tool-cache-20260715-135034.json` |
 | AI-011 | tool | web_search 誤選択防止 | 既定 | 検索不要の依頼（社内データ質問） | web_search を呼ばない（2-3 サンプル） | **PASS** | 計算/敬語作文の 2 サンプルとも web_search を呼ばず (誤選択ゼロ)。`tool-cache-20260715-135034.json` |
 | AI-012 | tool | 入力の尊重 | 既定 | task_id/値を明示して依頼 | 与えた値が応答/引数に出る・取り直さない | **PASS** | 指定フレーズ「Claude Sonnet 4.6 リリース日」が実クエリに保持された。`tool-cache-20260715-135034.json` |
