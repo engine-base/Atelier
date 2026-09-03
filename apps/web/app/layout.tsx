@@ -39,6 +39,14 @@ export const metadata: Metadata = {
   // 条件で使えるのかを明示**しておき、法的に戦える状態にする
   // (規約側の実体は利用規約 第9条・第10条 — supabase/migrations/gap-204_*)。
   other: {
+    // GAP-312: 本番 web がどの commit のビルドかを機械で読めるようにする
+    // (通し R2 で「Vercel の配信が main より古い」をバンドルの推定でしか言えなかった)。
+    // Vercel はビルド時に VERCEL_GIT_COMMIT_SHA を渡す。ローカルは dev。
+    "atelier-build": (
+      process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
+      process.env.VERCEL_GIT_COMMIT_SHA ??
+      "dev"
+    ).slice(0, 12),
     copyright: `© ${COPYRIGHT_HOLDER} All rights reserved.`,
     "rights-standard": TERMS_URL,
   },
