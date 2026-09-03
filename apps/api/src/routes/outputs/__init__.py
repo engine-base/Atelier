@@ -772,8 +772,9 @@ async def export_output(
     output_id: str,
     fmt: Annotated[Literal["html", "xlsx"], Query(alias="format")],
     session: SessionDep,
-    _user: UserDep,
+    user: UserDep,
 ) -> Response:
+    from src.audit import AuditEvent, AuditWriter
     from src.services.outputs import sharing
 
     current = await svc.get_output(session, output_id)
@@ -786,6 +787,19 @@ async def export_output(
     except sharing.ShareError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, user_detail(exc)) from exc
     name = (current.summary or current.stage or "output").replace("/", "_")[:60]
+    # GAP-324 (通し J46-16 再測): 「持ち出し」を記録に残す。正本は output_downloaded を
+    # 期待していたが、書き込むコードがどこにも無かった (grep 0 件)。形式も残す。
+    await AuditWriter(session).write(
+        AuditEvent(
+            action="output.downloaded",
+            target_type="workflow_output",
+            actor_type="user",
+            actor_id=user.id,
+            target_id=output_id,
+            after={"format": fmt, "version": current.version},
+        )
+    )
+    await session.commit()
     if fmt == "html":
         return Response(
             content=html.encode("utf-8"),
@@ -894,6 +908,13 @@ async def request_output_file_edit(
 ) -> dict[str, dict[str, str]]:
     from src.services.outputs import file_edit
 
+    # GAP-325 (通し J46-18 再測): 権限判定を Bridge 接続の判定より先に。
+    # GAP-311 で revise / restore / share-links は直したが、**同じ画面の別ボタン**
+    # (「AI に修正を依頼」) が漏れており、閲覧者に 503 (未接続) を返していた。
+    if await svc.get_output(session, output_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "対象の成果物が見つかりません。")
+    if not await _can_write_output(session, output_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "この成果物を変更する権限がありません。")
     try:
         job_id = await file_edit.request_file_edit(
             session, actor_id=user.id, output_id=output_id, instruction=body.instruction

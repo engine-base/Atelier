@@ -1268,6 +1268,73 @@ class TestGap159PlatformDefaults:
 
 @pytest.mark.integration
 class TestGap162ShareAndExport:
+    def test_gap324_325_export_is_audited_and_viewer_cannot_ai_edit(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-324: 書き出しは監査に残る (output.downloaded)。
+        GAP-325: 「AI に修正を依頼」も権限判定が Bridge 判定より先 (viewer は 403)。"""
+        oid = str(uuid.uuid4())
+        with sync_engine.begin() as c:
+            cid = c.execute(
+                text("insert into public.mock_contents (html) values (:h) returning id"),
+                {"h": "<html><body><table><tr><td>A</td></tr></table></body></html>"},
+            ).scalar_one()
+            c.execute(
+                text(
+                    "insert into public.workflow_outputs "
+                    "(id, project_id, stage, html_path, summary, version) "
+                    "values (cast(:i as uuid), cast(:p as uuid), 'estimate', :path, '御見積書', 1)"
+                ),
+                {"i": oid, "p": seeded["proj_a"], "path": f"mockdb://{cid}"},
+            )
+            c.execute(
+                text(
+                    "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                    "values (cast(:w as uuid), cast(:u as uuid), 'viewer') on conflict do nothing"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
+        try:
+            with TestClient(app) as client:
+                r = client.get(f"/outputs/{oid}/export?format=html", headers=_h(seeded["u_a"]))
+                assert r.status_code == 200, r.text
+                # GAP-325: 閲覧者の「AI に修正を依頼」は 503 (未接続) ではなく 403
+                denied = client.post(
+                    f"/outputs/{oid}/ai-file-edit",
+                    json={"instruction": "直して"},
+                    headers=_h(seeded["u_b"]),
+                )
+                assert denied.status_code == 403, denied.text
+                assert "権限" in denied.json()["detail"]
+            with sync_engine.begin() as c:
+                rows = c.execute(
+                    text(
+                        "select after from public.audit_logs "
+                        "where action = 'output.downloaded' and target_id = :i"
+                    ),
+                    {"i": oid},
+                ).all()
+                assert len(rows) == 1, rows
+                after = (
+                    rows[0].after if isinstance(rows[0].after, dict) else json.loads(rows[0].after)
+                )
+                assert after["format"] == "html"
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(text("delete from public.audit_logs where target_id = :i"), {"i": oid})
+                c.execute(
+                    text("delete from public.workflow_outputs where id = cast(:i as uuid)"),
+                    {"i": oid},
+                )
+                c.execute(text("delete from public.mock_contents where id = :c"), {"c": cid})
+                c.execute(
+                    text(
+                        "delete from public.workspace_memberships where workspace_id = cast(:w as uuid) "
+                        "and user_id = cast(:u as uuid)"
+                    ),
+                    {"w": seeded["ws_a"], "u": seeded["u_b"]},
+                )
+
     def test_share_link_roundtrip_and_revoke(
         self,
         app: FastAPI,
