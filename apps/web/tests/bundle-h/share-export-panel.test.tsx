@@ -63,22 +63,30 @@ describe("ShareExportPanel (GAP-162)", () => {
     );
   });
 
-  it("HTML / Excel の保存リンクと、PDF は共有ページの印刷から、という案内を出す", async () => {
+  it("HTML / Excel は認証付きで取得して保存し、PDF は共有ページの印刷から、という案内を出す (GAP-300)", async () => {
+    const fetchExport = vi.fn(async () => new Blob(["<html></html>"], { type: "text/html" }));
+    const createObjectURL = vi.fn(() => "blob:test");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
     renderWithQuery(
       <ShareExportPanel
         outputId={OUT}
         client={clientOf()}
         exportUrlOf={(id, f) => `http://api.test/outputs/${id}/export?format=${f}`}
+        fetchExport={fetchExport}
       />,
     );
-    expect(await screen.findByRole("link", { name: "HTML で保存" })).toHaveAttribute(
-      "href",
-      "http://api.test/outputs/out-1/export?format=html",
+    fireEvent.click(await screen.findByRole("button", { name: "HTML で保存" }));
+    await waitFor(() =>
+      expect(fetchExport).toHaveBeenCalledWith("http://api.test/outputs/out-1/export?format=html"),
     );
-    expect(screen.getByRole("link", { name: "Excel で保存" })).toHaveAttribute(
-      "href",
-      "http://api.test/outputs/out-1/export?format=xlsx",
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Excel で保存" }));
+    await waitFor(() =>
+      expect(fetchExport).toHaveBeenCalledWith("http://api.test/outputs/out-1/export?format=xlsx"),
     );
+    // 素の <a href> は Authorization が付かず 404 になっていた — リンクは出さない
+    expect(screen.queryByRole("link", { name: "HTML で保存" })).toBeNull();
     expect(screen.getByText(/PDF は共有リンクを開いて/)).toBeInTheDocument();
   });
 

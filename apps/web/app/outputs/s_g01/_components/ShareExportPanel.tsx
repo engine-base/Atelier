@@ -20,6 +20,7 @@ import { Copy, Link2, Trash2 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
+import { readAccessToken } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 
 export interface ShareLinkItem {
@@ -37,6 +38,8 @@ export interface ShareExportPanelProps {
   readonly client: ApiClient;
   /** 書き出しの実 URL 組み立て (テストで差し替え可能)。 */
   readonly exportUrlOf?: (outputId: string, format: "html" | "xlsx") => string;
+  /** GAP-300: 認証付き取得 (テスト注入用。既定は cookie の JWT を Authorization に付けて fetch)。 */
+  readonly fetchExport?: (url: string) => Promise<Blob>;
   readonly apiBase?: string;
 }
 
@@ -44,10 +47,30 @@ function dateLabel(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 16).replace("T", " ") : "";
 }
 
+async function defaultFetchExport(url: string): Promise<Blob> {
+  const token = readAccessToken();
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new ApiError({
+      status: res.status,
+      statusText: res.statusText,
+      payload: undefined,
+      path: url,
+      method: "get",
+    });
+  }
+  return await res.blob();
+}
+
 export function ShareExportPanel({
   outputId,
   client,
   exportUrlOf,
+  fetchExport,
   apiBase = process.env.NEXT_PUBLIC_API_URL ?? "",
 }: ShareExportPanelProps) {
   const queryClient = useQueryClient();
@@ -112,6 +135,34 @@ export function ShareExportPanel({
   const exportUrl = (format: "html" | "xlsx"): string =>
     exportUrlOf?.(outputId, format) ??
     `${apiBase}/outputs/${outputId}/export?format=${format}`;
+  const [exporting, setExporting] = useState<"html" | "xlsx" | null>(null);
+  // GAP-300 (通し J46-16): 素の <a href> は Authorization が付かず API が 404 を返していた。
+  // 認証付きで取得してファイルとして保存する (通し J46-16 の期待 = 押すと保存される)。
+  const downloadExport = async (format: "html" | "xlsx"): Promise<void> => {
+    setExporting(format);
+    setNotice(null);
+    try {
+      const blob = await (fetchExport ?? defaultFetchExport)(exportUrl(format));
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `output-${outputId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      setNotice({
+        kind: "error",
+        text:
+          e instanceof ApiError && e.status === 409
+            ? "この形式はまだ作成されていません。"
+            : "書き出しに失敗しました。時間をおいてもう一度お試しください。",
+      });
+    } finally {
+      setExporting(null);
+    }
+  };
 
   const active = (links.data ?? []).filter((l) => !l.revoked_at);
 
@@ -146,18 +197,22 @@ export function ShareExportPanel({
           <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
           {create.isPending ? "発行中…" : "共有リンクを発行"}
         </button>
-        <a
-          href={exportUrl("html")}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+        <button
+          type="button"
+          disabled={exporting !== null}
+          onClick={() => void downloadExport("html")}
+          className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
         >
-          HTML で保存
-        </a>
-        <a
-          href={exportUrl("xlsx")}
-          className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface"
+          {exporting === "html" ? "HTML を作成中…" : "HTML で保存"}
+        </button>
+        <button
+          type="button"
+          disabled={exporting !== null}
+          onClick={() => void downloadExport("xlsx")}
+          className="rounded-md border border-border px-3 py-1.5 text-[12px] font-semibold text-on-surface-variant hover:bg-surface-variant hover:text-on-surface disabled:opacity-50"
         >
-          Excel で保存
-        </a>
+          {exporting === "xlsx" ? "Excel を作成中…" : "Excel で保存"}
+        </button>
         <span className="text-[11px] text-on-surface-variant">
           PDF は共有リンクを開いて「PDF で保存 / 印刷」から
         </span>
