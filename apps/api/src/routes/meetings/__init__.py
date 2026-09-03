@@ -54,6 +54,10 @@ async def list_meetings(
 async def create_meeting(
     body: MeetingCreate, session: SessionDep, user: UserDep
 ) -> dict[str, MeetingResponse]:
+    reason = svc.unsupported_file_reason(body.file_name, body.mime_type)
+    if reason is not None:
+        # GAP-284: 対応外の形式は一覧に増やさない
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
     created = await svc.create_meeting(session, actor_id=user.id, data=body)
     if created is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "議事録をアップロードする権限がありません。")
@@ -73,6 +77,9 @@ async def create_meeting_upload_url(
     プロジェクトへのアクセス権は後続 POST /meetings の RLS で最終的に強制される。
     storage 未設定環境では 503 を返す。
     """
+    reason = svc.unsupported_file_reason(body.file_name, body.mime_type)
+    if reason is not None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, reason)
     try:
         result = await svc.create_signed_upload(
             project_id=body.project_id, file_name=body.file_name, mime_type=body.mime_type

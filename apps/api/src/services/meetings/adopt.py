@@ -193,7 +193,15 @@ async def _load_analysis(row: Any) -> dict[str, Any]:
         raise AdoptError("invalid_state", "この議事録はまだ文字起こしが終わっていません。")
     from src.services.meetings.worker import load_result
 
-    result = await load_result(str(row.parse_result_path))
+    try:
+        result = await load_result(str(row.parse_result_path))
+    except AdoptError:
+        raise
+    except Exception as exc:  # GAP-287: 保存先の読み出し失敗を 500 にしない (G-15)
+        raise AdoptError(
+            "invalid_state",
+            "解析結果を読み込めませんでした。時間をおいて「解析を再開」からやり直してください。",
+        ) from exc
     analysis = result.get("analysis")
     if not isinstance(analysis, dict):
         if row.analysis_pending_since is not None:

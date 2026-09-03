@@ -185,6 +185,60 @@ class TestMeetings:
             assert client.post("/meetings", json={}).status_code == 401
             assert client.post(f"/meetings/{uuid.uuid4()}/transcribe", json={}).status_code == 401
 
+    def test_gap284_unsupported_file_type_rejected_422(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-284 (通し J34-06): .exe は upload-url でも登録でも 422、一覧に増えない。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            before = len(client.get("/meetings", headers=h).json()["data"])
+            r = client.post(
+                "/meetings/upload-url",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "file_name": "setup.exe",
+                    "mime_type": "application/x-msdownload",
+                },
+                headers=h,
+            )
+            assert r.status_code == 422, r.text
+            assert "対応していない形式" in r.json()["detail"]
+            r2 = client.post(
+                "/meetings",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "type": "document",
+                    "storage_path": f"meetings/{seeded['proj_a']}/x/setup.exe",
+                    "file_name": "setup.exe",
+                    "file_size_bytes": 10,
+                    "mime_type": "application/x-msdownload",
+                },
+                headers=h,
+            )
+            assert r2.status_code == 422, r2.text
+            assert len(client.get("/meetings", headers=h).json()["data"]) == before
+            # 対応形式は通る (storage 未設定の環境では 503 = 形式検査より後で止まる)
+            ok = client.post(
+                "/meetings/upload-url",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "file_name": "memo.m4a",
+                    "mime_type": "audio/mp4",
+                },
+                headers=h,
+            )
+            assert ok.status_code in (200, 503), ok.text
+
+    def test_gap287_propose_phase_before_parse_is_409(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-287 (通し B 派生 / G-15): 未解析の議事録で propose-phase は 409 (500 にしない)。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(f"/meetings/{seeded['upload_a_unparsed']}/propose-phase", headers=h)
+            assert r.status_code == 409, r.text
+            assert isinstance(r.json()["detail"], str) and r.json()["detail"]
+
     def test_list_and_get(self, app: FastAPI, seeded: dict[str, str]) -> None:
         h = _h(seeded["u_a"])
         with TestClient(app) as client:

@@ -54,6 +54,57 @@ def _sanitize_filename(file_name: str) -> str:
     return cleaned or "upload"
 
 
+# GAP-284 (通し J34-06): 議事録として受け付ける形式。画面の accept 属性
+# (audio/*,video/*,.txt,.md,.docx) と同じ集合を API 側でも強制する。
+_MEETING_EXTENSIONS = frozenset(
+    {
+        "mp3",
+        "m4a",
+        "wav",
+        "aac",
+        "flac",
+        "ogg",
+        "oga",
+        "opus",
+        "wma",
+        "aiff",
+        "aif",
+        "mp4",
+        "mov",
+        "webm",
+        "mkv",
+        "avi",
+        "m4v",
+        "mpeg",
+        "mpg",
+        "txt",
+        "md",
+        "docx",
+    }
+)
+_MEETING_MIME_EXACT = frozenset(
+    {
+        "text/plain",
+        "text/markdown",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+)
+
+
+def unsupported_file_reason(file_name: str, mime_type: str) -> str | None:
+    """対応していない形式なら利用者向けの理由 (日本語) を返す。対応済みなら None。"""
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+    mime = (mime_type or "").split(";", 1)[0].strip().lower()
+    mime_ok = mime.startswith("audio/") or mime.startswith("video/") or mime in _MEETING_MIME_EXACT
+    if ext in _MEETING_EXTENSIONS and (mime_ok or mime in ("", "application/octet-stream")):
+        return None
+    shown = f".{ext}" if ext else "拡張子なし"
+    return (
+        f"対応していない形式です ({shown})。"
+        "音声・動画・テキスト (.txt / .md)・Word (.docx) のみ登録できます。"
+    )
+
+
 async def create_signed_upload(
     *, project_id: str, file_name: str, mime_type: str
 ) -> MeetingUploadUrlResponse:
