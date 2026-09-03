@@ -108,7 +108,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           set -euo pipefail
-          names="$(flyctl secrets list -a "$FLY_APP_NAME" --json | python3 -c 'import json,sys; print("\n".join(x.get("Name","") for x in json.load(sys.stdin)))')"
+          names="$(flyctl secrets list -a "$FLY_APP_NAME" --json | python3 -c 'import json,sys; print("\n".join(str(x.get("Name") or x.get("name") or "") for x in json.load(sys.stdin)))')"
           missing=""
           has() { printf '%s\n' "$names" | grep -qx "$1"; }
           has ATELIER_VAULT_ENCRYPTION_KEYS || has ATELIER_VAULT_ENCRYPTION_KEY || missing="$missing ATELIER_VAULT_ENCRYPTION_KEYS"
