@@ -37,6 +37,7 @@
 | PS-24 | リロード永続 | F5 | ログアウトせず維持 | **PASS (2026-09-02 本番実ブラウザ再測)**: サインイン → /projects → F5 → ログイン維持・WS 名表示のまま |
 | PS-25 | staging 指定の deploy が本番へ落ちない (G-11) | `gh workflow run deploy.yml -f environment=staging` を **STAGING_* secrets 未登録** の状態で実行 | Verify required secrets で **fail**（本番 app / 本番 DB に一切触らない）。secrets 登録後は staging app だけに deploy | **FAIL→修正済 (2026-09-03)**: `cond && A \|\| B` の式で A が空だと本番の値に落ち、staging 指定が本番へ deploy された (run 33699651244、同一コードのため実害なし)。commit c6bcb21 で Verify が遮断。再測: 未 |
 | PS-26 | 用意スクリプトの無言終了 (G-15) | `scripts/staging-bootstrap.sh <org>` を実行 | 途中で失敗したら **行番号つきで止まる**。exit 0 なのに何も作られていない状態を成功と見なさない | **FAIL→修正済 (2026-09-03)**: `tr \| head` の SIGPIPE × pipefail で 1 行目で無言終了し、何も作られないまま次の deploy に進んだ。commit 72fb2d0 で openssl rand + ERR trap。再測: 未 |
+| PS-27 | ローンチ前の全消去が同じコードで再構築できる (G-11) | `scripts/prelaunch-wipe.sh` を本番 (pre-launch) で実行 → deploy.yml と同じ seed が入り直る → PS-00〜05 を再実行 | バックアップが取れてから消える。消去後は auth.users / workspaces / projects / storage.objects が seed 以外 0 件。再構築後に /health 200・signup/signin・バケット PUT が通る (ローンチ判定 T-I-24 の前提) | 未 (ローンチ直前に経営者が実行。手順 docs/prelaunch-wipe.md) |
 
 ## 恒久対策（INFRA-3 / production readiness）
 1. ✅ **schema/verification 分離**: t-d-31/32 に `@verification-only` マーカーを付与し本番から除外（PR #276）。
