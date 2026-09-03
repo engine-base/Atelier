@@ -196,7 +196,8 @@ async def preview_invitation(*, invitation_token: str) -> ClientInvitationPrevie
     有効期限と残り日数) で、プロジェクト内部 ID やスコープは返さない。
 
     Raises ClientSigninError:
-      - invalid_token: token_hash 不一致 / revoked (401)
+      - invalid_token: token_hash 不一致 / 案件削除済み (401・案件名を返さない)
+      - invitation_revoked: 取り消し済み (401)
       - expired: expires_at <= now (410)
     """
     token_hash = hashlib.sha256(invitation_token.encode("utf-8")).hexdigest()
@@ -217,8 +218,12 @@ async def preview_invitation(*, invitation_token: str) -> ClientInvitationPrevie
             {"h": token_hash},
         )
         row = res.first()
-    if row is None or row.revoked_at is not None:
+    if row is None:
+        # 不一致 or 案件が削除済み。どちらも案件名を返さない (存在を漏らさない)
         raise ClientSigninError("invalid_token", "invalid invitation token")
+    if row.revoked_at is not None:
+        # GAP-251: 取り消しは「期限切れ・リンク誤り」と別の理由で伝える (利用者は自分で直せない)
+        raise ClientSigninError("invitation_revoked", "invitation was revoked")
     expires_at = row.expires_at
     exp_aware = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=UTC)
     now = datetime.now(UTC)
@@ -249,7 +254,8 @@ async def client_signin(
     初回同意時刻を client_invitations に永続する (再サインインで上書きしない)。
 
     Raises ClientSigninError:
-      - invalid_token: token_hash 不一致 / revoked (401)
+      - invalid_token: token_hash 不一致 / 案件削除済み (401・案件名を返さない)
+      - invitation_revoked: 取り消し済み (401)
       - expired: expires_at <= now (410)
       - consent_required: 同意 2 種のいずれかが false (422)
     """
@@ -269,13 +275,17 @@ async def client_signin(
                     "ci.revoked_at, ci.client_display_name, p.name as project_name "
                     "from public.client_invitations ci "
                     "join public.projects p on p.id = ci.project_id "
-                    "where ci.token_hash = :h"
+                    "where ci.token_hash = :h and p.deleted_at is null"
                 ),
                 {"h": token_hash},
             )
             row = res.first()
-            if row is None or row.revoked_at is not None:
+            if row is None:
+                # 不一致 or 案件が削除済み (GAP-253: 削除済み案件の招待で signin が 200 を返し
+                # 案件名を漏らしていた)。preview と同じく 401・名前なし
                 raise ClientSigninError("invalid_token", "invalid invitation token")
+            if row.revoked_at is not None:
+                raise ClientSigninError("invitation_revoked", "invitation was revoked")
             # 期限切れ判定
             expires_at = row.expires_at
             if expires_at is not None:

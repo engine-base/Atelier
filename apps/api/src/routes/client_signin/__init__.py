@@ -61,7 +61,7 @@ async def client_invitation_preview(
     try:
         result = await svc.preview_invitation(invitation_token=body.invitation_token)
     except svc.ClientSigninError as exc:
-        if exc.code == "invalid_token":
+        if exc.code in ("invalid_token", "invitation_revoked"):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "expired":
             raise HTTPException(status.HTTP_410_GONE, user_detail(exc)) from exc
@@ -85,7 +85,7 @@ async def client_signin(
             agree_confidential=body.agree_confidential,
         )
     except svc.ClientSigninError as exc:
-        if exc.code == "invalid_token":
+        if exc.code in ("invalid_token", "invitation_revoked"):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, user_detail(exc)) from exc
         if exc.code == "expired":
             raise HTTPException(status.HTTP_410_GONE, user_detail(exc)) from exc

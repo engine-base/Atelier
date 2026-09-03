@@ -86,6 +86,12 @@ describe('WorkspaceSettingsForm (T-UC-02)', () => {
 });
 
 describe('ClientSigninForm (T-UC-21)', () => {
+  it('does not show the invitation token in plain text (GAP-251)', () => {
+    render(<ClientSigninForm defaultToken="invite-12345" onSubmit={() => undefined} />);
+    const input = screen.getByDisplayValue('invite-12345');
+    expect(input).toHaveAttribute('type', 'password');
+  });
+
   it('uses defaultToken when provided', () => {
     render(<ClientSigninForm defaultToken="invite-12345" onSubmit={() => undefined} />);
     expect((screen.getByLabelText(/招待トークン/) as HTMLInputElement).value).toBe(

@@ -169,7 +169,13 @@ export function ClientSigninForm({
         error={form.formState.errors.invitation_token?.message}
         description="メールでお送りした招待リンクのトークンです"
       >
-        <input {...form.register("invitation_token")} className={INPUT_CLASS} />
+        {/* GAP-251: 招待トークンは秘密 (これだけでポータルに入れる)。画面に平文で見せない */}
+        <input
+          {...form.register("invitation_token")}
+          type="password"
+          autoComplete="off"
+          className={INPUT_CLASS}
+        />
       </Field>
 
       <Field

@@ -42,10 +42,17 @@ export interface ClientSigninContainerProps {
   readonly onSignedIn?: (projectId: string) => void;
 }
 
+/** API の detail (user_messages の日本語) をそのまま使える形か。`HTTP 401` や英語の内部コードは除く。 */
+function apiDetail(error: ClientPortalError): string | null {
+  const m = error.message.trim();
+  return /[\u3040-\u30ff\u4e00-\u9fff]/.test(m) ? m : null;
+}
+
 function messageFor(error: unknown): string {
   if (error instanceof ClientPortalError) {
+    // GAP-251: 取り消し / 削除済み / リンク誤りは API が理由を言い分ける。画面で 1 文に潰さない
     if (error.status === 401)
-      return "招待トークンが無効です。リンクをご確認ください。";
+      return apiDetail(error) ?? "招待トークンが無効です。リンクをご確認ください。";
     if (error.status === 410)
       return "招待の有効期限が切れています。再発行を依頼してください。";
     return "サインインに失敗しました。時間をおいて再度お試しください。";

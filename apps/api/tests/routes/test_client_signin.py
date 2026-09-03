@@ -313,6 +313,52 @@ class TestClientSignin:
             r = client.get(f"/client/projects/{two_projects['proj_a']}", headers=h)
             assert r.status_code == 401, r.text
 
+    def test_取り消した招待は理由が取り消しで返る_GAP251(
+        self, app: FastAPI, two_projects: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-251: 取り消し済みの招待リンクで preview / signin すると、「リンク誤り・期限切れ」
+        ではなく「取り消された」と分かる文言で 401 (利用者は自分では直せない → 誰に言うか)。"""
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "update public.client_invitations set revoked_at = now() "
+                    "where id = cast(:i as uuid)"
+                ),
+                {"i": two_projects["inv_a"]},
+            )
+        with TestClient(app) as client:
+            r = client.post(
+                "/client/auth/preview", json={"invitation_token": two_projects["token_a"]}
+            )
+            assert r.status_code == 401, r.text
+            assert "取り消され" in r.json()["detail"], r.text
+            r = client.post(
+                "/client/auth/signin",
+                json={"invitation_token": two_projects["token_a"], **_CONSENT},
+            )
+            assert r.status_code == 401, r.text
+            assert "取り消され" in r.json()["detail"], r.text
+
+    def test_削除済み案件の招待では_signin_も_preview_も拒否し案件名を返さない_GAP253(
+        self, app: FastAPI, two_projects: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-253: 案件を削除したあと、その案件の招待リンクで signin すると 200 で券が出て
+        案件名まで返っていた (preview は 401)。両方 401 にし、本文に案件名を含めない。"""
+        with sync_engine.begin() as c:
+            c.execute(
+                text("update public.projects set deleted_at = now() where id = cast(:i as uuid)"),
+                {"i": two_projects["proj_a"]},
+            )
+        with TestClient(app) as client:
+            for path, body in (
+                ("/client/auth/preview", {"invitation_token": two_projects["token_a"]}),
+                ("/client/auth/signin", {"invitation_token": two_projects["token_a"], **_CONSENT}),
+            ):
+                r = client.post(path, json=body)
+                assert r.status_code == 401, f"{path}: {r.status_code} {r.text}"
+                assert "Project A" not in r.text, f"{path} が削除済み案件の名前を返した: {r.text}"
+                assert "client_access_token" not in r.text
+
     def test_project_view_cross_project_403_RT08(
         self, app: FastAPI, two_projects: dict[str, str]
     ) -> None:

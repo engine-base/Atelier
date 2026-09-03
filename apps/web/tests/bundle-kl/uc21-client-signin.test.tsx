@@ -95,6 +95,30 @@ describe("S-L02 ClientSigninContainer (T-UC-21)", () => {
     );
   });
 
+  it("shows the API reason on 401 when it is a user message (GAP-251: 取り消し)", async () => {
+    const signinFn = vi.fn(async (..._args: unknown[]): Promise<ClientSigninResult> => {
+      throw new ClientPortalError(
+        "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。",
+        401,
+      );
+    });
+    render(
+      <ClientSigninContainer
+        defaultToken="tok-1234567890"
+        signinFn={signinFn}
+        previewFn={noPreview}
+        onSignedIn={vi.fn()}
+      />,
+    );
+    for (const cb of screen.getAllByRole("checkbox")) fireEvent.click(cb);
+    fireEvent.click(
+      screen.getByRole("button", { name: "同意してサインイン" }),
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("取り消されています");
+    expect(alert).not.toHaveTextContent("招待トークンが無効です");
+  });
+
   it("shows an expired message on 410", async () => {
     const signinFn = vi.fn(async (..._args: unknown[]): Promise<ClientSigninResult> => {
       throw new ClientPortalError("expired", 410);
