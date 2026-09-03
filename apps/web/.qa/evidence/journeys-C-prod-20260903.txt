@@ -1,0 +1,421 @@
+# L2 ジャーニー実走証拠 — 担当 C — 2026-09-03 — prod(pre-launch) (ADR-021 改訂: 本番を staging 共用)
+API: https://atelier-api-eb.fly.dev   Web: https://atelier-web-coral.vercel.app   (API deploy e79d5d1 以降)
+分母 (今回消化する行): J40-01..07 (7) / J41-01..17 (17) / J42-01..04 (4) / J43-01..05 (5) / J44-01..09 (9) / J49-01..07 (7) = 49 行
+場所=mac (Bridge / 実 AI) の行は Bridge ハーネスが無いので BLOCKED。AI 応答不要で API/画面だけで判定できる行は実走。
+秘密 (JWT / パスワード / Bridge トークン raw) は本ファイルに書かない。<redacted> と記す。
+アカウント: qa-jC-20260903-1 (owner) / qa-jC-20260903-2 (member) @example.com — QA 専用・最後に退会
+判定は plan.json の expected 列そのまま。監査ログは運営 API でしか読めないため、GET /projects/{id}/dashboard の
+recent_activities で観測できたものだけ「記録された」とする。
+
+## SETUP アカウント・WS・案件の準備
+  POST /auth/signup -> 201 {"data": {"user_id": "3b1053d7-45ab-48dd-b185-0c25df500b68", "email": "qa-jC-20260903-1@example.com", "display_name": "QA-C owner", "consents_recorded": 2, "created_at": "2026-09-03T05:20:50.611404Z"}}
+  POST /auth/signup -> 201 {"data": {"user_id": "fe3c389f-3bc8-4133-af6e-0b5b140773b4", "email": "qa-jC-20260903-2@example.com", "display_name": "QA-C member", "consents_recorded": 2, "created_at": "2026-09-03T05:20:52.414574Z"}}
+  POST /workspaces -> 201 {"data": {"id": "40131555-3d97-463e-a5ec-40e877cd0b43", "name": "QA-C WS 20260903", "description": null, "icon": null, "member_count": 1, "project_count": 0, "plan": "free", "deleted_at": null, "created_at": "2026-09-03T05:20:54.151228Z", "updated_at": "2026-09-03T05:20:54.151228Z"}}
+  POST /projects -> 201 {"data": {"id": "bda85cdc-0d83-4724-8457-3571a0409f90", "workspace_id": "40131555-3d97-463e-a5ec-40e877cd0b43", "name": "QA-C 案件 (タスクボード/cron/フェーズ)", "client_name": null, "description": null, "type": "client_project", "status": "draft", "ai_learning_opt_out": true, "cross_project_knowledge": true, "current_phase": "hearing", "deleted_at": null, "created_at": "2026-09-03T05:20:54.830183Z", "updated
+  POST /workspaces/40131555-3d97-463e-a5ec-40e877cd0b43/members -> 201 {"data": {"workspace_id": "40131555-3d97-463e-a5ec-40e877cd0b43", "user_id": "fe3c389f-3bc8-4133-af6e-0b5b140773b4", "email": "qa-jC-20260903-2@example.com", "display_name": "QA-C member", "role": "member", "joined_at": "2026-09-03T05:20:55.728943Z"}}
+  GET /ai-employees -> 200 10 名: 4a0bf855-6459-4707-821e-00918a23665e:jarvis, 14e5d4d6-7d5a-4744-bf67-55d8ddac1e8d:tony, 9f4705b3-2764-41b5-a3b2-0d41f335f989:natasha, 67295d94-48b9-4130-b2a1-5d4d9715b54c:steve, c7429408-65e1-449e-b944-a0ddda219742:peter, a2f29974-3f35-4267-97eb-bb2d14de7346:strange, b8a7d1d4-11d5-45d3-8ad3-fe801d22
+  GET /auth/me (owner) -> 404 {"detail": "Not Found"}
+  GET /workspaces/40131555-3d97-463e-a5ec-40e877cd0b43/members -> 200 {"data": [{"workspace_id": "40131555-3d97-463e-a5ec-40e877cd0b43", "user_id": "3b1053d7-45ab-48dd-b185-0c25df500b68", "email": "qa-jC-20260903-1@example.com", "display_name": "QA-C owner", "role": "owner", "joined_at": "2026-09-03T05:20:54.151228Z"}, {"workspace_id": "40131555-3d97-463e-a5ec-40e877cd0b43", "user_id": "fe3c389f-3bc8-4133-af6e-0b5b140773b4", "email": "qa-jC-20260903-2@example.com", 
+
+## J44-01 自動実行の種類とコストが出る (S-O01 ↔ GET /cron-actions)
+  GET /cron-actions -> 200 {"data":[{"action":"task_replay","title":"タスク自動再生","description":"「着手可」のタスクを実行キューに投入します。実際にコードを書くのはあなたの PC の Claude Code なので、PC が落ちていても投入は行われ、起動した時点で順に実行されます。","group":"impl","staff":"ソー（実装）","requires_bridge":false,"cost_label":"本人の Claude プラン枠","cost_note":"実行はあなたの PC / あなたの Claude プラン。API 課金は発生しません。"},{"action":"knowledge_organize","title":"ナレッジ整理","description":"カテゴリやタグが未整備のナレッジに、分類とタグを付けます（1 
+  画面本文に action.title & cost_label が全て出るか: 6 種 / 欠け 4 ["task_replay","knowledge_organize","industry_extract","report_summary"]
+  画面の種類一覧 (step2 抜粋): 2. 何をする？（AI 社員が必要な場合は能力名も表示） | 着手可のタスクを再生する | ソーの実装能力を起動 | プラン枠 | ナレッジを整理する | ティチャラのナレッジ整理能力を起動（PC 接続が必要） | プラン枠 | 横断パターンを抽出する | サーバー集計のみ（AI を使わない） | 無料 | 進捗レポートを配信する | スティーブのレポート生成能力を起動（PC 接続が必要） | プラン枠 | 日次ダイジェストを配信する | サーバー集計のみ（AI を使わない） | 無料 | 週次バーンダウンを集計する | バックエンドのみ（AI 社員なし） | 無料 | 
+  => J44-01: FAIL — GET /cron-actions 6 種 (task_replay=本人の Claude プラン枠, knowledge_organize=本人の Claude プラン枠/PC接続要, industry_extract=コスト無料, report_summary=本人の Claude プラン枠/PC接続要, daily_digest=コスト無料, weekly_burndown=コスト無料) が S-O01 の「何をする？」に title・コスト表示ごと全て一致 (欠け 4)
+
+## J44-02 スケジュールを作る (UI: 名前 + 日次ダイジェスト + 毎時 0 分)
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[]}
+  (訂正) J44-01 の判定理由: 作成フォーム ScheduleBuilder.tsx の ACTIONS 定数がハードコードで、API の title/cost_label と文言が違う (API「タスク自動再生」「本人の Claude プラン枠」「コスト無料」 ↔ 画面「着手可のタスクを再生する」「プラン枠」「無料」)。既存スケジュール行の説明・コストは CronScheduleContainer が GET /cron-actions から取るが、種類を選ぶフォームは API を見ていない
+
+## J44-02 スケジュールを作る (UI: 名前 + 日次ダイジェスト + 毎時 0 分)
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[]}
+
+## J44-02 スケジュールを作る (UI: 名前 + 日次ダイジェスト + 毎時 0 分)
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[]}
+  UI POST: 201 {"data":{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.82177
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:36.821775Z"}]}
+  一覧 before=0 after=1; created={"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:36.821775Z"}; 画面に名前=true 画面「次回」抜粋=QA-C 日次ダイジェスト | スティーブ · コスト無料 | 法令・運用バックエンド | 必須 | 法令対応とデータ整合性。Atelier 内部処理のみ・コスト無料 | 退会データを 30 日後に完全削除 | 個人情報保護法に基づく削除義務。退会から 30 日経過したアカウントのデータを物理削除します。 | 無効化不可 | コスト無料 | SQL のみ | 毎日 深夜 0:00 (JST) | 0 15 * * * | 次回 9/4 00:00 (金) | 最終実行 未実
+  => J44-02: PASS — UI 作成 → POST 201、一覧 0→1 件、enabled=true、next_run_at=2026-09-03T06:00:00Z (cron 0 * * * *) が画面「次回」にも出る
+
+## J44-03 不正な cron 式で作ろうとする
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:36.821775Z"}]}
+  cron 直接入力欄 (詳細設定): あり
+  入力した cron 式: 99 99 * * * (分=99・時=99 は範囲外)
+  UI POST: 422 {"detail":"分は 0〜59 で指定してください: '99'"}; 画面エラー=["入力内容を確認してください: 分は 0〜59 で指定してください: '99'"]
+  POST /cron-schedules -> 422 {"detail":"分は 0〜59 で指定してください: '99'"}
+  POST /cron-schedules -> 422 {"detail":"cron 式は「分 時 日 月 曜日」の 5 項目で指定してください (受け取り: 'not a cron')"}
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:36.821775Z"}]}
+  => J44-03: PASS — UI: POST 422 画面エラー=["入力内容を確認してください: 分は 0〜59 で指定してください: '99'"] / API: '99 99 * * *'→422 {"detail":"分は 0〜59 で指定してください: '99'"} 'not a cron'→422 / 一覧 1→1 件 (増えない)
+
+## J44-04 無効化して有効化に戻す (UI トグル)
+  GET /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 -> 200 {"data":{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":false,"next_run_at":null,"created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:50.511579Z"}}
+  GET /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 -> 200 {"data":{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:53.236398Z"}}
+  PATCH 往復: PATCH 200 /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 {"data":{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","t || PATCH 200 /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 {"data":{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","t
+  無効後: enabled=false next_run_at=null 画面抜粋=QA-C 日次ダイジェスト |  | その日のタスク状況・フェーズ・実行結果を集計して投稿します。 |  | 停止中 | コスト無料 | スティーブ | 毎時 0 分 | 0 * * * * | 停止中のため次回なし | 実行履歴（直近 0 件） |  | 実行履歴はまだありません。cron が発火すると自動で記録されます。 |  | 新規スケジュールを作成 |  | 何をいつ動かすか、3 ステップで決める
+  有効後: enabled=true next_run_at=2026-09-03T06:00:00Z 画面抜粋=QA-C 日次ダイジェスト | スティーブ · コスト無料 | 法令・運用バックエンド | 必須 | 法令対応とデータ整合性。Atelier 内部処理のみ・コスト無料 | 退会データを 30 日後に完全削除 | 個人情報保護法に基づく削除義務。退会から 30 日経過したアカウントのデータを物理削除します。 | 無効化不可 | コスト無料 | SQL のみ | 毎日 深夜 0:00 (
+  => J44-04: PASS — 無効化 → enabled=false next_run_at=null / 有効化 → enabled=true next_run_at=2026-09-03T06:00:00Z
+
+## J44-05 今すぐ実行する (daily_digest はサーバー集計のみで PC 不要 → cloud で実走)
+  GET /cron-runs?limit=50 -> 200 {"data":[]}
+  UI POST run-now: 200 {"data":{"status":"done","message":"実行しました。","detail":{"generated":"1"}}}
+  GET /cron-runs?limit=50 -> 200 {"data":[{"id":"d9a8b609-6597-4b4d-90a9-b4ef1747daeb","name":"QA-C 日次ダイジェスト","schedule_id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","started_at":"2026-09-03T05:25:59.649543Z","finished_at":"2026-09-03T05:26:00.082544Z","status":"success","detail":{"generated":"1"},"skipped_occurrences":0}]}
+  cron-runs: before=0 after=1 自分のスケジュール分=[{"id":"d9a8b609-6597-4b4d-90a9-b4ef1747daeb","name":"QA-C 日次ダイジェスト","schedule_id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","started_at":"2026-09-03T05:25:59.649543Z","finished_at":"2026-09-03T05:26:00.082544Z","status":"success","detail":{"generated":"1"},"skipped_occurrences":0}]
+  画面 実行履歴抜粋: 実行履歴（直近 1 件） | cron 実行履歴 | スケジュール名	実行日時	所要時間	結果 | QA-C 日次ダイジェスト	9/3 14:25	0 秒	成功 | 新規スケジュールを作成 |  | 何をいつ動かすか、3 ステップで決めるだけです。 |  | 1. 名前 | 2. 何をする？（AI 社員が必要な場合は能力名も表示） | 着手可のタスクを再生する | ソーの実装能力を起動 | プラン枠 | ナレッジを整理する | ティチャラのナレッジ整理能力を起動（PC 接続が必要） | プラン枠 | 横断パターンを抽出する | サーバー集計のみ（AI を使わない） | 無料 | 進捗レポートを配信する | スティーブのレポート生成能力を起動（PC 接続が必要） | プラン枠 | 日次ダイジェストを配信する | サーバー集計のみ（AI を使わない） | 無料 | 週次バーンダウンを集計する 
+  => J44-05: PASS — run-now → 200 {"data":{"status":"done","message":"実行しました。","detail":{"generated":"1"}}}; cron-runs に schedule 分 1 件 (status=success); 画面の実行履歴に反映=true
+
+## J44-06 実行履歴を見る
+  GET /cron-runs?limit=6 -> 200 {"data":[{"id":"d9a8b609-6597-4b4d-90a9-b4ef1747daeb","name":"QA-C 日次ダイジェスト","schedule_id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","started_at":"2026-09-03T05:25:59.649543Z","finished_at":"2026-09-03T05:26:00.082544Z","status":"success","detail":{"generated":"1"},"skipped_occurrences":0}]}
+  画面 実行履歴: 実行履歴（直近 1 件） | cron 実行履歴 | スケジュール名	実行日時	所要時間	結果 | QA-C 日次ダイジェスト	9/3 14:25	0 秒	成功 | 新規スケジュールを作成 |  | 何をいつ動かすか、3 ステップで決めるだけです。 |  | 1. 名前 | 2. 何をする？（AI 社員が必要な場合は能力名も表示） | 着手可のタスクを再生する | ソーの実装能力を起動 | プラン枠 | ナレッジを整理する | ティチャラのナレッジ整理能力を起動（PC 接続が必要） | プラン枠 | 横断パターンを抽出する | サーバー集計のみ（AI を使わない） | 無料 | 進捗レポートを配信する | スティーブのレポート生成能力を起動（PC 接続が必要） | プラン枠 | 日次ダイジェストを配信する | サーバー集計のみ（AI を使わない） | 無料 | 週次バーンダウンを集計する | バックエンドのみ（AI 社員なし） | 無料 | 3. いつ動かす？ | 毎日 深夜 2:00 | 毎日 深夜 3:00 | 毎週月曜 4:00 | 毎月 1 日 9:00 | 毎時 0 分 | 
+  => J44-06: PASS — GET /cron-runs 1 件 (QA-C 日次ダイジェスト:success:2026-09-03T05:25:59.649543Z) / 画面「実行履歴（直近 1 件）」に日時・結果が出る
+
+## J44-07 プラットフォーム必須ジョブは編集できない
+  GET /cron-platform-jobs -> 200 {"data":[{"name":"purge-deleted-accounts","category":"legal","required":true,"title":"退会データを 30 日後に完全削除","description":"個人情報保護法に基づく削除義務。退会から 30 日経過したアカウントのデータを物理削除します。","cron":"0 15 * * *","schedule_label":"毎日 深夜 0:00 (JST)","next_run_at":"2026-09-03T15:00:00Z","last_run":null},{"name":"integrity-check","category":"legal","required":true,"title":"データ整合性チェック","description":"タスク依存関係・受入条件・モック ID・工程担当
+  section 本文: 法令・運用バックエンド | 必須 | 法令対応とデータ整合性。Atelier 内部処理のみ・コスト無料 | 退会データを 30 日後に完全削除 | 個人情報保護法に基づく削除義務。退会から 30 日経過したアカウントのデータを物理削除します。 | 無効化不可 | コスト無料 | SQL のみ | 毎日 深夜 0:00 (JST) | 0 15 * * * | 次回 9/4 00:00 (金) | 最終実行 未実行 | データ整合性チェック | タスク依存関係・受入条件・モック ID・工程担当の矛盾を検出。検知時は承認待ちに通知。 | 無効化不可 | コスト無料 | SQL のみ | 毎日 朝 5:00 (JST) | 0 20 * * * | 次回 9/4 05:00 (金) | 最終実行 未実行
+  section 内の操作要素: 0 個 []; API required=purge-deleted-accounts:true,integrity-check:true,user-schedules:false,error-alerts:false,transcribe-queue:false
+  => J44-07: FAIL — 必須ジョブ 5 件 (退会データを 30 日後に完全削除 / データ整合性チェック / 利用者スケジュールの発火 (滑り止め) / エラー通知 (メール / Slack) / 議事録 transcription キュー消費) が「無効化不可」表示で、セクション内に編集・削除・トグルの操作要素 0 個 (read-only)。PATCH/DELETE 用の endpoint も無し
+
+## J44-08 メンバーはスケジュールを削除できない
+  DELETE /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 (member) -> 403 {"detail":"自動実行の予定を削除できるのはオーナーだけです。"}
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 (member) -> 200 {"data":[{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:53.236398Z"}]}
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[{"id":"dff7a667-b7df-4416-a3a4-b62b926aea11","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C 日次ダイジェスト","cron_expression":"0 * * * *","target_action":"daily_digest","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T06:00:00Z","created_at":"2026-09-03T05:25:36.821775Z","updated_at":"2026-09-03T05:25:53.236398Z"}]}
+  member 画面: 一覧に出る=true 削除ボタン=1 個
+  => J44-08: PASS — member DELETE → 403 {"detail":"自動実行の予定を削除できるのはオーナーだけです。"}; owner 一覧に残存=true (member 一覧 1 件・member 画面の削除ボタン 1 個)
+
+## J44-09 owner がスケジュールを削除する (UI 2 段階)
+  GET /cron-schedules/dff7a667-b7df-4416-a3a4-b62b926aea11 -> 404 {"detail":"対象の自動実行の予定が見つかりません。"}
+  GET /cron-schedules?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[]}
+  UI DELETE: 204 (確認段階のボタン 1 個); 再取得 GET detail → 404; 一覧 0 件; 画面に名前残存=true
+  => J44-09: FAIL — UI 削除 (2 段階確認) → DELETE 204; GET detail → 404; 一覧 0 件・画面からも消えた (next_run_at の予定も対象ごと消滅)
+  page errors: ["console: Failed to load resource: the server responded with a status of 422 ()"]
+
+## J44-07 (再判定) 必須ジョブの表示対象と required フラグ
+  GET /cron-platform-jobs -> 5 件: purge-deleted-accounts(category=legal, required=true, cron=0 15 * * *) / integrity-check(category=legal, required=true, cron=0 20 * * *) / user-schedules(category=pipeline, required=false, cron=*/15 * * * *) / error-alerts(category=report, required=false, cron=*/15 * * * *) / transcribe-queue(category=pipeline, required=false, cron=* * * * *)
+  画面の必須セクションに出る: 退会データを 30 日後に完全削除 / データ整合性チェック ; 出ない: 利用者スケジュールの発火 (滑り止め)(required=false) / エラー通知 (メール / Slack)(required=false) / 議事録 transcription キュー消費(required=false) ; 操作要素 0 個
+  => J44-07: PASS — 必須ジョブ (required=true) 2 件「退会データを 30 日後に完全削除」「データ整合性チェック」が「無効化不可」で read-only 表示、セクション内に編集・削除・トグルの操作要素 0 個、PATCH/DELETE 用 endpoint も無し。API には required=false の運用ジョブ 3 件 (利用者スケジュールの発火 (滑り止め) / エラー通知 (メール / Slack) / 議事録 transcription キュー消費) もあり、こちらは画面に出ない
+
+## J44-09 (再判定) 一覧セクションからの消滅 (実行履歴の名前残存は別)
+  一覧セクション本文: "スケジュールされたジョブはありません" ; トグル 0 個 / 削除ボタン 0 個 ; 実行履歴に名前が残る=true
+  => J44-09: PASS — UI 削除 (2 段階確認) → DELETE 204、GET detail 404、一覧 0 件、画面は「スケジュールされたジョブはありません」(トグル/削除ボタン 0 個 = 次回予定も消えた)。実行履歴には過去の実行として名前が残る (履歴の保持は正しい)
+
+## J44-08 (補足) member が画面の削除ボタンを押した場合の挙動
+  POST /cron-schedules -> 201 {"data":{"id":"cda5a514-e8fe-460e-b2db-ca4790840443","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","name":"QA-C member削除試験","cron_expression":"0 3 * * *","target_action":"weekly_burndown","target_payload":{},"enabled":true,"next_run_at":"2026-09-03T18:00:00Z","created_at":"2026-09-03T05:27:10.146037Z","updated_at":"2026-09-03T05:27:10.146037Z"}}
+  member UI 削除: DELETE 403 {"detail":"自動実行の予定を削除できるのはオーナーだけです。"} ; 画面 alert=[] ; 一覧に残存=true
+  owner 再取得 GET detail -> 200 (残っている)
+  DELETE /cron-schedules/cda5a514-e8fe-460e-b2db-ca4790840443 -> 204 
+  補足所見: member の画面に削除ボタンが出る (押すと 403)。画面側で owner 以外に導線を隠す方が親切 (期待列の 403 拒否・残存は満たす)
+  POST /chat/threads -> 201 {"data":{"id":"5cbf8048-d9e2-4aeb-a42d-819e7ff6180f","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","ai_employee_id":"4a0bf855-6459-4707-821e-00918a23665e","title":"QA-C 相談スレッド","archived":false,"deleted_at":null,"created_at":"2026-09-03T05:30:29.348578Z","updated_at":"2026-09-03T05:30:29.348578Z","message_count":0,"phase_id":null,"last_message_preview":null}}
+
+## J40-01 本人の PC が未接続のときの案内を見る
+  GET /chat/connection-status -> 200 {"data":{"mode":"relay","bridge_online":false,"workers":[],"last_job":null,"plan":null}}
+  チップ文言: "プラン未接続 — ここから接続" / パネル抜粋: Claude 接続状態 |  | 自分の Claude プランで実行 |  | チャットはあなたのパソコンを経由して、あなたの Claude 月額プランの範囲内で実行されます。追加の従量課金は発生しません。 |  | 接続の手順 |  | 接続アプリ (Atelier Bridge) をインストール (ダウンロード — Mac / Windows / Linux) | 下の「接続トークンを発行」→「アプリで接続」を押す | この表示が「接続中」になれば完了 | 接続トークンを発行 |  | トークンはあなた専用です (チャット接続のみに有効・いつでも失効可能)。あなたの Claude 認証情報がこの PC の外へ送られることはありません。 |  | プラン枠 (5 時間 / 7 日) の使用率はまだ計測がありません。チャットを 1 回実行すると、その時点の実測値がここに表示されます (Claude が実行時に報告した値のみを表示します)。
+  => J40-01: PASS — GET /chat/connection-status mode=relay bridge_online=false; チップ「プラン未接続 — ここから接続」(「AI 未接続 (unconfigured)」とは別文言) → パネルに接続手順 + 「接続トークンを発行」導線
+
+## J43-03 失敗しても打った文章が消えない (Bridge 未接続で送信)
+  送信時の API: ["POST 200 /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/stream data: {\"type\": \"context\", \"metadata\": {\"history_count\": 0, \"rag_hit_ids\": [], \"user_message_id\": \"528d0de8-42a2-4354-9f6e-160332928a0f\"}}\n\ndata: {\"type\": \"start\"}\n\ndata: {\"type\": \"error\", \"content\": \"","POST 200 /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/queued/consume {\"data\":null}"]
+  画面 alert: ["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"] / 入力欄の値: "" / 本文に未接続案内=true
+  押し直し時の API: []
+  => J43-03: FAIL — 未接続で送信 → POST 200 /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/stream, POST 200 /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/queued/consume、画面 alert=["お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。"]; 入力欄に文章が残る=false; 押し直しで再送=なし
+  補足 (J40-06 関連): 送信から応答(エラー)までの待ち ≦ 6 秒で失敗が確定 (3 分無応答ではない)
+
+## J40-04 Bridge 接続トークンを発行する (raw は 1 度だけ)
+  UI POST /bridge-tokens -> 201; raw トークン (YcqG…(43 文字)) が画面に表示=true
+  GET /bridge-tokens -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: bdaed7f4-6c1f-4010-95bb-b503ab84b066）"}
+  再読み込み後: raw が画面に出る=false; GET /bridge-tokens 1 件 (フィールド: id,label,created_at,last_used_at,revoked_at; token フィールド無し=true)
+  => J40-04: FAIL — UI「接続トークンを発行」→ POST 201、raw (43 文字) が発行直後の画面に 1 度表示; GET /bridge-tokens 一覧に 0 件 (id/label/created_at/last_used_at/revoked_at のみ・raw 無し); 再読み込み後の画面に raw は出ない
+
+## J40-07 他人の Bridge トークンは見えない・失効できない (member)
+  GET /bridge-tokens (member) -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: c15861c4-6bdc-4696-b015-4a4a9121d5ec）"}
+  POST /bridge-tokens/undefined/revoke (member) -> 404 {"detail":"対象が見つかりません。"}
+  GET /bridge-tokens -> 200 {"data":[{"id":"39e81f3a-14eb-44c2-994f-2bb2f2dea7da","label":"Bridge","created_at":"2026-09-03T05:31:23.899067Z","last_used_at":null,"revoked_at":null}]}
+  => J40-07: FAIL — member GET /bridge-tokens = 0 件 (owner のトークン id を含まない); member POST revoke → 404 {"detail":"対象が見つかりません。"}; owner 側の再取得で revoked_at=undefined (失効していない)
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+
+## (調査) J43-03 の送信後データ / J40-04 の一覧不整合 / スレッド一覧のボタン
+  GET /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/messages -> 200 {"data":[{"id":"528d0de8-42a2-4354-9f6e-160332928a0f","thread_id":"5cbf8048-d9e2-4aeb-a42d-819e7ff6180f","role":"user","content":"QA-C: PC 未接続のまま送る文章 (消えないこと)","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T05:30:40.248510Z","updated_at":"2026-09-03T05:30:39.647348Z"}]}
+  GET /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/queued -> 200 {"data":[]}
+  POST /bridge-tokens -> 201 {"data":{"id":"9ca6e8f1-0f3c-4d43-8264-26486568717d","token":"<redacted>","label":"QA-C API 発行","created_at":"2026-09-03T05:32:40.294494Z"}}
+  GET /bridge-tokens -> 200 {"data":[{"id":"9ca6e8f1-0f3c-4d43-8264-26486568717d","label":"QA-C API 発行","created_at":"2026-09-03T05:32:40.294494Z","last_used_at":null,"revoked_at":null},{"id":"39e81f3a-14eb-44c2-994f-2bb2f2dea7da","label":"Bridge","created_at":"2026-09-03T05:31:23.899067Z","last_used_at":null,"revoked_at":null}]}
+  GET /bridge-tokens?include_revoked=true -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 5eba48bd-e243-48f9-b786-57b09fa079dc）"}
+  POST /bridge-tokens/9ca6e8f1-0f3c-4d43-8264-26486568717d/revoke -> 200 {"data":true}
+  GET /bridge-tokens -> 200 {"data":[{"id":"9ca6e8f1-0f3c-4d43-8264-26486568717d","label":"QA-C API 発行","created_at":"2026-09-03T05:32:40.294494Z","last_used_at":null,"revoked_at":"2026-09-03T05:32:41.044701Z"},{"id":"39e81f3a-14eb-44c2-994f-2bb2f2dea7da","label":"Bridge","created_at":"2026-09-03T05:31:23.899067Z","last_used_at":null,"revoked_at":null}]}
+
+## J40-04 (再測定) 発行直後の一覧反映タイミング (G-12) と include_revoked=true の 500
+  POST /bridge-tokens -> 201 {"data": {"id": "138684e8-5570-4231-a051-c1a8e575cc5a", "token": "<redacted>", "label": "QA-C timing", "created_at": "2026-09-03T05:33:20.685158Z"}}
+  + 0.9s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  + 1.8s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  + 2.4s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  + 3.2s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  + 3.9s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  + 6.2s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  +11.0s GET /bridge-tokens -> 200 3 件 発行 id 含む=True
+  連続 GET #1 -> 500 0 件 (件数が揺れるか)
+  連続 GET #2 -> 200 3 件 (件数が揺れるか)
+  連続 GET #3 -> 200 3 件 (件数が揺れるか)
+  GET /bridge-tokens?include_revoked=true -> 200 {"data": [{"id": "138684e8-5570-4231-a051-c1a8e575cc5a", "label": "QA-C timing", "created_at": "2026-09-03T05:33:20.685158Z", "last_used_at": null, "revoked_at": null}, {"id": "9ca6e8f1-0f3c-4d43-8264-26486568717d", "label": "QA-C API 発行", "created_at": "2026-09-03T05:32:40.294494Z", "last_used_at": null, "revoked_at": "2026-09-03T05:32:41.044701Z"}, {"id": "39e81f3a-14eb-44c2-994f-2bb2f2dea7da", 
+  GET /bridge-tokens?foo=bar -> 200 {"data": [{"id": "138684e8-5570-4231-a051-c1a8e575cc5a", "label": "QA-C timing", "created_at": "2026-09-03T05:33:20.685158Z", "last_used_at": null, "revoked_at": null}, {"id": "9ca6e8f1-0f3c-4d43-8264-26486568717d", "label": "QA-C API 発行", "created_at": "2026-09-03T05:32:40.294494Z", "last_used_at": null, "revoked_at": "2026-09-03T05:32:41.044701Z"}, {"id": "39e81f3a-14eb-44c2-994f-2bb2f2dea7da", 
+
+## J40-04 (再測定 2) GET /bridge-tokens を 20 回連続 — 200/500 と件数の分布
+  #3: 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 83f9a670-f81a-48d8-bc0d-4ddd5e899837）"}
+  #13: 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: ea48a704-e770-4c0b-9ea0-3bc541dc7343）"}
+  分布 (status, 件数): {(200, 3): 18, (500, 0): 2}
+
+## J40-07 (再走) member 自身のトークンを 1 件発行して、owner のトークンが見えない・失効できないことを確認
+  POST /bridge-tokens -> 201 {"data": {"id": "753763a8-bf7c-4f88-a3b7-cd3aafe9a6b1", "token": "<redacted>", "label": "QA-C member 自身", "created_at": "2026-09-03T05:34:26.844158Z"}}
+  member GET #1 -> 200 ids=['753763a8'] (owner の 138684e8 を含む=False, 自分の 753763a8 を含む=True)
+  member GET #2 -> 200 ids=['753763a8'] (owner の 138684e8 を含む=False, 自分の 753763a8 を含む=True)
+  member GET #3 -> 200 ids=['753763a8'] (owner の 138684e8 を含む=False, 自分の 753763a8 を含む=True)
+  POST /bridge-tokens/138684e8-5570-4231-a051-c1a8e575cc5a/revoke -> 404 {"detail": "対象の接続トークンが見つかりません。"}
+  owner 再取得 -> 200 対象 revoked_at=None
+  POST /bridge-tokens/753763a8-bf7c-4f88-a3b7-cd3aafe9a6b1/revoke -> 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 6f92d11b-1769-47ff-8b68-50e956a15971）"}
+  (後片付け) member 自身の失効 -> 500
+  => J40-07: PASS — member GET /bridge-tokens ×3 → [200, 200, 200] いずれも owner のトークン id を含まず自分の分だけ (3/3 回に自分の id); member POST revoke(owner id) → 404 {"detail": "対象の接続トークンが見つかりません。"}; owner 再取得で revoked_at=None (失効せず)
+
+## J40-04 (最終判定)
+  => J40-04: FAIL — 期待: raw が 1 度だけ表示され一覧に出る・再読み込み後は出ない / 実測: UI「接続トークンを発行」→ POST 201 で raw (43 文字) が発行直後の画面に 1 度表示され、再読み込み後は画面に出ず GET /bridge-tokens にも raw 無し (ここは期待通り)。しかし「一覧に出る」が不安定: 発行 3 秒後の GET /bridge-tokens が 200 {data:[]} (発行済みトークンが 0 件) で返り、その後 20 回連続 GET で 2 回 (10%) が 500「サーバー側で問題が発生しました（参照 ID 付き）」。同じ本人・同じ条件で件数 0 / 3 / 500 が揺れる (list_tokens が別プール _service_session を使う経路の不安定さと推定)
+
+## J43-03 (最終判定)
+  => J43-03: FAIL — 期待: 送信失敗時に入力欄へ文章が戻り、押し直すだけで再送できる / 実測: Bridge 未接続で送信 → POST /chat/threads/{id}/stream 200 (SSE) → 画面 alert「お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。」が出るが、入力欄は空に戻り (value="")、文章はユーザー発話として DB に保存されるだけ (GET messages に role=user 1 件・assistant 無し・queued 0 件)。押し直しても送るものが無く再送されない。再現: S-E01 でスレッドを開き、Bridge 未接続のまま文章を入力して送信 → 入力欄が消える
+
+## BLOCKED 場所=mac の行 (Bridge ハーネス無し)
+  => J40-02: BLOCKED — 本人の PC を Bridge で繋ぐ (場所=mac)。cloud には Bridge ハーネスが無い / 解除条件: Mac で Bridge を起動し GET /bridge/status に presence が出ること
+  => J40-03: BLOCKED — 接続後の経路表示 (場所=mac)。未接続時の表示は J40-01 で PASS (「プラン未接続 — ここから接続」)。接続済み時の「自分の Claude プランで実行」表示は Bridge 接続が要る / 解除条件: Mac の Bridge
+  => J40-05: BLOCKED — トークン失効 → 接続が即時 (0 秒) に切れるか (場所=mac / G-12 / G-14)。API の失効 (POST revoke → 200, revoked_at 記録) は J40-07 の後片付けで実測済だが、接続中の Bridge が無いので「切れる・90 秒誤表示なし」は判定不能 / 解除条件: Mac の Bridge を繋いだ状態で失効
+  => J40-06: BLOCKED — Bridge 終了 (bye) 直後の表示遷移 (場所=mac / G-12 GAP-243)。未接続のまま送った場合は ≦6 秒で未接続 alert が出る (J43-03 で実測、3 分無応答ではない) / 解除条件: Mac の Bridge を起動→終了
+  => J41-01: BLOCKED — AI 応答が要る (場所=mac)。スレッド作成・ユーザー発話の DB 記録 (POST messages → 201, GET messages に残る) は J41-08 の準備で実測済 / 解除条件: Mac の Bridge
+  => J41-02: BLOCKED — AI 応答が要る (場所=mac)。文脈への DB 最新反映 (F-CTX01) は J41-14 の context-preview で実測 / 解除条件: Mac の Bridge
+  => J41-03: BLOCKED — AI 応答が要る (場所=mac) / 解除条件: Mac の Bridge
+  => J41-04: BLOCKED — 成果物生成に AI 応答が要る (場所=mac / GAP-139) / 解除条件: Mac の Bridge
+  => J41-05: BLOCKED — 部分改訂に AI 応答が要る (場所=mac / GAP-147) / 解除条件: Mac の Bridge
+  => J41-06: BLOCKED — 添付の読解に AI 応答が要る (場所=mac / GAP-161) / 解除条件: Mac の Bridge
+  => J41-10: BLOCKED — 実行中の追い足しには走っている実行が要る (場所=mac / GAP-189/191) / 解除条件: Mac の Bridge
+  => J41-11: BLOCKED — 実行中のモード切替には走っている実行が要る (場所=mac / G-13) / 解除条件: Mac の Bridge
+  => J41-12: BLOCKED — 実行への再接続には走っている実行が要る (場所=mac / GAP-189) / 解除条件: Mac の Bridge
+  => J41-13: BLOCKED — /コマンドの構造化実行に AI 実行が要る (場所=mac / GAP-002) / 解除条件: Mac の Bridge
+  => J41-15: BLOCKED — LLM 3 連続失敗の通知は Bridge 経由の実行が要る (場所=mac / G-15) / 解除条件: Mac の Bridge で接続を落として送信
+  => J41-16: BLOCKED — CLI の信号なし終了は Bridge 側で起こす必要がある (場所=mac / G-15 GAP-244) / 解除条件: Mac の Bridge
+  => J41-17: BLOCKED — ナレッジ候補の抽出に AI 会話が要る (場所=mac / GAP-167) / 解除条件: Mac の Bridge
+  => J42-01: BLOCKED — 承認モードのツール実行は Bridge 経由 (場所=mac / GAP-130) / 解除条件: Mac の Bridge
+  => J42-02: BLOCKED — J42-01 の承認要求が無いと拒否できない (場所=mac) / 解除条件: Mac の Bridge
+  => J42-03: BLOCKED — J42-01 の承認要求が無いと許可できない (場所=mac) / 解除条件: Mac の Bridge
+  => J43-01: BLOCKED — 並列上限までの実行には Bridge worker が要る (場所=mac / GAP-203)。GET /bridge/status は cloud から読めるが running/queued は 0 のまま / 解除条件: Mac の Bridge
+  => J43-02: BLOCKED — 順番待ち中の離脱には J43-01 の状態が要る (場所=mac) / 解除条件: Mac の Bridge
+  => J43-04: BLOCKED — 「すべて一時停止」の効果は Bridge の pick で観測する必要がある (場所=mac) / 解除条件: Mac の Bridge
+  => J43-05: BLOCKED — 混雑実績には順番待ちの実データが要る (場所=mac / GAP-208) / 解除条件: Mac の Bridge
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: ["GET 500 /projects/bda85cdc-0d83-4724-8457-3571a0409f90/delivery-phases {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 70779ee8-7b03-45e9-82ac-469dcb9630d0）\"}"] / 画面下部に「通信エラーが発生しました」トースト=false
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: ["GET 500 /projects/bda85cdc-0d83-4724-8457-3571a0409f90/delivery-phases {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: e9bdee71-77c1-4783-ac79-0d914d38a237）\"}"] / 画面下部に「通信エラーが発生しました」トースト=false
+
+## J49-SETUP 工程 (workflow phases) seed + タスク 3 件 (dependencies を設定する API/UI は無い)
+  POST /workflow/phases/seed -> 201 {"data":[{"id":"8a24418e-8f48-425c-81cc-dc320e89b774","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","order":1,"name":"ヒアリング","description":null,"status":"in_progress","assigned_employee_ids":[],"started_at":"2026-09-03T05:20:54.830183Z","completed_at":null,"created_at":"2026-09-03T05:20:54.830183Z"},{"id":"0e6c93ce-371a-41e9-a40a-0b98dea7caff","project_id":"bda85cdc-0d83-4724-8457-3571a0409f
+  phases 0 件: 
+  POST /tasks -> 201 {"data":{"id":"2eacefef-a429-4802-a5b6-6da87a63ab54","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":null,"category":"qa","title":"QA-C タスク A (移動対象)","description":"QA-C 影響解析用","type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"dependen
+  POST /tasks -> 201 {"data":{"id":"9a5956c8-12f1-496e-8d48-e23755f278a5","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":null,"category":"qa","title":"QA-C タスク B (完了済)","description":"QA-C 影響解析用","type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"dependenc
+  POST /tasks -> 201 {"data":{"id":"20aa5893-c295-4d75-944d-f481a6d8f27f","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":null,"category":"qa","title":"QA-C タスク C","description":"QA-C 影響解析用","type":"verification","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"dependenci
+  PATCH /tasks/9a5956c8-12f1-496e-8d48-e23755f278a5 -> 200 {"data":{"id":"9a5956c8-12f1-496e-8d48-e23755f278a5","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":null,"category":"qa","title":"QA-C タスク B (完了済)","description":"QA-C 影響解析用","type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"done","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"dependencie
+  GET /tasks/2eacefef-a429-4802-a5b6-6da87a63ab54 -> 200 {"data":{"id":"2eacefef-a429-4802-a5b6-6da87a63ab54","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":null,"category":"qa","title":"QA-C タスク A (移動対象)","description":"QA-C 影響解析用","type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"dependen
+  タスク A の工程系フィールド: phase=null phase_id=undefined delivery_phase_id=b788a942-ecd7-404a-b5c3-6ff748565c9f lifecycle=triage; B を done に → 200 (done)
+
+## J49-01 COO AI に次フェーズを提案してもらう (場所=mac: LLM は本人の Bridge 経由)
+  POST /workflow/phase-proposals -> 503 {"detail":"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"}
+  GET /workflow/phase-proposals?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[]}
+  GET /approval-inbox?status=pending -> 200 {"data":[]}
+  => J49-01: BLOCKED — 提案生成は本人の Claude (Bridge) 経由の LLM が要る (場所=mac)。実測: POST /workflow/phase-proposals → 503 {"detail":"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"} (未接続を正直に断り、提案一覧は 0 件・実フェーズも増えない) / 解除条件: Mac の Bridge を接続
+  => J49-02: BLOCKED — 承認する提案が作れない (J49-01 が場所=mac: POST /workflow/phase-proposals → 503)。承認/却下/重複拒否の API 自体は実装されている (approve/reject → 409「すでに処理済み」/ pending 重複 409 のコード有) が実データで未確認 / 解除条件: Mac の Bridge で提案を 1 件作る
+  => J49-03: BLOCKED — 却下する提案が作れない (J49-01 が場所=mac: POST /workflow/phase-proposals → 503)。承認/却下/重複拒否の API 自体は実装されている (approve/reject → 409「すでに処理済み」/ pending 重複 409 のコード有) が実データで未確認 / 解除条件: Mac の Bridge で提案を 1 件作る
+  => J49-07: BLOCKED — pending 中の再依頼する提案が作れない (J49-01 が場所=mac: POST /workflow/phase-proposals → 503)。承認/却下/重複拒否の API 自体は実装されている (approve/reject → 409「すでに処理済み」/ pending 重複 409 のコード有) が実データで未確認 / 解除条件: Mac の Bridge で提案を 1 件作る
+  S-F02 URL: https://atelier-web-coral.vercel.app/workflow/phases?project=bda85cdc-0d83-4724-8457-3571a0409f90
+
+## J49-04 タスクをフェーズ間で動かして影響を解析する (UI: 対象タスク + 移動先 → 影響を解析)
+  対象タスク選択肢 4 (選択してください/QA-C タスク A (移動対象)/QA-C タスク B (完了済)/QA-C タスク C) / 移動先 10 (選択してください/第 1 段階 · ヒアリング/第 2 段階 · 要件定義/第 3 段階 · アーキ設計/第 4 段階 · デザイン)
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: ["GET 500 /projects/bda85cdc-0d83-4724-8457-3571a0409f90 {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 97514060-5b45-4109-a5b2-02b27e0a10be）\"}"] / 画面下部に「通信エラーが発生しました」トースト=false
+
+## J49-SETUP (調査) GET /workflow/phases の揺れとタスクの工程フィールド
+  GET /workflow/phases #1 -> 200 9 件
+  GET /workflow/phases #2 -> 200 9 件
+  GET /workflow/phases #3 -> 200 9 件
+  GET /workflow/phases #4 -> 200 9 件
+  task keys: ['id', 'project_id', 'phase', 'category', 'title', 'description', 'type', 'estimated_hours', 'priority', 'lifecycle_stage', 'dispatch_status', 'assigned_employee_id', 'summary', 'metadata', 'blocked_reason', 'retry_count', 'dependencies', 'prerequisites', 'blocks', 'worktree_path', 'worker_pid', 'acceptance_criteria_id', 'verifier_employee_id', 'files_changed', 'mock_id', 'mock_screen_name', 'delivery_phase_id', 'deleted_at', 'created_at', 'updated_at']
+  GET /tasks -> 500 0 件
+
+## 横断所見 GET 系 API の断続的 500 (参照 ID 付き) の頻度 — 各 20 回
+  GET /tasks: {200: 19, 500: 1} 500 の参照 ID: ['D: 23f7ea5c-583f-4fde-b7df-a390925c5cdd']
+  GET /workflow/phases: {200: 19, 500: 1} 500 の参照 ID: ['D: 51d05814-68b9-4cd2-a642-ae64557a6189']
+  GET /bridge-tokens: {200: 17, 500: 3} 500 の参照 ID: ['D: a879d879-59c1-4645-ac74-7e18083a4581', 'D: 8dfe8cd1-6205-40df-83bf-59c29a8ae3e4', 'D: 69f76f54-3ba8-40dc-9178-df61eff29124']
+  GET /knowledge: {200: 17, 500: 3} 500 の参照 ID: ['D: 609c5ba5-42d0-4be5-9c1a-f722842545d3', 'D: 313f2d73-91d1-4c38-986f-13abb55a45a5', 'D: a6c649a6-c3fa-4024-8ff1-70b41b68ead3']
+  GET /cron-schedules: {200: 19, 500: 1} 500 の参照 ID: ['D: a8fd9920-c431-4d97-9c78-2dbb5db2865b']
+  GET /chat/threads: {200: 20} 500 の参照 ID: []
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: ["GET 500 /knowledge?source_project_id=bda85cdc-0d83-4724-8457-3571a0409f90 {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 39e15504-c559-4e05-b90e-db5597013900）\"}"] / 画面下部に「通信エラーが発生しました」トースト=true
+  「その他の会話」を展開 → 新規スレッドボタン (role) 1 個
+  新規スレッドフォーム: select 3 個
+   select#0: 選択肢 2 (選択してください/QA-C 案件 (タスクボード/cron/フェーズ)) 選択=QA-C 案件 (タスクボード/cron/フェーズ)
+   select#1: 選択肢 11 (選択してください/ジャービス/トニー/ナターシャ) 選択=ジャービス
+   select#2: 選択肢 10 (工程横断/ヒアリング/要件定義/アーキ設計) 選択=ヒアリング
+  UI POST /chat/threads -> 201 id=undefined title="undefined"
+  一覧に新スレッド=true; 名前変更ボタン 0 個
+
+## J49-SETUP (再) 工程・タスクは作成済 (state から再利用)
+  phases 9 件: 1:ヒアリング(in_progress) / 2:要件定義(pending) / 3:アーキ設計(pending) / 4:デザイン(pending) / 5:機能分解(pending) / 6:タスク分解(pending) / 7:実装(pending) / 8:検証(pending) / 9:納品(pending)
+  tasks: QA-C タスク A (移動対象):triage:phase=null / QA-C タスク B (完了済):done:phase=null / QA-C タスク C:triage:phase=null
+  S-F02 URL: https://atelier-web-coral.vercel.app/workflow/phases?project=bda85cdc-0d83-4724-8457-3571a0409f90
+
+## J49-04 タスクをフェーズ間で動かして影響を解析する (UI: 対象タスク + 移動先 → 影響を解析)
+  対象タスク選択肢 4 (選択してください/QA-C タスク A (移動対象)/QA-C タスク B (完了済)/QA-C タスク C) / 移動先 10 (選択してください/第 1 段階 · ヒアリング/第 2 段階 · 要件定義/第 3 段階 · アーキ設計/第 4 段階 · デザイン)
+  UI POST impact-analysis → 201 affected=0 done_count=0 applied=false; 画面カード: へ移動した場合 |  | 0 タスクへの影響を検出（実装済み 0 / その他 0） |  | 依存しているタスクはありません。 |  | 承認して移動 | 統計 | 確定フェーズ数 | 0 / 9 | 進行中 | 1 | 未着手 | 8 | ブロック | 0 | 提案中 | 0 | F-IMP01 実行回数 | 1 回（本日） | 依存整合性チェック | OK | 運用ルール | フェーズ追加は AI 提案のみ | 確定後の追加は次フェーズで対応 | タスク移動は影響解析 → 承認 | 完了タスクへ影響時は リファ
+  適用前のタスク A: phase=null phase_id=undefined (移動先 アーキ設計=6ae8eb6a); 移動先と一致しない=true
+  => J49-04: PASS — UI「影響を解析」→ POST 201、画面に「0 タスクへの影響を検出（実装済み 0 / その他 0）」と件数つきで表示、applied=false・タスク A の phase (null) は未変更 (実移動していない)。所見: tasks.dependencies を設定する API/UI が無いため影響 0 件しか作れず、下流タスクが実際に列挙される経路は本番の使い方では存在しない (G-13 の穴)
+
+## J49-05 解析結果を適用する (承認して移動)
+  GET /tasks/2eacefef-a429-4802-a5b6-6da87a63ab54 -> 200 {"data":{"id":"2eacefef-a429-4802-a5b6-6da87a63ab54","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","phase":"アーキ設計","category":"qa","title":"QA-C タスク A (移動対象)","description":"QA-C 影響解析用","type":"feature","estimated_hours":2,"priority":"medium","lifecycle_stage":"triage","dispatch_status":null,"assigned_employee_id":null,"summary":null,"metadata":{},"blocked_reason":null,"retry_count":0,"depen
+  UI POST apply → 200 moved_to=6ae8eb6a refactor_task_ids=[]; タスク A phase=アーキ設計 phase_id=undefined (=移動先 true); 全タスク 3 件中 refactor 系 0 件; 画面「適用済み」=true
+  => J49-05: BLOCKED — 前半 (実移動) は実測 PASS: 「承認して移動」→ POST apply 200、タスク A の phase が移動先「アーキ設計」に変わり画面も「適用済み」。後半 (完了済み影響タスクへのリファクタ自動起票 parent_task 紐付け) は、影響タスクを作る手段 (tasks.dependencies を書く API/UI) が無く影響 0 件 → refactor_task_ids=[] で未検証 / 解除条件: dependencies を設定できる API/UI (または DB 直接投入) を用意する
+
+## J49-06 フェーズ別の統計が実数と一致する
+  GET /workflow/phase-task-stats?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":[{"phase_id":"6ae8eb6a-5ead-48e1-8c24-83283406e465","total":1,"done":0,"awaiting":0,"avg_score":null}]}
+  GET /workflow/impact-stats?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":{"today_count":1,"consistency_ok":true,"dangling_count":0}}
+   (断続 500 → 再試行 1) GET /tasks?project_id=bda85cdc-0d83-4724-8457-3571a0409f90&limit=100
+  API phase-task-stats: [{"phase_id":"6ae8eb6a-5ead-48e1-8c24-83283406e465","total":1,"done":0,"awaiting":0,"avg_score":null}]; 実タスクからの集計: {"アーキ設計":{"total":1,"done":0,"awaiting":0},"none":{"total":2,"done":1,"awaiting":0}}; 不一致 1
+  API impact-stats: {"today_count":1,"consistency_ok":true,"dangling_count":0} / 画面「1 回（本日）」/ 画面の アーキ設計 行: アーキ設計 | 第 3 段階 · 未着手 | 未着手 | 0 / 1 タスク完了 | 状態を変更 | 未着手 | 進行中 | 完了 | ブロック | 担当 | + 追加 | ジャービス | トニー | ナターシャ | スティーブ | ピーター | ストレンジ | ワンダ | ヴィジョン | ソー | ティチャラ | 4 | デザイン | 第 4 段階 · 未着手 | 未着手 | 状態を変更 | 未着手 | 進行中 | 完了 | ブロック | 担当 | + 追加 | ジャービス
+  => J49-06: FAIL — phase-task-stats 1 行が実タスク集計 (アーキ設計:1/0/0, none:2/1/0) と一致 (不一致 1); impact-stats today_count=1 = 画面「1 回（本日）」; consistency_ok=true dangling=0; 画面の アーキ設計 行に total/承認待ち/スコア平均が出る
+  page errors: ["console: Failed to load resource: the server responded with a status of 500 ()","console: Failed to load resource: the server responded with a status of 500 ()"]
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: [] / 画面下部に「通信エラーが発生しました」トースト=false
+  「その他の会話」を展開 → 新規スレッドボタン (role) 1 個
+  新規スレッドフォーム: select 3 個
+   select#0: 選択肢 2 (選択してください/QA-C 案件 (タスクボード/cron/フェーズ)) 選択=QA-C 案件 (タスクボード/cron/フェーズ)
+   select#1: 選択肢 11 (選択してください/ジャービス/トニー/ナターシャ) 選択=ジャービス
+   select#2: 選択肢 10 (工程横断/ヒアリング/要件定義/アーキ設計) 選択=ヒアリング
+  UI POST /chat/threads -> 201 id=undefined title="undefined"
+  一覧に新スレッド=true; 名前変更ボタン 0 個
+
+## J49-06 (再判定: 集計キーの取り違え修正 — stats は phase_id、task.phase は工程名)
+  phase-task-stats: アーキ設計 (6ae8eb6a) total=1 done=0 awaiting=0 avg_score=null ⇔ 実タスク: アーキ設計に 1 件 (triage) / 工程未割当 2 件 (うち done 1 件) は stats の対象外 → 一致
+  画面: アーキ設計 行「0 / 1 タスク完了」(done/total) ・ 統計「1 回（本日）」= impact-stats.today_count=1 ・ 依存整合性 consistency_ok=true dangling=0。awaiting=0 / avg_score=null (実行スコア無し) のため承認待ち・スコア平均の表記は省略表示
+  => J49-06: PASS — phase-task-stats (phase_id=アーキ設計: total 1/done 0/awaiting 0/avg_score null) が実タスク (アーキ設計 1 件 triage、未割当 2 件は対象外) と一致; impact-stats today_count=1 = 画面「1 回（本日）」; consistency_ok=true dangling_count=0; 画面の工程行は「0 / 1 タスク完了」で total/done を表示 (awaiting 0・スコア無しは非表示)
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: [] / 画面下部に「通信エラーが発生しました」トースト=false
+  「その他の会話」を展開 → 新規スレッドボタン (role) 1 個
+  新規スレッドフォーム: select 3 個
+   select#0: 選択肢 2 (選択してください/QA-C 案件 (タスクボード/cron/フェーズ)) 選択=QA-C 案件 (タスクボード/cron/フェーズ)
+   select#1: 選択肢 11 (選択してください/ジャービス/トニー/ナターシャ) 選択=ジャービス
+   select#2: 選択肢 10 (工程横断/ヒアリング/要件定義/アーキ設計) 選択=ヒアリング
+  UI POST /chat/threads -> 201 id=undefined title="undefined"
+  新スレッドのカード名: "商談・ヒアリング" (API title="undefined")
+  一覧に新スレッド=true; 名前変更ボタン 1 個
+
+## J41-07 スレッドを作り、名前を変え、削除する (UI)
+  (所見) スレッド未選択で /chat を開いた時の 4xx/5xx: ["GET 500 /chat/connection-status {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 02e0090a-2a37-443c-89dd-a4baa532df1c）\"}","GET 500 /knowledge?source_project_id=bda85cdc-0d83-4724-8457-3571a0409f90 {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 184a5ec5-a7b4-40a3-99aa-b5719945aab6）\"}"] / 画面下部に「通信エラーが発生しました」トースト=true
+  「その他の会話」を展開 → 新規スレッドボタン (role) 1 個
+  新規スレッドフォーム: select 3 個
+   select#0: 選択肢 2 (選択してください/QA-C 案件 (タスクボード/cron/フェーズ)) 選択=QA-C 案件 (タスクボード/cron/フェーズ)
+   select#1: 選択肢 11 (選択してください/ジャービス/トニー/ナターシャ) 選択=ジャービス
+   select#2: 選択肢 10 (工程横断/ヒアリング/要件定義/アーキ設計) 選択=ヒアリング
+  UI POST /chat/threads -> 201 id=6668988b-ce67-4617-945a-3afe9eee3717 title="新しい会話 9/3 14:48"
+  新スレッドのカード名: "新しい会話 9/3 14:48" (API title="新しい会話 9/3 14:48")
+  一覧に新スレッド=true; 名前変更ボタン 1 個
+  GET /chat/threads/6668988b-ce67-4617-945a-3afe9eee3717 -> 200 {"data":{"id":"6668988b-ce67-4617-945a-3afe9eee3717","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","ai_employee_id":"4a0bf855-6459-4707-821e-00918a23665e","title":"QA-C 改名スレッド","archived":false,"deleted_at":null,"created_at":"2026-09-03T05:48:18.854434Z","updated_at":"2026-09-03T05:48:22.756579Z","message_count":0,"phase_id":"8a24418e-8f48-425c-81cc-dc320e89b774","last_message_preview":null}
+  UI PATCH -> 200; 再取得 title=QA-C 改名スレッド; 一覧に改名後の名前=true
+  確認ダイアログ: 「QA-C 改名スレッド」を削除しますか？  スレッド内のやりとりも削除され、元に戻せません。  はい いいえ 新しい会話 9/3 14:47 ヒアリング工程 たった今 新しい会話 9/3 14:46  ボタン=["はい","いいえ"]
+  GET /chat/threads/6668988b-ce67-4617-945a-3afe9eee3717 -> 404 {"detail":"対象の会話が見つかりません。"}
+  UI DELETE -> 204; GET detail → 404; 一覧 5 件 / include_archived 0 件 (削除 id 含む=false); 再読み込み後の一覧に残存=true
+  => J41-07: FAIL — UI 新規 → POST 201 (一覧に出る) / 名前変更 → PATCH 200 (再取得 title=QA-C 改名スレッド・一覧反映) / 削除 (確認ダイアログ) → DELETE 204、GET detail 404、再読み込み後も一覧に出ない (include_archived でも 出ない)
+
+## J41-08 メッセージ時点で新スレッドへ分岐する (AI 応答なし: ユーザー発話のみで履歴コピーを観測)
+  POST /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/messages -> 201 {"data":{"id":"42aae126-86ba-41cb-9c63-30ecbe084616","thread_id":"5cbf8048-d9e2-4aeb-a42d-819e7ff6180f","role":"user","content":"符丁は「オリオン」とする","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T05:48:34.197248Z","updated_at":"2026-09-03T05:48:34.197248Z"}}
+  POST /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/messages -> 201 {"data":{"id":"0e898efd-b220-4444-9c19-abebbd06fb3d","thread_id":"5cbf8048-d9e2-4aeb-a42d-819e7ff6180f","role":"user","content":"2 件目: オリオンの納期は 10/15","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T05:48:34.635518Z","updated_at":"2026-09-03T05:48:34.635518Z"}}
+  POST /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/messages -> 201 {"data":{"id":"3ba73301-e364-4590-904f-54018bd2d40f","thread_id":"5cbf8048-d9e2-4aeb-a42d-819e7ff6180f","role":"user","content":"3 件目: 分岐後には含まれないはず","parent_message_id":null,"token_count":null,"attachments":[],"created_at":"2026-09-03T05:48:35.053889Z","updated_at":"2026-09-03T05:48:35.053889Z"}}
+  POST /chat/messages/0e898efd-b220-4444-9c19-abebbd06fb3d/branch -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 0b2b539e-ed6b-483c-9065-1a0634fd1707）"}
+
+## J41-08 (調査) branch の 500 は断続か恒常か — 同じメッセージで 3 回
+  POST /chat/messages/0e898efd-b220-4444-9c19-abebbd06fb3d/branch -> 201 {"data": {"id": "9373404f-b25c-4bba-92d1-e2c842c06511", "project_id": "bda85cdc-0d83-4724-8457-3571a0409f90", "ai_employee_id": "4a0bf855-6459-4707-821e-00918a23665e", "title": "分岐: QA-C 相談スレッド", "archived": false, "deleted_at": null, "created_at": "2026-09-03T05:49:19.796507Z", "updated_at": "2026-09-03T05:49:19.796507Z", "message_count": 0, "phase_id": null, "last_message_preview": null}}
+
+## J41-07 (調査) 削除済スレッドの一覧再取得 (API)
+  GET /chat/threads -> 200 6 件: ['分岐: QA-C 相談スレッド', 'QA-C 改名スレッド', '新しい会話 9/3 14:47', '新しい会話 9/3 14:46', '新しい会話 9/3 14:45', 'QA-C 相談スレッド']
+  GET /chat/threads?include_archived=true -> 200 6 件
+  (調査) 新規コンテキストで /chat を開き「その他の会話」を展開: 一覧に「QA-C 改名スレッド」=true; カード=["スレッド「分岐: QA-C 相談スレッド」の名前を変更","スレッド「新しい会話 9/3 14:47」の名前を変更","スレッド「新しい会話 9/3 14:46」の名前を変更","スレッド「新しい会話 9/3 14:45」の名前を変更","スレッド「QA-C 相談スレッド」の名前を変更","スレッド「QA-C 改名スレッド」の名前を変更"]; 画面が呼んだ GET /chat/threads: ["200 /chat/threads?project_id=bda85cdc-0d83-4724-8457-3571a0409f90 {\"data\":[{\"id\":\"9373404f-b25c-4bba-92d1-e2c842c06511\",\"project_id\":\"bda85cdc-0d83-4724-8457-3571a0409f90\",\"ai_employee_id\":\"4a0bf855-6459-4707-821e-00918a23665e\",\"title\":\"分岐: QA-C 相談スレッド\",\"archived\":f"]
+
+## J41-07 (最終判定) 一覧に残る「QA-C 改名スレッド」は同名の別スレッド (前回試行で工程スレッド「商談・ヒアリング」を誤って改名したもの) か確認
+  同名スレッド 1 件: [('3e3a62dd-9b12-40a7-a61a-a700d6fd6461', '2026-09-03T05:31:33.146481Z')]; 削除した id=6668988b-... は含まれない=True
+  GET /chat/threads/6668988b-ce67-4617-945a-3afe9eee3717 -> 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 11d21fa4-1c0a-46cd-b63d-1fc076baf978）"}
+  PATCH /chat/threads/3e3a62dd-9b12-40a7-a61a-a700d6fd6461 -> 200 {"data": {"id": "3e3a62dd-9b12-40a7-a61a-a700d6fd6461", "project_id": "bda85cdc-0d83-4724-8457-3571a0409f90", "ai_employee_id": "67295d94-48b9-4130-b2a1-5d4d9715b54c", "title": "商談・ヒアリング", "archived": false, "deleted_at": null, "created_at": "2026-09-03T05:31:33.146481Z", "updated_at": "2026-09-03T05:50:33.555229Z", "message_count": 0, "phase_id": null, "last_message_preview": null}}
+  (後片付け) 3e3a62dd を「商談・ヒアリング」へ戻す -> 200
+  => J41-07: FAIL — UI 新規スレッド (案件/社員/工程を選んで作成) → POST 201「新しい会話 9/3 14:48」が一覧に出る / 名前変更 (鉛筆 → 入力 → 保存) → PATCH 200、再取得 title=QA-C 改名スレッド・一覧反映 / 削除 (「削除しますか？ はい/いいえ」) → DELETE 204、GET detail 404、再読み込み後の一覧 (GET /chat/threads・include_archived=true とも) に削除 id は無い = 復活しない。※ 再読み込み後に同名「QA-C 改名スレッド」が見えたのは前回試行で工程スレッドを誤改名した別 id (後片付けで元に戻した)
+
+## J41-08 (続き) 分岐スレッドの履歴コピー・一覧・親子関係
+  GET /chat/threads/9373404f-b25c-4bba-92d1-e2c842c06511 -> 200 {"data":{"id":"9373404f-b25c-4bba-92d1-e2c842c06511","project_id":"bda85cdc-0d83-4724-8457-3571a0409f90","ai_employee_id":"4a0bf855-6459-4707-821e-00918a23665e","title":"分岐: QA-C 相談スレッド","archived":false,"deleted_at":null,"created_at":"2026-09-03T05:49:19.796507Z","updated_at":"2026-09-03T05:49:19.796507Z","message_count":0,"phase_id":null,"last_message_preview":null}}
+  GET /chat/threads/9373404f-b25c-4bba-92d1-e2c842c06511/messages -> 200 {"data":[{"id":"33bc4c24-dd25-490f-bcd5-11ed1dc86fba","thread_id":"9373404f-b25c-4bba-92d1-e2c842c06511","role":"user","content":"QA-C: PC 未接続のまま送る文章 (消えないこと)","parent_message_id":"0e898efd-b220-4444-9c19-abebbd06fb3d","token_count":null,"attachments":[],"created_at":"2026-09-03T05:30:40.248510Z","updated_at":"2026-09-03T05:49:19.796507Z"},{"id":"31c684ef-4a43-4cf2-989e-d61d9bd012d2","thread_id":"
+  元スレッド履歴 4 件、分岐点 = 3 件目; 分岐スレッド「分岐: QA-C 相談スレッド」message_count=0; コピー 3 件: [user] QA-C: PC 未接続のまま送 parent=0e898efd / [user] 符丁は「オリオン」とする parent=33bc4c24 / [user] 2 件目: オリオンの納期は 1 parent=31c684ef
+  一覧 (API) に分岐スレッド=true; 画面の一覧に "分岐: QA-C 相談スレッド"=false; 本文に分岐点まで=true 3 件目を含まない=true
+  => J41-08: FAIL — POST branch (2 件目時点) → 201 (1 回目は断続 500、再試行で成功); 新スレッド「分岐: QA-C 相談スレッド」が一覧 (API/画面) に出て、履歴 3/4 件 (分岐点まで) がコピー、3 件目は含まれない; 元との関係は title 接頭辞「分岐:」+ コピー側メッセージの parent_message_id (3/3 件) で記録。スレッド自体に parent_thread_id 欄は無い。画面の「分岐」ボタンは assistant 発話にしか出ないため (AI 無し) API で分岐
+
+## J41-09 応答にフィードバックを付ける (assistant 発話が無いのでユーザー発話に API で up/down)
+  POST /chat/messages/42aae126-86ba-41cb-9c63-30ecbe084616/feedback -> 201 {"data":{"feedback_id":"6070aa7f-a5fd-467f-bc79-a36bfc48c103","message_id":"42aae126-86ba-41cb-9c63-30ecbe084616","value":"up","comment":"QA-C up","recorded_at":"2026-09-03T05:50:41.748078Z"}}
+  POST /chat/messages/3ba73301-e364-4590-904f-54018bd2d40f/feedback -> 201 {"data":{"feedback_id":"8663811c-0f30-4f1e-90cd-4e48340b186b","message_id":"3ba73301-e364-4590-904f-54018bd2d40f","value":"down","comment":"QA-C down","recorded_at":"2026-09-03T05:50:42.022006Z"}}
+   (断続 500 → 再試行 1) GET /projects/bda85cdc-0d83-4724-8457-3571a0409f90/dashboard
+  dashboard recent_activities (10): task.impact.apply, task.impact.analyze, task.update, task.create, task.create, task.create, project.flow.thread, project.flow.init, workflow.phases.seed, project.create
+  画面 (元スレッド, user 発話 4 件): 「役立った」ボタン 0 個 (assistant 発話のみに出る) / 「悪い」系ボタン 0 個 (ChatPanel は up のみ)
+  => J41-09: BLOCKED — up/down とも POST → 201 (feedback_id/recorded_at 返却) だが、監査ログは運営 API (/admin/audit-logs) でしか読めず、dashboard.recent_activities (project/task 対象: task.impact.apply,task.impact.analyze,task.update,task.create) にも出ないため「監査ログに記録」は未観測 / 解除条件: 運営アカウントで /admin/audit-logs を読む。所見: 画面の導線は「役立った」(up) のみで「悪い」(down) が無い (API は down を受ける)。AI 応答が無いので画面のボタン自体も出ない (assistant 発話限定)
+
+## J41-14 文脈構築のプレビューを見る (POST context-preview, LLM 呼出なし)
+  POST /chat/threads/5cbf8048-d9e2-4aeb-a42d-819e7ff6180f/context-preview -> 200 {"data":{"system_prompt":"あなたは Atelier の AI アシスタントです。日本語で簡潔に回答してください。\n\nあなたは「ジャービス」（executive coo）として振る舞います。\n口調: polite\nあなたは Atelier の COO ジャービスです。全社のタスク・進捗を統括し、経営判断を補佐します。\n\n## スキル: task-management\n# task-management\\n全社のタスクと進捗を統括するスキル。\n\n## スキル: weekly-review\n# weekly-review\\n週次の進捗・バーンダウンをレビューする。\n\n現在のプロジェクト: 「QA-C 案件 (タスクボード/cron/フェーズ)」 (種別=client_work / 状態=draft)\n\n# プロジェクト進行フロー (この順
+  応答 768ms / system_prompt 661 文字 / history_count=4 / rag_hit_ids=[]
+  見出し行 (5): ## スキル: task-management | # task-management\n全社のタスクと進捗を統括するスキル。 | ## スキル: weekly-review | # weekly-review\n週次の進捗・バーンダウンをレビューする。 | # プロジェクト進行フロー (この順で進める — COO 窓口運用)
+  PATCH /projects/bda85cdc-0d83-4724-8457-3571a0409f90 -> 200 {"data":{"id":"bda85cdc-0d83-4724-8457-3571a0409f90","workspace_id":"40131555-3d97-463e-a5ec-40e877cd0b43","name":"QA-C 案件 (タスクボード/cron/フェーズ)","client_name":null,"description":"QA-C 案件の説明。合言葉は ゼブラ9931。","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"hearing","deleted_at":null,"created_at":"2026-09-03T05:20:54.830183Z","updated_at
+  PATCH project.description に "ゼブラ9931" → 200; 再プレビューに "ゼブラ9931" が含まれる=false (1 回目には含まれない=true); history_count=4
+  => J41-14: FAIL — POST context-preview → 200 (768ms・LLM 呼出なし) system_prompt 661 文字・見出し 5 段 (スキル: task-mana/task-managemen/スキル: weekly-re/weekly-review\/プロジェクト進行フロー (こ) / history_count=4 / project.description 更新直後の再プレビューに合言葉が反映=false。画面には実行中の「F-CTX01 文脈サマリ」チップしか無く、実行なしに開くプレビュー導線は無い (API で判定)
+
+## J42-04 他人の承認要求は見えない (member で owner スレッドの tool-approvals)
+  GET /chat/tool-approvals?thread_id=5cbf8048-d9e2-4aeb-a42d-819e7ff6180f (member) -> 200 {"data":[]}
+  GET /chat/tool-approvals?thread_id=5cbf8048-d9e2-4aeb-a42d-819e7ff6180f -> 200 {"data":[]}
+  GET /approval-inbox?status=pending (member) -> 200 {"data":[]}
+  => J42-04: BLOCKED — 承認要求の実データは Bridge 経由の AI 実行 (J42-01, 場所=mac) でしか作れず、0 件同士では「本人宛以外が出ない」を判定できない。観測: member GET tool-approvals(owner スレッド) → 200 {"data":[]} / owner → 200 {"data":[]} / member approval-inbox → 200 0 件 / 解除条件: Mac の Bridge で承認モードのツール実行を起こす
+  (再確認) 分岐スレッドを開いた画面: 一覧カード=["スレッド「商談・ヒアリング」の名前を変更","スレッド「分岐: QA-C 相談スレッド」の名前を変更","スレッド「新しい会話 9/3 14:47」の名前を変更","スレッド「新しい会話 9/3 14:46」の名前を変更","スレッド「新しい会話 9/3 14:45」の名前を変更","スレッド「QA-C 相談スレッド」の名前を変更"]; 分岐カードあり=true; 中央ペインに 2 件目まで=true / 3 件目無し=true
+  => J41-08: PASS — POST branch (2 件目時点) → 201 (1 回目は断続 500、再試行で成功); 新スレッド「分岐: QA-C 相談スレッド」が一覧 (API・画面カード) に出て、履歴 3/4 件 (分岐点まで) がコピー、3 件目は中央ペインに出ない; 元との関係は title 接頭辞「分岐:」+ コピー側メッセージの parent_message_id (3/3 件) で記録。スレッド自体に parent_thread_id 欄は無い (どのスレッドから分岐したかは title でしか辿れない)。画面の「分岐」ボタンは assistant 発話にしか出ないため (AI 無し) API で分岐
+
+## J41-14 (再判定) F-CTX01 の層構成 (build_context: persona / proj_state / flow / history / template / peers / summary / attachments / rag) と DB 最新反映 — project.description は層に含まれないので name で確認
+  PATCH project.name → 200
+  再プレビュー: name に ゼブラ9931 が反映=True; history_count=4; 層の見出し: ['あなたは Atelier の AI アシスタントです。日本語', 'あなたは「ジャービス」（executive coo）として振', 'あなたは Atelier の COO ジャービスです。全社の', '## スキル: task-management', '# task-management\\n全社のタスクと進捗を統', '## スキル: weekly-review', '# weekly-review\\n週次の進捗・バーンダウンを', '現在のプロジェクト: 「QA-C 案件 ゼブラ9931」 (', '# プロジェクト進行フロー (この順で進める — COO 窓']
+  (復元) name → 200
+  復元後の再プレビュー: ゼブラ9931 が消える=True
+  => J41-14: PASS — POST context-preview → 200 (0.8 秒・LLM 呼出なし)。system_prompt は persona(+skills) / 現在のプロジェクト (name・種別・状態) / 進行フロー (現在ステージ) の 3 ブロック + history_count=4 (会話履歴は別枠)、template/peers/summary/attachments/rag は該当データ無しで省略 (build_context の 9 部品のうち条件付き)。DB 最新: project.name を変えた直後の再プレビューに反映=True、戻すと消える。所見: project.description は文脈に含まれない (合言葉を description に入れても反映されない) — 「案件にしか無い固有名」を description に書く運用だと J41-02 が効かない。画面には実行中の「F-CTX01 文脈サマリ」チップしか無く、実行なしのプレビュー導線は無い
+
+## CLEANUP 後片付け: Bridge トークン失効・アカウント退会 (soft-delete)
+  owner token 138684e8 revoke -> 200
+  owner token 39e81f3a revoke -> 200
+  member token 753763a8 revoke -> 200
+  GET /bridge/status -> 200 {"data": {"running_count": 0, "queued_count": 0, "completing_count": 0, "spawning_count": 0, "dead_count_24h": 0, "parallel_limit": 5, "available_slots": 5, "oldest_running_started_at": null, "active_
+  POST /auth/account/delete -> 500 {"detail": "サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 11abde14-5485-4afd-bdf6-1baf4e75b8f5）"}
+  退会後 signin (member) -> 200 (G-14: 退会後はサインイン不可)
+  退会後 既存 JWT で GET /bridge-tokens (member) -> 200 (G-14: 発行済 JWT が失効しているか)
+  POST /auth/account/delete -> 200 {"data": {"user_id": "3b1053d7-45ab-48dd-b185-0c25df500b68", "scheduled_purge_at": "2026-10-03T05:52:41.277318Z", "deleted_at": "2026-09-03T05:52:41.277318Z"}}
+  退会後 signin (owner) -> 401 (G-14: 退会後はサインイン不可)
+  退会後 既存 JWT で GET /bridge-tokens (owner) -> 401 (G-14: 発行済 JWT が失効しているか)
+
+## 総括
+  分母 49 行 / 記録 49 行: BLOCKED 31, FAIL 4, PASS 14
+  BLOCKED の主因: 場所=mac (Bridge / 実 AI) 29 行、監査ログ未観測 (運営 API のみ) 1 行、承認要求データ無し 1 行、dependencies 設定手段無し 1 行
+
+## J41-07 (再々確認: owner は退会済のため member の JWT で削除済スレッドを再取得)
+  GET /chat/threads/6668988b-ce67-4617-945a-3afe9eee3717 -> 404 {"detail": "対象の会話が見つかりません。"}
+  member GET /chat/threads -> 200 6 件; 削除 id 含む=False
+  => J41-07: PASS — UI 新規スレッド (案件/社員/工程を選んで作成) → POST 201「新しい会話 9/3 14:48」が一覧に出る / 名前変更 (鉛筆 → 入力 → 保存) → PATCH 200、再取得 title=QA-C 改名スレッド・一覧反映 / 削除 (「削除しますか？ はい/いいえ」) → DELETE 204、GET detail 404、再読み込み後の一覧 (GET /chat/threads・include_archived=true とも) に削除 id は無い = 復活しない (退会前の owner・member 双方の JWT で再取得して確認)。※ 再読み込み後に同名「QA-C 改名スレッド」が見えたのは前回試行で工程スレッドを誤改名した別 id (後片付けで元に戻した)
+
+## CLEANUP (再) member 退会 — 1 回目は断続 500
+  POST /auth/account/delete -> 200 {"data": {"user_id": "fe3c389f-3bc8-4133-af6e-0b5b140773b4", "scheduled_purge_at": "2026-10-03T05:53:21.398141Z", "deleted_at": "2026-09-03T05:53:21.398141Z"}}
+  退会後 signin (member) -> 401
+  退会後 既存 JWT で GET /bridge-tokens (member) -> 401
+
+## 総括 (最終)
+  分母 49 行 / 記録 49 行: BLOCKED 31, FAIL 3, PASS 15
+  FAIL: J40-04, J43-03, J44-01
+  BLOCKED の主因: 場所=mac (Bridge / 実 AI) 29 行、監査ログ未観測 (運営 API のみ) 1 行 (J41-09)、承認要求データ無し 1 行 (J42-04)、dependencies 設定手段無し 1 行 (J49-05)
+  アカウント: qa-jC-20260903-1 / -2 とも退会 (soft-delete) 済、Bridge トークン全失効

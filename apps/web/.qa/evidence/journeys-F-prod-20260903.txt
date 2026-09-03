@@ -1,0 +1,288 @@
+# L2 ジャーニー実走証拠 — 担当 F — 2026-09-03 — prod(pre-launch) (ADR-021 改訂: 本番を staging 共用)
+API: https://atelier-api-eb.fly.dev   Web: https://atelier-web-coral.vercel.app
+分母 (今回消化する行 = 57): J00-01..04 (4) / J01-01..08 (8) / J02-01..11 (11) / J03-01..04 (4) / J60-01..07 (7) / J61-01..05 (5) / J62-01..07 (7) / J63-01..04 (4) / J64-01..07 (7)
+  role 内訳: admin 46 (運営権限のアカウントが無いので BLOCKED、一般利用者から観察できる範囲は note に残す) / owner 9 / guest 2
+  場所=mac (Bridge / 実 AI) の行は Bridge ハーネスが無いので BLOCKED。AI 応答不要で API/画面だけで判定できる行は実走。
+秘密 (JWT / パスワード) は本ファイルに書かない。<redacted> と記す。
+アカウント: qa-jF-20260903-1@example.com (owner, user_id f4558e4f-bd98-4728-b6e1-c6e14223bfd8) — QA 専用・最後に退会
+  WS: 44cb50a7-914f-464b-b82d-445fc1f1068d (QA-F WS 20260903) / project: 67541741-5587-49dd-81f2-ab7d4ede68fa (QA-F 案件)
+判定は plan.json の expected 列そのまま。監査ログは運営 API (/admin/audit-logs) でしか読めないので、一般利用者からは観測不能 → 該当部分は BLOCKED。
+
+## SETUP (curl)
+  POST /auth/signup -> 201 user_id=f4558e4f-bd98-4728-b6e1-c6e14223bfd8 consents_recorded=2 (2026-09-03T05:35:28Z)
+  POST /auth/signin -> 200 (access_token <redacted>)
+  POST /workspaces -> 201 id=44cb50a7-914f-464b-b82d-445fc1f1068d plan=free member_count=1
+  POST /projects -> 201 id=67541741-5587-49dd-81f2-ab7d4ede68fa status=draft current_phase=hearing
+  GET /me/consents -> 200 (privacy_policy / terms_of_service とも current_version=2026-08-22 needs_consent=false) ※ authenticated 経路では legal_documents が読める
+  GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates -> 200 {"data":[]} (運営既定が 1 件も無い = J01-01 未実施の状態)
+  GET /skills -> 200 (id,name,version,description,is_active のみ)
+  GET /ai-employees/templates -> 200 10 件 (keys に system_prompt を含む — 後述)
+  GET /knowledge?account_type=platform -> 200 {"data":[]} (運営ナレッジ 0 件)
+
+## J00-02 存在しないアカウントでサインイン (API)
+  POST /auth/signin body={"email":"qa-jF-nobody-20260903@example.com","password":"Wrong-Pass-2026!x"} -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  POST /auth/signin body={"email":"qa-jF-20260903-1@example.com","password":"Wrong-Pass-2026!x"} -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  存在しない=401 メールアドレスまたはパスワードが違います。 / 存在するがパス違い=401 メールアドレスまたはパスワードが違います。 / 応答本文同一=true
+
+## 運営専用 API 403 スイープ (owner JWT)
+  [J01-03] GET /admin/design-templates -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J01-03] GET /admin/design-templates/estimate/versions -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-01] GET /admin/ai-employee-templates -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-01] GET /admin/ai-employee-templates/00000000-0000-4000-8000-000000000000/deployment -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-02/03] PATCH /admin/ai-employee-templates/00000000-0000-4000-8000-000000000000 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-11] GET /admin/skills -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-04] POST /admin/skills -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-05] PATCH /admin/skills/00000000-0000-4000-8000-000000000000 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-06] POST /admin/skills/00000000-0000-4000-8000-000000000000/attach -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください）。"}
+  [J02-08] POST /admin/skills/reimport -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J02-09] DELETE /admin/skills/00000000-0000-4000-8000-000000000000 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-01/02] GET /admin/health -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-03] GET /admin/alerts -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-03] GET /admin/uptime -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-03/06] GET /admin/errors -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-04] GET /admin/platform-stats -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-04] GET /admin/dashboard -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-05] GET /admin/circuit-breaker -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-05] POST /admin/circuit-breaker/reset -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください）。"}
+  [J60-05] POST /admin/circuit-breaker/poll-pids -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください）。"}
+  [J60-07] GET /admin/beta-feedback -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J60-07] POST /admin/beta-feedback/00000000-0000-4000-8000-000000000000/resolve -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J61-01/02] GET /admin/audit-logs -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J61-03] GET /admin/audit-logs?action=auth.signin&actor_type=user&limit=5 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J61-05] GET /admin/audit-logs?actor_type=nobody-qa-f -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-01/07] GET /admin/mission -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-02] PUT /admin/goal -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-01] GET /admin/trends -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-03] GET /admin/acquisitions -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-03] POST /admin/acquisitions -> 422 {"detail":"送信内容を確認してください（入力内容: 内容を確認してください）。"}
+  [J62-04] GET /admin/costs -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J62-05] POST /admin/costs -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください / 名前: 入力してください）。"}
+  [J63-01] GET /admin/users -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J63-02/04] POST /admin/support-contact -> 422 {"detail":"送信内容を確認してください（入力内容: 文字数が足りません）。"}
+  [J63-03] GET /admin/support-contacts -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-01] GET /admin/knowledge -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-01] POST /admin/knowledge -> 422 {"detail":"送信内容を確認してください（入力内容: 入力してください）。"}
+  [J64-07] PATCH /admin/knowledge/00000000-0000-4000-8000-000000000000 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-02] DELETE /admin/knowledge/00000000-0000-4000-8000-000000000000 -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-04] POST /admin/knowledge/curation/run -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-04] GET /admin/knowledge/curation -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-05] POST /admin/knowledge/curation/00000000-0000-4000-8000-000000000000/approve -> 403 {"detail":"この操作は運営のみが行えます。"}
+  [J64-06] POST /admin/knowledge/curation/00000000-0000-4000-8000-000000000000/reject -> 403 {"detail":"この操作は運営のみが行えます。"}
+  403 でなかった運営 API: [["POST /admin/skills/00000000-0000-4000-8000-000000000000/attach",422],["POST /admin/circuit-breaker/reset",422],["POST /admin/circuit-breaker/poll-pids",422],["POST /admin/acquisitions",422],["POST /admin/costs",422],["POST /admin/support-contact",422],["POST /admin/knowledge",422]]
+  GET /admin/audit-logs -> 401 {"detail":"サインインが必要です。サインインしてから、もう一度お試しください。"}
+  未認証 GET /admin/audit-logs -> 401
+
+## J02-10 スキル本文が利用者側に漏れない (API)
+  GET /skills?active_only=false -> 200 23 件 keys=["id","name","version","description","is_active"] 本文系キー=[] 最大フィールド長=135
+  GET /ai-employees?workspace_id -> 500 undefined 名 / GET /ai-employees/undefined -> 404 keys=[] attached_skills=undefined content_md を含む=false
+  GET /ai-employees/templates (一般利用者) -> 200 10 件 system_prompt 文字数=[52,39,43,39,40,40,48,41,37,48] 例(先頭60字)="あなたは Atelier の COO ジャービスです。全社のタスク・進捗を統括し、経営判断を補佐します。"
+
+## J03 公開法務文書 API (未認証)
+  GET /public/legal-documents -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 8a01be1e-27a9-43a9-847c-a88f521b2a8e）"}
+  GET /public/legal-documents?locale=ja -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: d5b212aa-80f2-437c-9ad8-363598011f12）"}
+  GET /public/legal-documents/terms_of_service -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: f43b225d-1df5-40ee-adac-ee297da9dcf4）"}
+  GET /public/legal-documents/privacy_policy -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 022d39cc-20a8-405b-98db-9517ce632370）"}
+  GET /public/legal-documents/tokushoho -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: c21f3620-5890-4ca6-84da-758972b1cf1b）"}
+  GET /public/legal-documents/terms_of_service -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: dae5454a-8fe2-4179-b4d7-c0fcb8dcdbb2）"}
+  (認証付きで同じ URL) -> 500
+
+## J01-04/06/08 出力デザインテンプレ (owner API)
+  GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates -> 200 {"data":[]}
+  GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/estimate/versions -> 200 {"data":[]}
+  POST /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/estimate/reset-to-default -> 404 {"detail":"この種類の運営既定デザインはまだ設定されていません。"}
+  POST /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/estimate body={"instruction":"QA-F: 見積書を青基調にする (Bridge 無しの応答観察)"} -> 503 {"detail":"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。"}
+  GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/estimate/versions -> 200 {"data":[]}
+  GET /design-templates/00000000-0000-4000-8000-000000000000/content-url -> 404 {"detail":"対象のデザインテンプレートが見つかりません。"}
+
+## J60-06 画面側エラー報告 / J60-07 ベータ FB (利用者側)
+  POST /client-errors body={"kind":"qa-f-test","message":"QA-F J60-06 画面エラー報告テスト","path":"/projects"} -> 202 {"status":"accepted"}
+  POST /client-errors body={"kind":"qa-f-test","message":"anon"} -> 401 {"detail":"サインインが必要です。サインインしてから、もう一度お試しください。"}
+  POST /beta-feedback body={"category":"other","content":"QA-F J60-07 ベータフィードバック投稿テスト (QA 専用データ)"} -> 201 {"data":{"id":"6aee6eef-d044-43cb-a85f-1e15f3a6b0a1","email":"qa-jF-20260903-1@example.com","category":"other","content":"QA-F J60-07 ベータフィードバック投稿テスト (QA 専用データ)","status":"open","created_at":"2026-09-03T05:38:17.268847Z","resolved_at":null}}
+  POST /beta-feedback body={"category":"other","content":""} -> 422 {"detail":"送信内容を確認してください（入力内容: 文字数が足りません）。"}
+
+## J64-07 PATCH /admin/knowledge/{id} (owner)
+  GET /knowledge?account_type=platform&limit=200 -> 200 {"data":[]}
+  PATCH /admin/knowledge/00000000-0000-4000-8000-000000000000 body={"title":"QA-F tampered title"} -> 403 {"detail":"この操作は運営のみが行えます。"}
+  GET /knowledge?account_type=platform&limit=200 -> 200 {"data":[]}
+  対象 id=00000000-0000-4000-8000-000000000000 (運営ナレッジ 0 件のためダミー UUID) / 前後の一覧 JSON 同一=true
+
+## J03-04 未サインインで法務文書一覧 (トップ → 規約リンク)
+  GET / -> 着地 /signin (status 200)
+  トップ(着地ページ)に見える法務リンク: ["/tokushoho"]
+  新規登録タブ表示後の法務リンク: ["/terms","/privacy","/tokushoho"]
+  規約リンク後の URL: /terms
+  /terms 本文(先頭300字): "利用規約\nプライバシーポリシー\n特商法表記\n\n文書の取得に失敗しました。時間をおいて再度お試しください。"
+  /terms で叩いた API: ["GET /auth/oauth/providers 200","GET /public/legal-documents/terms_of_service 500"]
+  GET /public/legal-documents -> 500 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: fcf2c584-cb32-4a60-8070-ccc279f3dcc7）"}
+  => J03-04: FAIL — 期待: 3 種が版番号つきで一覧に出て未サインインで読める / 実測: GET /public/legal-documents -> 500 サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: fcf2c584-cb32-4a60-8070-ccc279f3dcc7）; 画面 /terms (S-A01 新規登録タブの「利用規約」リンクから到達) は role=alert「文書の取得に失敗しました。時間をおいて再度お試しください。|利用規約 | Atelier | Atelier」で本文が出ない (画面が叩いた GET /public/legal-documents/terms_of_service -> 500). 版番号=false
+
+## J03-02 公開ページに新しい版が出る (未サインイン S-PUB01〜03)
+  /terms: alert=["文書の取得に失敗しました。時間をおいて再度お試しください。",""] api=/public/legal-documents/terms_of_service 500 本文先頭="利用規約\nプライバシーポリシー\n特商法表記\n\n文書の取得に失敗しました。時間をおいて再度お試しください。"
+  /privacy: alert=["文書の取得に失敗しました。時間をおいて再度お試しください。",""] api=/public/legal-documents/privacy_policy 500 本文先頭="利用規約\nプライバシーポリシー\n特商法表記\n\n文書の取得に失敗しました。時間をおいて再度お試しください。"
+  /tokushoho: alert=["文書の取得に失敗しました。時間をおいて再度お試しください。",""] api=/public/legal-documents/tokushoho 500 本文先頭="利用規約\nプライバシーポリシー\n特商法表記\n\n文書の取得に失敗しました。時間をおいて再度お試しください。"
+  => J03-02: FAIL — 期待: 改訂内容がそのまま読める・ダミー連絡先や存在しないプランが残っていない / 実測: 3 ページとも本文が出ず role=alert「文書の取得に失敗しました。時間をおいて再度お試しください。」(画面が叩く GET /public/legal-documents/{type} が全て 500・参照 ID 付き)。認証付き経路 GET /me/consents では legal_documents 2026-08-22 版が読めるので、anon 経路 (set local role anon) 固有の障害 = G-11 (本番 DB の anon ロール/権限) の疑い。文面の内容 (ダミー連絡先の有無) は本文が出ないため未判定
+
+## J00-02 存在しないアカウントでサインイン (UI)
+  UI: alert=["メールアドレスまたはパスワードが違います。"] url=/signin
+
+## owner サインイン (UI)
+  signin -> url=/signin alerts=["サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: bb396144-cf46-412d-bcb9-970e6deb89d0）"] api=["GET /auth/oauth/providers 200","POST /auth/signin 401","GET /auth/oauth/providers 200","POST /auth/signin 500"]
+
+## J00-02 存在しないアカウントでサインイン (UI)
+  UI: alert=["メールアドレスまたはパスワードが違います。"] url=/signin
+
+## owner サインイン (UI)
+  signin 試行1 -> url=/projects alerts=[] api=["GET /auth/oauth/providers 200 ","POST /auth/signin 200 "]
+
+## J00-01 観察: 新規アカウント (データ 0 件) で主要画面を順に開く
+  /projects -> http 200 着地=/projects 本文257字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /projects/dashboard -> http 200 着地=/projects/dashboard 本文132字 白画面=false 5xx=["GET /me/consents 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /tasks -> http 200 着地=/tasks 本文129字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /tasks/monitor -> http 200 着地=/tasks/monitor 本文443字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /employees -> http 200 着地=/employees 本文297字 白画面=false 5xx=["GET /ai-employees 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /workflow -> http 200 着地=/workflow 本文130字 白画面=false 5xx=["GET /approval-inbox?status=pending 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /knowledge -> http 200 着地=/knowledge 本文477字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /knowledge/review -> http 200 着地=/knowledge/review 本文126字 白画面=false 5xx=["GET /approval-inbox?status=pending 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /approvals -> http 200 着地=/approvals 本文325字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /meetings -> http 200 着地=/meetings 本文124字 白画面=false 5xx=["GET /me/consents 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /outputs -> http 200 着地=/outputs 本文112字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /mocks -> http 200 着地=/mocks 本文131字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /schedules -> http 200 着地=/schedules 本文378字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /sales -> http 200 着地=/sales 本文121字 白画面=false 5xx=["GET /me 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /templates -> http 200 着地=/templates 本文335字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nプロジェクト一覧へ戻る\nQ\nQA-F WS 20260903\n/\nテンプレート\nQ\n出力デザインテンプレート\n\nクライアントに見せる"
+  /chat -> http 200 着地=/chat 本文578字 白画面=false 5xx=["GET /me 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nプロジェクト一覧へ戻る\nQ\nQA-F WS 20260903\nチャット\nその他の会話\nプラン未接続 — ここから接続\nAI 社員とチ"
+  /portal/invitations -> http 200 着地=/portal/invitations 本文279字 白画面=false 5xx=[] 4xx=[] jsエラー=0 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /projects/settings -> http 200 着地=/projects/settings 本文127字 白画面=false 5xx=["GET /approval-inbox?status=pending 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+  /projects/vault -> http 200 着地=/projects/vault 本文450字 白画面=false 5xx=["GET /me 500"] 4xx=[] jsエラー=1 先頭="メインコンテンツへスキップ\nワークスペース · QA-F WS 20260903\nプロジェクト\nAI社員\nナレッジ\nテンプレート\n承認待ち\nWS設定\nQ\nQA-"
+
+## J00-03 / J02-11 / J61-02 / J62-07: 一般利用者で運営画面を開く
+  /admin -> http 200 URL=/admin access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/s_t01 -> http 200 URL=/admin access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/skills -> http 200 URL=/admin/skills access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/s_t02 -> http 200 URL=/admin/skills access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/audit -> http 200 URL=/admin/audit access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/s_t05 -> http 200 URL=/admin/audit access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/templates -> http 200 URL=/admin/templates access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/users -> http 200 URL=/admin/users access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/platform-knowledge -> http 200 URL=/admin/platform-knowledge access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+  /admin/design-templates -> http 200 URL=/admin/design-templates access-denied 表示=true 運営メニュー描画=false 叩いた /admin API=[]
+
+## J01-04 / J01-06 / J01-08: 出力デザインテンプレ画面 (/templates)
+  /templates -> URL=/templates 種類の表示=10/10 版履歴表示=版履歴（0） 「運営既定を継承中」=false 「戻す」ボタン=0 本文先頭="メインコンテンツへスキップ\nプロジェクト一覧へ戻る\nQ\nQA-F WS 20260903\n/\nテンプレート\nQ\n出力デザインテンプレート\n\nクライアントに見せる最終 HTML/PDF の見た目の型。 内容の構成・文言はスキルが整えます — ここはデザインだけ。\n\n見積書\n提案書\n請求書\n契約書\nNDA\n要件定義書\nアーキ設計書\nデザイン仕様書\nテスト仕様書\n納品書・完了報告\n\n「見積書」のテンプレはまだありません\n\n右のボックスからワンダに指示すると、A4/PDF 前提のデザインテンプレを作成します。以後この種類の成果物はこのデザインで出力されます。\n\n見積書\nワンダへの指示（デザインの要望）\n参考資料を追加\nテンプレを作成\n版履歴（0）\n\nまだ版はありません。\n\nサーバーでエラーが発生しました。\n×"
+  API: ["GET /workspaces 200 {\"data\":[{\"id\":\"44cb50a7-914f-464b-b82d-445fc1f1068d\",\"name\":\"QA-F WS 20260903\",","GET /me/consents 200 {\"data\":{\"items\":[{\"doc_type\":\"privacy_policy\",\"current_version\":\"2026-08-22\",\"a","GET /me 200 {\"data\":{\"id\":\"f4558e4f-bd98-4728-b6e1-c6e14223bfd8\",\"email\":\"qa-jF-20260903-1@e","GET /approval-inbox?status=pending 200 {\"data\":[]}","GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates 200 {\"data\":[]}","GET /workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/estimate/versions 500 {\"detail\":\"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: 32a4d96f-90f6-4017-baa3-8f","GET /workspaces 200 {\"data\":[{\"id\":\"44cb50a7-914f-464b-b82d-445fc1f1068d\",\"name\":\"QA-F WS 20260903\","]
+  指示送信 → API ["/workspaces/44cb50a7-914f-464b-b82d-445fc1f1068d/design-templates/proposal 503 {\"detail\":\"お使いの PC の Bridge がオフラインです。Bridge アプリを起動してから、もう一度お試しください。\"}"] 画面通知=["お使いのパソコン (Bridge) が未接続のためテンプレの作成を実行できません\n\nこの処理はあなたの PC の Claude で動きます。Bridge アプリを起動すると実行できます。\n\n接続手順を閉じる\n\n接続の手順\n\n接続アプリ (Atelier Bridge) をインストール (ダウンロード — Mac / Windows / Linux)\n下の「接続トークンを発行」→「アプリで接続」を押す\nこの表示が「接続中」になれば完了\n接続トークンを発行\n\nトークンはあなた専用です (チャット接続のみに有効・いつでも失効可能)。あなたの Claude 認証情報がこの PC の外へ送られることはありません。"] オフライン文言=true
+
+## J02-10 スキル本文が利用者側に漏れない (S-C02 + 配布 JS)
+  AI 社員 10 名 / 検査対象 jarvis id=17d1c0aa-a5c7-41dc-939d-e6fad6828e2a attached_skills=["1db8475f-e5e0-498b-9df8-a91705002f26","56b364c9-ee5d-4144-a1c3-e36c4874b975"]
+  S-C02 「できること」節: "できること\n\nこの AI 社員に付与されているスキルです。運営側で整えられているため変更できません。\n\ntask-management\nweekly-review\n担当範囲\n役職\nCOO\n所属\n経営\nレポート対象\nあなた（オーナー）\n直属の部下\nなし\n変更はありません\nキャンセル\n保存"
+  画面が受けた API 応答 (9 件) に content_md/body_md/SKILL.md が含まれる=false 一覧=["GET /me 200","GET /workspaces 200","GET /approval-inbox?status=pending 200","GET /me/consents 200","GET /ai-employees/templates 200","GET /skills?limit=200 200","GET /ai-employees 500","GET /ai-employees/17d1c0aa-a5c7-41dc-939d-e6fad6828e2a 200","GET /ai-employees/17d1c0aa-a5c7-41dc-939d-e6fad6828e2a/activities?limit=20 200"]
+  配布 JS 29 本 835158 字を検査: 一致=["content_md@page-be362f81067b7527.js"]
+
+## J60-06 観察: 画面側で JS エラーを起こす → POST /client-errors が飛ぶか
+  合成 JS エラー後に画面が送った /client-errors: [] (無ければ画面の自動報告は未配線 = 手動 POST /client-errors 202 のみ)
+
+## J02-10 配布 JS 検査 (詳細)
+  page-be362f81067b7527.js @2104: …etry:!1,mutationFn:async e=>{let t=o[e.id];await a.post("/knowledge/candidates/{candidate_id}/approve",{params:{path:{candidate_id:e.id}},body:t?{title:t.title,content_md:t.body}:{}})},onSuccess:()=>{l.invalidateQueries({queryKey:i}),p("ナレッジに追加しました。"),null==s||s()},onError:()=>p(…
+  page-be362f81067b7527.js @3587: …ull!=(t=null==r?void 0:r.title)?t:e.title,onChange:t=>c(a=>{var n,r;return{...a,[e.id]:{title:t.target.value,body:null!=(r=null==(n=a[e.id])?void 0:n.body)?r:e.content_md}}}),className:"w-full rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[12.5px] font-bold…
+  page-be362f81067b7527.js @3906: …cus-visible:border-primary focus-visible:outline-none"}),(0,n.jsx)("textarea",{"aria-label":"候補の本文: ".concat(e.title),value:null!=(a=null==r?void 0:r.body)?a:e.content_md,rows:3,onChange:t=>c(a=>{var n,r;return{...a,[e.id]:{title:null!=(r=null==(n=a[e.id])?void 0:n.title)?r:e.tit…
+  page-be362f81067b7527.js @17161: …t,{children:[(0,n.jsx)(P,{variant:"ghost",onClick:h,children:"キャンセル"}),(0,n.jsx)(P,{variant:"primary",disabled:!o||!d||!x||s,onClick:()=>{i({title:o,category:d,content_md:x}),p()},children:"追加する"})]}),children:(0,n.jsxs)("div",{className:"flex flex-col gap-md",children:[(0,n.jsx)…
+  page-be362f81067b7527.js @25222: …(a.add(e.id),eZ(e)),a})},eJ=(0,x.n)({mutationFn:e=>$.post("/knowledge",{body:{account_type:"workspace",account_id:et,scope:ea,category:e.category,title:e.title,content_md:e.content_md,visible_in_tree:!0,source_type:"manual",confidence_score:.5,is_anonymized:!1}}),onSuccess:()=>{e…
+  page-be362f81067b7527.js @25235: …eZ(e)),a})},eJ=(0,x.n)({mutationFn:e=>$.post("/knowledge",{body:{account_type:"workspace",account_id:et,scope:ea,category:e.category,title:e.title,content_md:e.content_md,visible_in_tree:!0,source_type:"manual",confidence_score:.5,is_anonymized:!1}}),onSuccess:()=>{ek(!1),ee.inva…
+  page-be362f81067b7527.js @25941: …r.useState)(""),[e3,e4]=(0,r.useState)(""),e8=(0,x.n)({mutationFn:e=>$.patch("/knowledge/{knowledge_id}",{params:{path:{knowledge_id:e.id}},body:{title:e.title,content_md:e.content_md}}),onSuccess:(e,t)=>{ex(e=>e?{...e,title:t.title,content_md:t.content_md}:e),e1(!1),ee.invalidat…
+  page-be362f81067b7527.js @25954: …"),[e3,e4]=(0,r.useState)(""),e8=(0,x.n)({mutationFn:e=>$.patch("/knowledge/{knowledge_id}",{params:{path:{knowledge_id:e.id}},body:{title:e.title,content_md:e.content_md}}),onSuccess:(e,t)=>{ex(e=>e?{...e,title:t.title,content_md:t.content_md}:e),e1(!1),ee.invalidateQueries({que…
+  page-be362f81067b7527.js @26014: …tch("/knowledge/{knowledge_id}",{params:{path:{knowledge_id:e.id}},body:{title:e.title,content_md:e.content_md}}),onSuccess:(e,t)=>{ex(e=>e?{...e,title:t.title,content_md:t.content_md}:e),e1(!1),ee.invalidateQueries({queryKey:eD})}}),e6=(0,x.n)({mutationFn:e=>{var t;return $.post…
+## 断続 500 の定量 (同時 10 リクエスト x 3 回 / 直列 30 回は全 200)
+        1 {"detail":"サーバー側で問題が発生しました。時間をおいて、もう一度お試しください。（参照 ID: bbfc90d3-3d23-47d2-9aa1-db25bda4d951）"} [500] fly-req=01M1JWS6QFKZ62B8QKN9M3A6HA-iad
+        1 {<data> [200] fly-req=01M1JWS69DCF95YZHXW7TRFEWA-iad
+        1 {<data> [200] fly-req=01M1JWS69HX884GZRKMYPHEHY0-iad
+        1 {<data> [200] fly-req=01M1JWS69XNPF6R0CABVN1C0GF-iad
+        1 {<data> [200] fly-req=01M1JWS6AFV4RS0Z27KGF6KG92-iad
+        1 {<data> [200] fly-req=01M1JWS6AJQ5V387B7QPBQ3HBJ-iad
+        1 {<data> [200] fly-req=01M1JWS6AP4RJT2N9KHVQ557BA-iad
+        1 {<data> [200] fly-req=01M1JWS6AV48X16RPCVGPZMK1J-iad
+        1 {<data> [200] fly-req=01M1JWS6AX6B2C7FE90KHZC65Z-iad
+        1 {<data> [200] fly-req=01M1JWS6AZWR8MXKTY0GN3ZQ96-iad
+        1 {<data> [200] fly-req=01M1JWS6BADMT6VP2VC2Q7R2Z5-iad
+        1 {<data> [200] fly-req=01M1JWS6QP3MCGBPBSN7Y0EQMJ-iad
+        1 {<data> [200] fly-req=01M1JWS6QQ5NQZWDR1JQSPNQEK-iad
+        1 {<data> [200] fly-req=01M1JWS6QRMHDHGJCN68T24HE9-iad
+        1 {<data> [200] fly-req=01M1JWS6R4Y0Q0XEDW465B3B41-iad
+        1 {<data> [200] fly-req=01M1JWS6SBYBT56CBK7E2292YM-iad
+        1 {<data> [200] fly-req=01M1JWS6XHM4PM7XZY0BF55XH4-iad
+        1 {<data> [200] fly-req=01M1JWS6YAGJ815ZXNJK00NR5R-iad
+        1 {<data> [200] fly-req=01M1JWS6YDBB7XA7G0EQ1VXFE1-iad
+        1 {<data> [200] fly-req=01M1JWS6ZVPMPDNGT39EBAQPVY-iad
+        1 {<data> [200] fly-req=01M1JWS7BZKMRTGK0A4W9N81ZW-iad
+        1 {<data> [200] fly-req=01M1JWS7C2BRJ7XMSKTP9ZMYYW-iad
+        1 {<data> [200] fly-req=01M1JWS7CHZ7X24Q2Q2BVB4QR9-iad
+        1 {<data> [200] fly-req=01M1JWS7CR5XH5PMMH9ZYZA92P-iad
+        1 {<data> [200] fly-req=01M1JWS7HSKX4XEMMFS9PS06MS-iad
+        1 {<data> [200] fly-req=01M1JWS7JES93TNAPCVJAB7R41-iad
+        1 {<data> [200] fly-req=01M1JWS7KB81ABWZE064NR4QV3-iad
+        1 {<data> [200] fly-req=01M1JWS7KBG638H581R4BEYR2Z-iad
+        1 {<data> [200] fly-req=01M1JWS7KMD4BWYR7WA0JG8TE2-iad
+        1 {<data> [200] fly-req=01M1JWS7KRG0YN7WBHR079JNJ5-iad
+
+## 結果の書き出し (残り行)
+  => J00-01: FAIL — 期待: 500 や白画面にならず各画面が 0 件で表示 / 実測 (前提の「全テーブルを空にする」は本番 DB のため不可 → データ 0 件の新規アカウントで代替): 19 画面とも白画面ではなく 0 件表示だが、9/19 画面で画面が同時に叩く API のどれかが断続的に 500 (参照 ID 付き) を返す: [["/projects/dashboard", ["GET /me/consents 500"]], ["/employees", ["GET /ai-employees 500"]], ["/workflow", ["GET /approval-inbox?status=pending 500"]], ["/knowledge/review", ["GET /approval-inbox?status=pending 500"]], ["/meetings", ["GET /me/consents 500"]], ["/sales", ["GET /me 500"]], ["/chat", ["GET /me 500"]], ["/projects/settings", ["GET /approval-inbox?status=pending 500"]], ["/projects/vault", ["GET /me 500"]]]。同一 API は直列 30 回だと全 200、同時 10 本だと 1〜2 本が 500 (fly-request-id を証拠に記録)。サーバのエラーログは運営画面でしか見られず未観測
+  => J00-02: BLOCKED — 観測できた部分は期待どおり: 存在しないアカウント -> 401「メールアドレスまたはパスワードが違います。」、存在するアカウント+誤パスワード -> 401 同一文言 (存在の有無は応答に漏れない)、UI (S-A01) も同じ日本語の role=alert。監査ログ login_failed (実装名 auth.signin_failed) は /admin/audit-logs (運営) でしか読めず未観測 / 解除条件: 運営アカウント
+  => J00-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。一般利用者側の観察: owner で /admin と /admin/s_t01 を開くと URL はそのままで「この画面は運営専用です (ACCESS DENIED)」に差し替わり、運営メニューは描画されず /admin API も叩かれない (GAP-219 の門は機能)
+  => J00-04: BLOCKED — 「全テーブルを空にして seed のみ実行」は本番 DB では不可 / 解除条件: 使い捨ての staging DB (ADR-021 案 A) と seed 実行権限
+  => J01-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行 + 場所=mac (Bridge + 本人の Claude 契約で AI が動く) / 解除条件: Mac の Bridge ハーネス。観察: owner で GET /admin/design-templates -> 403。GET /workspaces/{ws}/design-templates は {"data":[]} = 運営既定が本番に 1 件も無い
+  => J01-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行 + 場所=mac (Bridge + 本人の Claude 契約で AI が動く) / 解除条件: Mac の Bridge ハーネス
+  => J01-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/design-templates/estimate/versions -> 403 (owner)。署名付き URL は GET /design-templates/{id}/content-url -> 404 (運営既定が存在しないため id が無い)。期限切れ URL の拒否は未観測
+  => J01-04: BLOCKED — 依存 J01-01 (運営既定の作成 = admin+mac) 未達で、本番には運営既定が 0 件。観察: 新 WS で /templates を開くと 10 種類 (見積書〜納品書) が並び「版履歴（0）」、API GET /workspaces/{ws}/design-templates=[] / …/estimate/versions=[] (200、ただし 1 回は 500)。「運営既定を継承中」の表示も参照既定版の記録も出ない (既定が無いので出せない) / 解除条件: J01-01
+  => J01-05: BLOCKED — 場所=mac (Bridge + 本人の Claude 契約で AI が動く) / 解除条件: Mac の Bridge ハーネス。AI 不要部分の観察: /templates で「提案書」に指示を書いて送ると POST /workspaces/{ws}/design-templates/proposal -> 503 で、画面に「お使いのパソコン (Bridge) が未接続のためテンプレの作成を実行できません」+ 接続手順が出る (入力は保持)。API 直叩きも 503「Bridge がオフライン」
+  => J01-06: BLOCKED — 依存 J01-05 (WS 版の作成 = mac) 未達で自分の版が無い。観察: 版履歴 API は [] で「版履歴（0）」表示 / 解除条件: J01-05
+  => J01-07: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行 + 場所=mac (Bridge + 本人の Claude 契約で AI が動く) / 解除条件: Mac の Bridge ハーネス
+  => J01-08: BLOCKED — 依存 J01-05 未達 (上書きが無い)。観察: 上書きが無い状態では「運営の既定デザインに戻す」ボタン自体が出ない (仕様どおり)。API 直叩き POST …/estimate/reset-to-default -> 404「この種類の運営既定デザインはまだ設定されていません。」(既定が無い場合の 404; 継承中なら 409 の設計) / 解除条件: J01-01 + J01-05
+  => J02-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: owner で GET /admin/ai-employee-templates -> 403、…/deployment -> 403。利用者向け GET /ai-employees/templates は 200 で運営固定 10 名 (jarvis〜tchalla) が返る (※この利用者向け応答に system_prompt 本文が含まれる — 報告の追加観点参照)
+  => J02-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: PATCH /admin/ai-employee-templates/{id} (owner) -> 403
+  => J02-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: owner の不正 tone 送信は 403 (検証より先に運営判定)
+  => J02-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST /admin/skills (owner, 正しい body) -> 403
+  => J02-05: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: PATCH /admin/skills/{id} (owner) -> 403
+  => J02-06: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST /admin/skills/{id}/attach (owner, body {employee_id}) -> 422 (422 = 運営判定の前に body 検証が走り、一般利用者にスキーマ形状が漏れる。拒否自体は保たれる)
+  => J02-07: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行
+  => J02-08: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST /admin/skills/reimport (owner) -> 403
+  => J02-09: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: DELETE /admin/skills/{id} (owner) -> 403
+  => J02-10: PASS — GET /skills (owner, active_only=false) は 23 件とも id/name/version/description/is_active のみで本文系キー無し。S-C02 (jarvis) の「できること」は task-management / weekly-review の能力名だけ。S-C02 が受けた API 応答 9 件に content_md/SKILL.md 無し。配布 JS 29 本を検査: 'content_md' の一致はナレッジ画面の API フィールド名 (POST /knowledge body) のみで、SKILL.md 本文・frontmatter・スキル名の長文は含まれない
+  => J02-11: BLOCKED — 観測できた部分は期待どおり: GET /admin/skills (owner) -> 403「この操作は運営のみが行えます。」、/admin/s_t02 → /admin/skills に 308 後 URL のまま access-denied (「この画面は運営専用です」) に差し替え。「監査ログに拒否が記録される」は運営 API でしか読めず未観測 (実装上 _require_admin は HTTPException を投げるだけで監査書き込みが無い) / 解除条件: 運営アカウント
+  => J03-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察 (公開 API 側): GET /public/legal-documents と /{type} が 5 URL とも 500 (参照 ID 付き)。認証付き GET /me/consents は legal_documents の現行版 2026-08-22 を返すので、表は存在し anon 経路だけが壊れている
+  => J03-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行 (一意制約 legal_documents_current_uidx の実挙動は運営の書き込みが要る)
+  => J60-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/health (owner) -> 403
+  => J60-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/health (owner) -> 403
+  => J60-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/alerts / /admin/uptime / /admin/errors (owner) -> 403
+  => J60-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/platform-stats / /admin/dashboard (owner) -> 403
+  => J60-05: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/circuit-breaker -> 403、POST …/reset と …/poll-pids (owner, body 無し) -> 422/422 (422 = body 検証が運営判定より先)
+  => J60-06: BLOCKED — 利用者側は実走: POST /client-errors (owner) -> 202 accepted、未認証 -> 401。ただし /projects で合成 JS エラー (setTimeout 内 throw) を起こしても画面から /client-errors は送られない (ErrorBoundary は描画エラーのみ報告)。運営のエラーログ (GET /admin/errors) は 403 で一覧は未観測 / 解除条件: 運営アカウント
+  => J60-07: BLOCKED — 利用者側は実走: POST /beta-feedback (owner, category=other) -> 201 id=6aee6eef-d044-43cb-a85f-1e15f3a6b0a1 status=open、本文空 -> 422。運営一覧 GET /admin/beta-feedback と対応済み化は owner だと 403 で未観測 / 解除条件: 運営アカウント
+  => J61-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/audit-logs (owner) -> 403、未認証 -> 401
+  => J61-02: BLOCKED — 観測できた部分は期待どおり: GET /admin/audit-logs (owner) -> 403「この操作は運営のみが行えます。」、/admin/audit も access-denied 表示で監査ログ画面は組み立てられない (R-T08 の遮断は API・画面とも保持)。「拒否が記録される」は運営でしか読めず未観測 (実装に 403 時の監査書き込み無し) / 解除条件: 運営アカウント
+  => J61-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/audit-logs?action=&actor_type= (owner) -> 403
+  => J61-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行
+  => J61-05: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/audit-logs?actor_type=nobody-qa-f (owner) -> 403
+  => J62-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/mission / /admin/trends (owner) -> 403
+  => J62-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: PUT /admin/goal (owner, 正しい body) -> 403
+  => J62-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/acquisitions -> 403、POST -> 422 (422 = body 検証が先)
+  => J62-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/costs -> 403、POST -> 422
+  => J62-05: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: 負の金額 POST /admin/costs (owner) -> 422 (owner では運営判定より先に 422; 運営での日本語エラーは未観測)
+  => J62-06: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行
+  => J62-07: PASS — owner で /admin (S-T01) を開くと URL /admin のまま「この画面は運営専用です / ACCESS DENIED」(access-denied) に差し替わり、運営メニューは描画されず /admin API も叩かれない。GET /admin/mission (owner JWT) -> 403「この操作は運営のみが行えます。」
+  => J63-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/users (owner) -> 403
+  => J63-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行 + 受信箱なし (実送信の確認手段が無い)
+  => J63-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/support-contacts (owner) -> 403
+  => J63-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: 本文空の POST /admin/support-contact (owner) -> 422 (422 = 空本文の検証は運営判定より先に効く。運営での挙動は未観測)
+  => J64-01: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: GET /admin/knowledge (owner) -> 403。利用者側 GET /knowledge?account_type=platform は [] = 本番に運営ナレッジ 0 件
+  => J64-02: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: DELETE /admin/knowledge/{id} (owner) -> 403
+  => J64-03: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行
+  => J64-04: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST /admin/knowledge/curation/run と GET /admin/knowledge/curation (owner) -> 403
+  => J64-05: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST …/curation/{id}/approve (owner) -> 403
+  => J64-06: BLOCKED — 運営権限のアカウントが無い (付与に本番 DB 接続 scripts/grant-admin.sh が要る) / 解除条件: 運営 (app_metadata.role=admin) アカウントの発行。観察: POST …/curation/{id}/reject (owner) -> 403
+  => J64-07: PASS — owner JWT で PATCH /admin/knowledge/{id} -> 403「この操作は運営のみが行えます。」。本番に運営ナレッジが 0 件のため id はダミー UUID (運営判定は 404 より先に効く)。前後の GET /knowledge?account_type=platform は同一 (変化なし)
+
+## CLEANUP 退会 + G-14 (退会後に発行済みトークンが無効か)
+  退会前 GET /me -> [200]
+  POST /auth/account/delete -> [200] {"data":{"user_id":"f4558e4f-bd98-4728-b6e1-c6e14223bfd8","scheduled_purge_at":"2026-10-03T05:46:56.348060Z","deleted_at":"2026-09-03T05:46:56.348060Z"}}
+  退会直後 (0 秒) GET /me (旧 access token) -> [401] {"detail":"対象の利用者が見つかりません。"}
+  退会直後 GET /workspaces (旧 access token) -> [401]
+  退会直後 POST /auth/signin (同じパスワード) -> [401]

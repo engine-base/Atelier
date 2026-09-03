@@ -84,6 +84,6 @@ class ResendSender:
                 json=payload,
             )
             response.raise_for_status()
-            body = cast(dict[str, Any], response.json())
+            body = cast("dict[str, Any]", response.json())
 
         return EmailSendResult(id=str(body.get("id", "")), dry_run=False)
