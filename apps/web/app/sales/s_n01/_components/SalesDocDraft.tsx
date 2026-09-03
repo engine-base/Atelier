@@ -427,6 +427,7 @@ function DocPreview({
   const [view, setView] = useState(doc.summary);
   const [sendOpen, setSendOpen] = useState(false);
   const [toEmail, setToEmail] = useState("");
+  const [toEmailError, setToEmailError] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
 
@@ -512,9 +513,18 @@ function DocPreview({
           role="dialog"
           aria-label="クライアントにメール送信"
           className="flex flex-col gap-2 border-b border-border bg-secondary-container/40 px-[18px] py-4"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!toEmail.trim() || sending) return;
+            if (sending) return;
+            // GAP-305 (通し J47-06): ブラウザ既定の英語 (Please include an '@'…) ではなく
+            // アプリの日本語で宛先を検証する
+            const addr = toEmail.trim();
+            if (!addr || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+              setToEmailError("宛先メールアドレスの形式が正しくありません（例: client@example.com）。");
+              return;
+            }
+            setToEmailError(null);
             onSend(doc.id, {
               toEmail: toEmail.trim(),
               subject: subject.trim() || undefined,
@@ -534,10 +544,19 @@ function DocPreview({
               type="email"
               required
               value={toEmail}
-              onChange={(e) => setToEmail(e.target.value)}
+              onChange={(e) => {
+                setToEmail(e.target.value);
+                if (toEmailError) setToEmailError(null);
+              }}
               placeholder="client@example.com"
+              aria-invalid={toEmailError ? true : undefined}
               className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-[13px] text-on-surface outline-none focus:border-primary"
             />
+            {toEmailError ? (
+              <span role="alert" className="mt-1 block text-[11.5px] text-error">
+                {toEmailError}
+              </span>
+            ) : null}
           </label>
           <label className="block">
             <span className="text-[11.5px] font-semibold text-on-surface">

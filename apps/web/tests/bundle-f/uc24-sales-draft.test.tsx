@@ -152,3 +152,19 @@ describe("S-N01 SalesDocDraftContainer (T-UC-24)", () => {
     expect(init.params.path.doc_id).toBe("d1");
   });
 });
+
+describe("S-N01 宛先の検証は日本語で (GAP-305 / 通し J47-06)", () => {
+  it("不正な宛先はアプリの日本語で拒否し、送信 API を呼ばない", async () => {
+    const post = vi.fn(async () => ({ data: {} }));
+    renderWithQuery(
+      <SalesDocDraftContainer projectId="p1" client={fakeClient({ get: getWithDoc(), post })} />,
+    );
+    fireEvent.click(await screen.findByText(/既存提案/));
+    fireEvent.click(await screen.findByRole("button", { name: "送信" }));
+    const to = await screen.findByLabelText("宛先メールアドレス");
+    fireEvent.change(to, { target: { value: "not-an-address" } });
+    fireEvent.click(screen.getByRole("button", { name: "送信する" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("宛先メールアドレスの形式が正しくありません");
+    expect(post).not.toHaveBeenCalled();
+  });
+});
