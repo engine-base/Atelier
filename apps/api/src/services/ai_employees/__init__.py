@@ -84,7 +84,7 @@ _TPL_COLS = (
 )
 
 
-def _tpl_to_response(row: Any) -> AiEmployeeTemplateResponse:
+def _tpl_to_response(row: Any, *, reveal: bool = False) -> AiEmployeeTemplateResponse:
     return AiEmployeeTemplateResponse(
         id=str(row.id),
         default_name=str(row.default_name),
@@ -92,9 +92,13 @@ def _tpl_to_response(row: Any) -> AiEmployeeTemplateResponse:
         default_icon=(None if row.default_icon is None else str(row.default_icon)),
         department=str(row.department),
         role=str(row.role),
-        default_skills=[str(x) for x in (row.default_skills or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+        default_skills=(
+            [str(x) for x in (row.default_skills or [])]  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+            if reveal
+            else []
+        ),
         default_knowledge_cats=[str(x) for x in (row.default_knowledge_cats or [])],  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
-        system_prompt=str(row.system_prompt),
+        system_prompt=(str(row.system_prompt) if reveal else None),
         specialty=str(row.specialty),
         version=int(row.version),
         is_active=bool(row.is_active),
@@ -192,9 +196,16 @@ async def update_ai_employee(
 
 
 async def list_templates(
-    session: AsyncSession, *, department: str | None = None, active_only: bool = True
+    session: AsyncSession,
+    *,
+    department: str | None = None,
+    active_only: bool = True,
+    reveal: bool = False,
 ) -> list[AiEmployeeTemplateResponse]:
-    """AI 社員テンプレ一覧 (運営側固定 / read-only)。RLS で全 authenticated が閲覧可。"""
+    """AI 社員テンプレ一覧 (運営側固定 / read-only)。RLS で全 authenticated が閲覧可。
+
+    reveal=True (運営) のときだけ system_prompt / default_skills を含める (GAP-274)。
+    """
     where: list[str] = ["1=1"]
     params: dict[str, object] = {}
     if active_only:
@@ -209,18 +220,18 @@ async def list_templates(
         ),
         params,
     )
-    return [_tpl_to_response(r) for r in res.all()]
+    return [_tpl_to_response(r, reveal=reveal) for r in res.all()]
 
 
 async def get_template(
-    session: AsyncSession, template_id: str
+    session: AsyncSession, template_id: str, *, reveal: bool = False
 ) -> AiEmployeeTemplateResponse | None:
     res = await session.execute(
         text(f"select {_TPL_COLS} from public.ai_employee_templates where id = cast(:id as uuid)"),
         {"id": template_id},
     )
     row = res.first()
-    return None if row is None else _tpl_to_response(row)
+    return None if row is None else _tpl_to_response(row, reveal=reveal)
 
 
 async def list_activities(

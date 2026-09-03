@@ -13,12 +13,16 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 TonePreset = Literal["polite", "friendly", "casual", "concise", "coaching"]
 
 
 class AiEmployeeUpdate(BaseModel):
+    # GAP-275 (通し J37-04): system_prompt / attached_skills 等の運営専用項目を
+    # 黙って捨てない。含まれていたら 422 (FORBIDDEN_FIELD) で拒否する。
+    model_config = ConfigDict(extra="forbid")
+
     display_name: str | None = Field(default=None, min_length=1, max_length=100)
     icon: str | None = None
     tone_preset: TonePreset | None = None
@@ -51,9 +55,11 @@ class AiEmployeeTemplateResponse(BaseModel):
     default_icon: str | None
     department: str
     role: str
+    # GAP-274 (通し J37-02 / R-T06): 指示文とスキル構成は運営専用。
+    # 一般利用者には default_skills=[] / system_prompt=None で返す。
     default_skills: list[str]
     default_knowledge_cats: list[str]
-    system_prompt: str
+    system_prompt: str | None
     specialty: str
     version: int
     is_active: bool

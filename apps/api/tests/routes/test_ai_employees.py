@@ -41,7 +41,7 @@ def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
-def _mint_jwt(user_id: str) -> str:
+def _mint_jwt(user_id: str, *, admin: bool = False) -> str:
     header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
     payload = _b64url(
         json.dumps(
@@ -50,6 +50,7 @@ def _mint_jwt(user_id: str) -> str:
                 "role": "authenticated",
                 "aud": "authenticated",
                 "exp": int(time.time()) + 3600,
+                **({"app_metadata": {"role": "admin"}} if admin else {}),
             }
         ).encode()
     )
@@ -213,6 +214,57 @@ class TestAiEmployees:
             assert data["display_name"] == "Tony Stark"
             assert data["tone_preset"] == "friendly"
             assert data["custom_tone_text"] == "go!"
+
+    def test_gap275_forbidden_fields_rejected_422(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-275 (通し J37-04): system_prompt / attached_skills の PATCH は 422 で拒否。DB 不変。"""
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+        with TestClient(app) as client:
+            r = client.patch(
+                f"/ai-employees/{seeded['emp_a']}",
+                json={"display_name": "x", "system_prompt": "乗っ取り"},
+                headers=h,
+            )
+            assert r.status_code == 422, r.text
+            # テスト app は main.py の日本語化ハンドラ (GAP-222) を通さないので
+            # pydantic の生 detail。本番では「指示文: この項目は変更できません」になる
+            detail = r.json()["detail"]
+            assert "変更できません" in str(detail) or any(
+                e.get("type") == "extra_forbidden" for e in detail
+            )
+            r2 = client.patch(
+                f"/ai-employees/{seeded['emp_a']}",
+                json={"attached_skills": [str(uuid.uuid4())]},
+                headers=h,
+            )
+            assert r2.status_code == 422
+        with sync_engine.begin() as c:
+            name = c.execute(
+                text("select display_name from public.ai_employees where id = cast(:i as uuid)"),
+                {"i": seeded["emp_a"]},
+            ).scalar_one()
+            assert name != "x"
+
+    def test_gap274_templates_hide_prompt_and_skills_from_users(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-274 (通し J37-02 / R-T06): 一般利用者には system_prompt / default_skills を返さない。
+        運営 (app_metadata.role=admin) には返す。"""
+        h = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'])}"}
+        ha = {"Authorization": f"Bearer {_mint_jwt(seeded['u_a'], admin=True)}"}
+        with TestClient(app) as client:
+            r = client.get("/ai-employees/templates", headers=h)
+            assert r.status_code == 200, r.text
+            items = r.json()["data"]
+            assert items, "テンプレが 1 件も無い"
+            assert all(t["system_prompt"] is None and t["default_skills"] == [] for t in items)
+            one = client.get(f"/ai-employees/templates/{seeded['tpl_a']}", headers=h).json()["data"]
+            assert one["system_prompt"] is None and one["default_skills"] == []
+            adm = client.get(f"/ai-employees/templates/{seeded['tpl_a']}", headers=ha).json()[
+                "data"
+            ]
+            assert adm["system_prompt"]  # 運営には本文が見える
 
     def test_cross_workspace_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         hb = _h(seeded["u_b"])

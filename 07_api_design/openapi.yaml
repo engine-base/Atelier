@@ -676,7 +676,7 @@ components:
         role: { type: string, enum: [coo, lead, member] }
         default_skills: { type: array, items: { type: string, format: uuid } }
         default_knowledge_cats: { type: array, items: { type: string } }
-        system_prompt: { type: string }
+        system_prompt: { type: string, nullable: true, description: "運営 (admin) にだけ返す。一般利用者には null (GAP-274 / R-T06)" }
         specialty: { type: string }
         version: { type: integer }
         is_active: { type: boolean }

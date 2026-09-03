@@ -718,6 +718,9 @@ class AiEmployeeTemplate(BaseModel):
     default_skills: list[UUID] | None = None
     default_knowledge_cats: list[str] | None = None
     system_prompt: str | None = None
+    """
+    運営 (admin) にだけ返す。一般利用者には null (GAP-274 / R-T06)
+    """
     specialty: str | None = None
     version: int | None = None
     is_active: bool | None = None

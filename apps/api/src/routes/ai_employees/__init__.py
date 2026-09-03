@@ -25,6 +25,7 @@ from src.schemas.ai_employees import (
     EmployeeIconUrlResponse,
 )
 from src.services import ai_employees as svc
+from src.services.admin import is_admin
 from src.storage_signing import StorageSigningError, create_signed_download_url
 from src.user_messages import user_detail
 
@@ -48,20 +49,23 @@ async def list_ai_employees(
 @router.get("/ai-employees/templates", summary="AI 社員テンプレ一覧（運営側固定）")
 async def list_templates(
     session: SessionDep,
-    _user: UserDep,
+    user: UserDep,
     department: Annotated[str | None, Query()] = None,
     active_only: Annotated[bool, Query()] = True,
 ) -> dict[str, list[AiEmployeeTemplateResponse]]:
+    # GAP-274 (R-T06): 指示文 / スキル構成は運営にだけ返す
     return {
-        "data": await svc.list_templates(session, department=department, active_only=active_only)
+        "data": await svc.list_templates(
+            session, department=department, active_only=active_only, reveal=is_admin(user)
+        )
     }
 
 
 @router.get("/ai-employees/templates/{template_id}", summary="AI 社員テンプレ詳細")
 async def get_template(
-    template_id: str, session: SessionDep, _user: UserDep
+    template_id: str, session: SessionDep, user: UserDep
 ) -> dict[str, AiEmployeeTemplateResponse]:
-    tpl = await svc.get_template(session, template_id)
+    tpl = await svc.get_template(session, template_id, reveal=is_admin(user))
     if tpl is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, "対象の AI 社員テンプレートが見つかりません。"

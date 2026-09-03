@@ -19552,7 +19552,8 @@ export interface components {
             role?: "coo" | "lead" | "member";
             default_skills?: string[];
             default_knowledge_cats?: string[];
-            system_prompt?: string;
+            /** @description 運営 (admin) にだけ返す。一般利用者には null (GAP-274 / R-T06) */
+            system_prompt?: string | null;
             specialty?: string;
             version?: number;
             is_active?: boolean;

@@ -57,6 +57,7 @@ interface ApiEmployee {
 interface ApiSkill {
   id: string;
   name: string;
+  description?: string | null;
 }
 
 interface ApiTemplate {
@@ -302,12 +303,14 @@ export function EmployeeEditorContainer({
   };
 
   // ── 実データでの表示解決 ─────────────────────────────
-  const skillNameById = new Map(
-    (skillsQuery.data ?? []).map((s) => [s.id, s.name]),
+  // GAP-274 (通し J37-02 / R-T06): 「できること」は利用者向けの説明文だけを出す。
+  // スキル名 (sales-email 等の内部識別子) は画面に出さない。説明が無いスキルは数えない
+  const skillDescById = new Map(
+    (skillsQuery.data ?? []).map((s) => [s.id, (s.description ?? "").trim()]),
   );
   const skillNames = (e.attached_skills ?? [])
-    .map((id) => skillNameById.get(id) ?? null)
-    .filter((n): n is string => Boolean(n));
+    .map((id) => skillDescById.get(id) ?? "")
+    .filter((d): d is string => d.length > 0);
 
   const specialty = e.template_id
     ? (templatesQuery.data ?? []).find((t) => t.id === e.template_id)?.specialty
@@ -352,9 +355,7 @@ export function EmployeeEditorContainer({
       name={e.name}
       role={e.role}
       department={e.department}
-      attachedSkills={
-        skillsQuery.data !== undefined ? skillNames : (e.attached_skills ?? [])
-      }
+      attachedSkills={skillNames}
       attachedKnowledgeCats={e.attached_knowledge_cats ?? []}
       defaultValues={defaultValues}
       serverError={serverError}
