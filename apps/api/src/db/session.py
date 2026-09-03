@@ -28,7 +28,6 @@ GAP-197 — **engine はプロセス (event loop) に 1 つ**:
 from __future__ import annotations
 
 import asyncio
-import weakref
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -159,37 +158,32 @@ def create_session_factory(
     )
 
 
-#: event loop ごとの engine / sessionmaker。
-#:
-#: **キーは loop オブジェクトそのもの** (`id()` ではない)。以前は
-#: `lru_cache` + `id(loop)` だったが、`id()` は **死んだ loop の値が
-#: 次の loop に再利用される**。すると新しい loop が「前の loop に紐づいた
-#: 接続を持つ engine」を掴み、次の SQL で
-#: `connection was closed in the middle of operation` になる。
-#: (実際にテスト全体実行で踏んだ: cron の履歴 insert が静かに落ちていた)
-#: 弱参照キーなので loop が死ねば自動で消え、次は新しい engine になる。
-_ENGINES: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, AsyncEngine] = (
-    weakref.WeakKeyDictionary()
-)
-_FACTORIES: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop, async_sessionmaker[AsyncSession]
-] = weakref.WeakKeyDictionary()
+@lru_cache(maxsize=8)
+def _shared_engine_for_loop(loop: asyncio.AbstractEventLoop) -> AsyncEngine:
+    """event loop ごとに 1 つだけ engine を持つ。
+
+    asyncpg の接続は event loop を跨げないので loop 単位で分ける。
+    本番は loop が 1 つなので **プロセスに 1 engine** になる。
+
+    キーは **loop オブジェクトそのもの**。以前は `id(loop)` だったが、
+    `id()` は死んだ loop の値が次の loop に再利用されるため、新しい loop が
+    前の loop に紐づいた接続を持つ engine を掴み、次の SQL で
+    `connection was closed in the middle of operation` になっていた
+    (テスト全体実行で実際に踏んだ: cron の実行履歴 insert が静かに落ちていた)。
+    オブジェクトをキーにすれば、キャッシュが生きている限り同じ id の別 loop は
+    現れない。maxsize=8 は「engine (= 接続プール) を増やしすぎない」ための上限
+    — 外すと loop を作るたびにプールが積み上がり、接続数の上限に当たる。
+    """
+    del loop  # cache key 専用
+    return create_engine()
 
 
 def shared_engine() -> AsyncEngine:
     """このプロセス (実行中 event loop) の共有 engine。
 
-    asyncpg の接続は event loop を跨げないので loop 単位で分ける。
-    本番は loop が 1 つなので **プロセスに 1 engine** になる。
-
     **新しいコードは create_engine() を直接呼ばない**。呼ぶとプールが増える。
     """
-    loop = asyncio.get_running_loop()
-    engine = _ENGINES.get(loop)
-    if engine is None:
-        engine = create_engine()
-        _ENGINES[loop] = engine
-    return engine
+    return _shared_engine_for_loop(asyncio.get_running_loop())
 
 
 def shared_session_factory() -> async_sessionmaker[AsyncSession]:
@@ -199,12 +193,14 @@ def shared_session_factory() -> async_sessionmaker[AsyncSession]:
     いずれも `set local` (transaction-local) で入れているため、同じ接続を
     使い回しても設定が次の transaction へ漏れない。
     """
-    loop = asyncio.get_running_loop()
-    factory = _FACTORIES.get(loop)
-    if factory is None:
-        factory = create_session_factory(shared_engine())
-        _FACTORIES[loop] = factory
-    return factory
+    return _shared_session_factory_for_loop(asyncio.get_running_loop())
+
+
+@lru_cache(maxsize=8)
+def _shared_session_factory_for_loop(
+    loop: asyncio.AbstractEventLoop,
+) -> async_sessionmaker[AsyncSession]:
+    return create_session_factory(_shared_engine_for_loop(loop))
 
 
 def reset_shared_engine_cache() -> None:
@@ -213,8 +209,8 @@ def reset_shared_engine_cache() -> None:
     テストは block ごとに新しい event loop を作るため、前の loop に紐づいた
     engine を掴んだままにしないための出口。本番では呼ばない。
     """
-    _ENGINES.clear()
-    _FACTORIES.clear()
+    _shared_engine_for_loop.cache_clear()
+    _shared_session_factory_for_loop.cache_clear()
 
 
 @dataclass(frozen=True)
