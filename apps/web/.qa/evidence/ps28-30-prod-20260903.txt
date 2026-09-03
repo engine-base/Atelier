@@ -1,0 +1,25 @@
+# PS-28/29/30 再計測 (transaction pooler 切替後) 2026-09-03T07:09:42Z
+## PS-29 公開法務文書
+GET /public/legal-documents?locale=ja -> 200 (21622 bytes)
+GET /public/legal-documents/terms_of_service?locale=ja -> 200 (12724 bytes)
+GET /public/legal-documents/privacy_policy?locale=ja -> 200 (6455 bytes)
+GET /public/legal-documents/tokushoho?locale=ja -> 200 (2457 bytes)
+## signup qa-ps28-20260903-28937@example.com -> 201
+signin -> 200
+## PS-28 同時 10 本 x 3 回 GET /me
+round 1:      10 200 
+round 2:      10 200 
+round 3:      10 200 
+## PS-28 直列 20 本 GET /projects
+serial:      20 200 
+## 画面相当: 同時 6 本 (me, me/consents, ai-employees, projects, approval-inbox, workspaces) x 5
+screen round 1:       6 200 
+screen round 2:       6 200 
+screen round 3:       6 200 
+screen round 4:       6 200 
+screen round 5:       6 200 
+## 5xx 合計: 並行+直列=0 / 画面相当=0
+## cleanup: account delete -> 200
+
+## 公開ページ (実ブラウザ 2026-09-03 07:15)
+/terms OK 4581 文字 / /privacy OK 2464 文字 / /tokushoho OK 908 文字 (取得失敗の帯なし、版 2026-08-22 表示)。スクショ shots/journeys/J03-02-{terms,privacy,tokushoho}.png
