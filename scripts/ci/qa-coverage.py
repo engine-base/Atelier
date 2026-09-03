@@ -132,7 +132,12 @@ def count_rows(paths: list[Path]) -> dict[str, int]:
                 # 結果列を名前で見つけられなかった表。黙って planned に混ぜず、別に数える
                 tally["unreadable"] += 1
                 continue
-            if _FAIL.search(result):
+            # 「FAIL→修正済 … PASS」のように経緯を書いた行は、結果列の **先頭の判定** で数える
+            # (経緯の中の FAIL という語で失敗に数えない)。先頭が PASS でなく FAIL を含めば失敗
+            head = result.lstrip("* ").upper()
+            if head.startswith("PASS") or head.startswith("完了") or head.startswith("FIXED"):
+                tally["passed"] += 1
+            elif _FAIL.search(result):
                 tally["failed"] += 1
             elif _BLOCKED.search(result):
                 tally["blocked"] += 1

@@ -1,0 +1,71 @@
+##### AI-103①: トークン発行済・Bridge 未起動で送信 → 即オフライン案内 #####
+{"data":{"mode":"relay","bridge_online":false,"workers":[],"last_job":null,"plan":null}}
+
+[  1.1s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "42ae4858-20a4-4e96-b2d8-565dc58f35ca"}
+[  1.2s] error: ローカル実行 (Bridge) がオフラインのため応答できません。お使いの PC で Bridge を起動してから再送してください。
+TEXT: 
+SUMMARY: {"events": ["context", "start", "error"], "approvals": [], "error": "ローカル実行 (Bridge) がオフラインのため応答できません。お使いの PC で Bridge を起動してから再送してください。", "status": 200, "job_id": null, "cancel": null, "queue": null, "elapsed_s": 1.2}
+revoke ai103 token: 200
+
+##### harness (A の Bridge を起動) #####
+[harness] bridge pid=2594 token_id=c8fcd325-499c-4b37-bb83-0dbd0ba036f4
+--- A の接続状態 (Bridge 起動中) ---
+{"data":{"mode":"relay","bridge_online":true,"workers":[{"host_label":"vm","version":"0.1.0","last_seen_at":"2026-09-03T01:03:11.204975Z"}],"last_job":null,"pla
+
+
+##### AI-104 + AI-103②: 他人 (A) の Bridge がオンラインの間に、一度も接続していない B が送信 → 即座に未接続の案内 #####
+--- B の接続状態 ---
+{"data":{"mode":"relay","bridge_online":false,"workers":[],"last_job":null,"plan":null}}
+
+[  0.8s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "1478e899-7b7c-49aa-b927-a34182fb61f3"}
+[  0.9s] error: お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。
+TEXT: 
+SUMMARY: {"events": ["context", "start", "error"], "approvals": [], "error": "お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。", "status": 200, "job_id": null, "cancel": null, "queue": null, "elapsed_s": 0.9}
+--- A の Bridge ログに B のジョブが流れていないこと (B のスレッド id で grep) ---
+0
+
+##### AI-114 / AI-115: approve 実行中に off モードで追い足し → 注入されず、実行後 consume で tools_mode=off #####
+[  0.7s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "7659b5cf-c4a3-4d02-afa4-acf9f571f6ce"}
+[  0.8s] run: d390874d-8e2a-4cee-a667-c138b9d219b3
+[  2.7s] queued -> http 201
+[  4.6s] tool: {}
+[  5.3s] pc_approval: {"id": "da0e221f-b1a3-4530-8dc2-7fb28d1b5871", "tool": "Write", "summary": "/root/AtelierChatWork/mode-a.txt"}
+[  5.9s] -> decision allow: http 200
+[  5.9s] tool: {}
+[  5.9s] pc_approval_resolved: {"id": "da0e221f-b1a3-4530-8dc2-7fb28d1b5871", "decision": "allow"}
+TEXT: mode-a.txt を作成しました。
+SUMMARY: {"events": ["context", "start", "run", "tool", "pc_approval", "tool", "pc_approval_resolved", "delta", "delta", "end"], "approvals": ["da0e221f-b1a3-4530-8dc2-7fb28d1b5871"], "error": null, "status": 200, "job_id": "d390874d-8e2a-4cee-a667-c138b9d219b3", "cancel": null, "queue": {"http": 201, "at_s": 2.7, "id": "2b14aa8b-5e50-400e-b35e-440d35bf2fa3"}, "elapsed_s": 8.2}
+-rw-r--r-- 1 root root 1 Sep  3 01:03 /root/AtelierChatWork/mode-a.txt
+--- consume (期待: content=追い足し, tools_mode=off) ---
+{"data":{"id":"2b14aa8b-5e50-400e-b35e-440d35bf2fa3","content":"こんにちは。今のモードでは何ができるか一言で教えてください。","tools_mode":"off","created_at":null}}
+--- 取り出した指示を tools_mode=off で送る (承認要求が出ないこと) ---
+[  0.8s] context: {"history_count": 2, "rag_hit_ids": [], "user_message_id": "efd83937-850f-4d9b-ad15-de333149457c"}
+[  0.9s] run: be0453b0-a40b-4a51-9b9a-4818cce17864
+TEXT: 営業メール・提案書・見積の作成をサポートできます。
+SUMMARY: {"events": ["context", "start", "run", "delta", "delta", "end"], "approvals": [], "error": null, "status": 200, "job_id": "be0453b0-a40b-4a51-9b9a-4818cce17864", "cancel": null, "queue": null, "elapsed_s": 6.3}
+
+##### AI-120: 添付を実際に読む (テキスト添付の中身にしか無い値を尋ねる) #####
+upload-url: ok / storage_path=chat-attachments/67eb5f55-dcc8-491e-97fc-e6d9b188bb9a/52873ef6-f4ab-4d87-bfb2-55e03cff9651/memo.txt / PUT 200
+[  1.7s] context: {"history_count": 0, "rag_hit_ids": [], "user_message_id": "25783788-4090-415b-bb07-10c2b8048223"}
+[  1.9s] run: f4b60f03-62f8-46a7-9200-86e0346eda63
+TEXT: 添付いただいたメモ（memo.txt）の内容は以下の通りです。 ⏎  ⏎ - 管理コード: AZ-7731-QK ⏎ - 納期: 2026-11-15
+SUMMARY: {"events": ["context", "start", "run", "delta", "delta", "end"], "approvals": [], "error": null, "status": 200, "job_id": "f4b60f03-62f8-46a7-9200-86e0346eda63", "cancel": null, "queue": null, "elapsed_s": 6.4}
+[harness] token revoke: 200
+[harness] bridge log tail:
+[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+[bridge:chat-relay] completed
+[bridge] SIGTERM: 終了します (接続状態をサーバーへ伝えます)
+
+
+##### AI-107: Bridge 終了直後の接続表示 (期待: 即 bridge_online=false) #####
+[+0s] 01:03:40 bridge_online= False workers= 0
+[+2s] 01:03:43 bridge_online= False workers= 0
+[+5s] 01:03:48 bridge_online= False workers= 0
+--- Bridge 終了直後に送信 → 即オフライン案内 (誰にも拾われず 3 分無応答にならない) ---
+[  0.8s] context: {"history_count": 1, "rag_hit_ids": [], "user_message_id": "5cdb8540-83d2-4825-bd7d-4133d1f1f287"}
+[  0.9s] error: お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。
+TEXT: 
+SUMMARY: {"events": ["context", "start", "error"], "approvals": [], "error": "お使いの PC がまだ接続されていません。設定画面の「Bridge を接続」から接続すると、AI 機能を使えるようになります。", "status": 200, "job_id": null, "cancel": null, "queue": null, "elapsed_s": 0.9}
