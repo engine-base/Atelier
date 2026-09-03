@@ -12,3 +12,4 @@
 | SPUB01-005 | 利用規約 | 到達性 | 公開ヘッダーのナビ (規約/プライバシー/特商法) が遷移 | - | 1. 各リンクをクリック | 相互に遷移できる | PASS | モックの pub-header を新設 | T-UC-26 | L1 |
 | SPUB01-006 | 利用規約 | エラー | API 失敗時に明示エラー | GET 5xx | 1. 失敗させる | role=alert「文書の取得に失敗しました…」 | PASS | vitest (LegalDocArticle 分岐) | T-UC-26 | L1 |
 | SPUB01-007 | 利用規約 | レスポンシブ | 390px で横スクロールなし | - | 1. 390 で開く | 崩れなし | PASS | 実走 + 目視 | T-UC-26 | L1 |
+| SPUB01-901 | 利用規約 | 外部リソースの実在 (G-11) | 未認証の実 HTTP で公開 API が本文を返す (環境ごとに 1 行) | 本番 / staging | 1. curl GET /public/legal-documents?locale=ja 2. /public/legal-documents/{terms_of_service,privacy_policy,tokushoho} | 全部 200 で本文が返る。/terms /privacy /tokushoho に本文が出る | **FAIL (2026-09-03 通し J03-02 / J03-04)**: 本番で 3 種とも 500 (認証付き /me/consents は同じ表を読める = anon 経路だけ壊れている)。GAP-290 で原因調査中 (サーバーログが要る) | 由来: 通し F | T-A-44 | L1 |
