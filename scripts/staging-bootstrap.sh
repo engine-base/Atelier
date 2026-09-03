@@ -15,9 +15,10 @@
 #   6. 残る手作業 (Vercel の env / Site URL / CORS) を画面に出す
 # 秘密は画面に出さず、ファイルにも残さない (シェル変数 → 各 CLI へ直接)。
 set -euo pipefail
+trap 'echo "✗ 途中で止まりました (line $LINENO)。この出力を貼ってください"' ERR
 
 ORG_ID="${1:-}"
-DB_PASS="${2:-$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)}"
+DB_PASS="${2:-$(openssl rand -hex 16)}"
 PROJECT_NAME="${STAGING_SUPABASE_NAME:-atelier-staging}"
 FLY_APP="${STAGING_FLY_APP:-atelier-api-staging}"
 REGION="ap-northeast-1"
