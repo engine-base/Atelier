@@ -1299,6 +1299,29 @@ class TestGap162ShareAndExport:
         h = _h(seeded["u_a"])
         try:
             with TestClient(app) as client:
+                # GAP-307: 閲覧者 (viewer) は共有リンクを発行できない (以前は 201 で発行できた)
+                with sync_engine.begin() as c:
+                    c.execute(
+                        text(
+                            "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                            "values (cast(:w as uuid), cast(:u as uuid), 'viewer') on conflict do nothing"
+                        ),
+                        {"w": seeded["ws_a"], "u": seeded["u_b"]},
+                    )
+                denied = client.post(
+                    f"/outputs/{oid}/share-links",
+                    headers=_h(seeded["u_b"]),
+                    json={"label": "viewer が発行", "expires_days": 7},
+                )
+                assert denied.status_code == 403, denied.text
+                with sync_engine.begin() as c:
+                    c.execute(
+                        text(
+                            "delete from public.workspace_memberships where workspace_id = cast(:w as uuid) "
+                            "and user_id = cast(:u as uuid)"
+                        ),
+                        {"w": seeded["ws_a"], "u": seeded["u_b"]},
+                    )
                 created = client.post(
                     f"/outputs/{oid}/share-links",
                     headers=h,
