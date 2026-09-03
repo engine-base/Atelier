@@ -17,7 +17,11 @@ import { useRouter } from 'next/navigation';
 
 import { ProjectList, type ProjectRow } from './_components/ProjectList';
 import * as api from '../../../lib/auth/connector';
-import { CURRENT_WS_KEY, notifyWorkspacesChanged } from '../../../lib/currentWorkspace';
+import {
+  CURRENT_WS_KEY,
+  WORKSPACE_SWITCHED_EVENT,
+  notifyWorkspacesChanged,
+} from '../../../lib/currentWorkspace';
 import { writeCurrentProject } from '../../../lib/useProjectId';
 
 interface ApiProject {
@@ -29,6 +33,7 @@ interface ApiProject {
   current_phase: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 }
 
 interface ProjectsMeta {
@@ -40,7 +45,8 @@ interface WorkspaceLite {
   readonly name: string;
 }
 
-function toLifecycle(status: ApiProject['status']): ProjectRow['lifecycle'] {
+function toLifecycle(status: ApiProject['status'], deletedAt?: string | null): ProjectRow['lifecycle'] {
+  if (deletedAt) return 'deleted';
   if (status === 'archived') return 'archived';
   if (status === 'paused') return 'paused';
   return 'active';
@@ -81,7 +87,11 @@ export default function SB01Page() {
       setLoading(true);
       setError(null);
       try {
-        const qs = new URLSearchParams({ limit: '20' });
+        // GAP-271 (通し J15-05): 一覧は **現在のワークスペース** に絞る。
+        // GAP-277 (通し J38-03/04/06): 削除済み (30 日猶予) も取り、画面側で分ける。
+        const qs = new URLSearchParams({ limit: '20', include_deleted: 'true' });
+        const wsId = window.localStorage.getItem(CURRENT_WS_KEY);
+        if (wsId) qs.set('workspace_id', wsId);
         if (c) qs.set('cursor', c);
         const res = await api.getJson<ApiProject[]>(`/projects?${qs.toString()}`);
         setRows(
@@ -90,10 +100,11 @@ export default function SB01Page() {
             name: p.name,
             client_name: p.description,
             type: p.type,
-            lifecycle: toLifecycle(p.status),
+            lifecycle: toLifecycle(p.status, p.deleted_at),
             currentPhase: p.current_phase,
             created_at: p.created_at,
             updated_at: p.updated_at,
+            deleted_at: p.deleted_at ?? null,
           })),
         );
         setNextCursor((res.meta as ProjectsMeta | undefined)?.next_cursor ?? null);
@@ -149,6 +160,57 @@ export default function SB01Page() {
       cancelled = true;
     };
   }, [load, router]);
+
+  // GAP-271: ヘッダー / T-UC-38 で WS を切り替えたら、その場で読み直す
+  useEffect(() => {
+    const onSwitched = () => {
+      setCursor(null);
+      void load(null);
+    };
+    window.addEventListener(WORKSPACE_SWITCHED_EVENT, onSwitched);
+    return () => window.removeEventListener(WORKSPACE_SWITCHED_EVENT, onSwitched);
+  }, [load]);
+
+  // GAP-277: アーカイブ / 戻す / 復元 (API は前からあったが画面に導線が無かった)
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const changeStatus = useCallback(
+    async (id: string, status: 'archived' | 'in_progress'): Promise<void> => {
+      setRowBusy(id);
+      setError(null);
+      try {
+        await api.sendJson('PATCH', `/projects/${id}`, { status });
+        await load(cursor);
+      } catch {
+        setError(
+          status === 'archived'
+            ? 'プロジェクトをアーカイブできませんでした。'
+            : 'プロジェクトを戻せませんでした。',
+        );
+      } finally {
+        setRowBusy(null);
+      }
+    },
+    [load, cursor],
+  );
+  const restoreProject = useCallback(
+    async (id: string): Promise<void> => {
+      setRowBusy(id);
+      setError(null);
+      try {
+        await api.sendJson('POST', `/projects/${id}/restore`, {});
+        await load(cursor);
+      } catch (e) {
+        setError(
+          e instanceof api.ApiError && e.status === 410
+            ? '復元できる期間 (30 日) を過ぎています。'
+            : 'プロジェクトを復元できませんでした。',
+        );
+      } finally {
+        setRowBusy(null);
+      }
+    },
+    [load, cursor],
+  );
 
   const createWorkspace = useCallback(async (): Promise<void> => {
     const name = wsName.trim();
@@ -276,6 +338,10 @@ export default function SB01Page() {
           router.push(`/projects/dashboard?project=${id}`);
         }}
         onNew={handleNew}
+        onArchive={(id) => void changeStatus(id, 'archived')}
+        onUnarchive={(id) => void changeStatus(id, 'in_progress')}
+        onRestore={(id) => void restoreProject(id)}
+        busyId={rowBusy}
       />
 
       {newOpen ? (

@@ -25,11 +25,19 @@ export interface ProjectRow {
   readonly name: string;
   readonly client_name: string | null;
   readonly type: ProjectType;
-  readonly lifecycle: "active" | "archived" | "paused";
+  readonly lifecycle: "active" | "archived" | "paused" | "deleted";
   /** current_phase (hearing / requirements / ... / delivery)。進捗と pill に使う。 */
   readonly currentPhase: string;
   readonly created_at: string;
   readonly updated_at: string;
+  /** GAP-277: 削除済み (30 日猶予) の削除日時。復元の残り日数に使う。 */
+  readonly deleted_at?: string | null;
+}
+
+/** 削除から 30 日でハード削除 (T-A-12)。残り日数 (0 未満は 0)。 */
+export function restoreDaysLeft(deletedAt: string, now: Date = new Date()): number {
+  const purgeAt = new Date(deletedAt).getTime() + 30 * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((purgeAt - now.getTime()) / (24 * 60 * 60 * 1000)));
 }
 
 export interface ProjectListProps {
@@ -43,6 +51,11 @@ export interface ProjectListProps {
   readonly onSelect?: (id: string) => void;
   /** 新規プロジェクト作成 (ヘッダボタン + 作成カード)。未指定なら作成 UI を出さない。 */
   readonly onNew?: () => void;
+  /** GAP-277: アーカイブ / 戻す / 復元 (未指定なら操作を出さない)。 */
+  readonly onArchive?: (id: string) => void;
+  readonly onUnarchive?: (id: string) => void;
+  readonly onRestore?: (id: string) => void;
+  readonly busyId?: string | null;
 }
 
 const TYPE_LABEL: Record<ProjectType, string> = {
@@ -82,10 +95,12 @@ const PHASE_PILL: Record<string, { label: string; tone: string; dot: string }> =
   delivery: { label: "納品済", tone: "bg-tertiary-container text-on-tertiary-container", dot: "bg-tertiary" },
 };
 
+// GAP-277 (通し J38-06): 「すべて」はアーカイブ済み・削除済みを含まない (アクティブ一覧)。
 const LIFECYCLE_TABS = [
   { key: "all", label: "すべて" },
   { key: "active", label: "進行中" },
   { key: "archived", label: "アーカイブ" },
+  { key: "deleted", label: "削除済み" },
 ] as const;
 
 type LifecycleTab = (typeof LIFECYCLE_TABS)[number]["key"];
@@ -98,9 +113,17 @@ function phaseIndex(phase: string): number {
 function ProjectCard({
   row,
   onSelect,
+  onArchive,
+  onUnarchive,
+  onRestore,
+  busy,
 }: {
   readonly row: ProjectRow;
   readonly onSelect?: (id: string) => void;
+  readonly onArchive?: (id: string) => void;
+  readonly onUnarchive?: (id: string) => void;
+  readonly onRestore?: (id: string) => void;
+  readonly busy?: boolean;
 }) {
   const pill = PHASE_PILL[row.currentPhase] ?? {
     label: row.currentPhase,
@@ -108,13 +131,38 @@ function ProjectCard({
     dot: "bg-on-surface-variant",
   };
   const doneUpto = phaseIndex(row.currentPhase);
+  const isDeleted = row.lifecycle === "deleted";
+  // GAP-277: カード下部の操作 (アーカイブ / 戻す / 復元)。カード本体のクリックとは分ける
+  const action = isDeleted
+    ? onRestore && row.deleted_at
+      ? {
+          label: `復元する（残り ${restoreDaysLeft(row.deleted_at)} 日）`,
+          run: () => onRestore(row.id),
+        }
+      : null
+    : row.lifecycle === "archived"
+      ? onUnarchive
+        ? { label: "アクティブに戻す", run: () => onUnarchive(row.id) }
+        : null
+      : onArchive
+        ? { label: "アーカイブ", run: () => onArchive(row.id) }
+        : null;
   return (
+    <div
+      className={cn(
+        "flex flex-col rounded-lg border border-border bg-white shadow-sm",
+        isDeleted && "opacity-80",
+      )}
+    >
     <button
       type="button"
-      onClick={() => onSelect?.(row.id)}
+      onClick={() => (isDeleted ? undefined : onSelect?.(row.id))}
+      disabled={isDeleted}
+      aria-label={isDeleted ? `${row.name}（削除済み）` : undefined}
       className={cn(
-        "flex flex-col rounded-lg border border-border bg-white p-5 text-left shadow-sm",
-        "transition-all duration-150 hover:-translate-y-px hover:border-primary hover:shadow-md",
+        "flex flex-1 flex-col rounded-lg p-5 text-left",
+        !isDeleted &&
+          "transition-all duration-150 hover:-translate-y-px hover:border-primary hover:shadow-md",
         "focus-visible:outline-2 focus-visible:outline-primary",
       )}
     >
@@ -162,9 +210,27 @@ function ProjectCard({
           <ListChecks className="h-3 w-3" aria-hidden="true" />
           工程 {doneUpto + 1} / {PHASE_ORDER.length}
         </span>
-        <span className="tabular-nums">{relTime(row.updated_at)}更新</span>
+        <span className="tabular-nums">
+          {isDeleted && row.deleted_at
+            ? `${restoreDaysLeft(row.deleted_at)} 日後に完全に削除`
+            : `${relTime(row.updated_at)}更新`}
+        </span>
       </div>
     </button>
+    {action ? (
+      <div className="flex justify-end border-t border-border px-5 py-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={action.run}
+          aria-label={`${row.name} を${action.label}`}
+          className="text-[12px] font-semibold text-primary hover:underline disabled:opacity-50"
+        >
+          {action.label}
+        </button>
+      </div>
+    ) : null}
+    </div>
   );
 }
 
@@ -178,6 +244,10 @@ export function ProjectList({
   onNext,
   onSelect,
   onNew,
+  onArchive,
+  onUnarchive,
+  onRestore,
+  busyId,
 }: ProjectListProps) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<LifecycleTab>("all");
@@ -185,8 +255,11 @@ export function ProjectList({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
+      // GAP-277: 「すべて」= アクティブ一覧 (アーカイブ済み・削除済みは各タブでだけ出す)
+      if (tab === "all" && (r.lifecycle === "archived" || r.lifecycle === "deleted")) return false;
       if (tab === "active" && r.lifecycle !== "active") return false;
       if (tab === "archived" && r.lifecycle !== "archived") return false;
+      if (tab === "deleted" && r.lifecycle !== "deleted") return false;
       if (!q) return true;
       return (
         r.name.toLowerCase().includes(q) ||
@@ -283,8 +356,25 @@ export function ProjectList({
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.length === 0 ? (
+            <p className="col-span-full rounded-lg border border-dashed border-border px-md py-lg text-center text-body-md text-on-surface-variant">
+              {tab === "deleted"
+                ? "削除済みのプロジェクトはありません"
+                : tab === "archived"
+                  ? "アーカイブ済みのプロジェクトはありません"
+                  : "該当するプロジェクトがありません"}
+            </p>
+          ) : null}
           {filtered.map((r) => (
-            <ProjectCard key={r.id} row={r} onSelect={onSelect} />
+            <ProjectCard
+              key={r.id}
+              row={r}
+              onSelect={onSelect}
+              onArchive={onArchive}
+              onUnarchive={onUnarchive}
+              onRestore={onRestore}
+              busy={busyId === r.id}
+            />
           ))}
           {onNew ? (
             <button

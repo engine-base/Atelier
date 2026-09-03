@@ -47,18 +47,64 @@ describe('ProjectList (T-UC-03)', () => {
   it('renders project cards with name / type badge / phase pill', () => {
     render(<ProjectList {...baseProps} />);
     expect(screen.getByText('Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Beta')).toBeInTheDocument();
-    // 種別バッジ
+    // GAP-277 (通し J38-06): 「すべて」= アクティブ一覧。アーカイブ済みはタブで出す
+    expect(screen.queryByText('Beta')).not.toBeInTheDocument();
     expect(screen.getByText('クライアント案件')).toBeInTheDocument();
-    expect(screen.getByText('自社プロダクト')).toBeInTheDocument();
-    // 工程 pill (current_phase 由来)
     expect(screen.getByText('実装中')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'アーカイブ' }));
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(screen.getByText('自社プロダクト')).toBeInTheDocument();
     expect(screen.getByText('納品済')).toBeInTheDocument();
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
   });
 
   it('renders — for null client_name', () => {
     render(<ProjectList {...baseProps} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'アーカイブ' }));
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('GAP-277: archive / unarchive / restore actions and the deleted tab', () => {
+    const onArchive = vi.fn();
+    const onUnarchive = vi.fn();
+    const onRestore = vi.fn();
+    const deletedAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+    const rows: ProjectRow[] = [
+      ...ROWS,
+      {
+        id: 'p3',
+        name: 'Gamma',
+        client_name: null,
+        type: 'personal',
+        lifecycle: 'deleted',
+        currentPhase: 'hearing',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-02T00:00:00Z',
+        deleted_at: deletedAt,
+      },
+    ];
+    render(
+      <ProjectList
+        {...baseProps}
+        rows={rows}
+        onArchive={onArchive}
+        onUnarchive={onUnarchive}
+        onRestore={onRestore}
+      />,
+    );
+    // アクティブ → アーカイブ
+    fireEvent.click(screen.getByRole('button', { name: 'Alpha をアーカイブ' }));
+    expect(onArchive).toHaveBeenCalledWith('p1');
+    // アーカイブ → 戻す
+    fireEvent.click(screen.getByRole('tab', { name: 'アーカイブ' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Beta をアクティブに戻す' }));
+    expect(onUnarchive).toHaveBeenCalledWith('p2');
+    // 削除済み → 残り日数 + 復元
+    fireEvent.click(screen.getByRole('tab', { name: '削除済み' }));
+    expect(screen.getByText('Gamma')).toBeInTheDocument();
+    expect(screen.getByText(/25 日後に完全に削除/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Gamma を復元する（残り 25 日）/ }));
+    expect(onRestore).toHaveBeenCalledWith('p3');
   });
 
   it('invokes onSelect with project id when name button clicked', () => {
