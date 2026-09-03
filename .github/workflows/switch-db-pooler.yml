@@ -1,0 +1,79 @@
+name: switch-db-pooler
+
+# GAP-290/291: 本番 API の断続 500 の原因は Supabase の **Session pooler (pool_size 15)**
+# を API が 2 台 × (20+10) 本で叩いていたこと (EMAXCONNSESSION)。
+# GAP-205 で用意した Supavisor **transaction mode (6543)** へ切り替える。
+# コード側は接続文字列から自動判定するので、Fly の秘密を差し替えるだけ。
+#
+# 手元にパスワードが無くても実行できるよう、GitHub secret PROD_DATABASE_URL から
+# 同じパスワード・同じプロジェクト ref で接続文字列を組み立てて flyctl に渡す。
+# 値はログに一切出さない。
+
+on:
+  workflow_dispatch:
+    inputs:
+      pooler_host:
+        description: Supavisor のホスト (PROD_DATABASE_URL が pooler ならそこから自動取得)
+        default: aws-1-ap-northeast-1.pooler.supabase.com
+        required: false
+
+jobs:
+  switch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP_NAME: ${{ secrets.FLY_APP_NAME }}
+      PROD_DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      POOLER_HOST_INPUT: ${{ github.event.inputs.pooler_host }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Build transaction-mode and direct URLs (values never printed)
+        run: |
+          set -euo pipefail
+          for v in FLY_API_TOKEN FLY_APP_NAME PROD_DATABASE_URL; do
+            [ -n "${!v}" ] || { echo "::error::$v secret is not set"; exit 1; }
+          done
+          python3 - <<'PY' > "$RUNNER_TEMP/env.sh"
+          import os, sys
+          from urllib.parse import urlsplit, quote
+          u = urlsplit(os.environ["PROD_DATABASE_URL"])
+          pw = u.password or ""
+          user = u.username or ""
+          host = u.hostname or ""
+          if not pw:
+              print("echo '::error::PROD_DATABASE_URL has no password'; exit 1"); sys.exit(0)
+          if "." in user:
+              ref = user.split(".", 1)[1]
+          elif host.startswith("db.") and host.endswith(".supabase.co"):
+              ref = host[len("db."):-len(".supabase.co")]
+          else:
+              print("echo '::error::cannot derive project ref from PROD_DATABASE_URL'; exit 1"); sys.exit(0)
+          pooler_host = host if "pooler.supabase.com" in host else (os.environ.get("POOLER_HOST_INPUT") or "aws-1-ap-northeast-1.pooler.supabase.com")
+          db = (u.path or "/postgres").lstrip("/") or "postgres"
+          q = quote(pw, safe="")
+          tx = f"postgresql+asyncpg://postgres.{ref}:{q}@{pooler_host}:6543/{db}"
+          direct = f"postgresql+asyncpg://postgres:{q}@db.{ref}.supabase.co:5432/{db}"
+          print(f"export TX_URL='{tx}'")
+          print(f"export DIRECT_URL='{direct}'")
+          print(f"echo 'ref={ref} pooler_host={pooler_host}'")
+          PY
+          echo "built"
+      - name: Set Fly secrets (ATELIER_DB_URL = transaction pooler / ATELIER_DB_LISTEN_URL = direct)
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          . "$RUNNER_TEMP/env.sh"
+          flyctl secrets set "ATELIER_DB_URL=$TX_URL" "ATELIER_DB_LISTEN_URL=$DIRECT_URL" -a "$FLY_APP_NAME"
+          rm -f "$RUNNER_TEMP/env.sh"
+          echo "secrets updated on $FLY_APP_NAME (machines restart with the new connection strings)"
+      - name: Smoke (public endpoint must be 200 after restart)
+        run: |
+          set -euo pipefail
+          code=000
+          for i in $(seq 1 24); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$FLY_APP_NAME.fly.dev/public/legal-documents?locale=ja" || true)
+            if [ "$code" = "200" ]; then echo "public/legal-documents 200 after ${i}x5s"; exit 0; fi
+            sleep 5
+          done
+          echo "::error::public/legal-documents still not 200 (last=$code)"; exit 1
