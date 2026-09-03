@@ -85,6 +85,12 @@ class TestCreateEngine:
             assert isinstance(engine, AsyncEngine)
         finally:
             engine.sync_engine.dispose()
+            # **壊した不変条件はここで戻す。** monkeypatch は env を戻すが
+            # lru_cache に入った偽の接続先はそのまま残る。以降のテストで
+            # 新しい engine が作られると localhost:5432 に繋ぎに行って落ちる
+            # (全体実行でだけ cron の履歴 insert が静かに失敗していた)。
+            session_mod._settings.cache_clear()  # pyright: ignore[reportPrivateUsage]
+            session_mod.reset_shared_engine_cache()
 
 
 @pytest.mark.unit
