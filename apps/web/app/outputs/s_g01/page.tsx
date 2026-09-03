@@ -12,6 +12,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
+import { OutputPicker } from "./_components/OutputPicker";
 import { OutputViewerContainer } from "./_components/OutputViewerContainer";
 
 function SG01Inner() {
@@ -23,9 +24,8 @@ function SG01Inner() {
       {outputId ? (
         <OutputViewerContainer outputId={outputId} />
       ) : (
-        <p className="text-body-md text-on-surface-variant">
-          成果物を選択すると表示します。
-        </p>
+        // GAP-302 (通し J46-19): 成果物を選ぶ一覧が無く、0 件のときも案内が出なかった
+        <OutputPicker />
       )}
     </div>
   );

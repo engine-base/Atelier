@@ -44,6 +44,28 @@ import {
   type PhaseThread,
 } from "./PhaseDetail";
 
+/** 工程名 (workflow/phases) → 成果物 stage (workflow_stage_enum) の対応 (GAP-302)。 */
+const PHASE_NAME_TO_STAGES: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
+  [/ヒアリング/, ["hearing"]],
+  [/提案/, ["proposal"]],
+  [/見積/, ["estimate"]],
+  [/要件/, ["requirements"]],
+  [/設計|アーキ/, ["architecture"]],
+  [/デザイン|モック/, ["design"]],
+  [/分解|タスク/, ["breakdown", "tasks"]],
+  [/実装|開発/, ["implementation"]],
+  [/検証|テスト/, ["verification"]],
+  [/納品|請求|契約/, ["delivery", "invoice", "contract", "nda"]],
+];
+
+export function stageKeysForPhaseName(name: string): readonly string[] {
+  const keys: string[] = [];
+  for (const [re, stages] of PHASE_NAME_TO_STAGES) {
+    if (re.test(name)) keys.push(...stages);
+  }
+  return keys;
+}
+
 interface ApiPhase {
   id: string;
   name: string;
@@ -323,10 +345,15 @@ export function WorkflowGraphContainer({
     completed_at: selected.completed_at,
   };
 
-  // タブデータ: 成果物は選択工程のものを優先表示 (phase_id 無し成果物は常に表示)。
+  // タブデータ: 成果物は選択工程のもの。
+  // GAP-302 (通し J46-01): phase_id が無い成果物を「常に全部」出すと、どの工程を選んでも
+  // 同じ一覧になる。phase_id が無いものは工程名 ↔ 成果物 stage の対応で工程別に分ける。
   const allOutputs = outputsQuery.data ?? [];
-  const outputs = allOutputs.filter(
-    (o) => !o.phase_id || o.phase_id === selected.id,
+  const selectedStageKeys = stageKeysForPhaseName(selected.name);
+  const outputs = allOutputs.filter((o) =>
+    o.phase_id
+      ? o.phase_id === selected.id
+      : selectedStageKeys.length === 0 || selectedStageKeys.includes(o.stage),
   );
 
   const employees = employeesQuery.data ?? [];

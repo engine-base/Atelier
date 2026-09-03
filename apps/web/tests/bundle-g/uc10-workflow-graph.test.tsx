@@ -218,3 +218,35 @@ describe("S-F01 WorkflowGraphContainer (T-UC-10)", () => {
     );
   });
 });
+
+describe("S-F01 成果物は選択工程で分かれる (GAP-302 / 通し J46-01)", () => {
+  it("phase_id の無い成果物は工程名 ↔ stage の対応で絞られ、どの工程でも同じ一覧にならない", async () => {
+    const get = vi.fn(async (path: string) =>
+      path === "/workflow/phases"
+        ? {
+            data: [
+              { id: "p1", name: "ヒアリング", status: "completed", order_index: 1 },
+              { id: "p2", name: "要件定義", status: "in_progress", order_index: 2 },
+            ],
+          }
+        : path === "/outputs"
+          ? {
+              data: [
+                { id: "o1", summary: "ヒアリング要約", phase_id: null, stage: "hearing", version: 1 },
+                { id: "o2", summary: "要件定義書 v2", phase_id: null, stage: "requirements", version: 2 },
+              ],
+            }
+          : { data: [] },
+    );
+    renderWithQuery(
+      <WorkflowGraphContainer projectId="prj1" client={fakeClient(get)} />,
+    );
+    // 既定の選択 = 進行中 (要件定義): 要件定義書だけ
+    expect((await screen.findAllByText("要件定義書 v2")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("ヒアリング要約")).toBeNull();
+    // 前工程 (ヒアリング) に切り替えると入れ替わる
+    fireEvent.click(await screen.findByRole("button", { name: "前工程の成果物を見る" }));
+    expect((await screen.findAllByText("ヒアリング要約")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("要件定義書 v2")).toBeNull();
+  });
+});
