@@ -224,6 +224,53 @@ class TestTasksCrud:
             assert r.json()["data"]["type"] == "infrastructure"
             client.delete(f"/tasks/{r.json()['data']['id']}", headers=h)
 
+    def test_gap282_viewer_create_is_403_not_500(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-282 (通し J31-06): viewer の POST /tasks は 403 (RLS 拒否を 500 にしない)。閲覧は可。"""
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.workspace_memberships (workspace_id, user_id, role) "
+                    "values (cast(:w as uuid), cast(:u as uuid), 'viewer') on conflict do nothing"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
+        # 本番と同じ関所 (UnhandledErrorMiddleware) を通して 403 に写る経路を検証する
+        from src.errors import UnhandledErrorMiddleware
+
+        app.add_middleware(UnhandledErrorMiddleware)
+        try:
+            with TestClient(app, raise_server_exceptions=False) as client:
+                r = client.post(
+                    "/tasks",
+                    json={
+                        "project_id": seeded["proj_a"],
+                        "category": "backend",
+                        "title": "viewer が作る",
+                        "type": "feature",
+                        "estimated_hours": 1,
+                    },
+                    headers=_h(seeded["u_b"]),
+                )
+                assert r.status_code == 403, r.text
+                assert "権限" in r.json()["detail"]
+                assert (
+                    client.get(
+                        "/tasks", params={"project_id": seeded["proj_a"]}, headers=_h(seeded["u_b"])
+                    ).status_code
+                    == 200
+                )
+        finally:
+            with sync_engine.begin() as c:
+                c.execute(
+                    text(
+                        "delete from public.workspace_memberships where workspace_id = cast(:w as uuid) "
+                        "and user_id = cast(:u as uuid)"
+                    ),
+                    {"w": seeded["ws_a"], "u": seeded["u_b"]},
+                )
+
     def test_cross_workspace_task_invisible_404(self, app: FastAPI, seeded: dict[str, str]) -> None:
         ha, hb = _h(seeded["u_a"]), _h(seeded["u_b"])
         with TestClient(app) as client:

@@ -63,6 +63,26 @@ def _is_invalid_uuid_error(exc: BaseException) -> bool:
     return False
 
 
+def _is_rls_denied_error(exc: BaseException) -> bool:
+    """例外の連鎖に RLS / 権限の拒否 (SQLSTATE 42501) が含まれるか (GAP-282)。
+
+    viewer ロールが insert を試みると RLS が拒否し、asyncpg の
+    InsufficientPrivilegeError が SQLAlchemy の DBAPIError に包まれてここまで
+    落ちてきて 500 になっていた (通し J31-06)。権限が無いのだから 403 が正しい。
+    """
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if getattr(cur, "sqlstate", None) == "42501" or getattr(cur, "pgcode", None) == "42501":
+            return True
+        msg = str(cur)
+        if "row-level security policy" in msg or "permission denied for" in msg:
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
 #: 未捕捉例外のときに利用者へ返す文言。
 #:
 #: **例外クラス名とリクエストパスを本文に載せない。** 以前は
@@ -116,6 +136,13 @@ class UnhandledErrorMiddleware:
             if not response_started and _is_invalid_uuid_error(exc):
                 response = JSONResponse(
                     status_code=404, content={"detail": "対象が見つかりません。"}
+                )
+                await response(scope, receive, send)
+                return
+            # GAP-282 (通し J31-06): RLS の拒否は「サーバーの問題」ではなく権限不足。
+            if not response_started and _is_rls_denied_error(exc):
+                response = JSONResponse(
+                    status_code=403, content={"detail": "この操作を行う権限がありません。"}
                 )
                 await response(scope, receive, send)
                 return
@@ -192,6 +219,9 @@ def service_unavailable(reason: str, message: str) -> HTTPException:
 #: 内部のフィールド名 → 画面で使っている名前。
 #: 無いものは「入力内容」とだけ言う (内部名を出すくらいなら曖昧なほうがまし)。
 FIELD_NAMES: dict[str, str] = {
+    "system_prompt": "指示文",
+    "attached_skills": "スキル",
+    "attached_knowledge_cats": "ナレッジ分類",
     "email": "メールアドレス",
     "password": "パスワード",
     "confirm": "パスワード確認",
@@ -207,6 +237,8 @@ FIELD_NAMES: dict[str, str] = {
 #: pydantic の type → 日本語。網羅は狙わず、**英語を漏らさない**ことを狙う。
 _REASONS: dict[str, str] = {
     "missing": "入力してください",
+    # GAP-275: 運営専用項目 (system_prompt 等) を送ってきたとき
+    "extra_forbidden": "この項目は変更できません",
     "string_too_short": "文字数が足りません",
     "string_too_long": "文字数が多すぎます",
     "too_short": "項目が足りません",
