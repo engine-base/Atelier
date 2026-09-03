@@ -438,6 +438,8 @@ jobs:
           # (liveness probe / readiness probe / metrics は LB・監視専用)
           INFRA_EXEMPT = {
               ("GET", "/health"),
+              # GAP-285: deploy 直後に「部品が実在するか」を確かめる probe
+              ("GET", "/health/capabilities"),
               ("GET", "/healthz"),
               ("GET", "/ready"),
               ("GET", "/readyz"),
