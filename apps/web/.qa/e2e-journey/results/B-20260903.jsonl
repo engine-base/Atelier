@@ -6,3 +6,5 @@
 {"id": "J30-12", "status": "PASS", "evidence": "evidence/journeys-B-prod-20260903.txt", "note": "1回目=200 thread=fa1909fa-6479-40cf-aa42-9e0ba3344783, 2回目=200 thread=fa1909fa-6479-40cf-aa42-9e0ba3344783 同一=True; GET /chat/threads 件数=1"}
 {"id": "J30-04", "status": "PASS", "evidence": "evidence/journeys-B-prod-20260903.txt", "note": "done 工程へ complete 再送 -> 409 'この工程はすでに完了しています。', skip -> 409; 再取得で completed_at 不変。変更は明示の reopen 操作のみ (J30-08)"}
 {"id": "J30-14", "status": "PASS", "evidence": "evidence/journeys-B-prod-20260903.txt", "note": "status=paused フィルタ -> ['QA-B 停止案件'] (該当 1 件のみ); limit=1 カーソル (URL エンコード必須) で 3 ページ 3 件, 重複 0, 全件 3 と集合一致。API に sort パラメータは無く created_at desc 固定"}
+{"id": "J30-02", "status": "PASS", "evidence": "evidence/shots/journeys/J30-02.png", "note": "API /workflow/phases: 9 工程, 先頭=[\"ヒアリング\",\"in_progress\"]; S-F01 画面に 9/9 工程名が出る, 進行中表記=true"}
+{"id": "J30-06", "status": "PASS", "evidence": "evidence/shots/journeys/J30-06.png", "note": "S-B02 空案件: 全体進捗 0% (工程 0/9)・未承認 INBOX 0 (すべて処理済み)・今日の活動 0・未解決コメント 0・最新成果物「成果物はまだありません」・活動「まだ活動がありません」が 0 件状態として描画。生エラー無し, JS エラー 0, API 4xx/5xx 0 (API dashboard/inbox/outputs も全部 0)"}

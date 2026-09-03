@@ -62,3 +62,90 @@ API: https://atelier-api-eb.fly.dev   Web: https://atelier-web-coral.vercel.app
   GET /projects?workspace_id=7f7c9102-aea1-49f4-b641-080b16c329cb -> 200 {"data":[],"meta":{"next_cursor":null,"limit":20,"total_estimate":0}}
   errs=[] 新規導線=1 案内文=["0 件のアクティブプロジェクト","プロジェクトがありません"] / GET /projects → {"data":[],"meta":{"next_cursor":null,"limit":20,"total_estimate":0}}
   => J10-08: PASS — 0 件の案内「0 件のアクティブプロジェクト」と新規作成導線 (1) が出る。白画面・エラー無し
+
+## SETUP アカウント作成 (qa-jA2-20260903-1: owner 本体 / -2: ロック試験 / -3: 別テナント)
+  POST /auth/signup -> 201 {"data":{"user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","email":"qa-jA2-20260903-1@example.com","display_name":"QA jA2 1","consents_recorded":2,"created_at":"2026-09-03T05:01:08.936289Z"}}
+  POST /auth/signup -> 201 {"data":{"user_id":"fd66068c-d503-43e7-a95a-c4516a13f2b0","email":"qa-jA2-20260903-2@example.com","display_name":"QA jA2 2","consents_recorded":2,"created_at":"2026-09-03T05:01:10.394686Z"}}
+  POST /auth/signup -> 201 {"data":{"user_id":"ad7da30f-c4ee-4a23-954a-20b332964cf4","email":"qa-jA2-20260903-3@example.com","display_name":"QA jA2 3","consents_recorded":2,"created_at":"2026-09-03T05:01:11.447668Z"}}
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T13:01:13Z","user_id":"4846ffcd-2e30-4bde-8abf-95511a5eb01b","email":"qa-jA2-20260903-1@example.com","display_name":"QA jA2 1","refresh_token":null}}
+  POST /auth/signin -> 200 {"data":{"access_token":"<redacted>","token_type":"bearer","expires_at":"2026-09-03T13:01:14Z","user_id":"ad7da30f-c4ee-4a23-954a-20b332964cf4","email":"qa-jA2-20260903-3@example.com","display_name":"QA jA2 3","refresh_token":null}}
+  POST /workspaces -> 201 {"data":{"id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 WS1","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:01:15.955721Z","updated_at":"2026-09-03T05:01:15.955721Z"}}
+  POST /projects -> 201 {"data":{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula","client_name":null,"description":"ジャーニー A 本体案件","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"he
+  POST /workspaces -> 201 {"data":{"id":"a9c79c64-5a4e-4090-819d-a2e277352623","name":"QA jA2 OTHER-TENANT WS","description":null,"icon":null,"member_count":1,"project_count":0,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:01:17.954773Z","updated_at":"2026-09-03T05:01:17.954773Z"}}
+  POST /projects -> 201 {"data":{"id":"5d6cb8c5-5020-476d-90ba-736acde7bb0a","workspace_id":"a9c79c64-5a4e-4090-819d-a2e277352623","name":"QA jA2 XTENANT-SECRET-ORION 案件","client_name":null,"description":null,"type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":
+  u1=4846ffcd-2e30-4bde-8abf-95511a5eb01b ws1=3adaebaa-1a52-41c9-8305-b1da3af958d0 p1=64619201-f5b5-4054-b6e5-ae34752cecb5 / u3=ad7da30f-c4ee-4a23-954a-20b332964cf4 ws3=a9c79c64-5a4e-4090-819d-a2e277352623 p3=5d6cb8c5-5020-476d-90ba-736acde7bb0a
+
+## J11-01 サインアウトする
+  アバターメニュー: ["a=プロフィール","button:button=サインアウト"]
+  SETUP 済 (state 再利用)
+
+## J11-01 サインアウトする
+  アバターメニュー: ["a=プロフィール","button:button=サインアウト"]
+  サインアウトボタン visible=true box={"x":1185,"y":121.75,"width":222,"height":37}
+  遷移先=/signin cookie=[] localStorage(前)=["atelier_current_project","atelier_current_workspace"] → (後)=[] / POST /auth/signout → 204
+  => J11-01: BLOCKED — 観測できた部分は全て期待どおり: アバター→サインアウトで /signin へ遷移、cookie atelier_access 消去、localStorage の atelier_* (atelier_current_project,atelier_current_workspace) 消去、POST /auth/signout 204。監査ログ logout は /admin/audit-logs (運営) でしか読めず未観測 (実装は auth.refresh.revoked_all を書く) / 解除条件: 運営アカウント
+
+## J11-02 出た後に中へ戻れないことを見る
+  /projects 直開き → /signin?redirect=%2Fprojects / 古い refresh_token で POST /auth/refresh → n/a / (観点) サインアウト前の access JWT で GET /me → 200
+  => J11-02: PASS — /projects 直開き → /signin?redirect=%2Fprojects (サインインへ遷移)。更新用トークン: パスワード signin は refresh_token=null を返し発行しない (Magic Link 経路のみ発行) ため「失効した refresh token」は存在しない = 全失効状態。※観点候補 (G-14): サインアウト前に発行済の access JWT (有効 1h・stateless) は GET /me → 200 で残効
+
+## J11-03 同じ人で入り直すと作ったものが残っている
+  GET /workspaces -> 200 {"data":[{"id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 WS1","description":null,"icon":null,"member_count":1,"project_count":1,"plan":"free","deleted_at":null,"created_at":"2026-09-03T05:01:15.955721Z","updated_at":"2026-09-03T05:01:15.955721Z"}]}
+  GET /projects?workspace_id=3adaebaa-1a52-41c9-8305-b1da3af958d0 -> 200 {"data":[{"id":"64619201-f5b5-4054-b6e5-ae34752cecb5","workspace_id":"3adaebaa-1a52-41c9-8305-b1da3af958d0","name":"QA jA2 案件1 Nebula","client_name":null,"description":"ジャーニー A 本体案件","type":"client_project","status":"draft","ai_learning_opt_out":true,"cross_project_knowledge":true,"current_phase":"h
+  サインイン後 url=/projects 画面に WS 名=true 案件名=true localStorage={"ws":"3adaebaa-1a52-41c9-8305-b1da3af958d0","pj":null} / API: WS 1 件, 案件 1 件
+  => J11-03: PASS — 同じメール/パスワードで再サインイン → /projects。WS「QA jA2 WS1」(サイドバーに現在 WS として復元 localStorage=true) と案件「QA jA2 案件1 Nebula」が残っている (API: WS 1 件 / 案件 1 件)
+
+## J13-01 パスワードを再設定する
+  POST /auth/password-reset/request -> 202 {"data":{"accepted":true}}
+  POST /auth/password-reset/request -> 202 {"data":{"accepted":true}}
+  POST /auth/password-reset/confirm -> 401 {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  要求: 登録済 → 202 {"data":{"accepted":true}} / 未登録 → 202 {"data":{"accepted":true}} (同一応答=true) / 偽トークンで confirm → 401
+  => J13-01: BLOCKED — 受信箱なし: 再設定トークンはメール本文にしか無く、送信ログ (Resend / fly logs) にも到達できない。観測できた部分: POST /auth/password-reset/request 登録済=202 未登録=202 (応答同一・存在は漏れない)、偽トークンの confirm は 401 で拒否 / 解除条件: QA 用受信箱 or Resend 送信ログ閲覧権限
+
+## J13-02 再設定で古いセッションが死ぬことを見る
+  => J13-02: BLOCKED — J13-01 (再設定の完了) が BLOCKED のため未実行。※同じ失効機構 (auth.refresh.revoked_all) はサインアウト経路で J11-02 として PASS 実測済 / 解除条件: J13-01 と同じ
+
+## J13-03 パスワードを 5 回間違えるとロックされる
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  失敗 1〜4 回目: 429,429,429,429 文言=["短い間に操作が集中しています。少し待ってから、もう一度お試しください。"] / 未登録メールの失敗 → 429 "短い間に操作が集中しています。少し待ってから、もう一度お試しください。" (同一文言=true)
+  signin 5/min/ip のため 65 秒待機
+  POST /auth/signin -> 401 {"detail":"メールアドレスまたはパスワードが違います。"}
+  POST /auth/signin -> 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  5 回目の失敗 → 401 / 直後に正しいパスワード → 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+  => J13-03: FAIL — 期待: 5 回目以降 15 分ロックで正しい PW でも入れない・文言で存在が漏れない / 実測: 失敗=429,429,429,429,401 正しい PW → 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"} 未登録メール=429 同一文言=true
+
+## J14-02 Google/GitHub で新規サインインする
+  GET /auth/oauth/google/start -> 503 {"detail":"このサインイン方法は現在利用できません。"}
+  GET /auth/oauth/github/redirect-url -> 200 {"data":{"authorize_url":"<redacted>","state":"wAfZsKQYLgbPCN42mLey9qZWssJvZ5Xs","provider":"github"}}
+  => J14-02: BLOCKED — OAuth プロバイダ未設定 (GET /auth/oauth/providers = [], /auth/oauth/google/start → 503, /auth/oauth/github/redirect-url → 200)。プロバイダ側の認可画面に到達できない / 解除条件: 本番 env に Google/GitHub の client_id/secret を設定
+
+## J14-03 プロバイダ側で認可を拒否する
+  /auth/oauth-complete?error=access_denied (callback がキャンセル時に返す URL 形式) → url=/auth/oauth-complete?error=access_denied 日本語の理由=["サインインできませんでした","プロバイダでの認可がキャンセルされました。もう一度お試しいただくか、メールアドレスでサインインしてください。"]
+  => J14-03: BLOCKED — プロバイダ未設定でキャンセル操作自体ができない。観測できた部分: callback が拒否時に返す /auth/oauth-complete?error=access_denied を直接開くと日本語の理由 ["サインインできませんでした","プロバイダでの認可がキャンセルされました。もう一度お試しいただくか、メールアドレスでサインインしてください。"] が出る / 解除条件: J14-02 と同じ
+
+## J14-04 Magic Link を要求する
+  POST /auth/magic-link/request -> 202 {"data":{"accepted":true,"delivery":"email"}}
+  POST /auth/magic-link/request -> 202 {"data":{"accepted":true,"delivery":"email"}}
+  登録済 → 202 {"data":{"accepted":true,"delivery":"email"}} / 未登録 → 202 {"data":{"accepted":true,"delivery":"email"}} / 同一応答=true
+  => J14-04: BLOCKED — 受信箱なし: リンク到達 (送信ログ/キュー) を確認する手段が無い。観測できた部分: 登録済 202 / 未登録 202 で応答同一 (true) = 存在の有無は漏れない / 解除条件: QA 用受信箱 or Resend 送信ログ閲覧権限
+
+## J14-05 届いた Magic Link でサインインする
+  POST /auth/magic-link/verify -> 401 {"detail":"リンクが正しくないか、有効期限が切れています。"}
+  偽トークン: API verify → 401 / 画面 → /auth/magic-link/verify?email=qa-jA2-20260903-1%40example.com&token=bogus-magic-token
+  => J14-05: BLOCKED — リンクを受信できないため未実行。観測できた部分: 偽トークンの verify は API 401 で拒否、画面は /auth/magic-link/verify?email=qa-jA2-20260903-1%40example.com&token=bogus-magic-token / 解除条件: J14-04 と同じ
+
+## J12-01 規約が新版になったら帯が出る
+  GET /me/consents -> 200 {"data":{"items":[{"doc_type":"privacy_policy","current_version":"2026-08-22","accepted_version":"2026-08-22","needs_consent":false},{"doc_type":"terms_of_service","current_version":"2026-08-22","accepted_version":"2026-08-22","needs_consent":false}],"needs_consent":false}}
+  POST /me/consents -> 409 {"detail":"表示中の内容が古くなっています。最新の内容を読み直してから、もう一度お試しください。"}
+  GET /me/consents needs_consent=false / 旧版 2026-01-01 で POST /me/consents → 409 / 画面に帯=false
+  => J12-01: BLOCKED — 「現行版を新しくする」は法務文書の版更新 (運営/DB 操作) で本番では実行不可。観測できた部分: 現行版に同意済の状態は needs_consent=false で帯は出ない (正)、現行でない版の同意 POST は 409 で拒否 / 解除条件: staging で legal_documents に新版を投入できる運営操作
+
+## J12-02 本文を読んでから同意する
+  => J12-02: BLOCKED — J12-01 (新版投入) が BLOCKED のため帯が出せず未実行 / 解除条件: J12-01 と同じ
+
+## J12-03 「あとで」は同意にならないことを見る
+  => J12-03: BLOCKED — J12-01 (新版投入) が BLOCKED のため帯が出せず未実行 / 解除条件: J12-01 と同じ

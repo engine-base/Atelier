@@ -99,3 +99,36 @@ J22-03 CT3 POST comment → 403 {"detail": "この操作を行う権限があり
 ## J20-04 招待プレビュー (メタのみ + レート制限)  04:51:15.051
 
 ## J20-05 補足: 未使用 (pending) の招待では再送がローテーションするか  04:51:54.023
+
+## RESUME (container 再起動で前回中断。jsonl 未記録行を新アカウント qa-jE2-* で再実走)  05:02:34.741 UTC
+signup A qa-jE2-20260903-1@example.com → 201
+signin A → 200 user=a621ca06… refresh_token=なし keys=['access_token', 'display_name', 'email', 'expires_at', 'refresh_token', 'token_type', 'user_id']
+signup B qa-jE2-20260903-2@example.com → 201
+signin B → 200 user=f4ef8201… refresh_token=なし keys=['access_token', 'display_name', 'email', 'expires_at', 'refresh_token', 'token_type', 'user_id']
+signup C qa-jE2-20260903-3@example.com → 201
+
+## RESUME (container 再起動で前回中断。jsonl 未記録行を新アカウント qa-jE2-* で再実走)  05:03:04.540 UTC
+signup A qa-jE2-20260903-1@example.com → 409
+signin A → 200 user=a621ca06… refresh_token=なし keys=['access_token', 'display_name', 'email', 'expires_at', 'refresh_token', 'token_type', 'user_id']
+signup B qa-jE2-20260903-2@example.com → 409
+signin B → 200 user=f4ef8201… refresh_token=なし keys=['access_token', 'display_name', 'email', 'expires_at', 'refresh_token', 'token_type', 'user_id']
+signup C qa-jE2-20260903-3@example.com → 409
+signin C → 200 user=4f1b6662… refresh_token=なし keys=['access_token', 'display_name', 'email', 'expires_at', 'refresh_token', 'token_type', 'user_id']
+A WS QA-E2-W1 → 201 a53a89b1…
+B WS → 201 ddf6bef6…
+C WS → 201 1ebdc2a2…
+project PE1 'QA-E2-P1 本案件' → 201 387c245b…
+project PE2 'QA-E2-P2 成果物なし' → 201 b9421f86…
+project PE3 'QA-E2-P3 削除試験' → 201 36644e01…
+project PX 'QA-E2-PX 他社案件X' → 201 2d9b4668…
+project PC 'QA-E2-PC 退会者の案件' → 201 7cb37ee2…
+import 要件定義.md → 200 type=output stage=requirements v=1 id=c6a9ea40… err=None
+import 要件定義.md → 200 type=output stage=requirements v=2 id=ee3cd2de… err=None
+import 納品物_最終版.md → 200 type=output stage=delivery v=1 id=a82e2c88… err=None
+mock M1 v1 328adef7… / v2 e3608fa4…
+A 社内コメント → 201 f4c1a114…
+
+## J20-01 招待発行  05:04:03.360
+J20-01 POST /client-invitations (API 直) → 201 id=aa4a39f9… display=QAクライアントE2-1 expires_at=2026-09-06T05:04:03.644545Z scopes=['view', 'comment'] 応答 keys=['client_display_name', 'created_at', 'email', 'expires_at', 'id', 'project_id', 'revoked_at', 'scopes', 'token', 'updated_at', 'use_count', 'used_at'] (メール送信結果を示す key: なし)
+J20-01 GET 一覧 → 200 件数=1 qa-jE2-20260903-c1@example.com display=QAクライアントE2-1 exp=2026-09-06T05:04:03 scopes=['view', 'comment'] used_at=None revoked_at=None
+J20-01 GET 詳細 (DB 再取得) → 200 {"id": "aa4a39f9-59ba-40e9-bdda-cb9cc8490b08", "project_id": "387c245b-fd47-4d0a-b80f-fcaea447169b", "email": "qa-jE2-20260903-c1@example.com", "scopes": ["view", "comment"], "expires_at": "2026-09-06T05:04:03.644545Z", "used_at": null, "revoked_at": null, "client_display_name": "QAクライアントE2-1", "use_count": 0, "created_at": "2026-09-03T05:04:03.644545Z", "updated_at": "2026-09-03T05:04:03.644545Z"
