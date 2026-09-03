@@ -1,0 +1,158 @@
+# QA 実走証拠 — 担当 auth — 2026-09-03 — prod(pre-launch) (ADR-021 改訂: 本番を staging 共用)
+API: https://atelier-api-eb.fly.dev   Web: https://atelier-web-coral.vercel.app
+分母 (今回消化): SA01-036, SA01-037, SA01-038, SA01-039, SA03-027, SA03-028, SA03-029, SB04-021 (8 行)
+秘密 (JWT / パスワード / 招待 token) は本ファイルに一切書かない。<redacted> と記す。
+
+## 使ったアカウント (全部 QA 専用・最後に退会済)
+- owner  : qa-auth-20260903-1@example.com  user_id 5e3c4c8f-9f01-4eb8-9487-91c3b99388d4
+- member : qa-auth-20260903-2@example.com  user_id 1fe4d805-f204-4e78-802c-9763c83ebb7a
+- third  : qa-auth-20260903-3@example.com  user_id 95ef06b3-3d30-4a61-a969-f0bd8a0b424c
+- WS     : cae5e28f-21ae-46e5-b243-1ae1ea0f9686 "QA auth WS 20260903"  (owner が作成)
+- project: f1e5d5ee-094a-4595-b037-a77ef3a23b9c "QA auth project" (client_project)
+- client invitation: 600a266c-1527-4d7f-ac80-31d4599c3efa (qa-auth-20260903-client@example.com, scopes view/comment)
+- signup ×3 → 201 (consents_recorded=2)。signin は 5/min/ip の制限に当たり 1 回目 429
+  {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"} → Retry-After 待ちで再試行し 200。
+
+================================================================================
+## SA01-036 券が使えないときの文言が日本語 — 判定: PASS (API 本文) / 画面文言は未実走
+GET /me を 4 状態で叩いた (Authorization ヘッダだけ変える):
+  [券なし]            (ヘッダ無し)                → 401 {"detail":"サインインが必要です。サインインしてから、もう一度お試しください。"}
+  [壊れた券]          Bearer not.a.jwt            → 401 {"detail":"サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  [期限切れ]          exp=1700000000 の券 (※)      → 401 同上
+  [クライアント用の券] 実物の client_portal JWT (※※) → 401 同上
+  [空 Bearer]         "Bearer "                   → 401 同上
+  [Basic スキーム]     "Basic abc"                 → 401 「サインインが必要です…」
+同じ層 (dependencies.py) を通る他 endpoint でも同一: GET /workspaces, GET /projects,
+GET /projects/{pj}/credentials に壊れた券 → いずれも 401 同一文言。
+英語の内部語スキャン (token|expired|malformed|bearer|missing|signature|sub) → 全本文 0 件。
+※  署名鍵を持たないため「正しく署名された期限切れ券」は作れない。本番では署名検査の段で断られるが
+   本文は同一。期限切れ分岐そのものは apps/api/tests/test_dependencies.py::test_decode_expired が
+   TOKEN_REJECTED を返すことを固定 (ローカル PASSED)。
+※※ owner が POST /client-invitations → 201 (token は応答にのみ) → POST /client/auth/signin → 200
+   (client_access_token 発行、expires_at 2026-09-04T01:44:03Z)。この券は自分の経路
+   GET /client/projects/{pj} では 200 (対照)、社員向け経路では上記のとおり 401 日本語 (R-T08)。
+画面側: apps/web/lib/auth/connector.ts は detail をそのまま Error.message にするが、壊れた cookie を
+入れて /projects を開くブラウザ自動化は本 sandbox の分類器に拒否され実行できなかった (下記「できなかったこと」)。
+
+## SA01-037 断り方の違いを外から数えられない — 判定: PASS
+GET /me の応答本文をファイルに落として比較:
+  md5 body-expired.txt  = 066f66a1f43a200d0de25ed9035ac342
+  md5 body-badsig.txt   = 066f66a1f43a200d0de25ed9035ac342
+  md5 body-nosub.txt    = 066f66a1f43a200d0de25ed9035ac342
+  cmp expired/badsig/nosub → IDENTICAL=yes。client_portal 券の本文も badsig と cmp 一致。
+  HTTP status も全部 401。Retry-After 等の区別できるヘッダ差も無し (curl -D で確認したのは signin 側のみ)。
+理由はサーバーログのみ: src/auth_messages.py log_token_rejection(reason) → logger.info、応答は TOKEN_REJECTED 1 種。
+補強 (ローカル): tests/test_dependencies.py::test_decode_expired / test_decode_missing_sub /
+test_decode_rejects_client_portal_token PASSED (3 分岐とも同じ定数を返す)。
+
+## SA01-038 利用者に届く文言が route の外にも無いか — 判定: PASS
+検査本体: apps/api/tests/test_route_messages_are_japanese.py (src 全体を ast で走査)
+  実行: cd apps/api && uv run pytest tests/test_route_messages_are_japanese.py tests/test_user_message_coverage.py
+        tests/test_cron_messages_are_japanese.py -q --no-cov  → 579 passed in 2.50s
+  走査結果 (probe.py で同じ関数を呼んで数えた):
+    src 全体で解決できた文言 = 338 件 (門は >250 を要求)
+    dependencies.py = 10 件 (全部「サインインが必要です…」「サインインの有効期限が切れているか…」
+                     「サーバー側で問題が発生しました…」)
+    rate_limit.py   = 1 件 「短い間に操作が集中しています。少し待ってから、もう一度お試しください。」
+    test_routeの外も見ている[dependencies.py] / [rate_limit.py] PASSED (範囲が routes/ に縮んだら落ちる門)
+本番実測 (route より手前の 2 層):
+    券の検証層: 上記 SA01-036 の 401 本文 (日本語)
+    混雑制限層: POST /auth/signin 6 回目 → 429 {"detail":"短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+(注: uv run pytest 素の実行は pyproject の --cov 既定で「coverage 1.3% < 80%」の赤が付くが、それは 3 ファイルだけを
+ 走らせたための見かけ。テスト自体は 579 passed。--no-cov で再実行して確認。)
+
+## SA01-039 定数・f 文字列・関数の陰に隠しても検査から逃げられない — 判定: PASS
+実 src での挙動:
+  - dependencies.py は文言を書かず `from src.auth_messages import TOKEN_REJECTED` している。検査は
+    _imported_constants() で別ファイルの代入値まで辿り、上記 10 件を「日本語」として解決した (隠れていない)。
+  - 静的に読めない書き方 (user_detail(...), str(...)) は 21 箇所。全部 _HIDDEN_OK に理由つきで載っており、
+    test_文言を隠せる書き方が増えていない PASSED。
+合成 src での挙動 (scratchpad/probe_src、検査モジュールの SRC を差し替えて _messages() を呼んだ):
+  別ファイル定数  ENGLISH_CONST="token expired"            → 解決され英語として検出 (FAIL 対象)
+  別ファイル定数  JA_CONST="もう一度サインインしてください。" → 解決され日本語 (通る)
+  f 文字列        f"output has no rendered {name} yet"     → 定数部を連結し英語として検出 (FAIL 対象)
+  f 文字列        f"{name} の出力がまだありません"          → 日本語 (通る)
+  不透明な式      HTTPException(400, some_opaque_builder()) → hidden 一覧 [('routes/probe.py','some_opaque_builder')]
+                  に載り、_HIDDEN_OK に理由つきで無い限り test_文言を隠せる書き方が増えていない が落ちる
+  出力:  PROBE flagged as English (would FAIL gate): [('routes/probe.py','token expired'), ('routes/probe.py','output has no rendered  yet')]
+         PROBE opaque (would FAIL unless listed with reason in _HIDDEN_OK): [('routes/probe.py','some_opaque_builder')]
+
+================================================================================
+## SA03-027 メンバー招待が最後まで通る — 判定: PASS (API) / 画面操作は未実走
+owner: POST /workspaces/{WS}/members {"email":"qa-auth-20260903-2@example.com","role":"member"}
+  → 201 {"data":{"workspace_id":"cae5e28f-…","user_id":"1fe4d805-…","email":"qa-auth-20260903-2@example.com","role":"member","joined_at":"2026-09-03T01:42:59.429120Z"}}
+再取得 (別 GET):
+  GET /workspaces/{WS}/members → 200、2 件 (owner + member)。招待相手が一覧に出る
+  GET /workspaces/{WS}         → member_count = 2 (作成直後は 1)
+500「サーバーでエラー」は出ていない (RLS 自己参照再帰の再発なし)。
+後段 (SA03-029 の生検) でも owner → third を 201 で追加でき、一覧 3 件を再取得。
+画面 (メンバータブ → メンバー招待) は本 sandbox でブラウザ自動化が拒否され未実走。
+画面側の配線は apps/web/app/auth/s_a03/_components/MembersSection.tsx (同じ POST を叩く)。
+
+## SA03-028 メンバーは owner 専用操作をできない — 判定: PASS
+member (user 2) の券で:
+  POST /workspaces/{WS}/members {"email":"qa-auth-20260903-3@example.com"} (登録済み)
+      → 403 {"detail":"メンバーを招待できるのはワークスペースのオーナーだけです。"}
+  POST /workspaces/{WS}/members {"email":"qa-auth-20260903-nobody@example.com"} (未登録)
+      → 422 {"detail":"このメールアドレスのアカウントは登録されていません。"}  ← 行の注意どおり認可より先に入力検査
+  PATCH /workspaces/{WS} {"name":"hijacked by member"}
+      → 403 {"detail":"このワークスペースを変更する権限がありません。"}
+  DELETE /workspaces/{WS}
+      → 403 {"detail":"このワークスペースを削除する権限がありません。"}
+  DELETE /workspaces/{WS}/members/{third}   → 403 {"detail":"対象が見つからないか、メンバーを外す権限がありません。"}
+  PATCH  /workspaces/{WS}/members/{third} {"role":"owner"} → 403 {"detail":"対象が見つからないか、役割を変更する権限がありません。"}
+再取得 (owner): GET /workspaces/{WS} → 200 name="QA auth WS 20260903" のまま、deleted_at=null (改名も削除も効いていない)。
+全 403 本文が日本語、英語 0 件。
+
+## SA03-029 ポリシーが自分の表を参照していない — 判定: PASS (SQL 正本の静的検査 + 本番の生検)
+pg_policies への直接照会は本番 DB 接続が無いため不可。代わりに (a) 適用順 (辞書順 = scripts/ci/apply-migrations.sh と同じ)
+で migration を読み各ポリシーの最終定義を取る静的検査 (scratchpad/policy_selfref.py) と (b) 本番での書き込み生検を行った。
+(a) 静的検査:
+  有効ポリシー 166 本。本文に自分の表への副問い合わせ (FROM/JOIN/UPDATE/DELETE FROM own_table) を含むもの = 0 件。
+  (自分の表名を列修飾子として書くだけの例 e.g. projects_update_member の projects.workspace_id は副問い合わせではない。
+   最初の粗い検査ではそれが 66 件ヒットしたが、副問い合わせに絞ると 0。)
+  workspace_memberships の最終定義 (t-d-91 / gap-229 / t-d-14 いずれも同文):
+    select : workspace_id in (select public.current_user_workspaces())
+    insert : with check (public.is_workspace_owner(workspace_id))
+    update : using/with check (public.is_workspace_owner(workspace_id))
+    delete : using (user_id = auth.uid() or public.is_workspace_owner(workspace_id))
+  owner 判定関数: is_workspace_owner … security definer = True / current_user_workspaces … security definer = True
+(b) 本番生検 (owner の RLS セッション経由。再帰があれば Postgres が必ず落とす):
+  INSERT  POST   /workspaces/{WS}/members (user 2) → 201、(user 3, viewer) → 201、重複 → 409「この方は、すでにメンバーです。」
+  UPDATE  PATCH  /workspaces/{WS}/members/{user2} role viewer → 200、member に戻す → 200
+  DELETE  DELETE /workspaces/{WS}/members/{user3} → 204、再取得 2 件、user 3 で GET /workspaces/{WS} → 404
+  500 / "infinite recursion" は 0 回。
+
+================================================================================
+## SB04-021 鍵の設定不備が利用者の言葉で出る — 判定: BLOCKED
+理由: 本番 (ローンチ前 staging 共用) で ATELIER_VAULT_ENCRYPTION_KEYS を外す・壊すと、他の QA 担当や運営データの
+金庫が同時に壊れる。共有環境への設定障害注入はブリーフの「QA 専用データにだけ触る」に反するため実施しない。
+本番で観察できたこと (正常状態):
+  cookie 認証で /projects/vault?project={pj} を開く → 画面「プロジェクト・シークレット」表示、
+  GET /projects/{pj}/credentials → 200 {"data":[]}、role=alert 0 件。スクショ shots/SB04-021-normal.png
+  (鍵が設定されている = 500 が出ない、という対照のみ)
+ローカルで固定できたこと (apps/api、scratchpad/vault_probe.py で service を直接呼ぶ):
+  [unset]     status=500 detail='サーバー側の設定に問題があります。運営にお問い合わせください。' matches_expected=True mentions_env_var=False
+  [malformed] status=500 detail='サーバー側の設定に問題があります。運営にお問い合わせください。' matches_expected=True mentions_env_var=False
+  (どの環境変数が欠けているかはログ logger.error にのみ出る。tests/routes/test_project_credentials.py::test_missing_key_raises PASSED)
+  画面は apps/web/app/projects/s_b04/page.tsx が ApiError.message (= detail) を role=alert にそのまま出す配線。
+解除条件: 鍵を外せる専用 staging (selected-stack environments.staging) か、QA 専用プロジェクトだけに効く
+設定障害注入フラグができたら、金庫を開いて画面の文言を目視する。
+
+================================================================================
+## 後片付け (全部実施)
+  POST /client-invitations/{id}/revoke → 200。取消後 client 券で GET /client/projects/{pj}
+      → 401 {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  DELETE /workspaces/{WS} (owner) → 204
+  POST /auth/account/delete {"password":…,"reason":"QA cleanup"} ×3 → 200 (deleted_at 2026-09-03T02:05:2x, purge 2026-10-03)
+  退会後の旧券で GET /me ×3 → 401「サインインが必要です…」(G-14: 退会後にセッション無効)
+  退会済みメールで signin → 401「メールアドレスまたはパスワードが違います。」
+
+## できなかったこと
+- ブラウザ自動化 (Playwright) のうち、(1) 壊れた/期限切れ/クライアント用 cookie を入れて社員画面を開く
+  (SA01-036 の画面文言)、(2) 画面からメンバー招待を押す (SA03-027 の画面操作) の 2 本は、本 sandbox の
+  コマンド分類器が node の実行を拒否したため実行できなかった (読み取り専用の SB04-021 の観察は実行できた)。
+  スクリプトは scratchpad/web-wording.mjs と scratchpad/members-ui.mjs に残してある。手元で
+  `cd apps/web && node <script>` (HTTPS_PROXY 経由 / --ssl-version-max=tls1.2) で流せる。
+- SB04-021 は上記のとおり共有本番への設定障害注入ができず BLOCKED。
+- pg_policies の直接照会 (SA03-029) は本番 DB 接続が無く、SQL 正本 + 生検で代替。
