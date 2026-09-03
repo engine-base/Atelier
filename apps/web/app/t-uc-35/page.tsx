@@ -8,6 +8,7 @@
 
 import * as React from 'react';
 import { useState } from 'react';
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { cn } from '../../lib/cn';
@@ -28,7 +29,7 @@ const STEPS = [
   },
 ];
 
-export default function UC35Page() {
+function UC35Inner() {
   const [step, setStep] = useState(0);
   const router = useRouter();
   const params = useSearchParams();
@@ -79,5 +80,19 @@ export default function UC35Page() {
         </button>
       </div>
     </div>
+  );
+}
+
+// GAP-316: useSearchParams はプリレンダー時に Suspense 境界が必須 (無いと `next build` が
+// /t-uc-35 で落ち、Vercel の本番配信が 2026-09-03 04:30 UTC から止まっていた)。
+export default function UC35Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-lg text-body-md text-on-surface-variant">読み込み中…</div>
+      }
+    >
+      <UC35Inner />
+    </Suspense>
   );
 }
