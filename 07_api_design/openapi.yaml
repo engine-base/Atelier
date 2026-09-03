@@ -4282,6 +4282,21 @@ paths:
                 description: { type: string }
                 priority: { type: string, enum: [critical, high, medium, low] }
                 screen_name: { type: string, minLength: 1, maxLength: 80, nullable: true, description: "GAP-140: 対象画面。同名モックチェーン最新に紐づけ、無ければプレースホルダー v1 を自動作成" }
+                dependencies:
+                  type: array
+                  maxItems: 50
+                  items: { type: string, format: uuid }
+                  description: "GAP-303: 先に終わっている必要があるタスク。同じプロジェクトの既存タスクのみ (それ以外は 422)"
+                acceptance_criteria:
+                  type: array
+                  maxItems: 50
+                  description: "GAP-303: 何ができれば完成か。作成と同時に 3-tier AC 行を作り tasks.acceptance_criteria_id に紐づける"
+                  items:
+                    type: object
+                    required: [text]
+                    properties:
+                      text: { type: string, minLength: 1, maxLength: 500 }
+                      tier: { type: string, enum: [structural, functional, regression], default: functional }
       responses:
         '201':
           description: 作成成功

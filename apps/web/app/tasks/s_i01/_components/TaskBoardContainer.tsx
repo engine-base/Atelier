@@ -96,6 +96,10 @@ export function TaskBoardContainer({
   const [addError, setAddError] = useState<string | null>(null);
   // GAP-140: 対象画面 (任意)。指定するとプレースホルダーモックが自動作成されて紐づく
   const [addScreen, setAddScreen] = useState("");
+  // GAP-303: 分解の時点で「先に終わらせる相手」と「何ができれば完成か」を宣言する。
+  // 後付けにすると、依存が空のまま並列起動され、受入条件のないタスクが done になる。
+  const [addDeps, setAddDeps] = useState<readonly string[]>([]);
+  const [addAc, setAddAc] = useState("");
 
   // ダイアログの標準操作: Escape でタスク追加モーダルを閉じる
   useEffect(() => {
@@ -200,6 +204,13 @@ export function TaskBoardContainer({
     onSuccess: invalidate,
   });
 
+  // GAP-303: 受入条件は 1 行 1 件。空行は落とす (「何ができれば完成か」を分解時に書く)
+  const acLines = addAc
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l !== "")
+    .slice(0, 50);
+
   const addMut = useMutation({
     mutationFn: () =>
       client.post("/tasks", {
@@ -211,6 +222,16 @@ export function TaskBoardContainer({
           estimated_hours: Math.min(24, Math.max(1, Number(addHours) || 4)),
           // GAP-140: 画面タスクは対象画面を宣言 → プレースホルダーモック自動作成
           ...(addScreen.trim() !== "" ? { screen_name: addScreen.trim() } : {}),
+          // GAP-303: 依存 (先に終わっている必要があるタスク) と受入条件
+          ...(addDeps.length > 0 ? { dependencies: [...addDeps] } : {}),
+          ...(acLines.length > 0
+            ? {
+                acceptance_criteria: acLines.map((text) => ({
+                  text,
+                  tier: "functional" as const,
+                })),
+              }
+            : {}),
         },
       }),
     onSuccess: () => {
@@ -218,10 +239,17 @@ export function TaskBoardContainer({
       setAddTitle("");
       setAddCategory("");
       setAddScreen("");
+      setAddDeps([]);
+      setAddAc("");
       setAddError(null);
       invalidate();
     },
-    onError: () => setAddError("タスクの作成に失敗しました。"),
+    onError: (e) =>
+      setAddError(
+        e instanceof ApiError && e.status === 422
+          ? "依存先には同じプロジェクトの既存タスクだけを指定できます。"
+          : "タスクの作成に失敗しました。",
+      ),
   });
 
   if (isForbidden(list.error)) {
@@ -387,6 +415,66 @@ export function TaskBoardContainer({
                 className="h-9 w-full rounded-md border border-border px-2 text-body-sm text-on-surface focus:border-primary focus:outline-none"
               />
             </label>
+            {/* GAP-303: 依存 (先に終わっている必要があるタスク) */}
+            <label className="mb-1 block">
+              <span className="mb-1 block text-label-sm font-medium text-on-surface-variant">
+                先に終わっている必要があるタスク (依存)
+              </span>
+              {apiTasks.length === 0 ? (
+                <p className="text-body-sm text-on-surface-variant">
+                  まだ他のタスクがありません。最初の 1 件は依存なしで作成します。
+                </p>
+              ) : (
+                <select
+                  multiple
+                  aria-label="先に終わっている必要があるタスク (依存)"
+                  value={[...addDeps]}
+                  onChange={(e) =>
+                    setAddDeps(
+                      Array.from(e.target.selectedOptions).map((o) => o.value),
+                    )
+                  }
+                  className="h-24 w-full rounded-md border border-border bg-white px-2 py-1 text-body-sm text-on-surface focus:border-primary focus:outline-none"
+                >
+                  {apiTasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
+            {apiTasks.length > 0 && addDeps.length === 0 ? (
+              <p role="status" className="mb-3 text-body-sm text-on-surface-variant">
+                依存を選んでいません。このタスクは他のタスクの完了を待たずに着手・並列実行されます。順番があるなら選んでください。
+              </p>
+            ) : (
+              <div className="mb-3" />
+            )}
+
+            {/* GAP-303: 受入条件 (何ができれば完成か) */}
+            <label className="mb-1 block">
+              <span className="mb-1 block text-label-sm font-medium text-on-surface-variant">
+                受入条件 (1 行 1 件 — 何ができれば完成か)
+              </span>
+              <textarea
+                value={addAc}
+                onChange={(e) => setAddAc(e.target.value)}
+                rows={3}
+                placeholder={"一覧に出ること\n既存の並びが壊れないこと"}
+                className="w-full rounded-md border border-border px-2 py-1 text-body-sm text-on-surface focus:border-primary focus:outline-none"
+              />
+            </label>
+            {acLines.length === 0 ? (
+              <p role="status" className="mb-3 text-body-sm text-on-surface-variant">
+                受入条件が空です。空のまま作ると「何をもって完成か」が決まらないまま完了になります。
+              </p>
+            ) : (
+              <p className="mb-3 text-body-sm text-on-surface-variant">
+                受入条件 {acLines.length} 件
+              </p>
+            )}
+
             {addError ? (
               <p role="alert" className="mb-2 text-body-sm text-error">
                 {addError}

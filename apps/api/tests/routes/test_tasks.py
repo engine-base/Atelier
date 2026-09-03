@@ -349,6 +349,90 @@ class TestTasksCrud:
             assert n == 1
             client.delete(f"/tasks/{tid}", headers=h)
 
+    def test_gap303_依存と受入条件を作成時に宣言できる(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """GAP-303: 分解の時点で「先に終わらせる相手」と「何ができれば完成か」を書ける。
+
+        後付けにすると、依存が空のまま並列起動され、受入条件のないタスクが
+        done になる (S-I01 通しで検出)。
+        """
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            first = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "x",
+                    "title": "先に終わらせる",
+                    "type": "feature",
+                    "estimated_hours": 1,
+                },
+                headers=h,
+            ).json()["data"]["id"]
+            r = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "x",
+                    "title": "あとから着手",
+                    "type": "feature",
+                    "estimated_hours": 1,
+                    "dependencies": [first],
+                    "acceptance_criteria": [
+                        {"text": "一覧に出ること", "tier": "functional"},
+                        {"text": "既存の並びが壊れないこと", "tier": "regression"},
+                    ],
+                },
+                headers=h,
+            )
+            assert r.status_code == 201, r.text
+            created = r.json()["data"]
+            assert created["dependencies"] == [first]
+            assert created["acceptance_criteria_id"] is not None
+
+            # 依存先からも見える (S-I02 依存タブ / 依存グラフは blocks 側も読む)
+            back = client.get(f"/tasks/{first}", headers=h).json()["data"]
+            assert created["id"] in back["blocks"]
+
+            # 受入条件は分解直後から埋まっている
+            ac = client.get(f"/tasks/{created['id']}/acceptance-criteria", headers=h).json()["data"]
+            assert [i["text"] for i in ac["items"]] == [
+                "一覧に出ること",
+                "既存の並びが壊れないこと",
+            ]
+            assert [i["tier"] for i in ac["items"]] == ["functional", "regression"]
+            assert all(i["passed"] is False for i in ac["items"])
+
+            client.delete(f"/tasks/{created['id']}", headers=h)
+            client.delete(f"/tasks/{first}", headers=h)
+
+    def test_gap303_他プロジェクトや存在しない依存は422で拒否する(
+        self, app: FastAPI, seeded: dict[str, str]
+    ) -> None:
+        """黙って捨てると「依存を書いたのに空で作られる」= 着手順が壊れる。"""
+        h = _h(seeded["u_a"])
+        with TestClient(app) as client:
+            r = client.post(
+                "/tasks",
+                json={
+                    "project_id": seeded["proj_a"],
+                    "category": "x",
+                    "title": "存在しない依存",
+                    "type": "feature",
+                    "estimated_hours": 1,
+                    "dependencies": [str(uuid.uuid4())],
+                },
+                headers=h,
+            )
+            assert r.status_code == 422, r.text
+            assert (
+                client.get("/tasks", params={"project_id": seeded["proj_a"]}, headers=h).json()[
+                    "data"
+                ]
+                is not None
+            )
+
 
 @pytest.mark.integration
 class TestTaskExecutions:

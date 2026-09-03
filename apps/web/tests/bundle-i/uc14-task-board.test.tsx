@@ -166,3 +166,58 @@ describe("S-I01 タスク作成の画面紐づけ (GAP-140)", () => {
     await waitFor(() => expect(post).toHaveBeenCalled());
   });
 });
+
+describe("S-I01 タスク作成の依存と受入条件 (GAP-303)", () => {
+  it("依存が空のまま作ろうとすると「並列に着手される」と警告が出る", async () => {
+    const get = vi.fn(async () => ({ data: TASKS }));
+    renderWithQuery(
+      <TaskBoardContainer projectId="p1" client={fakeClient({ get })} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "タスクを追加" }));
+    const dialog = await screen.findByRole("dialog", { name: "タスクを追加" });
+    expect(
+      within(dialog).getByText(/依存を選んでいません/),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/受入条件が空です/)).toBeInTheDocument();
+  });
+
+  it("依存と受入条件を宣言すると dependencies / acceptance_criteria が API に渡る", async () => {
+    const get = vi.fn(async () => ({ data: TASKS }));
+    const post = vi.fn(async (path: string, opts: unknown) => {
+      expect(path).toBe("/tasks");
+      const body = (opts as { body: Record<string, unknown> }).body;
+      expect(body.dependencies).toEqual(["t2"]);
+      expect(body.acceptance_criteria).toEqual([
+        { text: "一覧に出ること", tier: "functional" },
+        { text: "既存の並びが壊れないこと", tier: "functional" },
+      ]);
+      return { data: { id: "t9" } };
+    });
+    renderWithQuery(
+      <TaskBoardContainer projectId="p1" client={fakeClient({ get, post })} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "タスクを追加" }));
+    const dialog = await screen.findByRole("dialog", { name: "タスクを追加" });
+    fireEvent.change(within(dialog).getByLabelText("タイトル"), {
+      target: { value: "あとから着手" },
+    });
+    const deps = within(dialog).getByLabelText(
+      /先に終わっている必要があるタスク/,
+    ) as HTMLSelectElement;
+    // multiple select: t2 だけを選ぶ
+    for (const opt of Array.from(deps.options)) {
+      opt.selected = opt.value === "t2";
+    }
+    fireEvent.change(deps);
+    fireEvent.change(
+      within(dialog).getByLabelText(/受入条件/),
+      { target: { value: "一覧に出ること\n\n既存の並びが壊れないこと\n" } },
+    );
+    expect(within(dialog).getByText("受入条件 2 件")).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText(/依存を選んでいません/),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "作成" }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+  });
+});

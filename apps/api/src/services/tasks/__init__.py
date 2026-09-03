@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.tasks import (
     AcceptanceCriteriaResponse,
+    AcceptanceCriterionInput,
     PlayTaskRequest,
     PlayTaskResponse,
     RelatedResourceResponse,
@@ -228,8 +229,88 @@ async def ensure_screen_mock(
     return mock_id
 
 
+async def _resolve_dependencies(
+    session: AsyncSession, *, project_id: str, dependency_ids: list[str]
+) -> list[str]:
+    """GAP-303: 依存先を検証して uuid の一覧に正規化する。
+
+    同じプロジェクトの、生きているタスクだけを受け付ける。存在しない / 別
+    プロジェクト / 削除済みが 1 件でも混ざれば ValueError (呼び出し側で 422)。
+    「黙って捨てる」と依存が空のまま作られ、着手順が壊れる。
+    """
+    wanted: list[str] = []
+    for raw in dependency_ids:
+        dep = raw.strip()
+        if dep == "" or dep in wanted:
+            continue
+        try:
+            uuid.UUID(dep)
+        except ValueError as exc:
+            raise ValueError("dependency must be an existing task id") from exc
+        wanted.append(dep)
+    if not wanted:
+        return []
+    res = await session.execute(
+        text(
+            "select id from public.tasks "
+            "where id = any(cast(:ids as uuid[])) "
+            "  and project_id = cast(:pid as uuid) and deleted_at is null"
+        ),
+        {"ids": wanted, "pid": project_id},
+    )
+    found = {str(r.id) for r in res.all()}
+    missing = [d for d in wanted if d not in found]
+    if missing:
+        raise ValueError("dependency must be an existing task id")
+    return wanted
+
+
+async def _create_acceptance_criteria(
+    session: AsyncSession, *, task_id: str, items: list[AcceptanceCriterionInput]
+) -> str:
+    """GAP-303: 作成時に宣言された受入条件を 3-tier AC 行として保存する。
+
+    tasks.acceptance_criteria_id にも紐づけるので、S-I02 の「受入条件」は
+    分解直後から埋まる (後から誰かが書き足すのを待たない)。
+    """
+    ac_id = str(uuid.uuid4())
+    payload = [
+        {
+            "id": f"ac-{i + 1}",
+            "text": it.text.strip(),
+            "tier": it.tier,
+            "passed": False,
+            "evidence": None,
+        }
+        for i, it in enumerate(items)
+    ]
+    await session.execute(
+        text(
+            "insert into public.acceptance_criteria (id, task_id, html_path, items) "
+            "values (cast(:id as uuid), cast(:tid as uuid), :path, cast(:items as jsonb))"
+        ),
+        {
+            "id": ac_id,
+            "tid": task_id,
+            "path": f"acceptance-criteria/{task_id}.html",
+            "items": json.dumps(payload, ensure_ascii=False),
+        },
+    )
+    await session.execute(
+        text(
+            "update public.tasks set acceptance_criteria_id = cast(:aid as uuid) "
+            "where id = cast(:tid as uuid)"
+        ),
+        {"aid": ac_id, "tid": task_id},
+    )
+    return ac_id
+
+
 async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate) -> TaskResponse:
     new_id = str(uuid.uuid4())
+    dependencies = await _resolve_dependencies(
+        session, project_id=data.project_id, dependency_ids=data.dependencies
+    )
     # GAP-140: 画面タスクは分解時に画面モック (プレースホルダー) を保証して紐づける
     mock_id: str | None = None
     if data.screen_name is not None and data.screen_name.strip() != "":
@@ -247,10 +328,10 @@ async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate)
         text(
             "insert into public.tasks "
             "(id, project_id, category, title, description, type, estimated_hours, priority, "
-            " mock_id, delivery_phase_id) "
+            " mock_id, delivery_phase_id, dependencies) "
             "values (cast(:id as uuid), cast(:pid as uuid), :cat, :title, :desc, "
             "        cast(:ttype as task_type_enum), :est, cast(:prio as task_priority_enum), "
-            "        cast(:mock as uuid), cast(:dph as uuid))"
+            "        cast(:mock as uuid), cast(:dph as uuid), cast(:deps as uuid[]))"
         ),
         {
             "id": new_id,
@@ -263,8 +344,22 @@ async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate)
             "est": data.estimated_hours,
             "prio": _PRIORITY_TO_DB[data.priority],
             "mock": mock_id,
+            "deps": dependencies,
         },
     )
+    if dependencies:
+        # GAP-303: 依存は両側から見えないと使えない。依存先の blocks にも積む
+        # (S-I02 の依存タブ / DependencyGraph は blocks 側も読む)。
+        await session.execute(
+            text(
+                "update public.tasks set blocks = "
+                "  (select array_agg(distinct x) from unnest(blocks || cast(:new as uuid[])) x) "
+                "where id = any(cast(:ids as uuid[]))"
+            ),
+            {"new": [new_id], "ids": dependencies},
+        )
+    if data.acceptance_criteria:
+        await _create_acceptance_criteria(session, task_id=new_id, items=data.acceptance_criteria)
     await AuditWriter(session).write(
         AuditEvent(
             action="task.create",
@@ -272,7 +367,12 @@ async def create_task(session: AsyncSession, *, actor_id: str, data: TaskCreate)
             actor_type="user",
             actor_id=actor_id,
             target_id=new_id,
-            after={"title": data.title, "type": data.type},
+            after={
+                "title": data.title,
+                "type": data.type,
+                "dependencies": dependencies,
+                "acceptance_criteria_count": len(data.acceptance_criteria),
+            },
         )
     )
     created = await get_task(session, new_id)

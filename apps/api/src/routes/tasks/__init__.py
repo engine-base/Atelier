@@ -60,7 +60,16 @@ async def list_tasks(
 async def create_task(
     body: TaskCreate, session: SessionDep, user: UserDep
 ) -> dict[str, TaskResponse]:
-    return {"data": await svc.create_task(session, actor_id=user.id, data=body)}
+    try:
+        created = await svc.create_task(session, actor_id=user.id, data=body)
+    except ValueError as exc:
+        # GAP-303: 依存先が存在しない / 別プロジェクト。黙って捨てると
+        # 「依存を書いたのに空で作られる」= 着手順が壊れる。
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "依存先には同じプロジェクトの既存タスクだけを指定できます。",
+        ) from exc
+    return {"data": created}
 
 
 @router.get("/tasks/{task_id}", summary="タスク詳細")

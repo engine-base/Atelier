@@ -3133,6 +3133,17 @@ export interface paths {
                         priority?: "critical" | "high" | "medium" | "low";
                         /** @description GAP-140: 対象画面。同名モックチェーン最新に紐づけ、無ければプレースホルダー v1 を自動作成 */
                         screen_name?: string | null;
+                        /** @description GAP-303: 先に終わっている必要があるタスク。同じプロジェクトの既存タスクのみ (それ以外は 422) */
+                        dependencies?: string[];
+                        /** @description GAP-303: 何ができれば完成か。作成と同時に 3-tier AC 行を作り tasks.acceptance_criteria_id に紐づける */
+                        acceptance_criteria?: {
+                            text: string;
+                            /**
+                             * @default functional
+                             * @enum {string}
+                             */
+                            tier?: "structural" | "functional" | "regression";
+                        }[];
                     };
                 };
             };

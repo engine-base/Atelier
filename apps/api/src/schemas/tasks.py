@@ -21,6 +21,20 @@ TaskPriority = Literal["critical", "high", "medium", "low"]
 TaskLifecycle = Literal["triage", "ready", "in_progress", "blocked", "awaiting", "done"]
 
 
+AcceptanceTier = Literal["structural", "functional", "regression"]
+
+
+class AcceptanceCriterionInput(BaseModel):
+    """作成時に添える受入条件 1 行 (GAP-303)。
+
+    tier は 3-tier AC (structural / functional / regression)。既定は functional
+    (「何ができれば完成か」= 経営者が書きやすい層)。
+    """
+
+    text: str = Field(min_length=1, max_length=500)
+    tier: AcceptanceTier = "functional"
+
+
 class TaskCreate(BaseModel):
     project_id: str
     category: str = Field(min_length=1, max_length=100)
@@ -32,6 +46,13 @@ class TaskCreate(BaseModel):
     # GAP-140: 画面タスクは分解時に対象画面を宣言する。同名モックチェーンの
     # 最新に紐づけ、無ければプレースホルダーモック v1 を自動作成して紐づける。
     screen_name: str | None = Field(default=None, min_length=1, max_length=80)
+    # GAP-303: 分解の時点で「先に終わっていないと着手できないタスク」と
+    # 「何を満たせば完成か」を宣言する。後付けにすると依存が空のまま並列起動され、
+    # 受入条件のないタスクが done になる (S-I01 通しで検出)。
+    dependencies: list[str] = Field(default_factory=lambda: list[str](), max_length=50)
+    acceptance_criteria: list[AcceptanceCriterionInput] = Field(
+        default_factory=lambda: list[AcceptanceCriterionInput](), max_length=50
+    )
 
 
 class TaskUpdate(BaseModel):
