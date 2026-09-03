@@ -38,6 +38,7 @@ from src.services.client_signin import (
     ClientSigninError,
     _service_session_factory,  # pyright: ignore[reportPrivateUsage]  # 同一パッケージ内共有
 )
+from src.services.client_signin.staff_notify import notify_staff_of_client_comment
 
 STAGE_LABEL: dict[str, str] = {
     "proposal": "提案書",
@@ -362,14 +363,24 @@ async def create_comment(
                     },
                 )
             )
+            if data.target_type == "workflow_output":
+                label = STAGE_LABEL.get(str(target.label_src), str(target.label_src))
+            else:
+                label = f"モック: {target.label_src}"
+            # GAP-266 (通し J23-01): 運営に届かないコメントは機能として成立しない。
+            # 保存と同じトランザクションで通知 + 監査ログ (送信自体は best-effort)。
+            await notify_staff_of_client_comment(
+                session,
+                project_id=project_id,
+                invitation_id=invitation_id,
+                comment_id=str(row.id),
+                target_label=label,
+                content=data.content,
+            )
             await session.commit()
         except Exception:
             await session.rollback()
             raise
-    if data.target_type == "workflow_output":
-        label = STAGE_LABEL.get(str(target.label_src), str(target.label_src))
-    else:
-        label = f"モック: {target.label_src}"
     return ClientCommentItem(
         id=str(row.id),
         target_type=data.target_type,

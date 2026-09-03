@@ -7,6 +7,7 @@ R-T08 致命級: client_portal JWT は project_id claim に限定され、別 pr
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import uuid
 from collections.abc import Iterator
@@ -697,7 +698,10 @@ def portal_content(
             {"a": proj_a, "b": proj_b},
         )
         c.execute(
-            text("delete from public.audit_logs where action = 'client.comment.create'"),
+            text(
+                "delete from public.audit_logs where action in "
+                "('client.comment.create','client.comment.staff_notified')"
+            ),
         )
         for table in ("workflow_outputs", "mocks", "phases"):
             c.execute(
@@ -870,6 +874,47 @@ class TestClientPortalContent:
                 headers=h,
             )
             assert r.status_code == 403
+
+    def test_gap266_client_comment_notifies_workspace_owner(
+        self,
+        app: FastAPI,
+        sync_engine: sqlalchemy.Engine,
+        portal_content: dict[str, str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """GAP-266 (通し J23-01): クライアントのコメントは運営 (WS 所有者) に届く。
+
+        メールは dry-run (API キー無し) でも送信痕跡 = 監査ログ
+        client.comment.staff_notified が、コメントと同じ actor で残る。"""
+        monkeypatch.delenv("ATELIER_EMAIL_API_KEY", raising=False)
+        with TestClient(app) as client:
+            tok = _client_token(client, portal_content["token_a"])
+            r = client.post(
+                f"/client/projects/{portal_content['proj_a']}/comments",
+                json={
+                    "target_type": "workflow_output",
+                    "target_id": portal_content["out_hear_v2"],
+                    "content": "納期の相談をしたいです",
+                },
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+            assert r.status_code == 201, r.text
+            comment_id = r.json()["data"]["id"]
+        with sync_engine.begin() as c:
+            rows = c.execute(
+                text(
+                    "select actor_type, actor_id, after from public.audit_logs "
+                    "where action = 'client.comment.staff_notified' and target_id = :i"
+                ),
+                {"i": comment_id},
+            ).all()
+        assert len(rows) == 1, rows
+        after = rows[0].after if isinstance(rows[0].after, dict) else json.loads(rows[0].after)
+        assert after["recipient_user_id"] == portal_content["u_a"]  # WS 所有者
+        assert after["project_id"] == portal_content["proj_a"]
+        assert after["dry_run"] is True
+        assert rows[0].actor_type == "anonymous"
+        assert rows[0].actor_id == f"client:{portal_content['inv_a']}"
 
     def test_comment_target_from_other_project_404(
         self, app: FastAPI, portal_content: dict[str, str]
