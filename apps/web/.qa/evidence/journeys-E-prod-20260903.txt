@@ -132,3 +132,220 @@ A 社内コメント → 201 f4c1a114…
 J20-01 POST /client-invitations (API 直) → 201 id=aa4a39f9… display=QAクライアントE2-1 expires_at=2026-09-06T05:04:03.644545Z scopes=['view', 'comment'] 応答 keys=['client_display_name', 'created_at', 'email', 'expires_at', 'id', 'project_id', 'revoked_at', 'scopes', 'token', 'updated_at', 'use_count', 'used_at'] (メール送信結果を示す key: なし)
 J20-01 GET 一覧 → 200 件数=1 qa-jE2-20260903-c1@example.com display=QAクライアントE2-1 exp=2026-09-06T05:04:03 scopes=['view', 'comment'] used_at=None revoked_at=None
 J20-01 GET 詳細 (DB 再取得) → 200 {"id": "aa4a39f9-59ba-40e9-bdda-cb9cc8490b08", "project_id": "387c245b-fd47-4d0a-b80f-fcaea447169b", "email": "qa-jE2-20260903-c1@example.com", "scopes": ["view", "comment"], "expires_at": "2026-09-06T05:04:03.644545Z", "used_at": null, "revoked_at": null, "client_display_name": "QAクライアントE2-1", "use_count": 0, "created_at": "2026-09-03T05:04:03.644545Z", "updated_at": "2026-09-03T05:04:03.644545Z"
+J20-01 UI owner signin → url=/signin cookies=
+J20-01 UI S-L01 /portal/invitations?project=PE1 表示: 既存 API 発行分が一覧に出る=false 表示名=false 状態ラベル=
+J20-01 UI 発行フォーム送信 → API:  / 一覧に新規行=false / 招待リンク表示=false (メール送信は UI/API とも観測不能)
+J20-02 UI 招待リンク → 表示名入力 + 同意 2 種 → サインイン → url=/portal?project=387c245b-fd47-4d0a-b80f-fcaea447169b cookies=atelier_client_access client cookie=true 社内 cookie 混在=なし API=200 /client/auth/preview | 200 /client/auth/signin | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/outputs | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/mocks | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/overview
+J20-02 UI S-L03 本文先頭: Client Portal · QA-E2-P1 本案件 Q QAクライアントE2-1 閲覧 + コメント 可 限定アクセスモード：このプロジェクトの閲覧 + コメントが可能です。編集はできません。 リンク有効期限：残り 3 日 PROJECT QA-E2-P1 本案件 運営：QA-E2-W1 · QA-E2 社内A ヒアリング → 要件定義 → アーキ設計 → デザイン → 機能分解 → タスク分解 → 実装 → 検証 → 納品 0% 成果物 納品書 2026/09/03 · v1 · HTML 要件定義書 20
+J21-01 UI S-L03: 案件名=true 運営名=true 期限表示=true 社内情報漏れ=なし
+J22-04 UI 社内 cookie のみで /portal?project=PE1 → url=/portal/signin?project=387c245b-fd47-4d0a-b80f-fcaea447169b&redirect=%2Fportal 案件画面が出た=false client API 呼出=なし
+J20-01 UI owner signin (再) → ok=true url=/projects cookies=atelier_access
+J20-01 UI S-L01 表示: API 発行分が一覧に出る=true 表示名=true 状態ラベル=使用済/失効/期限切れ
+J20-01 UI 発行フォーム送信 → API: 201 /client-invitations | 200 /client-invitations?project_id=387c245b-fd47-4d0a-b80f-fcaea447169b / 一覧に新規行=true / 招待リンク表示=true / 行: qa-jE2-20260903-ui@example.com 発行時のみ表示 未使用 残り 7 日 0 回 QAクライアントE2-1 qa-jE2-20260903-c1 (メール送信は UI/API とも観測不能)
+J22-04 UI 社内 cookie (atelier_access) のみで /portal?project=PE1 → url=/portal/signin?project=387c245b-fd47-4d0a-b80f-fcaea447169b&redirect=%2Fportal 案件画面が出た=false client API 呼出=なし
+
+## J20-02 API 側 (クライアント券の claims と招待の使用記録)  05:05:47.254
+J20-02 UI サインイン後の招待詳細 → used_at=2026-09-03T05:04:48.186480Z use_count=1 (UI 経由で 1 回使用)
+
+## J20-02 API 側 (クライアント券の claims と招待の使用記録)  05:06:14.499
+J20-02 UI サインイン後の招待詳細 → used_at=2026-09-03T05:04:48.186480Z use_count=3 (UI 経由で 1 回使用)
+J20-02 POST /client/auth/signin (API, 同意 2 種 true) → 200 project=QA-E2-P1 本案件 expires_at=2026-09-04T05:06:15Z JWT claims: role=client_portal aud=client sub=client:aa4a39f… project_id=387c245b… keys=['aud', 'exp', 'invitation_id', 'project_id', 'role', 'scopes', 'sub']
+  対照 社内 JWT claims: role=authenticated aud=authenticated (client 券とは role/aud が別)
+J20-02 招待詳細 再取得 → used_at=2026-09-03T05:04:48.186480Z use_count=4
+
+## J21-01 クライアント概要 (API)  05:06:16.040
+J21-01 GET /client/projects/PE1 → 200 {"data": {"id": "387c245b-fd47-4d0a-b80f-fcaea447169b", "name": "QA-E2-P1 本案件", "description": null, "scopes": ["view", "comment"], "viewed_as_client_display_name": "QAクライアントE2-1"}}
+J21-01 GET overview → 200 {"data": {"phases": [{"name": "ヒアリング", "order": 1, "status": "in_progress"}, {"name": "要件定義", "order": 2, "status": "pending"}, {"name": "アーキ設計", "order": 3, "status": "pending"}, {"name": "デザイン", "order": 4, "status": "pending"}, {"name": "機能分解", "order": 5, "status": "pending"}, {"name": "タスク分解", "order": 6, "status": "pending"}, {"name": "実装", "order": 7, "status": "pending"}, {"name": "検証", "order": 8, "status": "pending"}, {"name": "納品", "order": 9, "status": "pending"}], "progress_percent"
+
+## J21-04 成果物 0 件の案件 (API)  05:06:17.055
+PE2 招待 INV2 c1f75409… → 券発行 200
+J21-04 / → 200 {"data": {"id": "b9421f86-ba31-40c6-87d7-db9eda3de85d", "name": "QA-E2-P2 成果物なし", "description": null, "scopes": ["view" / /overview → 200 {"data": {"phases": [{"name": "ヒアリング", "order": 1, "status": "in_progress"}, {"name": "要件定義", "order": 2, "status": "pen / /outputs → 200 {"data": []} / /mocks → 200 {"data": {"items": [], "total_screens": 0}} / /comments → 200 {"data": []}
+
+## J22-04 社内 JWT でクライアント API (API)  05:06:20.854
+  A(owner) JWT → GET /client/projects/PE1 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/mocks → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → GET /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/mocks → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  B(他社owner) JWT → GET /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  C(別WS owner) JWT → GET /client/projects/PE1 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  C(別WS owner) JWT → GET /client/projects/PE1/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  C(別WS owner) JWT → GET /client/projects/PE1/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  C(別WS owner) JWT → GET /client/projects/PE1/mocks → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  C(別WS owner) JWT → GET /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  A(owner) JWT → POST /client/projects/PE1/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+J21-04 UI PE2 (成果物 0) S-L03 → url=/portal?project=b9421f86-ba31-40c6-87d7-db9eda3de85d API=200 /client/auth/preview | 200 /client/auth/signin | 200 /client/projects/b9421f86-ba31-40c6-87d7-db9eda3de85d | 200 /client/projects/b9421f86-ba31-40c6-87d7-db9eda3de85d/mocks | 200 /client/projects/b9421f86-ba31-40c6-87d7-db9eda3de85d/outputs | 200 /client/projects/b9421f86-ba31-40c6-87d7-db9eda3de85d/comments | 200 /client/projects/b9421f86-ba31-40c6-87d7-db9eda3de85d/overview エラー表示=false 0 件案内候補:  リンク有効期限：残り 3 日 PROJECT QA-E2-P2 成果物なし 運営：QA-E2-W1 · QA-E2 社内A ヒアリング → 要件定義 → アーキ設計 → デザイン → 機能分解 → タスク分解 → 実装 → 検証 → 納品 0% 成果物 共有された成果物はまだありません モック 全 0 画面 共有されたモックはまだありません アクセス範囲 閲覧 プロジェクトの進捗と成果物を閲覧できます コメント 各成果物にコメントを残せます 編集不可：あなたのアカウントは閲覧 + コメント権限のみです あなたのコメント（0） コメントはまだありません コメントを投稿 コメント対象 対象を選択… コメント内容 コメントを投稿 運営とのやり取り 投稿されたコメントは運営側の成果物・モック画面にそのまま共有されます
+
+## J23 コメント往復  05:06:47.405
+J23-02 前提: 未解決件数 (before) → 200 count=1
+J23-01 投稿前 client comments → 200 件数=0
+J23-01 POST /client/projects/PE1/comments (要件定義 v2 に) → 201 {"id": "4b910331-4b51-4d3e-aa3c-0831600aa2f6", "target_type": "workflow_output", "target_id": "ee3cd2de-733a-4bf4-b0d6-780152dd6008", "target_label": "要件定義書", "content": "【クライアント E2】要件定義 v2 の 2 章、ログイン方式を SSO にしてほしいです。", "author_name": null, "is_client_author": true, "created_at": "2026-09-03T05:06:4
+J23-01 再取得 client comments → 200 件数=1 自分の投稿が一覧にある=True is_client_author=True author_name=None
+J23-02 A GET /comments?target=要件定義v2 → 200 件数=2 クライアント投稿あり=True is_client_author=True author_name=QAクライアントE2-1 author_invitation_id=aa4a39f9… author_user_id=None status=open
+J23-02 未解決件数 (after) → count=2 (before=1, 差=1)
+J23-03 クライアントの編集・削除 endpoint: openapi の /client/* に PATCH/DELETE は無い → 社内 API を client 券で試す
+  CT PATCH /comments/CC1 (自分) → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT DELETE /comments/CC1 (自分) → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT PATCH /comments/C_internal (社内) → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+  CT PATCH /client/projects/PE1/comments/CC1 → 404 {"detail": "Not Found"}
+  CT DELETE /client/projects/PE1/comments/CC1 → 404 {"detail": "Not Found"}
+  A 再取得 CC1 → 200 content 不変=True
+  A 再取得 C_internal → 200 content 不変=True
+J23-04 A POST /comments (parent=CC1) → 201 id=ba117dad… parent_comment_id=4b910331… is_client_author=False
+J23-04 client GET comments → 200 件数=2 返信が出る=True author_name=QA-E2 社内A is_client_author=False target_label=要件定義書 / 社内メモ混入=False
+J23-05 client GET outputs → 200 件数=2 納品 stage あり=True {"id": "a82e2c88-9b61-4524-a92f-e1f6b7a4e451", "stage": "delivery", "stage_label": "納品書", "version": 1, "updated_at": "2026-09-03T05:04:00.718203Z", "formats": ["html"], "summary": "納品物_最終版"}
+J23-05 UI S-L03: 自分のコメント表示=true 社内返信表示=true 社内メモ混入=false 納品成果物表示=true 編集/削除ボタン数=0
+J23-05 UI 納品成果物を開く → url=/portal?project=387c245b-fd47-4d0a-b80f-fcaea447169b 本文 (運用手順書) 表示=false API=200 /client/auth/signin | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/outputs | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/overview | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/mocks
+J23-02 UI 社内 /outputs/O_req_v2 → url=/outputs/ee3cd2de-733a-4bf4-b0d6-780152dd6008 クライアントコメント表示=false 投稿者名 (QAクライアントE2-1) 表示=false 「クライアント」表記=false
+J23-02 UI 案件ダッシュボード /projects/PE1 未解決表示: 該当文字列なし
+J24-02 用 pending 招待 INV4 d186a0ef… 発行
+
+## J24-01 期限切れ招待 (API で過去期限の招待を作れるか)  05:07:44.553
+  POST /client-invitations {'ttl_days': 0} → 422 {"detail": "送信内容を確認してください（入力内容: 内容を確認してください）。"}
+  POST /client-invitations {'ttl_days': -1} → 422 {"detail": "送信内容を確認してください（入力内容: 内容を確認してください）。"}
+  POST /client-invitations {'expires_at': '2026-09-01T00:00:00Z'} → 201 {"data": {"id": "dbbb6be6-327f-48f9-ad70-c44781f49fb6", "project_id": "387c245b-fd47-4d0a-b80f-fcaea447169b", "email": "qa-jE2-20260903-exp@example.com", "scope ← expires_at=2026-09-10T05:07:45.510656Z (無視され既定 7 日)
+
+## J24-03 失効の即時反映 (API: 券が有効なまま失効 → 0 秒後)  05:07:46.187
+  失効前 CT3 GET /client/projects/PE1 → 200 name=QA-E2-P1 本案件
+  A POST revoke INV3 → 200 revoked_at=2026-09-03T05:07:48.044722Z
+  失効 +0.42s CT3 / → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効 +0.82s CT3 /overview → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効 +1.23s CT3 /outputs → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効 +1.65s CT3 /mocks → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効 +2.06s CT3 /comments → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効 +2.46s CT3 POST comments → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  失効後 旧リンク signin → 401 {"detail": "この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+  INV3 詳細 → revoked_at=2026-09-03T05:07:48.044722Z
+
+## J24-05 案件削除 → クライアント拒否  05:07:51.541
+import 要件定義.md → 200 type=output stage=requirements v=1 id=7e0bba73… err=None
+  削除前 CT5 outputs → 200 件数=1
+  A DELETE /projects/PE3 → 204
+  A GET /projects/PE3 → 404 deleted_at={"detail": "対象のプロジェクトが見つかりません。"}
+  削除後 CT5 GET /client/projects/PE3 → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  削除後 CT5 GET /client/projects/PE3/overview → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  削除後 CT5 GET /client/projects/PE3/outputs → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  削除後 CT5 GET /client/projects/PE3/mocks → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  削除後 CT5 GET /client/projects/PE3/comments → 401 {"detail": "サインインの情報が正しくないか、有効期限が切れています。招待リンクからもう一度お試しください。"}
+  削除後 招待リンクで再サインイン → 401 {"detail": "リンクが正しくないか、有効期限が切れています。"}
+  削除後 preview → 401 {"detail": "リンクが正しくないか、有効期限が切れています。"}
+
+## J50 課金 (API)  05:07:58.755
+J50-01 GET /billing/plan (課金行なし WS) → 200 {"data": {"workspace_id": "a53a89b1-ec27-4584-9689-3606c084d260", "plan": "free", "status": "inactive", "current_period_end": null, "stripe_configured": false}}
+J50-02 POST /billing/checkout → 503 {"detail": "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。"}
+J50-04 POST /billing/webhook (Stripe-Signature 無し) → 503 {"detail": "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。"}
+J50-04 POST /billing/webhook (偽署名) → 503 {"detail": "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。"}
+J50-04 webhook 後 GET /billing/plan → 200 plan=free status=inactive (変化なし=True)
+J51-02/J51-04 POST /billing/portal (free WS) → 503 {"detail": "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。"}
+J50-03 GET /billing/checkout/{dummy} → 503 {"detail": "お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。"}
+
+## J52 退会 (アカウント C)  05:08:03.484
+退会前 POST /bridge-tokens → 201 keys=['created_at', 'id', 'label', 'token'] token取得=あり
+退会前 GET /me → 200
+J52-01 POST /auth/account/delete (パスワード不一致) → 401 {"detail": "メールアドレスまたはパスワードが違います。"}
+J52-01 POST /auth/account/delete (正パスワード) → 200 deleted_at=2026-09-03T05:08:05.477190Z scheduled_purge_at=2026-10-03T05:08:05.477190Z user=4f1b6662…
+  猶予 = 30 日
+J52-01 二重退会 → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-03 退会後 POST /auth/signin → 401 {"detail": "メールアドレスまたはパスワードが違います。"}
+J52-04 退会前 JWT GET /me → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-04 退会前 JWT GET /workspaces → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-04 退会前 JWT GET /projects/PC → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-04 退会前 JWT POST /projects → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-04 refresh_token: signin 応答に無し (発行されない設計) → 対象外
+J52-04 退会前 Bridge トークン GET /bridge/status (X-Bridge-Token) → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J52-04 退会前 Bridge トークン GET /bridge/status (Bearer) → 401 {"detail": "サインインの有効期限が切れているか、正しくありません。もう一度サインインしてください。"}
+J52-04 退会前 Bridge トークン POST /bridge/ping → 401 {"detail": "接続の情報が正しくありません。パソコン側で接続をやり直してください。"}
+J52-06 未サインインで POST /public/data-deletion-requests → 401 {"detail": "サインインが必要です。サインインしてから、もう一度お試しください。"}
+J24-02 UI 1 クリック目「失効」→ revoke API 呼出=なし / 確定ボタン表示=true
+J24-02 1 クリック目の後 API 詳細 revoked_at=null
+J24-02 UI 確定クリック → revoke API 200 /client-invitations/d186a0ef-fd69-47e4-aa05-a587193b906b/revoke / 詳細 revoked_at=2026-09-03T05:09:05.104866Z / 一覧に履歴(失効)=true / 旧リンク signin → 401 {"detail":"この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。"}
+J24-03 UI 失効前 S-L03 表示 案件名=true
+J24-03 A revoke INV1 (API) → 200 at +0s
+J24-03 UI 失効 +36.434s: 操作=comment → API 200 /client/auth/signin | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/outputs | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/mocks | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/overview / reload → url=/portal?project=387c245b-fd47-4d0a-b80f-fcaea447169b API 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/outputs | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/mocks | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments | 200 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/overview | 401 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b / 画面に残る案件名・モック名=なし / 本文: この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。 通信エラーが発生しました。時間をおいて再試行してください。 ×
+J50-01 UI S-A03 プラン欄: free 表示=false 契約中表示=false 金額文字列=なし 解約/管理ボタン=0 申込ボタン=0 決済未設定表示=false 解約条件文=false
+J50-01 UI プラン欄本文: プラン 退会 基本情報 名前* アイコン Q 未設定時は名前の頭文字を表示します 変更 保存
+J50-02 UI 申込ボタンが無い
+J24-03 UI(再) INV7 でサインイン済み S-L03 案件名表示=true
+J24-03 UI(再) A revoke → 200; 直後 (+6.2s 以内) にコメント投稿クリック → API 401 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments | 401 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b/comments / 画面: Client Portal · QA-E2-P1 本案件 Q QAクライアントE2-7 閲覧 + コメント 可 限定アクセスモード：このプロジェクトの閲覧 + コメントが可能です。編集はできません。 リンク有効期限：残り 2 日 PROJECT QA-E2-P1 本案件 運営：QA-E2-W1 · QA-E2 社内A 
+J24-03 UI(再) reload (+6.159s) → API 401 /client/projects/387c245b-fd47-4d0a-b80f-fcaea447169b / 画面に残る案件名・モック名・成果物名=なし / 本文: この招待は取り消されています。引き続きご覧になる場合は、招待した担当者にご連絡ください。 通信エラーが発生しました。時間をおいて再試行してください。 ×
+J52-03 UI 退会後サインイン → url=/signin alert=["メールアドレスまたはパスワードが違います。"] 復元導線=1 API=200 /auth/oauth/providers | 401 /auth/signin
+J52-02 UI 復元フォーム → API 200 /auth/account/restore / 「アカウントを復元しました」表示=true
+J52-02 UI 復元後サインイン → url=/projects 作ったもの (WS/案件) が画面に=true
+J52-06 UI 未サインインで /data-deletion → url=/data-deletion サインイン要求表示=true フォーム数=0 30 日キャンセル案内=false API=401 /me
+J50-01 UI S-A03 プラン欄: free 表示=true 契約中表示=false 金額文字列=¥5,000 解約/管理ボタン=0 申込ボタン=0 決済未設定表示=true 解約条件文=false
+J50-01 UI プラン欄本文: プラン 退会 プラン Free プラン inactive 無料プラン。Pro にすると全機能が利用できます (月額 ¥5,000)。 決済連携が未設定です。管理者が STRIPE_SECRET_KEY を設定するとアップグレードできるようになります。
+J50-02 UI 申込ボタンが無い
+J52-01 UI S-A03 退会タブ: パスワード欄=0 本文: 退会設定。 基本情報 メンバー 招待管理 MCPトークン AI学習 プラン 退会 ワークスペースの削除 Danger Zone ワークスペース削除は 30 日後にハード削除されます。30 日以内であればキャンセル可能。 ワークスペースを削除 アカウント退会 アカウント自体の退会とデータ削除は専用の手続きページで行います (削除対象データの確認と同意が必要なため)。 退会手続きへ進む
+
+## J20-04 招待プレビュー (メタのみ + レート制限)  05:12:19.183
+J20-04 preview → 200 data={"project_name": "QA-E2-P1 本案件", "workspace_name": "QA-E2-W1", "inviter_name": "QA-E2 社内A", "invited_email": "qa-jE2-20260903-c6@example.com", "expires_at": "2026-09-06T05:12:19.613403Z", "remaining_days": 3}
+J20-04 連続 14 回 (5.3s) → [200, 200, 200, 200, 200, 200, 200, 200, 200, 429, 429, 429, 429, 429] 429 本文={"detail": "短い間に操作が集中しています。少し待ってから、もう一度お試しください。"}
+
+## J20-06 一覧と詳細の状態/期限一致  05:12:25.540
+  qa-jE2-20260903-c6@example.com 状態=pending expires_at=2026-09-06T05:12:19 used_at=- revoked_at=- 一覧=詳細 True
+  qa-jE2-20260903-c7@example.com 状態=revoked expires_at=2026-09-05T05:10:57 used_at=2026-09-03T05:11:01 revoked_at=2026-09-03T05:11:04 一覧=詳細 True
+  qa-jE2-20260903-c3@example.com 状態=revoked expires_at=2026-09-06T05:07:46 used_at=2026-09-03T05:07:46 revoked_at=2026-09-03T05:07:48 一覧=詳細 True
+  qa-jE2-20260903-exp@example.com 状態=revoked expires_at=2026-09-10T05:07:45 used_at=- revoked_at=2026-09-03T05:07:45 一覧=詳細 True
+  qa-jE2-20260903-c4@example.com 状態=revoked expires_at=2026-09-06T05:07:44 used_at=- revoked_at=2026-09-03T05:09:05 一覧=詳細 True
+  qa-jE2-20260903-ui@example.com 状態=pending expires_at=2026-09-10T05:05:39 used_at=- revoked_at=- 一覧=詳細 True
+  qa-jE2-20260903-c1@example.com 状態=revoked expires_at=2026-09-06T05:04:03 used_at=2026-09-03T05:04:48 revoked_at=2026-09-03T05:09:15 一覧=詳細 True
+J20-06 一覧 7 件, 一覧≠詳細 0 件 (API 応答に status 列は無く、状態は UI が revoked_at/used_at/expires_at から導出)
+
+## J52-02 復元 (API 側確認)  05:12:29.040
+J52-02 POST /auth/account/restore → 404 {"detail": "退会の申請が見つかりません。"} (UI で復元済みなら 404/409 が正)
+J52-02 復元後 signin → 200
+J52-02 復元後 GET /workspaces → 200 ['QA-E2-W3-退会']
+J52-02 復元後 GET /projects/PC → 200 name=QA-E2-PC 退会者の案件 deleted_at=None
+J52-02 復元後 GET /me → 200 deleted_at=None keys=['ai_learning_opt_out', 'display_name', 'email', 'id']
+J52-06 補足: サインイン済みで POST /public/data-deletion-requests → 201 {"data": {"request_id": "4997160e-f899-4bc0-a889-628320e7e9fa", "status": "received", "requested_at": "2026-09-03T05:12:32.013330Z"}}
+J23-02 UI(再) 社内 /outputs?output=O_req_v2 → url=/outputs?output=ee3cd2de-733a-4bf4-b0d6-780152dd6008 クライアントコメント表示=true 投稿者名 (QAクライアントE2-1) 表示=true 「クライアント」表記=true 返信表示=true API=200 /comments?target_type=workflow_output&target_id=ee3cd2de-733a-4bf4-b0d6-780152dd6008
+J23-02 UI(再) コメント欄抜粋:  解決にする Q QAクライアントE2-1（クライアント） 2026-09-03 05:06 【クライアント E2】要件定義 v2 の 2 章、ログイン方式を SSO にしてほしいです。 スティーブに修正提案を依頼 返信 解決にする Q QA-E2 社内A 2026-09-03 05:06 【社内A 返信】承知しました。SSO 対応を v3 に反映します。 解決にする コメントを追加 投稿
+J23-02 UI(再) /projects/dashboard?project=PE1 未解決表示: べて処理済み 今日の活動 3 タスク 0 · チャット 0 未解決コメント 3 確定 0 · 未確認 0 件 工程の流れ（9 工程） 工程画面で確 API=200 /comments/unresolved-count?project_id=387c245b-fd47-4d0a-b80f-fcaea447169b {"data":{"project_id":"387c245b-fd47-4d0a-b80f-fcaea447169b"
+J20-06 UI S-L01 一覧: 状態ラベル=未使用/失効/期限切れ 行: qa-jE2-20260903-c6@example.com 発行時のみ表示 未使用 残り 3 日 0 回 qa-jE2-20260903-ui || qa-jE2-20260903-c7@example.com 発行時のみ表示 失効 2026-09-03 1 回 QAクライアントE2-3 qa-jE2-20260903-c3 || qa-jE2-20260903-exp@example.com 発行時のみ表示 失効 2026-09-03 0 回 QAクライアントE2-4 qa-jE2-20260903-c4 || qa-jE2-20260903-c1@example.com 発行時のみ表示 失効 2026-09-03 6 回 
+
+## 判定まとめ (RESUME 分)  05:14:51.406
+判定 J20-01: BLOCKED — 一覧・DB 記録は満たす (S-L01 から発行 → POST 201 → 一覧に行 (未使用/残り 7 日/表示名), GET 詳細で display/expires_at/scopes 再取得一致, 招待リンクは発行時のみ画面表示)。招待メール『届く』は観測不能: 応答に送信結果の key 無し・Resend 送信ログを見る API 無し・監査ログ (client_invited) は admin 専用。解除条件: 送信ログ/送信キューの照会手段 or admin 監査ログ閲覧
+判定 J20-02: PASS — 招待リンク → 表示名入力 + 同意 2 種 → /portal?project=PE1 (S-L03) に遷移。cookie は atelier_client_access のみ (社内 atelier_access 混在なし)。client JWT claims: role=client_portal aud=client sub=client:<inv> project_id/scopes 付き (社内 JWT は role=authenticated aud=authenticated)。招待 used_at/use_count が増える。監査ログ client_signed_in と同意記録は admin 専用で未確認
+判定 J20-04: PASS — preview 200 の中身は project_name/workspace_name/inviter_name/invited_email/expires_at/remaining_days のみ (成果物・モック名なし)。連続 14 回で 10 回目から 429『短い間に操作が集中しています…』(10/min/ip)
+判定 J20-06: PASS — PE1 の招待 7 件すべて一覧=詳細 (expires_at/used_at/revoked_at/use_count/scopes 一致)。S-L01 は未使用/失効を状態 pill と有効期限 (残り n 日 / 終了日) で表示し履歴に失効行が移る。API 応答に status 列は無く UI が導出 (期限切れは J24-01 の理由で作れず未観測)
+判定 J21-01: PASS — GET /client/projects/PE1 + overview 200: 工程 9 (ヒアリング in_progress…) progress 0%, 運営 QA-E2-W1 · QA-E2 社内A, link_expires_at + 残り 3 日。S-L03 も同内容。原価/粗利/社内メモ/他案件名 (P2/P3/PX) の混入なし
+判定 J21-04: PASS — PE2 (成果物 0) で /, overview, outputs [], mocks {items:[],total_screens:0}, comments [] すべて 200。S-L03 に『共有された成果物はまだありません』『共有されたモックはまだありません』が出てエラー表示なし
+判定 J22-04: PASS — owner A / 他社 owner B / 別 WS owner C の社内 JWT で /client/projects/PE1 5 GET + POST comment 全 401。社内 cookie (atelier_access) のみのブラウザで /portal?project=PE1 → /portal/signin へ redirect、client API 呼出 0 件、案件画面は出ない
+判定 J23-01: FAIL — 期待: 一覧に出る + 担当者に通知メール + 監査ログ comment_created / 実測: POST /client/projects/PE1/comments 201、自分の一覧に出る (is_client_author=true) は OK。しかし担当者への通知メールを送る実装が API に無い (services/client_signin・comments に Resend/notify 呼出なし, grep 0 件) → 送信痕跡も無し。監査ログは admin 専用で未確認
+判定 J23-02: PASS — 社内 GET /comments?target=要件定義v2 にクライアント投稿が author_name=QAクライアントE2-1 / is_client_author=true / author_invitation_id 付きで出る。/outputs?output=… の UI でも投稿者名と『クライアント』表記あり。GET /comments/unresolved-count が 1→2 (+1)、/projects/dashboard に『未解決コメント』表示
+判定 J23-03: FAIL — 期待: 自分のコメントは編集・削除できる / 実測: クライアント用の編集・削除 endpoint が無い (PATCH/DELETE /client/projects/{id}/comments/{id} → 404 Not Found、社内 PATCH/DELETE /comments/{id} は client 券で 401)。S-L03 にも編集/削除ボタン 0 個。他人 (社内メモ) の編集は 401 で拒否され content 不変 (こちらは OK)
+判定 J23-04: PASS — 社内 A が parent_comment_id=CC1 で返信 201 → クライアント GET comments に返信が author_name=QA-E2 社内A / is_client_author=false で出る (2 件)。社内メモの混入なし。S-L03 でも返信文が表示
+判定 J23-05: FAIL — 返信は自分のコメントの下に表示 (OK)。しかし納品成果物は S-L03 に『納品書 2026/09/03 · v1 · HTML』の行として出るだけで、開く導線 (リンク/ボタン) が無く、client 用の content/content-url API も openapi に無い → 『納品された最終版の成果物が閲覧できる状態』を満たさない (行をクリックしても遷移・API 呼出なし)
+判定 J24-01: BLOCKED — 期限切れ招待を作る手段が無い: ttl_days は 1〜30 (0/-1 は 422)、body の expires_at は無視され 201 (既定 7 日)、DB 直接更新は本環境から不可。解除条件: DB で expires_at を過去にする (scripts) か 1 日待つ。付記: expires_at を黙って無視する (422 にしない) のは要観点
+判定 J24-02: PASS — S-L01 で『失効』1 クリック目は revoke API 呼出なし・revoked_at=null のまま、『失効する』確定で POST revoke 200 → revoked_at 記録・一覧が履歴 (失効) へ。旧リンクで signin → 401『この招待は取り消されています…』。監査ログ invitation_revoked は admin 専用で未確認
+判定 J24-03: PASS — API: 失効 +0.42s で /, overview, outputs, mocks, comments, POST comment 全 401『この招待は取り消されています…』、旧リンク再 signin 401。UI: サインイン済み S-L03 で失効直後にコメント投稿 → 401、reload (+6s) → 401 で案件名・モック名・成果物名が画面に残らない。付記: 失効文言と並んで『通信エラーが発生しました』の汎用トーストも同時に出る (誤解を招く文言)
+判定 J24-04: BLOCKED — expires_at を 1 分後にする手段が無い (ttl_days 最小 1 日、expires_at は無視、DB 更新不可)。解除条件: DB 直接更新 or ttl_minutes 相当の QA 用手段
+判定 J24-05: PASS — PE3 に招待 INV5 でサインイン済み (outputs 1 件 200) → A が DELETE /projects/PE3 204 (GET は 404) → 同じ券で 5 GET 全 401、招待リンクの再 signin 401、preview 401。応答に案件名 (QA-E2-P3/削除試験) の混入なし
+判定 J50-01: PASS — GET /billing/plan (課金行なし WS) → plan=free status=inactive current_period_end=null stripe_configured=false。S-A03 プランタブは『Free プラン / inactive / 無料プラン。Pro にすると…(月額 ¥5,000)』+『決済連携が未設定です』。契約中表示・架空の契約金額なし (¥5,000 は Pro の定価案内)
+判定 J50-02: PASS — POST /billing/checkout → 503『お支払いの取り扱いがまだ設定されていません。運営にお問い合わせください。』(偽装なし)。UI は申込ボタンを出さず『決済連携が未設定です。管理者が STRIPE_SECRET_KEY を設定するとアップグレードできるようになります。』と進めない理由を表示 = 黙って何も起きない状態ではない
+判定 J50-03: BLOCKED — 本番 API に STRIPE_SECRET_KEY 未設定 (stripe_configured=false, checkout/照会が 503) で決済を完了できない。解除条件: Stripe test key の設定
+判定 J50-04: BLOCKED — Stripe-Signature 無し / 偽署名 とも 503『お支払いの取り扱いがまだ設定されていません』で拒否され plan は free のまま (状態不変は確認)。ただし webhook secret 未設定のため署名検証パス自体に到達しない。解除条件: STRIPE_WEBHOOK_SECRET 設定
+判定 J50-05: BLOCKED — Checkout を開始できない (J50-02 が 503) ためキャンセル戻りを作れない。解除条件: Stripe test key
+判定 J51-01: BLOCKED — 解約条件の文言 (『いまの請求期間の終わりまではご利用いただけます。日割りでの返金はありません』) は PlanSection の契約者向け分岐にのみあり、契約 (pro) が作れないため表示状態を観測できない。解除条件: Stripe test key で pro 契約
+判定 J51-02: BLOCKED — POST /billing/portal → 503 (Stripe 未設定)。解除条件: Stripe test key + pro 契約
+判定 J51-03: BLOCKED — pro 契約を作れないため期間末前後を作れない。解除条件: Stripe test key + 期間末を動かす手段
+判定 J51-04: PASS — free WS のプランタブに『プランの管理・解約』ボタン無し (解約/管理ボタン 0、申込ボタンも未設定のため 0)。API も POST /billing/portal は 503 で解約対象なし
+判定 J52-01: PASS — POST /auth/account/delete: パスワード不一致 401、正パスワードで 200 deleted_at=2026-09-03T05:08:05Z scheduled_purge_at=2026-10-03T05:08:05Z (猶予 30 日)。二重退会は 401 (退会後は JWT 無効)。S-A03 退会タブは専用ページ (/data-deletion) へ誘導し 30 日ハード削除を明記。監査ログ account_deletion_requested は admin 専用で未確認
+判定 J52-02: PASS — S-A01『退会済みアカウントの復元』→ POST /auth/account/restore 200 →『アカウントを復元しました』→ サインイン → /projects。復元後 GET /workspaces に QA-E2-W3-退会、GET /projects/PC 200 deleted_at=None、/me deleted_at=None。API で再 restore は 404『退会の申請が見つかりません』
+判定 J52-03: FAIL — 期待: 入れず理由が日本語で分かる・復元導線だけが出る / 実測: 退会後 signin は 401『メールアドレスまたはパスワードが違います。』(API/UI とも) で『退会中』という理由が分からない (パスワード誤りと区別不能)。復元リンクはサインイン画面に常時ある汎用リンクで、退会中に限って出るものではない。※存在秘匿の設計判断ならその旨を正本に明記して期待を改訂する
+判定 J52-04: PASS — 退会前 JWT で GET /me, /workspaces, /projects/PC, POST /projects 全 401。退会前 Bridge トークン (POST /bridge-tokens 発行) で /bridge/status (X-Bridge-Token / Bearer) と /bridge/ping 全 401。refresh_token は signin 応答で発行されない設計 (null) のため対象外
+判定 J52-05: BLOCKED — deleted_at を 31 日前にする DB 操作と日次ジョブの起動が本環境から不可。解除条件: 本番 DB 接続 + cron ジョブ手動実行
+判定 J52-06: FAIL — 期待: 未サインインで請求が受け付けられる / 実測: /data-deletion は未サインインだと『サインインした状態で行っていただきます』でフォーム無し (GET /me 401)、API も 401『サインインが必要です』。サインイン済みなら POST 201 status=received でフォームに 30 日以内キャンセル (復元) 案内あり。GAP-233 で本人確認のため要サインインとした設計と正本 (role=guest) が不一致
+
+## 後片付け  05:14:55.965
+未失効の招待を失効 → 3 件
+退会 A qa-jE2-20260903-1@example.com → 200
+退会 B qa-jE2-20260903-2@example.com → 200
+退会 C qa-jE2-20260903-3@example.com (復元後に再退会) → 200
+前回 run のアカウント qa-jE-20260903-1@example.com → 退会 200
+前回 run のアカウント qa-jE-20260903-2@example.com → 退会 200
+前回 run のアカウント qa-jE-20260903-3@example.com → 退会 200
