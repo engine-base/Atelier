@@ -59,3 +59,20 @@ SO01-405 {"alerts":["入力内容を確認してください: cron 式は「分 
 SH01-212 {"discard_button_found":1,"alerts":["確定済みのフェーズの成果物は変更できません。追加や修正は次のフェーズで行ってください。","モック本体の取得に失敗しました。"]}
 SG01-221-prep {"api_new_version_http":409,"base":1}
 SG01-221 {"cell_found":1,"alerts":["この成果物は他のメンバーが先に新しい版を保存しました。最新の版を開き直し、差分を確認してから保存し直してください。"]}
+[harness] bridge pid=2669 token_id=fc171385-cbc2-4f07-a488-dbcefe9d77d2
+[ticker] start 02:47:42
+[ticker] runs: 0 []
+[harness] token revoke: 200
+[harness] bridge log tail:
+[bridge] このトークンではタスク実行は行いません (チャット中継のみで待機します)
+[bridge] SIGTERM: 終了します (接続状態をサーバーへ伝えます)
+
+[harness] bridge pid=2807 token_id=c9c6564c-3e5c-40ae-87a5-891d74fb8eff
+[ticker] start 02:51:55
+[ticker] runs now: 3 [('success', '02:53:53'), ('success', '02:52:53'), ('success', '02:51:24')]
+[bridge:schedule] 発火 1 件 (実行 1 / 保留 0 / 失敗 0 / 次回時刻を確定 0)
+[bridge:schedule] 発火 1 件 (実行 1 / 保留 0 / 失敗 0 / 次回時刻を確定 0)
+[harness] token revoke: 200
+[bridge:schedule] 発火 1 件 (実行 1 / 保留 0 / 失敗 0 / 次回時刻を確定 0)
+[bridge:schedule] 発火 1 件 (実行 1 / 保留 0 / 失敗 0 / 次回時刻を確定 0)
+
