@@ -6,8 +6,12 @@
  * 保護ルートへのアクセスを許可する。
  *
  * API base は NEXT_PUBLIC_API_URL (既定 http://localhost:8000)。
- * 本番では HttpOnly cookie を server 側で設定するが、ローカル dev では
- * client から document.cookie で設定する (middleware は read のみ)。
+ *
+ * GAP-261 (通し J10-03): JWT は **`document.cookie` に書かない**。web オリジンの
+ * route handler (`app/api/session`) に預け、HttpOnly cookie として保存する。
+ * ブラウザ側はメモリにだけ持ち、Authorization ヘッダーに使う分は
+ * `GET /api/session/token` (同一オリジン) から取り直す。
+ * cookie 名・形式は据え置きなので middleware.ts の画面ガードはそのまま効く。
  */
 
 import { createApiClient, type ApiClient } from "@atelier/api-client";
@@ -38,10 +42,52 @@ interface SigninData {
 
 class AuthError extends Error {}
 
-function setAccessCookie(token: string, expiresAt: string): void {
-  const expires = new Date(expiresAt).toUTCString();
-  // dev: SameSite=Lax / path=/。本番は server 側 HttpOnly。
-  document.cookie = `${COOKIE_NAMES.access}=${token}; path=/; expires=${expires}; SameSite=Lax`;
+/**
+ * GAP-261: ブラウザが持つトークンは **メモリだけ**。
+ *
+ * `document.cookie` に置くと XSS が 1 つでもあればそのまま盗まれる
+ * (正本 J10-03 の期待は「HTTP-only cookie で JWT 発行」)。保存は
+ * 同一オリジンの route handler に任せ、ここは Authorization 用の控えを持つ。
+ */
+let memoryToken: string | null = null;
+let hydrating: Promise<string | null> | null = null;
+
+/** サインイン直後: HttpOnly cookie に預け、メモリにも控える。 */
+export async function storeSessionToken(
+  token: string,
+  expiresAt: string,
+): Promise<void> {
+  memoryToken = token;
+  await fetch("/api/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ access_token: token, expires_at: expiresAt }),
+  });
+}
+
+/**
+ * HttpOnly cookie からトークンを取り直してメモリに載せる。
+ *
+ * 同時に何本も走らせない (画面が一斉に描画される瞬間に何十本も飛ぶ)。
+ */
+export async function ensureAccessToken(): Promise<string | null> {
+  if (memoryToken !== null) return memoryToken;
+  if (typeof window === "undefined") return null;
+  hydrating ??= (async () => {
+    try {
+      const res = await fetch("/api/session/token", { credentials: "same-origin" });
+      if (!res.ok) return null;
+      const json = (await res.json()) as { data?: { access_token?: string | null } };
+      memoryToken = json.data?.access_token ?? null;
+      return memoryToken;
+    } catch {
+      return null;
+    } finally {
+      hydrating = null;
+    }
+  })();
+  return await hydrating;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
@@ -65,13 +111,23 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return json.data;
 }
 
-/** document.cookie から atelier_access (JWT) を読む。無ければ null。 */
+/**
+ * いま手元にあるトークン (同期)。
+ *
+ * GAP-261 以降、新しいセッションの cookie は HttpOnly なので `document.cookie`
+ * からは読めない。メモリの控え → (この変更より前に作られた) 素の cookie の順で見る。
+ * 素の cookie を残すのは、**すでにサインイン中の人を締め出さないため**だけで、
+ * 次のサインインで HttpOnly に置き換わる。
+ */
 export function readAccessToken(): string | null {
+  if (memoryToken !== null) return memoryToken;
   if (typeof document === "undefined") return null;
   const m = document.cookie.match(
     new RegExp(`(?:^|; )${COOKIE_NAMES.access}=([^;]+)`),
   );
-  return m && m[1] ? decodeURIComponent(m[1]) : null;
+  const legacy = m && m[1] ? decodeURIComponent(m[1]) : null;
+  if (legacy !== null) memoryToken = legacy;
+  return legacy;
 }
 
 /** GAP-206: 503 の「理由」を載せるヘッダ (API の src/errors.py と対)。 */
@@ -119,7 +175,7 @@ export class ApiError extends Error {
 export async function signOut(): Promise<boolean> {
   let revoked = false;
   try {
-    const token = readAccessToken();
+    const token = await ensureAccessToken();
     if (token) {
       const res = await fetch(`${API_BASE}/auth/signout`, {
         method: "POST",
@@ -146,6 +202,11 @@ export function clearLocalSession(): void {
   ]) {
     document.cookie = `${name}=; path=/; ${expire}; SameSite=Lax`;
   }
+  // GAP-261: HttpOnly cookie は JS から消せない。route handler に消してもらう
+  memoryToken = null;
+  void fetch("/api/session", { method: "DELETE", credentials: "same-origin" }).catch(
+    () => undefined,
+  );
   try {
     // 前の人の文脈を次の人に見せない
     for (const key of [
@@ -241,7 +302,8 @@ export async function sendJson<T>(
 export function createAuthedApiClient(): ApiClient {
   return createApiClient({
     baseURL: API_BASE,
-    getToken: () => readAccessToken(),
+    // GAP-261: HttpOnly cookie から取り直す (メモリに載っていればそれを使う)
+    getToken: () => ensureAccessToken(),
   });
 }
 
@@ -251,7 +313,7 @@ export async function signin(
   password: string,
 ): Promise<SigninData> {
   const data = await postJson<SigninData>("/auth/signin", { email, password });
-  setAccessCookie(data.access_token, data.expires_at);
+  await storeSessionToken(data.access_token, data.expires_at);
   return data;
 }
 

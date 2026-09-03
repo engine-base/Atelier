@@ -8,7 +8,7 @@
  * baseURL / token / fetch は注入可能 (テスト容易性)。
  */
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 
 /** 採用できる項目の種別と、その反映先。 */
 export type AdoptKind = "requirement" | "action" | "decision" | "open_question";
@@ -39,9 +39,9 @@ interface Opts {
   readonly fetchImpl?: typeof fetch;
 }
 
-function ctx(opts: Opts) {
+async function ctx(opts: Opts) {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   return { baseURL, headers, doFetch: opts.fetchImpl ?? globalThis.fetch };
@@ -82,7 +82,7 @@ export async function fetchAdoptable(
   meetingId: string,
   opts: Opts = {},
 ): Promise<readonly AdoptableItem[]> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/meetings/${meetingId}/adoptable`, {
     headers,
     credentials: "include",
@@ -98,7 +98,7 @@ export async function adoptItems(
   keys: readonly string[],
   opts: Opts = {},
 ): Promise<AdoptResult> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/meetings/${meetingId}/adopt`, {
     method: "POST",
     headers,
@@ -151,7 +151,7 @@ export async function proposePhaseFromMeeting(
   meetingId: string,
   opts: Opts = {},
 ): Promise<PhaseProposal> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/meetings/${meetingId}/propose-phase`, {
     method: "POST",
     headers,

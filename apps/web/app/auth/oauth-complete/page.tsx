@@ -18,7 +18,7 @@ import { useSearchParams } from 'next/navigation';
 
 import Link from 'next/link';
 
-import { COOKIE_NAMES } from '../../../lib/auth/cookie';
+import { storeSessionToken } from '../../../lib/auth/connector';
 import { BrandLockup } from '../../../components/brand/BrandLockup';
 
 /** ?error= コードの誠実な文言化 (不明コードもコードごと表示して隠さない) */
@@ -61,16 +61,21 @@ function OAuthCompleteInner() {
       );
       return;
     }
-    // 既存 signin 成功時と同じ格納方式 (connector.setAccessCookie と同一書式)
-    const expires = new Date(expiresAt).toUTCString();
-    document.cookie = `${COOKIE_NAMES.access}=${token}; path=/; expires=${expires}; SameSite=Lax`;
+    // GAP-261: `document.cookie` には書かない (XSS にそのまま盗まれる)。
+    // 同一オリジンの route handler に預けて HttpOnly cookie にしてもらい、
+    // **保存できたことを確かめてから** 遷移する (先に遷移すると、cookie が
+    // 無い状態で middleware に当たって /signin に跳ね返される)。
+    void (async () => {
+      await storeSessionToken(token, expiresAt);
+      window.location.replace('/projects');
+    })();
+    return;
     // location.replace = 完全遷移。①現在の履歴エントリごと置換するため
     // トークン付き URL が履歴に残らない ②ログイン直後は middleware /
     // server component に新 cookie を見せる full load が必要 ③手動
     // history.replaceState + router.replace の組合せは App Router の内部
     // 状態を壊して遷移が静かに失敗する (Mac 実機で「サインインしています…」
     // 固着として発現 — 実ブラウザ再現で特定した実バグ)。
-    window.location.replace('/projects');
   }, [errorParam]);
 
   return (

@@ -112,15 +112,25 @@ describe('/auth/oauth-complete (GAP-020)', () => {
     document.cookie = 'atelier_access=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
   });
 
-  it('stores the fragment token in the atelier_access cookie and redirects to /projects', async () => {
+  it('GAP-261: トークンは HttpOnly cookie に預けてから /projects へ進む (JS からは書かない)', async () => {
+    // `document.cookie` に書くと XSS にそのまま盗まれる (通し J10-03)。
+    // 同一オリジンの route handler に預け、**保存できてから**遷移する
+    // (先に遷移すると cookie 無しで middleware に当たって /signin に跳ね返る)。
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
     window.location.hash =
       '#access_token=tok-abc.def.ghi&expires_at=2999-01-01T00%3A00%3A00%2B00%3A00&user_id=u-1&email=a%40example.com&display_name=A';
     render(<OAuthCompleteInner />);
     await waitFor(() => expect(locationReplace).toHaveBeenCalledWith('/projects'));
-    expect(document.cookie).toContain('atelier_access=tok-abc.def.ghi');
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/session');
+    expect(init.method).toBe('POST');
+    expect(String(init.body)).toContain('tok-abc.def.ghi');
+    expect(document.cookie).not.toContain('atelier_access=tok-abc.def.ghi');
     // 成功時は「サインインしています…」のみ (偽のエラーを出さない)
     expect(screen.getByRole('status')).toHaveTextContent('サインインしています');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it('shows an honest error for ?error=access_denied with a way back to signin', () => {

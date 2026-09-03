@@ -5,7 +5,7 @@
  * を onEvent に流す。baseURL / token / fetch は注入可能 (テスト容易性)。
  */
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 
 export type ExecLogEventType = "snapshot" | "status_change" | "end" | "error";
 
@@ -45,7 +45,7 @@ function parseEvent(raw: string): ExecLogEvent | null {
 /** 実行ログ SSE を読み、各 ExecLogEvent を onEvent に渡す。終端で解決。 */
 export async function streamExecLogs(args: StreamExecLogsArgs): Promise<void> {
   const baseURL = args.baseURL ?? API_BASE;
-  const token = args.token !== undefined ? args.token : readAccessToken();
+  const token = args.token !== undefined ? args.token : await ensureAccessToken();
   const doFetch = args.fetchImpl ?? globalThis.fetch;
 
   const headers: Record<string, string> = { Accept: "text/event-stream" };

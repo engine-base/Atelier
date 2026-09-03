@@ -6,7 +6,7 @@
  * baseURL / token / fetch は注入可能 (テスト容易性)。
  */
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 
 export type ChatChunkType =
   | "start"
@@ -124,7 +124,7 @@ function parseChunk(raw: string): ChatStreamChunk | null {
 /** SSE ストリームを読み、各 ChatStreamChunk を onChunk に渡す。end / 終端で解決。 */
 export async function streamChatThread(args: StreamChatArgs): Promise<void> {
   const baseURL = args.baseURL ?? API_BASE;
-  const token = args.token !== undefined ? args.token : readAccessToken();
+  const token = args.token !== undefined ? args.token : await ensureAccessToken();
   const doFetch = args.fetchImpl ?? globalThis.fetch;
 
   const headers: Record<string, string> = {
@@ -205,7 +205,7 @@ export async function fetchThreadMessages(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<readonly ThreadMessage[]> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -246,7 +246,7 @@ export async function uploadChatAttachment(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<ChatAttachmentMeta> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -306,7 +306,7 @@ export async function runChatCommand(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<ChatCommandResult> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -334,7 +334,7 @@ export async function resolvePcApproval(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<void> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -356,7 +356,7 @@ export async function fetchChatAttachmentUrl(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<string> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -383,7 +383,7 @@ export async function postMessageFeedback(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<void> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -407,7 +407,7 @@ export async function branchThreadAtMessage(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<string> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -442,7 +442,7 @@ export async function fetchToolApprovals(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<ToolApproval[]> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -461,7 +461,7 @@ export async function executeToolApproval(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<string> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -481,7 +481,7 @@ export async function rejectToolApproval(
   opts: { baseURL?: string; token?: string | null; fetchImpl?: typeof fetch } = {},
 ): Promise<void> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const doFetch = opts.fetchImpl ?? globalThis.fetch;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;

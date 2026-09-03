@@ -14,7 +14,7 @@
  * baseURL / token / fetch は注入可能 (テスト容易性 — 既存 stream.ts と同方針)。
  */
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 
 import type { ChatStreamChunk, ChatToolsMode } from "./stream";
 
@@ -24,13 +24,13 @@ export interface RunControlOpts {
   readonly fetchImpl?: typeof fetch;
 }
 
-function ctx(opts: RunControlOpts): {
+async function ctx(opts: RunControlOpts): Promise<{
   baseURL: string;
   headers: Record<string, string>;
   doFetch: typeof fetch;
-} {
+}> {
   const baseURL = opts.baseURL ?? API_BASE;
-  const token = opts.token !== undefined ? opts.token : readAccessToken();
+  const token = opts.token !== undefined ? opts.token : await ensureAccessToken();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
   return { baseURL, headers, doFetch: opts.fetchImpl ?? globalThis.fetch };
@@ -48,7 +48,7 @@ export async function fetchActiveRun(
   threadId: string,
   opts: RunControlOpts = {},
 ): Promise<ActiveRun | null> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/chat/threads/${threadId}/run`, {
     headers,
     credentials: "include",
@@ -80,7 +80,7 @@ export async function cancelRun(
   jobId: string,
   opts: RunControlOpts = {},
 ): Promise<CancelRunResult> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/chat/runs/${jobId}/cancel`, {
     method: "POST",
     headers,
@@ -125,7 +125,7 @@ export async function queueMessage(
   toolsMode: ChatToolsMode = "off",
   opts: RunControlOpts = {},
 ): Promise<QueuedMessage> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/chat/threads/${threadId}/queued`, {
     method: "POST",
     headers,
@@ -144,7 +144,7 @@ export async function listQueued(
   threadId: string,
   opts: RunControlOpts = {},
 ): Promise<readonly QueuedMessage[]> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/chat/threads/${threadId}/queued`, {
     headers,
     credentials: "include",
@@ -159,7 +159,7 @@ export async function consumeQueued(
   threadId: string,
   opts: RunControlOpts = {},
 ): Promise<QueuedMessage | null> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(`${baseURL}/chat/threads/${threadId}/queued/consume`, {
     method: "POST",
     headers,
@@ -176,7 +176,7 @@ export async function dropQueued(
   queuedId: string,
   opts: RunControlOpts = {},
 ): Promise<void> {
-  const { baseURL, headers, doFetch } = ctx(opts);
+  const { baseURL, headers, doFetch } = await ctx(opts);
   const res = await doFetch(
     `${baseURL}/chat/threads/${threadId}/queued/${queuedId}`,
     { method: "DELETE", headers, credentials: "include" },
@@ -214,7 +214,7 @@ export interface AttachRunArgs extends RunControlOpts {
  * チャットストリームと同じ (同じ描画ロジックで読める)。
  */
 export async function attachRun(args: AttachRunArgs): Promise<void> {
-  const { baseURL, headers, doFetch } = ctx(args);
+  const { baseURL, headers, doFetch } = await ctx(args);
   const res = await doFetch(`${baseURL}/chat/runs/${args.jobId}/attach`, {
     headers: { ...headers, Accept: "text/event-stream" },
     credentials: "include",

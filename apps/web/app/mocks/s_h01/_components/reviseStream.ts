@@ -7,7 +7,7 @@
  * baseURL / token / fetch は注入可能 (テスト容易性)。
  */
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 
 export interface ReviseResultMock {
   readonly id: string;
@@ -57,7 +57,7 @@ function parseEvent(raw: string): ReviseStreamEvent | null {
 /** SSE を読み切る。HTTP エラーは throw (呼び出し側で honest 表示)。 */
 export async function streamReviseMock(args: StreamReviseArgs): Promise<void> {
   const baseURL = args.baseURL ?? API_BASE;
-  const token = args.token !== undefined ? args.token : readAccessToken();
+  const token = args.token !== undefined ? args.token : await ensureAccessToken();
   const doFetch = args.fetchImpl ?? globalThis.fetch;
 
   const headers: Record<string, string> = {
