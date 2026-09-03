@@ -25,6 +25,9 @@ const PUBLIC_PATHS: readonly string[] = [
   '/signin',
   '/signup',
   '/workspace-settings', // S-A03 ワークスペース初期設定 (サインアップ導線)
+  // GAP-315: 招待リンク。**未登録・未サインインの人が最初に開く画面**なので公開。
+  // ここでガードすると /signin へ飛ばされ、何への招待かも分からないまま行き止まる。
+  '/invite',
   '/terms', // S-PUB01
   '/privacy', // S-PUB02
   '/tokushoho', // S-PUB03

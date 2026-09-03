@@ -236,15 +236,126 @@ class TestWorkspaceMembers:
             ).scalar_one()
             assert n == 1
 
-    def test_invite_unregistered_email_422(self, app: FastAPI, seeded: dict[str, str]) -> None:
+    def test_gap315_未登録のメールには期限つきの招待リンクを出す(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """GAP-315 (通し J31-08): 以前は 422 で終わり = **まだ Atelier を使っていない人を
+        呼べなかった**。未登録の宛先には期限 7 日の招待リンクを発行する。"""
         ha = _h(seeded["u_a"])
+        email = f"newbie-{uuid.uuid4().hex[:8]}@unregistered.example"
         with TestClient(app) as client:
             r = client.post(
                 f"/workspaces/{seeded['ws_a']}/members",
-                json={"email": "nobody@unregistered.example", "role": "member"},
+                json={"email": email, "role": "member"},
                 headers=ha,
             )
-            assert r.status_code == 422
+            assert r.status_code == 202, r.text
+            data = r.json()["data"]
+            assert data["email"] == email
+            assert data["role"] == "member"
+            assert data["workspace_id"] == seeded["ws_a"]
+
+            # 一覧に「未受領」で出る (送ったのに返事がないのか、が分かる)
+            pending = client.get(f"/workspaces/{seeded['ws_a']}/invitations", headers=ha).json()[
+                "data"
+            ]
+            assert [p["email"] for p in pending] == [email]
+
+            # メンバーはまだ増えていない (登録して受け取るまでは入らない)
+            members = client.get(f"/workspaces/{seeded['ws_a']}/members", headers=ha).json()["data"]
+            assert email not in [m["email"] for m in members]
+
+            # 取り消せる
+            assert (
+                client.post(
+                    f"/workspaces/{seeded['ws_a']}/invitations/{data['id']}/revoke", headers=ha
+                ).status_code
+                == 204
+            )
+            assert (
+                client.get(f"/workspaces/{seeded['ws_a']}/invitations", headers=ha).json()["data"]
+                == []
+            )
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "delete from public.workspace_invitations where workspace_id = cast(:w as uuid)"
+                ),
+                {"w": seeded["ws_a"]},
+            )
+
+    def test_gap315_期限切れの招待リンクは理由つきで拒否される(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """正本 J31-08 の本題。切れているのに黙って「無効」とだけ言うと、
+        受け取った人は「壊れている」としか思えない。"""
+        token = "expired-" + uuid.uuid4().hex
+        th = hashlib.sha256(token.encode()).hexdigest()
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.workspace_invitations "
+                    "(workspace_id, email, role, token_hash, expires_at, created_at) "
+                    "values (cast(:w as uuid), :e, 'member', :th, "
+                    "        now() - interval '1 hour', now() - interval '8 days')"
+                ),
+                {"w": seeded["ws_a"], "e": "late@unregistered.example", "th": th},
+            )
+        with TestClient(app) as client:
+            r = client.get(f"/invitations/{token}")
+            assert r.status_code == 410, r.text
+            assert "期限切れ" in r.json()["detail"]
+            # 受け取ろうとしても入れない
+            a = client.post(f"/invitations/{token}/accept", headers=_h(seeded["u_b"]))
+            assert a.status_code == 410
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.workspace_invitations where token_hash = :t"), {"t": th}
+            )
+
+    def test_gap315_招待は宛先のメールにひも付く(
+        self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
+    ) -> None:
+        """リンクを拾った別人が入れると、招待リンクが「誰でも入れる裏口」になる。"""
+        token = "live-" + uuid.uuid4().hex
+        th = hashlib.sha256(token.encode()).hexdigest()
+        with sync_engine.begin() as c:
+            c.execute(
+                text(
+                    "insert into public.workspace_invitations "
+                    "(workspace_id, email, role, token_hash, expires_at) "
+                    "values (cast(:w as uuid), :e, 'member', :th, now() + interval '7 days')"
+                ),
+                {"w": seeded["ws_a"], "e": seeded["email_b"], "th": th},
+            )
+        with TestClient(app) as client:
+            # 別人 (C) は宛先が違うので拒否
+            assert (
+                client.post(f"/invitations/{token}/accept", headers=_h(seeded["u_c"])).status_code
+                == 403
+            )
+            # 宛先本人 (B) は参加できる
+            ok = client.post(f"/invitations/{token}/accept", headers=_h(seeded["u_b"]))
+            assert ok.status_code == 200, ok.text
+            assert ok.json()["data"]["workspace_id"] == seeded["ws_a"]
+            members = client.get(
+                f"/workspaces/{seeded['ws_a']}/members", headers=_h(seeded["u_a"])
+            ).json()["data"]
+            assert seeded["email_b"] in [m["email"] for m in members]
+            # 1 回使ったら再利用できない
+            again = client.post(f"/invitations/{token}/accept", headers=_h(seeded["u_b"]))
+            assert again.status_code == 410
+        with sync_engine.begin() as c:
+            c.execute(
+                text("delete from public.workspace_invitations where token_hash = :t"), {"t": th}
+            )
+            c.execute(
+                text(
+                    "delete from public.workspace_memberships "
+                    "where workspace_id = cast(:w as uuid) and user_id = cast(:u as uuid)"
+                ),
+                {"w": seeded["ws_a"], "u": seeded["u_b"]},
+            )
 
     def test_non_owner_cannot_invite_403(self, app: FastAPI, seeded: dict[str, str]) -> None:
         # user C は workspace A の member ですらない → members 一覧は 0 件、招待は forbidden

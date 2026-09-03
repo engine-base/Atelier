@@ -15,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import AuditEvent, AuditWriter
 from src.schemas.workspace_members import MemberResponse
 
-InviteStatus = Literal["ok", "not_registered", "forbidden", "already_member"]
+# GAP-315: 未登録の宛先は 422 で終わりにせず、期限つきの招待リンクを出す ("invited")
+InviteStatus = Literal["ok", "invited", "not_registered", "forbidden", "already_member"]
 
 
 def _row_to_response(workspace_id: str, row: Any) -> MemberResponse:
@@ -57,7 +58,16 @@ async def invite_member(
     )
     user_id = uid_res.scalar_one_or_none()
     if user_id is None:
-        return ("not_registered", None)
+        # GAP-315 (通し J31-08): 未登録の相手も招待できるようにする。
+        # ここで 422 を返して終わるのが、「まだ使っていない人を呼べない」の正体だった。
+        if not await _caller_is_owner(session, workspace_id):
+            return ("forbidden", None)
+        from src.services.workspace_invitations import create_invitation
+
+        await create_invitation(
+            session, actor_id=actor_id, workspace_id=workspace_id, email=email, role=role
+        )
+        return ("invited", None)
     if not await _caller_is_owner(session, workspace_id):
         return ("forbidden", None)
     exists = await session.execute(

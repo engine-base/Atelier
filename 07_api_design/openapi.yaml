@@ -1035,6 +1035,32 @@ components:
         role: { type: string, enum: [owner, member, viewer] }
         joined_at: { type: string, format: date-time }
 
+    WorkspaceInvitation:
+      type: object
+      description: |
+        GAP-315: 未登録の宛先への招待リンク (既定 7 日)。トークンは返さない
+        (メールで本人にだけ届く)。画面が必要なのは「誰宛に・どの役割で・いつまで」。
+      required: [id, workspace_id, workspace_name, email, role, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        workspace_id: { type: string, format: uuid }
+        workspace_name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member, viewer] }
+        expires_at: { type: string, format: date-time }
+        invited_by_name: { type: string, nullable: true }
+
+    InvitationPreview:
+      type: object
+      description: 'GAP-315: 招待リンクを開いた人に見せる情報 (未サインインでも可)。'
+      required: [workspace_name, email, role, expires_at]
+      properties:
+        workspace_name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [owner, member, viewer] }
+        expires_at: { type: string, format: date-time }
+        invited_by_name: { type: string, nullable: true }
+
     ChatThread:
       type: object
       properties:
@@ -3817,9 +3843,97 @@ paths:
                 type: object
                 properties:
                   data: { $ref: '#/components/schemas/WorkspaceMember' }
+        '202':
+          description: |
+            GAP-315: 未登録の宛先。期限つき (既定 7 日) の招待リンクをメールで送った。
+            メンバーはまだ増えていない (登録して受け取ると参加する)。
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/WorkspaceInvitation' }
         '403': { description: owner でない, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
         '409': { description: 既にメンバー, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
-        '422': { description: メール未登録, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /workspaces/{workspace_id}/invitations:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [workspace-members]
+      summary: 未受領の招待一覧 (GAP-315)
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::list_invitations
+      x-screen-ids: [S-A03]
+      responses:
+        '200':
+          description: 招待一覧 (未受領・未取消。期限切れも隠さない)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/WorkspaceInvitation' } }
+
+  /workspaces/{workspace_id}/invitations/{invitation_id}/revoke:
+    parameters:
+      - { name: workspace_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: invitation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [workspace-members]
+      summary: 招待の取り消し (GAP-315)
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::revoke_invitation
+      x-screen-ids: [S-A03]
+      responses:
+        '204': { description: 取り消した }
+        '404': { description: 見つからない / すでに使われている, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /invitations/{token}:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [workspace-members]
+      summary: 招待リンクの内容 (未サインインでも可・GAP-315)
+      security: []
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::preview_invitation
+      x-screen-ids: [S-A03]
+      responses:
+        '200':
+          description: 招待の内容
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/InvitationPreview' }
+        '404': { description: 無効なリンク, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '410': { description: 期限切れ / 取消済 / 使用済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /invitations/{token}/accept:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [workspace-members]
+      summary: 招待を受け取って参加する (GAP-315)
+      x-implementation-path: apps/api/src/routes/workspace_members/__init__.py::accept_invitation
+      x-screen-ids: [S-A03]
+      responses:
+        '200':
+          description: 参加した
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [workspace_id, workspace_name, role]
+                    properties:
+                      workspace_id: { type: string, format: uuid }
+                      workspace_name: { type: string }
+                      role: { type: string, enum: [owner, member, viewer] }
+        '403': { description: 宛先と違うアカウント, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: 無効なリンク, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '410': { description: 期限切れ / 取消済 / 使用済, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 
   /workspaces/{workspace_id}/members/{user_id}:
     parameters:

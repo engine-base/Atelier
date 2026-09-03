@@ -2164,6 +2164,19 @@ export interface paths {
                         };
                     };
                 };
+                /** @description GAP-315: 未登録の宛先。期限つき (既定 7 日) の招待リンクをメールで送った。
+                 *     メンバーはまだ増えていない (登録して受け取ると参加する)。
+                 *      */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkspaceInvitation"];
+                        };
+                    };
+                };
                 /** @description owner でない */
                 403: {
                     headers: {
@@ -2182,8 +2195,225 @@ export interface paths {
                         "application/json": components["schemas"]["Error"];
                     };
                 };
-                /** @description メール未登録 */
-                422: {
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        /** 未受領の招待一覧 (GAP-315) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 招待一覧 (未受領・未取消。期限切れも隠さない) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["WorkspaceInvitation"][];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/workspaces/{workspace_id}/invitations/{invitation_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                invitation_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 招待の取り消し (GAP-315) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    workspace_id: string;
+                    invitation_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 取り消した */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description 見つからない / すでに使われている */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        /** 招待リンクの内容 (未サインインでも可・GAP-315) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 招待の内容 */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: components["schemas"]["InvitationPreview"];
+                        };
+                    };
+                };
+                /** @description 無効なリンク */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 期限切れ / 取消済 / 使用済 */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invitations/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 招待を受け取って参加する (GAP-315) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description 参加した */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                /** Format: uuid */
+                                workspace_id: string;
+                                workspace_name: string;
+                                /** @enum {string} */
+                                role: "owner" | "member" | "viewer";
+                            };
+                        };
+                    };
+                };
+                /** @description 宛先と違うアカウント */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 無効なリンク */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description 期限切れ / 取消済 / 使用済 */
+                410: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -19932,6 +20162,34 @@ export interface components {
             role?: "owner" | "member" | "viewer";
             /** Format: date-time */
             joined_at?: string;
+        };
+        /** @description GAP-315: 未登録の宛先への招待リンク (既定 7 日)。トークンは返さない
+         *     (メールで本人にだけ届く)。画面が必要なのは「誰宛に・どの役割で・いつまで」。
+         *      */
+        WorkspaceInvitation: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            workspace_id: string;
+            workspace_name: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "owner" | "member" | "viewer";
+            /** Format: date-time */
+            expires_at: string;
+            invited_by_name?: string | null;
+        };
+        /** @description GAP-315: 招待リンクを開いた人に見せる情報 (未サインインでも可)。 */
+        InvitationPreview: {
+            workspace_name: string;
+            /** Format: email */
+            email: string;
+            /** @enum {string} */
+            role: "owner" | "member" | "viewer";
+            /** Format: date-time */
+            expires_at: string;
+            invited_by_name?: string | null;
         };
         ChatThread: {
             /** Format: uuid */

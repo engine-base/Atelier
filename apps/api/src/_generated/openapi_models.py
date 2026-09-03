@@ -1231,6 +1231,34 @@ class WorkspaceMember(BaseModel):
     joined_at: AwareDatetime | None = None
 
 
+class WorkspaceInvitation(BaseModel):
+    """
+    GAP-315: 未登録の宛先への招待リンク (既定 7 日)。トークンは返さない
+    (メールで本人にだけ届く)。画面が必要なのは「誰宛に・どの役割で・いつまで」。
+
+    """
+
+    id: UUID
+    workspace_id: UUID
+    workspace_name: str
+    email: EmailStr
+    role: Role
+    expires_at: AwareDatetime
+    invited_by_name: str | None = None
+
+
+class InvitationPreview(BaseModel):
+    """
+    GAP-315: 招待リンクを開いた人に見せる情報 (未サインインでも可)。
+    """
+
+    workspace_name: str
+    email: EmailStr
+    role: Role
+    expires_at: AwareDatetime
+    invited_by_name: str | None = None
+
+
 class ChatThread(BaseModel):
     id: UUID | None = None
     project_id: UUID | None = None
@@ -1318,7 +1346,7 @@ class ChatCommandResponse(BaseModel):
     note: str
 
 
-class Role5(StrEnum):
+class Role7(StrEnum):
     user = "user"
     assistant = "assistant"
     system = "system"
@@ -1328,7 +1356,7 @@ class Role5(StrEnum):
 class ChatMessage(BaseModel):
     id: UUID | None = None
     thread_id: UUID | None = None
-    role: Role5 | None = None
+    role: Role7 | None = None
     content: str | None = None
     parent_message_id: UUID | None = None
     token_count: int | None = None

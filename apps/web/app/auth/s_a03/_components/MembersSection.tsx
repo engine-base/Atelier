@@ -87,6 +87,8 @@ export function MembersSection({ workspaceId, client }: MembersSectionProps) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<MemberRole>("member");
   const [formError, setFormError] = useState<string | null>(null);
+  // GAP-315: 未登録の宛先に招待リンクを送ったことを画面で伝える
+  const [notice, setNotice] = useState<string | null>(null);
 
   const membersQuery = useQuery({
     queryKey: KEY,
@@ -102,16 +104,29 @@ export function MembersSection({ workspaceId, client }: MembersSectionProps) {
 
   const inviteMut = useMutation({
     mutationFn: async () => {
-      await client.post("/workspaces/{workspace_id}/members", {
+      const invitedEmail = email.trim();
+      const res = await client.post("/workspaces/{workspace_id}/members", {
         params: { path: { workspace_id: workspaceId } },
-        body: { email: email.trim(), role },
+        body: { email: invitedEmail, role },
       });
+      // GAP-315: 未登録の宛先には期限つきの招待リンクが出る (メンバーはまだ増えていない)。
+      // 「登録されていません」で終わらせると、まだ使っていない人を呼べない。
+      // api-client は status を返さないので、返ってきた中身で見分ける
+      // (招待は expires_at を持ち、メンバーは user_id を持つ)。
+      const data = (res as { data?: Record<string, unknown> } | undefined)?.data;
+      const invited = Boolean(data && "expires_at" in data && !("user_id" in data));
+      return { invited, email: invitedEmail };
     },
-    onSuccess: () => {
+    onSuccess: (r) => {
       setInviteOpen(false);
       setEmail("");
       setRole("member");
       setFormError(null);
+      setNotice(
+        r.invited
+          ? `${r.email} はまだ登録されていないため、7 日間有効な招待リンクをメールで送りました。登録して開くと参加できます。`
+          : null,
+      );
       void queryClient.invalidateQueries({ queryKey: KEY });
     },
     onError: (err) => {
@@ -218,6 +233,15 @@ export function MembersSection({ workspaceId, client }: MembersSectionProps) {
         </ul>
       )}
 
+      {notice ? (
+        <p
+          role="status"
+          className="mb-3 rounded-md bg-tertiary-container px-3 py-2 text-body-sm text-tertiary-container-fg"
+        >
+          {notice}
+        </p>
+      ) : null}
+
       {inviteOpen ? (
         <form
           onSubmit={(e) => {
@@ -228,7 +252,7 @@ export function MembersSection({ workspaceId, client }: MembersSectionProps) {
         >
           <div className="flex flex-col gap-1.5">
             <label htmlFor="invite-email" className="text-label-md font-medium text-on-surface-variant">
-              招待するユーザーのメール（登録済み）
+              招待するユーザーのメール（未登録でも可）
             </label>
             <input
               id="invite-email"

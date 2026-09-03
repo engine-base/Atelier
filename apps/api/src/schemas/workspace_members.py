@@ -30,3 +30,35 @@ class MemberResponse(BaseModel):
     display_name: str | None
     role: MemberRole
     joined_at: datetime
+
+
+class WorkspaceInvitationResponse(BaseModel):
+    """GAP-315: 未登録の宛先への招待リンク (既定 7 日)。
+
+    トークンそのものは返さない (メールで本人にだけ届く)。画面が必要とするのは
+    「誰宛に・どの役割で・いつまで」だけ。
+    """
+
+    id: str
+    workspace_id: str
+    workspace_name: str
+    email: str
+    role: MemberRole
+    expires_at: datetime
+    invited_by_name: str | None = None
+
+
+class InvitationPreviewResponse(BaseModel):
+    """招待リンクを開いた人に見せる情報 (未サインインでも見られる)。"""
+
+    workspace_name: str
+    email: str
+    role: MemberRole
+    expires_at: datetime
+    invited_by_name: str | None = None
+
+
+class InvitationAcceptResponse(BaseModel):
+    workspace_id: str
+    workspace_name: str
+    role: MemberRole
