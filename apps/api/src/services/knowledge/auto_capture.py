@@ -51,6 +51,15 @@ _SYSTEM = (
 )
 
 
+def system_prompt() -> str:
+    """抽出プロンプト本文 (テスト・監査から読むための公開の入口)。
+
+    中身は変えない。private 名をテストから直接触ると、名前を変えた瞬間に
+    「何を禁じているか」の検査が黙って外れる。
+    """
+    return _SYSTEM
+
+
 def _strip_fence(t: str) -> str:
     t = t.strip()
     if t.startswith("```"):
@@ -70,21 +79,29 @@ def parse_candidates(raw: str) -> list[dict[str, Any]]:
         return []
     if not isinstance(data, list):
         return []
+    # LLM の出力は「何が入っているか分からない JSON」。キーごとに素の object として
+    # 取り出してから型を確かめる (推測で補わない = 壊れていれば落とす)。
+    items: list[object] = list(data)  # pyright: ignore[reportUnknownArgumentType]
     out: list[dict[str, Any]] = []
-    for item in data[:MAX_PER_RUN]:
+    for item in items[:MAX_PER_RUN]:
         if not isinstance(item, dict):
             continue
-        title = str(item.get("title") or "").strip()[:120]
-        body = str(item.get("content_md") or "").strip()[:1200]
+        fields: dict[str, object] = {str(k): v for k, v in item.items()}  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+        title = str(fields.get("title") or "").strip()[:120]
+        body = str(fields.get("content_md") or "").strip()[:1200]
         if not title or len(body) < 20:
             continue
-        tags_raw = item.get("tags")
-        tags = [str(t)[:40] for t in tags_raw[:5]] if isinstance(tags_raw, list) else []
+        tags_raw = fields.get("tags")
+        tags = (
+            [str(t)[:40] for t in list(tags_raw)[:5]]  # pyright: ignore[reportUnknownArgumentType, reportUnknownVariableType]
+            if isinstance(tags_raw, list)
+            else []
+        )
         out.append(
             {
                 "title": title,
                 "content_md": body,
-                "category": str(item.get("category") or "ノウハウ").strip()[:40],
+                "category": str(fields.get("category") or "ノウハウ").strip()[:40],
                 "tags": [*tags, "auto"],
             }
         )

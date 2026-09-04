@@ -5,8 +5,7 @@
 #       Postgres :54322 が動いていること。
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 PSQL="psql postgresql://postgres@/postgres?host=/tmp&port=54322 -qtA"
 U1="$(python3 -c 'import uuid;print(uuid.uuid4())')"
 U2="$(python3 -c 'import uuid;print(uuid.uuid4())')"
@@ -34,12 +33,11 @@ echo "       現行版: $($PSQL -c "select doc_type || '=' || version from legal
 echo
 
 # @playwright/test は apps/web に入っているので、そこから解決させる
-cd "$ROOT/apps/web"
+cd "$ROOT/apps/web" || exit 1
 E2E_USER_ID="$U1" E2E_USER_ID_2="$U2" OUT="$ROOT/.qa/gap-206" \
   node "$ROOT/.qa/gap-206/e2e-browser.mjs"
 RC=$?
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 echo
 echo "[DB] 同意が実際に増えたか (画面の言い分ではなく DB を見る)"
 $PSQL -c "select type || ' ' || version || ' accepted=' || accepted || ' ua=' || coalesce(left(user_agent,20),'-')

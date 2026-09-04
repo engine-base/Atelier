@@ -9,8 +9,7 @@
 #       Postgres :54322 が動いていること。
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 PSQL="psql postgresql://postgres@/postgres?host=/tmp&port=54322 -qtA"
 U="$(python3 -c 'import uuid;print(uuid.uuid4())')"
 EMAIL="$U@example.com"
@@ -56,10 +55,10 @@ AFTER="$(seed_refresh)"
 echo "       user=$U / ws=$WS / refresh token を 2 本 (before/after) 発行済みにした"
 echo
 
-cd "$ROOT/apps/web"
+cd "$ROOT/apps/web" || exit 1
 E2E_USER_ID="$U" E2E_WORKSPACE_ID="$WS" \
   E2E_REFRESH_BEFORE="$BEFORE" E2E_REFRESH_AFTER="$AFTER" \
   OUT="$ROOT/.qa/gap-209" node "$ROOT/.qa/gap-209/e2e-browser.mjs"
 RC=$?
-cd "$ROOT"
+cd "$ROOT" || exit 1
 exit $RC

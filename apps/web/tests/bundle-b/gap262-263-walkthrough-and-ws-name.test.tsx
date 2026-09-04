@@ -2,6 +2,10 @@
  * GAP-262 (通し J15-01): 初回ウォークスルーは最後に「完了」があり、完了を記録して中の画面へ進む。
  * GAP-263 (通し J10-07): 空のワークスペース名で送信すると日本語の理由が出て、作成されない。
  */
+
+// jsdom を明示する。ルートの vitest.config.ts は environment=node なので、
+// 宣言が無いと CI (リポジトリ全体の実行) でだけ document/window が無くて落ちる。
+// @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
 import * as React from 'react';

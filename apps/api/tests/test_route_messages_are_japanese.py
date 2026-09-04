@@ -64,13 +64,23 @@ def _constants(tree: ast.Module) -> dict[str, str]:
     """モジュール直下の `NAME = "文字列"` を集める。"""
     out: dict[str, str] = {}
     for node in tree.body:
-        value = node.value if isinstance(node, ast.Assign | ast.AnnAssign) else None
+        # 三項で value を取ると node の型が絞られたままにならないので、
+        # 代入の種類ごとに分けて書く (targets の要素型もここで確定する)。
+        targets: list[ast.expr]
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            value = node.value
+            targets = [node.target]
+        else:
+            continue
         if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
             continue
-        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        text_value: str = value.value
         for target in targets:
             if isinstance(target, ast.Name):
-                out[target.id] = value.value
+                out[target.id] = text_value
     return out
 
 

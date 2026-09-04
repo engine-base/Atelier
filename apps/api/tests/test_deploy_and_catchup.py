@@ -72,7 +72,10 @@ class TestProductionMigrationsAreNotSkippedSilently:
     def test_skipping_requires_an_explicit_opt_in(self, workflow: dict[str, Any]) -> None:
         """skip は「明示的に選んだとき」だけ (既定は必ず適用)。"""
         # workflow_dispatch の入力に skip_migrations がある
-        on: Any = workflow[True] if True in workflow else workflow["on"]
+        # PyYAML は `on:` を bool の True として読む。dict[str, Any] の型のままだと
+        # 型検査が通らないので、キーの探索は素の dict として行う。
+        raw: dict[Any, Any] = workflow
+        on: Any = raw[True] if True in raw else raw["on"]
         inputs: Any = on["workflow_dispatch"]["inputs"]
         assert "skip_migrations" in inputs
         assert inputs["skip_migrations"]["default"] is False

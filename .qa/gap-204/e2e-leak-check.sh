@@ -7,8 +7,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 CHECK="python3 scripts/ci/check-client-leak.py"
 STATIC="apps/web/.next/static"
 PLANTED="$STATIC/chunks/_gap204-planted-leak.js"

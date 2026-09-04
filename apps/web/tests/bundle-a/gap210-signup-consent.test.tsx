@@ -9,6 +9,10 @@
  *   ③ 入力エラーが **日本語** で出る (zod の既定は英語)
  */
 
+// jsdom を明示する。ルートの vitest.config.ts は environment=node なので、
+// 宣言が無いと CI (リポジトリ全体の実行) でだけ document/window が無くて落ちる。
+// @vitest-environment jsdom
+
 import * as React from "react";
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";

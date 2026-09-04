@@ -40,6 +40,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import AuditEvent, AuditWriter
+from src.audit.writer import ActorType
 from src.db.session import shared_session_factory
 
 logger = logging.getLogger(__name__)
@@ -94,7 +95,7 @@ async def notify_assignee_of_comment(
     content: str,
     author_label: str,
     actor_id: str,
-    actor_type: str = "user",
+    actor_type: ActorType = "user",
 ) -> str | None:
     """担当 AI 社員のスレッドに system メッセージを積む。返り値 = 積んだ message id。
 

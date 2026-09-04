@@ -11,8 +11,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 CHECK="python3 scripts/ci/check-client-leak.py"
 CHECKER="scripts/ci/check-client-leak.py"
 PLANTED_PY="apps/api/src/services/_gap206_planted_prompt.py"

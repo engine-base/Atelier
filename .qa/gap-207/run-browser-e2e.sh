@@ -5,8 +5,7 @@
 #       Postgres :54322 が動いていること。
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 PSQL="psql postgresql://postgres@/postgres?host=/tmp&port=54322 -qtA"
 NEW="$(python3 -c 'import uuid;print(uuid.uuid4())')"
 OLD="$(python3 -c 'import uuid;print(uuid.uuid4())')"
@@ -35,12 +34,11 @@ echo "       old(ws有り)=$OLD / ws=$WS"
 echo
 
 # @playwright/test は apps/web に入っているので、そこから解決させる
-cd "$ROOT/apps/web"
+cd "$ROOT/apps/web" || exit 1
 E2E_USER_NEW="$NEW" E2E_USER_WITH_WS="$OLD" OUT="$ROOT/.qa/gap-207" \
   node "$ROOT/.qa/gap-207/e2e-browser.mjs"
 RC=$?
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 echo
 echo "[DB] 実際にワークスペースが作られたか (画面の言い分ではなく DB を見る)"
 $PSQL -c "select name || ' / owner=' || owner_user_id from public.workspaces where owner_user_id = '$NEW'"

@@ -5,8 +5,7 @@
 #       Postgres :54322 が動いていること。
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-cd "$ROOT"
-
+cd "$ROOT" || exit 1
 PSQL="psql postgresql://postgres@/postgres?host=/tmp&port=54322 -qtA"
 U="$(python3 -c 'import uuid;print(uuid.uuid4())')"
 
@@ -38,8 +37,8 @@ echo "       user=$U / ws=$WS (Pro 契約者として seed)"
 echo "       現行版: $($PSQL -c "select doc_type || '=' || version from legal_documents where is_current and locale='ja' order by doc_type" | tr '\n' ' ')"
 echo
 
-cd "$ROOT/apps/web"
+cd "$ROOT/apps/web" || exit 1
 E2E_USER_ID="$U" E2E_WORKSPACE_ID="$WS" OUT="$ROOT/.qa/gap-208" node "$ROOT/.qa/gap-208/e2e-browser.mjs"
 RC=$?
-cd "$ROOT"
+cd "$ROOT" || exit 1
 exit $RC

@@ -8,7 +8,7 @@
 #
 # ② はモデルを実 DL するため 2.6GB を使う。確認後に削除する。
 set -uo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../.." || exit 1
 fail=0
 note() { printf '  %s %s\n' "$1" "$2"; }
 
@@ -26,7 +26,8 @@ fi
 
 echo
 echo "[2] 有効化したときにモデルが実際に取り込めるか (実 DL)"
-export ATELIER_MODEL_CACHE="$(pwd)/.qa/gap-200/.models"
+ATELIER_MODEL_CACHE="$(pwd)/.qa/gap-200/.models"
+export ATELIER_MODEL_CACHE
 rm -rf "$ATELIER_MODEL_CACHE"
 if uv run --project apps/api python apps/api/scripts/prefetch_models.py 2>&1 | grep -E '^(OK|NG)'; then
   :

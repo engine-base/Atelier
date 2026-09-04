@@ -338,7 +338,11 @@ class TestChatSSE:
             assert r.status_code == 200
             events = _parse_sse(r.content)
         errors = [e for e in events if e["type"] == "error"]
-        assert errors and errors[0].get("metadata", {}).get("code") == "bridge_offline", events
+        assert errors, events
+        meta: object = errors[0].get("metadata")
+        assert isinstance(meta, dict), events
+        meta_map: dict[str, object] = {str(k): v for k, v in meta.items()}  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
+        assert meta_map.get("code") == "bridge_offline", events
         assert not any(e["type"] in ("start", "delta", "end") for e in events)
         with sync_engine.begin() as c:
             after = c.execute(
@@ -932,8 +936,9 @@ class TestGap164AutoKnowledgeCapture:
         """抽出プロンプトが案件固有情報の持ち出しを禁じていること (漏えい防止)。"""
         from src.services.knowledge import auto_capture
 
-        assert "社名・人名・金額・URL・日付" in auto_capture._SYSTEM
-        assert "無理に作らない" in auto_capture._SYSTEM
+        system_prompt = auto_capture.system_prompt()
+        assert "社名・人名・金額・URL・日付" in system_prompt
+        assert "無理に作らない" in system_prompt
         # 壊れた JSON / 短すぎる本文は採用しない
         assert auto_capture.parse_candidates("{}") == []
         assert auto_capture.parse_candidates('[{"title":"x","content_md":"短い"}]') == []

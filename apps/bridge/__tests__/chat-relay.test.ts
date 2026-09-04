@@ -1,3 +1,5 @@
+// worker 側の待ち (timeoutMs: 10_000) より vitest の既定 (5s) が短いと、
+// 混んでいるときだけ「時間切れ」で落ちる。待つ側の上限より長く取る。
 /**
  * GAP-114: チャットのローカル実行リレー (chat-relay.ts) のテスト。
  *
@@ -373,7 +375,7 @@ describe('ChatRelayWorker.runOnce', () => {
     expect(await worker.runOnce()).toBe('completed');
     expect(sender.chunks.flatMap((c) => [...c.texts]).join('')).toBe('やあ、');
     expect(sender.completes).toEqual([{ ok: true, error: undefined, rateLimits: [] }]);
-  });
+  }, 30_000);
 
   it('partial 不達時は assistant 完成 text で代替する', async () => {
     const sender = new FakeSender();
@@ -667,7 +669,7 @@ describe('ChatRelayWorker — approve 往復 (GAP-134)', () => {
     );
     expect(all).toContainEqual({ text: 'Bash', kind: 'tool' });
     expect(all.map((c) => c.text).join('')).toContain('実行しました');
-  });
+  }, 30_000);
 
   it('サーバー承認 deny → CLI に deny が返り、本文で拒否を報告して完走する', async () => {
     const sender = new FakeSender();
@@ -685,7 +687,7 @@ describe('ChatRelayWorker — approve 往復 (GAP-134)', () => {
     expect(await worker.runOnce()).toBe('completed');
     const joined = sender.chunks.flatMap((c) => c.texts).join('');
     expect(joined).toContain('拒否を受けました');
-  });
+  }, 30_000);
 });
 
 
@@ -785,7 +787,7 @@ describe('ChatRelayWorker 成果物送信 (GAP-137)', () => {
     expect(sender.artifactUploads[0]?.[0]?.html).toContain('<title>LP</title>');
     // seed → 実行 → artifacts → complete の順 (artifacts は complete より前)
     expect(sender.callOrder).toEqual(['seed', 'artifacts', 'complete']);
-  });
+  }, 30_000);
 
   it('toolsMode=off はスナップショットも送信もしない', async () => {
     const sender = new FakeSender();
@@ -800,7 +802,7 @@ describe('ChatRelayWorker 成果物送信 (GAP-137)', () => {
     expect(await worker.runOnce()).toBe('completed');
     expect(sender.artifactUploads).toHaveLength(0);
     expect(sender.callOrder).toEqual(['complete']);
-  });
+  }, 30_000);
 });
 
 describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
@@ -831,7 +833,7 @@ describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
     // seed → (実行) → complete の順
     expect(sender.callOrder[0]).toBe('seed');
     expect(sender.callOrder[sender.callOrder.length - 1]).toBe('complete');
-  });
+  }, 30_000);
 
   it('GAP-169: html が null の項目もバイナリとして展開される (Excel/PDF が PC に届く)', async () => {
     const workspace = mkdtempSync(join(tmpdir(), 'ws-b64-'));
@@ -858,7 +860,7 @@ describe('ChatRelayWorker 作業場シード (GAP-141)', () => {
     expect(await worker.runOnce()).toBe('completed');
     const { readFileSync: rf } = await import('node:fs');
     expect(rf(join(workspace, '見積.xlsx')).equals(xlsx)).toBe(true);
-  });
+  }, 30_000);
 
   it('off ジョブは seed を取得しない', async () => {
     const sender = new FakeSender();
@@ -1084,7 +1086,7 @@ describe('ChatRelayWorker — セッションの実測値を報告する (GAP-19
     const worker = makeWorker(sender, makeFakeClaude([DELTA_A, RESULT_OK]));
     await worker.runOnce();
     expect(sender.completes[0]?.session).toBeUndefined();
-  });
+  }, 30_000);
 });
 
 /* ------------------------------------------------------------------ */
@@ -1215,7 +1217,7 @@ describe('GAP-191 常駐プロセスと実行中の追い足し', () => {
     });
     expect(await worker.runOnce()).toBe('completed');
     expect(ChatRelayWorker.sessions.size).toBe(0);
-  });
+  }, 30_000);
 
   it('常駐 claude が result を出さずに死んだら、タイムアウトを待たず失敗として返す (GAP-241)', async () => {
     // 実測 (2026-09-02): root で auto モードを起動 → CLI は生メッセージ 1 行 + exit 0。
@@ -1261,5 +1263,5 @@ describe('GAP-191 常駐プロセスと実行中の追い足し', () => {
     });
     expect(await worker.runOnce()).toBe('completed');
     expect(ChatRelayWorker.sessions.size).toBe(0);
-  });
+  }, 30_000);
 });
