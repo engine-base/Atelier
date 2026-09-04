@@ -28,6 +28,12 @@ const PUBLIC_PATHS: readonly string[] = [
   // GAP-315: 招待リンク。**未登録・未サインインの人が最初に開く画面**なので公開。
   // ここでガードすると /signin へ飛ばされ、何への招待かも分からないまま行き止まる。
   '/invite',
+  // GAP-327: **セッション cookie の受け渡し口そのもの** (GAP-261 で新設)。
+  // ここを門の内側に置くと、サインイン直後の POST /api/session が
+  // 「まだ cookie が無い」ため /signin へ 307 され、**cookie を保存できない
+  // = 誰もサインインを完了できない** (2026-09-04 本番実測: 307 /signin)。
+  // 中身は cookie を持たない人には何も返さない (GET は access_token: null)。
+  '/api/session',
   '/terms', // S-PUB01
   '/privacy', // S-PUB02
   '/tokushoho', // S-PUB03
