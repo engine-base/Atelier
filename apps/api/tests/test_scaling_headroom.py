@@ -22,7 +22,14 @@ import os
 import pytest
 
 os.environ.setdefault("ATELIER_AUTH_JWT_SECRET", "test-jwt-secret")
-PG_URL = "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
+# 実 PG の場所は環境で違う (CI は TCP、手元の検証環境は unix socket)。
+# 決め打ちすると CI で「Postgres not available」= 全 skip になり、
+# **配線が切れているのに緑**という一番危ない状態になる (Gate #14 の skip ガード)。
+PG_URL = (
+    os.environ.get("ATELIER_TEST_PG_URL")
+    or os.environ.get("ATELIER_DB_URL")
+    or "postgresql+asyncpg://postgres@/postgres?host=/tmp&port=54322"
+)
 os.environ.setdefault("ATELIER_DB_URL", PG_URL)
 
 from src.db.session import (  # noqa: E402 - env を先に立ててから読む

@@ -12,5 +12,6 @@
 | Z-006 | seed健全性 | 全TRUNCATE→migration→(seed)→素にログイン | 1. supabase db reset相当 | 必須列(PW等)欠落なくログイン成立 | | BLOCKED | T-D-24 | L1 |
 | Z-007 | seed健全性 / G-11 | 開発機の DB と CI の DB の差 (テストが前提にする状態) | 1. 空DBに pg-bootstrap → apply-migrations.sh → apply-seeds.sh 2. その DB で API テストを流す | テストの期待値が **migration+seed をゼロから適用した状態**と一致する。開発機にだけ残っている古い行 (法務文書の旧版など) の件数に依存した期待値を書かない | PASS (2026-09-04 実測 — CI 同等 DB を作り直して確認) | CI (Gate #4/#14) だけで落ちるテストは、ほぼこの型 | T-D-24 | L1 |
 | Z-008 | 初期構築 / G-13 | workspace を作った直後に AI 社員が居ること | 1. public.workspaces に 1 行 insert 2. その workspace の ai_employees を数える | 運営テンプレ (ai_employee_templates.is_active) と同数の社員が自動で入る (t-d-99 bootstrap トリガ)。**「社員 0 人」を前提にした固定名の insert は必ず一意制約で落ちる** | PASS (2026-09-04 実測 — 10 名) | 実装・テストとも「既にいる方を使う」を既定にする | T-D-24 | L1 |
+| Z-009 | seed健全性 / G-15 | PG が要るテストが「無いから skip」で緑になっていないこと | 1. CI と同じ env (`ATELIER_TEST_PG_URL`) で `pytest tests -q -rs` 2. skip の理由を読む | 「Postgres not available」の skip が 0 件。**skip は緑ではない** — 接続先を決め打ちして繋がっていないだけで、その範囲は一度も検査されていない | PASS (2026-09-04 実測 — 決め打ちだった 5 ファイル 61 件が skip から実行に変わり全 PASS) | Gate #14 の skip ガードが見ているのはこれ | T-D-24 | L1 |
 
 解除条件: Docker起動→`supabase start`→`supabase db reset`(migration適用)→web+API起動→Chrome MCPで貫通。
