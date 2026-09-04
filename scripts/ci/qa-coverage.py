@@ -56,8 +56,18 @@ _TC_ROW = re.compile(r"^\|\s*([A-Z][A-Z0-9]*-[0-9v][A-Za-z0-9-]*)\s*\|")
 
 
 def screen_key(path: str) -> str:
-    """`app/projects/s_b01/page.tsx` → `S-B01`。仕様書のファイル名と突き合わせる形に揃える。"""
-    return path.split("/")[-1].upper().replace("_", "-")
+    """`app/projects/s_b01/page.tsx` → `S-B01`。仕様書のファイル名と突き合わせる形に揃える。
+
+    末尾が動的セグメント (`app/invite/[token]/page.tsx` の `[token]`) のときは、
+    **その 1 つ上**を画面名にする (`INVITE`)。`[TOKEN]` は URL の変数であって
+    画面の名前ではなく、そのまま使うと `[token].md` という仕様書を要求してしまう。
+    """
+    parts = [p for p in path.split("/") if p]
+    while parts and parts[-1].startswith("[") and parts[-1].endswith("]"):
+        parts.pop()
+    if not parts:
+        return ""
+    return parts[-1].upper().replace("_", "-")
 
 
 def implemented_screens() -> set[str]:

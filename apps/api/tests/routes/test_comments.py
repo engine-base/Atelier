@@ -152,6 +152,26 @@ def _h(uid: str) -> dict[str, str]:
 
 
 @pytest.mark.integration
+def _cleanup_notice_threads(engine: sqlalchemy.Engine, project_id: str) -> None:
+    """通知が作った「コメント」スレッドを片づける (次のテストの分母を汚さない)。"""
+    with engine.begin() as c:
+        c.execute(
+            text(
+                "delete from public.chat_messages where thread_id in ("
+                "  select id from public.chat_threads"
+                "   where project_id = cast(:p as uuid) and title = 'コメント')"
+            ),
+            {"p": project_id},
+        )
+        c.execute(
+            text(
+                "delete from public.chat_threads "
+                "where project_id = cast(:p as uuid) and title = 'コメント'"
+            ),
+            {"p": project_id},
+        )
+
+
 class TestComments:
     def test_unauthenticated_401(self, app: FastAPI) -> None:
         with TestClient(app) as client:
@@ -512,17 +532,11 @@ class TestComments:
 
         届け先は「その社員のプロジェクトチャット」。system メッセージとして積むので、
         次にその社員へ話しかけたときの文脈にそのまま乗る。
+
+        **誰に届くか**は「部門 → COO → 既定」で決まる (成果物に担当欄は無い)。
+        本番の workspace には運営テンプレから実体化された社員が既にいるので、
+        「テストが作った特定の 1 人」ではなく **工程のハブ (COO) に届くこと**を見る。
         """
-        emp = str(uuid.uuid4())
-        with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees "
-                    "(id, workspace_id, name, display_name, role, department) "
-                    "values (cast(:i as uuid), cast(:w as uuid), :n, :d, 'coo', 'executive')"
-                ),
-                {"i": emp, "w": seeded["ws_a"], "n": f"emp{emp[:6]}", "d": "COO"},
-            )
         h = _h(seeded["u_a"])
         tgt = {"target_type": "workflow_output", "target_id": seeded["out_a"]}
         with TestClient(app) as client:
@@ -534,16 +548,19 @@ class TestComments:
         with sync_engine.connect() as c:
             msg = c.execute(
                 text(
-                    "select m.content, m.role, t.ai_employee_id from public.chat_messages m "
+                    "select m.content, m.role, e.role as emp_role, e.department "
+                    "from public.chat_messages m "
                     "join public.chat_threads t on t.id = m.thread_id "
-                    "where t.project_id = cast(:p as uuid) and t.ai_employee_id = cast(:e as uuid) "
+                    "join public.ai_employees e on e.id = t.ai_employee_id "
+                    "where t.project_id = cast(:p as uuid) and m.role = 'system' "
                     "order by m.created_at desc limit 1"
                 ),
-                {"p": seeded["proj_a"], "e": emp},
+                {"p": seeded["proj_a"]},
             ).first()
             assert msg is not None, "担当 AI 社員のスレッドに何も積まれていない"
-            assert msg.role == "system"
             assert "ここの数字を直してほしい" in msg.content
+            assert "成果物" in msg.content
+            assert str(msg.emp_role) == "coo" or str(msg.department) == "executive"
             # 送信の痕跡が監査ログに残る (届いたことを後から確かめられる)
             n = c.execute(
                 text(
@@ -553,31 +570,15 @@ class TestComments:
                 {"t": cid},
             ).scalar_one()
             assert n == 1
-        with sync_engine.begin() as c:
-            c.execute(
-                text("delete from public.chat_threads where ai_employee_id = cast(:e as uuid)"),
-                {"e": emp},
-            )
-            c.execute(
-                text("delete from public.ai_employees where id = cast(:e as uuid)"), {"e": emp}
-            )
+        _cleanup_notice_threads(sync_engine, seeded["proj_a"])
 
     def test_gap299_担当が決まっていない対象でも宛先が決まる(
         self, app: FastAPI, seeded: dict[str, str], sync_engine: sqlalchemy.Engine
     ) -> None:
         """モック / 成果物には担当欄が無い。部門 → COO → 既定 の順で宛先を決めるので、
-        「担当が空だから通知しない」で消えることはない。"""
-        design = str(uuid.uuid4())
+        「担当が空だから通知しない」で消えることはない。モックなら **design 部門**。"""
+        mock_id = str(uuid.uuid4())
         with sync_engine.begin() as c:
-            c.execute(
-                text(
-                    "insert into public.ai_employees "
-                    "(id, workspace_id, name, display_name, role, department) "
-                    "values (cast(:i as uuid), cast(:w as uuid), :n, :d, 'member', 'design')"
-                ),
-                {"i": design, "w": seeded["ws_a"], "n": f"des{design[:6]}", "d": "デザイナー"},
-            )
-            mock_id = str(uuid.uuid4())
             c.execute(
                 text(
                     "insert into public.mocks (id, project_id, screen_name, html_storage_path) "
@@ -596,25 +597,22 @@ class TestComments:
         with sync_engine.connect() as c:
             got = c.execute(
                 text(
-                    "select m.content from public.chat_messages m "
+                    "select m.content, e.department from public.chat_messages m "
                     "join public.chat_threads t on t.id = m.thread_id "
-                    "where t.ai_employee_id = cast(:e as uuid) order by m.created_at desc limit 1"
+                    "join public.ai_employees e on e.id = t.ai_employee_id "
+                    "where t.project_id = cast(:p as uuid) and m.role = 'system' "
+                    "order by m.created_at desc limit 1"
                 ),
-                {"e": design},
+                {"p": seeded["proj_a"]},
             ).first()
             assert got is not None, "design 部門の社員に届いていない"
             assert "余白が広い" in got.content
             assert "モック" in got.content
+            assert str(got.department) == "design", f"宛先の部門が違う: {got.department}"
         with sync_engine.begin() as c:
-            c.execute(
-                text("delete from public.chat_threads where ai_employee_id = cast(:e as uuid)"),
-                {"e": design},
-            )
             c.execute(
                 text("delete from public.comments where target_id = cast(:m as uuid)"),
                 {"m": mock_id},
             )
             c.execute(text("delete from public.mocks where id = cast(:m as uuid)"), {"m": mock_id})
-            c.execute(
-                text("delete from public.ai_employees where id = cast(:e as uuid)"), {"e": design}
-            )
+        _cleanup_notice_threads(sync_engine, seeded["proj_a"])

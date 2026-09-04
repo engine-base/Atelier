@@ -100,13 +100,23 @@ async def _seed_thread(session: AsyncSession, *, owner: str) -> str:
         {"p": proj, "w": ws},
     )
     emp = str(uuid.uuid4())
-    await session.execute(
-        text(
-            "insert into public.ai_employees "
-            "(id,workspace_id,name,display_name,role,department) "
-            "values (cast(:e as uuid),cast(:w as uuid),'tony','トニー','coo','executive')"
-        ),
-        {"e": emp, "w": ws},
+    # workspace 作成時のトリガ (t-d-99 bootstrap) が運営テンプレから社員を実体化するため、
+    # 本番同等の DB では 'tony' が **既にいる**。素の insert は
+    # ai_employees_workspace_id_name_key で必ず落ちるので、いる方を使う。
+    emp = str(
+        (
+            await session.execute(
+                text(
+                    "insert into public.ai_employees "
+                    "(id,workspace_id,name,display_name,role,department) "
+                    "values (cast(:e as uuid),cast(:w as uuid),'tony','トニー','coo','executive') "
+                    "on conflict (workspace_id, name) "
+                    "do update set display_name = excluded.display_name "
+                    "returning id"
+                ),
+                {"e": emp, "w": ws},
+            )
+        ).scalar_one()
     )
     await session.execute(
         text(

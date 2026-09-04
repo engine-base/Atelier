@@ -186,8 +186,31 @@ class TestHistoryIsKept:
             )
         ).all()
         counts = {str(r.doc_type): int(r.n) for r in rows}
-        assert counts.get("terms_of_service", 0) >= 4, "利用規約の旧版が消えている"
-        assert counts.get("privacy_policy", 0) >= 3, "プライバシーポリシーの旧版が消えている"
+        # 「n 件以上」だと、その環境にたまたま残っている古い行の数に依存する。
+        # 見たいのは **migration が入れた版が 1 つも消えていないこと** なので、
+        # 版そのもので照合する (GAP-188 → GAP-204 → GAP-208 の 3 世代)。
+        versions = {
+            (str(r.doc_type), str(r.version))
+            for r in (
+                await session.execute(
+                    text(
+                        "select doc_type, version from public.legal_documents"
+                        " where locale = 'ja'"
+                    )
+                )
+            ).all()
+        }
+        must_remain = {
+            ("terms_of_service", "2026-08-20"),  # GAP-188 (自分の Claude 契約)
+            ("terms_of_service", "2026-08-21"),  # GAP-204 (知的財産)
+            ("terms_of_service", "2026-08-22"),  # GAP-208 (全面是正)
+            ("privacy_policy", "2026-08-20"),
+            ("privacy_policy", "2026-08-22"),
+        }
+        missing = sorted(must_remain - versions)
+        assert missing == [], f"旧版が消えている: {missing}"
+        assert counts.get("terms_of_service", 0) >= 3, "利用規約の旧版が消えている"
+        assert counts.get("privacy_policy", 0) >= 2, "プライバシーポリシーの旧版が消えている"
 
     async def test_exactly_one_current_per_type(self, session: AsyncSession) -> None:
         rows = (
