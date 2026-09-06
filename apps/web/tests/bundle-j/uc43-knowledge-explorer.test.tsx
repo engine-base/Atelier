@@ -549,9 +549,16 @@ describe("S-K01 Obsidian 連携 (GAP-011)", () => {
       fireEvent.click(
         await screen.findByRole("button", { name: "Obsidian Vault に書出" }),
       );
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-      const url = String(fetchMock.mock.calls[0]![0]);
-      expect(url).toContain("/knowledge/vault-export?account_id=w1");
+      // GAP-328: 書出の前に HttpOnly cookie からトークンを取り直す
+      // (/api/session/token) ので、**書出の呼び出しは 1 本目とは限らない**。
+      // 見たいのは「書出が正しい URL で飛ぶこと」なので、呼び出し群から探す。
+      await waitFor(() =>
+        expect(
+          fetchMock.mock.calls.some((c) =>
+            String(c[0]).includes("/knowledge/vault-export?account_id=w1"),
+          ),
+        ).toBe(true),
+      );
     } finally {
       global.fetch = realFetch;
       URL.createObjectURL = realCreate;

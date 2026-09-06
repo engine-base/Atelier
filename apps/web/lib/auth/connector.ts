@@ -118,6 +118,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
  * からは読めない。メモリの控え → (この変更より前に作られた) 素の cookie の順で見る。
  * 素の cookie を残すのは、**すでにサインイン中の人を締め出さないため**だけで、
  * 次のサインインで HttpOnly に置き換わる。
+ *
+ * ⚠️ **API 呼び出しの Authorization をこれで組んではいけない** (GAP-328)。
+ * 画面を読み込んだ直後のメモリは空なので、同期読みだと Authorization 無しで
+ * 飛んで 401 → サインイン画面に跳ね返される。呼び出しには必ず
+ * `await ensureAccessToken()` を使う (取り直しは 1 回だけ走って memo される)。
+ * この関数は「素の cookie しか持っていない古い利用者を拾う」ためだけに残す。
  */
 export function readAccessToken(): string | null {
   if (memoryToken !== null) return memoryToken;
@@ -235,7 +241,11 @@ export function reasonOf(res: Response): string | null {
 export async function getJson<T>(
   path: string,
 ): Promise<{ data: T; meta?: unknown }> {
-  const token = readAccessToken();
+  // GAP-328: **同期読みにしない**。HttpOnly cookie に移した (GAP-261) ので、
+  // 読み込み直後のメモリは空で、同期読みだと Authorization 無しで飛んで 401 →
+  // サインイン画面に跳ね返される (本番同等の実測で確認)。取り直しは 1 回だけ
+  // 走って memo される (ensureAccessToken)。
+  const token = await ensureAccessToken();
   const res = await fetch(`${API_BASE}${path}`, {
     method: "GET",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -266,7 +276,7 @@ export async function sendJson<T>(
   path: string,
   body?: unknown,
 ): Promise<T | undefined> {
-  const token = readAccessToken();
+  const token = await ensureAccessToken(); // GAP-328 (getJson と同じ理由)
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {

@@ -16,9 +16,17 @@
 
 begin;
 
-insert into auth.users (id, email) values
-  ('a818edcd-8e05-4bd9-a0d1-aaf80c777adf', 'qahuman@example.com')
-on conflict do nothing;
+-- GAP-327: **画面からのサインインを実際に通す**ための資格情報。
+-- これまでの E2E は cookie を context.addCookies で直接注入していたので、
+-- 「サインイン画面 → API → POST /api/session → cookie → 保護画面」の経路が
+-- 一度も通っておらず、その途中が塞がっていても CI は緑だった。
+-- ローカル/CI は Supabase を持たないので、auth 経路は
+-- auth.users.encrypted_password の sha256 で照合する (本番は Supabase の bcrypt)。
+--   password: qa-e2e-password
+insert into auth.users (id, email, encrypted_password) values
+  ('a818edcd-8e05-4bd9-a0d1-aaf80c777adf', 'qahuman@example.com',
+   'ff3c589619872674641504fc5755f18721f9c1f7826e60e65107767627763eb5')
+on conflict (id) do update set encrypted_password = excluded.encrypted_password;
 
 insert into public.users (id, email, display_name) values
   ('a818edcd-8e05-4bd9-a0d1-aaf80c777adf', 'qahuman@example.com', 'QA Human')

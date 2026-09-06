@@ -52,7 +52,7 @@ import {
 import {
   API_BASE,
   createAuthedApiClient,
-  readAccessToken,
+  ensureAccessToken,
 } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 import { KbButton, KbDenied } from "./ui";
@@ -300,7 +300,7 @@ export function KnowledgeExplorer({
     setExporting(true);
     setExportError(null);
     try {
-      const token = readAccessToken();
+      const token = await ensureAccessToken(); // GAP-328
       const res = await fetch(
         `${API_BASE}/knowledge/vault-export?account_id=${encodeURIComponent(accountId)}`,
         {

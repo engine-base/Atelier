@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
 import { Loading } from "../../../../components/Loading";
-import { createAuthedApiClient, readAccessToken } from "../../../../lib/auth/connector";
+import { createAuthedApiClient, ensureAccessToken } from "../../../../lib/auth/connector";
 
 interface Preview {
   readonly workspace_name: string;
@@ -57,7 +57,14 @@ export function InviteAcceptContainer({
   const client = React.useMemo(() => injected ?? createAuthedApiClient(), [injected]);
   const router = useRouter();
   const [joined, setJoined] = useState<string | null>(null);
-  const isSignedIn = signedIn ?? readAccessToken() !== null;
+  // GAP-328: 読み込み直後はメモリが空なので、同期読みだと **サインイン済みの人にも
+  // 「先にサインインしてください」** が出る。cookie から取り直してから判定する。
+  const [resolvedSignedIn, setResolvedSignedIn] = useState<boolean | null>(null);
+  React.useEffect(() => {
+    if (signedIn !== undefined) return;
+    void ensureAccessToken().then((t) => setResolvedSignedIn(t !== null));
+  }, [signedIn]);
+  const isSignedIn = signedIn ?? resolvedSignedIn === true;
 
   const preview = useQuery({
     queryKey: ["invitation", token],

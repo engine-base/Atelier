@@ -20,7 +20,7 @@ import { Copy, Link2, Trash2 } from "lucide-react";
 
 import { ApiError, type ApiClient } from "@atelier/api-client";
 
-import { API_BASE, readAccessToken } from "../../../../lib/auth/connector";
+import { API_BASE, ensureAccessToken } from "../../../../lib/auth/connector";
 import { cn } from "../../../../lib/cn";
 
 export interface ShareLinkItem {
@@ -48,7 +48,7 @@ function dateLabel(iso: string | null | undefined): string {
 }
 
 async function defaultFetchExport(url: string): Promise<Blob> {
-  const token = readAccessToken();
+  const token = await ensureAccessToken(); // GAP-328
   const res = await fetch(url, {
     method: "GET",
     credentials: "include",

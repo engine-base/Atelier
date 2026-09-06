@@ -12,7 +12,7 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { QueryProvider } from "../../../providers/query-provider";
-import { getJson, readAccessToken } from "../../../lib/auth/connector";
+import { ensureAccessToken, getJson } from "../../../lib/auth/connector";
 import { decodeJwtUnsafe } from "../../../lib/auth/cookie";
 import { readCurrentWorkspace } from "../../../lib/currentWorkspace";
 import { PromotionReviewContainer } from "./_components/PromotionReviewContainer";
@@ -26,8 +26,10 @@ function SK02Inner() {
   // WS 未選択でも所属 WS の先頭へ自動フォールバック (S-K01 と同じ是正)。
   const [fallbackWs, setFallbackWs] = React.useState<string | undefined>();
   React.useEffect(() => {
-    const token = readAccessToken();
-    setAccountId(token ? (decodeJwtUnsafe(token)?.sub ?? null) : null);
+    // GAP-328: 読み込み直後はメモリが空なので、cookie から取り直してから読む。
+    void ensureAccessToken().then((token) => {
+      setAccountId(token ? (decodeJwtUnsafe(token)?.sub ?? null) : null);
+    });
   }, []);
   React.useEffect(() => {
     if (explicitWs) return;

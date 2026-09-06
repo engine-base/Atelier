@@ -21,7 +21,7 @@ import { ApiError, type ApiClient } from "@atelier/api-client";
 import {
   API_BASE,
   createAuthedApiClient,
-  readAccessToken,
+  ensureAccessToken,
 } from "../../../../lib/auth/connector";
 import {
   DOC_TYPE_LABEL,
@@ -267,7 +267,7 @@ export function SalesDocDraftContainer({
   // PDF: 実バイナリを blob DL (失敗時は honest エラー — 偽 DL しない)
   const downloadPdf = async (id: string): Promise<void> => {
     try {
-      const token = readAccessToken();
+      const token = await ensureAccessToken(); // GAP-328
       const res = await fetch(`${API_BASE}/sales-docs/${id}/pdf`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
