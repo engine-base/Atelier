@@ -1,0 +1,37 @@
+owner signin -> 200
+
+== SL01-901 使用済みの招待も再送できる (旧リンク失効・新リンク) ==
+1. 招待を作る                     -> 201
+2. その招待でサインイン (使用済に) -> 200
+3. 使用済みの招待を再送            -> 200  (期待 200 / 旧: 409)
+4. 旧リンク preview/signin         -> 401 / 401  (期待 401 / 401)
+5. 失効済みの招待を再送            -> 409  (期待 409 のまま)
+SL01-901: PASS
+
+== SG01-901 新版を積むと招待済みクライアントに更新メール + 監査ログ ==
+1. 有効な招待 1 + 失効した招待 1   -> qa-active-ecf523@example.com / qa-revoked-9dbc61@example.com (失効)
+   (seed: output=d73cca58-84c1-4855-8f26-397906c8c3eb file=4e1a8260-0fa5-47e7-b05c-58ec588df4e7)
+2. 表の編集を保存 (新版)           -> 201 
+3. 監査ログ (新版 de733dfc-4c35-47b5-b313-305427d891b1 / v3):
+    b0b8b83f-db9b-4bf0-9e46-8dde03edbb69|3|true
+    99999999-0000-4000-8000-000000000001|3|true
+    4c7c4202-e7d0-49e9-aab2-62c4967c871d|3|true
+    f5e61ef5-46f7-4f6e-a288-a4e57dfd9932|3|true
+    fa74ed9f-996a-4f0e-8957-cb144a845622|3|true
+    c859e4d8-8df3-4f0c-ad62-3410b0ab60d1|3|true
+    aa7e11e9-b874-45df-92c2-b751f41b6eef|3|true
+    eeb0e6bf-a377-44eb-bc87-ca240bcd7ccd|3|true
+    f8871416-ec4f-468d-929f-574137477cfc|3|true
+    20bc588f-a33b-4536-83f7-b952a85eae8f|3|true
+    f1a7b942-9f94-42b7-9aca-46432c655748|3|true
+    f59fb570-6a7a-44db-9405-a847d8fde56f|3|true
+    e29bfed2-311e-428a-b81b-0f3c40824dbf|3|true
+    9a66d6b3-fd8e-46a0-82c2-29ff430a6dfc|3|true
+    1e6e06ce-8e89-492f-b827-b6b8978a324d|3|true
+    0c47600d-17fa-45fe-905a-6d350a519fbd|3|true
+    1a20ad37-c450-4e27-8f35-0602e0a32510|3|true
+    b853a529-3431-4c26-8e35-18c281c908cb|3|true
+    3ac6d3b3-049f-4d6f-a3c9-ca74f24833aa|3|true
+    c00f1e40-3e5b-40b8-ba55-7d52bd49be90|3|true
+   有効な招待に送った: True  失効した招待には送っていない: True  (この案件の有効な招待 20 件すべてに送信・全て dry_run)
+SG01-901: PASS  (監査ログ before=20)
